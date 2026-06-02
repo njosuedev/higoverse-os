@@ -6,6 +6,7 @@ class RegisterShopRequest(BaseModel):
     email: EmailStr
     password: str
     phone: str | None = None
+    role: str = "owner"
 
 
 # LOGIN

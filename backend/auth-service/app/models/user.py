@@ -25,7 +25,7 @@ class User(Base):
     role_id = Column(UUID(as_uuid=True), ForeignKey("roles.id"), nullable=True)
 
     # SIMPLE FALLBACK ROLE (used in JWT + fast checks)
-    role = Column(String, default="OWNER")
+    role = Column(String(50), default="owner")
 
     created_at = Column(DateTime, default=datetime.utcnow)
 

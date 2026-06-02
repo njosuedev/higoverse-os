@@ -42,6 +42,7 @@ def register_shop(db: Session, data):
         email=data.email,
         password_hash=hash_password(data.password),
         shop_id=shop.id,
+        role=data.role,
         role_id=None
     )
 
@@ -78,7 +79,8 @@ def login_user(db: Session, email: str, password: str):
     token = create_access_token({
         "sub": str(user.id),
         "shop_id": str(user.shop_id),
-        "email": user.email
+        "email": user.email,
+        "role": user.role
     })
 
     # 4. RESPONSE
