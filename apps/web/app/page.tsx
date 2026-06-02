@@ -1,94 +1,108 @@
 export const metadata = {
   title: "Higoverse | Business Operating System",
   description:
-    "Higoverse is a modern business operating system for inventory, sales, suppliers, customers, and analytics.",
-  openGraph: {
-    title: "Higoverse | Business OS",
-    description: "Manage your entire business in one system.",
-    type: "website",
-  },
+    "Higoverse is a modern business OS for inventory, sales, suppliers, customers, and analytics.",
 };
 
 export default function Home() {
   return (
     <div className="min-h-screen bg-white text-zinc-900 flex flex-col">
 
-      {/* NAVBAR */}
-      <header className="flex items-center justify-between px-8 py-5 border-b bg-white">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-r from-blue-500 to-indigo-600" />
-          <span className="text-lg font-semibold">Higoverse</span>
-          <span className="text-xs text-zinc-500">Business OS</span>
+      {/* TOP NAV */}
+      <header className="sticky top-0 z-50 backdrop-blur bg-white/80 border-b">
+        <div className="max-w-6xl mx-auto flex items-center justify-between px-6 py-4">
+
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-500" />
+            <span className="font-semibold text-lg">Higoverse</span>
+          </div>
+
+          <nav className="hidden md:flex gap-8 text-sm text-zinc-600">
+            <a className="hover:text-zinc-900">Features</a>
+            <a className="hover:text-zinc-900">Solutions</a>
+            <a className="hover:text-zinc-900">Pricing</a>
+            <a className="hover:text-zinc-900">Docs</a>
+          </nav>
+
+          <button className="px-4 py-2 rounded-xl bg-zinc-900 text-white text-sm hover:bg-zinc-800">
+            Open App
+          </button>
         </div>
-
-        <nav className="hidden md:flex gap-6 text-sm text-zinc-600">
-          <a className="hover:text-zinc-900">Dashboard</a>
-          <a className="hover:text-zinc-900">Inventory</a>
-          <a className="hover:text-zinc-900">Sales</a>
-          <a className="hover:text-zinc-900">Reports</a>
-        </nav>
-
-        <button className="px-4 py-2 rounded-lg bg-zinc-900 text-white text-sm hover:bg-zinc-800">
-          Open App
-        </button>
       </header>
 
       {/* HERO */}
-      <main className="flex-1 flex flex-col items-center justify-center text-center px-6">
+      <main className="flex-1">
+        <section className="max-w-6xl mx-auto px-6 pt-24 pb-16 text-center">
 
-        <h1 className="text-4xl md:text-6xl font-bold leading-tight">
-          Higoverse Business Operating System
-        </h1>
+          <h1 className="text-5xl md:text-6xl font-bold leading-tight tracking-tight">
+            Run Your Entire Business with
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-500">
+              {" "}Higoverse
+            </span>
+          </h1>
 
-        <h2 className="mt-4 text-lg text-zinc-600 max-w-2xl">
-          Inventory • Sales • Suppliers • Customers • Analytics
-        </h2>
+          <p className="mt-6 text-lg text-zinc-600 max-w-2xl mx-auto">
+            A powerful business operating system for inventory, sales, suppliers,
+            customers, and real-time analytics — built for scalable companies.
+          </p>
 
-        <p className="mt-6 text-zinc-500 max-w-2xl text-lg">
-          A complete business platform to manage operations, track performance,
-          and scale your business efficiently.
-        </p>
+          <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center">
+            <button className="px-6 py-3 rounded-xl bg-blue-600 text-white font-medium hover:bg-blue-700">
+              Get Started
+            </button>
 
-        {/* CTA */}
-        <div className="mt-8 flex flex-col sm:flex-row gap-4">
-          <button className="px-6 py-3 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700">
-            Enter Dashboard
-          </button>
+            <button className="px-6 py-3 rounded-xl border border-zinc-300 hover:bg-zinc-100">
+              View Dashboard
+            </button>
+          </div>
 
-          <button className="px-6 py-3 rounded-lg border border-zinc-300 text-zinc-800 hover:bg-zinc-100">
-            Explore Features
-          </button>
-        </div>
+          {/* TRUST BADGES */}
+          <div className="mt-10 text-sm text-zinc-500">
+            Trusted for modern business operations & inventory systems
+          </div>
+        </section>
 
         {/* FEATURES */}
-        <div className="mt-16 grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl w-full">
+        <section className="max-w-6xl mx-auto px-6 pb-24 grid md:grid-cols-3 gap-6">
 
-          <div className="p-6 rounded-xl border bg-white shadow-sm">
-            <h3 className="text-lg font-semibold">Smart Inventory</h3>
-            <p className="text-sm text-zinc-600 mt-2">
-              Track stock, automate alerts, and manage products easily.
+          <div className="p-6 rounded-2xl border bg-white shadow-sm hover:shadow-md transition">
+            <h3 className="font-semibold text-lg">Inventory System</h3>
+            <p className="text-zinc-600 mt-2 text-sm">
+              Track stock, manage products, and automate inventory alerts in real time.
             </p>
           </div>
 
-          <div className="p-6 rounded-xl border bg-white shadow-sm">
-            <h3 className="text-lg font-semibold">Sales & Finance</h3>
-            <p className="text-sm text-zinc-600 mt-2">
-              Manage invoices, expenses, profit, and daily sales.
+          <div className="p-6 rounded-2xl border bg-white shadow-sm hover:shadow-md transition">
+            <h3 className="font-semibold text-lg">Sales & Finance</h3>
+            <p className="text-zinc-600 mt-2 text-sm">
+              Manage invoices, sales, expenses, and profit/loss reporting.
             </p>
           </div>
 
-          <div className="p-6 rounded-xl border bg-white shadow-sm">
-            <h3 className="text-lg font-semibold">Business Network</h3>
-            <p className="text-sm text-zinc-600 mt-2">
+          <div className="p-6 rounded-2xl border bg-white shadow-sm hover:shadow-md transition">
+            <h3 className="font-semibold text-lg">Business Network</h3>
+            <p className="text-zinc-600 mt-2 text-sm">
               Connect suppliers, customers, and partners in one ecosystem.
             </p>
           </div>
-        </div>
+        </section>
+
+        {/* DASHBOARD PREVIEW BLOCK */}
+        <section className="max-w-6xl mx-auto px-6 pb-24">
+          <div className="rounded-3xl border bg-zinc-50 p-10 text-center">
+            <h2 className="text-2xl font-semibold">
+              Built for Real Business Operations
+            </h2>
+            <p className="text-zinc-600 mt-3 max-w-xl mx-auto">
+              From small shops to enterprise systems — Higoverse scales with your business.
+            </p>
+          </div>
+        </section>
       </main>
 
       {/* FOOTER */}
-      <footer className="text-center py-6 text-xs text-zinc-500 border-t">
-        © {new Date().getFullYear()} Higoverse — Business Operating System
+      <footer className="border-t py-8 text-center text-sm text-zinc-500">
+        © {new Date().getFullYear()} Higoverse. All rights reserved.
       </footer>
     </div>
   );
