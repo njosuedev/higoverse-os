@@ -22,75 +22,49 @@ export default function DashboardPage() {
   if (loading) return <Loader />;
 
   return (
-    <div className="min-h-screen bg-zinc-50 flex">
+    <div className="min-h-screen bg-zinc-50">
 
-      {/* SIDEBAR */}
-      <aside className="w-64 bg-white border-r p-6 hidden md:block">
-        <h1 className="text-xl font-bold text-zinc-900">
-          Higoverse
-        </h1>
+      {/* TOP BAR */}
+      <div className="flex justify-between items-center px-8 py-5 bg-white border-b">
+        <h1 className="text-xl font-bold">Higoverse Dashboard</h1>
+        <LogoutButton />
+      </div>
 
-        <nav className="mt-8 space-y-3 text-sm text-zinc-600">
-          <p className="text-blue-600 font-medium">Dashboard</p>
-          <p>Inventory</p>
-          <p>Sales</p>
-          <p>Customers</p>
-          <p>Reports</p>
-        </nav>
-
-        <div className="mt-10">
-          <LogoutButton />
-        </div>
-      </aside>
-
-      {/* MAIN */}
-      <main className="flex-1 p-8">
-
-        {/* HEADER */}
-        <div className="flex justify-between items-center">
-          <div>
-            <h2 className="text-2xl font-bold text-zinc-900">
-              Dashboard
-            </h2>
-            <p className="text-zinc-500 text-sm">
-              Welcome back, {user?.email}
-            </p>
-          </div>
-        </div>
+      {/* CONTENT */}
+      <div className="p-8 max-w-6xl mx-auto">
 
         {/* CARDS */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
+        <div className="grid md:grid-cols-3 gap-5">
 
-          <div className="bg-white border rounded-2xl p-6 shadow-sm">
-            <p className="text-zinc-500 text-sm">Total Sales</p>
-            <h3 className="text-2xl font-bold mt-2">$12,400</h3>
+          <div className="bg-white p-6 rounded-2xl shadow">
+            <p className="text-sm text-zinc-500">Email</p>
+            <p className="font-semibold">{user?.email}</p>
           </div>
 
-          <div className="bg-white border rounded-2xl p-6 shadow-sm">
-            <p className="text-zinc-500 text-sm">Products</p>
-            <h3 className="text-2xl font-bold mt-2">128</h3>
+          <div className="bg-white p-6 rounded-2xl shadow">
+            <p className="text-sm text-zinc-500">Shop ID</p>
+            <p className="font-semibold">{user?.shop_id}</p>
           </div>
 
-          <div className="bg-white border rounded-2xl p-6 shadow-sm">
-            <p className="text-zinc-500 text-sm">Customers</p>
-            <h3 className="text-2xl font-bold mt-2">1,240</h3>
+          <div className="bg-white p-6 rounded-2xl shadow">
+            <p className="text-sm text-zinc-500">Status</p>
+            <p className="text-green-600 font-semibold">Active</p>
           </div>
+
         </div>
 
-        {/* USER INFO */}
-        <div className="mt-10 bg-white border rounded-2xl p-6">
-          <h3 className="font-semibold text-zinc-900">
-            Account Info
-          </h3>
+        {/* MAIN PANEL */}
+        <div className="mt-8 bg-white p-8 rounded-2xl shadow">
+          <h2 className="text-lg font-semibold mb-2">
+            Welcome to Higoverse
+          </h2>
 
-          <div className="mt-4 text-sm text-zinc-600 space-y-2">
-            <p>Email: {user?.email}</p>
-            <p>Shop ID: {user?.shop_id}</p>
-            <p>Status: Active</p>
-          </div>
+          <p className="text-zinc-600">
+            Manage your inventory, sales, suppliers, and customers in one system.
+          </p>
         </div>
 
-      </main>
+      </div>
     </div>
   );
 }
