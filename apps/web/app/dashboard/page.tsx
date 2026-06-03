@@ -1,17 +1,16 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import {
-  getUser,
-  isAuthenticated,
-  logout,
-} from "@/lib/auth";
+import { getUser, isAuthenticated, logout } from "@/lib/auth";
 
 export default function DashboardPage() {
   const [user, setUser] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!isAuthenticated()) {
+    const auth = isAuthenticated();
+
+    if (!auth) {
       window.location.href = "/login";
       return;
     }
@@ -24,11 +23,12 @@ export default function DashboardPage() {
     }
 
     setUser(currentUser);
+    setLoading(false);
   }, []);
 
-  if (!user) {
+  if (loading) {
     return (
-      <div className="min-h-screen bg-zinc-950 flex items-center justify-center text-white">
+      <div className="min-h-screen flex items-center justify-center bg-zinc-950 text-white">
         Loading dashboard...
       </div>
     );
@@ -36,20 +36,18 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-zinc-950 text-white">
-      {/* TOP NAVBAR */}
-      <header className="border-b border-zinc-800 bg-zinc-900/70 backdrop-blur">
+      {/* TOP BAR */}
+      <header className="border-b border-zinc-800 bg-zinc-900/60 backdrop-blur">
         <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold">
-              Higoverse
-            </h1>
-            <p className="text-zinc-400 text-sm">
+            <h1 className="text-2xl font-bold">Higoverse</h1>
+            <p className="text-sm text-zinc-400">
               Business Operating System
             </p>
           </div>
 
           <button
-            onClick={logout}
+            onClick={() => logout()}
             className="px-5 py-2 rounded-xl bg-red-600 hover:bg-red-700 transition"
           >
             Logout
@@ -57,11 +55,11 @@ export default function DashboardPage() {
         </div>
       </header>
 
-      {/* CONTENT */}
+      {/* MAIN */}
       <main className="max-w-7xl mx-auto p-6">
-        {/* WELCOME CARD */}
-        <div className="rounded-3xl bg-gradient-to-r from-blue-600 to-indigo-600 p-8 shadow-xl">
-          <h2 className="text-4xl font-bold">
+        {/* USER CARD */}
+        <div className="rounded-3xl bg-gradient-to-r from-blue-600 to-indigo-600 p-8">
+          <h2 className="text-3xl font-bold">
             Welcome Back 👋
           </h2>
 
@@ -74,105 +72,48 @@ export default function DashboardPage() {
           </p>
         </div>
 
-        {/* STATS */}
-        <div className="grid md:grid-cols-4 gap-6 mt-8">
-          <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-6">
-            <p className="text-zinc-400 text-sm">
-              Total Products
+        {/* MODULE GRID */}
+        <div className="grid md:grid-cols-3 gap-6 mt-10">
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 hover:border-blue-500 transition">
+            <h3 className="font-semibold text-lg">Inventory</h3>
+            <p className="text-zinc-400 text-sm mt-2">
+              Manage stock and products
             </p>
-            <h3 className="text-3xl font-bold mt-2">
-              0
-            </h3>
           </div>
 
-          <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-6">
-            <p className="text-zinc-400 text-sm">
-              Customers
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 hover:border-blue-500 transition">
+            <h3 className="font-semibold text-lg">Sales</h3>
+            <p className="text-zinc-400 text-sm mt-2">
+              Track orders and revenue
             </p>
-            <h3 className="text-3xl font-bold mt-2">
-              0
-            </h3>
           </div>
 
-          <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-6">
-            <p className="text-zinc-400 text-sm">
-              Sales
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 hover:border-blue-500 transition">
+            <h3 className="font-semibold text-lg">Customers</h3>
+            <p className="text-zinc-400 text-sm mt-2">
+              Manage customer relationships
             </p>
-            <h3 className="text-3xl font-bold mt-2">
-              RWF 0
-            </h3>
           </div>
 
-          <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-6">
-            <p className="text-zinc-400 text-sm">
-              Profit
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 hover:border-blue-500 transition">
+            <h3 className="font-semibold text-lg">Suppliers</h3>
+            <p className="text-zinc-400 text-sm mt-2">
+              Vendor management system
             </p>
-            <h3 className="text-3xl font-bold mt-2 text-green-400">
-              RWF 0
-            </h3>
           </div>
-        </div>
 
-        {/* MODULES */}
-        <div className="mt-10">
-          <h3 className="text-2xl font-bold mb-6">
-            Business Modules
-          </h3>
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 hover:border-blue-500 transition">
+            <h3 className="font-semibold text-lg">Reports</h3>
+            <p className="text-zinc-400 text-sm mt-2">
+              Analytics & insights
+            </p>
+          </div>
 
-          <div className="grid md:grid-cols-3 gap-6">
-            <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-6 hover:border-blue-500 transition cursor-pointer">
-              <h4 className="font-semibold text-lg">
-                Inventory Management
-              </h4>
-              <p className="text-zinc-400 mt-2">
-                Products, stock movements and warehouse control.
-              </p>
-            </div>
-
-            <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-6 hover:border-blue-500 transition cursor-pointer">
-              <h4 className="font-semibold text-lg">
-                Sales Management
-              </h4>
-              <p className="text-zinc-400 mt-2">
-                Orders, invoices and sales analytics.
-              </p>
-            </div>
-
-            <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-6 hover:border-blue-500 transition cursor-pointer">
-              <h4 className="font-semibold text-lg">
-                Customer Management
-              </h4>
-              <p className="text-zinc-400 mt-2">
-                CRM, customer history and engagement.
-              </p>
-            </div>
-
-            <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-6 hover:border-blue-500 transition cursor-pointer">
-              <h4 className="font-semibold text-lg">
-                Supplier Management
-              </h4>
-              <p className="text-zinc-400 mt-2">
-                Vendor relationships and procurement.
-              </p>
-            </div>
-
-            <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-6 hover:border-blue-500 transition cursor-pointer">
-              <h4 className="font-semibold text-lg">
-                Financial Reports
-              </h4>
-              <p className="text-zinc-400 mt-2">
-                Profit, expenses and business intelligence.
-              </p>
-            </div>
-
-            <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-6 hover:border-blue-500 transition cursor-pointer">
-              <h4 className="font-semibold text-lg">
-                Business Network
-              </h4>
-              <p className="text-zinc-400 mt-2">
-                Connect customers, suppliers and partners.
-              </p>
-            </div>
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 hover:border-blue-500 transition">
+            <h3 className="font-semibold text-lg">Settings</h3>
+            <p className="text-zinc-400 text-sm mt-2">
+              System configuration
+            </p>
           </div>
         </div>
       </main>
