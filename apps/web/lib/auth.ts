@@ -1,34 +1,21 @@
-const TOKEN_KEY = "higoverse_token";
-const USER_KEY = "higoverse_user";
+export const TOKEN_KEY = "higoverse_token";
+export const USER_KEY = "higoverse_user";
 
-// --------------------
-// SAVE LOGIN DATA
-// --------------------
+/** Save auth after login */
 export function setAuth(data: any) {
+  if (typeof window === "undefined") return;
+
   localStorage.setItem(TOKEN_KEY, data.access_token);
   localStorage.setItem(USER_KEY, JSON.stringify(data.user));
 }
 
-// --------------------
-// LOGOUT
-// --------------------
-export function logout() {
-  localStorage.removeItem(TOKEN_KEY);
-  localStorage.removeItem(USER_KEY);
-  window.location.href = "/login";
+/** Get token */
+export function getToken() {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem(TOKEN_KEY);
 }
 
-// --------------------
-// CHECK AUTH
-// --------------------
-export function isAuthenticated(): boolean {
-  if (typeof window === "undefined") return false;
-  return !!localStorage.getItem(TOKEN_KEY);
-}
-
-// --------------------
-// GET USER
-// --------------------
+/** Get user */
 export function getUser() {
   if (typeof window === "undefined") return null;
 
@@ -36,10 +23,15 @@ export function getUser() {
   return user ? JSON.parse(user) : null;
 }
 
-// --------------------
-// GET TOKEN
-// --------------------
-export function getToken() {
-  if (typeof window === "undefined") return null;
-  return localStorage.getItem(TOKEN_KEY);
+/** Check auth */
+export function isAuthenticated() {
+  if (typeof window === "undefined") return false;
+  return !!localStorage.getItem(TOKEN_KEY);
+}
+
+/** Logout */
+export function logout() {
+  localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(USER_KEY);
+  window.location.href = "/login";
 }
