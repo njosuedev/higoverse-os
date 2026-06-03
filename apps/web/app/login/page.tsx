@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { setAuth, isAuthenticated } from "@/lib/auth";
-import Loader from "@/components/Loader";
+import Loader from "@/app/components/Loader";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
