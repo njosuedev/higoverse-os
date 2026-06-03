@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { getUser, isAuthenticated } from "@/lib/auth";
-import LogoutButton from "@/components/LogoutButton";
+import LogoutButton from "@/app/components/LogoutButton";
 
 export default function DashboardPage() {
   const [user, setUser] = useState<any>(null);
