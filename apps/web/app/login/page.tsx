@@ -15,9 +15,7 @@ export default function LoginPage() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    if (isAuthenticated()) {
-      router.replace("/dashboard");
-    }
+    if (isAuthenticated()) router.replace("/dashboard");
   }, [router]);
 
   const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -58,53 +56,50 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex flex-col lg:flex-row bg-gradient-to-br from-slate-50 via-white to-blue-50">
 
-      {/* ================= LEFT INFO PANEL ================= */}
-      <div className="hidden lg:flex w-1/2 relative bg-gradient-to-br from-slate-950 via-blue-900 to-indigo-800 text-white">
-
+      {/* LEFT INFO */}
+      <div className="hidden lg:flex w-1/2 bg-gradient-to-br from-slate-950 via-blue-900 to-indigo-800 text-white">
         <div className="flex flex-col justify-center px-16">
-
           <h1 className="text-5xl font-bold leading-tight">
-            Manage your business in one system
+            Run your entire business in one system
           </h1>
 
           <p className="mt-6 text-blue-100 text-lg">
-            Inventory, sales, CRM, analytics and finance — all in one place.
+            Higoverse centralizes inventory, sales, customers, suppliers and analytics.
           </p>
 
           <div className="mt-10 space-y-3 text-blue-100 text-sm">
-            <p>✔ Real-time inventory tracking</p>
-            <p>✔ Sales analytics dashboard</p>
-            <p>✔ Customer management system</p>
-            <p>✔ Secure role-based access</p>
+            <p>✔ Real-time business tracking</p>
+            <p>✔ Smart analytics dashboard</p>
+            <p>✔ Secure enterprise login</p>
           </div>
-
         </div>
       </div>
 
-      {/* ================= RIGHT FORM ================= */}
+      {/* RIGHT FORM */}
       <div className="flex-1 flex items-center justify-center px-4 sm:px-6 py-10">
 
         <div className="w-full max-w-md">
 
-          {/* HEADER */}
+          {/* BRAND */}
           <div className="text-center lg:text-left mb-8">
-
             <div className="flex items-center justify-center lg:justify-start gap-3 mb-4">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 shadow-md" />
-              <span className="font-bold text-xl">Higoverse</span>
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600" />
+              <span className="text-xl font-bold text-slate-900">
+                Higoverse
+              </span>
             </div>
 
             <h2 className="text-3xl font-bold text-slate-900">
               Welcome back
             </h2>
 
-            <p className="mt-2 text-slate-500 text-sm">
+            <p className="mt-2 text-slate-600 text-sm">
               Sign in to access your business dashboard
             </p>
           </div>
 
-          {/* FORM CARD */}
-          <div className="bg-white/90 backdrop-blur-xl border border-slate-200 shadow-xl rounded-2xl sm:rounded-3xl p-6 sm:p-8">
+          {/* CARD */}
+          <div className="bg-white/90 backdrop-blur-xl border border-slate-200 shadow-xl rounded-2xl p-6 sm:p-8">
 
             {error && (
               <div className="mb-5 bg-red-50 border border-red-200 text-red-600 text-sm p-3 rounded-xl">
@@ -121,14 +116,18 @@ export default function LoginPage() {
                 </label>
 
                 <div className="relative mt-2">
-                  <Mail className="w-5 h-5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
 
                   <input
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="example@company.com"
+
+                    // 👇 IMPROVED PLACEHOLDER (VISIBLE + INFORMATIVE)
+                    placeholder="Enter your business email (e.g. admin@company.com)"
+
                     className="w-full h-12 sm:h-14 pl-10 pr-4 rounded-xl border border-slate-300
+                    text-slate-900 placeholder:text-slate-500 placeholder:opacity-100
                     focus:ring-4 focus:ring-blue-100 focus:border-blue-500 outline-none transition"
                   />
                 </div>
@@ -141,14 +140,18 @@ export default function LoginPage() {
                 </label>
 
                 <div className="relative mt-2">
-                  <Lock className="w-5 h-5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
 
                   <input
                     type="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    placeholder="••••••••"
+
+                    // 👇 IMPROVED PLACEHOLDER
+                    placeholder="Enter your secure password (min 8 characters)"
+
                     className="w-full h-12 sm:h-14 pl-10 pr-4 rounded-xl border border-slate-300
+                    text-slate-900 placeholder:text-slate-500 placeholder:opacity-100
                     focus:ring-4 focus:ring-blue-100 focus:border-blue-500 outline-none transition"
                   />
                 </div>
@@ -159,8 +162,7 @@ export default function LoginPage() {
                 type="submit"
                 disabled={loading}
                 className="w-full h-12 sm:h-14 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600
-                text-white font-semibold shadow-md hover:shadow-lg active:scale-[0.99] transition
-                flex items-center justify-center gap-2"
+                text-white font-semibold shadow-md hover:shadow-lg transition flex items-center justify-center gap-2"
               >
                 <LogIn className="w-4 h-4" />
                 {loading ? "Signing in..." : "Sign In"}
