@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { setAuth, isAuthenticated } from "@/lib/auth";
 import Loader from "@/components/Loader";
 
@@ -48,32 +48,43 @@ export default function LoginPage() {
       }
 
       setAuth(data);
-      window.location.replace("/dashboard");
+
+      // safe redirect (no hydration issues)
+      window.location.href = "/dashboard";
     } catch {
-      setError("Network error");
+      setError("Network error. Please try again.");
       setLoading(false);
     }
   };
 
-  if (typeof window !== "undefined" && isAuthenticated()) {
-    window.location.replace("/dashboard");
-    return null;
+  // ✅ SAFE AUTH REDIRECT (fix hydration + build issues)
+  useEffect(() => {
+    if (isAuthenticated()) {
+      window.location.href = "/dashboard";
+    }
+  }, []);
+
+  // LOADER
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-white">
+        <Loader />
+      </div>
+    );
   }
 
-  if (loading) return <Loader />;
-
   return (
-    <div className="min-h-screen flex items-center justify-center bg-white px-4">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-white to-zinc-100 px-4">
 
-      <div className="w-full max-w-md bg-white border shadow-xl rounded-2xl p-8">
+      <div className="w-full max-w-md bg-white border shadow-2xl rounded-2xl p-8">
 
-        {/* TITLE */}
+        {/* HEADER */}
         <h1 className="text-3xl font-bold text-zinc-900">
           Welcome Back
         </h1>
 
         <p className="text-zinc-500 mt-2">
-          Sign in to your Higoverse shop
+          Sign in to your Higoverse workspace
         </p>
 
         {/* ERROR */}
@@ -89,7 +100,7 @@ export default function LoginPage() {
           <input
             type="email"
             placeholder="Email address"
-            className="w-full h-12 px-4 rounded-xl border focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full h-12 px-4 rounded-xl border border-zinc-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
           />
@@ -97,22 +108,24 @@ export default function LoginPage() {
           <input
             type="password"
             placeholder="Password"
-            className="w-full h-12 px-4 rounded-xl border focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full h-12 px-4 rounded-xl border border-zinc-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
           />
 
           <button
             type="submit"
-            className="w-full h-12 rounded-xl bg-blue-600 text-white font-medium hover:bg-blue-700 transition"
+            className="w-full h-12 rounded-xl bg-blue-600 text-white font-medium hover:bg-blue-700 transition disabled:opacity-60"
+            disabled={loading}
           >
-            Sign In
+            {loading ? "Signing in..." : "Sign In"}
           </button>
         </form>
 
+        {/* FOOTER */}
         <p className="text-sm text-center text-zinc-500 mt-6">
           Don’t have an account?{" "}
-          <a href="/register" className="text-blue-600">
+          <a href="/register" className="text-blue-600 font-medium">
             Create shop
           </a>
         </p>
