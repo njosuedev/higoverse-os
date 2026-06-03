@@ -1,9 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { setAuth, isAuthenticated } from "@/lib/auth";
 
 export default function LoginPage() {
+  const router = useRouter();
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
@@ -12,64 +15,57 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (isAuthenticated()) {
-      window.location.replace("/dashboard");
+      router.replace("/dashboard");
     }
-  }, []);
+  }, [router]);
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
     setError("");
 
-    if (!email.trim()) {
-      setError("Email is required");
-      return;
-    }
-
-    if (!password.trim()) {
-      setError("Password is required");
-      return;
-    }
+    if (!email.trim()) return setError("Email is required");
+    if (!password.trim()) return setError("Password is required");
 
     setLoading(true);
 
     try {
-      const response = await fetch(
+      const res = await fetch(
         "https://higoverse-auth.vercel.app/api/v1/auth/login",
         {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            email,
-            password,
-          }),
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, password }),
         }
       );
 
-      const data = await response.json();
+      const data = await res.json();
 
-      if (!response.ok) {
-        setError(data.detail || "Invalid email or password");
+      if (!res.ok) {
+        setError(data?.detail || "Invalid credentials");
         setLoading(false);
         return;
       }
 
       setAuth(data);
 
-      window.location.replace("/dashboard");
+      router.replace("/dashboard");
     } catch {
-      setError("Unable to connect to server");
+      setError("Network error. Please try again.");
       setLoading(false);
     }
   };
 
   return (
     <div className="min-h-screen flex bg-white">
-      {/* LEFT SIDE */}
+
+      {/* LEFT SIDE - PREMIUM BRAND PANEL */}
       <div className="hidden lg:flex w-1/2 relative overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-br from-slate-950 via-blue-900 to-indigo-700" />
+
+        {/* glow effects */}
+        <div className="absolute top-[-120px] left-[-120px] w-[400px] h-[400px] bg-blue-500/30 blur-3xl rounded-full" />
+        <div className="absolute bottom-[-120px] right-[-120px] w-[400px] h-[400px] bg-indigo-500/30 blur-3xl rounded-full" />
 
         <div className="relative z-10 flex flex-col justify-center px-16 text-white">
           <div className="flex items-center gap-3 mb-10">
@@ -87,32 +83,35 @@ export default function LoginPage() {
 
           <p className="mt-6 text-lg text-blue-100 max-w-xl">
             Inventory, sales, suppliers, customers, analytics,
-            finance and business intelligence in one modern
-            operating system.
+            finance and intelligence — all in one modern SaaS system.
           </p>
 
+          {/* stats */}
           <div className="grid grid-cols-2 gap-5 mt-12 max-w-xl">
             <div className="rounded-3xl border border-white/10 bg-white/10 backdrop-blur-xl p-6">
               <div className="text-3xl font-bold">10K+</div>
-              <div className="mt-2 text-blue-100">
-                Businesses Managed
+              <div className="mt-2 text-blue-100 text-sm">
+                Businesses Powered
               </div>
             </div>
 
             <div className="rounded-3xl border border-white/10 bg-white/10 backdrop-blur-xl p-6">
               <div className="text-3xl font-bold">99.9%</div>
-              <div className="mt-2 text-blue-100">
-                Platform Uptime
+              <div className="mt-2 text-blue-100 text-sm">
+                System Uptime
               </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* RIGHT SIDE */}
+      {/* RIGHT SIDE - FORM */}
       <div className="flex-1 flex items-center justify-center px-6 py-10 bg-gradient-to-br from-slate-50 via-white to-blue-50">
+
         <div className="w-full max-w-md">
           <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl p-8">
+
+            {/* HEADER */}
             <div className="mb-8">
               <div className="flex lg:hidden items-center gap-3 mb-6">
                 <div className="w-10 h-10 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600" />
@@ -124,17 +123,21 @@ export default function LoginPage() {
               </h2>
 
               <p className="mt-2 text-slate-500">
-                Access your business workspace
+                Access your business dashboard
               </p>
             </div>
 
+            {/* ERROR */}
             {error && (
               <div className="mb-5 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-600">
                 {error}
               </div>
             )}
 
+            {/* FORM */}
             <form onSubmit={handleLogin} className="space-y-5">
+
+              {/* EMAIL */}
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-2">
                   Email Address
@@ -146,11 +149,12 @@ export default function LoginPage() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   autoComplete="email"
-                  required
-                  className="w-full h-14 rounded-2xl border border-slate-300 bg-white px-4 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-4 focus:ring-blue-500/15 focus:border-blue-500 transition"
+                  className="w-full h-14 rounded-2xl border border-slate-300 bg-white px-4 text-slate-900
+                  placeholder:text-slate-400 focus:outline-none focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500 transition"
                 />
               </div>
 
+              {/* PASSWORD */}
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-2">
                   Password
@@ -162,15 +166,18 @@ export default function LoginPage() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   autoComplete="current-password"
-                  required
-                  className="w-full h-14 rounded-2xl border border-slate-300 bg-white px-4 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-4 focus:ring-blue-500/15 focus:border-blue-500 transition"
+                  className="w-full h-14 rounded-2xl border border-slate-300 bg-white px-4 text-slate-900
+                  placeholder:text-slate-400 focus:outline-none focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500 transition"
                 />
               </div>
 
+              {/* BUTTON */}
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full h-14 rounded-2xl bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 text-white font-semibold shadow-lg hover:shadow-xl transition disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-3"
+                className="w-full h-14 rounded-2xl bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700
+                text-white font-semibold shadow-lg hover:shadow-xl transition flex items-center justify-center gap-3
+                disabled:opacity-70 disabled:cursor-not-allowed"
               >
                 {loading ? (
                   <>
@@ -183,15 +190,17 @@ export default function LoginPage() {
               </button>
             </form>
 
-            <div className="mt-8 text-center text-slate-500">
-              Don't have an account?
+            {/* FOOTER */}
+            <p className="text-center text-sm text-slate-500 mt-8">
+              Don’t have an account?{" "}
               <a
                 href="/register"
-                className="ml-2 font-medium text-blue-600 hover:text-blue-700"
+                className="text-blue-600 font-medium hover:text-blue-700"
               >
                 Create Workspace
               </a>
-            </div>
+            </p>
+
           </div>
         </div>
       </div>
