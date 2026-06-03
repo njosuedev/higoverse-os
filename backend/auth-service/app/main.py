@@ -1,14 +1,27 @@
 from fastapi import FastAPI
-from app.api.v1 import auth
-from app.db.base import Base
-from app.db.session import engine
-from app.models import user, role, shop, refresh_token
+from fastapi.middleware.cors import CORSMiddleware
 
-Base.metadata.create_all(bind=engine)
+from app.api.v1 import auth
 
 app = FastAPI(title="Higoverse Auth Service")
 
-app.include_router(auth.router, prefix="/api/v1/auth")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "https://higoverse-os.vercel.app",
+        "http://localhost:3000",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+app.include_router(
+    auth.router,
+    prefix="/api/v1/auth",
+    tags=["Authentication"]
+)
+
 
 @app.get("/")
 def root():

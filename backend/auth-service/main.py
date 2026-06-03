@@ -3,8 +3,11 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.v1 import auth
 
-app = FastAPI(title="Higoverse Auth Service")
+app = FastAPI(
+    title="Higoverse Auth Service"
+)
 
+# CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -16,13 +19,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Routes
 app.include_router(
     auth.router,
     prefix="/api/v1/auth",
-    tags=["Auth"]
+    tags=["Authentication"]
 )
-
 
 @app.get("/")
 def root():
-    return {"status": "auth-service running"}
+    return {
+        "status": "auth-service running"
+    }
