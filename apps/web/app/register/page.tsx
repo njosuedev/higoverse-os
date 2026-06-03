@@ -10,119 +10,84 @@ export default function RegisterPage() {
     phone: "",
   });
 
-  const handleRegister = async (
-    e: React.FormEvent
-  ) => {
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setLoading(true);
 
-    const res = await fetch(
-      "https://higoverse-auth.vercel.app/api/v1/auth/register",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(form),
-      }
-    );
+    await fetch("https://higoverse-auth.vercel.app/api/v1/auth/register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(form),
+    });
 
-    const data = await res.json();
-
-    if (!res.ok) {
-      alert(data.detail || "Registration failed");
-      return;
-    }
-
-    alert("Workspace created successfully");
+    setLoading(false);
     window.location.href = "/login";
   };
 
   return (
-    <div className="min-h-screen bg-black flex items-center justify-center px-6">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-white to-indigo-50 px-4">
 
-      <div className="w-full max-w-2xl rounded-3xl border border-zinc-800 bg-zinc-950 p-10">
+      <div className="w-full max-w-md bg-white border rounded-2xl shadow-xl p-8">
 
-        <div className="text-center mb-10">
-          <h1 className="text-5xl font-bold text-white">
-            Create Workspace
-          </h1>
+        <h1 className="text-3xl font-bold">Create Shop</h1>
+        <p className="text-zinc-500 mt-2">Start your business with Higoverse</p>
 
-          <p className="text-zinc-400 mt-4">
-            Launch your business on Higoverse
-          </p>
-        </div>
+        <form onSubmit={handleSubmit} className="mt-6 space-y-4">
 
-        <form
-          onSubmit={handleRegister}
-          className="grid md:grid-cols-2 gap-5"
-        >
           <input
-            placeholder="Business Name"
-            value={form.shop_name}
-            onChange={(e) =>
-              setForm({
-                ...form,
-                shop_name: e.target.value,
-              })
-            }
-            className="h-14 rounded-xl bg-zinc-900 border border-zinc-700 px-4 text-white"
+            placeholder="Shop Name"
+            className="input"
+            onChange={(e) => setForm({ ...form, shop_name: e.target.value })}
           />
 
           <input
-            placeholder="Phone Number"
-            value={form.phone}
-            onChange={(e) =>
-              setForm({
-                ...form,
-                phone: e.target.value,
-              })
-            }
-            className="h-14 rounded-xl bg-zinc-900 border border-zinc-700 px-4 text-white"
+            placeholder="Email"
+            className="input"
+            onChange={(e) => setForm({ ...form, email: e.target.value })}
           />
 
           <input
-            type="email"
-            placeholder="Email Address"
-            value={form.email}
-            onChange={(e) =>
-              setForm({
-                ...form,
-                email: e.target.value,
-              })
-            }
-            className="h-14 rounded-xl bg-zinc-900 border border-zinc-700 px-4 text-white"
+            placeholder="Phone"
+            className="input"
+            onChange={(e) => setForm({ ...form, phone: e.target.value })}
           />
 
           <input
             type="password"
             placeholder="Password"
-            value={form.password}
-            onChange={(e) =>
-              setForm({
-                ...form,
-                password: e.target.value,
-              })
-            }
-            className="h-14 rounded-xl bg-zinc-900 border border-zinc-700 px-4 text-white"
+            className="input"
+            onChange={(e) => setForm({ ...form, password: e.target.value })}
           />
 
           <button
-            type="submit"
-            className="
-              md:col-span-2
-              h-14
-              rounded-xl
-              bg-gradient-to-r
-              from-blue-600
-              to-indigo-600
-              text-white
-              font-semibold
-            "
+            disabled={loading}
+            className="w-full h-12 rounded-xl bg-gradient-to-r from-indigo-500 to-blue-500 text-white flex items-center justify-center"
           >
-            Create Workspace
+            {loading ? (
+              <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+            ) : (
+              "Create Account"
+            )}
           </button>
+
         </form>
       </div>
+
+      <style jsx>{`
+        .input {
+          width: 100%;
+          height: 48px;
+          border: 1px solid #e5e7eb;
+          border-radius: 12px;
+          padding: 0 14px;
+          outline: none;
+        }
+        .input:focus {
+          border-color: #3b82f6;
+        }
+      `}</style>
     </div>
   );
 }
