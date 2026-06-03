@@ -215,7 +215,7 @@ export default function Home() {
       {/* FOOTER */}
       <footer className="border-t border-zinc-100 bg-white">
 
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-12 text-center text-sm text-zinc-500">
+        <div className="max-w-6xl mx-auto px-2 sm:px-3 py-6 text-center text-sm text-zinc-500">
           © 2024 - {new Date().getFullYear()} Higoverse — Built for modern business growth
         </div>
 
