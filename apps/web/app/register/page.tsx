@@ -1,93 +1,96 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
-import Link from "next/link";
-
-const API_URL = "https://higoverse-auth.vercel.app/api/v1/auth";
 
 export default function RegisterPage() {
-  const router = useRouter();
-
-  const [loading, setLoading] = useState(false);
-
   const [form, setForm] = useState({
     shop_name: "",
     email: "",
-    phone: "",
     password: "",
+    phone: "",
   });
 
-  async function handleSubmit(e: React.FormEvent) {
+  const handleRegister = async (
+    e: React.FormEvent
+  ) => {
     e.preventDefault();
 
-    try {
-      setLoading(true);
-
-      const res = await fetch(`${API_URL}/register`, {
+    const res = await fetch(
+      "https://higoverse-auth.vercel.app/api/v1/auth/register",
+      {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify(form),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        alert(data.detail || "Registration failed");
-        return;
       }
+    );
 
-      alert("Account created successfully");
+    const data = await res.json();
 
-      router.push("/login");
-    } catch (error) {
-      console.error(error);
-      alert("Network error");
-    } finally {
-      setLoading(false);
+    if (!res.ok) {
+      alert(data.detail || "Registration failed");
+      return;
     }
-  }
+
+    alert("Workspace created successfully");
+    window.location.href = "/login";
+  };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-zinc-50 p-6">
-      <div className="w-full max-w-md bg-white rounded-3xl border p-8 shadow-xl">
-        <h1 className="text-3xl font-bold">Create Account</h1>
+    <div className="min-h-screen bg-black flex items-center justify-center px-6">
 
-        <p className="text-zinc-500 mt-2">
-          Create your Higoverse business workspace
-        </p>
+      <div className="w-full max-w-2xl rounded-3xl border border-zinc-800 bg-zinc-950 p-10">
 
-        <form onSubmit={handleSubmit} className="mt-8 space-y-4">
+        <div className="text-center mb-10">
+          <h1 className="text-5xl font-bold text-white">
+            Create Workspace
+          </h1>
+
+          <p className="text-zinc-400 mt-4">
+            Launch your business on Higoverse
+          </p>
+        </div>
+
+        <form
+          onSubmit={handleRegister}
+          className="grid md:grid-cols-2 gap-5"
+        >
           <input
-            placeholder="Shop Name"
+            placeholder="Business Name"
             value={form.shop_name}
             onChange={(e) =>
-              setForm({ ...form, shop_name: e.target.value })
+              setForm({
+                ...form,
+                shop_name: e.target.value,
+              })
             }
-            className="w-full rounded-xl border-2 border-zinc-200 p-3"
-            required
-          />
-
-          <input
-            type="email"
-            placeholder="Email"
-            value={form.email}
-            onChange={(e) =>
-              setForm({ ...form, email: e.target.value })
-            }
-            className="w-full rounded-xl border-2 border-zinc-200 p-3"
-            required
+            className="h-14 rounded-xl bg-zinc-900 border border-zinc-700 px-4 text-white"
           />
 
           <input
             placeholder="Phone Number"
             value={form.phone}
             onChange={(e) =>
-              setForm({ ...form, phone: e.target.value })
+              setForm({
+                ...form,
+                phone: e.target.value,
+              })
             }
-            className="w-full rounded-xl border-2 border-zinc-200 p-3"
+            className="h-14 rounded-xl bg-zinc-900 border border-zinc-700 px-4 text-white"
+          />
+
+          <input
+            type="email"
+            placeholder="Email Address"
+            value={form.email}
+            onChange={(e) =>
+              setForm({
+                ...form,
+                email: e.target.value,
+              })
+            }
+            className="h-14 rounded-xl bg-zinc-900 border border-zinc-700 px-4 text-white"
           />
 
           <input
@@ -95,26 +98,30 @@ export default function RegisterPage() {
             placeholder="Password"
             value={form.password}
             onChange={(e) =>
-              setForm({ ...form, password: e.target.value })
+              setForm({
+                ...form,
+                password: e.target.value,
+              })
             }
-            className="w-full rounded-xl border-2 border-zinc-200 p-3"
-            required
+            className="h-14 rounded-xl bg-zinc-900 border border-zinc-700 px-4 text-white"
           />
 
           <button
-            disabled={loading}
-            className="w-full bg-blue-600 text-white py-3 rounded-xl"
+            type="submit"
+            className="
+              md:col-span-2
+              h-14
+              rounded-xl
+              bg-gradient-to-r
+              from-blue-600
+              to-indigo-600
+              text-white
+              font-semibold
+            "
           >
-            {loading ? "Creating..." : "Create Account"}
+            Create Workspace
           </button>
         </form>
-
-        <p className="text-center mt-5 text-sm">
-          Already have an account?{" "}
-          <Link href="/login" className="text-blue-600">
-            Login
-          </Link>
-        </p>
       </div>
     </div>
   );
