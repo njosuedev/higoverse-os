@@ -1,13 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { isAuthenticated, getUser } from "@/lib/auth";
-import Loader from "@/app/components/Loader";
-import LogoutButton from "@/app/components/LogoutButton";
+import { getUser, isAuthenticated } from "@/lib/auth";
+import LogoutButton from "@/components/LogoutButton";
 
 export default function DashboardPage() {
   const [user, setUser] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!isAuthenticated()) {
@@ -16,52 +14,41 @@ export default function DashboardPage() {
     }
 
     setUser(getUser());
-    setLoading(false);
   }, []);
 
-  if (loading) return <Loader />;
+  if (!user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-zinc-50">
+    <div className="min-h-screen bg-gradient-to-br from-white to-blue-50">
 
       {/* TOP BAR */}
-      <div className="flex justify-between items-center px-8 py-5 bg-white border-b">
-        <h1 className="text-xl font-bold">Higoverse Dashboard</h1>
+      <div className="bg-white border-b px-8 py-4 flex justify-between">
+        <h1 className="font-bold text-xl">Higoverse Dashboard</h1>
         <LogoutButton />
       </div>
 
       {/* CONTENT */}
-      <div className="p-8 max-w-6xl mx-auto">
+      <div className="p-8 grid grid-cols-1 md:grid-cols-3 gap-6">
 
-        {/* CARDS */}
-        <div className="grid md:grid-cols-3 gap-5">
-
-          <div className="bg-white p-6 rounded-2xl shadow">
-            <p className="text-sm text-zinc-500">Email</p>
-            <p className="font-semibold">{user?.email}</p>
-          </div>
-
-          <div className="bg-white p-6 rounded-2xl shadow">
-            <p className="text-sm text-zinc-500">Shop ID</p>
-            <p className="font-semibold">{user?.shop_id}</p>
-          </div>
-
-          <div className="bg-white p-6 rounded-2xl shadow">
-            <p className="text-sm text-zinc-500">Status</p>
-            <p className="text-green-600 font-semibold">Active</p>
-          </div>
-
+        <div className="bg-white p-6 rounded-2xl border shadow-sm">
+          <h2 className="text-zinc-500">Email</h2>
+          <p className="font-semibold">{user.email}</p>
         </div>
 
-        {/* MAIN PANEL */}
-        <div className="mt-8 bg-white p-8 rounded-2xl shadow">
-          <h2 className="text-lg font-semibold mb-2">
-            Welcome to Higoverse
-          </h2>
+        <div className="bg-white p-6 rounded-2xl border shadow-sm">
+          <h2 className="text-zinc-500">Shop ID</h2>
+          <p className="font-semibold">{user.shop_id}</p>
+        </div>
 
-          <p className="text-zinc-600">
-            Manage your inventory, sales, suppliers, and customers in one system.
-          </p>
+        <div className="bg-white p-6 rounded-2xl border shadow-sm">
+          <h2 className="text-zinc-500">Status</h2>
+          <p className="text-green-600 font-semibold">Active</p>
         </div>
 
       </div>
