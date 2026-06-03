@@ -3,6 +3,14 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import {
+  Building2,
+  Mail,
+  Phone,
+  Lock,
+  CheckCircle2,
+  AlertCircle,
+} from "lucide-react";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -21,16 +29,33 @@ export default function RegisterPage() {
     setForm((prev) => ({ ...prev, [key]: value }));
   };
 
-  // ---------------- VALIDATION ----------------
-  const isShopValid = form.shop_name.trim().length >= 3;
-  const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email);
-  const isPhoneValid = form.phone.trim().length >= 10;
-  const isPasswordValid = form.password.trim().length >= 6;
+  // ================= LIVE VALIDATION =================
+  const validation = {
+    shop_name: {
+      valid: form.shop_name.trim().length >= 3,
+      msg: "Minimum 3 characters required",
+    },
+    email: {
+      valid: /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email),
+      msg: "Enter a valid email address",
+    },
+    phone: {
+      valid: form.phone.trim().length >= 10,
+      msg: "Phone must be at least 10 digits",
+    },
+    password: {
+      valid: form.password.length >= 6,
+      msg: "Minimum 6 characters required",
+    },
+  };
 
   const canSubmit =
-    isShopValid && isEmailValid && isPhoneValid && isPasswordValid;
+    validation.shop_name.valid &&
+    validation.email.valid &&
+    validation.phone.valid &&
+    validation.password.valid;
 
-  // ---------------- PASSWORD STRENGTH ----------------
+  // ================= PASSWORD STRENGTH =================
   const strength = (() => {
     let s = 0;
     if (form.password.length >= 6) s++;
@@ -48,10 +73,21 @@ export default function RegisterPage() {
     strength === "weak"
       ? "bg-red-500"
       : strength === "medium"
-      ? "bg-yellow-500"
-      : "bg-green-500";
+      ? "bg-orange-500"
+      : "bg-blue-600";
 
-  // ---------------- SUBMIT ----------------
+  const inputClass = (valid: boolean, value: string) =>
+    `w-full h-12 sm:h-14 pl-11 pr-4 rounded-xl border outline-none transition bg-white
+    ${
+      value.length === 0
+        ? "border-slate-300 focus:border-blue-500"
+        : valid
+        ? "border-blue-400 focus:border-blue-600"
+        : "border-red-400 focus:border-red-500"
+    }
+    focus:ring-4 focus:ring-blue-100 text-slate-900 placeholder:text-slate-400`;
+
+  // ================= SUBMIT =================
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canSubmit) return;
@@ -77,150 +113,162 @@ export default function RegisterPage() {
 
       router.push("/login");
     } catch {
-      setError("Network error");
+      setError("Network error. Please try again.");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex bg-gradient-to-br from-slate-50 via-white to-blue-50">
+    <div className="min-h-screen flex flex-col lg:flex-row bg-gradient-to-br from-slate-50 via-white to-blue-50">
 
-      {/* LEFT SIDE - INFORMATION PANEL */}
-      <div className="hidden lg:flex w-1/2 relative overflow-hidden bg-gradient-to-br from-slate-950 via-blue-900 to-indigo-700 text-white">
+      {/* ================= LEFT INFO PANEL ================= */}
+      <div className="hidden lg:flex w-1/2 bg-gradient-to-br from-slate-950 via-blue-900 to-indigo-700 text-white relative overflow-hidden">
 
-        <div className="absolute w-[500px] h-[500px] bg-blue-500/30 blur-3xl rounded-full top-[-120px] left-[-120px]" />
-        <div className="absolute w-[400px] h-[400px] bg-indigo-500/30 blur-3xl rounded-full bottom-[-100px] right-[-100px]" />
+        {/* decorative glow */}
+        <div className="absolute w-[400px] h-[400px] bg-blue-500/30 blur-3xl rounded-full top-[-100px] left-[-100px]" />
+        <div className="absolute w-[400px] h-[400px] bg-indigo-500/30 blur-3xl rounded-full bottom-[-120px] right-[-120px]" />
 
-        <div className="relative z-10 p-16 flex flex-col justify-center">
-
+        <div className="relative z-10 flex flex-col justify-center px-14">
           <h1 className="text-5xl font-bold leading-tight">
-            Start Managing Your Business
-            <br />
-            Like a Modern SaaS Platform
+            Build & Manage Your Business
           </h1>
 
-          <p className="mt-5 text-blue-100 max-w-md">
-            Create your shop workspace in seconds. Track inventory,
-            sales, customers, and revenue in real-time.
+          <p className="mt-5 text-blue-100 text-lg">
+            Create your workspace and access inventory, sales, customers,
+            and analytics in one powerful system.
           </p>
 
-          {/* FEATURE LIST */}
+          {/* INFO POINTS */}
           <div className="mt-8 space-y-3 text-blue-100 text-sm">
-            <p>✔ Real-time sales tracking</p>
-            <p>✔ Inventory management system</p>
-            <p>✔ Multi-shop support</p>
-            <p>✔ Analytics dashboard</p>
+            <p>✔ Real-time business tracking</p>
+            <p>✔ Inventory & sales control</p>
+            <p>✔ Secure cloud system</p>
+            <p>✔ Smart analytics dashboard</p>
           </div>
 
-          {/* KPI CARDS */}
+          {/* MINI STATS */}
           <div className="grid grid-cols-2 gap-4 mt-10">
-
-            <div className="bg-white/10 backdrop-blur-xl border border-white/10 p-5 rounded-2xl">
-              <p className="text-sm text-blue-100">Revenue</p>
-              <p className="text-2xl font-bold">$24,890</p>
-              <p className="text-xs text-blue-200 mt-1">+12% growth</p>
+            <div className="bg-white/10 backdrop-blur-xl p-4 rounded-2xl">
+              <p className="text-sm text-blue-100">Active Shops</p>
+              <p className="text-2xl font-bold">10K+</p>
             </div>
 
-            <div className="bg-white/10 backdrop-blur-xl border border-white/10 p-5 rounded-2xl">
-              <p className="text-sm text-blue-100">Orders</p>
-              <p className="text-2xl font-bold">1,840</p>
-              <p className="text-xs text-blue-200 mt-1">This month</p>
+            <div className="bg-white/10 backdrop-blur-xl p-4 rounded-2xl">
+              <p className="text-sm text-blue-100">Uptime</p>
+              <p className="text-2xl font-bold">99.9%</p>
             </div>
           </div>
         </div>
       </div>
 
-      {/* RIGHT SIDE - FORM */}
-      <div className="flex-1 flex items-center justify-center p-6">
+      {/* ================= FORM ================= */}
+      <div className="flex-1 flex items-center justify-center px-4 sm:px-6 py-10">
 
-        <div className="w-full max-w-md bg-white border border-slate-200 rounded-3xl shadow-2xl p-8">
+        <div className="w-full max-w-md">
 
-          <h2 className="text-3xl font-bold text-slate-900">
-            Create Your Shop
-          </h2>
+          {/* HEADER */}
+          <div className="mb-6">
+            <h2 className="text-3xl font-bold text-slate-900">
+              Create Workspace
+            </h2>
+            <p className="text-sm text-slate-500 mt-1">
+              Fill all fields to continue
+            </p>
+          </div>
 
-          <p className="text-slate-500 mt-1">
-            Fill in your business details to get started
-          </p>
-
+          {/* ERROR BOX */}
           {error && (
-            <div className="mt-4 p-3 bg-red-50 text-red-600 border border-red-200 rounded-xl text-sm">
+            <div className="mb-4 flex items-center gap-2 bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-xl text-sm">
+              <AlertCircle className="w-4 h-4" />
               {error}
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="mt-6 space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4">
 
             {/* SHOP NAME */}
-            <div>
+            <div className="relative">
+              <Building2 className="absolute left-3 top-3.5 w-5 h-5 text-slate-400" />
               <input
-                placeholder="Shop Name (e.g. Kigali Electronics)"
                 value={form.shop_name}
                 onChange={(e) => updateField("shop_name", e.target.value)}
+                placeholder="Shop Name (e.g. Kigali Electronics)"
                 autoComplete="off"
-                className={`w-full h-14 px-4 rounded-2xl border ${
-                  isShopValid || !form.shop_name
-                    ? "border-slate-300 focus:border-blue-500"
-                    : "border-red-500"
-                } outline-none`}
+                className={inputClass(
+                  validation.shop_name.valid,
+                  form.shop_name
+                )}
               />
-              <p className="text-xs text-slate-400 mt-1">
-                Minimum 3 characters required
+              <p className="text-xs mt-1 text-slate-500">
+                {validation.shop_name.valid ? (
+                  <span className="text-blue-600 flex items-center gap-1">
+                    <CheckCircle2 className="w-3 h-3" /> Looks good
+                  </span>
+                ) : (
+                  validation.shop_name.msg
+                )}
               </p>
             </div>
 
             {/* EMAIL */}
-            <div>
+            <div className="relative">
+              <Mail className="absolute left-3 top-3.5 w-5 h-5 text-slate-400" />
               <input
-                placeholder="Business Email (e.g. admin@shop.com)"
                 value={form.email}
                 onChange={(e) => updateField("email", e.target.value)}
+                placeholder="Business Email (admin@shop.com)"
                 autoComplete="off"
-                className={`w-full h-14 px-4 rounded-2xl border ${
-                  isEmailValid || !form.email
-                    ? "border-slate-300 focus:border-blue-500"
-                    : "border-red-500"
-                } outline-none`}
+                className={inputClass(validation.email.valid, form.email)}
               />
-              <p className="text-xs text-slate-400 mt-1">
-                Must be a valid email address
+              <p className="text-xs mt-1 text-slate-500">
+                {validation.email.valid ? (
+                  <span className="text-blue-600 flex items-center gap-1">
+                    <CheckCircle2 className="w-3 h-3" /> Valid email
+                  </span>
+                ) : (
+                  validation.email.msg
+                )}
               </p>
             </div>
 
             {/* PHONE */}
-            <div>
+            <div className="relative">
+              <Phone className="absolute left-3 top-3.5 w-5 h-5 text-slate-400" />
               <input
-                placeholder="Phone Number (e.g. +2507...)"
                 value={form.phone}
                 onChange={(e) => updateField("phone", e.target.value)}
+                placeholder="Phone (+250...)"
                 autoComplete="off"
-                className={`w-full h-14 px-4 rounded-2xl border ${
-                  isPhoneValid || !form.phone
-                    ? "border-slate-300 focus:border-blue-500"
-                    : "border-red-500"
-                } outline-none`}
+                className={inputClass(validation.phone.valid, form.phone)}
               />
-              <p className="text-xs text-slate-400 mt-1">
-                Used for business notifications
+              <p className="text-xs mt-1 text-slate-500">
+                {validation.phone.valid ? (
+                  <span className="text-blue-600 flex items-center gap-1">
+                    <CheckCircle2 className="w-3 h-3" /> Valid phone
+                  </span>
+                ) : (
+                  validation.phone.msg
+                )}
               </p>
             </div>
 
             {/* PASSWORD */}
-            <div>
+            <div className="relative">
+              <Lock className="absolute left-3 top-3.5 w-5 h-5 text-slate-400" />
               <input
                 type="password"
-                placeholder="Create Strong Password"
                 value={form.password}
                 onChange={(e) => updateField("password", e.target.value)}
+                placeholder="Create strong password"
                 autoComplete="new-password"
-                className={`w-full h-14 px-4 rounded-2xl border ${
-                  isPasswordValid || !form.password
-                    ? "border-slate-300 focus:border-blue-500"
-                    : "border-red-500"
-                } outline-none`}
+                className={inputClass(
+                  validation.password.valid,
+                  form.password
+                )}
               />
 
+              {/* STRENGTH BAR */}
               {form.password && (
                 <div className="mt-2">
                   <div className="h-2 w-full bg-slate-200 rounded-full overflow-hidden">
@@ -236,7 +284,6 @@ export default function RegisterPage() {
                       }}
                     />
                   </div>
-
                   <p className="text-xs mt-1 text-slate-500">
                     Password strength:{" "}
                     <span className="font-semibold capitalize">
@@ -247,19 +294,16 @@ export default function RegisterPage() {
               )}
             </div>
 
-            {/* SUBMIT */}
+            {/* BUTTON */}
             <button
-              disabled={loading || !canSubmit}
-              className="w-full h-14 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-semibold flex items-center justify-center disabled:opacity-50"
+              disabled={!canSubmit || loading}
+              className="w-full h-12 sm:h-14 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-semibold disabled:opacity-50 transition flex items-center justify-center"
             >
-              {loading ? (
-                <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-              ) : (
-                "Create Your Shop"
-              )}
+              {loading ? "Creating..." : "Create Workspace"}
             </button>
           </form>
 
+          {/* LOGIN LINK */}
           <p className="text-center text-sm text-slate-500 mt-6">
             Already have an account?{" "}
             <Link href="/login" className="text-blue-600 font-medium">
