@@ -1,121 +1,95 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getUser, isAuthenticated, logout } from "@/lib/auth";
+import { isAuthenticated, getUser } from "@/lib/auth";
+import Loader from "@/components/Loader";
+import LogoutButton from "@/components/LogoutButton";
 
 export default function DashboardPage() {
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const auth = isAuthenticated();
-
-    if (!auth) {
+    if (!isAuthenticated()) {
       window.location.href = "/login";
       return;
     }
 
-    const currentUser = getUser();
-
-    if (!currentUser) {
-      logout();
-      return;
-    }
-
-    setUser(currentUser);
+    setUser(getUser());
     setLoading(false);
   }, []);
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-zinc-950 text-white">
-        Loading dashboard...
-      </div>
-    );
-  }
+  if (loading) return <Loader />;
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-white">
-      {/* TOP BAR */}
-      <header className="border-b border-zinc-800 bg-zinc-900/60 backdrop-blur">
-        <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold">Higoverse</h1>
-            <p className="text-sm text-zinc-400">
-              Business Operating System
-            </p>
-          </div>
+    <div className="min-h-screen bg-zinc-50 flex">
 
-          <button
-            onClick={() => logout()}
-            className="px-5 py-2 rounded-xl bg-red-600 hover:bg-red-700 transition"
-          >
-            Logout
-          </button>
+      {/* SIDEBAR */}
+      <aside className="w-64 bg-white border-r p-6 hidden md:block">
+        <h1 className="text-xl font-bold text-zinc-900">
+          Higoverse
+        </h1>
+
+        <nav className="mt-8 space-y-3 text-sm text-zinc-600">
+          <p className="text-blue-600 font-medium">Dashboard</p>
+          <p>Inventory</p>
+          <p>Sales</p>
+          <p>Customers</p>
+          <p>Reports</p>
+        </nav>
+
+        <div className="mt-10">
+          <LogoutButton />
         </div>
-      </header>
+      </aside>
 
       {/* MAIN */}
-      <main className="max-w-7xl mx-auto p-6">
-        {/* USER CARD */}
-        <div className="rounded-3xl bg-gradient-to-r from-blue-600 to-indigo-600 p-8">
-          <h2 className="text-3xl font-bold">
-            Welcome Back 👋
-          </h2>
+      <main className="flex-1 p-8">
 
-          <p className="mt-3 text-blue-100">
-            {user.email}
-          </p>
-
-          <p className="text-blue-200 text-sm mt-2">
-            Shop ID: {user.shop_id}
-          </p>
-        </div>
-
-        {/* MODULE GRID */}
-        <div className="grid md:grid-cols-3 gap-6 mt-10">
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 hover:border-blue-500 transition">
-            <h3 className="font-semibold text-lg">Inventory</h3>
-            <p className="text-zinc-400 text-sm mt-2">
-              Manage stock and products
-            </p>
-          </div>
-
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 hover:border-blue-500 transition">
-            <h3 className="font-semibold text-lg">Sales</h3>
-            <p className="text-zinc-400 text-sm mt-2">
-              Track orders and revenue
-            </p>
-          </div>
-
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 hover:border-blue-500 transition">
-            <h3 className="font-semibold text-lg">Customers</h3>
-            <p className="text-zinc-400 text-sm mt-2">
-              Manage customer relationships
-            </p>
-          </div>
-
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 hover:border-blue-500 transition">
-            <h3 className="font-semibold text-lg">Suppliers</h3>
-            <p className="text-zinc-400 text-sm mt-2">
-              Vendor management system
-            </p>
-          </div>
-
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 hover:border-blue-500 transition">
-            <h3 className="font-semibold text-lg">Reports</h3>
-            <p className="text-zinc-400 text-sm mt-2">
-              Analytics & insights
-            </p>
-          </div>
-
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 hover:border-blue-500 transition">
-            <h3 className="font-semibold text-lg">Settings</h3>
-            <p className="text-zinc-400 text-sm mt-2">
-              System configuration
+        {/* HEADER */}
+        <div className="flex justify-between items-center">
+          <div>
+            <h2 className="text-2xl font-bold text-zinc-900">
+              Dashboard
+            </h2>
+            <p className="text-zinc-500 text-sm">
+              Welcome back, {user?.email}
             </p>
           </div>
         </div>
+
+        {/* CARDS */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
+
+          <div className="bg-white border rounded-2xl p-6 shadow-sm">
+            <p className="text-zinc-500 text-sm">Total Sales</p>
+            <h3 className="text-2xl font-bold mt-2">$12,400</h3>
+          </div>
+
+          <div className="bg-white border rounded-2xl p-6 shadow-sm">
+            <p className="text-zinc-500 text-sm">Products</p>
+            <h3 className="text-2xl font-bold mt-2">128</h3>
+          </div>
+
+          <div className="bg-white border rounded-2xl p-6 shadow-sm">
+            <p className="text-zinc-500 text-sm">Customers</p>
+            <h3 className="text-2xl font-bold mt-2">1,240</h3>
+          </div>
+        </div>
+
+        {/* USER INFO */}
+        <div className="mt-10 bg-white border rounded-2xl p-6">
+          <h3 className="font-semibold text-zinc-900">
+            Account Info
+          </h3>
+
+          <div className="mt-4 text-sm text-zinc-600 space-y-2">
+            <p>Email: {user?.email}</p>
+            <p>Shop ID: {user?.shop_id}</p>
+            <p>Status: Active</p>
+          </div>
+        </div>
+
       </main>
     </div>
   );
