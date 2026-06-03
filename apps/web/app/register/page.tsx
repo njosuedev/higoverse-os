@@ -6,13 +6,15 @@ import Link from "next/link";
 
 const API_URL = "https://higoverse-auth.vercel.app/api/v1/auth";
 
-export default function LoginPage() {
+export default function RegisterPage() {
   const router = useRouter();
 
   const [loading, setLoading] = useState(false);
 
   const [form, setForm] = useState({
+    shop_name: "",
     email: "",
+    phone: "",
     password: "",
   });
 
@@ -22,7 +24,7 @@ export default function LoginPage() {
     try {
       setLoading(true);
 
-      const res = await fetch(`${API_URL}/login`, {
+      const res = await fetch(`${API_URL}/register`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -33,21 +35,13 @@ export default function LoginPage() {
       const data = await res.json();
 
       if (!res.ok) {
-        alert(data.detail || "Login failed");
+        alert(data.detail || "Registration failed");
         return;
       }
 
-      localStorage.setItem(
-        "access_token",
-        data.access_token
-      );
+      alert("Account created successfully");
 
-      localStorage.setItem(
-        "user",
-        JSON.stringify(data.user)
-      );
-
-      router.push("/dashboard");
+      router.push("/login");
     } catch (error) {
       console.error(error);
       alert("Network error");
@@ -59,13 +53,23 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-zinc-50 p-6">
       <div className="w-full max-w-md bg-white rounded-3xl border p-8 shadow-xl">
-        <h1 className="text-3xl font-bold">Sign In</h1>
+        <h1 className="text-3xl font-bold">Create Account</h1>
 
         <p className="text-zinc-500 mt-2">
-          Login to your Higoverse account
+          Create your Higoverse business workspace
         </p>
 
         <form onSubmit={handleSubmit} className="mt-8 space-y-4">
+          <input
+            placeholder="Shop Name"
+            value={form.shop_name}
+            onChange={(e) =>
+              setForm({ ...form, shop_name: e.target.value })
+            }
+            className="w-full rounded-xl border-2 border-zinc-200 p-3"
+            required
+          />
+
           <input
             type="email"
             placeholder="Email"
@@ -75,6 +79,15 @@ export default function LoginPage() {
             }
             className="w-full rounded-xl border-2 border-zinc-200 p-3"
             required
+          />
+
+          <input
+            placeholder="Phone Number"
+            value={form.phone}
+            onChange={(e) =>
+              setForm({ ...form, phone: e.target.value })
+            }
+            className="w-full rounded-xl border-2 border-zinc-200 p-3"
           />
 
           <input
@@ -92,14 +105,14 @@ export default function LoginPage() {
             disabled={loading}
             className="w-full bg-blue-600 text-white py-3 rounded-xl"
           >
-            {loading ? "Signing In..." : "Sign In"}
+            {loading ? "Creating..." : "Create Account"}
           </button>
         </form>
 
         <p className="text-center mt-5 text-sm">
-          Don't have an account?{" "}
-          <Link href="/register" className="text-blue-600">
-            Register
+          Already have an account?{" "}
+          <Link href="/login" className="text-blue-600">
+            Login
           </Link>
         </p>
       </div>
