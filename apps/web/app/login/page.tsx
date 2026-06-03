@@ -1,32 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { setAuth, isAuthenticated } from "@/lib/auth";
-import Loader from "@/app/components/Loader";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const validate = () => {
-    setError("");
-
-    if (!email || !password) {
-      setError("All fields are required");
-      return false;
-    }
-
-    return true;
-  };
-
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    if (!validate()) return;
-
+    setError("");
     setLoading(true);
 
     try {
@@ -48,84 +33,72 @@ export default function LoginPage() {
       }
 
       setAuth(data);
-
-      // safe redirect (no hydration issues)
       window.location.href = "/dashboard";
     } catch {
-      setError("Network error. Please try again.");
+      setError("Network error");
       setLoading(false);
     }
   };
 
-  // ✅ SAFE AUTH REDIRECT (fix hydration + build issues)
-  useEffect(() => {
-    if (isAuthenticated()) {
-      window.location.href = "/dashboard";
-    }
-  }, []);
-
-  // LOADER
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-white">
-        <Loader />
-      </div>
-    );
+  if (typeof window !== "undefined" && isAuthenticated()) {
+    window.location.href = "/dashboard";
+    return null;
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-white to-zinc-100 px-4">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-white to-blue-50 px-4">
 
-      <div className="w-full max-w-md bg-white border shadow-2xl rounded-2xl p-8">
+      <div className="w-full max-w-md bg-white border rounded-2xl shadow-xl p-8">
 
-        {/* HEADER */}
         <h1 className="text-3xl font-bold text-zinc-900">
-          Welcome Back
+          Welcome back
         </h1>
 
         <p className="text-zinc-500 mt-2">
           Sign in to your Higoverse workspace
         </p>
 
-        {/* ERROR */}
         {error && (
-          <div className="mt-4 p-3 text-sm rounded-lg bg-red-50 text-red-600 border border-red-200">
+          <div className="mt-4 bg-red-50 text-red-600 p-3 rounded-lg text-sm border">
             {error}
           </div>
         )}
 
-        {/* FORM */}
         <form onSubmit={handleLogin} className="mt-6 space-y-4">
 
           <input
-            type="email"
-            placeholder="Email address"
-            className="w-full h-12 px-4 rounded-xl border border-zinc-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full h-12 px-4 rounded-xl border focus:ring-2 focus:ring-blue-500 outline-none"
+            placeholder="Email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
           />
 
           <input
-            type="password"
+            className="w-full h-12 px-4 rounded-xl border focus:ring-2 focus:ring-blue-500 outline-none"
             placeholder="Password"
-            className="w-full h-12 px-4 rounded-xl border border-zinc-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
           />
 
           <button
-            type="submit"
-            className="w-full h-12 rounded-xl bg-blue-600 text-white font-medium hover:bg-blue-700 transition disabled:opacity-60"
             disabled={loading}
+            className="w-full h-12 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-500 text-white font-medium flex items-center justify-center gap-2"
           >
-            {loading ? "Signing in..." : "Sign In"}
+            {loading ? (
+              <>
+                <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                Signing in...
+              </>
+            ) : (
+              "Sign In"
+            )}
           </button>
         </form>
 
-        {/* FOOTER */}
-        <p className="text-sm text-center text-zinc-500 mt-6">
-          Don’t have an account?{" "}
-          <a href="/register" className="text-blue-600 font-medium">
+        <p className="text-sm text-center mt-6 text-zinc-500">
+          No account?
+          <a className="text-blue-600 ml-1" href="/register">
             Create shop
           </a>
         </p>
