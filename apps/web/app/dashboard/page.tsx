@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { isAuthenticated, getUser } from "@/lib/auth";
-import Loader from "@/components/Loader";
-import LogoutButton from "@/components/LogoutButton";
+import Loader from "@/app/components/Loader";
+import LogoutButton from "@/app/components/LogoutButton";
 
 export default function DashboardPage() {
   const [user, setUser] = useState<any>(null);
