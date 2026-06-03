@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { setAuth, isAuthenticated } from "@/lib/auth";
+import { Mail, Lock, LogIn } from "lucide-react";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -21,7 +22,6 @@ export default function LoginPage() {
 
   const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-
     setError("");
 
     if (!email.trim()) return setError("Email is required");
@@ -48,7 +48,6 @@ export default function LoginPage() {
       }
 
       setAuth(data);
-
       router.replace("/dashboard");
     } catch {
       setError("Network error. Please try again.");
@@ -57,147 +56,122 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex bg-white">
+    <div className="min-h-screen flex flex-col lg:flex-row bg-gradient-to-br from-slate-50 via-white to-blue-50">
 
-      {/* LEFT SIDE - PREMIUM BRAND PANEL */}
-      <div className="hidden lg:flex w-1/2 relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-slate-950 via-blue-900 to-indigo-700" />
+      {/* ================= LEFT INFO PANEL ================= */}
+      <div className="hidden lg:flex w-1/2 relative bg-gradient-to-br from-slate-950 via-blue-900 to-indigo-800 text-white">
 
-        {/* glow effects */}
-        <div className="absolute top-[-120px] left-[-120px] w-[400px] h-[400px] bg-blue-500/30 blur-3xl rounded-full" />
-        <div className="absolute bottom-[-120px] right-[-120px] w-[400px] h-[400px] bg-indigo-500/30 blur-3xl rounded-full" />
+        <div className="flex flex-col justify-center px-16">
 
-        <div className="relative z-10 flex flex-col justify-center px-16 text-white">
-          <div className="flex items-center gap-3 mb-10">
-            <div className="h-12 w-12 rounded-2xl bg-white/20 backdrop-blur" />
-            <span className="font-bold text-2xl">Higoverse</span>
-          </div>
-
-          <h1 className="text-6xl font-bold leading-tight">
-            Run Your Entire
-            <br />
-            Business From
-            <br />
-            One Platform
+          <h1 className="text-5xl font-bold leading-tight">
+            Manage your business in one system
           </h1>
 
-          <p className="mt-6 text-lg text-blue-100 max-w-xl">
-            Inventory, sales, suppliers, customers, analytics,
-            finance and intelligence — all in one modern SaaS system.
+          <p className="mt-6 text-blue-100 text-lg">
+            Inventory, sales, CRM, analytics and finance — all in one place.
           </p>
 
-          {/* stats */}
-          <div className="grid grid-cols-2 gap-5 mt-12 max-w-xl">
-            <div className="rounded-3xl border border-white/10 bg-white/10 backdrop-blur-xl p-6">
-              <div className="text-3xl font-bold">10K+</div>
-              <div className="mt-2 text-blue-100 text-sm">
-                Businesses Powered
-              </div>
-            </div>
-
-            <div className="rounded-3xl border border-white/10 bg-white/10 backdrop-blur-xl p-6">
-              <div className="text-3xl font-bold">99.9%</div>
-              <div className="mt-2 text-blue-100 text-sm">
-                System Uptime
-              </div>
-            </div>
+          <div className="mt-10 space-y-3 text-blue-100 text-sm">
+            <p>✔ Real-time inventory tracking</p>
+            <p>✔ Sales analytics dashboard</p>
+            <p>✔ Customer management system</p>
+            <p>✔ Secure role-based access</p>
           </div>
+
         </div>
       </div>
 
-      {/* RIGHT SIDE - FORM */}
-      <div className="flex-1 flex items-center justify-center px-6 py-10 bg-gradient-to-br from-slate-50 via-white to-blue-50">
+      {/* ================= RIGHT FORM ================= */}
+      <div className="flex-1 flex items-center justify-center px-4 sm:px-6 py-10">
 
         <div className="w-full max-w-md">
-          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl p-8">
 
-            {/* HEADER */}
-            <div className="mb-8">
-              <div className="flex lg:hidden items-center gap-3 mb-6">
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600" />
-                <span className="font-bold text-xl">Higoverse</span>
-              </div>
+          {/* HEADER */}
+          <div className="text-center lg:text-left mb-8">
 
-              <h2 className="text-4xl font-bold text-slate-900">
-                Sign In
-              </h2>
-
-              <p className="mt-2 text-slate-500">
-                Access your business dashboard
-              </p>
+            <div className="flex items-center justify-center lg:justify-start gap-3 mb-4">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 shadow-md" />
+              <span className="font-bold text-xl">Higoverse</span>
             </div>
 
-            {/* ERROR */}
+            <h2 className="text-3xl font-bold text-slate-900">
+              Welcome back
+            </h2>
+
+            <p className="mt-2 text-slate-500 text-sm">
+              Sign in to access your business dashboard
+            </p>
+          </div>
+
+          {/* FORM CARD */}
+          <div className="bg-white/90 backdrop-blur-xl border border-slate-200 shadow-xl rounded-2xl sm:rounded-3xl p-6 sm:p-8">
+
             {error && (
-              <div className="mb-5 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-600">
+              <div className="mb-5 bg-red-50 border border-red-200 text-red-600 text-sm p-3 rounded-xl">
                 {error}
               </div>
             )}
 
-            {/* FORM */}
             <form onSubmit={handleLogin} className="space-y-5">
 
               {/* EMAIL */}
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">
+                <label className="text-sm font-medium text-slate-700">
                   Email Address
                 </label>
 
-                <input
-                  type="email"
-                  placeholder="admin@company.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  autoComplete="email"
-                  className="w-full h-14 rounded-2xl border border-slate-300 bg-white px-4 text-slate-900
-                  placeholder:text-slate-400 focus:outline-none focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500 transition"
-                />
+                <div className="relative mt-2">
+                  <Mail className="w-5 h-5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="example@company.com"
+                    className="w-full h-12 sm:h-14 pl-10 pr-4 rounded-xl border border-slate-300
+                    focus:ring-4 focus:ring-blue-100 focus:border-blue-500 outline-none transition"
+                  />
+                </div>
               </div>
 
               {/* PASSWORD */}
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">
+                <label className="text-sm font-medium text-slate-700">
                   Password
                 </label>
 
-                <input
-                  type="password"
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  autoComplete="current-password"
-                  className="w-full h-14 rounded-2xl border border-slate-300 bg-white px-4 text-slate-900
-                  placeholder:text-slate-400 focus:outline-none focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500 transition"
-                />
+                <div className="relative mt-2">
+                  <Lock className="w-5 h-5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+
+                  <input
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="w-full h-12 sm:h-14 pl-10 pr-4 rounded-xl border border-slate-300
+                    focus:ring-4 focus:ring-blue-100 focus:border-blue-500 outline-none transition"
+                  />
+                </div>
               </div>
 
               {/* BUTTON */}
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full h-14 rounded-2xl bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700
-                text-white font-semibold shadow-lg hover:shadow-xl transition flex items-center justify-center gap-3
-                disabled:opacity-70 disabled:cursor-not-allowed"
+                className="w-full h-12 sm:h-14 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600
+                text-white font-semibold shadow-md hover:shadow-lg active:scale-[0.99] transition
+                flex items-center justify-center gap-2"
               >
-                {loading ? (
-                  <>
-                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    Signing In...
-                  </>
-                ) : (
-                  "Sign In"
-                )}
+                <LogIn className="w-4 h-4" />
+                {loading ? "Signing in..." : "Sign In"}
               </button>
             </form>
 
             {/* FOOTER */}
-            <p className="text-center text-sm text-slate-500 mt-8">
+            <p className="text-center text-sm text-slate-500 mt-6">
               Don’t have an account?{" "}
-              <a
-                href="/register"
-                className="text-blue-600 font-medium hover:text-blue-700"
-              >
-                Create Workspace
+              <a href="/register" className="text-blue-600 font-medium">
+                Create workspace
               </a>
             </p>
 
