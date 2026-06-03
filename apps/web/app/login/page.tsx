@@ -1,14 +1,51 @@
 "use client";
 
 import { useState } from "react";
-
+import { setAuth, isAuthenticated } from "@/lib/auth";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  // --------------------------
+  // BASIC VALIDATION
+  // --------------------------
+  const validate = () => {
+    setError("");
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    if (!email || !password) {
+      setError("All fields are required");
+      return false;
+    }
+
+    if (!emailRegex.test(email)) {
+      setError("Invalid email format");
+      return false;
+    }
+
+    if (password.length < 6) {
+      setError("Password must be at least 6 characters");
+      return false;
+    }
+
+    return true;
+  };
+
+  // --------------------------
+  // LOGIN HANDLER
+  // --------------------------
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!validate()) return;
+
+    setLoading(true);
+    setError("");
 
     try {
       const res = await fetch(
@@ -28,17 +65,30 @@ export default function LoginPage() {
       const data = await res.json();
 
       if (!res.ok) {
-        alert(data.detail || "Login failed");
+        setError(data.detail || "Login failed");
+        setLoading(false);
         return;
       }
 
-      localStorage.setItem("token", data.access_token);
+      // ✅ STORE AUTH (token + user)
+      setAuth(data);
 
-      window.location.href = "/dashboard";
-    } catch {
-      alert("Network error");
+      // ✅ PREVENT BACK NAV TO LOGIN
+      window.location.replace("/dashboard");
+    } catch (err) {
+      setError("Network error. Try again.");
+    } finally {
+      setLoading(false);
     }
   };
+
+  // --------------------------
+  // AUTO REDIRECT IF ALREADY LOGGED IN
+  // --------------------------
+  if (typeof window !== "undefined" && isAuthenticated()) {
+    window.location.replace("/dashboard");
+    return null;
+  }
 
   return (
     <div className="min-h-screen bg-black flex">
@@ -46,7 +96,6 @@ export default function LoginPage() {
       {/* LEFT SIDE */}
       <div className="hidden lg:flex w-1/2 relative overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-br from-blue-700 via-indigo-600 to-purple-700" />
-
         <div className="absolute inset-0 backdrop-blur-3xl bg-black/10" />
 
         <div className="relative z-10 flex flex-col justify-center px-20 text-white">
@@ -55,30 +104,24 @@ export default function LoginPage() {
 
             <h1 className="text-6xl font-bold leading-tight">
               Welcome Back to
-              <span className="block text-blue-200">
-                Higoverse
-              </span>
+              <span className="block text-blue-200">Higoverse</span>
             </h1>
 
             <p className="mt-6 text-xl text-white/80 max-w-lg">
-              The modern operating system for inventory,
-              sales, suppliers, customers and business intelligence.
+              The modern operating system for inventory, sales, suppliers,
+              customers and business intelligence.
             </p>
           </div>
 
           <div className="grid grid-cols-2 gap-5 max-w-xl">
             <div className="rounded-2xl bg-white/10 backdrop-blur-xl p-5 border border-white/10">
               <div className="text-3xl font-bold">10K+</div>
-              <div className="text-white/70 text-sm mt-1">
-                Businesses Managed
-              </div>
+              <div className="text-white/70 text-sm mt-1">Businesses Managed</div>
             </div>
 
             <div className="rounded-2xl bg-white/10 backdrop-blur-xl p-5 border border-white/10">
               <div className="text-3xl font-bold">99.9%</div>
-              <div className="text-white/70 text-sm mt-1">
-                System Uptime
-              </div>
+              <div className="text-white/70 text-sm mt-1">System Uptime</div>
             </div>
           </div>
         </div>
@@ -99,11 +142,16 @@ export default function LoginPage() {
             </p>
           </div>
 
-          <form
-            onSubmit={handleLogin}
-            className="space-y-6"
-          >
+          {/* ERROR MESSAGE */}
+          {error && (
+            <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500 text-red-400 text-sm">
+              {error}
+            </div>
+          )}
 
+          <form onSubmit={handleLogin} className="space-y-6">
+
+            {/* EMAIL */}
             <div>
               <label className="block text-sm text-zinc-300 mb-2">
                 Email Address
@@ -114,25 +162,11 @@ export default function LoginPage() {
                 placeholder="admin@company.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                required
-                className="
-                  w-full
-                  h-14
-                  rounded-xl
-                  bg-zinc-900
-                  border
-                  border-zinc-700
-                  px-4
-                  text-white
-                  placeholder:text-zinc-500
-                  focus:outline-none
-                  focus:border-blue-500
-                  focus:ring-4
-                  focus:ring-blue-500/20
-                "
+                className="w-full h-14 rounded-xl bg-zinc-900 border border-zinc-700 px-4 text-white placeholder:text-zinc-500 focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/20"
               />
             </div>
 
+            {/* PASSWORD */}
             <div>
               <label className="block text-sm text-zinc-300 mb-2">
                 Password
@@ -143,44 +177,25 @@ export default function LoginPage() {
                 placeholder="••••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                required
-                className="
-                  w-full
-                  h-14
-                  rounded-xl
-                  bg-zinc-900
-                  border
-                  border-zinc-700
-                  px-4
-                  text-white
-                  placeholder:text-zinc-500
-                  focus:outline-none
-                  focus:border-blue-500
-                  focus:ring-4
-                  focus:ring-blue-500/20
-                "
+                className="w-full h-14 rounded-xl bg-zinc-900 border border-zinc-700 px-4 text-white placeholder:text-zinc-500 focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/20"
               />
             </div>
 
+            {/* BUTTON */}
             <button
               type="submit"
-              className="
-                w-full
-                h-14
-                rounded-xl
-                bg-gradient-to-r
-                from-blue-600
-                to-indigo-600
-                text-white
-                font-semibold
-                hover:opacity-90
-                transition
-              "
+              disabled={loading}
+              className={`w-full h-14 rounded-xl font-semibold transition ${
+                loading
+                  ? "bg-zinc-700 cursor-not-allowed"
+                  : "bg-gradient-to-r from-blue-600 to-indigo-600 hover:opacity-90"
+              } text-white`}
             >
-              Sign In
+              {loading ? "Signing in..." : "Sign In"}
             </button>
           </form>
 
+          {/* REGISTER */}
           <div className="mt-8 text-center text-zinc-400">
             Don't have an account?
             <a
