@@ -1,7 +1,7 @@
 import requests
 from fastapi import HTTPException
 
-SUPPLIER_SERVICE_URL = "http://127.0.0.1:8000"
+SUPPLIER_SERVICE_URL = "https://higoverse-suppliers.vercel.app"
 
 
 def validate_supplier(supplier_id: str, shop_id: str, token: str):
