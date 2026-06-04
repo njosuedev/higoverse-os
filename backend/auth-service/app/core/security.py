@@ -8,7 +8,7 @@ from app.core.config import settings
 
 
 # --------------------------------
-# PASSWORD HASHING
+# Password Hashing
 # --------------------------------
 
 pwd_context = CryptContext(
@@ -18,7 +18,9 @@ pwd_context = CryptContext(
 
 
 def normalize_password(password: str) -> str:
-    return hashlib.sha256(password.encode()).hexdigest()
+    return hashlib.sha256(
+        password.encode()
+    ).hexdigest()
 
 
 def hash_password(password: str) -> str:
@@ -38,22 +40,21 @@ def verify_password(
 
 
 # --------------------------------
-# JWT TOKEN
+# JWT Access Token
 # --------------------------------
 
 def create_access_token(data: dict) -> str:
     payload = data.copy()
 
-    expire = datetime.utcnow() + timedelta(
-        minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES
+    payload["exp"] = (
+        datetime.utcnow()
+        + timedelta(
+            minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES
+        )
     )
 
-    payload["exp"] = expire
-
-    token = jwt.encode(
+    return jwt.encode(
         payload,
-        settings.AUTH_SERVICE_SECRET,
-        algorithm=settings.AUTH_SERVICE_ALGORITHM
+        settings.SECRET_KEY,
+        algorithm=settings.ALGORITHM
     )
-
-    return token
