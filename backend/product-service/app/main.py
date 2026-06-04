@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes.products import router as product_router
 from app.db.database import Base, engine
@@ -9,19 +10,33 @@ app = FastAPI(
 )
 
 # -----------------------------
+# CORS CONFIG (FIX FOR FETCH ERROR)
+# -----------------------------
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:3000",
+        "https://higoverse-os.vercel.app"
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# -----------------------------
 # ROUTES
 # -----------------------------
 app.include_router(product_router)
 
 
 # -----------------------------
-# STARTUP EVENT (PROFESSIONAL WAY)
+# STARTUP EVENT
 # -----------------------------
 @app.on_event("startup")
 def on_startup():
     """
-    Create database tables safely on startup.
-    In production, replace with Alembic migrations.
+    Auto-create tables (DEV ONLY).
+    In production: use Alembic migrations.
     """
     Base.metadata.create_all(bind=engine)
 
