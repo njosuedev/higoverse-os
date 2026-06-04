@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect } from "react";
-import { requireAuth, logout, getUser } from "@/lib/auth";
+import { useEffect, useState } from "react";
+import { requireAuth, logout, getUser, User } from "@/lib/auth";
 import { SIDEBAR_LINKS } from "@/lib/navigation";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -12,10 +12,14 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
-  const user = getUser();
+
+  const [mounted, setMounted] = useState(false);
+  const [user, setUser] = useState<User | null>(null);
 
   useEffect(() => {
     requireAuth();
+    setUser(getUser());
+    setMounted(true);
   }, []);
 
   return (
@@ -62,13 +66,14 @@ export default function DashboardLayout({
         <header className="bg-white border-b border-blue-100 p-4 flex justify-between items-center shadow-sm">
           <div>
             <p className="text-xs text-blue-500">Welcome back</p>
+
             <p className="font-semibold text-blue-900">
-              {user?.email}
+              {mounted ? user?.email : ""}
             </p>
           </div>
 
           <div className="text-xs text-blue-600 bg-blue-50 px-3 py-1 rounded-full">
-            Shop: {user?.shop_id}
+            Shop: {mounted ? user?.shop_id : ""}
           </div>
         </header>
 
