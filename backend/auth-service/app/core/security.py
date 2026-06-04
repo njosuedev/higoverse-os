@@ -50,8 +50,10 @@ def create_access_token(data: dict) -> str:
 
     payload["exp"] = expire
 
-    return jwt.encode(
+    token = jwt.encode(
         payload,
-        settings.SECRET_KEY,
-        algorithm=settings.ALGORITHM
+        settings.AUTH_SERVICE_SECRET,
+        algorithm=settings.AUTH_SERVICE_ALGORITHM
     )
+
+    return token
