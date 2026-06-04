@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { productRequest } from "@/lib/product-api";
+import { supplierRequest } from "@/lib/supplier-api";
 import {
   Package,
   AlertCircle,
@@ -25,38 +26,54 @@ function timeAgo(dateString?: string) {
 
 export default function ProductsPage() {
   const [products, setProducts] = useState<any[]>([]);
+  const [suppliers, setSuppliers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
-  /* SEARCH + FILTER */
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
 
   /* ---------------- FETCH ---------------- */
   useEffect(() => {
-    loadProducts();
+    loadData();
 
     const interval = setInterval(() => {
-      loadProducts(false);
+      loadData(false);
     }, 5000);
 
     return () => clearInterval(interval);
   }, []);
 
-  async function loadProducts(showLoading = true) {
+  async function loadData(showLoading = true) {
     if (showLoading) setLoading(true);
 
     try {
-      const res = await productRequest("/products");
-      setProducts(res?.data?.items || []);
+      const [productsRes, suppliersRes] = await Promise.all([
+        productRequest("/products"),
+        supplierRequest("/suppliers"),
+      ]);
+
+      setProducts(productsRes?.data?.items || []);
+      setSuppliers(suppliersRes?.data || []);
+
       setLastUpdated(new Date());
     } catch (err) {
       console.error(err);
       setProducts([]);
+      setSuppliers([]);
     } finally {
       if (showLoading) setLoading(false);
     }
   }
+
+  /* ---------------- SUPPLIER MAP (FAST LOOKUP) ---------------- */
+  const supplierMap = useMemo(() => {
+    const map: Record<string, any> = {};
+    suppliers.forEach((s) => {
+      map[s.id] = s;
+    });
+    return map;
+  }, [suppliers]);
 
   /* ---------------- FILTER LOGIC ---------------- */
   const filteredProducts = useMemo(() => {
@@ -74,7 +91,6 @@ export default function ProductsPage() {
       });
   }, [products, search, filter]);
 
-  /* ---------------- LOADING ---------------- */
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
@@ -86,7 +102,7 @@ export default function ProductsPage() {
   return (
     <div className="min-h-screen bg-slate-50 p-6">
 
-      {/* ================= HEADER ================= */}
+      {/* HEADER */}
       <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-2xl p-6 mb-6">
 
         <div className="flex items-center justify-between">
@@ -142,7 +158,7 @@ export default function ProductsPage() {
         </div>
       </div>
 
-      {/* ================= TABLE ================= */}
+      {/* TABLE */}
       <div className="bg-white rounded-2xl border overflow-x-auto">
 
         <table className="w-full text-sm">
@@ -161,70 +177,79 @@ export default function ProductsPage() {
           </thead>
 
           <tbody>
-            {filteredProducts.map((p) => (
-              <tr
-                key={p.id}
-                className="border-t hover:bg-slate-50 transition"
-              >
+            {filteredProducts.map((p) => {
+              const supplier = supplierMap[p.supplier_id];
 
-                {/* PRODUCT */}
-                <td className="p-4 font-medium text-slate-900">
-                  {p.name}
-                </td>
+              return (
+                <tr
+                  key={p.id}
+                  className="border-t hover:bg-slate-50 transition"
+                >
 
-                {/* DESCRIPTION */}
-                <td className="p-4 text-slate-500">
-                  {p.description}
-                </td>
+                  {/* PRODUCT */}
+                  <td className="p-4 font-medium text-slate-900">
+                    {p.name}
+                  </td>
 
-                {/* COST */}
-                <td className="p-4">
-                  {p.cost_price}
-                </td>
+                  {/* DESCRIPTION */}
+                  <td className="p-4 text-slate-500">
+                    {p.description}
+                  </td>
 
-                {/* SELLING */}
-                <td className="p-4 text-green-600 font-medium">
-                  {p.selling_price}
-                </td>
+                  {/* COST */}
+                  <td className="p-4">
+                    {p.cost_price}
+                  </td>
 
-                {/* QTY */}
-                <td className="p-4">
-                  {p.quantity}
-                </td>
+                  {/* SELLING */}
+                  <td className="p-4 text-green-600 font-medium">
+                    {p.selling_price}
+                  </td>
 
-                {/* SUPPLIER */}
-                <td className="p-4 text-slate-600">
-                  {p.supplier_id ? (
-                    <span className="font-medium">
-                      {p.supplier_id.slice(0, 8)}...
-                    </span>
-                  ) : (
-                    <span className="text-slate-400">
-                      No supplier
-                    </span>
-                  )}
-                </td>
+                  {/* QTY */}
+                  <td className="p-4">
+                    {p.quantity}
+                  </td>
 
-                {/* PROFIT / LOSS */}
-                <td className="p-4">
-                  {p.profit_status === "profit" ? (
-                    <span className="text-green-600 font-semibold">
-                      +{p.profit_percent}%
-                    </span>
-                  ) : (
-                    <span className="text-red-600 font-semibold">
-                      Loss
-                    </span>
-                  )}
-                </td>
+                  {/* SUPPLIER (REAL NAME NOW) */}
+                  <td className="p-4">
+                    {supplier ? (
+                      <div>
+                        <p className="font-medium text-slate-800">
+                          {supplier.name}
+                        </p>
+                        <p className="text-xs text-slate-400">
+                          {supplier.phone || "No phone"}
+                        </p>
+                      </div>
+                    ) : (
+                      <span className="text-slate-400">
+                        No supplier
+                      </span>
+                    )}
+                  </td>
 
-                {/* TIME AGO */}
-                <td className="p-4 text-slate-500">
-                  {timeAgo(p.created_at)}
-                </td>
+                  {/* PROFIT / LOSS */}
+                  <td className="p-4">
+                    {p.profit_status === "profit" ? (
+                      <span className="text-green-600 font-semibold">
+                        +{p.profit_percent}%
+                      </span>
+                    ) : (
+                      <span className="text-red-600 font-semibold">
+                        Loss
+                      </span>
+                    )}
+                  </td>
 
-              </tr>
-            ))}
+                  {/* TIME AGO */}
+                  <td className="p-4 text-slate-500">
+                    {timeAgo(p.created_at)}
+                  </td>
+
+                </tr>
+              );
+            })}
           </tbody>
 
         </table>
