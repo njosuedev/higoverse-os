@@ -6,13 +6,21 @@ from app.models.supplier import Supplier
 from app.schemas.supplier import SupplierCreate, SupplierUpdate
 from app.core.security import get_current_user
 
-router = APIRouter(prefix="/suppliers", tags=["Suppliers"])
+router = APIRouter(
+    prefix="/suppliers",
+    tags=["Suppliers"]
+)
 
 
-# -----------------------------------
-# Helper
-# -----------------------------------
-def get_supplier_or_404(db: Session, supplier_id: str, shop_id: str):
+# =====================================
+# HELPER
+# =====================================
+
+def get_supplier_or_404(
+    db: Session,
+    supplier_id: str,
+    shop_id: str
+):
     supplier = (
         db.query(Supplier)
         .filter(
@@ -31,9 +39,10 @@ def get_supplier_or_404(db: Session, supplier_id: str, shop_id: str):
     return supplier
 
 
-# -----------------------------------
+# =====================================
 # CREATE SUPPLIER
-# -----------------------------------
+# =====================================
+
 @router.post("/")
 def create_supplier(
     payload: SupplierCreate,
@@ -58,6 +67,7 @@ def create_supplier(
             "message": "Supplier created successfully",
             "data": {
                 "id": supplier.id,
+                "shop_id": supplier.shop_id,
                 "name": supplier.name,
                 "phone": supplier.phone,
                 "email": supplier.email,
@@ -67,15 +77,17 @@ def create_supplier(
 
     except Exception as e:
         db.rollback()
+
         raise HTTPException(
-            status_code=500,
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e)
         )
 
 
-# -----------------------------------
+# =====================================
 # GET ALL SUPPLIERS
-# -----------------------------------
+# =====================================
+
 @router.get("/")
 def get_suppliers(
     db: Session = Depends(get_db),
@@ -83,7 +95,9 @@ def get_suppliers(
 ):
     suppliers = (
         db.query(Supplier)
-        .filter(Supplier.shop_id == current_user["shop_id"])
+        .filter(
+            Supplier.shop_id == current_user["shop_id"]
+        )
         .all()
     )
 
@@ -91,20 +105,22 @@ def get_suppliers(
         "success": True,
         "data": [
             {
-                "id": s.id,
-                "name": s.name,
-                "phone": s.phone,
-                "email": s.email,
-                "address": s.address
+                "id": supplier.id,
+                "shop_id": supplier.shop_id,
+                "name": supplier.name,
+                "phone": supplier.phone,
+                "email": supplier.email,
+                "address": supplier.address
             }
-            for s in suppliers
+            for supplier in suppliers
         ]
     }
 
 
-# -----------------------------------
+# =====================================
 # GET ONE SUPPLIER
-# -----------------------------------
+# =====================================
+
 @router.get("/{supplier_id}")
 def get_supplier(
     supplier_id: str,
@@ -112,15 +128,16 @@ def get_supplier(
     current_user=Depends(get_current_user)
 ):
     supplier = get_supplier_or_404(
-        db,
-        supplier_id,
-        current_user["shop_id"]
+        db=db,
+        supplier_id=supplier_id,
+        shop_id=current_user["shop_id"]
     )
 
     return {
         "success": True,
         "data": {
             "id": supplier.id,
+            "shop_id": supplier.shop_id,
             "name": supplier.name,
             "phone": supplier.phone,
             "email": supplier.email,
@@ -129,9 +146,10 @@ def get_supplier(
     }
 
 
-# -----------------------------------
+# =====================================
 # UPDATE SUPPLIER
-# -----------------------------------
+# =====================================
+
 @router.put("/{supplier_id}")
 def update_supplier(
     supplier_id: str,
@@ -141,12 +159,14 @@ def update_supplier(
 ):
     try:
         supplier = get_supplier_or_404(
-            db,
-            supplier_id,
-            current_user["shop_id"]
+            db=db,
+            supplier_id=supplier_id,
+            shop_id=current_user["shop_id"]
         )
 
-        update_data = payload.model_dump(exclude_unset=True)
+        update_data = payload.model_dump(
+            exclude_unset=True
+        )
 
         for key, value in update_data.items():
             setattr(supplier, key, value)
@@ -169,15 +189,17 @@ def update_supplier(
 
     except Exception as e:
         db.rollback()
+
         raise HTTPException(
-            status_code=500,
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e)
         )
 
 
-# -----------------------------------
+# =====================================
 # DELETE SUPPLIER
-# -----------------------------------
+# =====================================
+
 @router.delete("/{supplier_id}")
 def delete_supplier(
     supplier_id: str,
@@ -185,9 +207,9 @@ def delete_supplier(
     current_user=Depends(get_current_user)
 ):
     supplier = get_supplier_or_404(
-        db,
-        supplier_id,
-        current_user["shop_id"]
+        db=db,
+        supplier_id=supplier_id,
+        shop_id=current_user["shop_id"]
     )
 
     db.delete(supplier)
