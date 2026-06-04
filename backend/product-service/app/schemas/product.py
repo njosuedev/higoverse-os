@@ -9,7 +9,7 @@ class ProductCreate(BaseModel):
     selling_price: Decimal | None = None
     quantity: int
     barcode: str | None = None
-
+    supplier_id: str | None = None
 
 class ProductUpdate(BaseModel):
     name: str | None = None
@@ -18,6 +18,7 @@ class ProductUpdate(BaseModel):
     selling_price: Decimal | None = None
     quantity: int | None = None
     barcode: str | None = None
+    supplier_id: str | None = None 
 
 
 class ProductResponse(BaseModel):
@@ -29,6 +30,7 @@ class ProductResponse(BaseModel):
     selling_price: Decimal
     quantity: int
     barcode: str | None = None
+    supplier_id: str | None = None
 
     class Config:
         from_attributes = True

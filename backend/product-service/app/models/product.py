@@ -10,6 +10,8 @@ class Product(Base):
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     shop_id = Column(String, index=True, nullable=False)
 
+    supplier_id = Column(String, nullable=True)
+
     name = Column(String, nullable=False)
     description = Column(String, nullable=True)
 
