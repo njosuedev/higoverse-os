@@ -1,27 +1,102 @@
-from sqlalchemy import Column, String, Integer, Numeric, DateTime
+from sqlalchemy import (
+    Column,
+    String,
+    Integer,
+    Numeric,
+    DateTime,
+    Text
+)
 from sqlalchemy.sql import func
+
 from app.db.database import Base
+
 import uuid
 
 
 class Product(Base):
     __tablename__ = "products"
 
-    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    shop_id = Column(String, index=True, nullable=False)
+    # =====================================
+    # PRIMARY KEY
+    # =====================================
 
-    supplier_id = Column(String, nullable=True)
+    id = Column(
+        String,
+        primary_key=True,
+        default=lambda: str(uuid.uuid4())
+    )
 
-    name = Column(String, nullable=False)
-    description = Column(String, nullable=True)
+    # =====================================
+    # MULTI-TENANT SHOP
+    # =====================================
 
-    cost_price = Column(Numeric(10, 2), nullable=False)
+    shop_id = Column(
+        String,
+        index=True,
+        nullable=False
+    )
 
-    # IMPORTANT: must be nullable
-    selling_price = Column(Numeric(10, 2), nullable=True)
+    # =====================================
+    # SUPPLIER RELATION
+    # =====================================
 
-    quantity = Column(Integer, nullable=False)
+    supplier_id = Column(
+        String,
+        index=True,
+        nullable=True
+    )
 
-    barcode = Column(String, nullable=True)
+    # =====================================
+    # PRODUCT DETAILS
+    # =====================================
 
-    created_at = Column(DateTime, server_default=func.now())
+    name = Column(
+        String(255),
+        nullable=False,
+        index=True
+    )
+
+    description = Column(
+        Text,
+        nullable=True
+    )
+
+    barcode = Column(
+        String(255),
+        nullable=True,
+        unique=False
+    )
+
+    # =====================================
+    # PRICING
+    # =====================================
+
+    cost_price = Column(
+        Numeric(12, 2),
+        nullable=False
+    )
+
+    selling_price = Column(
+        Numeric(12, 2),
+        nullable=True
+    )
+
+    # =====================================
+    # INVENTORY
+    # =====================================
+
+    quantity = Column(
+        Integer,
+        nullable=False,
+        default=0
+    )
+
+    # =====================================
+    # AUDIT
+    # =====================================
+
+    created_at = Column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False
+    )
