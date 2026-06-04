@@ -9,25 +9,23 @@ export async function productRequest(
 ) {
   const token = getToken();
 
-  const response = await fetch(
-    `${PRODUCT_API}${endpoint}`,
-    {
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...(token && {
-          Authorization: `Bearer ${token}`,
-        }),
-        ...(options.headers || {}),
-      },
-    }
-  );
+  const res = await fetch(`${PRODUCT_API}${endpoint}`, {
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
 
-  if (!response.ok) {
-    throw new Error(
-      `Product Service Error: ${response.status}`
-    );
+      // 🔐 IMPORTANT: attach JWT
+      ...(token && {
+        Authorization: `Bearer ${token}`,
+      }),
+
+      ...options.headers,
+    },
+  });
+
+  if (!res.ok) {
+    throw new Error(`Product API error: ${res.status}`);
   }
 
-  return response.json();
+  return res.json();
 }
