@@ -1,13 +1,12 @@
 "use client";
 
-import { getUser, logout, requireAuth } from "@/lib/auth";
+import { getUser, logout } from "@/lib/auth";
 import { useEffect, useState } from "react";
 
 export default function SettingsPage() {
   const [user, setUser] = useState<any>(null);
 
   useEffect(() => {
-    requireAuth();
     setUser(getUser());
   }, []);
 

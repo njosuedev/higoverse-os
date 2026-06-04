@@ -2,13 +2,12 @@
 
 import { useEffect, useState } from "react";
 import { API } from "@/lib/api";
-import { getAuthHeaders, requireAuth } from "@/lib/auth";
+import { getAuthHeaders} from "@/lib/auth";
 
 export default function ProductsPage() {
   const [products, setProducts] = useState<any[]>([]);
 
   useEffect(() => {
-    requireAuth();
     fetchData();
   }, []);
 

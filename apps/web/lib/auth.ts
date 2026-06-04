@@ -8,6 +8,7 @@ export interface User {
 const TOKEN_KEY = "token";
 const USER_KEY = "user";
 
+/* SAVE LOGIN */
 export function setAuth(data: { access_token: string; user: User }) {
   if (typeof window === "undefined") return;
 
@@ -15,11 +16,13 @@ export function setAuth(data: { access_token: string; user: User }) {
   localStorage.setItem(USER_KEY, JSON.stringify(data.user));
 }
 
+/* GET TOKEN */
 export function getToken(): string | null {
   if (typeof window === "undefined") return null;
   return localStorage.getItem(TOKEN_KEY);
 }
 
+/* GET USER */
 export function getUser(): User | null {
   if (typeof window === "undefined") return null;
 
@@ -33,10 +36,12 @@ export function getUser(): User | null {
   }
 }
 
+/* CHECK AUTH */
 export function isAuthenticated(): boolean {
   return !!getToken();
 }
 
+/* API HEADERS */
 export function getAuthHeaders(): HeadersInit {
   const token = getToken();
 
@@ -46,6 +51,7 @@ export function getAuthHeaders(): HeadersInit {
   };
 }
 
+/* LOGOUT */
 export function logout() {
   if (typeof window === "undefined") return;
 
@@ -53,12 +59,4 @@ export function logout() {
   localStorage.removeItem(USER_KEY);
 
   window.location.href = "/login";
-}
-
-export function requireAuth() {
-  if (typeof window === "undefined") return;
-
-  if (!isAuthenticated()) {
-    window.location.href = "/login";
-  }
 }
