@@ -24,9 +24,7 @@ def get_current_user(
             "role": payload.get("role")
         }
 
-    except JWTError as e:
-        print("JWT ERROR:", str(e))
-
+    except JWTError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired token"
