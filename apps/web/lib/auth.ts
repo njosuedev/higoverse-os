@@ -8,55 +8,58 @@ export interface User {
 const TOKEN_KEY = "token";
 const USER_KEY = "user";
 
-/* SAVE LOGIN */
-export function setAuth(data: { access_token: string; user: User }) {
+export function setAuth(data: {
+  access_token: string;
+  user: User;
+}) {
   if (typeof window === "undefined") return;
 
   localStorage.setItem(TOKEN_KEY, data.access_token);
   localStorage.setItem(USER_KEY, JSON.stringify(data.user));
 }
 
-/* GET TOKEN */
 export function getToken(): string | null {
   if (typeof window === "undefined") return null;
+
   return localStorage.getItem(TOKEN_KEY);
 }
 
-/* GET USER */
 export function getUser(): User | null {
   if (typeof window === "undefined") return null;
 
-  const user = localStorage.getItem(USER_KEY);
-  if (!user) return null;
+  const stored = localStorage.getItem(USER_KEY);
+
+  if (!stored) return null;
 
   try {
-    return JSON.parse(user);
+    return JSON.parse(stored);
   } catch {
+    localStorage.removeItem(USER_KEY);
     return null;
   }
 }
 
-/* CHECK AUTH */
 export function isAuthenticated(): boolean {
-  return !!getToken();
+  return !!getToken() && !!getUser();
 }
 
-/* API HEADERS */
-export function getAuthHeaders(): HeadersInit {
+export function getAuthHeaders(): Record<string, string> {
   const token = getToken();
 
   return {
     "Content-Type": "application/json",
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...(token && {
+      Authorization: `Bearer ${token}`,
+    }),
   };
 }
 
-/* LOGOUT */
 export function logout() {
   if (typeof window === "undefined") return;
 
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(USER_KEY);
+  sessionStorage.clear();
 
-  window.location.href = "/login";
+  window.location.replace("/login");
 }
