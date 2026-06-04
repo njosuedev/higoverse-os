@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { requireAuth, logout, getUser, User } from "@/lib/auth";
 import { SIDEBAR_LINKS } from "@/lib/navigation";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 
 export default function DashboardLayout({
   children,
@@ -12,12 +12,30 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     requireAuth();
-    setUser(getUser());
-  }, []);
+
+    const u = getUser();
+    if (!u) {
+      router.push("/login");
+      return;
+    }
+
+    setUser(u);
+    setLoading(false);
+  }, [router]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-screen text-blue-600">
+        Loading dashboard...
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex bg-gradient-to-br from-blue-50 via-white to-slate-50">
@@ -49,7 +67,10 @@ export default function DashboardLayout({
         </nav>
 
         <button
-          onClick={logout}
+          onClick={() => {
+            logout();
+            router.push("/login");
+          }}
           className="mt-10 w-full bg-gradient-to-r from-red-500 to-red-600 text-white py-2 rounded-lg"
         >
           Logout
@@ -62,12 +83,12 @@ export default function DashboardLayout({
           <div>
             <p className="text-xs text-blue-500">Welcome back</p>
             <p className="font-semibold text-blue-900">
-              {user?.email || "Loading..."}
+              {user?.email}
             </p>
           </div>
 
           <div className="text-xs text-blue-600 bg-blue-50 px-3 py-1 rounded-full">
-            Shop: {user?.shop_id || "-"}
+            Shop: {user?.shop_id}
           </div>
         </header>
 
