@@ -159,6 +159,7 @@ def update_supplier(
             "message": "Supplier updated successfully",
             "data": {
                 "id": supplier.id,
+                "shop_id": supplier.shop_id,
                 "name": supplier.name,
                 "phone": supplier.phone,
                 "email": supplier.email,
