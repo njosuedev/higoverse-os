@@ -1,3 +1,4 @@
+
 from fastapi import FastAPI
 
 from app.db.database import Base, engine
