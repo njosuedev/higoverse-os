@@ -314,23 +314,23 @@ export default function SuppliersPage() {
 
       {/* MODAL */}
       {showModal && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-black/40 flex items-center  justify-center p-4">
 
-          <div className="bg-white rounded-3xl w-full max-w-xl p-6">
+          <div className="bg-white text-gray-600 rounded-3xl w-full max-w-xl p-6">
 
-            <div className="flex justify-between mb-4">
+            <div className="flex justify-between text-gray-600 mb-4">
               <h2 className="text-xl font-bold">Add Supplier</h2>
               <button onClick={() => setShowModal(false)}>
                 <X />
               </button>
             </div>
 
-            <div className="grid gap-3">
+            <div className="grid gap-3 text-gray-600">
 
               <input
                 name="name"
                 placeholder="Supplier name"
-                className="border p-3 rounded-xl"
+                className="border p-3 rounded-xl text-gray-600"
                 onChange={handleChange}
               />
               {errors.name && <p className="text-red-500 text-sm">{errors.name}</p>}
@@ -338,7 +338,7 @@ export default function SuppliersPage() {
               <input
                 name="phone"
                 placeholder="Phone (+250...)"
-                className="border p-3 rounded-xl"
+                className="border p-3 rounded-xl text-gray-800"
                 onChange={handleChange}
               />
               {errors.phone && <p className="text-red-500 text-sm">{errors.phone}</p>}
@@ -346,7 +346,7 @@ export default function SuppliersPage() {
               <input
                 name="email"
                 placeholder="Email"
-                className="border p-3 rounded-xl"
+                className="border p-3 rounded-xl text-gray-800"
                 onChange={handleChange}
               />
               {errors.email && <p className="text-red-500 text-sm">{errors.email}</p>}
@@ -354,7 +354,7 @@ export default function SuppliersPage() {
               <input
                 name="address"
                 placeholder="Address"
-                className="border p-3 rounded-xl"
+                className="border p-3 rounded-xl text-gray-800"
                 onChange={handleChange}
               />
 
@@ -363,7 +363,7 @@ export default function SuppliersPage() {
             <button
               onClick={createSupplier}
               disabled={creating}
-              className="mt-5 bg-green-600 text-white w-full py-2 rounded-xl"
+              className="mt-5 bg-blue-600 text-white w-full py-2 rounded-xl"
             >
               {creating ? "Creating..." : "Create Supplier"}
             </button>
