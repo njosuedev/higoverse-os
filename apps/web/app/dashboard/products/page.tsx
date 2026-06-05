@@ -500,7 +500,7 @@ const [updating, setUpdating] =
       >
         <td className="p-4">
           <div>
-            <p className="font-semibold text-slate-900">
+            <p className="font-medium text-slate-900">
               {p.name}
             </p>
             <p className="text-xs text-slate-400">
@@ -513,7 +513,7 @@ const [updating, setUpdating] =
           {p.description || "—"}
         </td>
 
-        <td className="p-4 font-medium">
+        <td className="p-4 text-gray-600 font-medium">
           {Number(
             p.cost_price || 0
           ).toLocaleString()}
@@ -542,16 +542,16 @@ const [updating, setUpdating] =
         <td className="p-4">
           {supplier ? (
             <div>
-              <p className="font-medium">
+              <p className="font-medium text-gray-600">
                 {supplier.name}
               </p>
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-gray-600">
                 {supplier.phone ||
                   "No Phone"}
               </p>
             </div>
           ) : (
-            <span className="text-slate-400">
+            <span className="font-medium text-gray-600">
               No Supplier
             </span>
           )}
