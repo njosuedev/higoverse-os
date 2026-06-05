@@ -12,12 +12,10 @@ import {
   Filter,
   Plus,
   Trash2,
-  Pencil,
   X,
   Boxes,
   DollarSign,
-  Activity,
-  LayoutDashboard
+  Activity
 } from "lucide-react";
 
 
@@ -648,7 +646,7 @@ const [updating, setUpdating] =
           <div className="bg-white rounded-3xl w-full max-w-2xl p-6">
 
             <div className="flex justify-between items-center mb-6">
-              <h2 className="font-bold text-xl">
+              <h2 className="font-bold text-xl text-gray-700">
                 Add Product
               </h2>
 
@@ -656,6 +654,7 @@ const [updating, setUpdating] =
                 onClick={() =>
                   setShowCreateModal(false)
                 }
+                className="border text-gray-800 placeholder:text-gray-400 rounded-xl p-3"
               >
                 <X />
               </button>
@@ -664,7 +663,7 @@ const [updating, setUpdating] =
             <div className="grid md:grid-cols-2 gap-4">
 
               <input
-                className="border rounded-xl p-3"
+                className="border text-gray-800 placeholder:text-gray-400 rounded-xl p-3"
                 placeholder="Name"
                 value={form.name}
                 onChange={(e) =>
@@ -676,7 +675,7 @@ const [updating, setUpdating] =
               />
 
               <input
-                className="border rounded-xl p-3"
+                className="border text-gray-800 placeholder:text-gray-400 rounded-xl p-3"
                 placeholder="Description"
                 value={form.description}
                 onChange={(e) =>
@@ -690,7 +689,7 @@ const [updating, setUpdating] =
 
               <input
                 type="number"
-                className="border rounded-xl p-3"
+                className="border text-gray-800 placeholder:text-gray-400 rounded-xl p-3"
                 placeholder="Cost Price"
                 value={form.cost_price}
                 onChange={(e) =>
@@ -704,7 +703,7 @@ const [updating, setUpdating] =
 
               <input
                 type="number"
-                className="border rounded-xl p-3"
+                className="border text-gray-800 placeholder:text-gray-400 rounded-xl p-3"
                 placeholder="Selling Price"
                 value={form.selling_price}
                 onChange={(e) =>
@@ -718,7 +717,7 @@ const [updating, setUpdating] =
 
               <input
                 type="number"
-                className="border rounded-xl p-3"
+                className="border text-gray-800 placeholder:text-gray-400 rounded-xl p-3"
                 placeholder="Quantity"
                 value={form.quantity}
                 onChange={(e) =>
@@ -731,7 +730,7 @@ const [updating, setUpdating] =
               />
 
               <select
-                className="border rounded-xl p-3"
+                className="border text-gray-800 font-medium placeholder:text-gray-400 rounded-xl p-3"
                 value={form.supplier_id}
                 onChange={(e) =>
                   setForm({
