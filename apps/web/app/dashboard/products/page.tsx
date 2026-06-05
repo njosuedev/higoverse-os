@@ -3,12 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { productRequest } from "@/lib/product-api";
 import { supplierRequest } from "@/lib/supplier-api";
-import {
-  Package,
-  AlertCircle,
-  Search,
-  Filter,
-} from "lucide-react";
+import { Package, AlertCircle, Search, Filter } from "lucide-react";
 
 /* ---------------- TIME AGO HELPER ---------------- */
 function timeAgo(dateString?: string) {
@@ -55,7 +50,6 @@ export default function ProductsPage() {
 
       setProducts(productsRes?.data?.items || []);
       setSuppliers(suppliersRes?.data || []);
-
       setLastUpdated(new Date());
     } catch (err) {
       console.error(err);
@@ -66,7 +60,7 @@ export default function ProductsPage() {
     }
   }
 
-  /* ---------------- SUPPLIER MAP (FAST LOOKUP) ---------------- */
+  /* ---------------- SUPPLIER MAP ---------------- */
   const supplierMap = useMemo(() => {
     const map: Record<string, any> = {};
     suppliers.forEach((s) => {
@@ -75,7 +69,7 @@ export default function ProductsPage() {
     return map;
   }, [suppliers]);
 
-  /* ---------------- FILTER LOGIC ---------------- */
+  /* ---------------- FILTER ---------------- */
   const filteredProducts = useMemo(() => {
     return products
       .filter((p) =>
@@ -90,6 +84,23 @@ export default function ProductsPage() {
         return true;
       });
   }, [products, search, filter]);
+
+  /* ---------------- PRODUCT STATS ---------------- */
+  const stats = useMemo(() => {
+    const total = products.length;
+    const inStock = products.filter((p) => p.quantity > 10).length;
+    const lowStock = products.filter(
+      (p) => p.quantity > 0 && p.quantity <= 10
+    ).length;
+    const outStock = products.filter((p) => p.quantity === 0).length;
+
+    const totalProfit = products.reduce((sum, p) => {
+      const profit = (p.selling_price || 0) - (p.cost_price || 0);
+      return sum + (profit > 0 ? profit : 0);
+    }, 0);
+
+    return { total, inStock, lowStock, outStock, totalProfit };
+  }, [products]);
 
   if (loading) {
     return (
@@ -108,9 +119,7 @@ export default function ProductsPage() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Package />
-            <h1 className="text-xl font-bold">
-              Product Inventory
-            </h1>
+            <h1 className="text-xl font-bold">Product Inventory</h1>
           </div>
 
           <div className="text-sm flex items-center gap-2">
@@ -120,10 +129,7 @@ export default function ProductsPage() {
         </div>
 
         <p className="text-blue-100 text-sm mt-1">
-          Last update:{" "}
-          {lastUpdated
-            ? lastUpdated.toLocaleTimeString()
-            : "—"}
+          Last update: {lastUpdated ? lastUpdated.toLocaleTimeString() : "—"}
         </p>
 
         {/* SEARCH + FILTER */}
@@ -143,7 +149,6 @@ export default function ProductsPage() {
           {/* FILTER */}
           <div className="flex items-center gap-2 bg-white/10 rounded-xl px-3 py-2">
             <Filter className="w-4 h-4 text-white" />
-
             <select
               value={filter}
               onChange={(e) => setFilter(e.target.value)}
@@ -156,6 +161,46 @@ export default function ProductsPage() {
             </select>
           </div>
         </div>
+      </div>
+
+      {/* STATS CARDS */}
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
+
+        <div className="bg-white border rounded-2xl p-5">
+          <p className="text-slate-500 text-sm">Total Products</p>
+          <h2 className="text-2xl font-bold text-slate-900 mt-1">
+            {stats.total}
+          </h2>
+        </div>
+
+        <div className="bg-white border rounded-2xl p-5">
+          <p className="text-slate-500 text-sm">In Stock</p>
+          <h2 className="text-2xl font-bold text-green-600 mt-1">
+            {stats.inStock}
+          </h2>
+        </div>
+
+        <div className="bg-white border rounded-2xl p-5">
+          <p className="text-slate-500 text-sm">Low Stock</p>
+          <h2 className="text-2xl font-bold text-amber-500 mt-1">
+            {stats.lowStock}
+          </h2>
+        </div>
+
+        <div className="bg-white border rounded-2xl p-5">
+          <p className="text-slate-500 text-sm">Out of Stock</p>
+          <h2 className="text-2xl font-bold text-red-600 mt-1">
+            {stats.outStock}
+          </h2>
+        </div>
+
+        <div className="bg-white border rounded-2xl p-5">
+          <p className="text-slate-500 text-sm">Total Profit</p>
+          <h2 className="text-2xl font-bold text-green-700 mt-1">
+            {stats.totalProfit.toFixed(0)}
+          </h2>
+        </div>
+
       </div>
 
       {/* TABLE */}
@@ -186,32 +231,26 @@ export default function ProductsPage() {
                   className="border-t hover:bg-slate-50 transition"
                 >
 
-                  {/* PRODUCT */}
                   <td className="p-4 font-medium text-slate-900">
                     {p.name}
                   </td>
 
-                  {/* DESCRIPTION */}
                   <td className="p-4 text-slate-500">
                     {p.description}
                   </td>
 
-                  {/* COST */}
                   <td className="p-4">
                     {p.cost_price}
                   </td>
 
-                  {/* SELLING */}
                   <td className="p-4 text-green-600 font-medium">
                     {p.selling_price}
                   </td>
 
-                  {/* QTY */}
                   <td className="p-4">
                     {p.quantity}
                   </td>
 
-                  {/* SUPPLIER (REAL NAME NOW) */}
                   <td className="p-4">
                     {supplier ? (
                       <div>
@@ -223,13 +262,10 @@ export default function ProductsPage() {
                         </p>
                       </div>
                     ) : (
-                      <span className="text-slate-400">
-                        No supplier
-                      </span>
+                      <span className="text-slate-400">No supplier</span>
                     )}
                   </td>
 
-                  {/* PROFIT / LOSS */}
                   <td className="p-4">
                     {p.profit_status === "profit" ? (
                       <span className="text-green-600 font-semibold">
@@ -242,7 +278,6 @@ export default function ProductsPage() {
                     )}
                   </td>
 
-                  {/* TIME AGO */}
                   <td className="p-4 text-slate-500">
                     {timeAgo(p.created_at)}
                   </td>
