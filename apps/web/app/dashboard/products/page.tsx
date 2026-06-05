@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { productRequest } from "@/lib/product-api";
 import { supplierRequest } from "@/lib/supplier-api";
+import DashboardHeader from "@/app/components/dashboard/DashboardHeader"
 
 import {
   Package,
@@ -16,26 +17,9 @@ import {
   Boxes,
   DollarSign,
   Activity,
+  LayoutDashboard
 } from "lucide-react";
 
-function timeAgo(dateString?: string) {
-  if (!dateString) return "—";
-
-  const date = new Date(dateString);
-  const now = new Date();
-
-  const diff = Math.floor(
-    (now.getTime() - date.getTime()) / 1000
-  );
-
-  if (diff < 60) return "now";
-  if (diff < 3600)
-    return `${Math.floor(diff / 60)} min ago`;
-  if (diff < 86400)
-    return `${Math.floor(diff / 3600)} hr ago`;
-
-  return `${Math.floor(diff / 86400)} day ago`;
-}
 
 export default function ProductsPage() {
   const [products, setProducts] = useState<any[]>([]);
@@ -303,7 +287,7 @@ const [updating, setUpdating] =
 
   return (
     <div className="min-h-screen bg-slate-50 p-6">
-
+      <DashboardHeader title="Products" />
       <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-3xl p-6 mb-6">
 
         <div className="flex justify-between items-center">

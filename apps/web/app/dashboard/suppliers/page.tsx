@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { supplierRequest } from "@/lib/supplier-api";
+import DashboardHeader from "@/app/components/dashboard/DashboardHeader"
+
 import {
   Users,
   Search,
@@ -14,19 +16,6 @@ import {
   MapPin,
 } from "lucide-react";
 
-/* ---------------- TIME AGO ---------------- */
-function timeAgo(dateString?: string) {
-  if (!dateString) return "—";
-
-  const date = new Date(dateString);
-  const now = new Date();
-  const diff = Math.floor((now.getTime() - date.getTime()) / 1000);
-
-  if (diff < 60) return "now";
-  if (diff < 3600) return `${Math.floor(diff / 60)} min ago`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)} hr ago`;
-  return `${Math.floor(diff / 86400)} day ago`;
-}
 
 export default function SuppliersPage() {
   const [suppliers, setSuppliers] = useState<any[]>([]);
@@ -191,6 +180,8 @@ export default function SuppliersPage() {
   return (
     <div className="min-h-screen bg-slate-50 p-6">
 
+      <DashboardHeader title="suppliers" />
+
       {/* HEADER */}
       <div className="bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-3xl p-6 mb-6">
 
@@ -246,22 +237,22 @@ export default function SuppliersPage() {
       <div className="grid md:grid-cols-4 gap-4 mb-6">
 
         <div className="bg-white p-5 rounded-2xl border">
-          <p>Total</p>
-          <h2 className="text-2xl font-bold">{stats.total}</h2>
+          <p className="text-gray-600 font-bold">Total</p>
+          <h2 className="text-2xl text-gray-800 font-bold">{stats.total}</h2>
         </div>
 
         <div className="bg-white p-5 rounded-2xl border">
-          <p>Active</p>
+          <p className="text-gray-600 font-bold">Active</p>
           <h2 className="text-2xl font-bold text-green-600">{stats.active}</h2>
         </div>
 
         <div className="bg-white p-5 rounded-2xl border">
-          <p>Inactive</p>
+          <p className="text-gray-600 font-bold">Inactive</p>
           <h2 className="text-2xl font-bold text-red-600">{stats.inactive}</h2>
         </div>
 
         <div className="bg-white p-5 rounded-2xl border">
-          <p>No Phone</p>
+          <p className="text-gray-600 font-bold">No Phone</p>
           <h2 className="text-2xl font-bold text-amber-500">{stats.noPhone}</h2>
         </div>
 

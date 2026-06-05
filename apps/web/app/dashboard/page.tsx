@@ -3,26 +3,34 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { getUser, isAuthenticated } from "@/lib/auth";
-import LogoutButton from "@/app/components/LogoutButton";
+import DashboardHeader from "../components/dashboard/DashboardHeader";
+import InfoCard from "@/app/components/dashboard/InfoCard";
+import StatCard from "@/app/components/dashboard/StatCard"
+import LoadingSkeleton from "@/app/components/dashboard/LoadingSkeleton";
+
+
 import {
   User,
   Mail,
   Store,
   ShieldCheck,
-  Activity,
-  LayoutDashboard,
   Package,
   Truck,
   ArrowRight,
   BarChart3,
   ShoppingCart,
   Users,
+  LayoutDashboard,
 } from "lucide-react";
 
+
 export default function DashboardPage() {
+  const [mounted, setMounted] = useState(false);
   const [user, setUser] = useState<any>(null);
 
   useEffect(() => {
+    setMounted(true);
+
     if (!isAuthenticated()) {
       window.location.replace("/login");
       return;
@@ -31,19 +39,14 @@ export default function DashboardPage() {
     setUser(getUser());
   }, []);
 
-  if (!user) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
-          <p className="text-sm text-slate-500">
-            Loading Dashboard...
-          </p>
-        </div>
-      </div>
-    );
+  if (!mounted) {
+    return null;
   }
 
+  if (!user) {
+    return <LoadingSkeleton />;
+  }
+  
   const services = [
     {
       title: "Product Service",
@@ -88,71 +91,55 @@ export default function DashboardPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50">
-      {/* HEADER */}
-      <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-lg border-b border-slate-200">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
-          <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 flex items-center justify-center text-white">
-              <LayoutDashboard size={22} />
-            </div>
+  <div className="min-h-screen bg-slate-50">
+    <DashboardHeader />
 
-            <div>
-              <h1 className="font-bold text-slate-900">
-                Higoverse
-              </h1>
-              <p className="text-xs text-slate-500">
-                Business Management Platform
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-4">
-            <div className="hidden md:flex items-center gap-2 text-sm text-green-600">
-              <Activity size={16} />
-              System Online
-            </div>
-
-            <LogoutButton />
-          </div>
-        </div>
-      </header>
-
+    <main className="max-w-7xl mx-auto px-6 py-6">
       {/* HERO */}
-      <section className="max-w-7xl mx-auto px-6 pt-8">
-        <div className="rounded-3xl bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white p-8 shadow-xl">
-          <h2 className="text-3xl font-bold">
-            Welcome back 👋
-          </h2>
+      <section className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700  p-8 text-white shadow-lg">
+        <div className="absolute right-0 top-0 opacity-10">
+          <LayoutDashboard size={260} />
+        </div>
 
-          <p className="mt-2 text-blue-100">
-            Manage your business services from one central dashboard.
+        <div className="relative z-10">
+          <p className="text-green-100 text-sm">
+            Welcome back
           </p>
 
-          <div className="mt-6 flex flex-wrap gap-4">
-            <div className="bg-white/10 backdrop-blur rounded-xl px-4 py-3">
-              <p className="text-xs text-blue-100">
-                Active Account
+          <h1 className="text-3xl md:text-4xl font-bold mt-1">
+            {user.name || "Business Owner"}
+          </h1>
+
+          <p className="mt-3 text-green-100 max-w-2xl">
+            Manage inventory, suppliers, customers and
+            business operations from one centralized
+            dashboard.
+          </p>
+
+          <div className="flex flex-wrap gap-3 mt-6">
+            <div className="bg-white/10 backdrop-blur px-4 py-3 rounded-xl">
+              <p className="text-xs text-green-100">
+                Email
               </p>
-              <p className="font-semibold">
+              <p className="font-medium">
                 {user.email}
               </p>
             </div>
 
-            <div className="bg-white/10 backdrop-blur rounded-xl px-4 py-3">
-              <p className="text-xs text-blue-100">
+            <div className="bg-white/10 backdrop-blur px-4 py-3 rounded-xl">
+              <p className="text-xs text-green-100">
                 Shop ID
               </p>
-              <p className="font-semibold">
+              <p className="font-medium">
                 {user.shop_id || "N/A"}
               </p>
             </div>
 
-            <div className="bg-white/10 backdrop-blur rounded-xl px-4 py-3">
-              <p className="text-xs text-blue-100">
+            <div className="bg-white/10 backdrop-blur px-4 py-3 rounded-xl">
+              <p className="text-xs text-green-100">
                 Status
               </p>
-              <p className="font-semibold">
+              <p className="font-medium">
                 Active
               </p>
             </div>
@@ -160,14 +147,104 @@ export default function DashboardPage() {
         </div>
       </section>
 
-      {/* PROFILE */}
-      <section className="max-w-7xl mx-auto px-6 mt-8">
-        <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm">
-          <h3 className="font-semibold text-slate-900 mb-5">
-            Account Information
-          </h3>
+      {/* KPI CARDS */}
+      <section className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
+        <StatCard
+          title="Products"
+          value="0"
+          icon={<Package size={22} />}
+        />
 
-          <div className="grid md:grid-cols-4 gap-5">
+        <StatCard
+          title="Suppliers"
+          value="0"
+          icon={<Truck size={22} />}
+        />
+
+        <StatCard
+          title="Sales"
+          value="0"
+          icon={<ShoppingCart size={22} />}
+        />
+
+        <StatCard
+          title="Customers"
+          value="0"
+          icon={<Users size={22} />}
+        />
+      </section>
+
+      {/* QUICK ACTIONS */}
+      <section className="mt-8">
+        <h2 className="text-lg font-semibold text-slate-900 mb-4">
+          Quick Actions
+        </h2>
+
+        <div className="grid md:grid-cols-3 gap-4">
+          <Link
+            href="/dashboard/products"
+            className="bg-white border border-slate-200 rounded-2xl p-5 hover:border-green-500 hover:shadow-md transition-all"
+          >
+            <Package className="text-green-600" />
+            <h3 className="font-semibold mt-3">
+              Manage Products
+            </h3>
+            <p className="text-sm text-slate-500 mt-1">
+              Add, update and monitor inventory.
+            </p>
+          </Link>
+
+          <Link
+            href="/dashboard/suppliers"
+            className="bg-white border border-slate-200 rounded-2xl p-5 hover:border-green-500 hover:shadow-md transition-all"
+          >
+            <Truck className="text-green-600" />
+            <h3 className="font-semibold mt-3">
+              Manage Suppliers
+            </h3>
+            <p className="text-sm text-slate-500 mt-1">
+              Track supplier information and purchases.
+            </p>
+          </Link>
+
+          <Link
+            href="/dashboard/reports"
+            className="bg-white border border-slate-200 rounded-2xl p-5 hover:border-green-500 hover:shadow-md transition-all"
+          >
+            <BarChart3 className="text-green-600" />
+            <h3 className="font-semibold mt-3">
+              View Reports
+            </h3>
+            <p className="text-sm text-slate-500 mt-1">
+              Analyze business performance.
+            </p>
+          </Link>
+        </div>
+      </section>
+
+      {/* ACCOUNT */}
+      <section className="mt-8">
+        <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm">
+          <div className="flex items-center gap-4 mb-6">
+            <div className="w-14 h-14 rounded-2xl bg-green-100 flex items-center justify-center">
+              <User
+                className="text-green-700"
+                size={24}
+              />
+            </div>
+
+            <div>
+              <h3 className="font-semibold text-lg">
+                {user.name || "Business Owner"}
+              </h3>
+
+              <p className="text-slate-500">
+                {user.email}
+              </p>
+            </div>
+          </div>
+
+          <div className="grid md:grid-cols-4 gap-4">
             <InfoCard
               icon={<Mail size={18} />}
               label="Email"
@@ -177,13 +254,13 @@ export default function DashboardPage() {
             <InfoCard
               icon={<Store size={18} />}
               label="Shop ID"
-              value={user.shop_id || "Not Assigned"}
+              value={user.shop_id || "N/A"}
             />
 
             <InfoCard
               icon={<User size={18} />}
-              label="User"
-              value={user.name || "Business Owner"}
+              label="Role"
+              value={user.role || "Owner"}
             />
 
             <InfoCard
@@ -196,12 +273,12 @@ export default function DashboardPage() {
       </section>
 
       {/* SERVICES */}
-      <section className="max-w-7xl mx-auto px-6 py-8">
-        <h3 className="text-xl font-bold text-slate-900 mb-5">
+      <section className="mt-8">
+        <h2 className="text-lg font-semibold text-slate-900 mb-4">
           Business Services
-        </h3>
+        </h2>
 
-        <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-6">
+        <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-5">
           {services.map((service) => {
             const Icon = service.icon;
 
@@ -209,28 +286,25 @@ export default function DashboardPage() {
               <Link
                 key={service.title}
                 href={service.href}
-                className="bg-white border border-slate-200 rounded-3xl p-6 hover:shadow-lg transition-all hover:-translate-y-1"
+                className="group bg-white rounded-3xl border border-slate-200 p-6 hover:border-green-300 hover:shadow-xl transition-all"
               >
-                <div className="flex justify-between items-start">
-                  <div className="w-12 h-12 rounded-xl bg-blue-100 flex items-center justify-center">
-                    <Icon className="text-blue-600" size={24} />
+                <div className="flex justify-between">
+                  <div className="w-14 h-14 rounded-2xl bg-green-50 text-green-600 flex items-center justify-center group-hover:scale-110 transition-transform">
+                    <Icon size={24} />
                   </div>
 
-                  <ArrowRight
-                    className="text-slate-400"
-                    size={18}
-                  />
+                  <ArrowRight className="text-slate-300 group-hover:text-green-600 group-hover:translate-x-1 transition-all" />
                 </div>
 
-                <h4 className="mt-5 font-semibold text-lg text-slate-900">
+                <h3 className="font-semibold text-lg mt-5">
                   {service.title}
-                </h4>
+                </h3>
 
-                <p className="mt-2 text-sm text-slate-500">
+                <p className="text-sm text-slate-500 mt-2">
                   {service.description}
                 </p>
 
-                <div className="mt-4 inline-flex items-center gap-2 text-green-600 text-sm">
+                <div className="mt-4 flex items-center gap-2 text-green-600 text-sm">
                   <span className="w-2 h-2 rounded-full bg-green-500" />
                   Available
                 </div>
@@ -239,34 +313,7 @@ export default function DashboardPage() {
           })}
         </div>
       </section>
-
-      {/* FOOTER */}
-      <footer className="text-center py-10 text-sm text-slate-500">
-        © {new Date().getFullYear()} Higoverse. All rights reserved.
-      </footer>
-    </div>
-  );
-}
-
-function InfoCard({
-  icon,
-  label,
-  value,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-}) {
-  return (
-    <div className="bg-slate-50 rounded-2xl p-4">
-      <div className="flex items-center gap-2 text-slate-500 text-sm">
-        {icon}
-        {label}
-      </div>
-
-      <p className="mt-2 font-semibold text-slate-900 break-all">
-        {value}
-      </p>
-    </div>
+    </main>
+  </div>
   );
 }
