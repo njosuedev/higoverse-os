@@ -282,7 +282,7 @@ export default function ProductsPage() {
                    <td className="p-4">
                     {p.profit_status === "profit" ? (
                       <span className="text-green-600 font-semibold">
-                        +{p.profit_money}%
+                        {p.profit_money}
                       </span>
                     ) : (
                       <span className="text-red-600 font-semibold">
