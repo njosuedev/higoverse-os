@@ -1,7 +1,6 @@
 import { getToken } from "@/lib/auth";
 
-const SUPPLIER_API =
-  "https://higoverse-suppliers.vercel.app";
+const SUPPLIER_API = "https://higoverse-suppliers.vercel.app";
 
 export async function supplierRequest(
   endpoint: string,
@@ -9,19 +8,25 @@ export async function supplierRequest(
 ) {
   const token = getToken();
 
+  const headers = new Headers(options.headers);
+
+  headers.set("Content-Type", "application/json");
+
+  // 🔐 attach token only if exists
+  if (token) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
+
   const res = await fetch(`${SUPPLIER_API}${endpoint}`, {
     ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...(token && {
-        Authorization: `Bearer ${token}`,
-      }),
-      ...options.headers,
-    },
+    headers,
   });
 
   if (!res.ok) {
-    throw new Error(`Supplier API error: ${res.status}`);
+    const errorText = await res.text().catch(() => "");
+    throw new Error(
+      `Supplier API error: ${res.status} ${errorText || ""}`
+    );
   }
 
   return res.json();
