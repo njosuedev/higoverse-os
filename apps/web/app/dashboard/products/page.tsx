@@ -366,16 +366,16 @@ const [updating, setUpdating] =
               }
               className="bg-transparent outline-none"
             >
-              <option value="all">
+              <option value="all" className="text-gray-500">
                 All
               </option>
-              <option value="in_stock">
+              <option value="in_stock" className="text-gray-500">
                 In Stock
               </option>
-              <option value="low_stock">
+              <option value="low_stock" className="text-gray-500">
                 Low Stock
               </option>
-              <option value="out_stock">
+              <option value="out_stock" className="text-gray-500">
                 Out Stock
               </option>
             </select>
@@ -389,10 +389,10 @@ const [updating, setUpdating] =
         <div className="bg-white rounded-2xl border p-5">
           <div className="flex justify-between">
             <div>
-              <p className="text-slate-500">
+              <p className="text-gray-500">
                 Products
               </p>
-              <h2 className="text-3xl font-bold">
+              <h2 className="text-3xl font-bold text-gray-700">
                 {stats.total}
               </h2>
             </div>
@@ -402,9 +402,9 @@ const [updating, setUpdating] =
 
         <div className="bg-white rounded-2xl border p-5">
           <div className="flex justify-between">
-            <div>
+            <div className="text-gray-600">
               <p>In Stock</p>
-              <h2 className="text-3xl font-bold text-green-600">
+              <h2 className="text-3xl font-bold text-green-500">
                 {stats.inStock}
               </h2>
             </div>
@@ -414,7 +414,7 @@ const [updating, setUpdating] =
 
         <div className="bg-white rounded-2xl border p-5">
           <div className="flex justify-between">
-            <div>
+            <div className="text-gray-600">
               <p>Low Stock</p>
               <h2 className="text-3xl font-bold text-amber-500">
                 {stats.lowStock}
@@ -426,7 +426,7 @@ const [updating, setUpdating] =
 
         <div className="bg-white rounded-2xl border p-5">
           <div className="flex justify-between">
-            <div>
+            <div className="text-gray-600">
               <p>Out Stock</p>
               <h2 className="text-3xl font-bold text-red-600">
                 {stats.outStock}
@@ -438,7 +438,7 @@ const [updating, setUpdating] =
 
         <div className="bg-white rounded-2xl border p-5">
           <div className="flex justify-between">
-            <div>
+            <div className="text-gray-600">
               <p>Profit</p>
               <h2 className="text-3xl font-bold text-green-700">
                 {stats.totalProfit.toLocaleString()}
@@ -456,34 +456,34 @@ const [updating, setUpdating] =
 
           <thead className="bg-slate-100">
             <tr>
-              <th className="p-4 text-left">
+              <th className="p-4 text-left text-gray-700">
                 Product
               </th>
-              <th className="p-4 text-left">
+              <th className="p-4 text-left text-gray-700">
                 Description
               </th>
-              <th className="p-4 text-left">
+              <th className="p-4 text-left text-gray-700">
                 Cost
               </th>
-              <th className="p-4 text-left">
+              <th className="p-4 text-left text-gray-700">
                 Selling
               </th>
-              <th className="p-4 text-left">
+              <th className="p-4 text-left text-gray-700">
                 Qty
               </th>
-              <th className="p-4 text-left">
+              <th className="p-4 text-left text-gray-700">
                 Supplier
               </th>
-              <th className="p-4 text-left">
+              <th className="p-4 text-left text-gray-700">
                 Status
               </th>
-              <th className="p-4 text-left">
-                Profit
+              <th className="p-4 text-left text-gray-700">
+                Unit Profit
               </th>
-              <th className="p-4 text-left">
-                Added
+              <th className="p-4 text-left text-gray-700">
+                Total Profit
               </th>
-              <th className="p-4 text-left">
+              <th className="p-4 text-left text-gray-700">
                 Actions
               </th>
             </tr>
@@ -587,6 +587,23 @@ const [updating, setUpdating] =
             </span>
           )}
         </td>
+
+        <td className="p-4">
+        {(() => {
+          const totalProfit =
+            Number(p.profit_money || 0) * Number(p.quantity || 0);
+
+          return p.profit_status === "profit" ? (
+            <span className="font-semibold text-green-600">
+              {totalProfit.toLocaleString()}
+            </span>
+          ) : (
+            <span className="font-semibold text-red-600">
+              {totalProfit.toLocaleString()}
+            </span>
+          );
+        })()}
+      </td>
 
         <td className="p-4 text-slate-500">
           {timeAgo(p.created_at)}
