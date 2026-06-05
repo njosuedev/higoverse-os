@@ -216,7 +216,8 @@ export default function ProductsPage() {
               <th className="p-4 text-left">Selling</th>
               <th className="p-4 text-left">Qty</th>
               <th className="p-4 text-left">Supplier</th>
-              <th className="p-4 text-left">Profit</th>
+              <th className="p-4 text-left">Status</th>
+              <th className="p-4 text-left">Value</th>
               <th className="p-4 text-left">Added</th>
             </tr>
           </thead>
@@ -270,6 +271,18 @@ export default function ProductsPage() {
                     {p.profit_status === "profit" ? (
                       <span className="text-green-600 font-semibold">
                         +{p.profit_percent}%
+                      </span>
+                    ) : (
+                      <span className="text-red-600 font-semibold">
+                        Loss
+                      </span>
+                    )}
+                  </td>
+
+                   <td className="p-4">
+                    {p.profit_status === "profit" ? (
+                      <span className="text-green-600 font-semibold">
+                        +{p.profit_money}%
                       </span>
                     ) : (
                       <span className="text-red-600 font-semibold">
