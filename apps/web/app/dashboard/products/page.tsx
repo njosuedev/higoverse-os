@@ -387,7 +387,7 @@ const [updating, setUpdating] =
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
 
         <div className="bg-white rounded-2xl border p-5">
-          <div className="flex justify-between">
+          <div className="flex justify-between text-blue-600">
             <div>
               <p className="text-gray-500">
                 Products
@@ -401,7 +401,7 @@ const [updating, setUpdating] =
         </div>
 
         <div className="bg-white rounded-2xl border p-5">
-          <div className="flex justify-between">
+          <div className="flex justify-between text-blue-600">
             <div className="text-gray-600">
               <p>In Stock</p>
               <h2 className="text-3xl font-bold text-green-500">
@@ -413,7 +413,7 @@ const [updating, setUpdating] =
         </div>
 
         <div className="bg-white rounded-2xl border p-5">
-          <div className="flex justify-between">
+          <div className="flex justify-between text-blue-600">
             <div className="text-gray-600">
               <p>Low Stock</p>
               <h2 className="text-3xl font-bold text-amber-500">
@@ -425,7 +425,7 @@ const [updating, setUpdating] =
         </div>
 
         <div className="bg-white rounded-2xl border p-5">
-          <div className="flex justify-between">
+          <div className="flex justify-between text-blue-600">
             <div className="text-gray-600">
               <p>Out Stock</p>
               <h2 className="text-3xl font-bold text-red-600">
@@ -437,7 +437,7 @@ const [updating, setUpdating] =
         </div>
 
         <div className="bg-white rounded-2xl border p-5">
-          <div className="flex justify-between">
+          <div className="flex justify-between text-blue-600">
             <div className="text-gray-600">
               <p>Profit</p>
               <h2 className="text-3xl font-bold text-green-700">
