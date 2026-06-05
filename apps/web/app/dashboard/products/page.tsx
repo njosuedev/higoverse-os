@@ -605,14 +605,14 @@ const [updating, setUpdating] =
         })()}
       </td>
 
-        <td className="p-4 text-slate-500">
+        {/* <td className="p-4 text-slate-500">
           {timeAgo(p.created_at)}
-        </td>
+        </td> */}
 
         <td className="p-4">
           <div className="flex items-center gap-2">
 
-            <button
+            {/* <button
               onClick={() =>
                 openEdit(p)
               }
@@ -620,7 +620,7 @@ const [updating, setUpdating] =
             >
               <Pencil size={16} />
               Edit
-            </button>
+            </button> */}
 
             <button
               onClick={() =>
