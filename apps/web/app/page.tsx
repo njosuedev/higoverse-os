@@ -5,7 +5,9 @@ import Link from "next/link";
 import { getUser, isAuthenticated } from "@/lib/auth";
 import DashboardHeader from "@/app/components/dashboard/DashboardHeader";
 import InfoCard from "@/app/components/dashboard/InfoCard";
-import StatCard from "@/app/components/dashboard/StatCard"
+import StatCard from "@/app/components/dashboard/StatCard";
+import { productRequest } from "@/lib/product-api";
+import { supplierRequest } from "@/lib/supplier-api";
 import LoadingSkeleton from "@/app/components/dashboard/LoadingSkeleton";
 
 
@@ -46,6 +48,47 @@ export default function DashboardPage() {
   if (!user) {
     return <LoadingSkeleton />;
   }
+
+
+  const stats = useMemo(() => {
+    const total = products.length;
+
+    const inStock = products.filter(
+      (p) => p.quantity > 10
+    ).length;
+
+    const lowStock = products.filter(
+      (p) =>
+        p.quantity > 0 &&
+        p.quantity <= 10
+    ).length;
+
+    const outStock = products.filter(
+      (p) => p.quantity === 0
+    ).length;
+
+    const totalProfit = products.reduce(
+      (sum, p) => {
+        const profit =
+          (p.selling_price || 0) -
+          (p.cost_price || 0);
+
+        return (
+          sum + (profit > 0 ? profit : 0)
+        );
+      },
+      0
+    );
+
+    return {
+      total,
+      inStock,
+      lowStock,
+      outStock,
+      totalProfit,
+    };
+  }, [products]);
+
   
   const services = [
     {
@@ -151,7 +194,7 @@ export default function DashboardPage() {
       <section className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
         <StatCard
           title="Products"
-          value="0"
+          value="100"
           icon={<Package size={22} />}
         />
 
