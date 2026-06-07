@@ -131,7 +131,7 @@ export default function DashboardPage() {
                 Shop ID
               </p>
               <p className="font-medium">
-                {shop.name || "N/A"}
+                {user.shop_id || "N/A"}
               </p>
             </div>
 
