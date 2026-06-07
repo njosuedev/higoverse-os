@@ -54,7 +54,7 @@ export default function DashboardPage() {
         "Manage products, categories, stock and inventory.",
       icon: Package,
       color: "blue",
-      href: "/dashboard/products",
+      href: "/products",
     },
     {
       title: "Supplier Service",
@@ -62,7 +62,7 @@ export default function DashboardPage() {
         "Manage suppliers and purchasing workflows.",
       icon: Truck,
       color: "indigo",
-      href: "/dashboard/suppliers",
+      href: "/suppliers",
     },
     {
       title: "Sales",
@@ -131,7 +131,7 @@ export default function DashboardPage() {
                 Shop ID
               </p>
               <p className="font-medium">
-                {user.shop_id || "N/A"}
+                {user.name || "N/A"}
               </p>
             </div>
 
