@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { getUser, isAuthenticated } from "@/lib/auth";
 import DashboardHeader from "@/app/components/dashboard/DashboardHeader";
@@ -29,6 +29,7 @@ import {
 export default function DashboardPage() {
   const [mounted, setMounted] = useState(false);
   const [user, setUser] = useState<any>(null);
+  const [products, setProducts] = useState([]);
 
   useEffect(() => {
     setMounted(true);
@@ -49,47 +50,13 @@ export default function DashboardPage() {
     return <LoadingSkeleton />;
   }
 
+useEffect(() => {
+  productRequest("/products").then(res => {
+    setProducts(res?.data?.items || []);
+  });
+}, []);
 
-  const stats = useMemo(() => {
-    const total = products.length;
-
-    const inStock = products.filter(
-      (p) => p.quantity > 10
-    ).length;
-
-    const lowStock = products.filter(
-      (p) =>
-        p.quantity > 0 &&
-        p.quantity <= 10
-    ).length;
-
-    const outStock = products.filter(
-      (p) => p.quantity === 0
-    ).length;
-
-    const totalProfit = products.reduce(
-      (sum, p) => {
-        const profit =
-          (p.selling_price || 0) -
-          (p.cost_price || 0);
-
-        return (
-          sum + (profit > 0 ? profit : 0)
-        );
-      },
-      0
-    );
-
-    return {
-      total,
-      inStock,
-      lowStock,
-      outStock,
-      totalProfit,
-    };
-  }, [products]);
-
-  
+const totalProducts = products.length;
   const services = [
     {
       title: "Product Service",
@@ -194,7 +161,7 @@ export default function DashboardPage() {
       <section className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
         <StatCard
           title="Products"
-          value="100"
+          value={totalProducts}
           icon={<Package size={22} />}
         />
 
