@@ -2,12 +2,14 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+
 import { getUser, isAuthenticated } from "@/lib/auth";
+import { productRequest } from "@/lib/product-api";
+
 import DashboardHeader from "@/app/components/dashboard/DashboardHeader";
 import InfoCard from "@/app/components/dashboard/InfoCard";
 import StatCard from "@/app/components/dashboard/StatCard";
 import LoadingSkeleton from "@/app/components/dashboard/LoadingSkeleton";
-import { productRequest } from "@/lib/product-api";
 
 import {
   User,
@@ -23,58 +25,68 @@ import {
   LayoutDashboard,
 } from "lucide-react";
 
-/* ===================== TYPES ===================== */
+/* ================= TYPES ================= */
 type Product = {
   id: string;
   quantity: number;
 };
 
-/* ===================== COMPONENT ===================== */
+/* ================= COMPONENT ================= */
 export default function DashboardPage() {
+  /* ---------- STATE ---------- */
+  const [authLoading, setAuthLoading] = useState(true);
+  const [dataLoading, setDataLoading] = useState(true);
+
   const [user, setUser] = useState<any>(null);
   const [products, setProducts] = useState<Product[]>([]);
-  const [loading, setLoading] = useState(true);
 
-  /* ===================== AUTH ===================== */
+  /* ================= AUTH ================= */
   useEffect(() => {
-    if (!isAuthenticated()) {
-      window.location.replace("/login");
-      return;
-    }
+    const initAuth = () => {
+      if (!isAuthenticated()) {
+        window.location.replace("/login");
+        return;
+      }
 
-    setUser(getUser());
+      setUser(getUser());
+      setAuthLoading(false);
+    };
+
+    initAuth();
   }, []);
 
-  /* ===================== LOAD PRODUCTS ===================== */
+  /* ================= LOAD DATA ================= */
   useEffect(() => {
     if (!user) return;
 
     const loadProducts = async () => {
       try {
-        setLoading(true);
+        setDataLoading(true);
 
         const res = await productRequest("/products");
 
         setProducts(res?.data?.items || []);
-      } catch (err) {
-        console.error("Failed to load products", err);
+      } catch (error) {
+        console.error("Failed to load products:", error);
       } finally {
-        setLoading(false);
+        setDataLoading(false);
       }
     };
 
     loadProducts();
   }, [user]);
 
-  /* ===================== COMPUTED VALUES ===================== */
-  const totalProducts = products.length;
+  /* ================= COMBINED LOADING ================= */
+  const loading = authLoading || dataLoading;
 
-  /* ===================== LOADING ===================== */
-  if (!user || loading) {
+  if (loading || !user) {
     return <LoadingSkeleton />;
   }
 
-  /* ===================== SERVICES ===================== */
+  /* ================= COMPUTED VALUES ================= */
+  const totalProducts = products.length;
+
+  /* ================= MENU DATA ================= */
   const services = [
     {
       title: "Product Service",
@@ -108,14 +120,15 @@ export default function DashboardPage() {
     },
   ];
 
-  /* ===================== UI ===================== */
+  /* ================= UI ================= */
   return (
     <div className="min-h-screen bg-slate-50">
-      <DashboardHeader loading={true} />
+      {/* HEADER */}
+      <DashboardHeader loading={loading} />
 
       <main className="max-w-7xl mx-auto px-6 py-6">
 
-        {/* ================= HERO ================= */}
+        {/* HERO */}
         <section className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 p-8 text-white shadow-lg">
           <div className="absolute right-0 top-0 opacity-10">
             <LayoutDashboard size={260} />
@@ -151,39 +164,38 @@ export default function DashboardPage() {
           </div>
         </section>
 
-        {/* ================= KPI ================= */}
+        {/* KPI CARDS */}
         <section className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
           <StatCard
             title="Products"
             value={totalProducts}
             icon={<Package size={22} />}
           />
-
           <StatCard title="Suppliers" value="0" icon={<Truck size={22} />} />
           <StatCard title="Sales" value="0" icon={<ShoppingCart size={22} />} />
           <StatCard title="Customers" value="0" icon={<Users size={22} />} />
         </section>
 
-        {/* ================= QUICK ACTIONS ================= */}
+        {/* QUICK ACTIONS */}
         <section className="mt-8">
           <h2 className="text-lg font-semibold text-slate-900 mb-4">
             Quick Actions
           </h2>
 
           <div className="grid md:grid-cols-3 gap-4">
-            {services.slice(0, 3).map((s) => {
-              const Icon = s.icon;
+            {services.slice(0, 3).map((item) => {
+              const Icon = item.icon;
 
               return (
                 <Link
-                  key={s.title}
-                  href={s.href}
+                  key={item.title}
+                  href={item.href}
                   className="bg-white border border-slate-200 rounded-2xl p-5 hover:border-green-500 hover:shadow-md transition-all"
                 >
                   <Icon className="text-green-600" />
-                  <h3 className="font-semibold mt-3">{s.title}</h3>
+                  <h3 className="font-semibold mt-3">{item.title}</h3>
                   <p className="text-sm text-slate-500 mt-1">
-                    {s.description}
+                    {item.description}
                   </p>
                 </Link>
               );
@@ -191,7 +203,7 @@ export default function DashboardPage() {
           </div>
         </section>
 
-        {/* ================= SERVICES ================= */}
+        {/* SERVICES */}
         <section className="mt-8">
           <h2 className="text-lg font-semibold text-slate-900 mb-4">
             Business Services
@@ -233,7 +245,7 @@ export default function DashboardPage() {
           </div>
         </section>
 
-        {/* ================= ACCOUNT ================= */}
+        {/* ACCOUNT */}
         <section className="mt-8">
           <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm">
             <div className="flex items-center gap-4 mb-6">
