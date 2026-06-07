@@ -15,7 +15,7 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (isAuthenticated()) {
-      router.replace("/dashboard");
+      router.replace("/");
     }
   }, [router]);
 
@@ -49,7 +49,7 @@ export default function LoginPage() {
 
       setAuth(data);
 
-      router.replace("/dashboard");
+      router.replace("/");
     } catch {
       setError("Network error. Please try again.");
       setLoading(false);

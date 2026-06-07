@@ -26,32 +26,32 @@ export default function DashboardHeader({
   const menus = [
     {
       label: "Dashboard",
-      href: "/dashboard",
+      href: "/",
       icon: LayoutDashboard,
     },
     {
       label: "Products",
-      href: "/dashboard/products",
+      href: "/products",
       icon: Package,
     },
     {
       label: "Suppliers",
-      href: "/dashboard/suppliers",
+      href: "/suppliers",
       icon: Truck,
     },
     {
       label: "Sales",
-      href: "/dashboard/sales",
+      href: "/sales",
       icon: ShoppingCart,
     },
     {
       label: "Customers",
-      href: "/dashboard/customers",
+      href: "/customers",
       icon: Users,
     },
     {
       label: "Reports",
-      href: "/dashboard/reports",
+      href: "/reports",
       icon: BarChart3,
     },
   ];
@@ -59,13 +59,12 @@ export default function DashboardHeader({
   return (
     <header className="sticky top-0 z-50 bg-white border-b border-slate-200 shadow-sm">
       <div className="max-w-7xl mx-auto px-4">
+
         {/* Top Bar */}
         <div className="h-12 flex items-center justify-between">
+
           {/* Logo */}
-          <Link
-            href="/dashboard"
-            className="flex items-center gap-2"
-          >
+          <Link href="/" className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-lg bg-green-600 flex items-center justify-center text-white">
               <LayoutDashboard size={16} />
             </div>
@@ -92,10 +91,9 @@ export default function DashboardHeader({
             const Icon = menu.icon;
 
             const active =
-              pathname === menu.href ||
-              pathname.startsWith(
-                `${menu.href}/`
-              );
+              menu.href === "/"
+                ? pathname === "/"
+                : pathname.startsWith(menu.href);
 
             return (
               <Link
