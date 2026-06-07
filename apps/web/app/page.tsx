@@ -42,6 +42,13 @@ export default function DashboardPage() {
     setUser(getUser());
   }, []);
 
+  useEffect(() => {
+  productRequest("/products").then(res => {
+    setProducts(res?.data?.items || []);
+  });
+}, []);
+
+
   if (!mounted) {
     return null;
   }
@@ -49,13 +56,7 @@ export default function DashboardPage() {
   if (!user) {
     return <LoadingSkeleton />;
   }
-
-useEffect(() => {
-  productRequest("/products").then(res => {
-    setProducts(res?.data?.items || []);
-  });
-}, []);
-
+  
 const totalProducts = products.length;
   const services = [
     {
