@@ -182,7 +182,7 @@ export default function DashboardPage() {
 
         <div className="grid md:grid-cols-3 gap-4">
           <Link
-            href="/dashboard/products"
+            href="/products"
             className="bg-white border border-slate-200 rounded-2xl p-5 hover:border-green-500 hover:shadow-md transition-all"
           >
             <Package className="text-green-600" />
@@ -195,7 +195,7 @@ export default function DashboardPage() {
           </Link>
 
           <Link
-            href="/dashboard/suppliers"
+            href="/suppliers"
             className="bg-white border border-slate-200 rounded-2xl p-5 hover:border-green-500 hover:shadow-md transition-all"
           >
             <Truck className="text-green-600" />
@@ -208,7 +208,7 @@ export default function DashboardPage() {
           </Link>
 
           <Link
-            href="/dashboard/reports"
+            href="/reports"
             className="bg-white border border-slate-200 rounded-2xl p-5 hover:border-green-500 hover:shadow-md transition-all"
           >
             <BarChart3 className="text-green-600" />
@@ -244,7 +244,7 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          <div className="grid md:grid-cols-4 gap-4">
+          <div className="grid md:grid-cols-4 gap-4 text-gray-700">
             <InfoCard
               icon={<Mail size={18} />}
               label="Email"
