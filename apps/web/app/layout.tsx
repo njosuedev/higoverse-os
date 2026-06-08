@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
+
 import AuthGuard from "@/app/components/AuthGuard";
 import DeviceGuard from "@/app/components/DeviceGuard";
 
@@ -9,8 +10,93 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Higoverse",
-  description: "Shop connection",
+  metadataBase: new URL("https://higoverse-os.vercel.app"),
+
+  title: {
+    default: "Higoverse | Business Technology Company",
+    template: "%s | Higoverse",
+  },
+
+  description:
+    "Higoverse is a modern business technology platform that helps shops and enterprises manage products, suppliers, customers, purchases, sales, inventory, and business operations efficiently.",
+
+  keywords: [
+    "Higoverse",
+    "business software",
+    "inventory management",
+    "shop management",
+    "supplier management",
+    "customer management",
+    "sales management",
+    "purchase management",
+    "stock management",
+    "business platform",
+    "retail software",
+    "enterprise software",
+    "Rwanda technology",
+    "Africa technology",
+  ],
+
+  authors: [
+    {
+      name: "Higoverse",
+    },
+  ],
+
+  creator: "Higoverse",
+  publisher: "Higoverse",
+
+  manifest: "/manifest.json",
+
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-image-preview": "large",
+      "max-video-preview": -1,
+      "max-snippet": -1,
+    },
+  },
+
+  openGraph: {
+    title: "Higoverse | Business Technology Company",
+    description:
+      "Manage products, suppliers, customers, purchases, sales, and inventory from one powerful platform.",
+
+    url: "https://higoverse-os.vercel.app",
+
+    siteName: "Higoverse",
+
+    images: [
+      {
+        url: "/higoverse.png",
+        width: 1200,
+        height: 630,
+        alt: "Higoverse Business Platform",
+      },
+    ],
+
+    locale: "en_US",
+    type: "website",
+  },
+
+  twitter: {
+    card: "summary_large_image",
+    title: "Higoverse | Business Technology Company",
+    description:
+      "Modern inventory, sales, supplier, and customer management software for businesses.",
+    images: ["/higoverse.png"],
+  },
+
+  icons: {
+    icon: "/favicon.ico",
+    shortcut: "/favicon.ico",
+    apple: "/higoverse.png",
+  },
+
+  category: "Business",
 };
 
 export default function RootLayout({
@@ -22,9 +108,7 @@ export default function RootLayout({
     <html lang="en">
       <body className={inter.className}>
         <AuthGuard>
-          <DeviceGuard>
-            {children}
-          </DeviceGuard>
+          <DeviceGuard>{children}</DeviceGuard>
         </AuthGuard>
       </body>
     </html>
