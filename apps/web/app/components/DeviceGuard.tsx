@@ -73,7 +73,7 @@ export default function DeviceGuard({
               +250 790 885 174
             </a>
           </small>
-
+          </br>
           {/* Footer */}
           <small className="mt-8 border-t pt-4 text-xs text-center text-slate-400">
             ©2020 {new Date().getFullYear()} Higoverse. Business Technology Company
