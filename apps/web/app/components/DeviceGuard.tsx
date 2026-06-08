@@ -82,7 +82,7 @@ export default function DeviceGuard({
 
           {/* Footer */}
           <div className="mt-8 border-t pt-4 text-xs text-slate-400">
-            ©2024 {new Date().getFullYear()} Higoverse.
+            ©2020 {new Date().getFullYear()} Higoverse.
           </div>
         </div>
       </main>
