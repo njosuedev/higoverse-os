@@ -53,13 +53,12 @@ export default function LoginPage() {
 
       if (!res.ok) {
         setError(data?.detail || "Invalid credentials");
-        setLoading(false);
         return;
       }
 
       setAuth(data);
       router.replace("/");
-    } catch (err) {
+    } catch {
       setError("Network error. Please try again.");
     } finally {
       setLoading(false);
@@ -68,21 +67,19 @@ export default function LoginPage() {
 
   return (
     <>
-      {/* SEO */}
       <Head>
-        <title>Login | Higoverse Business Platform</title>
+        <title>Login | Higoverse</title>
         <meta
           name="description"
-          content="Sign in to Higoverse and access your business dashboard for inventory, sales, suppliers, customers, and analytics."
+          content="Sign in to Higoverse and manage your business dashboard including sales, inventory, customers, suppliers, and analytics."
         />
         <meta name="robots" content="index, follow" />
       </Head>
 
       <div className="min-h-screen flex bg-white">
-        {/* LEFT SIDE - PREMIUM BRAND PANEL */}
+        {/* LEFT PANEL */}
         <div className="hidden lg:flex w-1/2 relative overflow-hidden">
           <div className="absolute inset-0 bg-gradient-to-br from-slate-950 via-blue-900 to-indigo-700" />
-
           <div className="absolute top-[-120px] left-[-120px] w-[400px] h-[400px] bg-blue-500/30 blur-3xl rounded-full" />
           <div className="absolute bottom-[-120px] right-[-120px] w-[400px] h-[400px] bg-indigo-500/30 blur-3xl rounded-full" />
 
@@ -99,115 +96,68 @@ export default function LoginPage() {
             </h1>
 
             <p className="mt-6 text-lg text-blue-100 max-w-xl">
-              Inventory, sales, suppliers, customers, analytics, finance and intelligence — all in one modern SaaS system.
+              Inventory, sales, suppliers, customers, analytics, finance and intelligence — all in one SaaS system.
             </p>
-
-            <div className="grid grid-cols-2 gap-5 mt-12 max-w-xl">
-              <div className="rounded-3xl border border-white/10 bg-white/10 backdrop-blur-xl p-6">
-                <div className="text-3xl font-bold">10K+</div>
-                <div className="mt-2 text-blue-100 text-sm">Businesses Powered</div>
-              </div>
-
-              <div className="rounded-3xl border border-white/10 bg-white/10 backdrop-blur-xl p-6">
-                <div className="text-3xl font-bold">99.9%</div>
-                <div className="mt-2 text-blue-100 text-sm">System Uptime</div>
-              </div>
-            </div>
           </div>
         </div>
 
-        {/* RIGHT SIDE - FORM */}
+        {/* RIGHT PANEL */}
         <div className="flex-1 flex items-center justify-center px-6 py-10 bg-gradient-to-br from-slate-50 via-white to-blue-50">
           <div className="w-full max-w-md">
             <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl p-8">
               
-              {/* HEADER */}
-              <div className="mb-8">
-                <div className="flex lg:hidden items-center gap-3 mb-6">
-                  <div className="w-10 h-10 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600" />
-                  <span className="font-bold text-xl">Higoverse</span>
-                </div>
+              <h2 className="text-4xl font-bold text-slate-900 mb-2">
+                Sign In
+              </h2>
+              <p className="text-slate-500 mb-6">
+                Access your business dashboard
+              </p>
 
-                <h2 className="text-4xl font-bold text-slate-900">
-                  Sign In
-                </h2>
-                <p className="mt-2 text-slate-500">
-                  Access your business dashboard
-                </p>
-              </div>
-
-              {/* ERROR */}
               {error && (
-                <div
-                  role="alert"
-                  className="mb-5 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-600"
-                >
+                <div className="mb-4 p-4 text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl">
                   {error}
                 </div>
               )}
 
-              {/* FORM */}
               <form onSubmit={handleLogin} className="space-y-5">
-                
-                {/* EMAIL */}
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">
+                  <label className="block text-sm font-medium mb-2">
                     Email Address
                   </label>
-
                   <input
                     type="email"
                     placeholder="admin@company.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    autoComplete="email"
-                    aria-label="Email Address"
-                    className="w-full h-14 rounded-2xl border border-slate-300 bg-white px-4 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500 transition"
+                    className="w-full h-14 px-4 rounded-2xl border border-slate-300 focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
                   />
                 </div>
 
-                {/* PASSWORD */}
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">
+                  <label className="block text-sm font-medium mb-2">
                     Password
                   </label>
-
                   <input
                     type="password"
                     placeholder="••••••••"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    autoComplete="current-password"
-                    aria-label="Password"
-                    className="w-full h-14 rounded-2xl border border-slate-300 bg-white px-4 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500 transition"
+                    className="w-full h-14 px-4 rounded-2xl border border-slate-300 focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
                   />
                 </div>
 
-                {/* BUTTON */}
                 <button
                   type="submit"
                   disabled={loading}
-                  aria-busy={loading}
-                  className="w-full h-14 rounded-2xl bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 text-white font-semibold shadow-lg hover:shadow-xl transition flex items-center justify-center gap-3 disabled:opacity-70 disabled:cursor-not-allowed"
+                  className="w-full h-14 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-semibold disabled:opacity-70"
                 >
-                  {loading ? (
-                    <>
-                      <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                      Signing In...
-                    </>
-                  ) : (
-                    "Sign In"
-                  )}
+                  {loading ? "Signing In..." : "Sign In"}
                 </button>
               </form>
 
-              {/* FOOTER */}
-              <p className="text-center text-sm text-slate-500 mt-8">
+              <p className="text-center text-sm text-slate-500 mt-6">
                 Don’t have an account?{" "}
-                <a
-                  href="/register"
-                  className="text-blue-600 font-medium hover:text-blue-700"
-                >
+                <a href="/register" className="text-blue-600 font-medium">
                   Create Workspace
                 </a>
               </p>
