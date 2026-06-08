@@ -69,15 +69,14 @@ export default function DeviceGuard({
           <small className="mt-2 p-2">
             <a
               href="tel:+250790885174"
-              className="mt-3 inline-flex items-center gap-2 text-blue-600 hover:text-blue-700 font-semibold transition-colors"
+              className="text-blue-600 hover:text-blue-700 font-semibold"
             >
-              <Phone size={18} />
               +250 790 885 174
             </a>
 
-            <p className="text-sm text-slate-500 mt-2">
+            <small className="text-sm text-slate-500 mt-2">
               Technical Support
-            </p>
+            </small>
           </small>
 
           {/* Footer */}
