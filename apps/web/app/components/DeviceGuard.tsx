@@ -48,7 +48,7 @@ export default function DeviceGuard({
   if (!allowed) {
     return (
       <main className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100 flex items-center justify-center p-6">
-        <div className="w-full max-w-lg bg-white rounded-3xl shadow-xl border border-slate-200 p-8 text-center">
+        <div>
           {/* Icon */}
           <div className="flex justify-center mb-6">
             <div className="w-20 h-20 rounded-full bg-blue-50 flex items-center justify-center">
@@ -58,12 +58,7 @@ export default function DeviceGuard({
               />
             </div>
           </div>
-
-          {/* Title */}
-          <h1 className="text-3xl font-bold text-slate-900 mb-4">
-            Desktop or Tablet Required
-          </h1>
-
+          
           {/* Message */}
           <p className="text-slate-600 leading-relaxed">
             This platform is optimized for
