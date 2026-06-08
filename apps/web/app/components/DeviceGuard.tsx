@@ -73,10 +73,6 @@ export default function DeviceGuard({
             >
               +250 790 885 174
             </a>
-
-            <small className="text-sm text-slate-500 mt-2">
-              Technical Support
-            </small>
           </small>
 
           {/* Footer */}
