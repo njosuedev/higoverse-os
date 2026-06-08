@@ -13,7 +13,7 @@ export default function NotFound() {
         </h2>
 
         <p className="mt-3 text-slate-500">
-          The page you are looking for doesn’t exist or has been moved.
+          The page you are looking for doesn’t exist.
         </p>
 
         <Link
