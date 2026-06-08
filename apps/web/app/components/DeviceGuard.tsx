@@ -58,26 +58,15 @@ export default function DeviceGuard({
               />
             </div>
           </div>
-          
-          {/* Message */}
           <p className="text-slate-600 leading-relaxed">
-            This platform is optimized for
-            larger screens and is currently
-            unavailable on mobile phones.
+            Thank you for your interest in Higoverse. To ensure the best performance,
+            security, and user experience, this platform is currently optimized for
+            tablets, laptops, and desktop computers. Mobile phone access is not yet
+            supported. Please use a larger-screen device to continue. If you need
+            assistance, our support team is available to help.
           </p>
-
-          <p className="text-slate-600 mt-3 leading-relaxed">
-            Please access the system using a
-            tablet, laptop, or desktop
-            computer for the best experience.
-          </p>
-
           {/* Support */}
           <div className="mt-8 rounded-2xl border border-slate-200 bg-slate-50 p-5">
-            <p className="text-sm text-slate-500">
-              Need assistance?
-            </p>
-
             <a
               href="tel:+250790885174"
               className="mt-3 inline-flex items-center gap-2 text-blue-600 hover:text-blue-700 font-semibold transition-colors"
