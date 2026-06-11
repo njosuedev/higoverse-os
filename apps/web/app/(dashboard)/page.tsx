@@ -54,7 +54,7 @@ export default function DashboardPage() {
         "Manage products, categories, stock and inventory.",
       icon: Package,
       color: "blue",
-      href: "/dashboard/products",
+      href: "/dashboard/ItemsManagement",
     },
     {
       title: "Supplier Service",
@@ -62,7 +62,7 @@ export default function DashboardPage() {
         "Manage suppliers and purchasing workflows.",
       icon: Truck,
       color: "indigo",
-      href: "/dashboard/suppliers",
+      href: "/dashboard/PartenersManagement",
     },
     {
       title: "Sales",
@@ -182,12 +182,12 @@ export default function DashboardPage() {
 
         <div className="grid md:grid-cols-3 gap-4">
           <Link
-            href="/dashboard/products"
+            href="/dashboard/ItemsManagement"
             className="bg-white border border-slate-200 rounded-2xl p-5 hover:border-green-500 hover:shadow-md transition-all"
           >
             <Package className="text-green-600" />
             <h3 className="font-semibold mt-3">
-              Manage Products
+              Manage Items
             </h3>
             <p className="text-sm text-slate-500 mt-1">
               Add, update and monitor inventory.
@@ -195,7 +195,7 @@ export default function DashboardPage() {
           </Link>
 
           <Link
-            href="/dashboard/suppliers"
+            href="/dashboard/PartenersManagement"
             className="bg-white border border-slate-200 rounded-2xl p-5 hover:border-green-500 hover:shadow-md transition-all"
           >
             <Truck className="text-green-600" />

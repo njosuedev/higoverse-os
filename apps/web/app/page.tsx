@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 
 import { getUser, isAuthenticated } from "@/lib/auth";
-import { productRequest } from "@/lib/product-api";
+import { itemRequest } from "@/lib/product-api";
 
 import DashboardHeader from "@/app/components/dashboard/DashboardHeader";
 import InfoCard from "@/app/components/dashboard/InfoCard";
@@ -38,7 +38,7 @@ export default function DashboardPage() {
   const [dataLoading, setDataLoading] = useState(true);
 
   const [user, setUser] = useState<any>(null);
-  const [products, setProducts] = useState<Product[]>([]);
+  const [items, setItems] = useState<Product[]>([]);
 
   /* ================= AUTH ================= */
   useEffect(() => {
@@ -63,11 +63,11 @@ export default function DashboardPage() {
       try {
         setDataLoading(true);
 
-        const res = await productRequest("/products");
+        const res = await itemRequest("/products");
 
-        setProducts(res?.data?.items || []);
+        setItems(res?.data?.items || []);
       } catch (error) {
-        console.error("Failed to load products:", error);
+        console.error("Failed to load items:", error);
       } finally {
         setDataLoading(false);
       }
@@ -84,32 +84,26 @@ export default function DashboardPage() {
   }
 
   /* ================= COMPUTED VALUES ================= */
-  const totalProducts = products.length;
+  const totalItems = items.length;
 
   /* ================= MENU DATA ================= */
   const services = [
     {
-      title: "Product Service",
-      description: "Manage products, categories, stock and inventory.",
+      title: "Item Service",
+      description: "Manage items, categories, stock and inventory.",
       icon: Package,
-      href: "/products",
+      href: "/ItemManagement",
     },
     {
-      title: "Supplier Service",
-      description: "Manage suppliers and purchasing workflows.",
+      title: "Partner Service",
+      description: "Manage partners and purchasing workflows.",
       icon: Truck,
-      href: "/suppliers",
+      href: "/PartnerManagement",
     },
     {
       title: "Sales",
       description: "Track sales transactions and revenue.",
       icon: ShoppingCart,
-      href: "#",
-    },
-    {
-      title: "Customers",
-      description: "Manage customer records and loyalty.",
-      icon: Users,
       href: "#",
     },
     {
@@ -142,7 +136,7 @@ export default function DashboardPage() {
             </h1>
 
             <p className="mt-3 text-green-100 max-w-2xl">
-              Manage inventory, suppliers, customers and business operations from one dashboard.
+              Manage inventory, Partners( suppliers, Customers ) and business operations from one dashboard.
             </p>
 
             <div className="flex flex-wrap gap-3 mt-6">
@@ -165,15 +159,15 @@ export default function DashboardPage() {
         </section>
 
         {/* KPI CARDS */}
-        <section className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
+        <section className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-6 font-bold text-gray-700">
           <StatCard
-            title="Products"
-            value={totalProducts}
+            title="Total Items"
+            value={totalItems}
             icon={<Package size={22} />}
           />
-          <StatCard title="Suppliers" value="0" icon={<Truck size={22} />} />
+          <StatCard title="Total Partners" value="0" icon={<Users size={22} />} />
           <StatCard title="Sales" value="0" icon={<ShoppingCart size={22} />} />
-          <StatCard title="Customers" value="0" icon={<Users size={22} />} />
+          <StatCard title="Total Purchases" value="0" icon={<Truck size={22} />} />
         </section>
 
         {/* QUICK ACTIONS */}
@@ -182,7 +176,7 @@ export default function DashboardPage() {
             Quick Actions
           </h2>
 
-          <div className="grid md:grid-cols-3 gap-4">
+          <div className="grid md:grid-cols-3 gap-4 text-gray-700">
             {services.slice(0, 3).map((item) => {
               const Icon = item.icon;
 
@@ -190,7 +184,7 @@ export default function DashboardPage() {
                 <Link
                   key={item.title}
                   href={item.href}
-                  className="bg-white border border-slate-200 rounded-2xl p-5 hover:border-green-500 hover:shadow-md transition-all"
+                  className="bg-white border border-gray-300 rounded-2xl p-5 hover:shadow-md transition-all"
                 >
                   <Icon className="text-green-600" />
                   <h3 className="font-semibold mt-3">{item.title}</h3>
@@ -209,7 +203,7 @@ export default function DashboardPage() {
             Business Services
           </h2>
 
-          <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-5">
+          <div className="grid md:grid-cols-2 xl:grid-cols-3 text-gray-700 gap-5">
             {services.map((service) => {
               const Icon = service.icon;
 
@@ -217,7 +211,7 @@ export default function DashboardPage() {
                 <Link
                   key={service.title}
                   href={service.href}
-                  className="group bg-white rounded-3xl border border-slate-200 p-6 hover:border-green-300 hover:shadow-xl transition-all"
+                  className="group bg-white rounded-3xl border border-gray-300 p-6 hover:shadow-xl transition-all"
                 >
                   <div className="flex justify-between">
                     <div className="w-14 h-14 rounded-2xl bg-green-50 text-green-600 flex items-center justify-center group-hover:scale-110 transition-transform">

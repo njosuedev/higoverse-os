@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { productRequest } from "@/lib/product-api";
-import { supplierRequest } from "@/lib/supplier-api";
+import { itemRequest } from "@/lib/product-api";
+import { partnerRequest } from "@/lib/supplier-api";
 import DashboardHeader from "@/app/components/dashboard/DashboardHeader"
 
 import {
@@ -69,8 +69,8 @@ const [updating, setUpdating] =
 
       const [productsRes, suppliersRes] =
         await Promise.all([
-          productRequest("/products"),
-          supplierRequest("/suppliers"),
+          itemRequest("/products"),
+          partnerRequest("/suppliers"),
         ]);
 
       setProducts(productsRes?.data?.items || []);
@@ -93,7 +93,7 @@ const [updating, setUpdating] =
     try {
       setCreating(true);
 
-      await productRequest("/products", {
+      await itemRequest("/products", {
         method: "POST",
         body: JSON.stringify({
           name: form.name,
@@ -138,7 +138,7 @@ const [updating, setUpdating] =
     try {
       setDeletingId(id);
 
-      await productRequest(`/products/${id}`, {
+      await itemRequest(`/products/${id}`, {
         method: "DELETE",
       });
 
@@ -166,7 +166,7 @@ const [updating, setUpdating] =
   try {
     setUpdating(true);
 
-    await productRequest(
+    await itemRequest(
       `/products/${editingProduct.id}`,
       {
         method: "PUT",
@@ -194,7 +194,7 @@ const [updating, setUpdating] =
     await loadData(false);
   } catch (error) {
     console.error(error);
-    alert("Failed to update product");
+    alert("Failed to update Item");
   } finally {
     setUpdating(false);
   }
@@ -285,7 +285,7 @@ const [updating, setUpdating] =
 
   return (
     <div className="min-h-screen bg-slate-50 p-6">
-      <DashboardHeader title="Products" />
+      <DashboardHeader title="Items" />
       <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-3xl p-6 mb-6">
 
         <div className="flex justify-between items-center">

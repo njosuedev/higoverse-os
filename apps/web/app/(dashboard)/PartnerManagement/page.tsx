@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { supplierRequest } from "@/lib/supplier-api";
+import { partnerRequest } from "@/lib/supplier-api";
 import DashboardHeader from "@/app/components/dashboard/DashboardHeader"
 
 import {
@@ -18,7 +18,7 @@ import {
 
 
 export default function SuppliersPage() {
-  const [suppliers, setSuppliers] = useState<any[]>([]);
+  const [partners, setPartners] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [search, setSearch] = useState("");
@@ -54,8 +54,8 @@ export default function SuppliersPage() {
     try {
       if (showLoading) setLoading(true);
 
-      const res = await supplierRequest("/suppliers");
-      setSuppliers(res?.data?.items || res?.data || []);
+      const res = await partnerRequest("/suppliers");
+      setPartners(res?.data?.items || res?.data || []);
       setLastUpdated(new Date());
     } catch (err) {
       console.error(err);
@@ -104,7 +104,7 @@ export default function SuppliersPage() {
     try {
       setCreating(true);
 
-      await supplierRequest("/suppliers", {
+      await partnerRequest("/suppliers", {
         method: "POST",
         body: JSON.stringify(form),
       });
@@ -133,7 +133,7 @@ export default function SuppliersPage() {
     try {
       setDeletingId(id);
 
-      await supplierRequest(`/suppliers/${id}`, {
+      await partnerRequest(`/suppliers/${id}`, {
         method: "DELETE",
       });
 
@@ -147,27 +147,27 @@ export default function SuppliersPage() {
 
   /* ---------------- FILTER ---------------- */
   const filtered = useMemo(() => {
-    return suppliers
-      .filter((s) =>
-        s.name?.toLowerCase().includes(search.toLowerCase())
+    return partners
+      .filter((p) =>
+        p.name?.toLowerCase().includes(search.toLowerCase())
       )
-      .filter((s) => {
+      .filter((p) => {
         if (filter === "all") return true;
-        if (filter === "active") return s.status === "active";
-        if (filter === "inactive") return s.status !== "active";
+        if (filter === "active") return p.status === "active";
+        if (filter === "inactive") return p.status !== "active";
         return true;
       });
-  }, [suppliers, search, filter]);
+  }, [partners, search, filter]);
 
   /* ---------------- STATS ---------------- */
   const stats = useMemo(() => {
     return {
-      total: suppliers.length,
-      active: suppliers.filter((s) => s.status === "active").length,
-      inactive: suppliers.filter((s) => s.status !== "active").length,
-      noPhone: suppliers.filter((s) => !s.phone).length,
+      total: partners.length,
+      active: partners.filter((p) => p.status === "active").length,
+      inactive: partners.filter((p) => p.status !== "active").length,
+      noPhone: partners.filter((p) => !p.phone).length,
     };
-  }, [suppliers]);
+  }, [partners]);
 
   if (loading) {
     return (
@@ -180,7 +180,7 @@ export default function SuppliersPage() {
   return (
     <div className="min-h-screen bg-slate-50 p-6">
 
-      <DashboardHeader title="suppliers" />
+      <DashboardHeader title="partners" />
 
       {/* HEADER */}
       <div className="bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-3xl p-6 mb-6">
@@ -188,7 +188,7 @@ export default function SuppliersPage() {
         <div className="flex justify-between items-center">
           <div className="flex items-center gap-3">
             <Users />
-            <h1 className="text-xl font-bold">Suppliers</h1>
+            <h1 className="text-xl font-bold">Partners</h1>
           </div>
 
           <button
@@ -196,7 +196,7 @@ export default function SuppliersPage() {
             className="bg-white text-green-700 px-4 py-2 rounded-xl flex items-center gap-2 font-semibold"
           >
             <Plus size={18} />
-            Add Supplier
+            Add Partner
           </button>
         </div>
 

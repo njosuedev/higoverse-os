@@ -2,7 +2,7 @@ import { getToken } from "@/lib/auth";
 
 const PRODUCT_API = "https://higoverse-products.vercel.app";
 
-export async function productRequest(
+export async function itemRequest(
   endpoint: string,
   options: RequestInit = {}
 ) {

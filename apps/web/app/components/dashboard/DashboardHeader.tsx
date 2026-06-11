@@ -18,10 +18,10 @@ export default function DashboardHeader({
 
   const menus = [
     { label: "Dashboard", href: "/", icon: LayoutDashboard },
-    { label: "Products", href: "/products", icon: Package },
-    { label: "Suppliers", href: "/suppliers", icon: Truck },
-    { label: "Sales", href: "/sales", icon: ShoppingCart },
-    { label: "Customers", href: "/customers", icon: Users },
+    { label: "Item Management", href: "/ItemManagement", icon: Package },
+    { label: "Partner Management", href: "/PartnerManagement", icon: Users },
+    { label: "Purchase Management", href: "/purchaseManagement", icon: Truck },
+    { label: "Sale Management", href: "/saleManagement", icon: ShoppingCart },   
     { label: "Reports", href: "/reports", icon: BarChart3 },
   ];
 

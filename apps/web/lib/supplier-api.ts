@@ -2,7 +2,7 @@ import { getToken } from "@/lib/auth";
 
 const SUPPLIER_API = "https://higoverse-suppliers.vercel.app";
 
-export async function supplierRequest(
+export async function partnerRequest(
   endpoint: string,
   options: RequestInit = {}
 ) {
