@@ -163,7 +163,7 @@ export default function DashboardPage() {
           <StatCard
             title="Total Items"
             value={totalItems}
-            icon={<Package size={22} />}
+            icon={<Package size={24} />}
           />
           <StatCard title="Total Partners" value="0" icon={<Users size={22} />} />
           <StatCard title="Sales" value="0" icon={<ShoppingCart size={22} />} />
@@ -187,7 +187,7 @@ export default function DashboardPage() {
                   className="bg-white border border-gray-300 rounded-2xl p-5 hover:shadow-md transition-all"
                 >
                  <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
-                      <Icon size={22} />
+                      <Icon size={24} />
                   </div>
                   
                   <h3 className="font-semibold mt-3">{item.title}</h3>
@@ -218,7 +218,7 @@ export default function DashboardPage() {
                 >
                   <div className="flex justify-between">
                     <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
-                      <Icon size={22} />
+                      <Icon size={24} />
                     </div>
 
                     <ArrowRight className="text-slate-300 group-hover:text-blue-600 group-hover:translate-x-1 transition-all" />
@@ -246,8 +246,8 @@ export default function DashboardPage() {
         <section className="mt-8">
           <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm">
             <div className="flex items-center gap-4 mb-6">
-              <div className="w-14 h-14 rounded-2xl bg-green-100 flex items-center justify-center">
-                <User className="text-green-700" size={24} />
+              <div className="w-14 h-14 rounded-2xl bg-blue-100 flex items-center justify-center">
+                <User className="text-blue-600" size={24} />
               </div>
 
               <div>
@@ -259,10 +259,10 @@ export default function DashboardPage() {
             </div>
 
             <div className="grid md:grid-cols-4 gap-4 text-gray-700">
-              <InfoCard icon={<Mail size={18} className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center" />} label="Email" value={user.email} />
-              <InfoCard icon={<Store size={18} className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center" />} label="Shop ID" value={user.shop_id || "N/A"} />
-              <InfoCard icon={<User size={18} className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center" />} label="Role" value={user.role || "Owner"} />
-              <InfoCard icon={<ShieldCheck size={18} className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center" />} label="Security" value="Protected" />
+              <InfoCard icon={<Mail size={18} />} label="Email" value={user.email} />
+              <InfoCard icon={<Store size={18} />} label="Shop ID" value={user.shop_id || "N/A"} />
+              <InfoCard icon={<User size={18}  />} label="Role" value={user.role || "Owner"} />
+              <InfoCard icon={<ShieldCheck size={18} />} label="Security" value="Protected" />
             </div>
           </div>
         </section>
