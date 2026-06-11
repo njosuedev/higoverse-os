@@ -200,7 +200,7 @@ export default function LoginPage() {
 
                 {/* EMAIL */}
                 <div>
-                  <label className="block text-sm font-medium mb-2">
+                  <label className="block text-sm text-black-900 font-medium mb-2">
                     Email Address
                   </label>
 
@@ -209,17 +209,17 @@ export default function LoginPage() {
 
                     <input
                       type="email"
-                      placeholder="admin@company.com"
+                      placeholder="Enter Email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      className="w-full h-14 pl-12 pr-4 rounded-2xl border border-slate-300 focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+                      className="w-full h-14 pl-12 pr-4 rounded-2xl border border-slate-300 focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500 text-gray-700 outline-none"
                     />
                   </div>
                 </div>
 
                 {/* PASSWORD */}
                 <div>
-                  <label className="block text-sm font-medium mb-2">
+                  <label className="block text-sm text-black-900 font-medium mb-2">
                     Password
                   </label>
 
@@ -231,7 +231,7 @@ export default function LoginPage() {
                       placeholder="••••••••"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      className="w-full h-14 pl-12 pr-4 rounded-2xl border border-slate-300 focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+                      className="w-full h-14 pl-12 pr-4 rounded-2xl border text-gray-700 border-slate-300 focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
                     />
                   </div>
                 </div>
