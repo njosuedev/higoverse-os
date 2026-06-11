@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { itemRequest } from "@/lib/product-api";
 
 export interface Product {
@@ -12,47 +12,57 @@ export interface Product {
 export function useProductRealtime(interval = 5000) {
   const [items, setItems] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const fetchItems = async () => {
+  const fetchItems = useCallback(async () => {
     try {
+      setError(null);
+
       const res = await itemRequest("/products");
 
-      console.log("Products API Response:", res);
+      let products: Product[] = [];
 
-      // Adjust this according to your API response structure
       if (Array.isArray(res)) {
-        setItems(res);
+        products = res;
       } else if (Array.isArray(res?.data)) {
-        setItems(res.data);
+        products = res.data;
       } else if (Array.isArray(res?.data?.items)) {
-        setItems(res.data.items);
-      } else {
-        setItems([]);
+        products = res.data.items;
+      } else if (Array.isArray(res?.items)) {
+        products = res.items;
       }
-    } catch (error) {
+
+      setItems(products);
+    } catch (err) {
       console.error(
         "Realtime products fetch error:",
-        error
+        err
       );
-      setItems([]);
+
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Failed to load products"
+      );
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchItems();
 
-    const timer = setInterval(() => {
-      fetchItems();
-    }, interval);
+    const timer = setInterval(fetchItems, interval);
 
-    return () => clearInterval(timer);
-  }, [interval]);
+    return () => {
+      clearInterval(timer);
+    };
+  }, [fetchItems, interval]);
 
   return {
     items,
     loading,
+    error,
     refresh: fetchItems,
   };
 }
