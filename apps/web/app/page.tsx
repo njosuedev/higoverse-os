@@ -215,7 +215,7 @@ export default function DashboardPage() {
                 >
                   <div className="flex justify-between">
                     <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
-                      <Icon size={24} />
+                      <Icon size={22} />
                     </div>
 
                     <ArrowRight className="text-slate-300 group-hover:text-blue-600 group-hover:translate-x-1 transition-all" />
@@ -248,7 +248,7 @@ export default function DashboardPage() {
               </div>
 
               <div>
-                <h3 className="font-semibold text-lg">
+                <h3 className="font-semibold text-gray-900">
                   {user.name || "Business Owner"}
                 </h3>
                 <p className="text-slate-500">{user.email}</p>
@@ -256,10 +256,10 @@ export default function DashboardPage() {
             </div>
 
             <div className="grid md:grid-cols-4 gap-4 text-gray-700">
-              <InfoCard icon={<Mail size={18} />} label="Email" value={user.email} />
-              <InfoCard icon={<Store size={18} />} label="Shop ID" value={user.shop_id || "N/A"} />
-              <InfoCard icon={<User size={18} />} label="Role" value={user.role || "Owner"} />
-              <InfoCard icon={<ShieldCheck size={18} />} label="Security" value="Protected" />
+              <InfoCard icon={<Mail size={18} className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center" />} label="Email" value={user.email} />
+              <InfoCard icon={<Store size={18} className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center" />} label="Shop ID" value={user.shop_id || "N/A"} />
+              <InfoCard icon={<User size={18} className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center" />} label="Role" value={user.role || "Owner"} />
+              <InfoCard icon={<ShieldCheck size={18} className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center" />} label="Security" value="Protected" />
             </div>
           </div>
         </section>
