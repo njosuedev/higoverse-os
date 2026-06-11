@@ -183,7 +183,7 @@ export default function LoginPage() {
             <div className="bg-white rounded-3xl shadow-xl border p-8">
 
               <h2 className="text-3xl font-bold text-slate-900">
-                Sign in
+                Workspace sign in
               </h2>
 
               <p className="text-slate-500 mb-6">
