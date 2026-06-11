@@ -1,32 +1,58 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ItemRequest } from "@/lib/product-api";
+import { itemRequest } from "@/lib/product-api";
+
+export interface Product {
+  id: string;
+  name?: string;
+  [key: string]: any;
+}
 
 export function useProductRealtime(interval = 5000) {
-  const [Items, setItems] = useState<any[]>([]);
+  const [items, setItems] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
 
-  async function fetchItems() {
+  const fetchItems = async () => {
     try {
-      const res = await ItemRequest("/products");
-      setItems(res?.data?.items || []);
-    } catch (err) {
-      console.error("Realtime fetch error:", err);
+      const res = await itemRequest("/products");
+
+      console.log("Products API Response:", res);
+
+      // Adjust this according to your API response structure
+      if (Array.isArray(res)) {
+        setItems(res);
+      } else if (Array.isArray(res?.data)) {
+        setItems(res.data);
+      } else if (Array.isArray(res?.data?.items)) {
+        setItems(res.data.items);
+      } else {
+        setItems([]);
+      }
+    } catch (error) {
+      console.error(
+        "Realtime products fetch error:",
+        error
+      );
+      setItems([]);
     } finally {
       setLoading(false);
     }
-  }
+  };
 
   useEffect(() => {
-    fetchItems(); // first load
+    fetchItems();
 
     const timer = setInterval(() => {
-      fetchItems(); // refresh every X seconds
+      fetchItems();
     }, interval);
 
     return () => clearInterval(timer);
   }, [interval]);
 
-  return { items, loading, refresh: fetchItem };
+  return {
+    items,
+    loading,
+    refresh: fetchItems,
+  };
 }
