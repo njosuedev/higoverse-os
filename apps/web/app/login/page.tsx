@@ -183,7 +183,7 @@ export default function LoginPage() {
             <div className="bg-white rounded-3xl shadow-xl border p-8">
 
               <h2 className="text-3xl font-bold text-slate-900">
-                Welcome Back
+                Sign in
               </h2>
 
               <p className="text-slate-500 mb-6">
@@ -200,7 +200,7 @@ export default function LoginPage() {
 
                 {/* EMAIL */}
                 <div>
-                  <label className="block text-sm text-black-900 font-medium mb-2">
+                  <label className="block text-sm text-gray-900 font-medium mb-2">
                     Email Address
                   </label>
 
@@ -219,7 +219,7 @@ export default function LoginPage() {
 
                 {/* PASSWORD */}
                 <div>
-                  <label className="block text-sm text-black-900 font-medium mb-2">
+                  <label className="block text-sm text-gray-900 font-medium mb-2">
                     Password
                   </label>
 
