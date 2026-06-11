@@ -1,16 +1,16 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { productRequest } from "@/lib/product-api";
+import { ItemRequest } from "@/lib/product-api";
 
 export function useProductRealtime(interval = 5000) {
-  const [products, setProducts] = useState<any[]>([]);
+  const [Items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  async function fetchProducts() {
+  async function fetchItems() {
     try {
-      const res = await productRequest("/products");
-      setProducts(res?.data?.items || []);
+      const res = await ItemRequest("/products");
+      setItems(res?.data?.items || []);
     } catch (err) {
       console.error("Realtime fetch error:", err);
     } finally {
@@ -19,14 +19,14 @@ export function useProductRealtime(interval = 5000) {
   }
 
   useEffect(() => {
-    fetchProducts(); // first load
+    fetchItems(); // first load
 
     const timer = setInterval(() => {
-      fetchProducts(); // refresh every X seconds
+      fetchItems(); // refresh every X seconds
     }, interval);
 
     return () => clearInterval(timer);
   }, [interval]);
 
-  return { products, loading, refresh: fetchProducts };
+  return { items, loading, refresh: fetchItem };
 }
