@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Head from "next/head";
 import { setAuth, isAuthenticated } from "@/lib/auth";
+
 import {
   Mail,
   Lock,
@@ -110,10 +111,10 @@ export default function LoginPage() {
 
             <p className="mt-5 text-lg text-blue-100 max-w-xl">
               A unified SaaS platform to manage inventory, sales, suppliers,
-              customers, and analytics in one powerful system.
+              customers, and analytics in one system.
             </p>
 
-            {/* FEATURES */}
+            {/* FEATURE GRID */}
             <div className="mt-10 grid grid-cols-2 gap-4 max-w-xl">
 
               <div className="bg-white/10 border border-white/20 rounded-2xl p-4 backdrop-blur">
@@ -136,7 +137,7 @@ export default function LoginPage() {
                 <Truck className="w-5 h-5 mb-2 text-white" />
                 <p className="font-semibold">Suppliers</p>
                 <p className="text-sm text-blue-100">
-                  Procurement management
+                  Procurement management system
                 </p>
               </div>
 
@@ -144,7 +145,7 @@ export default function LoginPage() {
                 <BarChart3 className="w-5 h-5 mb-2 text-white" />
                 <p className="font-semibold">Analytics</p>
                 <p className="text-sm text-blue-100">
-                  Business insights & reports
+                  Business insights & reporting
                 </p>
               </div>
             </div>
@@ -154,19 +155,21 @@ export default function LoginPage() {
 
               <div className="flex items-center gap-2">
                 <ShieldCheck className="w-4 h-4 text-white" />
-                Secure Auth
+                Secure Authentication
               </div>
 
               <div className="w-1 h-1 bg-blue-300 rounded-full" />
 
-              <div className="flex items-center gap-2">
-                <Activity className="w-4 h-4 text-white" />
-                Real-time Sync
+              <div>
+                Real-time synchronization
               </div>
 
               <div className="w-1 h-1 bg-blue-300 rounded-full" />
 
-              <div>99.9% uptime</div>
+              <div>
+                99.9% uptime
+              </div>
+
             </div>
 
           </div>
@@ -184,7 +187,7 @@ export default function LoginPage() {
               </h2>
 
               <p className="text-slate-500 mb-6">
-                Sign in to your business dashboard
+                Sign in to your shop
               </p>
 
               {error && (
@@ -248,6 +251,7 @@ export default function LoginPage() {
                     "Sign In"
                   )}
                 </button>
+
               </form>
 
               <p className="text-center text-sm text-slate-500 mt-6">
