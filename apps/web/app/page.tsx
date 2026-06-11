@@ -186,7 +186,7 @@ export default function DashboardPage() {
                   href={item.href}
                   className="bg-white border border-gray-300 rounded-2xl p-5 hover:shadow-md transition-all"
                 >
-                  <Icon className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center" />
+                  <Icon className="text-blue-600" />
                   <h3 className="font-semibold mt-3">{item.title}</h3>
                   <p className="text-sm text-slate-500 mt-1">
                     {item.description}
