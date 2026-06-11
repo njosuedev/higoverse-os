@@ -22,9 +22,9 @@ export default function LoginPage() {
 
   const validateForm = useCallback(() => {
     if (!email.trim()) return "Email is required";
-    if (!password.trim()) return "Password is required";
     if (!email.includes("@")) return "Enter a valid email";
-    if (password.length < 4) return "Password too short";
+    if (!password.trim()) return "Password is required";
+    if (password.length < 4) return "Password must be at least 4 characters";
     return "";
   }, [email, password]);
 
@@ -72,37 +72,103 @@ export default function LoginPage() {
         <title>Login | Higoverse</title>
         <meta
           name="description"
-          content="Sign in to Higoverse business dashboard"
+          content="Higoverse business platform login"
         />
       </Head>
 
       <div className="min-h-screen flex bg-white">
 
-        {/* LEFT SIDE */}
+        {/* LEFT PANEL */}
         <div className="hidden lg:flex w-1/2 relative overflow-hidden">
           <div className="absolute inset-0 bg-gradient-to-br from-slate-950 via-blue-900 to-indigo-700" />
 
+          {/* Glow effects */}
+          <div className="absolute top-[-120px] left-[-120px] w-[400px] h-[400px] bg-blue-500/30 blur-3xl rounded-full" />
+          <div className="absolute bottom-[-120px] right-[-120px] w-[400px] h-[400px] bg-indigo-500/30 blur-3xl rounded-full" />
+
           <div className="relative z-10 flex flex-col justify-center px-16 text-white">
+
+            {/* BRAND */}
+            <div className="flex items-center gap-3 mb-10">
+              <div className="h-12 w-12 rounded-2xl bg-white/20 backdrop-blur flex items-center justify-center font-bold">
+                H
+              </div>
+              <span className="font-bold text-2xl">Higoverse</span>
+            </div>
+
+            {/* TITLE */}
             <h1 className="text-5xl font-bold leading-tight">
-              Welcome Back 👋
+              Run Your Entire <br />
+              Business in Real-Time
             </h1>
-            <p className="mt-6 text-blue-100 text-lg">
-              Manage your business operations, sales, inventory, and analytics in real time.
+
+            <p className="mt-5 text-lg text-blue-100 max-w-xl">
+              A modern SaaS platform for African businesses to manage inventory,
+              sales, suppliers, customers, and analytics in one ecosystem.
             </p>
+
+            {/* FEATURE GRID */}
+            <div className="mt-10 grid grid-cols-2 gap-4 max-w-xl">
+
+              <div className="bg-white/10 border border-white/20 rounded-2xl p-4 backdrop-blur">
+                <p className="font-semibold">📦 Inventory</p>
+                <p className="text-sm text-blue-100 mt-1">
+                  Track stock in real time
+                </p>
+              </div>
+
+              <div className="bg-white/10 border border-white/20 rounded-2xl p-4 backdrop-blur">
+                <p className="font-semibold">💰 Sales</p>
+                <p className="text-sm text-blue-100 mt-1">
+                  Monitor transactions instantly
+                </p>
+              </div>
+
+              <div className="bg-white/10 border border-white/20 rounded-2xl p-4 backdrop-blur">
+                <p className="font-semibold">🚚 Suppliers</p>
+                <p className="text-sm text-blue-100 mt-1">
+                  Optimize procurement flow
+                </p>
+              </div>
+
+              <div className="bg-white/10 border border-white/20 rounded-2xl p-4 backdrop-blur">
+                <p className="font-semibold">📊 Analytics</p>
+                <p className="text-sm text-blue-100 mt-1">
+                  Make data-driven decisions
+                </p>
+              </div>
+            </div>
+
+            {/* TRUST STRIP */}
+            <div className="mt-10 flex items-center gap-6 text-sm text-blue-100">
+              <div>
+                <span className="text-white font-bold">99.9%</span> uptime
+              </div>
+              <div className="w-1 h-1 bg-blue-300 rounded-full" />
+              <div>
+                <span className="text-white font-bold">Real-time</span> sync
+              </div>
+              <div className="w-1 h-1 bg-blue-300 rounded-full" />
+              <div>
+                <span className="text-white font-bold">Secure</span> JWT auth
+              </div>
+            </div>
+
           </div>
         </div>
 
-        {/* RIGHT SIDE */}
+        {/* RIGHT PANEL */}
         <div className="flex-1 flex items-center justify-center px-6 bg-gradient-to-br from-slate-50 to-blue-50">
+
           <div className="w-full max-w-md">
 
             <div className="bg-white rounded-3xl shadow-xl border p-8">
 
               <h2 className="text-3xl font-bold text-slate-900">
-                Sign In
+                Welcome Back
               </h2>
               <p className="text-slate-500 mb-6">
-                Enter your credentials to continue
+                Sign in to your business dashboard
               </p>
 
               {error && (
@@ -178,6 +244,7 @@ export default function LoginPage() {
             </div>
           </div>
         </div>
+
       </div>
     </>
   );
