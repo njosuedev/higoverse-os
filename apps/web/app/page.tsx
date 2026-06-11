@@ -186,7 +186,7 @@ export default function DashboardPage() {
                   href={item.href}
                   className="bg-white border border-gray-300 rounded-2xl p-5 hover:shadow-md transition-all"
                 >
-                  <Icon className="text-green-600" />
+                  <Icon className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center" />
                   <h3 className="font-semibold mt-3">{item.title}</h3>
                   <p className="text-sm text-slate-500 mt-1">
                     {item.description}
@@ -214,11 +214,11 @@ export default function DashboardPage() {
                   className="group bg-white rounded-3xl border border-gray-300 p-6 hover:shadow-xl transition-all"
                 >
                   <div className="flex justify-between">
-                    <div className="w-14 h-14 rounded-2xl bg-green-50 text-green-600 flex items-center justify-center group-hover:scale-110 transition-transform">
+                    <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
                       <Icon size={24} />
                     </div>
 
-                    <ArrowRight className="text-slate-300 group-hover:text-green-600 group-hover:translate-x-1 transition-all" />
+                    <ArrowRight className="text-slate-300 group-hover:text-blue-600 group-hover:translate-x-1 transition-all" />
                   </div>
 
                   <h3 className="font-semibold text-lg mt-5">
