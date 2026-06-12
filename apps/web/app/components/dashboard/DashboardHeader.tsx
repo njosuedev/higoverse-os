@@ -20,8 +20,8 @@ export default function DashboardHeader({
     { label: "Dashboard", href: "/", icon: LayoutDashboard },
     { label: "Item Management", href: "/ItemManagement", icon: Package },
     { label: "Partner Management", href: "/PartnerManagement", icon: Users },
-    { label: "Purchase Management", href: "/purchaseManagement", icon: Truck },
-    { label: "Sale Management", href: "/saleManagement", icon: ShoppingCart },   
+    { label: "Purchase Management", href: "/PurchaseManagement", icon: Truck },
+    { label: "Sale Management", href: "/SaleManagement", icon: ShoppingCart },   
     { label: "Reports", href: "/reports", icon: BarChart3 },
   ];
 
