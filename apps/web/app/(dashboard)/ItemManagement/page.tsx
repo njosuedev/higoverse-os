@@ -647,7 +647,7 @@ const [updating, setUpdating] =
 
             <div className="flex justify-between items-center mb-6">
               <h2 className="font-bold text-xl text-gray-700">
-                Add Product
+                Add Item - Kwinjiza Igicuruzwa 
               </h2>
 
               <button
@@ -664,7 +664,7 @@ const [updating, setUpdating] =
 
               <input
                 className="border text-gray-800 placeholder:text-gray-400 rounded-xl p-3"
-                placeholder="Name"
+                placeholder="Name - Izina"
                 value={form.name}
                 onChange={(e) =>
                   setForm({
@@ -676,7 +676,7 @@ const [updating, setUpdating] =
 
               <input
                 className="border text-gray-800 placeholder:text-gray-400 rounded-xl p-3"
-                placeholder="Description"
+                placeholder="Description - Ibisobanuro"
                 value={form.description}
                 onChange={(e) =>
                   setForm({
@@ -690,7 +690,7 @@ const [updating, setUpdating] =
               <input
                 type="number"
                 className="border text-gray-800 placeholder:text-gray-400 rounded-xl p-3"
-                placeholder="Cost Price"
+                placeholder="Cost Price - Igiciro cyo kurangura"
                 value={form.cost_price}
                 onChange={(e) =>
                   setForm({
@@ -704,7 +704,7 @@ const [updating, setUpdating] =
               <input
                 type="number"
                 className="border text-gray-800 placeholder:text-gray-400 rounded-xl p-3"
-                placeholder="Selling Price"
+                placeholder="Selling Price - kugurisha"
                 value={form.selling_price}
                 onChange={(e) =>
                   setForm({
@@ -718,7 +718,7 @@ const [updating, setUpdating] =
               <input
                 type="number"
                 className="border text-gray-800 placeholder:text-gray-400 rounded-xl p-3"
-                placeholder="Quantity"
+                placeholder="Quantity - Ingano"
                 value={form.quantity}
                 onChange={(e) =>
                   setForm({
@@ -728,7 +728,7 @@ const [updating, setUpdating] =
                   })
                 }
               />
-
+{/* 
               <select
                 className="border text-gray-800 font-medium placeholder:text-gray-400 rounded-xl p-3"
                 value={form.supplier_id}
@@ -754,14 +754,14 @@ const [updating, setUpdating] =
                     </option>
                   )
                 )}
-              </select>
+              </select> */}
 
             </div>
 
             <div className="flex justify-end gap-3 mt-6">
 
               <button
-                className="border px-4 py-2 rounded-xl"
+                className="border border-gray-600 text-gray-700 font-bold px-4 py-2 rounded-xl"
                 onClick={() =>
                   setShowCreateModal(false)
                 }
