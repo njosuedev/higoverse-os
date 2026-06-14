@@ -2,8 +2,15 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useState, useRef, useEffect } from "react";
 import LogoutButton from "@/app/components/LogoutButton";
-import { Activity, LayoutDashboard, Package, Truck, ShoppingCart, BarChart3, Users, Settings } from "lucide-react";
+import { useLanguage } from "@/lib/language-context";
+import { LANGUAGES } from "@/lib/i18n";
+import { settingsRequest } from "@/lib/settings-api";
+import {
+  Activity, LayoutDashboard, Package, Truck, ShoppingCart,
+  BarChart3, Users, Settings, FileText, ChevronDown,
+} from "lucide-react";
 
 interface DashboardHeaderProps {
   title?: string;
@@ -15,15 +22,36 @@ export default function DashboardHeader({
   loading = false,
 }: DashboardHeaderProps) {
   const pathname = usePathname();
+  const { lang, setLang, t } = useLanguage();
+  const [langOpen, setLangOpen] = useState(false);
+  const dropRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function onClickOutside(e: MouseEvent) {
+      if (dropRef.current && !dropRef.current.contains(e.target as Node)) setLangOpen(false);
+    }
+    document.addEventListener("mousedown", onClickOutside);
+    return () => document.removeEventListener("mousedown", onClickOutside);
+  }, []);
+
+  async function changeLang(code: typeof lang) {
+    setLang(code);
+    setLangOpen(false);
+    // Persist to settings (best-effort)
+    settingsRequest("/settings", { method: "PUT", body: JSON.stringify({ language: code }) }).catch(() => {});
+  }
+
+  const currentLang = LANGUAGES.find((l) => l.code === lang) || LANGUAGES[0];
 
   const menus = [
-    { label: "Dashboard", href: "/", icon: LayoutDashboard },
-    { label: "Item Management", href: "/ItemManagement", icon: Package },
-    { label: "Partner Management", href: "/PartnerManagement", icon: Users },
-    { label: "Purchase Management", href: "/PurchaseManagement", icon: Truck },
-    { label: "Sale Management", href: "/SaleManagement", icon: ShoppingCart },   
-    { label: "Reports", href: "/reports", icon: BarChart3 },
-    { label: "Settings", href: "/Settings", icon: Settings },
+    { key: "nav.dashboard",  href: "/",                   icon: LayoutDashboard },
+    { key: "nav.items",      href: "/ItemManagement",      icon: Package },
+    { key: "nav.partners",   href: "/PartnerManagement",   icon: Users },
+    { key: "nav.purchases",  href: "/PurchaseManagement",  icon: Truck },
+    { key: "nav.sales",      href: "/SaleManagement",      icon: ShoppingCart },
+    { key: "nav.proforma",   href: "/proforma",            icon: FileText },
+    { key: "nav.reports",    href: "/reports",             icon: BarChart3 },
+    { key: "nav.settings",   href: "/Settings",            icon: Settings },
   ];
 
   return (
@@ -38,13 +66,10 @@ export default function DashboardHeader({
             <div className="w-8 h-8 rounded-lg bg-green-600 flex items-center justify-center text-white">
               <LayoutDashboard size={16} />
             </div>
-
             {loading ? (
               <div className="h-4 w-24 bg-slate-200 animate-pulse rounded" />
             ) : (
-              <span className="font-semibold text-sm text-slate-900">
-                {title}
-              </span>
+              <span className="font-semibold text-sm text-slate-900">{title}</span>
             )}
           </Link>
 
@@ -57,9 +82,37 @@ export default function DashboardHeader({
               {loading ? (
                 <div className="h-3 w-10 bg-slate-200 animate-pulse rounded" />
               ) : (
-                "Online"
+                t("common.online")
               )}
             </div>
+
+            {/* LANGUAGE SWITCHER */}
+            {!loading && (
+              <div ref={dropRef} className="relative">
+                <button
+                  onClick={() => setLangOpen((o) => !o)}
+                  className="flex items-center gap-1 text-xs font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg px-2 py-1.5 transition"
+                >
+                  <span>{currentLang.flag}</span>
+                  <span className="hidden sm:inline">{currentLang.code.toUpperCase()}</span>
+                  <ChevronDown size={11} className={`transition-transform ${langOpen ? "rotate-180" : ""}`} />
+                </button>
+                {langOpen && (
+                  <div className="absolute right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-50 min-w-40 overflow-hidden">
+                    {LANGUAGES.map((l) => (
+                      <button
+                        key={l.code}
+                        onClick={() => changeLang(l.code)}
+                        className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm transition hover:bg-slate-50 ${lang === l.code ? "bg-blue-50 text-blue-700 font-semibold" : "text-slate-700"}`}
+                      >
+                        <span>{l.flag}</span>
+                        <span>{l.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* LOGOUT */}
             {loading ? (
@@ -74,7 +127,6 @@ export default function DashboardHeader({
         <nav className="flex items-center gap-1 overflow-x-auto py-2 scrollbar-hide">
           {menus.map((menu) => {
             const Icon = menu.icon;
-
             const active =
               menu.href === "/"
                 ? pathname === "/"
@@ -82,10 +134,7 @@ export default function DashboardHeader({
 
             if (loading) {
               return (
-                <div
-                  key={menu.href}
-                  className="h-7 w-24 bg-slate-200 animate-pulse rounded-lg mx-1"
-                />
+                <div key={menu.href} className="h-7 w-24 bg-slate-200 animate-pulse rounded-lg mx-1" />
               );
             }
 
@@ -94,14 +143,10 @@ export default function DashboardHeader({
                 key={menu.href}
                 href={menu.href}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all
-                ${
-                  active
-                    ? "bg-green-600 text-white"
-                    : "text-slate-600 hover:bg-slate-100"
-                }`}
+                ${active ? "bg-green-600 text-white" : "text-slate-600 hover:bg-slate-100"}`}
               >
                 <Icon size={14} />
-                {menu.label}
+                {t(menu.key)}
               </Link>
             );
           })}

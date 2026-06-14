@@ -6,6 +6,7 @@ import { itemRequest } from "@/lib/product-api";
 import { partnerRequest } from "@/lib/supplier-api";
 import { purchaseRequest } from "@/lib/purchase-api";
 import { useDebounce } from "@/lib/hooks";
+import { useLanguage } from "@/lib/language-context";
 import DashboardHeader from "@/app/components/dashboard/DashboardHeader";
 import Pagination from "@/app/components/ui/Pagination";
 import DateRangeFilter from "@/app/components/ui/DateRangeFilter";
@@ -17,25 +18,18 @@ import {
 
 interface Product {
   id: string; name: string; description?: string;
-  cost_price: number; selling_price: number; quantity: number;
-  supplier_id?: string | null;
+  cost_price: number; selling_price: number; quantity: number; supplier_id?: string | null;
 }
-
 interface PurchaseRecord {
   id: string; product_id?: string; product_name: string;
   supplier_id?: string; quantity_added: number;
   cost_price: number; selling_price?: number; total_cost: number;
   notes?: string; created_at?: string;
 }
-
 interface Supplier { id: string; name: string; phone?: string; address?: string; }
-
 type Tab = "inventory" | "history";
 
-const EMPTY_FORM = {
-  product_id: "", product_name: "", description: "",
-  cost_price: "", selling_price: "", quantity: "", supplier_id: "",
-};
+const EMPTY_FORM = { product_id: "", product_name: "", description: "", cost_price: "", selling_price: "", quantity: "", supplier_id: "" };
 const PAGE_SIZES = [25, 50, 100, 250];
 
 function toDateStr(d: Date) {
@@ -43,9 +37,9 @@ function toDateStr(d: Date) {
 }
 
 export default function PurchaseManagementPage() {
+  const { t } = useLanguage();
   const [tab, setTab] = useState<Tab>("inventory");
 
-  // ── Inventory (products) ──────────────────────────────
   const [products, setProducts] = useState<Product[]>([]);
   const [productsTotal, setProductsTotal] = useState(0);
   const [invSearch, setInvSearch] = useState("");
@@ -53,7 +47,6 @@ export default function PurchaseManagementPage() {
   const [invPage, setInvPage] = useState(1);
   const [invPageSize, setInvPageSize] = useState(25);
 
-  // ── Purchase history ──────────────────────────────────
   const [purchases, setPurchases] = useState<PurchaseRecord[]>([]);
   const [purchasesTotal, setPurchasesTotal] = useState(0);
   const [histPage, setHistPage] = useState(1);
@@ -61,28 +54,23 @@ export default function PurchaseManagementPage() {
   const [dateFrom, setDateFrom] = useState(() => toDateStr(new Date()));
   const [dateTo, setDateTo] = useState(() => toDateStr(new Date()));
 
-  // ── Suppliers ─────────────────────────────────────────
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
-
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
-  // ── Modal ─────────────────────────────────────────────
   const [showModal, setShowModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [deletingId, setDeletingId] = useState("");
   const [form, setForm] = useState(EMPTY_FORM);
-  const [isRestocking, setIsRestocking] = useState(false); // true = restock existing
+  const [isRestocking, setIsRestocking] = useState(false);
 
   const debouncedInvSearch = useDebounce(invSearch, 350);
 
   useEffect(() => { loadAll(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { if (!loading) loadHistory(true); }, [dateFrom, dateTo, histPage, histPageSize]);
 
-  // Read URL params for pre-fill from ItemManagement restock link
   useEffect(() => {
     if (typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
@@ -90,16 +78,11 @@ export default function PurchaseManagementPage() {
     if (name) {
       const product = products.find((p) => p.name === decodeURIComponent(name));
       setForm({
-        product_id: product?.id || "",
-        product_name: decodeURIComponent(name),
-        description: "",
-        cost_price: params.get("cost") || "",
-        selling_price: params.get("selling") || "",
-        quantity: "",
-        supplier_id: params.get("supplierId") || "",
+        product_id: product?.id || "", product_name: decodeURIComponent(name), description: "",
+        cost_price: params.get("cost") || "", selling_price: params.get("selling") || "",
+        quantity: "", supplier_id: params.get("supplierId") || "",
       });
-      setIsRestocking(!!product?.id);
-      setShowModal(true);
+      setIsRestocking(!!product?.id); setShowModal(true);
       window.history.replaceState({}, "", window.location.pathname);
     }
   }, [products]);
@@ -123,8 +106,7 @@ export default function PurchaseManagementPage() {
   async function loadHistory(soft = false) {
     try {
       const params = new URLSearchParams({
-        page: String(histPage),
-        limit: String(histPageSize),
+        page: String(histPage), limit: String(histPageSize),
         ...(dateFrom && { from_date: dateFrom }),
         ...(dateTo && { to_date: dateTo }),
       });
@@ -142,22 +124,14 @@ export default function PurchaseManagementPage() {
     } catch { /* ignore */ }
   }
 
-  function openCreateModal() {
-    setForm(EMPTY_FORM); setIsRestocking(false); setShowModal(true);
-  }
+  function openCreateModal() { setForm(EMPTY_FORM); setIsRestocking(false); setShowModal(true); }
 
   function handleSelectExisting(e: React.ChangeEvent<HTMLSelectElement>) {
     const id = e.target.value;
     const item = products.find((p) => p.id === id);
     if (item) {
       setIsRestocking(true);
-      setForm((f) => ({
-        ...f, product_id: item.id, product_name: item.name,
-        description: item.description || "",
-        cost_price: String(item.cost_price),
-        selling_price: String(item.selling_price),
-        supplier_id: item.supplier_id || "",
-      }));
+      setForm((f) => ({ ...f, product_id: item.id, product_name: item.name, description: item.description || "", cost_price: String(item.cost_price), selling_price: String(item.selling_price), supplier_id: item.supplier_id || "" }));
     } else {
       setIsRestocking(false);
       setForm((f) => ({ ...f, product_id: "" }));
@@ -168,24 +142,16 @@ export default function PurchaseManagementPage() {
     const qty = Number(form.quantity);
     const cost = Number(form.cost_price);
     if ((!isRestocking && !form.product_name.trim()) || !form.quantity || !form.cost_price) {
-      alert("Uzuza izina ry'igicuruzwa, igiciro n'umubare."); return;
+      alert(t("purchases.product_name") + ", " + t("purchases.qty_added") + " & " + t("purchases.cost_price") + " required."); return;
     }
-    if (qty <= 0 || cost <= 0) { alert("Umubare n'igiciro bigomba kuba birenze 0."); return; }
+    if (qty <= 0 || cost <= 0) { alert("Qty and cost must be > 0."); return; }
 
     const payload: Record<string, unknown> = {
-      cost_price: cost,
-      selling_price: form.selling_price ? Number(form.selling_price) : undefined,
-      quantity_added: qty,
-      supplier_id: form.supplier_id || undefined,
-      notes: undefined,
+      cost_price: cost, selling_price: form.selling_price ? Number(form.selling_price) : undefined,
+      quantity_added: qty, supplier_id: form.supplier_id || undefined, notes: undefined,
     };
-
-    if (isRestocking && form.product_id) {
-      payload.product_id = form.product_id;
-    } else {
-      payload.product_name = form.product_name.trim();
-      payload.description = form.description.trim() || undefined;
-    }
+    if (isRestocking && form.product_id) payload.product_id = form.product_id;
+    else { payload.product_name = form.product_name.trim(); payload.description = form.description.trim() || undefined; }
 
     try {
       setSubmitting(true);
@@ -193,18 +159,17 @@ export default function PurchaseManagementPage() {
       setShowModal(false); setForm(EMPTY_FORM); setIsRestocking(false);
       await loadAll(true);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Habaye ikibazo.";
-      alert(msg);
+      alert(err instanceof Error ? err.message : "Error");
     } finally { setSubmitting(false); }
   }
 
   async function deleteHistoryRecord(id: string) {
-    if (!confirm("Siba iri dossier? Ibikorwa by'ububiko ntibishobora gusubizwa inyuma.")) return;
+    if (!confirm(t("common.confirm_delete"))) return;
     try {
       setDeletingId(id);
       await purchaseRequest(`/purchases/${id}`, { method: "DELETE" });
       await loadHistory(true);
-    } catch { alert("Siba ntibishoboka."); }
+    } catch { alert("Delete failed."); }
     finally { setDeletingId(""); }
   }
 
@@ -217,10 +182,7 @@ export default function PurchaseManagementPage() {
   const filteredProducts = useMemo(() => {
     const q = debouncedInvSearch.toLowerCase();
     return products
-      .filter((p) =>
-        p.name?.toLowerCase().includes(q) ||
-        supplierMap[p.supplier_id ?? ""]?.name?.toLowerCase().includes(q)
-      )
+      .filter((p) => p.name?.toLowerCase().includes(q) || supplierMap[p.supplier_id ?? ""]?.name?.toLowerCase().includes(q))
       .filter((p) => {
         if (invFilter === "in_stock") return p.quantity > 10;
         if (invFilter === "low_stock") return p.quantity > 0 && p.quantity <= 10;
@@ -231,16 +193,12 @@ export default function PurchaseManagementPage() {
 
   const invTotalPages = Math.ceil(filteredProducts.length / invPageSize);
   const paginatedProducts = filteredProducts.slice((invPage - 1) * invPageSize, invPage * invPageSize);
-
   const histTotalPages = Math.ceil(purchasesTotal / histPageSize);
 
   const invStats = useMemo(() => {
     const totalSpent = purchases.reduce((s, p) => s + p.total_cost, 0);
     const stockValue = products.reduce((s, p) => s + p.selling_price * p.quantity, 0);
-    const potProfit = products.reduce((s, p) => {
-      const u = p.selling_price - p.cost_price;
-      return s + (u > 0 ? u * p.quantity : 0);
-    }, 0);
+    const potProfit = products.reduce((s, p) => { const u = p.selling_price - p.cost_price; return s + (u > 0 ? u * p.quantity : 0); }, 0);
     const lowStock = products.filter((p) => p.quantity > 0 && p.quantity <= 10).length;
     const outStock = products.filter((p) => p.quantity === 0).length;
     const suppliersUsed = new Set(products.map((p) => p.supplier_id).filter(Boolean)).size;
@@ -249,10 +207,8 @@ export default function PurchaseManagementPage() {
 
   const selectedProduct = isRestocking ? products.find((p) => p.id === form.product_id) : null;
   const hasDateFilter = dateFrom || dateTo;
-
   const margin = form.cost_price && form.selling_price && Number(form.cost_price) > 0
-    ? (((Number(form.selling_price) - Number(form.cost_price)) / Number(form.cost_price)) * 100).toFixed(1)
-    : null;
+    ? (((Number(form.selling_price) - Number(form.cost_price)) / Number(form.cost_price)) * 100).toFixed(1) : null;
 
   const inputCls = "border border-slate-200 text-gray-800 placeholder:text-gray-400 rounded-lg px-3 py-2 w-full text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-400 transition";
 
@@ -282,9 +238,9 @@ export default function PurchaseManagementPage() {
             <div className="flex items-center gap-2.5">
               <ShoppingCart size={20} />
               <div>
-                <h1 className="text-base font-semibold">Ibinyuranye — Purchases</h1>
+                <h1 className="text-base font-semibold">{t("purchases.title")}</h1>
                 <p className="text-violet-200 text-xs mt-0.5">
-                  {lastUpdated ? `Ivuguruwemo saa ${lastUpdated.toLocaleTimeString()}` : "—"} · Ububiko: {productsTotal.toLocaleString()} ibicuruzwa
+                  {lastUpdated ? `${t("common.updated")} ${lastUpdated.toLocaleTimeString()}` : "—"} · {t("purchases.inventory")}: {productsTotal.toLocaleString()}
                 </p>
               </div>
             </div>
@@ -295,7 +251,7 @@ export default function PurchaseManagementPage() {
               </button>
               <button onClick={openCreateModal}
                 className="bg-white text-violet-700 px-3.5 py-1.5 rounded-lg flex items-center gap-1.5 text-sm font-semibold hover:bg-violet-50 transition">
-                <Plus size={15} /> Injiza Igurisha
+                <Plus size={15} /> {t("purchases.add")}
               </button>
             </div>
           </div>
@@ -304,15 +260,14 @@ export default function PurchaseManagementPage() {
           <div className="mt-4 flex gap-2">
             <button onClick={() => setTab("inventory")}
               className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-sm font-medium transition ${tab === "inventory" ? "bg-white text-violet-700" : "bg-white/10 text-white hover:bg-white/20"}`}>
-              <LayoutGrid size={14} /> Ububiko bw&apos;Ibicuruzwa
+              <LayoutGrid size={14} /> {t("purchases.inventory")}
             </button>
             <button onClick={() => setTab("history")}
               className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-sm font-medium transition ${tab === "history" ? "bg-white text-violet-700" : "bg-white/10 text-white hover:bg-white/20"}`}>
-              <History size={14} /> Amateka y&apos;Ibigurwa ({purchasesTotal.toLocaleString()})
+              <History size={14} /> {t("purchases.history")} ({purchasesTotal.toLocaleString()})
             </button>
           </div>
 
-          {/* History date filter */}
           {tab === "history" && (
             <DateRangeFilter
               from={dateFrom} to={dateTo}
@@ -323,23 +278,22 @@ export default function PurchaseManagementPage() {
             />
           )}
 
-          {/* Inventory search + filter */}
           {tab === "inventory" && (
             <div className="mt-3 flex flex-col md:flex-row gap-2.5">
               <div className="flex-1 flex items-center bg-white/10 rounded-lg px-3 py-2 gap-2">
                 <Search size={15} className="shrink-0 text-violet-200" />
                 <input value={invSearch} onChange={(e) => { setInvSearch(e.target.value); setInvPage(1); }}
-                  placeholder="Shakisha igicuruzwa cyangwa umutanga..."
+                  placeholder={t("items.search")}
                   className="bg-transparent outline-none w-full text-sm placeholder:text-violet-200" />
                 {invSearch && <button onClick={() => setInvSearch("")} className="text-violet-200 hover:text-white"><X size={13} /></button>}
               </div>
               <div className="flex items-center bg-white/10 rounded-lg px-3 py-2 gap-2">
                 <Filter size={15} className="shrink-0 text-violet-200" />
                 <select value={invFilter} onChange={(e) => { setInvFilter(e.target.value); setInvPage(1); }} className="bg-transparent outline-none text-sm">
-                  <option value="all" className="text-gray-700">Byose</option>
-                  <option value="in_stock" className="text-gray-700">Bifite ububiko</option>
-                  <option value="low_stock" className="text-gray-700">Bugarije</option>
-                  <option value="out_stock" className="text-gray-700">Nta bubiko</option>
+                  <option value="all" className="text-gray-700">{t("items.all")}</option>
+                  <option value="in_stock" className="text-gray-700">{t("items.in_stock")}</option>
+                  <option value="low_stock" className="text-gray-700">{t("items.low_stock")}</option>
+                  <option value="out_stock" className="text-gray-700">{t("items.out_stock")}</option>
                 </select>
               </div>
             </div>
@@ -352,15 +306,13 @@ export default function PurchaseManagementPage() {
             <AlertCircle size={16} className="text-amber-600 shrink-0 mt-0.5" />
             <div className="flex-1">
               <p className="text-sm font-semibold text-amber-800">
-                Ikibazo cy&apos;ububiko:{" "}
-                {invStats.outStock > 0 && `${invStats.outStock} nta bubiko`}
+                {invStats.outStock > 0 && `${invStats.outStock} ${t("items.out_stock")}`}
                 {invStats.outStock > 0 && invStats.lowStock > 0 && " · "}
-                {invStats.lowStock > 0 && `${invStats.lowStock} bugarije`}
+                {invStats.lowStock > 0 && `${invStats.lowStock} ${t("items.low_stock")}`}
               </p>
-              <p className="text-xs text-amber-600 mt-0.5">Injiza ibigurwa bishya kuzuza ububiko.</p>
             </div>
             <Link href="/PartnerManagement" className="text-xs font-semibold text-amber-700 bg-amber-100 hover:bg-amber-200 px-3 py-1.5 rounded-lg shrink-0 transition">
-              <span className="flex items-center gap-1"><Users size={12} /> Abaganishi</span>
+              <span className="flex items-center gap-1"><Users size={12} /> {t("partners.suppliers")}</span>
             </Link>
           </div>
         )}
@@ -368,12 +320,12 @@ export default function PurchaseManagementPage() {
         {/* STAT CARDS */}
         <div className="grid grid-cols-2 md:grid-cols-6 gap-3 mb-6">
           {[
-            { label: "Ibicuruzwa", value: productsTotal, color: "text-violet-600", bg: "bg-violet-50", icon: <Package size={17} /> },
-            { label: "Agaciro k'Ububiko", value: invStats.stockValue.toLocaleString(), color: "text-indigo-600", bg: "bg-indigo-50", icon: <DollarSign size={17} /> },
-            { label: "Inyungu y'Intego", value: invStats.potProfit.toLocaleString(), color: "text-green-600", bg: "bg-green-50", icon: <TrendingUp size={17} /> },
-            { label: "Abaganishi", value: invStats.suppliersUsed, color: "text-blue-600", bg: "bg-blue-50", icon: <Truck size={17} /> },
-            { label: "Ububiko Bugarije", value: invStats.lowStock, color: "text-amber-500", bg: "bg-amber-50", icon: <AlertCircle size={17} /> },
-            { label: "Nta Bubiko", value: invStats.outStock, color: "text-red-600", bg: "bg-red-50", icon: <AlertCircle size={17} /> },
+            { label: t("nav.items"),          value: productsTotal,                      color: "text-violet-600", bg: "bg-violet-50",  icon: <Package size={17} /> },
+            { label: t("reports.stock_value"), value: invStats.stockValue.toLocaleString(), color: "text-indigo-600", bg: "bg-indigo-50",  icon: <DollarSign size={17} /> },
+            { label: t("reports.pot_profit"), value: invStats.potProfit.toLocaleString(), color: "text-green-600",  bg: "bg-green-50",   icon: <TrendingUp size={17} /> },
+            { label: t("partners.suppliers"), value: invStats.suppliersUsed,             color: "text-blue-600",   bg: "bg-blue-50",    icon: <Truck size={17} /> },
+            { label: t("items.low_stock"),    value: invStats.lowStock,                  color: "text-amber-500",  bg: "bg-amber-50",   icon: <AlertCircle size={17} /> },
+            { label: t("items.out_stock"),    value: invStats.outStock,                  color: "text-red-600",    bg: "bg-red-50",     icon: <AlertCircle size={17} /> },
           ].map((card) => (
             <div key={card.label} className="bg-white rounded-xl border border-slate-200 p-4">
               <div className="flex justify-between items-start">
@@ -387,19 +339,13 @@ export default function PurchaseManagementPage() {
           ))}
         </div>
 
-        {/* ── INVENTORY TABLE ────────────────────────── */}
+        {/* INVENTORY TABLE */}
         {tab === "inventory" && (
           <div className="bg-white rounded-xl border border-slate-200 overflow-x-auto">
-            {debouncedInvSearch && (
-              <div className="px-4 py-2.5 border-b border-slate-100 text-xs text-slate-500 bg-slate-50">
-                <span className="font-semibold text-slate-700">{filteredProducts.length.toLocaleString()}</span> ibisubizo
-                {debouncedInvSearch && <> kuri &ldquo;<span className="font-medium">{debouncedInvSearch}</span>&rdquo;</>}
-              </div>
-            )}
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200">
-                  {["Igicuruzwa", "Umutanga", "Igiciro cy'Igurishwa", "Igiciro cy'Igurisha", "Inyungu", "Umubare", "Imimerere", ""].map((h) => (
+                  {[t("items.col_product"), t("items.col_supplier"), t("items.cost_price"), t("items.selling_price"), t("items.col_margin"), t("items.col_qty"), t("common.status"), ""].map((h) => (
                     <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-400 whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
@@ -418,7 +364,7 @@ export default function PurchaseManagementPage() {
                       <td className="px-4 py-3">
                         {supplier
                           ? <div><p className="font-medium text-slate-700">{supplier.name}</p>{supplier.phone && <p className="text-xs text-slate-400">{supplier.phone}</p>}</div>
-                          : <Link href="/PartnerManagement" className="text-xs text-violet-400 hover:underline flex items-center gap-0.5"><Truck size={11} /> Shyiraho umutanga</Link>}
+                          : <Link href="/PartnerManagement" className="text-xs text-violet-400 hover:underline flex items-center gap-0.5"><Truck size={11} /> {t("common.add")}</Link>}
                       </td>
                       <td className="px-4 py-3 text-slate-600 font-medium tabular-nums">{Number(p.cost_price).toLocaleString()}</td>
                       <td className="px-4 py-3 font-semibold text-green-600 tabular-nums">{Number(p.selling_price).toLocaleString()}</td>
@@ -428,25 +374,20 @@ export default function PurchaseManagementPage() {
                         </span>
                       </td>
                       <td className="px-4 py-3">
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${
-                          p.quantity === 0 ? "bg-red-100 text-red-700" : p.quantity <= 10 ? "bg-amber-100 text-amber-700" : "bg-green-100 text-green-700"}`}>
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${p.quantity === 0 ? "bg-red-100 text-red-700" : p.quantity <= 10 ? "bg-amber-100 text-amber-700" : "bg-green-100 text-green-700"}`}>
                           {p.quantity}
                         </span>
                       </td>
                       <td className="px-4 py-3">
-                        <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-semibold ${
-                          p.quantity === 0 ? "bg-red-100 text-red-700" : p.quantity <= 10 ? "bg-amber-100 text-amber-700" : "bg-green-100 text-green-700"}`}>
-                          {p.quantity === 0 ? "Nta bubiko" : p.quantity <= 10 ? "Bugarije" : "Bifite ububiko"}
+                        <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-semibold ${p.quantity === 0 ? "bg-red-100 text-red-700" : p.quantity <= 10 ? "bg-amber-100 text-amber-700" : "bg-green-100 text-green-700"}`}>
+                          {p.quantity === 0 ? t("items.out_stock") : p.quantity <= 10 ? t("items.low_stock") : t("items.in_stock")}
                         </span>
                       </td>
                       <td className="px-4 py-3">
                         <button
-                          onClick={() => {
-                            setForm({ product_id: p.id, product_name: p.name, description: p.description || "", cost_price: String(p.cost_price), selling_price: String(p.selling_price), quantity: "", supplier_id: p.supplier_id || "" });
-                            setIsRestocking(true); setShowModal(true);
-                          }}
+                          onClick={() => { setForm({ product_id: p.id, product_name: p.name, description: p.description || "", cost_price: String(p.cost_price), selling_price: String(p.selling_price), quantity: "", supplier_id: p.supplier_id || "" }); setIsRestocking(true); setShowModal(true); }}
                           className="px-2.5 py-1 rounded-lg bg-violet-50 hover:bg-violet-100 text-violet-600 text-xs font-medium transition">
-                          + Zuzuza
+                          + {t("purchases.restock")}
                         </button>
                       </td>
                     </tr>
@@ -457,11 +398,10 @@ export default function PurchaseManagementPage() {
             {paginatedProducts.length === 0 && (
               <div className="flex flex-col items-center justify-center py-16 text-slate-400">
                 <div className="p-4 bg-slate-100 rounded-2xl mb-3"><Package size={32} className="opacity-40" /></div>
-                <p className="font-medium text-slate-500 text-sm">Nta bicuruzwa bibonetse</p>
-                <p className="text-xs mt-1 text-slate-400">{invSearch || invFilter !== "all" ? "Gerageza guhindura inyandiko." : "Injiza igurisha rya mbere uhere."}</p>
+                <p className="font-medium text-slate-500 text-sm">{t("items.no_items")}</p>
                 {!invSearch && invFilter === "all" && (
                   <button onClick={openCreateModal} className="mt-4 flex items-center gap-1.5 bg-violet-600 text-white text-sm font-semibold px-4 py-2 rounded-lg hover:bg-violet-700 transition">
-                    <Plus size={14} /> Injiza Igurisha
+                    <Plus size={14} /> {t("purchases.add")}
                   </button>
                 )}
               </div>
@@ -471,17 +411,16 @@ export default function PurchaseManagementPage() {
           </div>
         )}
 
-        {/* ── HISTORY TABLE ─────────────────────────── */}
+        {/* HISTORY TABLE */}
         {tab === "history" && (
           <div className="bg-white rounded-xl border border-slate-200 overflow-x-auto">
             {hasDateFilter && (
               <div className="flex items-center gap-2 px-4 py-2.5 border-b border-slate-100 text-xs text-violet-700 bg-violet-50">
                 <Calendar size={13} />
                 <span>
-                  Ibigurwa
-                  {dateFrom && <> kuva <span className="font-semibold">{dateFrom}</span></>}
-                  {dateTo && <> kugeza <span className="font-semibold">{dateTo}</span></>}
-                  {" "}· <span className="font-semibold">{purchasesTotal.toLocaleString()}</span> amagurishwa
+                  {dateFrom && <> {t("common.date")}: <span className="font-semibold">{dateFrom}</span></>}
+                  {dateTo && <> → <span className="font-semibold">{dateTo}</span></>}
+                  {" "}· <span className="font-semibold">{purchasesTotal.toLocaleString()}</span>
                 </span>
                 <button onClick={() => { setDateFrom(""); setDateTo(""); setHistPage(1); }} className="ml-auto text-violet-500 hover:text-violet-700"><X size={13} /></button>
               </div>
@@ -489,7 +428,7 @@ export default function PurchaseManagementPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200">
-                  {["Itariki", "Igicuruzwa", "Umutanga", "Byagurishijwe", "Igiciro/unit", "Amafaranga Yose", ""].map((h) => (
+                  {[t("purchases.col_date"), t("purchases.col_product"), t("purchases.col_supplier"), t("purchases.col_qty"), t("purchases.col_unit"), t("purchases.col_total"), ""].map((h) => (
                     <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-400 whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
@@ -515,14 +454,14 @@ export default function PurchaseManagementPage() {
                       <td className="px-4 py-3">
                         {supplier
                           ? <div><p className="font-medium text-slate-700">{supplier.name}</p>{supplier.phone && <p className="text-xs text-slate-400">{supplier.phone}</p>}</div>
-                          : <span className="text-slate-300 text-xs italic">Nta mutanga</span>}
+                          : <span className="text-slate-300 text-xs italic">—</span>}
                       </td>
                       <td className="px-4 py-3 font-medium text-slate-700 tabular-nums">{p.quantity_added}</td>
                       <td className="px-4 py-3 text-slate-600 tabular-nums">{p.cost_price.toLocaleString()}</td>
                       <td className="px-4 py-3 font-semibold text-slate-800 tabular-nums">{p.total_cost.toLocaleString()}</td>
                       <td className="px-4 py-3">
                         <button onClick={() => deleteHistoryRecord(p.id)} disabled={deletingId === p.id}
-                          title="Siba" className="p-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 transition disabled:opacity-40">
+                          className="p-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 transition disabled:opacity-40">
                           <Trash2 size={14} />
                         </button>
                       </td>
@@ -534,8 +473,7 @@ export default function PurchaseManagementPage() {
             {purchases.length === 0 && (
               <div className="flex flex-col items-center justify-center py-16 text-slate-400">
                 <div className="p-4 bg-slate-100 rounded-2xl mb-3"><History size={32} className="opacity-40" /></div>
-                <p className="font-medium text-slate-500 text-sm">Nta mateka y&apos;ibigurwa abonetse</p>
-                <p className="text-xs mt-1 text-slate-400">{hasDateFilter ? "Gerageza guhindura iy'itariki." : "Injiza igurisha rya mbere uhere."}</p>
+                <p className="font-medium text-slate-500 text-sm">{t("purchases.no_history")}</p>
               </div>
             )}
             <Pagination page={histPage} totalPages={histTotalPages} total={purchasesTotal}
@@ -550,94 +488,80 @@ export default function PurchaseManagementPage() {
               <div className="flex justify-between items-center px-6 py-4 border-b border-slate-100">
                 <div>
                   <h2 className="text-base font-semibold text-slate-800">
-                    {isRestocking ? "Zuzuza Ububiko" : "Injiza Igicuruzwa Gishya"}
+                    {isRestocking ? t("purchases.restock_title") : t("purchases.new_title")}
                   </h2>
-                  <p className="text-xs text-slate-400 mt-0.5">
-                    {isRestocking ? "Injiza umubare ushya — ububiko buzongera" : "Shyiramo amakuru y'igicuruzwa gishya"}
-                  </p>
                 </div>
                 <button onClick={() => { setShowModal(false); setForm(EMPTY_FORM); setIsRestocking(false); }}
                   className="p-2 rounded-lg hover:bg-slate-100 text-slate-400 transition"><X size={17} /></button>
               </div>
               <div className="px-6 py-5 grid md:grid-cols-2 gap-4">
-                {/* Quick-fill from existing */}
                 {!isRestocking && products.length > 0 && (
                   <div className="md:col-span-2">
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Zuzuza igicuruzwa kirimo (niba gihari)</label>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">{t("purchases.select_existing")}</label>
                     <select className={inputCls} defaultValue="" onChange={handleSelectExisting}>
-                      <option value="">— Hitamo kuzuzuza —</option>
-                      {products.map((p) => <option key={p.id} value={p.id}>{p.name} (ububiko: {p.quantity})</option>)}
+                      <option value="">— {t("common.search")} —</option>
+                      {products.map((p) => <option key={p.id} value={p.id}>{p.name} ({t("items.col_qty")}: {p.quantity})</option>)}
                     </select>
-                    <p className="text-xs text-slate-400 mt-1">Uzuza hepfo niba ushaka gushyiraho igicuruzwa gishya.</p>
                   </div>
                 )}
-
                 {isRestocking && selectedProduct && (
                   <div className="md:col-span-2 bg-violet-50 rounded-lg px-3 py-2 text-xs text-violet-700">
-                    Uzuzuza: <span className="font-semibold">{selectedProduct.name}</span>
-                    {" "}· Ububiko bwa none: <span className="font-bold">{selectedProduct.quantity}</span>
+                    {t("purchases.restock")}: <span className="font-semibold">{selectedProduct.name}</span>
+                    {" "}· {t("items.col_qty")}: <span className="font-bold">{selectedProduct.quantity}</span>
                   </div>
                 )}
-
                 <div className="md:col-span-2">
                   <label className="block text-xs font-medium text-gray-600 mb-1">
-                    Izina ry&apos;Igicuruzwa {!isRestocking && <span className="text-red-400">*</span>}
+                    {t("purchases.product_name")} {!isRestocking && <span className="text-red-400">*</span>}
                   </label>
-                  <input className={inputCls} placeholder="urugero: Ifu 25kg"
-                    value={form.product_name}
-                    onChange={(e) => setForm({ ...form, product_name: e.target.value })}
+                  <input className={inputCls} placeholder="e.g. Sugar 1kg"
+                    value={form.product_name} onChange={(e) => setForm({ ...form, product_name: e.target.value })}
                     disabled={isRestocking} />
                 </div>
-
                 {!isRestocking && (
                   <div className="md:col-span-2">
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Ibisobanuro</label>
-                    <input className={inputCls} placeholder="Si ngombwa"
+                    <label className="block text-xs font-medium text-gray-600 mb-1">{t("items.description")}</label>
+                    <input className={inputCls} placeholder="Optional"
                       value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
                   </div>
                 )}
-
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Igiciro cy&apos;Igurishwa <span className="text-red-400">*</span></label>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">{t("purchases.cost_price")} <span className="text-red-400">*</span></label>
                   <input type="number" min="0" className={inputCls} placeholder="0"
                     value={form.cost_price} onChange={(e) => setForm({ ...form, cost_price: e.target.value })} />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Igiciro cy&apos;Igurisha</label>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">{t("purchases.selling_price")}</label>
                   <input type="number" min="0" className={inputCls} placeholder="0"
                     value={form.selling_price} onChange={(e) => setForm({ ...form, selling_price: e.target.value })} />
                 </div>
-
                 {margin !== null && (
                   <div className="md:col-span-2 bg-slate-50 rounded-lg px-3 py-2 text-xs text-slate-500">
-                    Inyungu: <span className={`font-bold ${Number(margin) >= 0 ? "text-green-600" : "text-red-500"}`}>{Number(margin) >= 0 ? "+" : ""}{margin}%</span>
-                    {" · "}Ku gicuruzwa: <span className="font-bold text-slate-700">{(Number(form.selling_price) - Number(form.cost_price)).toLocaleString()}</span>
+                    Margin: <span className={`font-bold ${Number(margin) >= 0 ? "text-green-600" : "text-red-500"}`}>{Number(margin) >= 0 ? "+" : ""}{margin}%</span>
+                    {" · "}Unit profit: <span className="font-bold text-slate-700">{(Number(form.selling_price) - Number(form.cost_price)).toLocaleString()}</span>
                   </div>
                 )}
-
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">
-                    {isRestocking ? "Umubare Uzongerwaho" : "Umubare Wagurishijwe"} <span className="text-red-400">*</span>
+                    {isRestocking ? t("purchases.qty_added") : t("items.quantity")} <span className="text-red-400">*</span>
                   </label>
                   <input type="number" min="1" className={inputCls} placeholder="0"
                     value={form.quantity} onChange={(e) => setForm({ ...form, quantity: e.target.value })} />
                   {isRestocking && selectedProduct && form.quantity && (
                     <p className="text-xs mt-1 text-violet-600">
-                      Ububiko bwa none: <span className="font-semibold">{selectedProduct.quantity}</span>
-                      {" + "}{form.quantity}{" = "}
-                      <span className="font-bold">{selectedProduct.quantity + Number(form.quantity)}</span> nyuma yo kuzuza
+                      {selectedProduct.quantity} + {form.quantity} = <span className="font-bold">{selectedProduct.quantity + Number(form.quantity)}</span>
                     </p>
                   )}
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Umutanga</label>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">{t("items.supplier")}</label>
                   <select className={inputCls} value={form.supplier_id} onChange={(e) => setForm({ ...form, supplier_id: e.target.value })}>
-                    <option value="">Nta mutanga</option>
+                    <option value="">{t("items.no_supplier")}</option>
                     {suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
                   </select>
                   {suppliers.length === 0 && (
                     <p className="text-xs text-violet-500 mt-1">
-                      <Link href="/PartnerManagement" className="hover:underline">Ongeraho umutanga →</Link>
+                      <Link href="/PartnerManagement" className="hover:underline">{t("common.add")} supplier →</Link>
                     </p>
                   )}
                 </div>
@@ -645,11 +569,11 @@ export default function PurchaseManagementPage() {
               <div className="flex justify-end gap-2.5 px-6 py-4 border-t border-slate-100">
                 <button onClick={() => { setShowModal(false); setForm(EMPTY_FORM); setIsRestocking(false); }}
                   className="px-4 py-2 rounded-lg border border-slate-200 text-slate-600 text-sm font-medium hover:bg-slate-50 transition">
-                  Gusubira inyuma
+                  {t("common.cancel")}
                 </button>
                 <button onClick={submitForm} disabled={submitting}
                   className="px-5 py-2 rounded-lg bg-violet-600 text-white text-sm font-semibold hover:bg-violet-700 transition disabled:opacity-60">
-                  {submitting ? "Kwinjiza..." : isRestocking ? "Zuzuza Ububiko" : "Injiza Igicuruzwa"}
+                  {submitting ? t("common.saving") : isRestocking ? t("purchases.restock") : t("purchases.new_product")}
                 </button>
               </div>
             </div>
