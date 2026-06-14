@@ -1,8 +1,7 @@
 fastapi
 uvicorn[standard]
-sqlalchemy
-psycopg2-binary
 python-dotenv
 python-jose[cryptography]
 pydantic
 pydantic-settings
+requests
