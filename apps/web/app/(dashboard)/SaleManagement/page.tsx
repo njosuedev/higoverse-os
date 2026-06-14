@@ -16,6 +16,7 @@ import {
 interface Sale {
   id: string;
   product_id: string;
+  product_name?: string;
   customer_id?: string;
   quantity: number;
   unit_price: number;
@@ -164,7 +165,7 @@ export default function SaleManagementPage() {
   const filtered = useMemo(() => {
     const q = debouncedSearch.toLowerCase();
     return sales.filter((s) => {
-      const name = productMap[s.product_id]?.name?.toLowerCase() || "";
+      const name = (s.product_name || productMap[s.product_id]?.name || "").toLowerCase();
       const cust = customerMap[s.customer_id || ""]?.name?.toLowerCase() || "";
       if (q && !name.includes(q) && !cust.includes(q) && !(s.notes || "").toLowerCase().includes(q)) return false;
       if (filter === "profit") return (s.profit || 0) > 0;
@@ -333,9 +334,12 @@ export default function SaleManagementPage() {
                       ) : <span className="text-slate-300 text-xs">—</span>}
                     </td>
                     <td className="px-4 py-3">
-                      {product
-                        ? <div><p className="font-semibold text-slate-800">{product.name}</p><p className="text-xs text-slate-400 font-mono">{s.product_id.slice(0, 8)}</p></div>
-                        : <span className="text-slate-400 text-xs font-mono">{s.product_id.slice(0, 8)}</span>}
+                      {(() => {
+                        const name = s.product_name || product?.name;
+                        return name
+                          ? <div><p className="font-semibold text-slate-800">{name}</p><p className="text-xs text-slate-400 font-mono">{s.product_id.slice(0, 8)}</p></div>
+                          : <span className="text-slate-400 text-xs font-mono">{s.product_id.slice(0, 8)}</span>;
+                      })()}
                     </td>
                     <td className="px-4 py-3">
                       {customer

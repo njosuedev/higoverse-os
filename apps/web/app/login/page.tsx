@@ -52,8 +52,9 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
+      const AUTH_URL = process.env.NEXT_PUBLIC_AUTH_API_URL || "https://higoverse-auth.vercel.app";
       const res = await fetch(
-        "https://higoverse-auth.vercel.app/api/v1/auth/login",
+        `${AUTH_URL}/api/v1/auth/login`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },

@@ -95,8 +95,9 @@ export default function RegisterPage() {
     try {
       setLoading(true);
 
+      const AUTH_URL = process.env.NEXT_PUBLIC_AUTH_API_URL || "https://higoverse-auth.vercel.app";
       const res = await fetch(
-        "https://higoverse-auth.vercel.app/api/v1/auth/register",
+        `${AUTH_URL}/api/v1/auth/register`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -120,14 +121,14 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col lg:flex-row bg-gradient-to-br from-slate-50 via-white to-blue-50">
+    <div className="min-h-screen flex flex-col lg:flex-row bg-linear-to-br from-slate-50 via-white to-blue-50">
 
       {/* ================= LEFT INFO PANEL ================= */}
-      <div className="hidden lg:flex w-1/2 bg-gradient-to-br from-slate-950 via-blue-900 to-indigo-700 text-white relative overflow-hidden">
+      <div className="hidden lg:flex w-1/2 bg-linear-to-br from-slate-950 via-blue-900 to-indigo-700 text-white relative overflow-hidden">
 
         {/* decorative glow */}
-        <div className="absolute w-[400px] h-[400px] bg-blue-500/30 blur-3xl rounded-full top-[-100px] left-[-100px]" />
-        <div className="absolute w-[400px] h-[400px] bg-indigo-500/30 blur-3xl rounded-full bottom-[-120px] right-[-120px]" />
+        <div className="absolute w-100 h-100 bg-blue-500/30 blur-3xl rounded-full -top-25 -left-25" />
+        <div className="absolute w-100 h-100 bg-indigo-500/30 blur-3xl rounded-full -bottom-30 -right-30" />
 
         <div className="relative z-10 flex flex-col justify-center px-14">
           <h1 className="text-5xl font-bold leading-tight">
@@ -297,7 +298,7 @@ export default function RegisterPage() {
             {/* BUTTON */}
             <button
               disabled={!canSubmit || loading}
-              className="w-full h-12 sm:h-14 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-semibold disabled:opacity-50 transition flex items-center justify-center"
+              className="w-full h-12 sm:h-14 rounded-xl bg-linear-to-r from-blue-600 to-indigo-600 text-white font-semibold disabled:opacity-50 transition flex items-center justify-center"
             >
               {loading ? "Creating..." : "Create Workspace"}
             </button>
