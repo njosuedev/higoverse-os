@@ -39,8 +39,39 @@ export function getUser(): User | null {
   }
 }
 
+// Decode JWT payload (no signature verification — only for expiry UX check)
+function decodeJwtPayload(token: string): Record<string, unknown> | null {
+  try {
+    const base64Url = token.split(".")[1];
+    if (!base64Url) return null;
+    const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
+    const json = decodeURIComponent(
+      atob(base64)
+        .split("")
+        .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
+        .join("")
+    );
+    return JSON.parse(json);
+  } catch {
+    return null;
+  }
+}
+
+export function isTokenExpired(token: string): boolean {
+  const payload = decodeJwtPayload(token);
+  if (!payload || typeof payload.exp !== "number") return true;
+  // exp is in seconds; add 10s grace period for clock skew
+  return Date.now() / 1000 > payload.exp - 10;
+}
+
 export function isAuthenticated(): boolean {
-  return !!getToken() && !!getUser();
+  const token = getToken();
+  if (!token || !getUser()) return false;
+  if (isTokenExpired(token)) {
+    logout();
+    return false;
+  }
+  return true;
 }
 
 export function getAuthHeaders(): Record<string, string> {
@@ -62,4 +93,9 @@ export function logout() {
   sessionStorage.clear();
 
   window.location.replace("/login");
+}
+
+// Call this in API clients when backend returns 401
+export function handleUnauthorized() {
+  logout();
 }

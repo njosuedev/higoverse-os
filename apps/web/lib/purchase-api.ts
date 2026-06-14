@@ -1,36 +1,23 @@
 import { getToken, handleUnauthorized } from "@/lib/auth";
 
-const PRODUCT_API = process.env.NEXT_PUBLIC_PRODUCT_API_URL || "https://higoverse-products.vercel.app";
+const PURCHASE_API = process.env.NEXT_PUBLIC_PURCHASE_API_URL || "https://higoverse-purchases.vercel.app";
 
-export async function itemRequest(
-  endpoint: string,
-  options: RequestInit = {}
-) {
+export async function purchaseRequest(endpoint: string, options: RequestInit = {}) {
   const token = getToken();
-
   const headers = new Headers(options.headers);
-
   headers.set("Content-Type", "application/json");
+  if (token) headers.set("Authorization", `Bearer ${token}`);
 
-  if (token) {
-    headers.set("Authorization", `Bearer ${token}`);
-  }
-
-  const res = await fetch(`${PRODUCT_API}${endpoint}`, {
-    ...options,
-    headers,
-  });
+  const res = await fetch(`${PURCHASE_API}${endpoint}`, { ...options, headers });
 
   if (res.status === 401) {
     handleUnauthorized();
     throw new Error("Session expired. Please log in again.");
   }
-
   if (!res.ok) {
-    const errorText = await res.text().catch(() => "");
-    throw new Error(`Product API error: ${res.status} ${errorText || ""}`);
+    const text = await res.text().catch(() => "");
+    throw new Error(`Purchase API error: ${res.status} ${text}`);
   }
-
   if (res.status === 204 || res.headers.get("content-length") === "0") return null;
   const text = await res.text();
   if (!text) return null;

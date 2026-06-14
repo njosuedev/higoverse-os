@@ -1,6 +1,6 @@
-import { getToken } from "@/lib/auth";
+import { getToken, handleUnauthorized } from "@/lib/auth";
 
-const SUPPLIER_API = "https://higoverse-suppliers.vercel.app";
+const SUPPLIER_API = process.env.NEXT_PUBLIC_SUPPLIER_API_URL || "https://higoverse-suppliers.vercel.app";
 
 export async function partnerRequest(
   endpoint: string,
@@ -12,7 +12,6 @@ export async function partnerRequest(
 
   headers.set("Content-Type", "application/json");
 
-  // 🔐 attach token only if exists
   if (token) {
     headers.set("Authorization", `Bearer ${token}`);
   }
@@ -21,6 +20,11 @@ export async function partnerRequest(
     ...options,
     headers,
   });
+
+  if (res.status === 401) {
+    handleUnauthorized();
+    throw new Error("Session expired. Please log in again.");
+  }
 
   if (!res.ok) {
     const errorText = await res.text().catch(() => "");

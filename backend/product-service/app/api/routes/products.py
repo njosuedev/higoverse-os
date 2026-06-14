@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Header
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
@@ -37,6 +38,64 @@ def calculate_profit(cost_price: float, selling_price: float):
     percent = (profit / cost_price) * 100
 
     return profit, round(percent, 2)
+
+
+# -----------------------------
+# SUMMARY (for report-service)
+# -----------------------------
+@router.get("/summary")
+def get_summary(
+    db: Session = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    row = db.query(Product).filter(Product.shop_id == user["shop_id"]).with_entities(
+        func.coalesce(func.sum(Product.selling_price * Product.quantity), 0).label("stock_value"),
+        func.coalesce(func.sum((Product.selling_price - Product.cost_price) * Product.quantity), 0).label("potential_profit"),
+        func.count(Product.id).label("total_products"),
+        func.sum(func.case((Product.quantity == 0, 1), else_=0)).label("out_of_stock"),
+        func.sum(func.case(((Product.quantity > 0) & (Product.quantity <= 10), 1), else_=0)).label("low_stock"),
+    ).one()
+
+    return {
+        "success": True,
+        "data": {
+            "stock_value": float(row.stock_value),
+            "potential_profit": float(row.potential_profit),
+            "total_products": int(row.total_products),
+            "out_of_stock": int(row.out_of_stock),
+            "low_stock": int(row.low_stock),
+        },
+    }
+
+
+# -----------------------------
+# STOCK ALERTS (for report-service)
+# -----------------------------
+@router.get("/stock-alerts")
+def get_stock_alerts(
+    db: Session = Depends(get_db),
+    user: dict = Depends(get_current_user),
+    threshold: int = 10,
+):
+    items = db.query(Product).filter(
+        Product.shop_id == user["shop_id"],
+        Product.quantity <= threshold,
+    ).order_by(Product.quantity.asc()).all()
+
+    return {
+        "success": True,
+        "data": [
+            {
+                "id": p.id,
+                "name": p.name,
+                "quantity": p.quantity,
+                "cost_price": float(p.cost_price),
+                "selling_price": float(p.selling_price),
+                "supplier_id": p.supplier_id,
+            }
+            for p in items
+        ],
+    }
 
 
 # -----------------------------

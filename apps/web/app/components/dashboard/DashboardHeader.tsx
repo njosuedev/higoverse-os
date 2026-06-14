@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import LogoutButton from "@/app/components/LogoutButton";
-import { Activity, LayoutDashboard, Package, Truck, ShoppingCart, BarChart3, Users } from "lucide-react";
+import { Activity, LayoutDashboard, Package, Truck, ShoppingCart, BarChart3, Users, Settings } from "lucide-react";
 
 interface DashboardHeaderProps {
   title?: string;
@@ -23,6 +23,7 @@ export default function DashboardHeader({
     { label: "Purchase Management", href: "/PurchaseManagement", icon: Truck },
     { label: "Sale Management", href: "/SaleManagement", icon: ShoppingCart },   
     { label: "Reports", href: "/reports", icon: BarChart3 },
+    { label: "Settings", href: "/Settings", icon: Settings },
   ];
 
   return (

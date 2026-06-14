@@ -4,156 +4,207 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { itemRequest } from "@/lib/product-api";
 import { partnerRequest } from "@/lib/supplier-api";
+import { purchaseRequest } from "@/lib/purchase-api";
 import { useDebounce } from "@/lib/hooks";
 import DashboardHeader from "@/app/components/dashboard/DashboardHeader";
 import Pagination from "@/app/components/ui/Pagination";
+import DateRangeFilter from "@/app/components/ui/DateRangeFilter";
 import {
-  ShoppingCart, AlertCircle, Search, Filter, Plus, Trash2, Pencil, X,
-  Truck, DollarSign, TrendingUp, TrendingDown, ReceiptText, Package, Users, RefreshCw,
+  ShoppingCart, AlertCircle, Search, Filter, Plus, Trash2, X,
+  Truck, DollarSign, TrendingUp, Package, Users, RefreshCw,
+  History, LayoutGrid, Calendar,
 } from "lucide-react";
 
-interface Purchase {
-  id: string;
-  name: string;
-  description?: string;
-  cost_price: number;
-  selling_price: number;
-  quantity: number;
+interface Product {
+  id: string; name: string; description?: string;
+  cost_price: number; selling_price: number; quantity: number;
   supplier_id?: string | null;
-  profit_status?: "profit" | "loss";
-  profit_money?: number;
+}
+
+interface PurchaseRecord {
+  id: string; product_id?: string; product_name: string;
+  supplier_id?: string; quantity_added: number;
+  cost_price: number; selling_price?: number; total_cost: number;
+  notes?: string; created_at?: string;
 }
 
 interface Supplier { id: string; name: string; phone?: string; address?: string; }
-type ModalMode = "create" | "edit";
+
+type Tab = "inventory" | "history";
 
 const EMPTY_FORM = {
-  name: "", description: "", cost_price: "", selling_price: "", quantity: "", supplier_id: "",
+  product_id: "", product_name: "", description: "",
+  cost_price: "", selling_price: "", quantity: "", supplier_id: "",
 };
-
 const PAGE_SIZES = [25, 50, 100, 250];
 
+function toDateStr(d: Date) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 export default function PurchaseManagementPage() {
-  const [purchases, setPurchases] = useState<Purchase[]>([]);
+  const [tab, setTab] = useState<Tab>("inventory");
+
+  // ── Inventory (products) ──────────────────────────────
+  const [products, setProducts] = useState<Product[]>([]);
+  const [productsTotal, setProductsTotal] = useState(0);
+  const [invSearch, setInvSearch] = useState("");
+  const [invFilter, setInvFilter] = useState("all");
+  const [invPage, setInvPage] = useState(1);
+  const [invPageSize, setInvPageSize] = useState(25);
+
+  // ── Purchase history ──────────────────────────────────
+  const [purchases, setPurchases] = useState<PurchaseRecord[]>([]);
+  const [purchasesTotal, setPurchasesTotal] = useState(0);
+  const [histPage, setHistPage] = useState(1);
+  const [histPageSize, setHistPageSize] = useState(25);
+  const [dateFrom, setDateFrom] = useState(() => toDateStr(new Date()));
+  const [dateTo, setDateTo] = useState(() => toDateStr(new Date()));
+
+  // ── Suppliers ─────────────────────────────────────────
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState("all");
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(25);
-
-  const [modalMode, setModalMode] = useState<ModalMode>("create");
+  // ── Modal ─────────────────────────────────────────────
   const [showModal, setShowModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState("");
   const [form, setForm] = useState(EMPTY_FORM);
+  const [isRestocking, setIsRestocking] = useState(false); // true = restock existing
 
-  const debouncedSearch = useDebounce(search, 350);
+  const debouncedInvSearch = useDebounce(invSearch, 350);
 
-  useEffect(() => {
-    loadData();
-  }, []);
+  useEffect(() => { loadAll(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Read URL params to pre-fill from ItemManagement restock link
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { if (!loading) loadHistory(true); }, [dateFrom, dateTo, histPage, histPageSize]);
+
+  // Read URL params for pre-fill from ItemManagement restock link
   useEffect(() => {
     if (typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
     const name = params.get("name");
     if (name) {
+      const product = products.find((p) => p.name === decodeURIComponent(name));
       setForm({
-        name: decodeURIComponent(name),
+        product_id: product?.id || "",
+        product_name: decodeURIComponent(name),
         description: "",
         cost_price: params.get("cost") || "",
         selling_price: params.get("selling") || "",
         quantity: "",
         supplier_id: params.get("supplierId") || "",
       });
-      setModalMode("create"); setShowModal(true);
+      setIsRestocking(!!product?.id);
+      setShowModal(true);
       window.history.replaceState({}, "", window.location.pathname);
     }
-  }, []);
+  }, [products]);
 
-  async function loadData(soft = false) {
+  async function loadAll(soft = false) {
     try {
       if (!soft) setLoading(true); else setRefreshing(true);
-      const [purchasesRes, suppliersRes] = await Promise.all([
-        itemRequest("/products"),
-        partnerRequest("/suppliers"),
-      ]);
-      setPurchases(purchasesRes?.data?.items || []);
-      const allPartners: Supplier[] = suppliersRes?.data?.items || suppliersRes?.data || [];
-      setSuppliers(allPartners.filter((p) => p.address?.startsWith("TIN:")));
+      await Promise.all([loadInventory(soft), loadHistory(soft), loadSuppliers()]);
       setLastUpdated(new Date());
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false); setRefreshing(false);
-    }
+    } finally { setLoading(false); setRefreshing(false); }
   }
 
-  function openCreateModal() { setForm(EMPTY_FORM); setEditingId(null); setModalMode("create"); setShowModal(true); }
-  function openEditModal(p: Purchase) {
-    setForm({ name: p.name, description: p.description || "", cost_price: String(p.cost_price), selling_price: String(p.selling_price), quantity: String(p.quantity), supplier_id: p.supplier_id || "" });
-    setEditingId(p.id); setModalMode("edit"); setShowModal(true);
+  async function loadInventory(soft = false) {
+    try {
+      const res = await itemRequest("/products?limit=500");
+      setProducts(res?.data?.items || []);
+      setProductsTotal(res?.data?.total || res?.data?.items?.length || 0);
+    } catch (err) { if (!soft) console.error(err); }
   }
-  function closeModal() { setShowModal(false); setForm(EMPTY_FORM); setEditingId(null); setSelectedItemId(null); }
+
+  async function loadHistory(soft = false) {
+    try {
+      const params = new URLSearchParams({
+        page: String(histPage),
+        limit: String(histPageSize),
+        ...(dateFrom && { from_date: dateFrom }),
+        ...(dateTo && { to_date: dateTo }),
+      });
+      const res = await purchaseRequest(`/purchases?${params}`);
+      setPurchases(res?.data?.items || []);
+      setPurchasesTotal(res?.data?.total || 0);
+    } catch (err) { if (!soft) console.error(err); }
+  }
+
+  async function loadSuppliers() {
+    try {
+      const res = await partnerRequest("/suppliers");
+      const all: Supplier[] = res?.data?.items || res?.data || [];
+      setSuppliers(all.filter((s) => s.address?.startsWith("TIN:")));
+    } catch { /* ignore */ }
+  }
+
+  function openCreateModal() {
+    setForm(EMPTY_FORM); setIsRestocking(false); setShowModal(true);
+  }
 
   function handleSelectExisting(e: React.ChangeEvent<HTMLSelectElement>) {
     const id = e.target.value;
-    const item = purchases.find((p) => p.id === id);
+    const item = products.find((p) => p.id === id);
     if (item) {
-      setSelectedItemId(id);
-      setForm((f) => ({ ...f, name: item.name, description: item.description || "", cost_price: String(item.cost_price), selling_price: String(item.selling_price), supplier_id: item.supplier_id || "" }));
+      setIsRestocking(true);
+      setForm((f) => ({
+        ...f, product_id: item.id, product_name: item.name,
+        description: item.description || "",
+        cost_price: String(item.cost_price),
+        selling_price: String(item.selling_price),
+        supplier_id: item.supplier_id || "",
+      }));
     } else {
-      setSelectedItemId(null);
+      setIsRestocking(false);
+      setForm((f) => ({ ...f, product_id: "" }));
     }
   }
 
   async function submitForm() {
-    if (!form.name.trim() || !form.cost_price || !form.selling_price || !form.quantity) {
-      alert("Item name, cost price, selling price and quantity are required."); return;
+    const qty = Number(form.quantity);
+    const cost = Number(form.cost_price);
+    if ((!isRestocking && !form.product_name.trim()) || !form.quantity || !form.cost_price) {
+      alert("Uzuza izina ry'igicuruzwa, igiciro n'umubare."); return;
     }
-    const addedQty = Number(form.quantity);
-    const payload = {
-      name: form.name.trim(), description: form.description.trim() || null,
-      cost_price: Number(form.cost_price), selling_price: Number(form.selling_price),
-      quantity: addedQty, supplier_id: form.supplier_id || null,
+    if (qty <= 0 || cost <= 0) { alert("Umubare n'igiciro bigomba kuba birenze 0."); return; }
+
+    const payload: Record<string, unknown> = {
+      cost_price: cost,
+      selling_price: form.selling_price ? Number(form.selling_price) : undefined,
+      quantity_added: qty,
+      supplier_id: form.supplier_id || undefined,
+      notes: undefined,
     };
+
+    if (isRestocking && form.product_id) {
+      payload.product_id = form.product_id;
+    } else {
+      payload.product_name = form.product_name.trim();
+      payload.description = form.description.trim() || undefined;
+    }
+
     try {
       setSubmitting(true);
-      if (modalMode === "edit" && editingId) {
-        // Direct edit — quantity field is the absolute new stock level
-        await itemRequest(`/products/${editingId}`, { method: "PUT", body: JSON.stringify(payload) });
-      } else if (selectedItemId) {
-        // Restock existing item — increment its quantity
-        const existing = purchases.find((p) => p.id === selectedItemId);
-        const newQty = (existing?.quantity || 0) + addedQty;
-        await itemRequest(`/products/${selectedItemId}`, {
-          method: "PUT",
-          body: JSON.stringify({ ...payload, quantity: newQty }),
-        });
-      } else {
-        // New item — create product
-        await itemRequest("/products", { method: "POST", body: JSON.stringify(payload) });
-      }
-      closeModal(); await loadData(true);
-    } catch (err) {
-      console.error(err); alert(`Failed to ${modalMode === "edit" ? "update" : "record"} purchase.`);
+      await purchaseRequest("/purchases", { method: "POST", body: JSON.stringify(payload) });
+      setShowModal(false); setForm(EMPTY_FORM); setIsRestocking(false);
+      await loadAll(true);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Habaye ikibazo.";
+      alert(msg);
     } finally { setSubmitting(false); }
   }
 
-  async function deletePurchase(id: string) {
-    if (!confirm("Remove this purchase record? This cannot be undone.")) return;
+  async function deleteHistoryRecord(id: string) {
+    if (!confirm("Siba iri dossier? Ibikorwa by'ububiko ntibishobora gusubizwa inyuma.")) return;
     try {
       setDeletingId(id);
-      await itemRequest(`/products/${id}`, { method: "DELETE" });
-      await loadData(true);
-    } catch (err) { console.error(err); alert("Failed to delete purchase."); }
+      await purchaseRequest(`/purchases/${id}`, { method: "DELETE" });
+      await loadHistory(true);
+    } catch { alert("Siba ntibishoboka."); }
     finally { setDeletingId(""); }
   }
 
@@ -163,37 +214,47 @@ export default function PurchaseManagementPage() {
     return m;
   }, [suppliers]);
 
-  const filtered = useMemo(() => {
-    const q = debouncedSearch.toLowerCase();
-    return purchases
-      .filter((p) => p.name?.toLowerCase().includes(q) || supplierMap[p.supplier_id ?? ""]?.name?.toLowerCase().includes(q))
+  const filteredProducts = useMemo(() => {
+    const q = debouncedInvSearch.toLowerCase();
+    return products
+      .filter((p) =>
+        p.name?.toLowerCase().includes(q) ||
+        supplierMap[p.supplier_id ?? ""]?.name?.toLowerCase().includes(q)
+      )
       .filter((p) => {
-        if (filter === "in_stock") return p.quantity > 10;
-        if (filter === "low_stock") return p.quantity > 0 && p.quantity <= 10;
-        if (filter === "out_stock") return p.quantity === 0;
+        if (invFilter === "in_stock") return p.quantity > 10;
+        if (invFilter === "low_stock") return p.quantity > 0 && p.quantity <= 10;
+        if (invFilter === "out_stock") return p.quantity === 0;
         return true;
       });
-  }, [purchases, debouncedSearch, filter, supplierMap]);
+  }, [products, debouncedInvSearch, invFilter, supplierMap]);
 
-  const totalPages = Math.ceil(filtered.length / pageSize);
-  const paginated = filtered.slice((page - 1) * pageSize, page * pageSize);
+  const invTotalPages = Math.ceil(filteredProducts.length / invPageSize);
+  const paginatedProducts = filteredProducts.slice((invPage - 1) * invPageSize, invPage * invPageSize);
 
+  const histTotalPages = Math.ceil(purchasesTotal / histPageSize);
 
-  const stats = useMemo(() => {
-    const totalSpent = purchases.reduce((s, p) => s + (p.cost_price || 0) * (p.quantity || 0), 0);
-    const totalStockValue = purchases.reduce((s, p) => s + (p.selling_price || 0) * (p.quantity || 0), 0);
-    const totalProfit = purchases.reduce((s, p) => { const u = (p.selling_price || 0) - (p.cost_price || 0); return s + (u > 0 ? u * (p.quantity || 0) : 0); }, 0);
-    const suppliersUsed = new Set(purchases.map((p) => p.supplier_id).filter(Boolean)).size;
-    const lowStock = purchases.filter((p) => p.quantity > 0 && p.quantity <= 10).length;
-    const outStock = purchases.filter((p) => p.quantity === 0).length;
-    return { total: purchases.length, totalSpent, totalStockValue, totalProfit, suppliersUsed, lowStock, outStock };
-  }, [purchases]);
+  const invStats = useMemo(() => {
+    const totalSpent = purchases.reduce((s, p) => s + p.total_cost, 0);
+    const stockValue = products.reduce((s, p) => s + p.selling_price * p.quantity, 0);
+    const potProfit = products.reduce((s, p) => {
+      const u = p.selling_price - p.cost_price;
+      return s + (u > 0 ? u * p.quantity : 0);
+    }, 0);
+    const lowStock = products.filter((p) => p.quantity > 0 && p.quantity <= 10).length;
+    const outStock = products.filter((p) => p.quantity === 0).length;
+    const suppliersUsed = new Set(products.map((p) => p.supplier_id).filter(Boolean)).size;
+    return { stockValue, potProfit, lowStock, outStock, suppliersUsed, totalSpent };
+  }, [products, purchases]);
+
+  const selectedProduct = isRestocking ? products.find((p) => p.id === form.product_id) : null;
+  const hasDateFilter = dateFrom || dateTo;
 
   const margin = form.cost_price && form.selling_price && Number(form.cost_price) > 0
-    ? (((Number(form.selling_price) - Number(form.cost_price)) / Number(form.cost_price)) * 100).toFixed(1) : null;
+    ? (((Number(form.selling_price) - Number(form.cost_price)) / Number(form.cost_price)) * 100).toFixed(1)
+    : null;
 
-  const inputCls =
-    "border border-slate-200 text-gray-800 placeholder:text-gray-400 rounded-lg px-3 py-2 w-full text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-400 transition";
+  const inputCls = "border border-slate-200 text-gray-800 placeholder:text-gray-400 rounded-lg px-3 py-2 w-full text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-400 transition";
 
   if (loading) return (
     <div className="min-h-screen bg-slate-50">
@@ -203,11 +264,8 @@ export default function PurchaseManagementPage() {
           <div className="flex justify-between"><div className="h-4 w-44 bg-white/20 rounded-lg" /><div className="h-8 w-28 bg-white/20 rounded-lg" /></div>
           <div className="h-9 bg-white/10 rounded-lg mt-4" />
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-7 gap-3 mb-6">
-          {[...Array(7)].map((_, i) => <div key={i} className="bg-white rounded-xl border p-4 animate-pulse"><div className="h-2.5 w-16 bg-slate-200 rounded mb-3" /><div className="h-5 w-10 bg-slate-200 rounded" /></div>)}
-        </div>
-        <div className="bg-white rounded-xl border overflow-hidden">
-          {[...Array(7)].map((_, i) => <div key={i} className="border-b grid grid-cols-6 px-4 py-3 gap-6 animate-pulse"><div className="h-2.5 bg-slate-100 rounded" /><div className="h-2.5 bg-slate-100 rounded" /><div className="h-2.5 bg-slate-100 rounded" /><div className="h-2.5 bg-slate-100 rounded" /><div className="h-5 w-12 bg-slate-100 rounded-full" /><div className="flex gap-1.5"><div className="h-7 w-7 bg-slate-100 rounded-lg" /><div className="h-7 w-7 bg-slate-100 rounded-lg" /></div></div>)}
+        <div className="grid grid-cols-2 md:grid-cols-6 gap-3 mb-6">
+          {[...Array(6)].map((_, i) => <div key={i} className="bg-white rounded-xl border p-4 animate-pulse"><div className="h-2.5 w-16 bg-slate-200 rounded mb-3" /><div className="h-5 w-10 bg-slate-200 rounded" /></div>)}
         </div>
       </div>
     </div>
@@ -218,72 +276,104 @@ export default function PurchaseManagementPage() {
       <DashboardHeader />
       <div className="max-w-7xl mx-auto px-6 py-6">
 
-        {/* HEADER BANNER */}
+        {/* HEADER */}
         <div className="bg-linear-to-r from-violet-600 to-purple-600 text-white rounded-2xl p-5 mb-6">
           <div className="flex justify-between items-center">
             <div className="flex items-center gap-2.5">
               <ShoppingCart size={20} />
               <div>
-                <h1 className="text-base font-semibold">Purchase Management</h1>
+                <h1 className="text-base font-semibold">Ibinyuranye — Purchases</h1>
                 <p className="text-violet-200 text-xs mt-0.5">
-                  {lastUpdated ? `Updated ${lastUpdated.toLocaleTimeString()}` : "—"} · {purchases.length.toLocaleString()} records total
+                  {lastUpdated ? `Ivuguruwemo saa ${lastUpdated.toLocaleTimeString()}` : "—"} · Ububiko: {productsTotal.toLocaleString()} ibicuruzwa
                 </p>
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <button onClick={() => loadData(true)} disabled={refreshing}
+              <button onClick={() => loadAll(true)} disabled={refreshing}
                 className="p-2 rounded-lg bg-white/10 hover:bg-white/20 text-white transition disabled:opacity-50">
                 <RefreshCw size={14} className={refreshing ? "animate-spin" : ""} />
               </button>
               <button onClick={openCreateModal}
                 className="bg-white text-violet-700 px-3.5 py-1.5 rounded-lg flex items-center gap-1.5 text-sm font-semibold hover:bg-violet-50 transition">
-                <Plus size={15} /> Record Purchase
+                <Plus size={15} /> Injiza Igurisha
               </button>
             </div>
           </div>
-          <div className="mt-4 flex flex-col md:flex-row gap-2.5">
-            <div className="flex-1 flex items-center bg-white/10 rounded-lg px-3 py-2 gap-2">
-              <Search size={15} className="shrink-0 text-violet-200" />
-              <input value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} placeholder="Search by item name or supplier..."
-                className="bg-transparent outline-none w-full text-sm placeholder:text-violet-200" />
-              {search && <button onClick={() => setSearch("")} className="text-violet-200 hover:text-white"><X size={13} /></button>}
-            </div>
-            <div className="flex items-center bg-white/10 rounded-lg px-3 py-2 gap-2">
-              <Filter size={15} className="shrink-0 text-violet-200" />
-              <select value={filter} onChange={(e) => { setFilter(e.target.value); setPage(1); }} className="bg-transparent outline-none text-sm">
-                <option value="all" className="text-gray-700">All</option>
-                <option value="in_stock" className="text-gray-700">In Stock</option>
-                <option value="low_stock" className="text-gray-700">Low Stock</option>
-                <option value="out_stock" className="text-gray-700">Out of Stock</option>
-              </select>
-            </div>
+
+          {/* TABS */}
+          <div className="mt-4 flex gap-2">
+            <button onClick={() => setTab("inventory")}
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-sm font-medium transition ${tab === "inventory" ? "bg-white text-violet-700" : "bg-white/10 text-white hover:bg-white/20"}`}>
+              <LayoutGrid size={14} /> Ububiko bw&apos;Ibicuruzwa
+            </button>
+            <button onClick={() => setTab("history")}
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-sm font-medium transition ${tab === "history" ? "bg-white text-violet-700" : "bg-white/10 text-white hover:bg-white/20"}`}>
+              <History size={14} /> Amateka y&apos;Ibigurwa ({purchasesTotal.toLocaleString()})
+            </button>
           </div>
+
+          {/* History date filter */}
+          {tab === "history" && (
+            <DateRangeFilter
+              from={dateFrom} to={dateTo}
+              onFrom={(v) => { setDateFrom(v); setHistPage(1); }}
+              onTo={(v) => { setDateTo(v); setHistPage(1); }}
+              onClear={() => { setDateFrom(""); setDateTo(""); setHistPage(1); }}
+              accentClass="focus:ring-violet-300/40 focus:border-violet-300"
+            />
+          )}
+
+          {/* Inventory search + filter */}
+          {tab === "inventory" && (
+            <div className="mt-3 flex flex-col md:flex-row gap-2.5">
+              <div className="flex-1 flex items-center bg-white/10 rounded-lg px-3 py-2 gap-2">
+                <Search size={15} className="shrink-0 text-violet-200" />
+                <input value={invSearch} onChange={(e) => { setInvSearch(e.target.value); setInvPage(1); }}
+                  placeholder="Shakisha igicuruzwa cyangwa umutanga..."
+                  className="bg-transparent outline-none w-full text-sm placeholder:text-violet-200" />
+                {invSearch && <button onClick={() => setInvSearch("")} className="text-violet-200 hover:text-white"><X size={13} /></button>}
+              </div>
+              <div className="flex items-center bg-white/10 rounded-lg px-3 py-2 gap-2">
+                <Filter size={15} className="shrink-0 text-violet-200" />
+                <select value={invFilter} onChange={(e) => { setInvFilter(e.target.value); setInvPage(1); }} className="bg-transparent outline-none text-sm">
+                  <option value="all" className="text-gray-700">Byose</option>
+                  <option value="in_stock" className="text-gray-700">Bifite ububiko</option>
+                  <option value="low_stock" className="text-gray-700">Bugarije</option>
+                  <option value="out_stock" className="text-gray-700">Nta bubiko</option>
+                </select>
+              </div>
+            </div>
+          )}
         </div>
 
-        {(stats.lowStock > 0 || stats.outStock > 0) && (
+        {/* STOCK ALERT */}
+        {(invStats.lowStock > 0 || invStats.outStock > 0) && (
           <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 mb-6">
             <AlertCircle size={16} className="text-amber-600 shrink-0 mt-0.5" />
             <div className="flex-1">
               <p className="text-sm font-semibold text-amber-800">
-                Stock alert: {stats.outStock > 0 && `${stats.outStock} out of stock`}{stats.outStock > 0 && stats.lowStock > 0 && " · "}{stats.lowStock > 0 && `${stats.lowStock} low stock`}
+                Ikibazo cy&apos;ububiko:{" "}
+                {invStats.outStock > 0 && `${invStats.outStock} nta bubiko`}
+                {invStats.outStock > 0 && invStats.lowStock > 0 && " · "}
+                {invStats.lowStock > 0 && `${invStats.lowStock} bugarije`}
               </p>
-              <p className="text-xs text-amber-600 mt-0.5">Record new purchases to replenish inventory.</p>
+              <p className="text-xs text-amber-600 mt-0.5">Injiza ibigurwa bishya kuzuza ububiko.</p>
             </div>
             <Link href="/PartnerManagement" className="text-xs font-semibold text-amber-700 bg-amber-100 hover:bg-amber-200 px-3 py-1.5 rounded-lg shrink-0 transition">
-              <span className="flex items-center gap-1"><Users size={12} /> Suppliers</span>
+              <span className="flex items-center gap-1"><Users size={12} /> Abaganishi</span>
             </Link>
           </div>
         )}
 
-        <div className="grid grid-cols-2 md:grid-cols-7 gap-3 mb-6">
+        {/* STAT CARDS */}
+        <div className="grid grid-cols-2 md:grid-cols-6 gap-3 mb-6">
           {[
-            { label: "Total Records",  value: stats.total,                           color: "text-violet-600", bg: "bg-violet-50",  icon: <ReceiptText size={17} /> },
-            { label: "Total Spent",    value: stats.totalSpent.toLocaleString(),      color: "text-red-500",    bg: "bg-red-50",     icon: <DollarSign size={17} /> },
-            { label: "Stock Value",    value: stats.totalStockValue.toLocaleString(), color: "text-indigo-600", bg: "bg-indigo-50",  icon: <Package size={17} /> },
-            { label: "Pot. Profit",    value: stats.totalProfit.toLocaleString(),     color: "text-green-600",  bg: "bg-green-50",   icon: <TrendingUp size={17} /> },
-            { label: "Suppliers",      value: stats.suppliersUsed,                   color: "text-blue-600",   bg: "bg-blue-50",    icon: <Truck size={17} /> },
-            { label: "Low Stock",      value: stats.lowStock,                        color: "text-amber-500",  bg: "bg-amber-50",   icon: <AlertCircle size={17} /> },
-            { label: "Out of Stock",   value: stats.outStock,                        color: "text-red-600",    bg: "bg-red-50",     icon: <AlertCircle size={17} /> },
+            { label: "Ibicuruzwa", value: productsTotal, color: "text-violet-600", bg: "bg-violet-50", icon: <Package size={17} /> },
+            { label: "Agaciro k'Ububiko", value: invStats.stockValue.toLocaleString(), color: "text-indigo-600", bg: "bg-indigo-50", icon: <DollarSign size={17} /> },
+            { label: "Inyungu y'Intego", value: invStats.potProfit.toLocaleString(), color: "text-green-600", bg: "bg-green-50", icon: <TrendingUp size={17} /> },
+            { label: "Abaganishi", value: invStats.suppliersUsed, color: "text-blue-600", bg: "bg-blue-50", icon: <Truck size={17} /> },
+            { label: "Ububiko Bugarije", value: invStats.lowStock, color: "text-amber-500", bg: "bg-amber-50", icon: <AlertCircle size={17} /> },
+            { label: "Nta Bubiko", value: invStats.outStock, color: "text-red-600", bg: "bg-red-50", icon: <AlertCircle size={17} /> },
           ].map((card) => (
             <div key={card.label} className="bg-white rounded-xl border border-slate-200 p-4">
               <div className="flex justify-between items-start">
@@ -297,174 +387,269 @@ export default function PurchaseManagementPage() {
           ))}
         </div>
 
-        <div className="bg-white rounded-xl border border-slate-200 overflow-x-auto">
-          {(debouncedSearch || filter !== "all") && (
-            <div className="px-4 py-2.5 border-b border-slate-100 text-xs text-slate-500 bg-slate-50">
-              <span className="font-semibold text-slate-700">{filtered.length.toLocaleString()}</span> results
-              {debouncedSearch && <> for &ldquo;<span className="font-medium">{debouncedSearch}</span>&rdquo;</>}
-            </div>
-          )}
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-slate-50 border-b border-slate-200">
-                {["Item", "Supplier", "Cost", "Selling", "Margin", "Qty", "Status", "Unit Profit", "Total Profit", ""].map((h) => (
-                  <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-400 whitespace-nowrap">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {paginated.map((p) => {
-                const supplier = supplierMap[p.supplier_id ?? ""];
-                const totalProfit = Number(p.profit_money || 0) * Number(p.quantity || 0);
-                const isProfit = p.profit_status === "profit";
-                const itemMargin = p.cost_price > 0 ? ((p.selling_price - p.cost_price) / p.cost_price) * 100 : 0;
-                const needsRestock = p.quantity <= 10;
-                return (
-                  <tr key={p.id} className={`hover:bg-slate-50/60 transition-colors ${p.quantity === 0 ? "bg-red-50/20" : needsRestock ? "bg-amber-50/20" : ""}`}>
-                    <td className="px-4 py-3">
-                      <p className="font-semibold text-slate-800">{p.name}</p>
-                      <p className="text-xs text-slate-400 font-mono">{p.id?.slice(0, 8)}</p>
-                    </td>
-                    <td className="px-4 py-3">
-                      {supplier ? <div><p className="font-medium text-slate-700">{supplier.name}</p>{supplier.phone && <p className="text-xs text-slate-400">{supplier.phone}</p>}</div>
-                        : <Link href="/PartnerManagement" className="text-xs text-violet-400 hover:underline flex items-center gap-0.5"><Truck size={11} /> Assign supplier</Link>}
-                    </td>
-                    <td className="px-4 py-3 text-slate-600 font-medium tabular-nums">{Number(p.cost_price || 0).toLocaleString()}</td>
-                    <td className="px-4 py-3 font-semibold text-green-600 tabular-nums">{Number(p.selling_price || 0).toLocaleString()}</td>
-                    <td className="px-4 py-3">
-                      <span className={`text-xs font-bold ${itemMargin >= 0 ? "text-green-600" : "text-red-500"}`}>
-                        {itemMargin >= 0 ? "+" : ""}{itemMargin.toFixed(1)}%
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${
-                        p.quantity === 0 ? "bg-red-100 text-red-700" : p.quantity <= 10 ? "bg-amber-100 text-amber-700" : "bg-green-100 text-green-700"}`}>
-                        {p.quantity}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${isProfit ? "bg-green-100 text-green-700" : "bg-red-100 text-red-600"}`}>
-                        {isProfit ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
-                        {isProfit ? "Profit" : "Loss"}
-                      </span>
-                    </td>
-                    <td className={`px-4 py-3 font-semibold tabular-nums ${isProfit ? "text-green-600" : "text-red-500"}`}>
-                      {isProfit ? "+" : ""}{Number(p.profit_money || 0).toLocaleString()}
-                    </td>
-                    <td className={`px-4 py-3 font-semibold tabular-nums ${isProfit ? "text-green-600" : "text-red-500"}`}>
-                      {isProfit ? "+" : ""}{totalProfit.toLocaleString()}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-1.5">
-                        <button onClick={() => openEditModal(p)} title="Edit" className="p-1.5 rounded-lg bg-violet-50 hover:bg-violet-100 text-violet-600 transition"><Pencil size={14} /></button>
-                        <button onClick={() => deletePurchase(p.id)} disabled={deletingId === p.id} title="Delete" className="p-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 transition disabled:opacity-40"><Trash2 size={14} /></button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+        {/* ── INVENTORY TABLE ────────────────────────── */}
+        {tab === "inventory" && (
+          <div className="bg-white rounded-xl border border-slate-200 overflow-x-auto">
+            {debouncedInvSearch && (
+              <div className="px-4 py-2.5 border-b border-slate-100 text-xs text-slate-500 bg-slate-50">
+                <span className="font-semibold text-slate-700">{filteredProducts.length.toLocaleString()}</span> ibisubizo
+                {debouncedInvSearch && <> kuri &ldquo;<span className="font-medium">{debouncedInvSearch}</span>&rdquo;</>}
+              </div>
+            )}
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-200">
+                  {["Igicuruzwa", "Umutanga", "Igiciro cy'Igurishwa", "Igiciro cy'Igurisha", "Inyungu", "Umubare", "Imimerere", ""].map((h) => (
+                    <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-400 whitespace-nowrap">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {paginatedProducts.map((p) => {
+                  const supplier = supplierMap[p.supplier_id ?? ""];
+                  const margin2 = p.cost_price > 0 ? ((p.selling_price - p.cost_price) / p.cost_price) * 100 : 0;
+                  const needsRestock = p.quantity <= 10;
+                  return (
+                    <tr key={p.id} className={`hover:bg-slate-50/60 transition-colors ${p.quantity === 0 ? "bg-red-50/20" : needsRestock ? "bg-amber-50/20" : ""}`}>
+                      <td className="px-4 py-3">
+                        <p className="font-semibold text-slate-800">{p.name}</p>
+                        <p className="text-xs text-slate-400 font-mono">{p.id?.slice(0, 8)}</p>
+                      </td>
+                      <td className="px-4 py-3">
+                        {supplier
+                          ? <div><p className="font-medium text-slate-700">{supplier.name}</p>{supplier.phone && <p className="text-xs text-slate-400">{supplier.phone}</p>}</div>
+                          : <Link href="/PartnerManagement" className="text-xs text-violet-400 hover:underline flex items-center gap-0.5"><Truck size={11} /> Shyiraho umutanga</Link>}
+                      </td>
+                      <td className="px-4 py-3 text-slate-600 font-medium tabular-nums">{Number(p.cost_price).toLocaleString()}</td>
+                      <td className="px-4 py-3 font-semibold text-green-600 tabular-nums">{Number(p.selling_price).toLocaleString()}</td>
+                      <td className="px-4 py-3">
+                        <span className={`text-xs font-bold ${margin2 >= 0 ? "text-green-600" : "text-red-500"}`}>
+                          {margin2 >= 0 ? "+" : ""}{margin2.toFixed(1)}%
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${
+                          p.quantity === 0 ? "bg-red-100 text-red-700" : p.quantity <= 10 ? "bg-amber-100 text-amber-700" : "bg-green-100 text-green-700"}`}>
+                          {p.quantity}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-semibold ${
+                          p.quantity === 0 ? "bg-red-100 text-red-700" : p.quantity <= 10 ? "bg-amber-100 text-amber-700" : "bg-green-100 text-green-700"}`}>
+                          {p.quantity === 0 ? "Nta bubiko" : p.quantity <= 10 ? "Bugarije" : "Bifite ububiko"}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <button
+                          onClick={() => {
+                            setForm({ product_id: p.id, product_name: p.name, description: p.description || "", cost_price: String(p.cost_price), selling_price: String(p.selling_price), quantity: "", supplier_id: p.supplier_id || "" });
+                            setIsRestocking(true); setShowModal(true);
+                          }}
+                          className="px-2.5 py-1 rounded-lg bg-violet-50 hover:bg-violet-100 text-violet-600 text-xs font-medium transition">
+                          + Zuzuza
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+            {paginatedProducts.length === 0 && (
+              <div className="flex flex-col items-center justify-center py-16 text-slate-400">
+                <div className="p-4 bg-slate-100 rounded-2xl mb-3"><Package size={32} className="opacity-40" /></div>
+                <p className="font-medium text-slate-500 text-sm">Nta bicuruzwa bibonetse</p>
+                <p className="text-xs mt-1 text-slate-400">{invSearch || invFilter !== "all" ? "Gerageza guhindura inyandiko." : "Injiza igurisha rya mbere uhere."}</p>
+                {!invSearch && invFilter === "all" && (
+                  <button onClick={openCreateModal} className="mt-4 flex items-center gap-1.5 bg-violet-600 text-white text-sm font-semibold px-4 py-2 rounded-lg hover:bg-violet-700 transition">
+                    <Plus size={14} /> Injiza Igurisha
+                  </button>
+                )}
+              </div>
+            )}
+            <Pagination page={invPage} totalPages={invTotalPages} total={filteredProducts.length}
+              pageSize={invPageSize} pageSizes={PAGE_SIZES} onPage={setInvPage} onPageSize={setInvPageSize} />
+          </div>
+        )}
 
-          {paginated.length === 0 && (
-            <div className="flex flex-col items-center justify-center py-16 text-slate-400">
-              <div className="p-4 bg-slate-100 rounded-2xl mb-3"><Package size={32} className="opacity-40" /></div>
-              <p className="font-medium text-slate-500 text-sm">No purchase records found</p>
-              <p className="text-xs mt-1 text-slate-400">{search || filter !== "all" ? "Try adjusting filters or search." : "Record your first purchase to get started."}</p>
-              {!search && filter === "all" && (
-                <button onClick={openCreateModal} className="mt-4 flex items-center gap-1.5 bg-violet-600 text-white text-sm font-semibold px-4 py-2 rounded-lg hover:bg-violet-700 transition">
-                  <Plus size={14} /> Record Purchase
-                </button>
-              )}
-            </div>
-          )}
+        {/* ── HISTORY TABLE ─────────────────────────── */}
+        {tab === "history" && (
+          <div className="bg-white rounded-xl border border-slate-200 overflow-x-auto">
+            {hasDateFilter && (
+              <div className="flex items-center gap-2 px-4 py-2.5 border-b border-slate-100 text-xs text-violet-700 bg-violet-50">
+                <Calendar size={13} />
+                <span>
+                  Ibigurwa
+                  {dateFrom && <> kuva <span className="font-semibold">{dateFrom}</span></>}
+                  {dateTo && <> kugeza <span className="font-semibold">{dateTo}</span></>}
+                  {" "}· <span className="font-semibold">{purchasesTotal.toLocaleString()}</span> amagurishwa
+                </span>
+                <button onClick={() => { setDateFrom(""); setDateTo(""); setHistPage(1); }} className="ml-auto text-violet-500 hover:text-violet-700"><X size={13} /></button>
+              </div>
+            )}
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-200">
+                  {["Itariki", "Igicuruzwa", "Umutanga", "Byagurishijwe", "Igiciro/unit", "Amafaranga Yose", ""].map((h) => (
+                    <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-400 whitespace-nowrap">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {purchases.map((p) => {
+                  const supplier = supplierMap[p.supplier_id ?? ""];
+                  const d = p.created_at ? new Date(p.created_at) : null;
+                  return (
+                    <tr key={p.id} className="hover:bg-slate-50/60 transition-colors">
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        {d ? (
+                          <div>
+                            <p className="text-xs font-medium text-slate-700">{toDateStr(d)}</p>
+                            <p className="text-xs text-slate-400">{d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</p>
+                          </div>
+                        ) : <span className="text-slate-300 text-xs">—</span>}
+                      </td>
+                      <td className="px-4 py-3">
+                        <p className="font-semibold text-slate-800">{p.product_name}</p>
+                        {p.product_id && <p className="text-xs text-slate-400 font-mono">{p.product_id.slice(0, 8)}</p>}
+                      </td>
+                      <td className="px-4 py-3">
+                        {supplier
+                          ? <div><p className="font-medium text-slate-700">{supplier.name}</p>{supplier.phone && <p className="text-xs text-slate-400">{supplier.phone}</p>}</div>
+                          : <span className="text-slate-300 text-xs italic">Nta mutanga</span>}
+                      </td>
+                      <td className="px-4 py-3 font-medium text-slate-700 tabular-nums">{p.quantity_added}</td>
+                      <td className="px-4 py-3 text-slate-600 tabular-nums">{p.cost_price.toLocaleString()}</td>
+                      <td className="px-4 py-3 font-semibold text-slate-800 tabular-nums">{p.total_cost.toLocaleString()}</td>
+                      <td className="px-4 py-3">
+                        <button onClick={() => deleteHistoryRecord(p.id)} disabled={deletingId === p.id}
+                          title="Siba" className="p-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 transition disabled:opacity-40">
+                          <Trash2 size={14} />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+            {purchases.length === 0 && (
+              <div className="flex flex-col items-center justify-center py-16 text-slate-400">
+                <div className="p-4 bg-slate-100 rounded-2xl mb-3"><History size={32} className="opacity-40" /></div>
+                <p className="font-medium text-slate-500 text-sm">Nta mateka y&apos;ibigurwa abonetse</p>
+                <p className="text-xs mt-1 text-slate-400">{hasDateFilter ? "Gerageza guhindura iy'itariki." : "Injiza igurisha rya mbere uhere."}</p>
+              </div>
+            )}
+            <Pagination page={histPage} totalPages={histTotalPages} total={purchasesTotal}
+              pageSize={histPageSize} pageSizes={PAGE_SIZES} onPage={setHistPage} onPageSize={setHistPageSize} />
+          </div>
+        )}
 
-          <Pagination page={page} totalPages={totalPages} total={filtered.length}
-            pageSize={pageSize} pageSizes={PAGE_SIZES} onPage={setPage} onPageSize={setPageSize} />
-        </div>
-
+        {/* MODAL */}
         {showModal && (
           <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-2xl w-full max-w-xl shadow-2xl">
               <div className="flex justify-between items-center px-6 py-4 border-b border-slate-100">
                 <div>
                   <h2 className="text-base font-semibold text-slate-800">
-                    {modalMode === "edit" ? "Edit Purchase" : selectedItemId ? "Restock Item" : "Record New Purchase"}
+                    {isRestocking ? "Zuzuza Ububiko" : "Injiza Igicuruzwa Gishya"}
                   </h2>
                   <p className="text-xs text-slate-400 mt-0.5">
-                    {modalMode === "edit" ? "Update the purchase details"
-                      : selectedItemId ? "Enter the quantity received — stock will be incremented"
-                      : "Enter the details of the purchased item"}
+                    {isRestocking ? "Injiza umubare ushya — ububiko buzongera" : "Shyiramo amakuru y'igicuruzwa gishya"}
                   </p>
                 </div>
-                <button onClick={closeModal} className="p-2 rounded-lg hover:bg-slate-100 text-slate-400 transition"><X size={17} /></button>
+                <button onClick={() => { setShowModal(false); setForm(EMPTY_FORM); setIsRestocking(false); }}
+                  className="p-2 rounded-lg hover:bg-slate-100 text-slate-400 transition"><X size={17} /></button>
               </div>
               <div className="px-6 py-5 grid md:grid-cols-2 gap-4">
-                {modalMode === "create" && purchases.length > 0 && (
+                {/* Quick-fill from existing */}
+                {!isRestocking && products.length > 0 && (
                   <div className="md:col-span-2">
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Quick fill from existing item</label>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Zuzuza igicuruzwa kirimo (niba gihari)</label>
                     <select className={inputCls} defaultValue="" onChange={handleSelectExisting}>
-                      <option value="">— Select to auto-fill —</option>
-                      {purchases.map((p) => <option key={p.id} value={p.id}>{p.name} (qty: {p.quantity})</option>)}
+                      <option value="">— Hitamo kuzuzuza —</option>
+                      {products.map((p) => <option key={p.id} value={p.id}>{p.name} (ububiko: {p.quantity})</option>)}
                     </select>
-                    <p className="text-xs text-slate-400 mt-1">Auto-fills name, prices and supplier. Enter new quantity below.</p>
+                    <p className="text-xs text-slate-400 mt-1">Uzuza hepfo niba ushaka gushyiraho igicuruzwa gishya.</p>
                   </div>
                 )}
+
+                {isRestocking && selectedProduct && (
+                  <div className="md:col-span-2 bg-violet-50 rounded-lg px-3 py-2 text-xs text-violet-700">
+                    Uzuzuza: <span className="font-semibold">{selectedProduct.name}</span>
+                    {" "}· Ububiko bwa none: <span className="font-bold">{selectedProduct.quantity}</span>
+                  </div>
+                )}
+
                 <div className="md:col-span-2">
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Item Name <span className="text-red-400">*</span></label>
-                  <input className={inputCls} placeholder="e.g. Rice 25kg" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+                  <label className="block text-xs font-medium text-gray-600 mb-1">
+                    Izina ry&apos;Igicuruzwa {!isRestocking && <span className="text-red-400">*</span>}
+                  </label>
+                  <input className={inputCls} placeholder="urugero: Ifu 25kg"
+                    value={form.product_name}
+                    onChange={(e) => setForm({ ...form, product_name: e.target.value })}
+                    disabled={isRestocking} />
                 </div>
-                <div className="md:col-span-2">
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Description</label>
-                  <input className={inputCls} placeholder="Optional notes" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
+
+                {!isRestocking && (
+                  <div className="md:col-span-2">
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Ibisobanuro</label>
+                    <input className={inputCls} placeholder="Si ngombwa"
+                      value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Igiciro cy&apos;Igurishwa <span className="text-red-400">*</span></label>
+                  <input type="number" min="0" className={inputCls} placeholder="0"
+                    value={form.cost_price} onChange={(e) => setForm({ ...form, cost_price: e.target.value })} />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Cost Price <span className="text-red-400">*</span></label>
-                  <input type="number" min="0" className={inputCls} placeholder="0" value={form.cost_price} onChange={(e) => setForm({ ...form, cost_price: e.target.value })} />
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Igiciro cy&apos;Igurisha</label>
+                  <input type="number" min="0" className={inputCls} placeholder="0"
+                    value={form.selling_price} onChange={(e) => setForm({ ...form, selling_price: e.target.value })} />
                 </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Selling Price <span className="text-red-400">*</span></label>
-                  <input type="number" min="0" className={inputCls} placeholder="0" value={form.selling_price} onChange={(e) => setForm({ ...form, selling_price: e.target.value })} />
-                </div>
+
                 {margin !== null && (
                   <div className="md:col-span-2 bg-slate-50 rounded-lg px-3 py-2 text-xs text-slate-500">
-                    Margin: <span className={`font-bold ${Number(margin) >= 0 ? "text-green-600" : "text-red-500"}`}>{Number(margin) >= 0 ? "+" : ""}{margin}%</span>
-                    {" · "}Unit profit: <span className="font-bold text-slate-700">{(Number(form.selling_price) - Number(form.cost_price)).toLocaleString()}</span>
-                    {form.quantity && <>{" · "}Total profit: <span className="font-bold text-slate-700">{((Number(form.selling_price) - Number(form.cost_price)) * Number(form.quantity)).toLocaleString()}</span></>}
+                    Inyungu: <span className={`font-bold ${Number(margin) >= 0 ? "text-green-600" : "text-red-500"}`}>{Number(margin) >= 0 ? "+" : ""}{margin}%</span>
+                    {" · "}Ku gicuruzwa: <span className="font-bold text-slate-700">{(Number(form.selling_price) - Number(form.cost_price)).toLocaleString()}</span>
                   </div>
                 )}
+
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">
-                    {selectedItemId ? "Quantity to Add" : "Quantity Purchased"} <span className="text-red-400">*</span>
+                    {isRestocking ? "Umubare Uzongerwaho" : "Umubare Wagurishijwe"} <span className="text-red-400">*</span>
                   </label>
-                  <input type="number" min="1" className={inputCls} placeholder="0" value={form.quantity} onChange={(e) => setForm({ ...form, quantity: e.target.value })} />
-                  {selectedItemId && form.quantity && (() => {
-                    const existing = purchases.find((p) => p.id === selectedItemId);
-                    const current = existing?.quantity || 0;
-                    const adding = Number(form.quantity);
-                    return (
-                      <p className="text-xs mt-1 text-violet-600">
-                        Current stock: <span className="font-semibold">{current}</span>
-                        {" + "}{adding}{" = "}
-                        <span className="font-bold">{current + adding}</span> after restocking
-                      </p>
-                    );
-                  })()}
+                  <input type="number" min="1" className={inputCls} placeholder="0"
+                    value={form.quantity} onChange={(e) => setForm({ ...form, quantity: e.target.value })} />
+                  {isRestocking && selectedProduct && form.quantity && (
+                    <p className="text-xs mt-1 text-violet-600">
+                      Ububiko bwa none: <span className="font-semibold">{selectedProduct.quantity}</span>
+                      {" + "}{form.quantity}{" = "}
+                      <span className="font-bold">{selectedProduct.quantity + Number(form.quantity)}</span> nyuma yo kuzuza
+                    </p>
+                  )}
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Supplier</label>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Umutanga</label>
                   <select className={inputCls} value={form.supplier_id} onChange={(e) => setForm({ ...form, supplier_id: e.target.value })}>
-                    <option value="">No supplier</option>
+                    <option value="">Nta mutanga</option>
                     {suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
                   </select>
-                  {suppliers.length === 0 && <p className="text-xs text-violet-500 mt-1"><Link href="/PartnerManagement" className="hover:underline">Add a supplier →</Link></p>}
+                  {suppliers.length === 0 && (
+                    <p className="text-xs text-violet-500 mt-1">
+                      <Link href="/PartnerManagement" className="hover:underline">Ongeraho umutanga →</Link>
+                    </p>
+                  )}
                 </div>
               </div>
               <div className="flex justify-end gap-2.5 px-6 py-4 border-t border-slate-100">
-                <button onClick={closeModal} className="px-4 py-2 rounded-lg border border-slate-200 text-slate-600 text-sm font-medium hover:bg-slate-50 transition">Cancel</button>
+                <button onClick={() => { setShowModal(false); setForm(EMPTY_FORM); setIsRestocking(false); }}
+                  className="px-4 py-2 rounded-lg border border-slate-200 text-slate-600 text-sm font-medium hover:bg-slate-50 transition">
+                  Gusubira inyuma
+                </button>
                 <button onClick={submitForm} disabled={submitting}
                   className="px-5 py-2 rounded-lg bg-violet-600 text-white text-sm font-semibold hover:bg-violet-700 transition disabled:opacity-60">
-                  {submitting ? (modalMode === "edit" ? "Saving..." : "Recording...") : (modalMode === "edit" ? "Save Changes" : "Record Purchase")}
+                  {submitting ? "Kwinjiza..." : isRestocking ? "Zuzuza Ububiko" : "Injiza Igicuruzwa"}
                 </button>
               </div>
             </div>

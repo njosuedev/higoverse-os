@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { itemRequest } from "@/lib/product-api";
 import { partnerRequest } from "@/lib/supplier-api";
+import { saleRequest } from "@/lib/sale-api";
 import { useDebounce } from "@/lib/hooks";
 import DashboardHeader from "@/app/components/dashboard/DashboardHeader";
 import Pagination from "@/app/components/ui/Pagination";
@@ -12,24 +13,13 @@ import {
   TrendingUp, DollarSign, Users, ReceiptText, Package, RefreshCw, Calendar,
 } from "lucide-react";
 
-const SALES_KEY = "higoverse_sales";
-
-function loadSalesFromStorage(): Sale[] {
-  if (typeof window === "undefined") return [];
-  try { return JSON.parse(localStorage.getItem(SALES_KEY) || "[]"); } catch { return []; }
-}
-
-function saveSalesToStorage(sales: Sale[]) {
-  localStorage.setItem(SALES_KEY, JSON.stringify(sales));
-}
-
 interface Sale {
   id: string;
   product_id: string;
   customer_id?: string;
   quantity: number;
   unit_price: number;
-  total?: number;
+  total_amount: number;
   profit?: number;
   notes?: string;
   created_at?: string;
@@ -48,6 +38,7 @@ function toDateStr(d: Date) {
 
 export default function SaleManagementPage() {
   const [sales, setSales] = useState<Sale[]>([]);
+  const [salesTotal, setSalesTotal] = useState(0);
   const [products, setProducts] = useState<Product[]>([]);
   const [customers, setCustomers] = useState<Partner[]>([]);
   const [loading, setLoading] = useState(true);
@@ -70,16 +61,32 @@ export default function SaleManagementPage() {
 
   const debouncedSearch = useDebounce(search, 350);
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { loadData(); }, []);
+
+  // Re-fetch when date filter or page changes (server-side filtering)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { if (!loading) loadData(true); }, [dateFrom, dateTo, page, pageSize]);
 
   async function loadData(soft = false) {
     try {
       if (!soft) setLoading(true); else setRefreshing(true);
-      const [productsRes, partnersRes] = await Promise.all([
-        itemRequest("/products"),
+
+      const params = new URLSearchParams({
+        page: String(page),
+        limit: String(pageSize),
+        ...(dateFrom && { from_date: dateFrom }),
+        ...(dateTo && { to_date: dateTo }),
+      });
+
+      const [salesRes, productsRes, partnersRes] = await Promise.all([
+        saleRequest(`/sales?${params}`),
+        itemRequest("/products?limit=500"),
         partnerRequest("/suppliers"),
       ]);
-      setSales(loadSalesFromStorage());
+
+      setSales(salesRes?.data?.items || []);
+      setSalesTotal(salesRes?.data?.total || 0);
       setProducts(productsRes?.data?.items || []);
       const allPartners: Partner[] = partnersRes?.data?.items || partnersRes?.data || [];
       setCustomers(allPartners.filter((p) => !p.address?.startsWith("TIN:")));
@@ -90,7 +97,13 @@ export default function SaleManagementPage() {
 
   function openCreateModal() { setForm(EMPTY_FORM); setEditingId(null); setModalMode("create"); setShowModal(true); }
   function openEditModal(s: Sale) {
-    setForm({ product_id: s.product_id, customer_id: s.customer_id || "", quantity: String(s.quantity), unit_price: String(s.unit_price), notes: s.notes || "" });
+    setForm({
+      product_id: s.product_id,
+      customer_id: s.customer_id || "",
+      quantity: String(s.quantity),
+      unit_price: String(s.unit_price),
+      notes: s.notes || "",
+    });
     setEditingId(s.id); setModalMode("edit"); setShowModal(true);
   }
   function closeModal() { setShowModal(false); setForm(EMPTY_FORM); setEditingId(null); }
@@ -100,74 +113,38 @@ export default function SaleManagementPage() {
     setForm((f) => ({ ...f, product_id: productId, unit_price: product ? String(product.selling_price) : f.unit_price }));
   }
 
-  async function adjustProductStock(productId: string, delta: number) {
-    const product = products.find((p) => p.id === productId);
-    if (!product) return;
-    await itemRequest(`/products/${product.id}`, {
-      method: "PUT",
-      body: JSON.stringify({
-        name: product.name,
-        cost_price: product.cost_price,
-        selling_price: product.selling_price,
-        quantity: Math.max(0, product.quantity + delta),
-      }),
-    });
-  }
-
   async function submitForm() {
     if (!form.product_id || !form.quantity || !form.unit_price) {
-      alert("Item, quantity and unit price are required."); return;
+      alert("Hitamo igicuruzwa, andika umubare n'igiciro."); return;
     }
-    const newQty = Number(form.quantity);
-    const selectedProduct = products.find((p) => p.id === form.product_id);
-    if (selectedProduct && newQty > selectedProduct.quantity) {
-      alert(`Only ${selectedProduct.quantity} units in stock.`); return;
-    }
-    const payload: Omit<Sale, "id"> = {
+    const payload = {
       product_id: form.product_id,
       customer_id: form.customer_id || undefined,
-      quantity: newQty,
+      quantity: Number(form.quantity),
       unit_price: Number(form.unit_price),
       notes: form.notes.trim() || undefined,
     };
     try {
       setSubmitting(true);
-      const all = loadSalesFromStorage();
       if (modalMode === "edit" && editingId) {
-        const oldSale = all.find((s) => s.id === editingId);
-        const oldQty = oldSale?.quantity || 0;
-        saveSalesToStorage(all.map((s) => s.id === editingId ? { ...s, ...payload } : s));
-        // Adjust stock by the difference: restore old qty, deduct new qty
-        if (oldSale?.product_id === form.product_id) {
-          await adjustProductStock(form.product_id, oldQty - newQty);
-        } else {
-          // Product changed — restore old product, deduct from new product
-          if (oldSale) await adjustProductStock(oldSale.product_id, oldQty);
-          await adjustProductStock(form.product_id, -newQty);
-        }
+        await saleRequest(`/sales/${editingId}`, { method: "PUT", body: JSON.stringify(payload) });
       } else {
-        saveSalesToStorage([...all, { ...payload, id: crypto.randomUUID(), created_at: new Date().toISOString() }]);
-        await adjustProductStock(form.product_id, -newQty);
+        await saleRequest("/sales", { method: "POST", body: JSON.stringify(payload) });
       }
       closeModal(); await loadData(true);
-    } catch (err) {
-      console.error(err); alert(`Failed to ${modalMode === "edit" ? "update" : "record"} sale.`);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Habaye ikibazo.";
+      alert(msg);
     } finally { setSubmitting(false); }
   }
 
   async function deleteSale(id: string) {
-    if (!confirm("Delete this sale record? This cannot be undone.")) return;
+    if (!confirm("Siba uru rupapuro rw'igurisha? Ntibizagaruka.")) return;
     try {
       setDeletingId(id);
-      const all = loadSalesFromStorage();
-      const saleToDelete = all.find((s) => s.id === id);
-      saveSalesToStorage(all.filter((s) => s.id !== id));
-      // Restore stock when a sale is deleted
-      if (saleToDelete) {
-        await adjustProductStock(saleToDelete.product_id, saleToDelete.quantity);
-      }
+      await saleRequest(`/sales/${id}`, { method: "DELETE" });
       await loadData(true);
-    } catch (err) { console.error(err); alert("Failed to delete sale."); }
+    } catch (err) { console.error(err); alert("Siba ntibishoboka."); }
     finally { setDeletingId(""); }
   }
 
@@ -183,55 +160,29 @@ export default function SaleManagementPage() {
     return m;
   }, [customers]);
 
-  const enrichedSales = useMemo(() =>
-    sales.map((s) => {
-      const product = productMap[s.product_id];
-      const total = s.total ?? s.quantity * s.unit_price;
-      const profit = s.profit ?? (product ? (s.unit_price - product.cost_price) * s.quantity : 0);
-      return { ...s, total, profit };
-    }), [sales, productMap]);
-
+  // Client-side search + profit filter on the current page's data
   const filtered = useMemo(() => {
     const q = debouncedSearch.toLowerCase();
-    return [...enrichedSales]
-      .sort((a, b) => {
-        const ta = a.created_at ? new Date(a.created_at).getTime() : 0;
-        const tb = b.created_at ? new Date(b.created_at).getTime() : 0;
-        return tb - ta;
-      })
-      .filter((s) => {
-        const name = productMap[s.product_id]?.name?.toLowerCase() || "";
-        const cust = customerMap[s.customer_id || ""]?.name?.toLowerCase() || "";
-        return name.includes(q) || cust.includes(q) || (s.notes || "").toLowerCase().includes(q);
-      })
-      .filter((s) => {
-        if (filter === "profit") return (s.profit || 0) > 0;
-        if (filter === "loss") return (s.profit || 0) <= 0;
-        return true;
-      })
-      .filter((s) => {
-        if (!dateFrom && !dateTo) return true;
-        if (!s.created_at) return !dateFrom; // no date: only include if no from-filter
-        const d = new Date(s.created_at);
-        if (dateFrom && d < new Date(dateFrom + "T00:00:00")) return false;
-        if (dateTo && d > new Date(dateTo + "T23:59:59")) return false;
-        return true;
-      });
-  }, [enrichedSales, debouncedSearch, filter, dateFrom, dateTo, productMap, customerMap]);
+    return sales.filter((s) => {
+      const name = productMap[s.product_id]?.name?.toLowerCase() || "";
+      const cust = customerMap[s.customer_id || ""]?.name?.toLowerCase() || "";
+      if (q && !name.includes(q) && !cust.includes(q) && !(s.notes || "").toLowerCase().includes(q)) return false;
+      if (filter === "profit") return (s.profit || 0) > 0;
+      if (filter === "loss") return (s.profit || 0) <= 0;
+      return true;
+    });
+  }, [sales, debouncedSearch, filter, productMap, customerMap]);
 
-  const totalPages = Math.ceil(filtered.length / pageSize);
-  const paginated = filtered.slice((page - 1) * pageSize, page * pageSize);
-
-
+  // Stats across current visible page (server handles date filter)
   const stats = useMemo(() => {
-    // Stats always reflect the date-filtered set so numbers match what you're looking at
-    const revenue = filtered.reduce((s, x) => s + x.total, 0);
-    const profit = filtered.reduce((s, x) => s + x.profit, 0);
-    const itemsSold = filtered.reduce((s, x) => s + x.quantity, 0);
-    const uniqueCustomers = new Set(filtered.map((x) => x.customer_id).filter(Boolean)).size;
-    return { total: filtered.length, revenue, profit, itemsSold, uniqueCustomers };
-  }, [filtered]);
+    const revenue = sales.reduce((s, x) => s + x.total_amount, 0);
+    const profit = sales.reduce((s, x) => s + (x.profit || 0), 0);
+    const itemsSold = sales.reduce((s, x) => s + x.quantity, 0);
+    const uniqueCustomers = new Set(sales.map((x) => x.customer_id).filter(Boolean)).size;
+    return { total: salesTotal, revenue, profit, itemsSold, uniqueCustomers };
+  }, [sales, salesTotal]);
 
+  const totalPages = Math.ceil(salesTotal / pageSize);
   const selectedProduct = products.find((p) => p.id === form.product_id);
   const hasDateFilter = dateFrom || dateTo;
 
@@ -245,13 +196,9 @@ export default function SaleManagementPage() {
         <div className="rounded-2xl bg-linear-to-r from-orange-500 to-amber-500 p-5 mb-6 animate-pulse">
           <div className="flex justify-between"><div className="h-4 w-40 bg-white/20 rounded-lg" /><div className="h-8 w-28 bg-white/20 rounded-lg" /></div>
           <div className="h-9 bg-white/10 rounded-lg mt-4" />
-          <div className="h-8 bg-white/10 rounded-lg mt-3" />
         </div>
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
           {[...Array(5)].map((_, i) => <div key={i} className="bg-white rounded-xl border p-4 animate-pulse"><div className="h-2.5 w-16 bg-slate-200 rounded mb-3" /><div className="h-5 w-10 bg-slate-200 rounded" /></div>)}
-        </div>
-        <div className="bg-white rounded-xl border overflow-hidden">
-          {[...Array(6)].map((_, i) => <div key={i} className="border-b grid grid-cols-6 px-4 py-3 gap-6 animate-pulse"><div className="h-2.5 bg-slate-100 rounded" /><div className="h-2.5 bg-slate-100 rounded" /><div className="h-2.5 bg-slate-100 rounded" /><div className="h-2.5 bg-slate-100 rounded" /><div className="h-5 w-14 bg-slate-100 rounded-full" /><div className="flex gap-1.5"><div className="h-7 w-7 bg-slate-100 rounded-lg" /><div className="h-7 w-7 bg-slate-100 rounded-lg" /></div></div>)}
         </div>
       </div>
     </div>
@@ -262,15 +209,15 @@ export default function SaleManagementPage() {
       <DashboardHeader />
       <div className="max-w-7xl mx-auto px-6 py-6">
 
-        {/* HEADER BANNER */}
+        {/* HEADER */}
         <div className="bg-linear-to-r from-orange-500 to-amber-500 text-white rounded-2xl p-5 mb-6">
           <div className="flex justify-between items-center">
             <div className="flex items-center gap-2.5">
               <ShoppingBag size={20} />
               <div>
-                <h1 className="text-base font-semibold">Sales — Ibicuruzwa</h1>
+                <h1 className="text-base font-semibold">Ibicuruzwa — Sales</h1>
                 <p className="text-orange-100 text-xs mt-0.5">
-                  {lastUpdated ? `Ivuguruwemo saa ${lastUpdated.toLocaleTimeString()}` : "—"} · Ibicuruzwa byose: {sales.length.toLocaleString()}
+                  {lastUpdated ? `Ivuguruwemo saa ${lastUpdated.toLocaleTimeString()}` : "—"} · Byose: {salesTotal.toLocaleString()}
                 </p>
               </div>
             </div>
@@ -281,16 +228,17 @@ export default function SaleManagementPage() {
               </button>
               <button onClick={openCreateModal}
                 className="bg-white text-orange-600 px-3.5 py-1.5 rounded-lg flex items-center gap-1.5 text-sm font-semibold hover:bg-orange-50 transition">
-                <Plus size={15} /> Injira Kugurisha
+                <Plus size={15} /> Injiza Igurisha
               </button>
             </div>
           </div>
 
-          {/* SEARCH + STATUS FILTER */}
+          {/* SEARCH + FILTER */}
           <div className="mt-4 flex flex-col md:flex-row gap-2.5">
             <div className="flex-1 flex items-center bg-white/10 rounded-lg px-3 py-2 gap-2">
               <Search size={15} className="shrink-0 text-orange-100" />
-              <input value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} placeholder="Shakisha: izina ry'igicuruzwa, umukiriya..."
+              <input value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+                placeholder="Shakisha igicuruzwa cyangwa umukiriya..."
                 className="bg-transparent outline-none w-full text-sm placeholder:text-orange-100" />
               {search && <button onClick={() => setSearch("")} className="text-orange-200 hover:text-white"><X size={13} /></button>}
             </div>
@@ -298,13 +246,13 @@ export default function SaleManagementPage() {
               <Filter size={15} className="shrink-0 text-orange-100" />
               <select value={filter} onChange={(e) => { setFilter(e.target.value); setPage(1); }} className="bg-transparent outline-none text-sm">
                 <option value="all" className="text-gray-700">Ibicuruzwa byose</option>
-                <option value="profit" className="text-gray-700">Yabyaye inyungu</option>
-                <option value="loss" className="text-gray-700">Yabyaye igihombo</option>
+                <option value="profit" className="text-gray-700">Byabyaye inyungu</option>
+                <option value="loss" className="text-gray-700">Byabyaye igihombo</option>
               </select>
             </div>
           </div>
 
-          {/* DATE RANGE FILTER */}
+          {/* DATE RANGE */}
           <DateRangeFilter
             from={dateFrom} to={dateTo}
             onFrom={(v) => { setDateFrom(v); setPage(1); }}
@@ -314,15 +262,15 @@ export default function SaleManagementPage() {
           />
         </div>
 
-        {/* ACTIVE DATE FILTER BADGE */}
+        {/* DATE BADGE */}
         {hasDateFilter && (
           <div className="flex items-center gap-2 mb-4 text-xs text-orange-700 bg-orange-50 border border-orange-200 rounded-lg px-3 py-2">
             <Calendar size={13} />
             <span>
-              Showing sales
-              {dateFrom && <> from <span className="font-semibold">{dateFrom}</span></>}
-              {dateTo && <> to <span className="font-semibold">{dateTo}</span></>}
-              {" "}— <span className="font-semibold">{filtered.length.toLocaleString()}</span> records
+              Ibicuruzwa
+              {dateFrom && <> kuva <span className="font-semibold">{dateFrom}</span></>}
+              {dateTo && <> kugeza <span className="font-semibold">{dateTo}</span></>}
+              {" "}· <span className="font-semibold">{salesTotal.toLocaleString()}</span> amagurishwa
             </span>
             <button onClick={() => { setDateFrom(""); setDateTo(""); setPage(1); }} className="ml-auto text-orange-500 hover:text-orange-700">
               <X size={13} />
@@ -330,14 +278,14 @@ export default function SaleManagementPage() {
           </div>
         )}
 
-        {/* STAT CARDS — reflect the active date filter */}
+        {/* STAT CARDS */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
           {[
-            { label: "Ibicuruzwa",   value: stats.total,                    color: "text-orange-600",  bg: "bg-orange-50",  icon: <ReceiptText size={17} /> },
-            { label: "Amafaranga",   value: stats.revenue.toLocaleString(), color: "text-green-600",   bg: "bg-green-50",   icon: <DollarSign size={17} /> },
-            { label: "Inyungu",      value: stats.profit.toLocaleString(),  color: "text-emerald-600", bg: "bg-emerald-50", icon: <TrendingUp size={17} /> },
-            { label: "Ibintu bigurishijwe", value: stats.itemsSold,         color: "text-blue-600",    bg: "bg-blue-50",    icon: <Package size={17} /> },
-            { label: "Abakiriya",    value: stats.uniqueCustomers,          color: "text-violet-600",  bg: "bg-violet-50",  icon: <Users size={17} /> },
+            { label: "Amagurishwa",           value: stats.total,                    color: "text-orange-600",  bg: "bg-orange-50",  icon: <ReceiptText size={17} /> },
+            { label: "Amafaranga yinjiye",     value: stats.revenue.toLocaleString(), color: "text-green-600",   bg: "bg-green-50",   icon: <DollarSign size={17} /> },
+            { label: "Inyungu",                value: stats.profit.toLocaleString(),  color: "text-emerald-600", bg: "bg-emerald-50", icon: <TrendingUp size={17} /> },
+            { label: "Ibintu bigurishijwe",    value: stats.itemsSold,                color: "text-blue-600",    bg: "bg-blue-50",    icon: <Package size={17} /> },
+            { label: "Abakiriya basibye",      value: stats.uniqueCustomers,          color: "text-violet-600",  bg: "bg-violet-50",  icon: <Users size={17} /> },
           ].map((card) => (
             <div key={card.label} className="bg-white rounded-xl border border-slate-200 p-4">
               <div className="flex justify-between items-start">
@@ -354,23 +302,22 @@ export default function SaleManagementPage() {
 
         {/* TABLE */}
         <div className="bg-white rounded-xl border border-slate-200 overflow-x-auto">
-          {(debouncedSearch || filter !== "all" || hasDateFilter) && (
+          {(debouncedSearch || filter !== "all") && (
             <div className="px-4 py-2.5 border-b border-slate-100 text-xs text-slate-500 bg-slate-50">
-              <span className="font-semibold text-slate-700">{filtered.length.toLocaleString()}</span> results
-              {debouncedSearch && <> for &ldquo;<span className="font-medium">{debouncedSearch}</span>&rdquo;</>}
-              {hasDateFilter && <> · date filtered</>}
+              <span className="font-semibold text-slate-700">{filtered.length.toLocaleString()}</span> ibisubizo
+              {debouncedSearch && <> kuri &ldquo;<span className="font-medium">{debouncedSearch}</span>&rdquo;</>}
             </div>
           )}
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-200">
-                {["Date", "Item", "Customer", "Qty", "Unit Price", "Total", "Profit", "Notes", ""].map((h) => (
+                {["Itariki", "Igicuruzwa", "Umukiriya", "Umubare", "Igiciro / unit", "Yinjiye", "Inyungu", "Ibisobanuro", ""].map((h) => (
                   <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-400 whitespace-nowrap">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {paginated.map((s) => {
+              {filtered.map((s) => {
                 const product = productMap[s.product_id];
                 const customer = customerMap[s.customer_id || ""];
                 const isProfit = (s.profit || 0) > 0;
@@ -386,24 +333,26 @@ export default function SaleManagementPage() {
                       ) : <span className="text-slate-300 text-xs">—</span>}
                     </td>
                     <td className="px-4 py-3">
-                      {product ? <div><p className="font-semibold text-slate-800">{product.name}</p><p className="text-xs text-slate-400 font-mono">{s.product_id.slice(0, 8)}</p></div>
+                      {product
+                        ? <div><p className="font-semibold text-slate-800">{product.name}</p><p className="text-xs text-slate-400 font-mono">{s.product_id.slice(0, 8)}</p></div>
                         : <span className="text-slate-400 text-xs font-mono">{s.product_id.slice(0, 8)}</span>}
                     </td>
                     <td className="px-4 py-3">
-                      {customer ? <div><p className="font-medium text-slate-700">{customer.name}</p>{customer.phone && <p className="text-xs text-slate-400">{customer.phone}</p>}</div>
-                        : <span className="text-slate-300 text-xs">Walk-in</span>}
+                      {customer
+                        ? <div><p className="font-medium text-slate-700">{customer.name}</p>{customer.phone && <p className="text-xs text-slate-400">{customer.phone}</p>}</div>
+                        : <span className="text-slate-400 text-xs italic">Umukiriya si ku rutonde</span>}
                     </td>
                     <td className="px-4 py-3 font-medium text-slate-700 tabular-nums">{s.quantity}</td>
                     <td className="px-4 py-3 text-slate-600 tabular-nums">{s.unit_price.toLocaleString()}</td>
-                    <td className="px-4 py-3 font-semibold text-slate-800 tabular-nums">{s.total.toLocaleString()}</td>
+                    <td className="px-4 py-3 font-semibold text-slate-800 tabular-nums">{s.total_amount.toLocaleString()}</td>
                     <td className={`px-4 py-3 font-semibold tabular-nums ${isProfit ? "text-green-600" : "text-red-500"}`}>
-                      {isProfit ? "+" : ""}{s.profit.toLocaleString()}
+                      {isProfit ? "+" : ""}{(s.profit || 0).toLocaleString()}
                     </td>
                     <td className="px-4 py-3 text-slate-400 text-xs max-w-28 truncate">{s.notes || <span className="text-slate-200">—</span>}</td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1.5">
-                        <button onClick={() => openEditModal(s)} title="Edit" className="p-1.5 rounded-lg bg-orange-50 hover:bg-orange-100 text-orange-600 transition"><Pencil size={14} /></button>
-                        <button onClick={() => deleteSale(s.id)} disabled={deletingId === s.id} title="Delete" className="p-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 transition disabled:opacity-40"><Trash2 size={14} /></button>
+                        <button onClick={() => openEditModal(s)} title="Hindura" className="p-1.5 rounded-lg bg-orange-50 hover:bg-orange-100 text-orange-600 transition"><Pencil size={14} /></button>
+                        <button onClick={() => deleteSale(s.id)} disabled={deletingId === s.id} title="Siba" className="p-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 transition disabled:opacity-40"><Trash2 size={14} /></button>
                       </div>
                     </td>
                   </tr>
@@ -412,22 +361,22 @@ export default function SaleManagementPage() {
             </tbody>
           </table>
 
-          {paginated.length === 0 && (
+          {filtered.length === 0 && (
             <div className="flex flex-col items-center justify-center py-16 text-slate-400">
               <div className="p-4 bg-slate-100 rounded-2xl mb-3"><ShoppingBag size={32} className="opacity-40" /></div>
-              <p className="font-medium text-slate-500 text-sm">No sales found</p>
+              <p className="font-medium text-slate-500 text-sm">Nta magurishwa abonetse</p>
               <p className="text-xs mt-1 text-slate-400">
-                {search || filter !== "all" || hasDateFilter ? "Try adjusting filters or date range." : "Record your first sale to start tracking revenue."}
+                {search || filter !== "all" || hasDateFilter ? "Gerageza guhindura inyandiko z'ururimi." : "Injiza igurisha rya mbere uhere."}
               </p>
               {!search && filter === "all" && !hasDateFilter && (
                 <button onClick={openCreateModal} className="mt-4 flex items-center gap-1.5 bg-orange-500 text-white text-sm font-semibold px-4 py-2 rounded-lg hover:bg-orange-600 transition">
-                  <Plus size={14} /> Record Sale
+                  <Plus size={14} /> Injiza Igurisha
                 </button>
               )}
             </div>
           )}
 
-          <Pagination page={page} totalPages={totalPages} total={filtered.length}
+          <Pagination page={page} totalPages={totalPages} total={salesTotal}
             pageSize={pageSize} pageSizes={PAGE_SIZES} onPage={setPage} onPageSize={setPageSize} />
         </div>
 
@@ -437,56 +386,56 @@ export default function SaleManagementPage() {
             <div className="bg-white rounded-2xl w-full max-w-xl shadow-2xl">
               <div className="flex justify-between items-center px-6 py-4 border-b border-slate-100">
                 <div>
-                  <h2 className="text-base font-semibold text-slate-800">{modalMode === "edit" ? "Edit Sale" : "Record New Sale"}</h2>
-                  <p className="text-xs text-slate-400 mt-0.5">{modalMode === "edit" ? "Update sale details" : "Select the item sold and fill in the details"}</p>
+                  <h2 className="text-base font-semibold text-slate-800">{modalMode === "edit" ? "Hindura Igurisha" : "Injiza Igurisha Gishya"}</h2>
+                  <p className="text-xs text-slate-400 mt-0.5">{modalMode === "edit" ? "Hindura amakuru y'igurisha" : "Hitamo igicuruzwa usoze amakuru"}</p>
                 </div>
                 <button onClick={closeModal} className="p-2 rounded-lg hover:bg-slate-100 text-slate-400 transition"><X size={17} /></button>
               </div>
               <div className="px-6 py-5 grid md:grid-cols-2 gap-4">
                 <div className="md:col-span-2">
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Item Sold <span className="text-red-400">*</span></label>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Igicuruzwa cagurishijwe <span className="text-red-400">*</span></label>
                   <select className={inputCls} value={form.product_id} onChange={(e) => onProductChange(e.target.value)}>
-                    <option value="">Select item...</option>
+                    <option value="">Hitamo igicuruzwa...</option>
                     {products.map((p) => (
                       <option key={p.id} value={p.id} disabled={p.quantity === 0}>
-                        {p.name} — Stock: {p.quantity}
+                        {p.name} — Ifungo: {p.quantity}
                       </option>
                     ))}
                   </select>
                   {selectedProduct && (
                     <div className="mt-1.5 flex gap-3 text-xs text-slate-500">
-                      <span>Cost: <span className="font-medium text-slate-700">{selectedProduct.cost_price.toLocaleString()}</span></span>
-                      <span>Selling: <span className="font-medium text-green-600">{selectedProduct.selling_price.toLocaleString()}</span></span>
-                      <span>Stock: <span className={`font-medium ${selectedProduct.quantity <= 10 ? "text-amber-600" : "text-slate-700"}`}>{selectedProduct.quantity}</span></span>
+                      <span>Igiciro cy&apos;igurishwa: <span className="font-medium text-slate-700">{selectedProduct.cost_price.toLocaleString()}</span></span>
+                      <span>Igiciro cy&apos;igurisha: <span className="font-medium text-green-600">{selectedProduct.selling_price.toLocaleString()}</span></span>
+                      <span>Ifungo: <span className={`font-medium ${selectedProduct.quantity <= 10 ? "text-amber-600" : "text-slate-700"}`}>{selectedProduct.quantity}</span></span>
                     </div>
                   )}
                 </div>
                 <div className="md:col-span-2">
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Customer <span className="text-slate-400 font-normal">(optional)</span></label>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Umukiriya <span className="text-slate-400 font-normal">(si ngombwa)</span></label>
                   <select className={inputCls} value={form.customer_id} onChange={(e) => setForm({ ...form, customer_id: e.target.value })}>
-                    <option value="">Walk-in customer</option>
+                    <option value="">Umukiriya uri hanze y&apos;urutonde</option>
                     {customers.map((c) => <option key={c.id} value={c.id}>{c.name}{c.phone ? ` — ${c.phone}` : ""}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Quantity <span className="text-red-400">*</span></label>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Umubare <span className="text-red-400">*</span></label>
                   <input type="number" min="1" max={selectedProduct?.quantity} className={inputCls} placeholder="0"
                     value={form.quantity} onChange={(e) => setForm({ ...form, quantity: e.target.value })} />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Unit Price <span className="text-red-400">*</span></label>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Igiciro / unit <span className="text-red-400">*</span></label>
                   <input type="number" min="0" className={inputCls} placeholder="0"
                     value={form.unit_price} onChange={(e) => setForm({ ...form, unit_price: e.target.value })} />
                 </div>
                 {form.product_id && form.quantity && form.unit_price && (
                   <div className="md:col-span-2 bg-slate-50 rounded-lg px-4 py-3 flex gap-6 text-sm">
                     <div>
-                      <p className="text-xs text-gray-400">Total Revenue</p>
+                      <p className="text-xs text-gray-400">Amafaranga Yose</p>
                       <p className="font-bold text-slate-800">{(Number(form.quantity) * Number(form.unit_price)).toLocaleString()}</p>
                     </div>
                     {selectedProduct && (
                       <div>
-                        <p className="text-xs text-gray-400">Estimated Profit</p>
+                        <p className="text-xs text-gray-400">Inyungu y&apos;Intangiriro</p>
                         <p className={`font-bold ${(Number(form.unit_price) - selectedProduct.cost_price) * Number(form.quantity) >= 0 ? "text-green-600" : "text-red-500"}`}>
                           {((Number(form.unit_price) - selectedProduct.cost_price) * Number(form.quantity)).toLocaleString()}
                         </p>
@@ -495,16 +444,16 @@ export default function SaleManagementPage() {
                   </div>
                 )}
                 <div className="md:col-span-2">
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Notes</label>
-                  <input className={inputCls} placeholder="Optional notes about this sale"
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Ibisobanuro</label>
+                  <input className={inputCls} placeholder="Ibisobanuro binyuranye (si ngombwa)"
                     value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
                 </div>
               </div>
               <div className="flex justify-end gap-2.5 px-6 py-4 border-t border-slate-100">
-                <button onClick={closeModal} className="px-4 py-2 rounded-lg border border-slate-200 text-slate-600 text-sm font-medium hover:bg-slate-50 transition">Cancel</button>
+                <button onClick={closeModal} className="px-4 py-2 rounded-lg border border-slate-200 text-slate-600 text-sm font-medium hover:bg-slate-50 transition">Gusubira inyuma</button>
                 <button onClick={submitForm} disabled={submitting}
                   className="px-5 py-2 rounded-lg bg-orange-500 text-white text-sm font-semibold hover:bg-orange-600 transition disabled:opacity-60">
-                  {submitting ? (modalMode === "edit" ? "Saving..." : "Recording...") : (modalMode === "edit" ? "Save Changes" : "Record Sale")}
+                  {submitting ? (modalMode === "edit" ? "Kubika..." : "Kwinjiza...") : (modalMode === "edit" ? "Bika Impinduka" : "Injiza Igurisha")}
                 </button>
               </div>
             </div>
