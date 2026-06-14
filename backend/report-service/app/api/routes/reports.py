@@ -1,23 +1,41 @@
 import requests
-from fastapi import APIRouter, Depends, HTTPException
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from fastapi import APIRouter, Depends
 from app.core.security import get_current_user
 from app.core.config import settings
 
 router = APIRouter(prefix="/reports", tags=["Reports"])
 
+TIMEOUT = 5  # seconds per upstream call (keep well under Vercel's 10s limit)
 
-def _call(url: str, token: str, params: dict = None) -> dict:
+
+def _call(url: str, token: str, params: dict = None) -> dict | list:
+    """Call an upstream service. Returns empty dict/list on any failure."""
     try:
         res = requests.get(
             url,
             headers={"Authorization": f"Bearer {token}"},
             params=params,
-            timeout=10,
+            timeout=TIMEOUT,
         )
-        res.raise_for_status()
-        return res.json().get("data", {})
-    except Exception as e:
-        raise HTTPException(status_code=502, detail=f"Upstream service error: {e}")
+        if res.ok:
+            return res.json().get("data", {})
+        return {}
+    except Exception:
+        return {}
+
+
+def _parallel(*tasks):
+    """Run (fn, *args) tasks in parallel and return results in order."""
+    results: list = [{}] * len(tasks)
+    with ThreadPoolExecutor(max_workers=len(tasks)) as pool:
+        futures = {pool.submit(fn, *args): i for i, (fn, *args) in enumerate(tasks)}
+        for future in as_completed(futures):
+            try:
+                results[futures[future]] = future.result()
+            except Exception:
+                results[futures[future]] = {}
+    return results
 
 
 # ─────────────────────────────────────────
@@ -37,9 +55,12 @@ def get_summary(
     if to_date:
         date_params["to_date"] = to_date
 
-    sales = _call(f"{settings.SALE_SERVICE_URL}/sales/summary", token, date_params)
-    purchases = _call(f"{settings.PURCHASE_SERVICE_URL}/purchases/summary", token, date_params)
-    products = _call(f"{settings.PRODUCT_SERVICE_URL}/products/summary", token)
+    # All 3 calls in parallel — total time = max(call time), not sum
+    sales, purchases, products = _parallel(
+        (_call, f"{settings.SALE_SERVICE_URL}/sales/summary", token, date_params),
+        (_call, f"{settings.PURCHASE_SERVICE_URL}/purchases/summary", token, date_params),
+        (_call, f"{settings.PRODUCT_SERVICE_URL}/products/summary", token, None),
+    )
 
     return {
         "success": True,
@@ -70,7 +91,7 @@ def get_daily(
 ):
     token = user["_token"]
     data = _call(f"{settings.SALE_SERVICE_URL}/sales/daily", token, {"days": days})
-    return {"success": True, "data": data}
+    return {"success": True, "data": data if isinstance(data, list) else []}
 
 
 # ─────────────────────────────────────────
@@ -85,14 +106,14 @@ def get_top_items(
     to_date: str | None = None,
 ):
     token = user["_token"]
-    params = {"limit": limit}
+    params: dict = {"limit": limit}
     if from_date:
         params["from_date"] = from_date
     if to_date:
         params["to_date"] = to_date
 
     data = _call(f"{settings.SALE_SERVICE_URL}/sales/top-products", token, params)
-    return {"success": True, "data": data}
+    return {"success": True, "data": data if isinstance(data, list) else []}
 
 
 # ─────────────────────────────────────────
@@ -105,4 +126,4 @@ def get_stock_alerts(
 ):
     token = user["_token"]
     data = _call(f"{settings.PRODUCT_SERVICE_URL}/products/stock-alerts", token)
-    return {"success": True, "data": data}
+    return {"success": True, "data": data if isinstance(data, list) else []}
