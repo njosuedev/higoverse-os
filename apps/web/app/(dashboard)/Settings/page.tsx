@@ -2,15 +2,17 @@
 
 import { useEffect, useState } from "react";
 import { settingsRequest } from "@/lib/settings-api";
+import { getMyShop, updateMyShop } from "@/lib/auth-api";
 import { useLanguage } from "@/lib/language-context";
 import { type Lang } from "@/lib/i18n";
 import DashboardHeader from "@/app/components/dashboard/DashboardHeader";
-import { Settings, Save, RefreshCw, Store, Phone, MapPin, DollarSign, AlertCircle } from "lucide-react";
+import { Settings, Save, RefreshCw, Store, Phone, MapPin, DollarSign, AlertCircle, FileText } from "lucide-react";
 
 interface ShopSettings {
   shop_name?: string;
   phone?: string;
   address?: string;
+  description?: string;
   currency: string;
   language: string;
   low_stock_threshold: number;
@@ -18,7 +20,7 @@ interface ShopSettings {
 }
 
 const DEFAULTS: ShopSettings = {
-  shop_name: "", phone: "", address: "",
+  shop_name: "", phone: "", address: "", description: "",
   currency: "RWF", language: "en", low_stock_threshold: 10, tax_rate: 0,
 };
 
@@ -32,42 +34,71 @@ export default function SettingsPage() {
 
   useEffect(() => { loadSettings(); }, []);
 
-  async function loadSettings() {
+  const loadSettings = async () => {
     try {
       setLoading(true);
-      const res = await settingsRequest("/settings");
-      if (res?.data) {
-        setForm({
-          shop_name: res.data.shop_name || "",
-          phone: res.data.phone || "",
-          address: res.data.address || "",
-          currency: res.data.currency || "RWF",
-          language: res.data.language || "en",
-          low_stock_threshold: res.data.low_stock_threshold ?? 10,
-          tax_rate: res.data.tax_rate ?? 0,
-        });
-      }
+      // Load from both sources in parallel
+      const [settingsRes, shopRes] = await Promise.allSettled([
+        settingsRequest("/settings"),
+        getMyShop(),
+      ]);
+
+      const s = settingsRes.status === "fulfilled" ? settingsRes.value?.data : null;
+      const shop = shopRes.status === "fulfilled" ? shopRes.value : null;
+
+      setForm({
+        // Shop identity from auth_db.shops (canonical source)
+        shop_name:   shop?.name   || s?.shop_name || "",
+        phone:       shop?.phone  || s?.phone     || "",
+        address:     shop?.address || s?.address  || "",
+        description: shop?.description || "",
+        // Operational settings from settings-service
+        currency:            s?.currency            || "RWF",
+        language:            s?.language            || "en",
+        low_stock_threshold: s?.low_stock_threshold ?? 10,
+        tax_rate:            s?.tax_rate            ?? 0,
+      });
     } catch (err) {
       setError(t("settings.error"));
       console.error(err);
     } finally { setLoading(false); }
-  }
+  };
 
-  async function saveSettings() {
+  const saveSettings = async () => {
     try {
       setSaving(true); setError(""); setSaved(false);
-      await settingsRequest("/settings", { method: "PUT", body: JSON.stringify(form) });
+
+      // Write shop identity → auth_db.shops
+      // Write operational settings → settings-service
+      await Promise.all([
+        updateMyShop({
+          name:        form.shop_name,
+          phone:       form.phone,
+          address:     form.address,
+          description: form.description,
+        }),
+        settingsRequest("/settings", {
+          method: "PUT",
+          body: JSON.stringify({
+            shop_name:           form.shop_name,
+            phone:               form.phone,
+            address:             form.address,
+            currency:            form.currency,
+            language:            form.language,
+            low_stock_threshold: form.low_stock_threshold,
+            tax_rate:            form.tax_rate,
+          }),
+        }),
+      ]);
+
       setSaved(true);
-      // Apply language change immediately
-      if (form.language) {
-        setLang(form.language as Lang);
-      }
+      if (form.language) setLang(form.language as Lang);
       setTimeout(() => setSaved(false), 3000);
     } catch (err) {
       setError(t("settings.error"));
       console.error(err);
     } finally { setSaving(false); }
-  }
+  };
 
   const inputCls = "border border-slate-200 text-gray-800 placeholder:text-gray-400 rounded-lg px-3 py-2.5 w-full text-sm focus:outline-none focus:ring-2 focus:ring-slate-400/30 focus:border-slate-400 transition";
 
@@ -154,6 +185,14 @@ export default function SettingsPage() {
                   value={form.address || ""}
                   onChange={(e) => setForm({ ...form, address: e.target.value })} />
               </div>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1.5">
+                <FileText size={11} className="inline mr-1" />About your shop
+              </label>
+              <textarea rows={3} className={inputCls + " resize-none"} placeholder="Brief description of your business…"
+                value={form.description || ""}
+                onChange={(e) => setForm({ ...form, description: e.target.value })} />
             </div>
           </div>
         </div>

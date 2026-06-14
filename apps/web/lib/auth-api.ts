@@ -23,3 +23,33 @@ export async function authRequest(endpoint: string, options: RequestInit = {}) {
   if (!text) return null;
   try { return JSON.parse(text); } catch { return null; }
 }
+
+export interface ShopProfile {
+  id: string;
+  name: string;
+  email?: string;
+  phone?: string;
+  address?: string;
+  description?: string;
+  is_active: boolean;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+export async function getMyShop(): Promise<ShopProfile | null> {
+  const res = await authRequest("/api/v1/shop");
+  return res?.data ?? null;
+}
+
+export async function updateMyShop(data: Partial<Pick<ShopProfile, "name" | "phone" | "address" | "description">>): Promise<ShopProfile | null> {
+  const res = await authRequest("/api/v1/shop", {
+    method: "PUT",
+    body: JSON.stringify(data),
+  });
+  return res?.data ?? null;
+}
+
+export async function listShops(): Promise<ShopProfile[]> {
+  const res = await authRequest("/api/v1/shops");
+  return res?.data ?? [];
+}
