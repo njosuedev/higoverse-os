@@ -60,7 +60,7 @@ export default function ItemManagementPage() {
     try {
       if (!soft) setLoading(true); else setRefreshing(true);
       const [productsRes, suppliersRes] = await Promise.all([
-        itemRequest("/products"),
+        itemRequest("/products?limit=1000"),
         partnerRequest("/suppliers"),
       ]);
       setProducts(productsRes?.data?.items || []);

@@ -89,7 +89,7 @@ export default function LoginPage() {
         {/* ================= LEFT PANEL ================= */}
         <div className="hidden lg:flex w-1/2 relative overflow-hidden">
 
-          <div className="absolute inset-0 bg-gradient-to-br from-slate-950 via-blue-900 to-indigo-700" />
+          <div className="absolute inset-0 bg-linear-to-br from-slate-950 via-blue-900 to-indigo-700" />
 
           <div className="absolute top-[-120px] left-[-120px] w-[400px] h-[400px] bg-blue-500/30 blur-3xl rounded-full" />
           <div className="absolute bottom-[-120px] right-[-120px] w-[400px] h-[400px] bg-indigo-500/30 blur-3xl rounded-full" />
@@ -177,7 +177,7 @@ export default function LoginPage() {
         </div>
 
         {/* ================= RIGHT PANEL ================= */}
-        <div className="flex-1 flex items-center justify-center px-6 bg-gradient-to-br from-slate-50 to-blue-50">
+        <div className="flex-1 flex items-center justify-center px-6 bg-linear-to-br from-slate-50 to-blue-50">
 
           <div className="w-full max-w-md">
 
@@ -241,7 +241,7 @@ export default function LoginPage() {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full h-14 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-semibold flex items-center justify-center gap-2 disabled:opacity-70"
+                  className="w-full h-14 rounded-2xl bg-linear-to-r from-blue-600 to-indigo-600 text-white font-semibold flex items-center justify-center gap-2 disabled:opacity-70"
                 >
                   {loading ? (
                     <>
