@@ -6,7 +6,7 @@ import { getUser, isAuthenticated } from "@/lib/auth";
 import { itemRequest } from "@/lib/product-api";
 import { partnerRequest } from "@/lib/supplier-api";
 import { saleRequest } from "@/lib/sale-api";
-import { authRequest } from "@/lib/auth-api";
+import { listShops, type Shop as ShopInfo } from "@/lib/shop-api";
 import DashboardHeader from "../components/dashboard/DashboardHeader";
 import LoadingSkeleton from "@/app/components/dashboard/LoadingSkeleton";
 
@@ -15,15 +15,6 @@ import {
   ShoppingCart, Users, LayoutDashboard, Settings, RefreshCw, AlertTriangle,
   TrendingUp, Clock, Globe, CheckCircle, FileText, Wifi,
 } from "lucide-react";
-
-interface ShopInfo {
-  id: string;
-  name: string;
-  email: string;
-  phone?: string;
-  is_active: boolean;
-  created_at: string | null;
-}
 
 interface StockAlert {
   id: string;
@@ -112,7 +103,7 @@ export default function DashboardPage() {
         partnerRequest("/suppliers"),
         saleRequest(`/sales/summary?from_date=${today}&to_date=${today}`),
         itemRequest("/products/stock-alerts?threshold=10"),
-        authRequest("/api/v1/shops"),
+        listShops({ limit: 100 }),
       ]);
 
       const productCount = productsRes.status === "fulfilled" ? (productsRes.value?.data?.total ?? 0) : 0;
@@ -128,7 +119,7 @@ export default function DashboardPage() {
         outOfStock: alertItems.filter((a) => a.quantity === 0).length,
       });
       setStockAlerts(alertItems.slice(0, 5));
-      if (shopsRes.status === "fulfilled") setShops(shopsRes.value?.data ?? []);
+      if (shopsRes.status === "fulfilled" && shopsRes.value) setShops(shopsRes.value.items ?? []);
       setLastUpdated(new Date());
     } catch { /* stats are informational */ } finally {
       setRefreshing(false);

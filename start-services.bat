@@ -20,6 +20,9 @@ start "settings-service (8006)" cmd /k "cd backend\settings-service && pip insta
 timeout /t 2 /nobreak >nul
 
 start "auth-service (8000)" cmd /k "cd backend\auth-service && pip install -r requirements.txt -q && uvicorn app.main:app --port 8000 --reload"
+timeout /t 2 /nobreak >nul
+
+start "shop-service (8007)" cmd /k "cd backend\shop-service && pip install -r requirements.txt -q && uvicorn app.main:app --port 8007 --reload"
 
 echo.
 echo All services starting in separate windows:
@@ -30,6 +33,7 @@ echo   sale-service     -^> http://localhost:8003
 echo   purchase-service -^> http://localhost:8004
 echo   report-service   -^> http://localhost:8005
 echo   settings-service -^> http://localhost:8006
+echo   shop-service     -^> http://localhost:8007
 echo.
 echo Then run the frontend: cd apps\web ^&^& npm run dev
 pause

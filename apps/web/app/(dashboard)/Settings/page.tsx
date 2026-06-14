@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { settingsRequest } from "@/lib/settings-api";
-import { getMyShop, updateMyShop } from "@/lib/auth-api";
+import { getMyShop, updateMyShop } from "@/lib/shop-api";
 import { useLanguage } from "@/lib/language-context";
 import { type Lang } from "@/lib/i18n";
 import DashboardHeader from "@/app/components/dashboard/DashboardHeader";
