@@ -87,8 +87,10 @@ const colorMap: Record<string, { bg: string; text: string; ring: string }> = {
 };
 
 export default function DashboardPage() {
-  const [mounted, setMounted] = useState(false);
-  const [user, setUser] = useState<{ name?: string; email: string; shop_id: string; role?: string } | null>(null);
+  // Lazy initializer — reads localStorage once on mount, avoids setState inside effect
+  const [user] = useState<{ name?: string; email: string; shop_id: string; role?: string } | null>(
+    () => (typeof window !== "undefined" && isAuthenticated() ? getUser() : null)
+  );
   const [stats, setStats] = useState<Stats>({ products: 0, partners: 0, sales: 0, revenue: 0, lowStock: 0, outOfStock: 0 });
   const [stockAlerts, setStockAlerts] = useState<StockAlert[]>([]);
   const [shops, setShops] = useState<ShopInfo[]>([]);
@@ -97,39 +99,11 @@ export default function DashboardPage() {
   const [countdown, setCountdown] = useState(REFRESH_INTERVAL);
   const [now, setNow] = useState(new Date());
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const refreshRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const refreshRef   = useRef<ReturnType<typeof setInterval> | null>(null);
+  const clockRef     = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  useEffect(() => {
-    setMounted(true);
-    if (!isAuthenticated()) { window.location.replace("/login"); return; }
-    setUser(getUser());
-    loadAll();
-
-    // Live clock
-    const clock = setInterval(() => setNow(new Date()), 1000);
-
-    // Countdown ticker
-    countdownRef.current = setInterval(() => {
-      setCountdown((c) => {
-        if (c <= 1) return REFRESH_INTERVAL;
-        return c - 1;
-      });
-    }, 1000);
-
-    // Auto-refresh
-    refreshRef.current = setInterval(() => {
-      loadAll(true);
-      setCountdown(REFRESH_INTERVAL);
-    }, REFRESH_INTERVAL * 1000);
-
-    return () => {
-      clearInterval(clock);
-      if (countdownRef.current) clearInterval(countdownRef.current);
-      if (refreshRef.current) clearInterval(refreshRef.current);
-    };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  async function loadAll(soft = false) {
+  // Declared before effects so the linter sees them at their call sites
+  const loadAll = async (soft = false) => {
     if (soft) setRefreshing(true);
     try {
       const today = toDateStr(new Date());
@@ -143,42 +117,53 @@ export default function DashboardPage() {
 
       const productCount = productsRes.status === "fulfilled" ? (productsRes.value?.data?.total ?? 0) : 0;
       const partnerCount = partnersRes.status === "fulfilled"
-        ? (Array.isArray(partnersRes.value?.data) ? partnersRes.value.data.length : 0)
-        : 0;
+        ? (Array.isArray(partnersRes.value?.data) ? partnersRes.value.data.length : 0) : 0;
       const saleCount = salesRes.status === "fulfilled" ? (salesRes.value?.data?.sales_count ?? 0) : 0;
-      const revenue = salesRes.status === "fulfilled" ? (salesRes.value?.data?.revenue ?? 0) : 0;
+      const revenue   = salesRes.status === "fulfilled" ? (salesRes.value?.data?.revenue ?? 0) : 0;
+      const alertItems: StockAlert[] = stockRes.status === "fulfilled" ? (stockRes.value?.data ?? []) : [];
 
-      const alertItems: StockAlert[] = stockRes.status === "fulfilled"
-        ? (stockRes.value?.data ?? [])
-        : [];
-      const lowStock = alertItems.filter((a) => a.quantity > 0).length;
-      const outOfStock = alertItems.filter((a) => a.quantity === 0).length;
-
-      setStats({ products: productCount, partners: partnerCount, sales: saleCount, revenue, lowStock, outOfStock });
+      setStats({
+        products: productCount, partners: partnerCount, sales: saleCount, revenue,
+        lowStock:   alertItems.filter((a) => a.quantity > 0).length,
+        outOfStock: alertItems.filter((a) => a.quantity === 0).length,
+      });
       setStockAlerts(alertItems.slice(0, 5));
-
-      if (shopsRes.status === "fulfilled") {
-        setShops(shopsRes.value?.data ?? []);
-      }
-
+      if (shopsRes.status === "fulfilled") setShops(shopsRes.value?.data ?? []);
       setLastUpdated(new Date());
-    } catch {
-      // stats are informational
-    } finally {
+    } catch { /* stats are informational */ } finally {
       setRefreshing(false);
     }
-  }
+  };
 
-  function manualRefresh() {
+  const manualRefresh = () => {
     loadAll(true);
     setCountdown(REFRESH_INTERVAL);
     if (countdownRef.current) clearInterval(countdownRef.current);
     if (refreshRef.current) clearInterval(refreshRef.current);
     countdownRef.current = setInterval(() => setCountdown((c) => (c <= 1 ? REFRESH_INTERVAL : c - 1)), 1000);
-    refreshRef.current = setInterval(() => { loadAll(true); setCountdown(REFRESH_INTERVAL); }, REFRESH_INTERVAL * 1000);
-  }
+    refreshRef.current   = setInterval(() => { loadAll(true); setCountdown(REFRESH_INTERVAL); }, REFRESH_INTERVAL * 1000);
+  };
 
-  if (!mounted) return null;
+  // Auth redirect — no setState, just a side-effect
+  useEffect(() => {
+    if (!isAuthenticated()) window.location.replace("/login");
+  }, []);
+
+  // Intervals + initial data load — gated on user presence
+  useEffect(() => {
+    if (!user) return;
+
+    loadAll();
+
+    clockRef.current     = setInterval(() => setNow(new Date()), 1000);
+    countdownRef.current = setInterval(() => setCountdown((c) => (c <= 1 ? REFRESH_INTERVAL : c - 1)), 1000);
+    refreshRef.current   = setInterval(() => { loadAll(true); setCountdown(REFRESH_INTERVAL); }, REFRESH_INTERVAL * 1000);
+
+    return () => {
+      [clockRef, countdownRef, refreshRef].forEach((r) => { if (r.current) clearInterval(r.current); });
+    };
+  }, [user?.shop_id]); // eslint-disable-line react-hooks/exhaustive-deps
+
   if (!user) return <LoadingSkeleton />;
 
   const currentShop = shops.find((s) => s.id === user.shop_id);
