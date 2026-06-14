@@ -31,7 +31,9 @@ def register_shop(db: Session, data):
     shop = Shop(
         name=data.shop_name,
         email=data.email,
-        phone=data.phone
+        phone=data.phone,
+        address=data.address,
+        description=data.description,
     )
 
     db.add(shop)

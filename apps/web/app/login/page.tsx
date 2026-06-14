@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Head from "next/head";
 import { setAuth, isAuthenticated } from "@/lib/auth";
 
@@ -15,10 +15,13 @@ import {
   Truck,
   BarChart3,
   ShieldCheck,
+  CheckCircle2,
 } from "lucide-react";
 
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const justRegistered = searchParams.get("registered") === "1";
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -190,6 +193,13 @@ export default function LoginPage() {
               <p className="text-slate-500 mb-6">
                 Sign in to your shop
               </p>
+
+              {justRegistered && (
+                <div className="mb-4 p-3 text-sm text-green-700 bg-green-50 border border-green-200 rounded-xl flex items-center gap-2">
+                  <CheckCircle2 size={15} className="shrink-0" />
+                  Workspace created! Sign in to get started.
+                </div>
+              )}
 
               {error && (
                 <div className="mb-4 p-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl">
