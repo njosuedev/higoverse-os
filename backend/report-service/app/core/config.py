@@ -1,13 +1,14 @@
+import os
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    AUTH_SERVICE_SECRET: str
+    AUTH_SERVICE_SECRET:    str = os.getenv("AUTH_SERVICE_SECRET", "")
     AUTH_SERVICE_ALGORITHM: str = "HS256"
 
-    SALE_SERVICE_URL: str = "https://higoverse-sales.vercel.app"
+    SALE_SERVICE_URL:     str = "https://higoverse-sales.vercel.app"
     PURCHASE_SERVICE_URL: str = "https://higoverse-purchases.vercel.app"
-    PRODUCT_SERVICE_URL: str = "https://higoverse-products.vercel.app"
+    PRODUCT_SERVICE_URL:  str = "https://higoverse-products.vercel.app"
 
     SERVICE_NAME: str = "report-service"
 

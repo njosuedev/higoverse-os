@@ -1,6 +1,6 @@
 import { getToken, handleUnauthorized } from "@/lib/auth";
 
-const SHOP_API = process.env.NEXT_PUBLIC_SHOP_API_URL || "http://localhost:8007";
+const SHOP_API = process.env.NEXT_PUBLIC_SHOP_API_URL || "https://higoverse-shop.vercel.app";
 
 async function shopRequest(endpoint: string, options: RequestInit = {}) {
   const token = getToken();
