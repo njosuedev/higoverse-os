@@ -29,5 +29,16 @@ export async function partnerRequest(
     );
   }
 
-  return res.json();
+  if (res.status === 204 || res.headers.get("content-length") === "0") {
+    return null;
+  }
+
+  const text = await res.text();
+  if (!text) return null;
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
 }

@@ -24,10 +24,11 @@ export async function itemRequest(
 
   if (!res.ok) {
     const errorText = await res.text().catch(() => "");
-    throw new Error(
-      `Product API error: ${res.status} ${errorText || ""}`
-    );
+    throw new Error(`Product API error: ${res.status} ${errorText || ""}`);
   }
 
-  return res.json();
+  if (res.status === 204 || res.headers.get("content-length") === "0") return null;
+  const text = await res.text();
+  if (!text) return null;
+  try { return JSON.parse(text); } catch { return null; }
 }
