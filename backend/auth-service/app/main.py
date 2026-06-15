@@ -4,6 +4,8 @@ from fastapi.responses import JSONResponse
 
 from app.api.v1 import auth
 from app.api.v1 import shop
+from app.db.shop_session import shop_engine
+from app.models.shop import Shop
 
 app = FastAPI(title="Higoverse Auth Service")
 
@@ -34,6 +36,12 @@ app.include_router(
     prefix="/api/v1",
     tags=["Shops"]
 )
+
+
+@app.on_event("startup")
+def on_startup():
+    if shop_engine:
+        Shop.__table__.create(bind=shop_engine, checkfirst=True)
 
 
 @app.get("/")

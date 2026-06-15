@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.auth_bearer import get_current_user
-from app.db.deps import get_db
+from app.db.deps import get_shop_db
 from app.models.shop import Shop
 from app.schemas.shop import ShopUpdate
 
@@ -39,7 +39,7 @@ def get_me(current_user=Depends(get_current_user)):
 # ── My shop profile ───────────────────────────────────────
 @router.get("/shop")
 def get_my_shop(
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_shop_db),
     current_user=Depends(get_current_user),
 ):
     shop = db.query(Shop).filter(Shop.id == current_user.shop_id).first()
@@ -51,7 +51,7 @@ def get_my_shop(
 @router.put("/shop")
 def update_my_shop(
     payload: ShopUpdate,
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_shop_db),
     current_user=Depends(get_current_user),
 ):
     shop = db.query(Shop).filter(Shop.id == current_user.shop_id).first()
@@ -70,7 +70,7 @@ def update_my_shop(
 # ── All shops (directory) ─────────────────────────────────
 @router.get("/shops")
 def list_shops(
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_shop_db),
     current_user=Depends(get_current_user),
 ):
     shops = db.query(Shop).filter(Shop.is_active == True).order_by(Shop.created_at.desc()).all()

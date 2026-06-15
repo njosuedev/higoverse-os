@@ -9,17 +9,17 @@ from app.core.security import hash_password, verify_password, create_access_toke
 # ----------------------------
 # REGISTER SHOP + OWNER USER
 # ----------------------------
-def register_shop(db: Session, data):
+def register_shop(db: Session, shop_db: Session, data):
 
-    # 1. CHECK IF SHOP EXISTS
-    existing_shop = db.query(Shop).filter(Shop.email == data.email).first()
+    # 1. CHECK IF SHOP EXISTS (in shop_db)
+    existing_shop = shop_db.query(Shop).filter(Shop.email == data.email).first()
     if existing_shop:
         raise HTTPException(
             status_code=400,
             detail="Shop with this email already exists"
         )
 
-    # 2. CHECK IF USER EXISTS
+    # 2. CHECK IF USER EXISTS (in auth_db)
     existing_user = db.query(User).filter(User.email == data.email).first()
     if existing_user:
         raise HTTPException(
@@ -27,7 +27,7 @@ def register_shop(db: Session, data):
             detail="User with this email already exists"
         )
 
-    # 3. CREATE SHOP
+    # 3. CREATE SHOP in shop_db
     shop = Shop(
         name=data.shop_name,
         email=data.email,
@@ -36,10 +36,10 @@ def register_shop(db: Session, data):
         description=data.description,
     )
 
-    db.add(shop)
-    db.flush()  # get shop.id before commit
+    shop_db.add(shop)
+    shop_db.flush()  # get shop.id before commit
 
-    # 4. CREATE OWNER USER
+    # 4. CREATE OWNER USER in auth_db
     user = User(
         email=data.email,
         password_hash=hash_password(data.password),
@@ -50,10 +50,9 @@ def register_shop(db: Session, data):
 
     db.add(user)
 
+    shop_db.commit()
     db.commit()
-    db.refresh(shop)
-
-    # OPTIONAL: ensure user is also committed safely
+    shop_db.refresh(shop)
     db.refresh(user)
 
     return {

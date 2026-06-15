@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.api.routes.shops import router as shops_router
+from app.db.database import Base, engine
 
 app = FastAPI(
     title="Higoverse Shop Service",
@@ -22,6 +23,12 @@ app.add_middleware(
 )
 
 app.include_router(shops_router)
+
+
+@app.on_event("startup")
+def on_startup():
+    if engine:
+        Base.metadata.create_all(bind=engine)
 
 
 @app.exception_handler(Exception)
