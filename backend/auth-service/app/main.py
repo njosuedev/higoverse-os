@@ -7,6 +7,7 @@ from app.api.v1 import shop
 from app.db.session import engine as auth_engine
 from app.db.shop_session import shop_engine
 from app.models.shop import Shop
+from app.models import user, role, refresh_token  # noqa: F401 — keeps all mapper classes in registry
 
 app = FastAPI(title="Higoverse Auth Service")
 
