@@ -1,6 +1,6 @@
 import { getToken, handleUnauthorized } from "@/lib/auth";
 
-const SUPPLIER_API = process.env.NEXT_PUBLIC_API_SUPPLIERS || "https://higoverse-suppliers.vercel.app";
+const SUPPLIER_API = process.env.NEXT_PUBLIC_SUPPLIER_API_URL || "https://higoverse-suppliers.vercel.app";
 
 export async function partnerRequest(
   endpoint: string,

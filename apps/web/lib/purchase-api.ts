@@ -1,6 +1,6 @@
 import { getToken, handleUnauthorized } from "@/lib/auth";
 
-const PURCHASE_API = process.env.NEXT_PUBLIC_API_PURCHASES || "https://higoverse-purchases.vercel.app";
+const PURCHASE_API = process.env.NEXT_PUBLIC_PURCHASE_API_URL || "https://higoverse-purchases.vercel.app";
 
 export async function purchaseRequest(endpoint: string, options: RequestInit = {}) {
   const token = getToken();
