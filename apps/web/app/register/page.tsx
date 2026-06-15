@@ -121,25 +121,34 @@ export default function RegisterPage() {
     setLoading(true);
     try {
       const AUTH_URL = process.env.NEXT_PUBLIC_AUTH_API_URL || "https://higoverse-auth.vercel.app";
-      const payload = {
-        shop_name:   form.shop_name.trim(),
-        email:       form.email.trim(),
-        phone:       form.phone.trim(),
-        password:    form.password,
-        address:     form.address.trim() || undefined,
-        description: (form.business_type !== "Other" ? form.business_type : "") +
-                     (form.description.trim() ? ` — ${form.description.trim()}` : "") || undefined,
+      const descParts = [
+        form.business_type !== "Other" ? form.business_type : "",
+        form.description.trim() ? form.description.trim() : "",
+      ].filter(Boolean).join(" — ");
+      const payload: Record<string, string> = {
+        shop_name: form.shop_name.trim(),
+        email:     form.email.trim(),
+        phone:     form.phone.trim(),
+        password:  form.password,
       };
+      if (form.address.trim())  payload.address     = form.address.trim();
+      if (descParts)            payload.description = descParts;
+
       const res  = await fetch(`${AUTH_URL}/api/v1/auth/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      const data = await res.json();
-      if (!res.ok) { setError(data?.detail || "Registration failed"); return; }
+      const text = await res.text();
+      if (!res.ok) {
+        let msg = "Registration failed";
+        try { msg = JSON.parse(text)?.detail || msg; } catch { msg = text || msg; }
+        setError(msg);
+        return;
+      }
       router.push("/login?registered=1");
-    } catch {
-      setError("Network error. Please try again.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Network error. Please try again.");
     } finally {
       setLoading(false);
     }
