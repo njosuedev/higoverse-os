@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import Head from "next/head";
 import { setAuth, isAuthenticated } from "@/lib/auth";
 
 import {
@@ -83,10 +82,6 @@ export default function LoginPage() {
 
   return (
     <>
-      <Head>
-        <title>Login | Higoverse</title>
-      </Head>
-
       <div className="min-h-screen flex bg-white">
 
         {/* ================= LEFT PANEL ================= */}

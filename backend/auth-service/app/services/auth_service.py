@@ -1,3 +1,5 @@
+import uuid as _uuid
+
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
@@ -27,37 +29,47 @@ def register_shop(db: Session, shop_db: Session, data):
             detail="User with this email already exists"
         )
 
-    # 3. CREATE SHOP in shop_db
-    shop = Shop(
+    # 3. Pre-generate a shared UUID so both DBs reference the same shop id
+    shop_id = _uuid.uuid4()
+
+    # 4. CREATE SHOP in shop_db (primary store for shop data)
+    shop_in_shopdb = Shop(
+        id=shop_id,
         name=data.shop_name,
         email=data.email,
         phone=data.phone,
         address=data.address,
         description=data.description,
     )
+    shop_db.add(shop_in_shopdb)
 
-    shop_db.add(shop)
-    shop_db.flush()  # get shop.id before commit
+    # 5. MIRROR SHOP in auth_db so the users.shop_id FK constraint is satisfied
+    shop_in_authdb = Shop(
+        id=shop_id,
+        name=data.shop_name,
+        email=data.email,
+        phone=data.phone,
+        address=data.address,
+        description=data.description,
+    )
+    db.add(shop_in_authdb)
 
-    # 4. CREATE OWNER USER in auth_db
+    # 6. CREATE OWNER USER in auth_db
     user = User(
         email=data.email,
         password_hash=hash_password(data.password),
-        shop_id=shop.id,
+        shop_id=shop_id,
         role=data.role,
-        role_id=None
+        role_id=None,
     )
-
     db.add(user)
 
     shop_db.commit()
     db.commit()
-    shop_db.refresh(shop)
-    db.refresh(user)
 
     return {
         "message": "Shop created successfully",
-        "shop_id": str(shop.id)
+        "shop_id": str(shop_id)
     }
 
 

@@ -4,6 +4,7 @@ from fastapi.responses import JSONResponse
 
 from app.api.v1 import auth
 from app.api.v1 import shop
+from app.db.session import engine as auth_engine
 from app.db.shop_session import shop_engine
 from app.models.shop import Shop
 
@@ -42,6 +43,8 @@ app.include_router(
 def on_startup():
     if shop_engine:
         Shop.__table__.create(bind=shop_engine, checkfirst=True)
+    if auth_engine:
+        Shop.__table__.create(bind=auth_engine, checkfirst=True)
 
 
 @app.get("/")
