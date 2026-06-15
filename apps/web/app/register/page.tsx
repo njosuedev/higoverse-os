@@ -120,7 +120,7 @@ export default function RegisterPage() {
     setError(null);
     setLoading(true);
     try {
-      const AUTH_URL = process.env.NEXT_PUBLIC_AUTH_API_URL || "https://higoverse-auth.vercel.app";
+      const AUTH_URL = process.env.NEXT_PUBLIC_AUTH_API || "https://higoverse-auth.vercel.app";
       const descParts = [
         form.business_type !== "Other" ? form.business_type : "",
         form.description.trim() ? form.description.trim() : "",

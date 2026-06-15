@@ -1,6 +1,6 @@
 import { getToken, handleUnauthorized } from "@/lib/auth";
 
-const REPORT_API = process.env.NEXT_PUBLIC_REPORT_API_URL || "https://higoverse-reports.vercel.app";
+const REPORT_API = process.env.NEXT_PUBLIC_API_REPORTS || "https://higoverse-reports.vercel.app";
 
 export async function reportRequest(endpoint: string, options: RequestInit = {}) {
   const token = getToken();
