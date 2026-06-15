@@ -2,21 +2,16 @@ import os
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 
-DATABASE_URL = os.getenv("DATABASE_URL")
+DATABASE_URL = os.getenv("DATABASE_URL", "")
 
-if not DATABASE_URL:
-    raise Exception("DATABASE_URL is missing")
-
-engine = create_engine(
-    DATABASE_URL,
-    pool_pre_ping=True
-)
-
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-Base = declarative_base()
+engine       = create_engine(DATABASE_URL, pool_pre_ping=True) if DATABASE_URL else None
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine) if engine else None
+Base         = declarative_base()
 
 
 def get_db():
+    if SessionLocal is None:
+        raise RuntimeError("DATABASE_URL is not configured")
     db = SessionLocal()
     try:
         yield db
