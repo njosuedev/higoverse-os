@@ -3,6 +3,7 @@ export interface User {
   email: string;
   shop_id: string;
   role?: string;
+  name?: string;
 }
 
 const TOKEN_KEY = "token";
@@ -45,12 +46,18 @@ export function getAuthHeaders(): Record<string, string> {
   };
 }
 
-export function logout() {
+/** Clear auth data from storage without navigating (used by React auth context). */
+export function clearAuth() {
   if (typeof window === "undefined") return;
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(USER_KEY);
   sessionStorage.clear();
-  window.location.replace("/login");
+}
+
+/** Full logout: clears storage and hard-navigates to /login (used by 401 API handlers). */
+export function logout() {
+  clearAuth();
+  if (typeof window !== "undefined") window.location.replace("/login");
 }
 
 export function handleUnauthorized() {

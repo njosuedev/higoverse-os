@@ -5,6 +5,7 @@ import "./globals.css";
 import AuthGuard from "@/app/components/AuthGuard";
 import DeviceGuard from "@/app/components/DeviceGuard";
 import { LanguageProvider } from "@/lib/language-context";
+import { AuthProvider } from "@/lib/auth-context";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -108,11 +109,13 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={inter.className}>
-        <LanguageProvider>
-          <AuthGuard>
-            <DeviceGuard>{children}</DeviceGuard>
-          </AuthGuard>
-        </LanguageProvider>
+        <AuthProvider>
+          <LanguageProvider>
+            <AuthGuard>
+              <DeviceGuard>{children}</DeviceGuard>
+            </AuthGuard>
+          </LanguageProvider>
+        </AuthProvider>
       </body>
     </html>
   );

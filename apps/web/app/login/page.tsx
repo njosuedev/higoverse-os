@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { setAuth, isAuthenticated } from "@/lib/auth";
+import { useAuth } from "@/lib/auth-context";
 
 import {
   Mail,
@@ -22,17 +22,17 @@ export default function LoginPage() {
   const searchParams = useSearchParams();
   const justRegistered = searchParams.get("registered") === "1";
 
+  const { login, user, ready } = useAuth();
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  // Already authenticated — go straight to dashboard without re-rendering login UI
   useEffect(() => {
-    // If already authenticated on mount, go straight to dashboard
-    if (isAuthenticated()) {
-      window.location.replace("/");
-    }
-  }, []);
+    if (ready && user) router.replace("/");
+  }, [ready, user, router]);
 
   const validateForm = useCallback(() => {
     if (!email.trim()) return "Email is required";
@@ -53,17 +53,13 @@ export default function LoginPage() {
     }
 
     setLoading(true);
-
     try {
       const AUTH_URL = process.env.NEXT_PUBLIC_AUTH_API || "https://higoverse-auth.vercel.app";
-      const res = await fetch(
-        `${AUTH_URL}/api/v1/auth/login`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email, password }),
-        }
-      );
+      const res = await fetch(`${AUTH_URL}/api/v1/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
 
       const data = await res.json();
 
@@ -72,14 +68,18 @@ export default function LoginPage() {
         return;
       }
 
-      setAuth(data);
-      window.location.replace("/");
+      // Update auth context state first, then navigate (no full-page reload)
+      login(data);
+      router.replace("/");
     } catch {
       setError("Network error. Please try again.");
     } finally {
       setLoading(false);
     }
   };
+
+  // Don't flash the login form if already authenticated
+  if (ready && user) return null;
 
   return (
     <>
@@ -262,7 +262,7 @@ export default function LoginPage() {
               </form>
 
               <p className="text-center text-sm text-slate-500 mt-6">
-                Don’t have an account?{" "}
+                Don&apos;t have an account?{" "}
                 <a href="/register" className="text-blue-600 font-medium">
                   Create Workspace
                 </a>

@@ -1,36 +1,30 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { getToken, getUser } from "@/lib/auth";
+import { useAuth } from "@/lib/auth-context";
 
 const PUBLIC_ROUTES = ["/login", "/register"];
 
 export default function AuthGuard({ children }: { children: React.ReactNode }) {
+  const { user, ready } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
-  const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    // Always allow public routes
-    if (PUBLIC_ROUTES.includes(pathname)) {
-      setReady(true);
-      return;
-    }
+    if (!ready) return;                          // wait for localStorage hydration
+    if (PUBLIC_ROUTES.includes(pathname)) return; // public — always ok
+    if (!user) router.replace("/login");         // unauthenticated on protected route
+  }, [ready, user, pathname, router]);
 
-    // Check auth AFTER hydration
-    const token = getToken();
-    const user = getUser();
+  // Public routes render immediately, no auth needed
+  if (PUBLIC_ROUTES.includes(pathname)) return <>{children}</>;
 
-    if (!token || !user) {
-      router.replace("/login");
-      return;
-    }
-
-    setReady(true);
-  }, [pathname, router]);
-
+  // Hold render until hydration is complete
   if (!ready) return null;
+
+  // Protected route: only render children once authenticated
+  if (!user) return null;
 
   return <>{children}</>;
 }

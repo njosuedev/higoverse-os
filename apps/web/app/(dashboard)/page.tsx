@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { getUser, isAuthenticated } from "@/lib/auth";
+import { useAuth } from "@/lib/auth-context";
 import { itemRequest } from "@/lib/product-api";
 import { partnerRequest } from "@/lib/supplier-api";
 import { saleRequest } from "@/lib/sale-api";
@@ -91,10 +91,7 @@ const colorMap: Record<string, { bg: string; text: string; ring: string }> = {
 };
 
 export default function DashboardPage() {
-  // Lazy initializer — reads localStorage once on mount, avoids setState inside effect
-  const [user] = useState<{ name?: string; email: string; shop_id: string; role?: string } | null>(
-    () => (typeof window !== "undefined" && isAuthenticated() ? getUser() : null)
-  );
+  const { user } = useAuth();
   const [stats, setStats] = useState<Stats>({ products: 0, partners: 0, sales: 0, revenue: 0, lowStock: 0, outOfStock: 0 });
   const [stockAlerts, setStockAlerts] = useState<StockAlert[]>([]);
   const [shops, setShops] = useState<ShopInfo[]>([]);
