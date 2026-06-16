@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { setAuth, isAuthenticated } from "@/lib/auth";
+import { setAuth, isAuthenticated, logout } from "@/lib/auth";
 
 import {
   Mail,
@@ -28,10 +28,11 @@ export default function LoginPage() {
   const [error, setError] = useState("");
 
   useEffect(() => {
+    // If already authenticated on mount, go straight to dashboard
     if (isAuthenticated()) {
-      router.replace("/");
+      window.location.replace("/");
     }
-  }, [router]);
+  }, []);
 
   const validateForm = useCallback(() => {
     if (!email.trim()) return "Email is required";
@@ -72,7 +73,16 @@ export default function LoginPage() {
       }
 
       setAuth(data);
-      router.replace("/");
+
+      // Verify auth was stored correctly before navigating
+      if (!isAuthenticated()) {
+        console.error("setAuth succeeded but isAuthenticated() returned false", { data });
+        logout();
+        setError("Login error: could not store session. Please try again.");
+        return;
+      }
+
+      window.location.replace("/");
     } catch {
       setError("Network error. Please try again.");
     } finally {
