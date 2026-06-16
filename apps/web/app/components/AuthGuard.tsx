@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { usePathname, useRouter } from "next/navigation";
-import { isAuthenticated } from "@/lib/auth";
+import { usePathname } from "next/navigation";
+import { isAuthenticated, logout } from "@/lib/auth";
 
 const PUBLIC_ROUTES = ["/login", "/register"];
 
@@ -12,11 +12,9 @@ export default function AuthGuard({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
-  const router = useRouter();
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    // Allow public pages
     if (PUBLIC_ROUTES.includes(pathname)) {
       setReady(true);
       return;
@@ -24,22 +22,17 @@ export default function AuthGuard({
 
     const authenticated = isAuthenticated();
 
-    console.log("AuthGuard", {
-      pathname,
-      authenticated,
-    });
+    console.log("AuthGuard", { pathname, authenticated });
 
     if (!authenticated) {
-      router.replace("/login");
+      logout(); // clears localStorage before redirecting — prevents redirect loop
       return;
     }
 
     setReady(true);
-  }, [pathname, router]);
+  }, [pathname]);
 
-  if (!ready) {
-    return null;
-  }
+  if (!ready) return null;
 
   return <>{children}</>;
 }
