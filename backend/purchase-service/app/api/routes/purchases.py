@@ -127,7 +127,9 @@ def record_purchase(
         if not product:
             raise HTTPException(status_code=404, detail="Product not found")
         product_name = product["name"]
-        restock_product(payload.product_id, payload.quantity_added, product, token)
+        ok = restock_product(payload.product_id, payload.quantity_added, product, token)
+        if not ok:
+            raise HTTPException(status_code=503, detail="Could not update stock in product-service. Purchase not recorded.")
 
     else:
         # ── Create new product ────────────────────────────────────

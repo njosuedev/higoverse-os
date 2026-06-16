@@ -223,6 +223,16 @@ def create_sale(
     total = price * payload.quantity
     profit = (price - cost) * payload.quantity
 
+    # Reduce stock BEFORE committing the sale so a stock-update failure
+    # doesn't leave a sale with no corresponding inventory change.
+    new_qty = product["quantity"] - payload.quantity
+    stock_ok = update_product_stock(payload.product_id, new_qty, product, token)
+    if not stock_ok:
+        raise HTTPException(
+            status_code=503,
+            detail="Could not update product stock. Sale not recorded.",
+        )
+
     sale = Sale(
         shop_id=user["shop_id"],
         product_id=payload.product_id,
@@ -238,8 +248,6 @@ def create_sale(
     db.add(sale)
     db.commit()
     db.refresh(sale)
-
-    update_product_stock(payload.product_id, product["quantity"] - payload.quantity, product, token)
 
     return {"success": True, "message": "Sale recorded successfully", "data": _fmt(sale)}
 

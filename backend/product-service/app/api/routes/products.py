@@ -156,11 +156,10 @@ def create_product(
     authorization: str = Header(None)
 ):
     try:
-        # ✅ Validate supplier (microservice call)
         validate_supplier(
             payload.supplier_id,
             user["shop_id"],
-            authorization.replace("Bearer ", "")
+            (authorization or "").replace("Bearer ", "")
         )
 
         selling_price = payload.selling_price or payload.cost_price
@@ -252,12 +251,11 @@ def update_product(
 
         update_data = payload.model_dump(exclude_unset=True)
 
-        # validate supplier if updated
         if "supplier_id" in update_data:
             validate_supplier(
                 update_data["supplier_id"],
                 user["shop_id"],
-                authorization.replace("Bearer ", "")
+                (authorization or "").replace("Bearer ", "")
             )
 
         for key, value in update_data.items():

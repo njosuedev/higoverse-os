@@ -45,7 +45,9 @@ def on_startup():
 # -----------------------------
 @app.get("/")
 def root():
-    return {
-        "service": "supplier-service",
-        "status": "running"
-    }
+    return {"service": "supplier-service", "status": "running"}
+
+
+@app.get("/health")
+def health():
+    return {"status": "ok"}

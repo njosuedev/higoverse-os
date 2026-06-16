@@ -1,5 +1,8 @@
+import logging
 import requests
 from app.core.config import settings
+
+logger = logging.getLogger(__name__)
 
 
 def get_product(product_id: str, token: str) -> dict | None:
@@ -11,8 +14,9 @@ def get_product(product_id: str, token: str) -> dict | None:
         )
         if res.ok:
             return res.json().get("data")
-    except Exception:
-        pass
+        logger.warning("product-service GET /products/%s returned %s", product_id, res.status_code)
+    except Exception as e:
+        logger.error("Failed to fetch product %s: %s", product_id, e)
     return None
 
 
@@ -37,8 +41,11 @@ def restock_product(product_id: str, qty_to_add: int, product: dict, token: str)
             },
             timeout=10,
         )
+        if not res.ok:
+            logger.warning("product-service PUT /products/%s returned %s: %s", product_id, res.status_code, res.text)
         return res.ok
-    except Exception:
+    except Exception as e:
+        logger.error("Failed to restock product %s: %s", product_id, e)
         return False
 
 
@@ -72,6 +79,7 @@ def create_product(
         )
         if res.ok:
             return res.json().get("data")
-    except Exception:
-        pass
+        logger.warning("product-service POST /products returned %s: %s", res.status_code, res.text)
+    except Exception as e:
+        logger.error("Failed to create product '%s': %s", name, e)
     return None

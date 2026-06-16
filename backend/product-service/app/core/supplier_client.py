@@ -1,7 +1,10 @@
+import logging
 import requests
 from fastapi import HTTPException
 
-SUPPLIER_SERVICE_URL = "https://higoverse-suppliers.vercel.app"
+from app.core.config import settings
+
+logger = logging.getLogger(__name__)
 
 
 def validate_supplier(
@@ -14,7 +17,7 @@ def validate_supplier(
 
     try:
         response = requests.get(
-            f"{SUPPLIER_SERVICE_URL}/suppliers/{supplier_id}",
+            f"{settings.SUPPLIER_SERVICE_URL}/suppliers/{supplier_id}",
             headers={
                 "Authorization": f"Bearer {token}"
             },
@@ -49,6 +52,7 @@ def validate_supplier(
         raise
 
     except Exception as e:
+        logger.error("Supplier validation failed for supplier_id=%s: %s", supplier_id, e)
         raise HTTPException(
             status_code=400,
             detail=f"Supplier validation failed: {str(e)}"

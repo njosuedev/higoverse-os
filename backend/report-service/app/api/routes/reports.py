@@ -1,3 +1,4 @@
+import logging
 import requests
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from fastapi import APIRouter, Depends
@@ -5,6 +6,7 @@ from app.core.security import get_current_user
 from app.core.config import settings
 
 router = APIRouter(prefix="/reports", tags=["Reports"])
+logger = logging.getLogger(__name__)
 
 TIMEOUT = 5  # seconds per upstream call (keep well under Vercel's 10s limit)
 
@@ -20,8 +22,10 @@ def _call(url: str, token: str, params: dict = None) -> dict | list:
         )
         if res.ok:
             return res.json().get("data", {})
+        logger.warning("Upstream %s returned %s", url, res.status_code)
         return {}
-    except Exception:
+    except Exception as e:
+        logger.error("Upstream call failed %s: %s", url, e)
         return {}
 
 
