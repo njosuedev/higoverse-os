@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { itemRequest } from "@/lib/product-api";
 import { partnerRequest } from "@/lib/supplier-api";
 import { saleRequest } from "@/lib/sale-api";
+import { settingsRequest } from "@/lib/settings-api";
 import { useDebounce } from "@/lib/hooks";
 import { useLanguage } from "@/lib/language-context";
 import DashboardHeader from "@/app/components/dashboard/DashboardHeader";
@@ -11,7 +12,7 @@ import Pagination from "@/app/components/ui/Pagination";
 import DateRangeFilter from "@/app/components/ui/DateRangeFilter";
 import {
   ShoppingBag, Search, Filter, Plus, Trash2, Pencil, X,
-  TrendingUp, DollarSign, Users, ReceiptText, Package, RefreshCw, Calendar,
+  TrendingUp, DollarSign, Users, ReceiptText, Package, RefreshCw, Calendar, Printer,
 } from "lucide-react";
 
 interface Sale {
@@ -55,6 +56,20 @@ export default function SaleManagementPage() {
   const [deletingId, setDeletingId] = useState("");
   const [form, setForm] = useState(EMPTY_FORM);
 
+  const [shopName, setShopName] = useState("");
+  const [currency, setCurrency] = useState("RWF");
+  const [receipt, setReceipt] = useState<Sale | null>(null);
+
+  // Ref kept in sync with latest loadData to avoid stale closure in the auto-refresh interval
+  const loadDataRef = useRef<(soft?: boolean) => Promise<void>>(async () => {});
+  useEffect(() => { loadDataRef.current = loadData; });
+
+  // Auto-refresh every 30 seconds
+  useEffect(() => {
+    const timer = setInterval(() => loadDataRef.current(true), 30_000);
+    return () => clearInterval(timer);
+  }, []);
+
   const debouncedSearch = useDebounce(search, 350);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -70,16 +85,21 @@ export default function SaleManagementPage() {
         ...(dateFrom && { from_date: dateFrom }),
         ...(dateTo && { to_date: dateTo }),
       });
-      const [salesRes, productsRes, partnersRes] = await Promise.all([
+      const [salesRes, productsRes, partnersRes, settingsRes] = await Promise.all([
         saleRequest(`/sales?${params}`),
         itemRequest("/products?limit=500"),
         partnerRequest("/suppliers"),
+        settingsRequest("/settings").catch(() => null),
       ]);
       setSales(salesRes?.data?.items || []);
       setSalesTotal(salesRes?.data?.total || 0);
       setProducts(productsRes?.data?.items || []);
       const all: Partner[] = partnersRes?.data?.items || partnersRes?.data || [];
       setCustomers(all.filter((p) => !p.address?.startsWith("TIN:")));
+      if (settingsRes?.data) {
+        if (settingsRes.data.shop_name) setShopName(settingsRes.data.shop_name);
+        if (settingsRes.data.currency) setCurrency(settingsRes.data.currency);
+      }
       setLastUpdated(new Date());
     } catch (err) { console.error(err); }
     finally { setLoading(false); setRefreshing(false); }
@@ -110,10 +130,13 @@ export default function SaleManagementPage() {
       setSubmitting(true);
       if (modalMode === "edit" && editingId) {
         await saleRequest(`/sales/${editingId}`, { method: "PUT", body: JSON.stringify(payload) });
+        closeModal();
       } else {
-        await saleRequest("/sales", { method: "POST", body: JSON.stringify(payload) });
+        const res = await saleRequest("/sales", { method: "POST", body: JSON.stringify(payload) });
+        closeModal();
+        if (res?.data?.id) setReceipt(res.data);
       }
-      closeModal(); await loadData(true);
+      await loadData(true);
     } catch (err: unknown) {
       alert(err instanceof Error ? err.message : "Error");
     } finally { setSubmitting(false); }
@@ -256,11 +279,11 @@ export default function SaleManagementPage() {
         {/* STAT CARDS */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
           {[
-            { label: t("sales.count"),    value: stats.total,                    color: "text-orange-600",  bg: "bg-orange-50",  icon: <ReceiptText size={17} /> },
-            { label: t("sales.revenue"),  value: stats.revenue.toLocaleString(), color: "text-green-600",   bg: "bg-green-50",   icon: <DollarSign size={17} /> },
-            { label: t("sales.profit"),   value: stats.profit.toLocaleString(),  color: "text-emerald-600", bg: "bg-emerald-50", icon: <TrendingUp size={17} /> },
-            { label: t("reports.items_sold"), value: stats.itemsSold,            color: "text-blue-600",    bg: "bg-blue-50",    icon: <Package size={17} /> },
-            { label: t("reports.customers"), value: stats.uniqueCustomers,       color: "text-violet-600",  bg: "bg-violet-50",  icon: <Users size={17} /> },
+            { label: t("sales.count"),        value: stats.total,                    color: "text-orange-600",  bg: "bg-orange-50",  icon: <ReceiptText size={17} /> },
+            { label: t("sales.revenue"),       value: stats.revenue.toLocaleString(), color: "text-green-600",   bg: "bg-green-50",   icon: <DollarSign size={17} /> },
+            { label: t("sales.profit"),        value: stats.profit.toLocaleString(),  color: "text-emerald-600", bg: "bg-emerald-50", icon: <TrendingUp size={17} /> },
+            { label: t("reports.items_sold"),  value: stats.itemsSold,                color: "text-blue-600",    bg: "bg-blue-50",    icon: <Package size={17} /> },
+            { label: t("reports.customers"),   value: stats.uniqueCustomers,          color: "text-violet-600",  bg: "bg-violet-50",  icon: <Users size={17} /> },
           ].map((card) => (
             <div key={card.label} className="bg-white rounded-xl border border-slate-200 p-4">
               <div className="flex justify-between items-start">
@@ -329,8 +352,18 @@ export default function SaleManagementPage() {
                     <td className="px-4 py-3 text-slate-400 text-xs max-w-28 truncate">{s.notes || <span className="text-slate-200">—</span>}</td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1.5">
-                        <button onClick={() => openEditModal(s)} className="p-1.5 rounded-lg bg-orange-50 hover:bg-orange-100 text-orange-600 transition"><Pencil size={14} /></button>
-                        <button onClick={() => deleteSale(s.id)} disabled={deletingId === s.id} className="p-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 transition disabled:opacity-40"><Trash2 size={14} /></button>
+                        <button onClick={() => setReceipt(s)} title="Print receipt"
+                          className="p-1.5 rounded-lg bg-slate-50 hover:bg-slate-100 text-slate-500 transition">
+                          <Printer size={14} />
+                        </button>
+                        <button onClick={() => openEditModal(s)}
+                          className="p-1.5 rounded-lg bg-orange-50 hover:bg-orange-100 text-orange-600 transition">
+                          <Pencil size={14} />
+                        </button>
+                        <button onClick={() => deleteSale(s.id)} disabled={deletingId === s.id}
+                          className="p-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 transition disabled:opacity-40">
+                          <Trash2 size={14} />
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -355,14 +388,14 @@ export default function SaleManagementPage() {
             pageSize={pageSize} pageSizes={PAGE_SIZES} onPage={setPage} onPageSize={setPageSize} />
         </div>
 
-        {/* MODAL */}
+        {/* CREATE / EDIT MODAL */}
         {showModal && (
           <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-2xl w-full max-w-xl shadow-2xl">
               <div className="flex justify-between items-center px-6 py-4 border-b border-slate-100">
-                <div>
-                  <h2 className="text-base font-semibold text-slate-800">{modalMode === "edit" ? t("sales.edit_title") : t("sales.add_title")}</h2>
-                </div>
+                <h2 className="text-base font-semibold text-slate-800">
+                  {modalMode === "edit" ? t("sales.edit_title") : t("sales.add_title")}
+                </h2>
                 <button onClick={closeModal} className="p-2 rounded-lg hover:bg-slate-100 text-slate-400 transition"><X size={17} /></button>
               </div>
               <div className="px-6 py-5 grid md:grid-cols-2 gap-4">
@@ -380,7 +413,9 @@ export default function SaleManagementPage() {
                     <div className="mt-1.5 flex gap-3 text-xs text-slate-500">
                       <span>{t("items.cost_price")}: <span className="font-medium text-slate-700">{selectedProduct.cost_price.toLocaleString()}</span></span>
                       <span>{t("items.selling_price")}: <span className="font-medium text-green-600">{selectedProduct.selling_price.toLocaleString()}</span></span>
-                      <span className={`font-medium ${selectedProduct.quantity <= 10 ? "text-amber-600" : "text-slate-700"}`}>{t("items.col_qty")}: {selectedProduct.quantity}</span>
+                      <span className={`font-medium ${selectedProduct.quantity <= 10 ? "text-amber-600" : "text-slate-700"}`}>
+                        {t("items.col_qty")}: {selectedProduct.quantity}
+                      </span>
                     </div>
                   )}
                 </div>
@@ -433,6 +468,129 @@ export default function SaleManagementPage() {
             </div>
           </div>
         )}
+
+        {/* RECEIPT MODAL */}
+        {receipt && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <style>{`
+              @media print {
+                body > * { visibility: hidden !important; }
+                #sale-receipt-printable, #sale-receipt-printable * { visibility: visible !important; }
+                #sale-receipt-printable {
+                  position: fixed !important; left: 50% !important; top: 0 !important;
+                  transform: translateX(-50%) !important; width: 300px !important;
+                  padding: 24px !important; background: white !important;
+                }
+              }
+            `}</style>
+            <div className="bg-white rounded-2xl w-full max-w-xs shadow-2xl overflow-hidden">
+
+              {/* modal header */}
+              <div className="flex justify-between items-center px-5 py-3 border-b border-slate-100">
+                <div className="flex items-center gap-2 text-slate-700">
+                  <ReceiptText size={15} />
+                  <span className="font-semibold text-sm">Sale Receipt</span>
+                </div>
+                <button onClick={() => setReceipt(null)} className="text-slate-400 hover:text-slate-600 transition">
+                  <X size={16} />
+                </button>
+              </div>
+
+              {/* printable receipt body */}
+              <div id="sale-receipt-printable" className="px-6 py-5 font-mono text-sm bg-white">
+
+                {/* shop name */}
+                <div className="text-center mb-4">
+                  <p className="font-bold text-base text-slate-900 uppercase tracking-wider">
+                    {shopName || "HIGOVERSE SHOP"}
+                  </p>
+                  <p className="text-xs text-slate-400 mt-0.5">Sales Receipt</p>
+                </div>
+
+                <div className="border-t border-dashed border-slate-300 my-3" />
+
+                {/* meta */}
+                <div className="space-y-1.5 text-xs text-slate-600 mb-3">
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Receipt #</span>
+                    <span className="font-semibold">{receipt.id.slice(0, 8).toUpperCase()}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Date</span>
+                    <span>
+                      {receipt.created_at
+                        ? new Date(receipt.created_at).toLocaleString([], { dateStyle: "medium", timeStyle: "short" })
+                        : new Date().toLocaleString([], { dateStyle: "medium", timeStyle: "short" })}
+                    </span>
+                  </div>
+                  {receipt.customer_id && customerMap[receipt.customer_id] && (
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Customer</span>
+                      <span className="font-medium">{customerMap[receipt.customer_id].name}</span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="border-t border-dashed border-slate-300 my-3" />
+
+                {/* line item */}
+                <div className="mb-3">
+                  <p className="font-bold text-slate-800 mb-1.5">{receipt.product_name || "Item"}</p>
+                  <div className="flex justify-between text-xs text-slate-600">
+                    <span>{receipt.quantity} × {receipt.unit_price.toLocaleString()} {currency}</span>
+                    <span className="font-semibold text-slate-800">{receipt.total_amount.toLocaleString()} {currency}</span>
+                  </div>
+                </div>
+
+                {receipt.notes && (
+                  <p className="text-xs text-slate-400 italic mb-3 text-center">{receipt.notes}</p>
+                )}
+
+                <div className="border-t border-slate-300 my-3" />
+
+                {/* totals */}
+                <div className="flex justify-between font-bold text-base text-slate-900 mb-1.5">
+                  <span>TOTAL</span>
+                  <span>{receipt.total_amount.toLocaleString()} {currency}</span>
+                </div>
+                {receipt.profit != null && (
+                  <div className="flex justify-between text-xs text-green-600">
+                    <span>Profit</span>
+                    <span>{Number(receipt.profit).toLocaleString()} {currency}</span>
+                  </div>
+                )}
+
+                <div className="border-t border-dashed border-slate-300 my-3" />
+
+                <p className="text-center text-xs text-slate-400">Thank you for your business!</p>
+                <p className="text-center text-xs text-slate-300 mt-0.5">Powered by Higoverse</p>
+              </div>
+
+              {/* action buttons */}
+              <div className="flex gap-2 px-4 py-3 border-t border-slate-100 bg-slate-50">
+                <button
+                  onClick={() => { setReceipt(null); openCreateModal(); }}
+                  className="flex-1 px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-600 text-xs font-medium hover:bg-slate-100 transition"
+                >
+                  New Sale
+                </button>
+                <button
+                  onClick={() => setReceipt(null)}
+                  className="flex-1 px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-600 text-xs font-medium hover:bg-slate-100 transition"
+                >
+                  Close
+                </button>
+                <button
+                  onClick={() => window.print()}
+                  className="flex-1 px-3 py-2 rounded-lg bg-orange-500 text-white text-xs font-semibold hover:bg-orange-600 transition flex items-center justify-center gap-1.5"
+                >
+                  <Printer size={13} /> Print
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
       </div>
     </div>
   );
