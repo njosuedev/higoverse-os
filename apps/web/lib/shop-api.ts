@@ -1,14 +1,15 @@
 import { getToken, handleUnauthorized } from "@/lib/auth";
 
-const SHOP_API = process.env.NEXT_PUBLIC_SHOP_API_URL || "https://higoverse-shop.vercel.app";
+// Shops live in auth-service's shop_db — call auth-service directly
+const AUTH_API = process.env.NEXT_PUBLIC_AUTH_API || "http://localhost:8000";
 
-async function shopRequest(endpoint: string, options: RequestInit = {}) {
+async function authShopRequest(endpoint: string, options: RequestInit = {}) {
   const token = getToken();
   const headers = new Headers(options.headers);
   headers.set("Content-Type", "application/json");
   if (token) headers.set("Authorization", `Bearer ${token}`);
 
-  const res = await fetch(`${SHOP_API}${endpoint}`, { ...options, headers });
+  const res = await fetch(`${AUTH_API}${endpoint}`, { ...options, headers });
 
   if (res.status === 401) {
     handleUnauthorized();
@@ -51,31 +52,45 @@ export interface ShopUpdatePayload {
   description?: string;
 }
 
-/** Paginated, searchable list of all active shops */
+/** Paginated list of active shops — auth-service is the source of truth */
 export async function listShops(params?: {
   search?: string;
   active_only?: boolean;
   page?: number;
   limit?: number;
 }): Promise<ShopListResult> {
-  const qs = new URLSearchParams();
-  if (params?.search)                      qs.set("search",      params.search);
-  if (params?.active_only !== undefined)   qs.set("active_only", String(params.active_only));
-  if (params?.page)                        qs.set("page",        String(params.page));
-  if (params?.limit)                       qs.set("limit",       String(params.limit));
-  const res = await shopRequest(`/shops?${qs.toString()}`);
-  return res?.data ?? { total: 0, page: 1, limit: 20, pages: 0, items: [] };
+  const res = await authShopRequest("/api/v1/shops");
+  let items: Shop[] = Array.isArray(res?.data) ? res.data : [];
+
+  // Client-side search (auth-service returns all active shops in one call)
+  if (params?.search) {
+    const q = params.search.toLowerCase();
+    items = items.filter(
+      (s) =>
+        s.name?.toLowerCase().includes(q) ||
+        s.email?.toLowerCase().includes(q) ||
+        s.address?.toLowerCase().includes(q)
+    );
+  }
+
+  return {
+    total: items.length,
+    page: 1,
+    limit: Math.max(items.length, 100),
+    pages: 1,
+    items,
+  };
 }
 
 /** Current user's shop profile */
 export async function getMyShop(): Promise<Shop | null> {
-  const res = await shopRequest("/shops/me");
+  const res = await authShopRequest("/api/v1/shop");
   return res?.data ?? null;
 }
 
 /** Update the current user's shop */
 export async function updateMyShop(payload: ShopUpdatePayload): Promise<Shop | null> {
-  const res = await shopRequest("/shops/me", {
+  const res = await authShopRequest("/api/v1/shop", {
     method: "PUT",
     body: JSON.stringify(payload),
   });
@@ -84,21 +99,7 @@ export async function updateMyShop(payload: ShopUpdatePayload): Promise<Shop | n
 
 /** Get any shop by ID */
 export async function getShopById(shopId: string): Promise<Shop | null> {
-  const res = await shopRequest(`/shops/${shopId}`);
-  return res?.data ?? null;
-}
-
-/** Admin: toggle a shop's active status */
-export async function toggleShopStatus(shopId: string): Promise<Shop | null> {
-  const res = await shopRequest(`/shops/${shopId}/toggle`, { method: "POST" });
-  return res?.data ?? null;
-}
-
-/** Admin: patch any shop field */
-export async function adminUpdateShop(shopId: string, payload: ShopUpdatePayload & { is_active?: boolean }): Promise<Shop | null> {
-  const res = await shopRequest(`/shops/${shopId}`, {
-    method: "PATCH",
-    body: JSON.stringify(payload),
-  });
-  return res?.data ?? null;
+  const res = await authShopRequest(`/api/v1/shops`);
+  const items: Shop[] = Array.isArray(res?.data) ? res.data : [];
+  return items.find((s) => s.id === shopId) ?? null;
 }

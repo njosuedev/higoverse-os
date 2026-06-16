@@ -68,9 +68,8 @@ export default function SettingsPage() {
     try {
       setSaving(true); setError(""); setSaved(false);
 
-      // Write shop identity → auth_db.shops
-      // Write operational settings → settings-service
-      await Promise.all([
+      // Run both in parallel; settings-service is authoritative — shop update is best-effort
+      const [shopResult, settingsResult] = await Promise.allSettled([
         updateMyShop({
           name:        form.shop_name,
           phone:       form.phone,
@@ -90,6 +89,17 @@ export default function SettingsPage() {
           }),
         }),
       ]);
+
+      if (settingsResult.status === "rejected") {
+        console.error("Settings save failed:", settingsResult.reason);
+        setError(t("settings.error"));
+        return;
+      }
+
+      if (shopResult.status === "rejected") {
+        // Settings saved but shop profile update failed — partial success
+        console.warn("Shop profile update failed (settings still saved):", shopResult.reason);
+      }
 
       setSaved(true);
       if (form.language) setLang(form.language as Lang);

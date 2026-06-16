@@ -34,6 +34,7 @@ export default function ReportsPage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const [dateFrom, setDateFrom] = useState(() => {
     const d = new Date(); d.setDate(d.getDate() - 29); return toDateStr(d);
@@ -47,22 +48,24 @@ export default function ReportsPage() {
   async function loadData(soft = false) {
     try {
       if (!soft) setLoading(true); else setRefreshing(true);
+      setError(null);
       const dateParams = new URLSearchParams({
         ...(dateFrom && { from_date: dateFrom }),
         ...(dateTo && { to_date: dateTo }),
       });
-      const [sumRes, dayRes, topRes, alertRes] = await Promise.all([
+      const [sumRes, dayRes, topRes, alertRes] = await Promise.allSettled([
         reportRequest(`/reports/summary?${dateParams}`),
         reportRequest("/reports/daily?days=30"),
         reportRequest(`/reports/top-items?limit=10&${dateParams}`),
         reportRequest("/reports/stock-alerts"),
       ]);
-      setSummary(sumRes?.data || null);
-      setDaily(dayRes?.data || []);
-      setTopItems(topRes?.data || []);
-      setStockAlerts(alertRes?.data || []);
+      if (sumRes.status === "fulfilled") setSummary(sumRes.value?.data || null);
+      else { console.error("Summary failed:", sumRes.reason); setError(String(sumRes.reason?.message || "Could not load summary. Check your connection and try again.")); }
+      setDaily(dayRes.status === "fulfilled" ? dayRes.value?.data || [] : []);
+      setTopItems(topRes.status === "fulfilled" ? topRes.value?.data || [] : []);
+      setStockAlerts(alertRes.status === "fulfilled" ? alertRes.value?.data || [] : []);
       setLastUpdated(new Date());
-    } catch (err) { console.error(err); }
+    } catch (err) { console.error(err); setError("Failed to load reports."); }
     finally { setLoading(false); setRefreshing(false); }
   }
 
@@ -121,6 +124,20 @@ export default function ReportsPage() {
             accentClass="focus:ring-slate-400/40 focus:border-slate-400"
           />
         </div>
+
+        {/* ERROR BANNER */}
+        {error && (
+          <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-xl px-4 py-3 mb-4 text-sm text-red-700">
+            <AlertCircle size={15} className="shrink-0 mt-0.5" />
+            <div>
+              <p className="font-semibold">Could not load report data</p>
+              <p className="text-xs mt-0.5 text-red-600 font-mono">{error}</p>
+              <button onClick={() => loadData(true)} className="mt-2 text-xs font-semibold text-red-700 underline hover:no-underline">
+                Retry
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* SUMMARY CARDS */}
         {summary && (
