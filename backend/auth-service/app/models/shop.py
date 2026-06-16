@@ -7,6 +7,7 @@ from datetime import datetime
 
 class Shop(Base):
     __tablename__ = "shops"
+    
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
 
