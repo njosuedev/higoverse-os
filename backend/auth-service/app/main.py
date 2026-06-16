@@ -1,6 +1,7 @@
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from sqlalchemy import text
 
 from app.api.v1 import auth
 from app.api.v1 import shop
@@ -40,12 +41,20 @@ app.include_router(
 )
 
 
+_MIGRATIONS = [
+    "ALTER TABLE shops ADD COLUMN IF NOT EXISTS last_seen_at TIMESTAMP",
+]
+
 @app.on_event("startup")
 def on_startup():
-    if shop_engine:
-        Shop.__table__.create(bind=shop_engine, checkfirst=True)
-    if auth_engine:
-        Shop.__table__.create(bind=auth_engine, checkfirst=True)
+    for engine in [auth_engine, shop_engine]:
+        if not engine:
+            continue
+        Shop.__table__.create(bind=engine, checkfirst=True)
+        with engine.connect() as conn:
+            for sql in _MIGRATIONS:
+                conn.execute(text(sql))
+            conn.commit()
 
 
 @app.get("/")
