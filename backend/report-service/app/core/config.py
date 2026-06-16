@@ -3,7 +3,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    SECRET_KEY:             str = os.getenv("SECRET_KEY", "")
+    SECRET_KEY:             str = os.getenv("SECRET_KEY") or os.getenv("AUTH_SERVICE_SECRET", "")
     AUTH_SERVICE_ALGORITHM: str = "HS256"
 
     SALE_SERVICE_URL:     str = "https://higoverse-sales.vercel.app"

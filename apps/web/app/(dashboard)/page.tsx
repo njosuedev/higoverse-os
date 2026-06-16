@@ -149,11 +149,6 @@ export default function DashboardPage() {
     refreshRef.current   = setInterval(() => { loadAll(true); setCountdown(REFRESH_INTERVAL); }, REFRESH_INTERVAL * 1000);
   };
 
-  // Auth redirect — no setState, just a side-effect
-  useEffect(() => {
-    if (!isAuthenticated()) window.location.replace("/login");
-  }, []);
-
   // Intervals + initial data load — gated on user presence
   useEffect(() => {
     if (!user) return;

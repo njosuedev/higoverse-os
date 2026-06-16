@@ -1,14 +1,10 @@
-// app/components/AuthGuard.tsx
 "use client";
 
 import { useEffect, useState } from "react";
-import { usePathname } from "next/navigation";
-import { isAuthenticated, logout } from "@/lib/auth";
+import { usePathname, useRouter } from "next/navigation";
+import { isAuthenticated } from "@/lib/auth";
 
-const PUBLIC_ROUTES = [
-  "/login",
-  "/register",
-];
+const PUBLIC_ROUTES = ["/login", "/register"];
 
 export default function AuthGuard({
   children,
@@ -16,6 +12,7 @@ export default function AuthGuard({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
@@ -25,14 +22,20 @@ export default function AuthGuard({
       return;
     }
 
-    // Protect private pages
-    if (!isAuthenticated()) {
-      logout();
+    const authenticated = isAuthenticated();
+
+    console.log("AuthGuard", {
+      pathname,
+      authenticated,
+    });
+
+    if (!authenticated) {
+      router.replace("/login");
       return;
     }
 
     setReady(true);
-  }, [pathname]);
+  }, [pathname, router]);
 
   if (!ready) {
     return null;
