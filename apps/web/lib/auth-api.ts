@@ -1,6 +1,6 @@
 import { getToken, handleUnauthorized } from "@/lib/auth";
 
-const AUTH_API = process.env.NEXT_PUBLIC_AUTH_API || "http://localhost:8000";
+const AUTH_API = process.env.NEXT_PUBLIC_AUTH_API || "https://higoverse-auth.vercel.app";
 
 export async function authRequest(endpoint: string, options: RequestInit = {}) {
   const token = getToken();
