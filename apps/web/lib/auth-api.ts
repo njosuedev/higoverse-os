@@ -53,3 +53,10 @@ export async function listShops(): Promise<ShopProfile[]> {
   const res = await authRequest("/api/v1/shops");
   return res?.data ?? [];
 }
+
+export async function changePassword(currentPassword: string, newPassword: string): Promise<void> {
+  await authRequest("/api/v1/auth/change-password", {
+    method: "PUT",
+    body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+  });
+}
