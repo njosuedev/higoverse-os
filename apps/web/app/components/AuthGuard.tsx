@@ -3,7 +3,7 @@
 
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
-import { isAuthenticated } from "@/lib/auth";
+import { isAuthenticated, logout } from "@/lib/auth";
 
 const PUBLIC_ROUTES = [
   "/login",
@@ -27,7 +27,7 @@ export default function AuthGuard({
 
     // Protect private pages
     if (!isAuthenticated()) {
-      window.location.replace("/login");
+      logout();
       return;
     }
 

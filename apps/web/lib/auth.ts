@@ -44,7 +44,11 @@ function decodeJwtPayload(token: string): Record<string, unknown> | null {
   try {
     const base64Url = token.split(".")[1];
     if (!base64Url) return null;
-    const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
+    // Convert base64url → base64 and pad to multiple of 4
+    const base64 = base64Url
+      .replace(/-/g, "+")
+      .replace(/_/g, "/")
+      .padEnd(base64Url.length + (4 - (base64Url.length % 4)) % 4, "=");
     const json = decodeURIComponent(
       atob(base64)
         .split("")
@@ -59,18 +63,14 @@ function decodeJwtPayload(token: string): Record<string, unknown> | null {
 
 export function isTokenExpired(token: string): boolean {
   const payload = decodeJwtPayload(token);
-  if (!payload || typeof payload.exp !== "number") return true;
-  // exp is in seconds; add 10s grace period for clock skew
-  return Date.now() / 1000 > payload.exp - 10;
+  if (!payload || typeof payload.exp !== "number") return false; // if we can't decode, don't force logout
+  return Date.now() / 1000 > payload.exp;
 }
 
 export function isAuthenticated(): boolean {
   const token = getToken();
   if (!token || !getUser()) return false;
-  if (isTokenExpired(token)) {
-    logout();
-    return false;
-  }
+  if (isTokenExpired(token)) return false; // let the caller / AuthGuard handle the redirect
   return true;
 }
 
