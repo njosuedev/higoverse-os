@@ -1,5 +1,5 @@
 import hashlib
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from jose import jwt
 from passlib.context import CryptContext
@@ -47,7 +47,7 @@ def create_access_token(data: dict) -> str:
     payload = data.copy()
 
     payload["exp"] = (
-        datetime.utcnow()
+        datetime.now(timezone.utc)
         + timedelta(
             minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES
         )

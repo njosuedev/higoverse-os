@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
@@ -75,6 +76,9 @@ def create_supplier(
             }
         }
 
+    except StarletteHTTPException:
+        db.rollback()
+        raise
     except Exception as e:
         db.rollback()
 
@@ -187,6 +191,9 @@ def update_supplier(
             }
         }
 
+    except StarletteHTTPException:
+        db.rollback()
+        raise
     except Exception as e:
         db.rollback()
 

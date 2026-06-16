@@ -3,11 +3,15 @@ from sqlalchemy.sql import func
 from app.db.base import Base
 from sqlalchemy.dialects.postgresql import UUID
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
+
+
+def _utcnow():
+    return datetime.now(timezone.utc)
+
 
 class Shop(Base):
     __tablename__ = "shops"
-    
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
 
@@ -19,6 +23,6 @@ class Shop(Base):
 
     is_active    = Column(Boolean, default=True)
 
-    created_at   = Column(DateTime, default=datetime.utcnow)
-    updated_at   = Column(DateTime, onupdate=func.now())
-    last_seen_at = Column(DateTime, nullable=True)
+    created_at   = Column(DateTime(timezone=True), default=_utcnow)
+    updated_at   = Column(DateTime(timezone=True), onupdate=func.now())
+    last_seen_at = Column(DateTime(timezone=True), nullable=True)

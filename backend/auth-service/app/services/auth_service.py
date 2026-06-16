@@ -103,6 +103,7 @@ def login_user(db: Session, email: str, password: str):
         "user": {
             "id": str(user.id),
             "email": user.email,
-            "shop_id": str(user.shop_id)
+            "shop_id": str(user.shop_id),
+            "role": user.role,
         }
     }

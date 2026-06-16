@@ -3,7 +3,11 @@ from sqlalchemy.orm import relationship
 from app.db.base import Base
 from sqlalchemy.dialects.postgresql import UUID
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
+
+
+def _utcnow():
+    return datetime.now(timezone.utc)
 
 
 class User(Base):
@@ -27,7 +31,7 @@ class User(Base):
     # SIMPLE FALLBACK ROLE (used in JWT + fast checks)
     role = Column(String(50), default="owner")
 
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=_utcnow)
 
     # relationships
     shop = relationship("Shop")

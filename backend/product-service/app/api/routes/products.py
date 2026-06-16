@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Header
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -198,6 +199,9 @@ def create_product(
             }
         }
 
+    except StarletteHTTPException:
+        db.rollback()
+        raise
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
@@ -286,6 +290,9 @@ def update_product(
             }
         }
 
+    except StarletteHTTPException:
+        db.rollback()
+        raise
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
@@ -311,6 +318,9 @@ def delete_product(
             "message": "Product deleted successfully"
         }
 
+    except StarletteHTTPException:
+        db.rollback()
+        raise
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))

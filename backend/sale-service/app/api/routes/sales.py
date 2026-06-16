@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException, Header
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -126,7 +126,7 @@ def get_daily(
     user: dict = Depends(get_current_user),
     days: int = 14,
 ):
-    since = datetime.utcnow() - timedelta(days=days)
+    since = datetime.now(timezone.utc) - timedelta(days=days)
     q = db.query(Sale).filter(
         Sale.shop_id == user["shop_id"],
         Sale.created_at >= since,

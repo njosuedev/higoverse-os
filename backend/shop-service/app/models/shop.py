@@ -1,11 +1,15 @@
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import Boolean, Column, DateTime, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
 
 from app.db.database import Base
+
+
+def _utcnow():
+    return datetime.now(timezone.utc)
 
 
 class Shop(Base):
@@ -23,5 +27,5 @@ class Shop(Base):
     address     = Column(String(500))
     description = Column(Text)
     is_active   = Column(Boolean, default=True)
-    created_at  = Column(DateTime, default=datetime.utcnow)
-    updated_at  = Column(DateTime, onupdate=func.now())
+    created_at  = Column(DateTime(timezone=True), default=_utcnow)
+    updated_at  = Column(DateTime(timezone=True), onupdate=func.now())
