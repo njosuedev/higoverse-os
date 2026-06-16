@@ -17,7 +17,8 @@ class Shop(Base):
     address     = Column(String(500))
     description = Column(Text)
 
-    is_active  = Column(Boolean, default=True)
+    is_active    = Column(Boolean, default=True)
 
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, onupdate=func.now())
+    created_at   = Column(DateTime, default=datetime.utcnow)
+    updated_at   = Column(DateTime, onupdate=func.now())
+    last_seen_at = Column(DateTime, nullable=True)

@@ -13,15 +13,16 @@ router = APIRouter()
 
 def _fmt(s: Shop) -> dict:
     return {
-        "id":          str(s.id),
-        "name":        s.name,
-        "email":       s.email,
-        "phone":       s.phone,
-        "address":     s.address,
-        "description": s.description,
-        "is_active":   s.is_active,
-        "created_at":  s.created_at.isoformat() if s.created_at else None,
-        "updated_at":  s.updated_at.isoformat() if s.updated_at else None,
+        "id":           str(s.id),
+        "name":         s.name,
+        "email":        s.email,
+        "phone":        s.phone,
+        "address":      s.address,
+        "description":  s.description,
+        "is_active":    s.is_active,
+        "created_at":   s.created_at.isoformat() if s.created_at else None,
+        "updated_at":   s.updated_at.isoformat() if s.updated_at else None,
+        "last_seen_at": s.last_seen_at.isoformat() if s.last_seen_at else None,
     }
 
 
@@ -65,6 +66,19 @@ def update_my_shop(
     db.commit()
     db.refresh(shop)
     return {"success": True, "message": "Shop updated", "data": _fmt(shop)}
+
+
+# ── Heartbeat — keeps last_seen_at fresh while user is logged in ──
+@router.patch("/shop/heartbeat")
+def shop_heartbeat(
+    db: Session = Depends(get_shop_db),
+    current_user=Depends(get_current_user),
+):
+    shop = db.query(Shop).filter(Shop.id == current_user.shop_id).first()
+    if shop:
+        shop.last_seen_at = datetime.now(timezone.utc)
+        db.commit()
+    return {"success": True}
 
 
 # ── All shops (directory) ─────────────────────────────────

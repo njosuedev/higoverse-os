@@ -6,7 +6,7 @@ import { getUser, isAuthenticated } from "@/lib/auth";
 import { itemRequest } from "@/lib/product-api";
 import { partnerRequest } from "@/lib/supplier-api";
 import { saleRequest } from "@/lib/sale-api";
-import { listShops, type Shop as ShopInfo } from "@/lib/shop-api";
+import { listShops, sendHeartbeat, type Shop as ShopInfo } from "@/lib/shop-api";
 import DashboardHeader from "../components/dashboard/DashboardHeader";
 import LoadingSkeleton from "@/app/components/dashboard/LoadingSkeleton";
 
@@ -55,6 +55,19 @@ function timeAgo(d: Date) {
   return `${Math.floor(secs / 3600)}h ago`;
 }
 
+// Returns presence info for a shop card
+function shopPresence(lastSeenAt: string | null, now: Date) {
+  if (!lastSeenAt) return { online: false, label: "Never seen", color: "bg-slate-300" };
+  const d = new Date(lastSeenAt);
+  const secs = Math.floor((now.getTime() - d.getTime()) / 1000);
+  if (secs < 300)  return { online: true,  label: "Online now",                    color: "bg-green-500"  };
+  if (secs < 3600) return { online: false, label: `${Math.floor(secs / 60)}m ago`, color: "bg-amber-400"  };
+  if (secs < 86400) return { online: false, label: `${Math.floor(secs / 3600)}h ago`, color: "bg-orange-400" };
+  const days = Math.floor(secs / 86400);
+  if (days < 7)  return { online: false, label: `${days}d ago`,                   color: "bg-slate-300"  };
+  return { online: false, label: d.toLocaleDateString([], { month: "short", day: "numeric" }), color: "bg-slate-300" };
+}
+
 const REFRESH_INTERVAL = 30;
 
 const SERVICES = [
@@ -89,9 +102,10 @@ export default function DashboardPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [countdown, setCountdown] = useState(REFRESH_INTERVAL);
   const [now, setNow] = useState(new Date());
-  const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const refreshRef   = useRef<ReturnType<typeof setInterval> | null>(null);
-  const clockRef     = useRef<ReturnType<typeof setInterval> | null>(null);
+  const countdownRef  = useRef<ReturnType<typeof setInterval> | null>(null);
+  const refreshRef    = useRef<ReturnType<typeof setInterval> | null>(null);
+  const clockRef      = useRef<ReturnType<typeof setInterval> | null>(null);
+  const heartbeatRef  = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Declared before effects so the linter sees them at their call sites
   const loadAll = async (soft = false) => {
@@ -150,8 +164,12 @@ export default function DashboardPage() {
     countdownRef.current = setInterval(() => setCountdown((c) => (c <= 1 ? REFRESH_INTERVAL : c - 1)), 1000);
     refreshRef.current   = setInterval(() => { loadAll(true); setCountdown(REFRESH_INTERVAL); }, REFRESH_INTERVAL * 1000);
 
+    // Send heartbeat immediately on mount, then every 2 minutes
+    sendHeartbeat();
+    heartbeatRef.current = setInterval(() => sendHeartbeat(), 2 * 60 * 1000);
+
     return () => {
-      [clockRef, countdownRef, refreshRef].forEach((r) => { if (r.current) clearInterval(r.current); });
+      [clockRef, countdownRef, refreshRef, heartbeatRef].forEach((r) => { if (r.current) clearInterval(r.current); });
     };
   }, [user?.shop_id]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -312,18 +330,30 @@ export default function DashboardPage() {
 
         {/* EXPLORE OTHER SHOPS */}
         <section className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm">
-          <div className="flex items-center justify-between mb-5">
-            <h2 className="font-semibold text-slate-900 flex items-center gap-2">
-              <Globe size={16} className="text-blue-500" />
-              Shops on Higoverse
-              {shops.length > 0 && (
-                <span className="text-xs bg-blue-100 text-blue-700 font-semibold px-2 py-0.5 rounded-full">
-                  {shops.length}
-                </span>
-              )}
-            </h2>
-            <span className="text-xs text-slate-400">Registered businesses on this platform</span>
-          </div>
+          {(() => {
+            const onlineCount = shops.filter((s) => shopPresence(s.last_seen_at, now).online).length;
+            return (
+              <div className="flex items-center justify-between mb-5">
+                <h2 className="font-semibold text-slate-900 flex items-center gap-2">
+                  <Globe size={16} className="text-blue-500" />
+                  Shops on Higoverse
+                  {shops.length > 0 && (
+                    <span className="text-xs bg-blue-100 text-blue-700 font-semibold px-2 py-0.5 rounded-full">
+                      {shops.length}
+                    </span>
+                  )}
+                </h2>
+                {onlineCount > 0 ? (
+                  <span className="flex items-center gap-1.5 text-xs font-semibold text-green-700 bg-green-50 border border-green-200 px-2.5 py-1 rounded-full">
+                    <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+                    {onlineCount} online now
+                  </span>
+                ) : (
+                  <span className="text-xs text-slate-400">Registered businesses on this platform</span>
+                )}
+              </div>
+            );
+          })()}
 
           {shops.length === 0 ? (
             <div className="text-slate-400 text-sm py-6 text-center">No shops found</div>
@@ -331,31 +361,71 @@ export default function DashboardPage() {
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {shops.map((shop) => {
                 const isMine = shop.id === user.shop_id;
+                const presence = shopPresence(shop.last_seen_at, now);
+                const initial = (shop.name || "?")[0].toUpperCase();
                 return (
                   <div
                     key={shop.id}
-                    className={`relative rounded-2xl border p-4 transition-all ${isMine ? "border-blue-300 bg-blue-50 shadow-sm" : "border-slate-200 bg-slate-50 hover:border-slate-300 hover:shadow-sm"}`}
+                    className={`relative rounded-2xl border p-4 transition-all ${
+                      isMine
+                        ? "border-blue-300 bg-blue-50 shadow-sm"
+                        : presence.online
+                          ? "border-green-200 bg-white hover:shadow-md"
+                          : "border-slate-200 bg-slate-50 hover:border-slate-300 hover:shadow-sm"
+                    }`}
                   >
-                    {isMine && (
-                      <span className="absolute top-3 right-3 text-[10px] font-bold bg-blue-600 text-white px-2 py-0.5 rounded-full">
-                        Your Shop
-                      </span>
-                    )}
+                    {/* Top-right badge */}
+                    <div className="absolute top-3 right-3 flex items-center gap-1.5">
+                      {isMine && (
+                        <span className="text-[10px] font-bold bg-blue-600 text-white px-2 py-0.5 rounded-full">
+                          Your Shop
+                        </span>
+                      )}
+                    </div>
+
                     <div className="flex items-start gap-3">
-                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${isMine ? "bg-blue-600 text-white" : "bg-white border border-slate-200 text-slate-500"}`}>
-                        <Store size={18} />
+                      {/* Avatar with presence ring */}
+                      <div className="relative shrink-0">
+                        <div className={`w-11 h-11 rounded-xl flex items-center justify-center font-bold text-sm ${
+                          isMine ? "bg-blue-600 text-white" : "bg-white border border-slate-200 text-slate-700"
+                        }`}>
+                          {initial}
+                        </div>
+                        {/* Presence dot on avatar */}
+                        <span className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white ${presence.color} ${presence.online ? "animate-pulse" : ""}`} />
                       </div>
-                      <div className="min-w-0">
-                        <p className="font-semibold text-slate-800 truncate">{shop.name}</p>
-                        <p className="text-xs text-slate-400 truncate">{shop.email}</p>
+
+                      <div className="min-w-0 flex-1">
+                        <p className="font-semibold text-slate-800 truncate pr-2">{shop.name}</p>
+                        {shop.email && <p className="text-xs text-slate-400 truncate">{shop.email}</p>}
                         {shop.phone && <p className="text-xs text-slate-400">{shop.phone}</p>}
-                        <div className="flex items-center gap-2 mt-2">
-                          <span className={`w-1.5 h-1.5 rounded-full ${shop.is_active ? "bg-green-500" : "bg-slate-300"}`} />
-                          <span className="text-xs text-slate-400">
+
+                        {/* Presence + account status row */}
+                        <div className="flex items-center justify-between mt-2.5 gap-2">
+                          {/* Online / last-seen pill */}
+                          <span className={`inline-flex items-center gap-1.5 text-[11px] font-semibold px-2 py-0.5 rounded-full ${
+                            presence.online
+                              ? "bg-green-100 text-green-700"
+                              : "bg-slate-100 text-slate-500"
+                          }`}>
+                            <span className={`w-1.5 h-1.5 rounded-full ${presence.color} ${presence.online ? "animate-pulse" : ""}`} />
+                            {presence.label}
+                          </span>
+
+                          {/* Account active/inactive */}
+                          <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${
+                            shop.is_active ? "bg-emerald-50 text-emerald-600" : "bg-red-50 text-red-500"
+                          }`}>
                             {shop.is_active ? "Active" : "Inactive"}
-                            {shop.created_at && ` · Joined ${new Date(shop.created_at).toLocaleDateString([], { month: "short", year: "numeric" })}`}
                           </span>
                         </div>
+
+                        {/* Joined date */}
+                        {shop.created_at && (
+                          <p className="text-[10px] text-slate-300 mt-1.5">
+                            Joined {new Date(shop.created_at).toLocaleDateString([], { month: "short", year: "numeric" })}
+                          </p>
+                        )}
                       </div>
                     </div>
                   </div>

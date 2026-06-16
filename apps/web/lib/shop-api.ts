@@ -35,6 +35,7 @@ export interface Shop {
   is_active: boolean;
   created_at: string | null;
   updated_at: string | null;
+  last_seen_at: string | null;
 }
 
 export interface ShopListResult {
@@ -95,6 +96,15 @@ export async function updateMyShop(payload: ShopUpdatePayload): Promise<Shop | n
     body: JSON.stringify(payload),
   });
   return res?.data ?? null;
+}
+
+/** Ping the server to mark this shop as recently active (call every ~2 min while logged in) */
+export async function sendHeartbeat(): Promise<void> {
+  try {
+    await authShopRequest("/api/v1/shop/heartbeat", { method: "PATCH" });
+  } catch {
+    // heartbeat failures are silent — don't disrupt the user
+  }
 }
 
 /** Get any shop by ID */
