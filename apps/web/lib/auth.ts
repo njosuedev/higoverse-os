@@ -16,6 +16,11 @@ export function setAuth(data: {
 
   localStorage.setItem(TOKEN_KEY, data.access_token);
   localStorage.setItem(USER_KEY, JSON.stringify(data.user));
+
+  console.log("Auth saved:", {
+    token: data.access_token,
+    user: data.user,
+  });
 }
 
 export function getToken(): string | null {
@@ -33,44 +38,83 @@ export function getUser(): User | null {
 
   try {
     return JSON.parse(stored);
-  } catch {
+  } catch (error) {
+    console.error("Failed to parse user:", error);
     localStorage.removeItem(USER_KEY);
     return null;
   }
 }
 
-// Decode JWT payload (no signature verification — only for expiry UX check)
 function decodeJwtPayload(token: string): Record<string, unknown> | null {
   try {
-    const base64Url = token.split(".")[1];
-    if (!base64Url) return null;
-    // Convert base64url → base64 and pad to multiple of 4
+    const parts = token.split(".");
+
+    if (parts.length !== 3) return null;
+
+    const base64Url = parts[1];
+
     const base64 = base64Url
       .replace(/-/g, "+")
       .replace(/_/g, "/")
-      .padEnd(base64Url.length + (4 - (base64Url.length % 4)) % 4, "=");
-    const json = decodeURIComponent(
-      atob(base64)
-        .split("")
-        .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
-        .join("")
-    );
-    return JSON.parse(json);
-  } catch {
+      .padEnd(base64Url.length + ((4 - (base64Url.length % 4)) % 4), "=");
+
+    return JSON.parse(atob(base64));
+  } catch (error) {
+    console.error("JWT decode failed:", error);
     return null;
   }
 }
 
 export function isTokenExpired(token: string): boolean {
   const payload = decodeJwtPayload(token);
-  if (!payload || typeof payload.exp !== "number") return false; // if we can't decode, don't force logout
-  return Date.now() / 1000 > payload.exp;
+
+  if (!payload) {
+    console.warn("Could not decode token");
+    return false;
+  }
+
+  const exp = payload.exp;
+
+  if (typeof exp !== "number") {
+    console.warn("Token has no exp field");
+    return false;
+  }
+
+  const expired = Date.now() / 1000 > exp;
+
+  console.log("Token expiry:", {
+    exp,
+    now: Date.now() / 1000,
+    expired,
+  });
+
+  return expired;
 }
 
 export function isAuthenticated(): boolean {
   const token = getToken();
-  if (!token || !getUser()) return false;
-  if (isTokenExpired(token)) return false; // let the caller / AuthGuard handle the redirect
+  const user = getUser();
+
+  console.log("Auth Check", {
+    tokenExists: !!token,
+    user,
+  });
+
+  if (!token) {
+    console.warn("No token found");
+    return false;
+  }
+
+  if (!user) {
+    console.warn("No user found");
+    return false;
+  }
+
+  if (isTokenExpired(token)) {
+    console.warn("Token expired");
+    return false;
+  }
+
   return true;
 }
 
@@ -79,14 +123,18 @@ export function getAuthHeaders(): Record<string, string> {
 
   return {
     "Content-Type": "application/json",
-    ...(token && {
-      Authorization: `Bearer ${token}`,
-    }),
+    ...(token
+      ? {
+          Authorization: `Bearer ${token}`,
+        }
+      : {}),
   };
 }
 
 export function logout() {
   if (typeof window === "undefined") return;
+
+  console.log("Logging out...");
 
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(USER_KEY);
@@ -95,7 +143,6 @@ export function logout() {
   window.location.replace("/login");
 }
 
-// Call this in API clients when backend returns 401
 export function handleUnauthorized() {
   logout();
 }
