@@ -389,7 +389,7 @@ export default function DashboardPage() {
 
                       <div className="min-w-0 flex-1">
                         <p className="font-semibold text-slate-800 truncate pr-2">{shop.name}</p>
-                        {shop.email && <p className="text-xs text-slate-400 truncate">{shop.email}</p>}
+                        {/* {shop.email && <p className="text-xs text-slate-400 truncate">{shop.email}</p>} */}
                         {shop.phone && <p className="text-xs text-slate-400">{shop.phone}</p>}
 
                         {/* Presence + account status row */}
@@ -404,12 +404,12 @@ export default function DashboardPage() {
                             {presence.label}
                           </span>
 
-                          {/* Account active/inactive */}
+                          {/* Account active/inactive
                           <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${
                             shop.is_active ? "bg-emerald-50 text-emerald-600" : "bg-red-50 text-red-500"
                           }`}>
                             {shop.is_active ? "Active" : "Inactive"}
-                          </span>
+                          </span> */}
                         </div>
 
                         {/* Joined date */}
