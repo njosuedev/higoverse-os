@@ -17,7 +17,7 @@ def require_admin(current_user=Depends(get_current_user)):
     return current_user
 
 
-def _fmt_shop(s: Shop) -> dict:
+def _fmt_shop(s: Shop, owner_email: str | None = None, user_count: int = 0) -> dict:
     return {
         "id":           str(s.id),
         "name":         s.name,
@@ -26,6 +26,8 @@ def _fmt_shop(s: Shop) -> dict:
         "address":      s.address,
         "description":  s.description,
         "is_active":    s.is_active,
+        "owner_email":  owner_email,
+        "user_count":   user_count,
         "created_at":   s.created_at.isoformat() if s.created_at else None,
         "updated_at":   s.updated_at.isoformat() if s.updated_at else None,
         "last_seen_at": s.last_seen_at.isoformat() if s.last_seen_at else None,
@@ -77,14 +79,34 @@ def admin_stats(
     }
 
 
-# ── All shops (admin view, includes inactive) ─────────────
+# ── All shops (admin view, includes inactive + owner info) ──
 @router.get("/shops")
 def admin_list_shops(
     shop_db: Session = Depends(get_shop_db),
+    db: Session = Depends(get_db),
     _: User = Depends(require_admin),
 ):
     shops = shop_db.query(Shop).order_by(Shop.created_at.desc()).all()
-    return {"success": True, "data": [_fmt_shop(s) for s in shops]}
+
+    # Build per-shop user map from auth DB
+    users = db.query(User).all()
+    user_counts: dict[str, int] = {}
+    owner_emails: dict[str, str] = {}
+    for u in users:
+        sid = str(u.shop_id) if u.shop_id else None
+        if not sid:
+            continue
+        user_counts[sid] = user_counts.get(sid, 0) + 1
+        if u.role in ("owner", "admin") and sid not in owner_emails:
+            owner_emails[sid] = u.email
+
+    return {
+        "success": True,
+        "data": [
+            _fmt_shop(s, owner_emails.get(str(s.id)), user_counts.get(str(s.id), 0))
+            for s in shops
+        ],
+    }
 
 
 # ── Toggle shop active/inactive ───────────────────────────
@@ -92,6 +114,7 @@ def admin_list_shops(
 def admin_toggle_shop(
     shop_id: str,
     shop_db: Session = Depends(get_shop_db),
+    db: Session = Depends(get_db),
     _: User = Depends(require_admin),
 ):
     shop = shop_db.query(Shop).filter(Shop.id == shop_id).first()
@@ -101,7 +124,11 @@ def admin_toggle_shop(
     shop.updated_at = datetime.now(timezone.utc)
     shop_db.commit()
     shop_db.refresh(shop)
-    return {"success": True, "data": _fmt_shop(shop)}
+
+    users = db.query(User).filter(User.shop_id == shop.id).all()
+    user_count = len(users)
+    owner = next((u for u in users if u.role in ("owner", "admin")), None)
+    return {"success": True, "data": _fmt_shop(shop, owner.email if owner else None, user_count)}
 
 
 # ── Delete a shop ─────────────────────────────────────────
