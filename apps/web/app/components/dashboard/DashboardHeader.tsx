@@ -44,7 +44,7 @@ export default function DashboardHeader({
   const currentLang = LANGUAGES.find((l) => l.code === lang) || LANGUAGES[0];
 
   const menus = [
-    { key: "nav.dashboard",  href: "/",                   icon: LayoutDashboard },
+    { key: "nav.home",  href: "/",                   icon: LayoutDashboard },
     { key: "nav.items",      href: "/ItemManagement",      icon: Package },
     { key: "nav.partners",   href: "/PartnerManagement",   icon: Users },
     { key: "nav.purchases",  href: "/PurchaseManagement",  icon: Truck },
