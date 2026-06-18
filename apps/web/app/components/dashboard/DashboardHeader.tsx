@@ -5,11 +5,12 @@ import { usePathname } from "next/navigation";
 import { useState, useRef, useEffect } from "react";
 import LogoutButton from "@/app/components/LogoutButton";
 import { useLanguage } from "@/lib/language-context";
+import { useAuth } from "@/lib/auth-context";
 import { LANGUAGES } from "@/lib/i18n";
 import { settingsRequest } from "@/lib/settings-api";
 import {
   Activity, LayoutDashboard, Package, Truck, ShoppingCart,
-  BarChart3, Users, Settings, FileText, ChevronDown,
+  BarChart3, Users, Settings, FileText, ChevronDown, ShieldCheck,
 } from "lucide-react";
 
 interface DashboardHeaderProps {
@@ -23,6 +24,7 @@ export default function DashboardHeader({
 }: DashboardHeaderProps) {
   const pathname = usePathname();
   const { lang, setLang, t } = useLanguage();
+  const { user } = useAuth();
   const [langOpen, setLangOpen] = useState(false);
   const dropRef = useRef<HTMLDivElement>(null);
 
@@ -52,6 +54,7 @@ export default function DashboardHeader({
     { key: "nav.proforma",   href: "/proforma",            icon: FileText },
     { key: "nav.reports",    href: "/reports",             icon: BarChart3 },
     { key: "nav.settings",   href: "/Settings",            icon: Settings },
+    ...(user?.role === "admin" ? [{ key: "nav.admin", href: "/admin", icon: ShieldCheck }] : []),
   ];
 
   return (
@@ -138,12 +141,16 @@ export default function DashboardHeader({
               );
             }
 
+            const isAdmin = menu.href === "/admin";
             return (
               <Link
                 key={menu.href}
                 href={menu.href}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all
-                ${active ? "bg-green-600 text-white" : "text-slate-600 hover:bg-slate-100"}`}
+                ${active
+                  ? isAdmin ? "bg-red-600 text-white" : "bg-green-600 text-white"
+                  : isAdmin ? "text-red-600 hover:bg-red-50 border border-red-200" : "text-slate-600 hover:bg-slate-100"
+                }`}
               >
                 <Icon size={14} />
                 {t(menu.key)}

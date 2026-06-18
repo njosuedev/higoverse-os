@@ -19,6 +19,7 @@ const dict: Record<Lang, Record<string, string>> = {
     "nav.reports": "Reports",
     "nav.settings": "Settings",
     "nav.proforma": "Proforma",
+    "nav.admin": "Admin",
 
     // common
     "common.add": "Add",
@@ -251,6 +252,7 @@ const dict: Record<Lang, Record<string, string>> = {
     "nav.reports": "Raporo",
     "nav.settings": "Igenamiterere",
     "nav.proforma": "Inyandikorugero",
+    "nav.admin": "Ubutegetsi",
 
     "common.add": "Ongeraho",
     "common.edit": "Hindura",
@@ -474,6 +476,7 @@ const dict: Record<Lang, Record<string, string>> = {
     "nav.reports": "Rapports",
     "nav.settings": "Paramètres",
     "nav.proforma": "Proforma",
+    "nav.admin": "Admin",
 
     "common.add": "Ajouter",
     "common.edit": "Modifier",
@@ -697,6 +700,7 @@ const dict: Record<Lang, Record<string, string>> = {
     "nav.reports": "Ripoti",
     "nav.settings": "Mipangilio",
     "nav.proforma": "Ankara ya Awali",
+    "nav.admin": "Msimamizi",
 
     "common.add": "Ongeza",
     "common.edit": "Hariri",

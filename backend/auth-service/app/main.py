@@ -5,6 +5,7 @@ from sqlalchemy import text
 
 from app.api.v1 import auth
 from app.api.v1 import shop
+from app.api.v1 import admin
 from app.db.session import engine as auth_engine
 from app.db.shop_session import shop_engine
 from app.models.shop import Shop
@@ -38,6 +39,12 @@ app.include_router(
     shop.router,
     prefix="/api/v1",
     tags=["Shops"]
+)
+
+app.include_router(
+    admin.router,
+    prefix="/api/v1/admin",
+    tags=["Admin"]
 )
 
 
