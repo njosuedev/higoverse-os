@@ -11,7 +11,7 @@ const dict: Record<Lang, Record<string, string>> = {
   // ─── ENGLISH ─────────────────────────────────────────────
   en: {
     // nav
-    "nav.dashboard": "Dashboard",
+    "nav.home": "Home",
     "nav.items": "Items",
     "nav.partners": "Partners",
     "nav.purchases": "Purchases",
@@ -243,7 +243,7 @@ const dict: Record<Lang, Record<string, string>> = {
 
   // ─── KINYARWANDA ─────────────────────────────────────────
   rw: {
-    "nav.dashboard": "Imbonerahamwe",
+    "nav.home": "Ahabanza",
     "nav.items": "Ibicuruzwa",
     "nav.partners": "Inshuti",
     "nav.purchases": "Ibigurwa",
@@ -466,7 +466,7 @@ const dict: Record<Lang, Record<string, string>> = {
 
   // ─── FRANÇAIS ────────────────────────────────────────────
   fr: {
-    "nav.dashboard": "Tableau de bord",
+    "nav.home": "Maison",
     "nav.items": "Articles",
     "nav.partners": "Partenaires",
     "nav.purchases": "Achats",
@@ -689,7 +689,7 @@ const dict: Record<Lang, Record<string, string>> = {
 
   // ─── KISWAHILI ───────────────────────────────────────────
   sw: {
-    "nav.dashboard": "Dashibodi",
+    "nav.home": "Nyumbani",
     "nav.items": "Bidhaa",
     "nav.partners": "Washirika",
     "nav.purchases": "Manunuzi",
