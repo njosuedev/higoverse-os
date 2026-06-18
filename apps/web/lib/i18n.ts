@@ -466,7 +466,7 @@ const dict: Record<Lang, Record<string, string>> = {
 
   // ─── FRANÇAIS ────────────────────────────────────────────
   fr: {
-    "nav.home": "Maison",
+    "nav.home": "Accueil",
     "nav.items": "Articles",
     "nav.partners": "Partenaires",
     "nav.purchases": "Achats",
