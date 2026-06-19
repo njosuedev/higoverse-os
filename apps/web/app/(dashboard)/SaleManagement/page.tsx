@@ -344,7 +344,7 @@ ${customerName ? `<div class="row"><span class="label">Customer</span><span styl
     <div className="min-h-screen bg-slate-50">
       <DashboardHeader />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
-        <div className="rounded-2xl bg-linear-to-r from-orange-500 to-amber-500 p-5 mb-6 animate-pulse">
+        <div className="rounded-2xl bg-linear-to-r from-green-600 to-emerald-600 p-5 mb-6 animate-pulse">
           <div className="flex justify-between"><div className="h-4 w-40 bg-white/20 rounded-lg" /><div className="h-8 w-28 bg-white/20 rounded-lg" /></div>
           <div className="h-9 bg-white/10 rounded-lg mt-4" />
         </div>
@@ -361,7 +361,7 @@ ${customerName ? `<div class="row"><span class="label">Customer</span><span styl
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
 
         {/* HEADER */}
-        <div className="bg-linear-to-r from-orange-500 to-amber-500 text-white rounded-2xl p-5 mb-6">
+        <div className="bg-linear-to-r from-green-600 to-emerald-600 text-white rounded-2xl p-5 mb-6">
           <div className="flex flex-wrap justify-between items-center gap-2">
             <div className="flex items-center gap-2.5">
               <ShoppingBag size={20} />
@@ -378,7 +378,7 @@ ${customerName ? `<div class="row"><span class="label">Customer</span><span styl
                 <RefreshCw size={14} className={refreshing ? "animate-spin" : ""} />
               </button>
               <button onClick={openCreateModal}
-                className="bg-white text-orange-600 px-3.5 py-1.5 rounded-lg flex items-center gap-1.5 text-sm font-semibold hover:bg-orange-50 transition">
+                className="bg-white text-orange-600 px-3.5 py-1.5 rounded-lg flex items-center gap-1.5 text-sm font-semibold hover:bg-green-50 transition">
                 <Plus size={15} /> {t("sales.add")}
               </button>
             </div>
@@ -390,7 +390,7 @@ ${customerName ? `<div class="row"><span class="label">Customer</span><span styl
               <input value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }}
                 placeholder={t("items.search")}
                 className="bg-transparent outline-none w-full text-sm placeholder:text-orange-100" />
-              {search && <button onClick={() => setSearch("")} className="text-orange-200 hover:text-white"><X size={13} /></button>}
+              {search && <button onClick={() => setSearch("")} className="text-green-200 hover:text-white"><X size={13} /></button>}
             </div>
             <div className="flex items-center bg-white/10 rounded-lg px-3 py-2 gap-2">
               <Filter size={15} className="shrink-0 text-orange-100" />
@@ -412,7 +412,7 @@ ${customerName ? `<div class="row"><span class="label">Customer</span><span styl
         </div>
 
         {hasDateFilter && (
-          <div className="flex items-center gap-2 mb-4 text-xs text-orange-700 bg-orange-50 border border-orange-200 rounded-lg px-3 py-2">
+          <div className="flex items-center gap-2 mb-4 text-xs text-green-700 bg-orange-50 border border-orange-200 rounded-lg px-3 py-2">
             <Calendar size={13} />
             <span>
               {t("sales.filter_date")}:
@@ -420,7 +420,7 @@ ${customerName ? `<div class="row"><span class="label">Customer</span><span styl
               {dateTo && <> → <span className="font-semibold">{dateTo}</span></>}
               {" "}· <span className="font-semibold">{salesTotal.toLocaleString()}</span> {t("sales.count").toLowerCase()}
             </span>
-            <button onClick={() => { setDateFrom(""); setDateTo(""); setPage(1); }} className="ml-auto text-orange-500 hover:text-orange-700">
+            <button onClick={() => { setDateFrom(""); setDateTo(""); setPage(1); }} className="ml-auto text-orange-500 hover:text-green-700">
               <X size={13} />
             </button>
           </div>
@@ -573,7 +573,7 @@ ${customerName ? `<div class="row"><span class="label">Customer</span><span styl
                   <div className="bg-slate-50 px-4 py-2.5 border-b border-slate-200 flex justify-between items-center">
                     <span className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Items</span>
                     <button onClick={addLine}
-                      className="flex items-center gap-1 text-xs font-semibold text-orange-600 hover:text-orange-700 bg-orange-50 hover:bg-orange-100 px-2.5 py-1 rounded-lg transition">
+                      className="flex items-center gap-1 text-xs font-semibold text-orange-600 hover:text-green-700 bg-orange-50 hover:bg-orange-100 px-2.5 py-1 rounded-lg transition">
                       <Plus size={12} /> Add Item
                     </button>
                   </div>

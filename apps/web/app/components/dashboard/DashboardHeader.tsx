@@ -46,15 +46,15 @@ export default function DashboardHeader({
   const currentLang = LANGUAGES.find((l) => l.code === lang) || LANGUAGES[0];
 
   const menus = [
-    { key: "nav.home",  href: "/",                   icon: LayoutDashboard },
-    { key: "nav.items",      href: "/ItemManagement",      icon: Package },
-    { key: "nav.partners",   href: "/PartnerManagement",   icon: Users },
-    { key: "nav.purchases",  href: "/PurchaseManagement",  icon: Truck },
-    { key: "nav.sales",      href: "/SaleManagement",      icon: ShoppingCart },
-    { key: "nav.proforma",   href: "/proforma",            icon: FileText },
-    { key: "nav.reports",    href: "/reports",             icon: BarChart3 },
-    { key: "nav.settings",   href: "/Settings",            icon: Settings },
-    ...(user?.role === "admin" ? [{ key: "nav.admin", href: "/admin", icon: ShieldCheck }] : []),
+    { key: "nav.home",      href: "/",                   icon: LayoutDashboard, active: "bg-[#1372e6] text-white",  idle: "text-slate-600 hover:bg-slate-100" },
+    { key: "nav.items",     href: "/ItemManagement",     icon: Package,         active: "bg-[#1372e6] text-white",  idle: "text-slate-600 hover:bg-slate-100" },
+    { key: "nav.partners",  href: "/PartnerManagement",  icon: Users,           active: "bg-teal-600 text-white",   idle: "text-teal-700 hover:bg-teal-50" },
+    { key: "nav.purchases", href: "/PurchaseManagement", icon: Truck,           active: "bg-orange-500 text-white", idle: "text-orange-600 hover:bg-orange-50" },
+    { key: "nav.sales",     href: "/SaleManagement",     icon: ShoppingCart,    active: "bg-green-600 text-white",  idle: "text-green-700 hover:bg-green-50" },
+    { key: "nav.proforma",  href: "/proforma",           icon: FileText,        active: "bg-[#1372e6] text-white",  idle: "text-slate-600 hover:bg-slate-100" },
+    { key: "nav.reports",   href: "/reports",            icon: BarChart3,       active: "bg-violet-600 text-white", idle: "text-slate-600 hover:bg-slate-100" },
+    { key: "nav.settings",  href: "/Settings",           icon: Settings,        active: "bg-slate-700 text-white",  idle: "text-slate-600 hover:bg-slate-100" },
+    ...(user?.role === "admin" ? [{ key: "nav.admin", href: "/admin", icon: ShieldCheck, active: "bg-red-600 text-white", idle: "text-red-600 hover:bg-red-50 border border-red-200" }] : []),
   ];
 
   return (
@@ -143,16 +143,11 @@ export default function DashboardHeader({
               );
             }
 
-            const isAdmin = menu.href === "/admin";
             return (
               <Link
                 key={menu.href}
                 href={menu.href}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all
-                ${active
-                  ? isAdmin ? "bg-red-600 text-white" : "bg-[#1372e6] text-white"
-                  : isAdmin ? "text-red-600 hover:bg-red-50 border border-red-200" : "text-slate-600 hover:bg-slate-100"
-                }`}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all ${active ? menu.active : menu.idle}`}
               >
                 <Icon size={14} />
                 {t(menu.key)}

@@ -219,7 +219,7 @@ export default function PurchaseManagementPage() {
     <div className="min-h-screen bg-slate-50">
       <DashboardHeader />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
-        <div className="rounded-2xl bg-linear-to-r from-violet-600 to-purple-600 p-5 mb-6 animate-pulse">
+        <div className="rounded-2xl bg-linear-to-r from-orange-500 to-amber-600 p-5 mb-6 animate-pulse">
           <div className="flex justify-between"><div className="h-4 w-44 bg-white/20 rounded-lg" /><div className="h-8 w-28 bg-white/20 rounded-lg" /></div>
           <div className="h-9 bg-white/10 rounded-lg mt-4" />
         </div>
@@ -236,13 +236,13 @@ export default function PurchaseManagementPage() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
 
         {/* HEADER */}
-        <div className="bg-linear-to-r from-violet-600 to-purple-600 text-white rounded-2xl p-5 mb-6">
+        <div className="bg-linear-to-r from-orange-500 to-amber-600 text-white rounded-2xl p-5 mb-6">
           <div className="flex flex-wrap justify-between items-center gap-2">
             <div className="flex items-center gap-2.5">
               <ShoppingCart size={20} />
               <div>
                 <h1 className="text-base font-semibold">{t("purchases.title")}</h1>
-                <p className="text-violet-200 text-xs mt-0.5">
+                <p className="text-orange-100 text-xs mt-0.5">
                   {lastUpdated ? `${t("common.updated")} ${lastUpdated.toLocaleTimeString()}` : "—"} · {t("purchases.inventory")}: {productsTotal.toLocaleString()}
                 </p>
               </div>
@@ -253,7 +253,7 @@ export default function PurchaseManagementPage() {
                 <RefreshCw size={14} className={refreshing ? "animate-spin" : ""} />
               </button>
               <button onClick={openCreateModal}
-                className="bg-white text-violet-700 px-3.5 py-1.5 rounded-lg flex items-center gap-1.5 text-sm font-semibold hover:bg-violet-50 transition">
+                className="bg-white text-orange-700 px-3.5 py-1.5 rounded-lg flex items-center gap-1.5 text-sm font-semibold hover:bg-orange-50 transition">
                 <Plus size={15} /> {t("purchases.add")}
               </button>
             </div>
@@ -262,11 +262,11 @@ export default function PurchaseManagementPage() {
           {/* TABS */}
           <div className="mt-4 flex gap-2">
             <button onClick={() => setTab("inventory")}
-              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-sm font-medium transition ${tab === "inventory" ? "bg-white text-violet-700" : "bg-white/10 text-white hover:bg-white/20"}`}>
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-sm font-medium transition ${tab === "inventory" ? "bg-white text-orange-700" : "bg-white/10 text-white hover:bg-white/20"}`}>
               <LayoutGrid size={14} /> {t("purchases.inventory")}
             </button>
             <button onClick={() => setTab("history")}
-              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-sm font-medium transition ${tab === "history" ? "bg-white text-violet-700" : "bg-white/10 text-white hover:bg-white/20"}`}>
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-sm font-medium transition ${tab === "history" ? "bg-white text-orange-700" : "bg-white/10 text-white hover:bg-white/20"}`}>
               <History size={14} /> {t("purchases.history")} ({purchasesTotal.toLocaleString()})
             </button>
           </div>
@@ -284,14 +284,14 @@ export default function PurchaseManagementPage() {
           {tab === "inventory" && (
             <div className="mt-3 flex flex-col md:flex-row gap-2.5">
               <div className="flex-1 flex items-center bg-white/10 rounded-lg px-3 py-2 gap-2">
-                <Search size={15} className="shrink-0 text-violet-200" />
+                <Search size={15} className="shrink-0 text-orange-100" />
                 <input value={invSearch} onChange={(e) => { setInvSearch(e.target.value); setInvPage(1); }}
                   placeholder={t("items.search")}
-                  className="bg-transparent outline-none w-full text-sm placeholder:text-violet-200" />
-                {invSearch && <button onClick={() => setInvSearch("")} className="text-violet-200 hover:text-white"><X size={13} /></button>}
+                  className="bg-transparent outline-none w-full text-sm placeholder:text-orange-100" />
+                {invSearch && <button onClick={() => setInvSearch("")} className="text-orange-100 hover:text-white"><X size={13} /></button>}
               </div>
               <div className="flex items-center bg-white/10 rounded-lg px-3 py-2 gap-2">
-                <Filter size={15} className="shrink-0 text-violet-200" />
+                <Filter size={15} className="shrink-0 text-orange-100" />
                 <select value={invFilter} onChange={(e) => { setInvFilter(e.target.value); setInvPage(1); }} className="bg-transparent outline-none text-sm">
                   <option value="all" className="text-gray-700">{t("items.all")}</option>
                   <option value="in_stock" className="text-gray-700">{t("items.in_stock")}</option>
@@ -419,14 +419,14 @@ export default function PurchaseManagementPage() {
         {tab === "history" && (
           <div className="bg-white rounded-xl border border-slate-200 overflow-x-auto">
             {hasDateFilter && (
-              <div className="flex items-center gap-2 px-4 py-2.5 border-b border-slate-100 text-xs text-violet-700 bg-violet-50">
+              <div className="flex items-center gap-2 px-4 py-2.5 border-b border-slate-100 text-xs text-orange-700 bg-violet-50">
                 <Calendar size={13} />
                 <span>
                   {dateFrom && <> {t("common.date")}: <span className="font-semibold">{dateFrom}</span></>}
                   {dateTo && <> → <span className="font-semibold">{dateTo}</span></>}
                   {" "}· <span className="font-semibold">{purchasesTotal.toLocaleString()}</span>
                 </span>
-                <button onClick={() => { setDateFrom(""); setDateTo(""); setHistPage(1); }} className="ml-auto text-violet-500 hover:text-violet-700"><X size={13} /></button>
+                <button onClick={() => { setDateFrom(""); setDateTo(""); setHistPage(1); }} className="ml-auto text-violet-500 hover:text-orange-700"><X size={13} /></button>
               </div>
             )}
             <table className="w-full text-sm">
@@ -509,7 +509,7 @@ export default function PurchaseManagementPage() {
                   </div>
                 )}
                 {isRestocking && selectedProduct && (
-                  <div className="md:col-span-2 bg-violet-50 rounded-lg px-3 py-2 text-xs text-violet-700">
+                  <div className="md:col-span-2 bg-violet-50 rounded-lg px-3 py-2 text-xs text-orange-700">
                     {t("purchases.restock")}: <span className="font-semibold">{selectedProduct.name}</span>
                     {" "}· {t("items.col_qty")}: <span className="font-bold">{selectedProduct.quantity}</span>
                   </div>

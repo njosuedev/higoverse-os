@@ -176,7 +176,7 @@ export default function PartnerManagementPage() {
     <div className="min-h-screen bg-slate-50">
       <DashboardHeader />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
-        <div className="rounded-2xl bg-linear-to-r from-green-600 to-emerald-600 p-5 mb-6 animate-pulse">
+        <div className="rounded-2xl bg-linear-to-r from-teal-600 to-teal-700 p-5 mb-6 animate-pulse">
           <div className="flex justify-between"><div className="h-4 w-44 bg-white/20 rounded-lg" /><div className="h-8 w-28 bg-white/20 rounded-lg" /></div>
           <div className="h-9 bg-white/10 rounded-lg mt-4" />
         </div>
@@ -195,13 +195,13 @@ export default function PartnerManagementPage() {
       <DashboardHeader />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
 
-        <div className="bg-linear-to-r from-green-600 to-emerald-600 text-white rounded-2xl p-5 mb-6">
+        <div className="bg-linear-to-r from-teal-600 to-teal-700 text-white rounded-2xl p-5 mb-6">
           <div className="flex flex-wrap justify-between items-center gap-2">
             <div className="flex items-center gap-2.5">
               <Users size={20} />
               <div>
                 <h1 className="text-base font-semibold">Partner Management</h1>
-                <p className="text-green-200 text-xs mt-0.5">
+                <p className="text-teal-200 text-xs mt-0.5">
                   {lastUpdated ? `Updated ${lastUpdated.toLocaleTimeString()}` : "—"} · {partners.length.toLocaleString()} partners total
                 </p>
               </div>
@@ -217,13 +217,13 @@ export default function PartnerManagementPage() {
           </div>
           <div className="mt-4 flex flex-col md:flex-row gap-2.5">
             <div className="flex-1 flex items-center bg-white/10 rounded-lg px-3 py-2 gap-2">
-              <Search size={15} className="shrink-0 text-green-200" />
+              <Search size={15} className="shrink-0 text-teal-200" />
               <input value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} placeholder="Search by name, phone, TIN or email..."
-                className="bg-transparent outline-none w-full text-sm placeholder:text-green-200" />
-              {search && <button onClick={() => setSearch("")} className="text-green-200 hover:text-white"><X size={13} /></button>}
+                className="bg-transparent outline-none w-full text-sm placeholder:text-teal-200" />
+              {search && <button onClick={() => setSearch("")} className="text-teal-200 hover:text-white"><X size={13} /></button>}
             </div>
             <div className="flex items-center bg-white/10 rounded-lg px-3 py-2 gap-2">
-              <Filter size={15} className="shrink-0 text-green-200" />
+              <Filter size={15} className="shrink-0 text-teal-200" />
               <select value={typeFilter} onChange={(e) => { setTypeFilter(e.target.value); setPage(1); }} className="bg-transparent outline-none text-sm">
                 <option value="all" className="text-gray-700">All Partners</option>
                 <option value="supplier" className="text-gray-700">Suppliers</option>
