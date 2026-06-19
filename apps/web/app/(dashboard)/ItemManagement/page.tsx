@@ -5,6 +5,7 @@ import Link from "next/link";
 import { itemRequest } from "@/lib/product-api";
 import { partnerRequest } from "@/lib/supplier-api";
 import { useDebounce } from "@/lib/hooks";
+import { useLanguage } from "@/lib/language-context";
 import DashboardHeader from "@/app/components/dashboard/DashboardHeader";
 import Pagination from "@/app/components/ui/Pagination";
 import {
@@ -34,6 +35,7 @@ const EMPTY_FORM = {
 const PAGE_SIZES = [25, 50, 100, 250];
 
 export default function ItemManagementPage() {
+  const { t } = useLanguage();
   const [products, setProducts] = useState<Product[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(true);
@@ -190,7 +192,7 @@ export default function ItemManagementPage() {
             <div className="flex items-center gap-2.5">
               <Package size={20} />
               <div>
-                <h1 className="text-base font-semibold">Item Management</h1>
+                <h1 className="text-base font-semibold">{t("items.title")}</h1>
                 <p className="text-blue-200 text-xs mt-0.5">
                   {lastUpdated ? `Updated ${lastUpdated.toLocaleTimeString()}` : "—"} · {products.length.toLocaleString()} items total
                 </p>
@@ -210,17 +212,17 @@ export default function ItemManagementPage() {
           <div className="mt-4 flex flex-col md:flex-row gap-2.5">
             <div className="flex-1 flex items-center bg-white/10 rounded-lg px-3 py-2 gap-2">
               <Search size={15} className="shrink-0 text-blue-200" />
-              <input value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} placeholder="Search items by name or ID..."
+              <input value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} placeholder={t("items.search")}
                 className="bg-transparent outline-none w-full text-sm placeholder:text-blue-200" />
               {search && <button onClick={() => setSearch("")} className="text-blue-200 hover:text-white"><X size={13} /></button>}
             </div>
             <div className="flex items-center bg-white/10 rounded-lg px-3 py-2 gap-2">
               <Filter size={15} className="shrink-0 text-blue-200" />
               <select value={filter} onChange={(e) => { setFilter(e.target.value); setPage(1); }} className="bg-transparent outline-none text-sm">
-                <option value="all" className="text-gray-700">All Items</option>
-                <option value="in_stock" className="text-gray-700">In Stock (&gt;10)</option>
-                <option value="low_stock" className="text-gray-700">Low Stock (1–10)</option>
-                <option value="out_stock" className="text-gray-700">Out of Stock</option>
+                <option value="all" className="text-gray-700">{t("items.all")}</option>
+                <option value="in_stock" className="text-gray-700">{t("items.in_stock")}</option>
+                <option value="low_stock" className="text-gray-700">{t("items.low_stock")}</option>
+                <option value="out_stock" className="text-gray-700">{t("items.out_stock")}</option>
               </select>
             </div>
           </div>
@@ -231,7 +233,7 @@ export default function ItemManagementPage() {
           <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 mb-6">
             <AlertCircle size={16} className="text-amber-600 shrink-0 mt-0.5" />
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-amber-800">{alertItems.length} item{alertItems.length > 1 ? "s" : ""} need restocking</p>
+              <p className="text-sm font-semibold text-amber-800">{alertItems.length} item{alertItems.length > 1 ? "s" : ""} {t("items.restock_alert")}</p>
               <p className="text-xs text-amber-600 mt-0.5">{alertItems.slice(0, 4).map((i) => i.name).join(", ")}{alertItems.length > 4 ? ` +${alertItems.length - 4} more` : ""}</p>
             </div>
             <Link href="/PurchaseManagement" className="text-xs font-semibold text-amber-700 bg-amber-100 hover:bg-amber-200 px-3 py-1.5 rounded-lg shrink-0 transition">
@@ -243,12 +245,12 @@ export default function ItemManagementPage() {
         {/* STAT CARDS */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
           {[
-            { label: "Total Items",  value: stats.total,                            color: "text-[#1372e6]",    bg: "bg-[#EBF2FD]",    icon: <Boxes size={17} /> },
-            { label: "In Stock",     value: stats.inStock,                          color: "text-green-600",   bg: "bg-green-50",   icon: <Package size={17} /> },
-            { label: "Low Stock",    value: stats.lowStock,                         color: "text-amber-500",   bg: "bg-amber-50",   icon: <AlertCircle size={17} /> },
-            { label: "Out of Stock", value: stats.outStock,                         color: "text-red-600",     bg: "bg-red-50",     icon: <ShoppingBag size={17} /> },
-            { label: "Stock Value",  value: stats.stockValue.toLocaleString(),      color: "text-indigo-600",  bg: "bg-indigo-50",  icon: <DollarSign size={17} /> },
-            { label: "Pot. Profit",  value: stats.potentialProfit.toLocaleString(), color: "text-emerald-600", bg: "bg-emerald-50", icon: <BarChart3 size={17} /> },
+            { label: "items.total", value: stats.total,                            color: "text-[#1372e6]",    bg: "bg-[#EBF2FD]",    icon: <Boxes size={17} /> },
+            { label: t("items.in_stock"),     value: stats.inStock,                          color: "text-green-600",   bg: "bg-green-50",   icon: <Package size={17} /> },
+            { label: t("items.low_stock"),    value: stats.lowStock,                         color: "text-amber-500",   bg: "bg-amber-50",   icon: <AlertCircle size={17} /> },
+            { label: t("items.out_stock"), value: stats.outStock,                         color: "text-red-600",     bg: "bg-red-50",     icon: <ShoppingBag size={17} /> },
+            { label: t("items.stock_value"),  value: stats.stockValue.toLocaleString(),      color: "text-indigo-600",  bg: "bg-indigo-50",  icon: <DollarSign size={17} /> },
+            { label: t("items.pot_profit"),  value: stats.potentialProfit.toLocaleString(), color: "text-emerald-600", bg: "bg-emerald-50", icon: <BarChart3 size={17} /> },
           ].map((card) => (
             <div key={card.label} className="bg-white rounded-xl border border-slate-200 p-4">
               <div className="flex flex-wrap justify-between items-start gap-2">
@@ -273,7 +275,7 @@ export default function ItemManagementPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-200">
-                {["Product", "Supplier", "Cost", "Selling", "Margin %", "Qty", "Status", "Unit Profit", "Total Profit", ""].map((h) => (
+                {[t("items.col_product"), t("items.col_supplier"), t("items.col_cost"), t("items.col_selling"), t("items.col_margin"), t("items.col_qty"), t("common.status"), t("items.col_unit_profit"), t("items.col_total_profit"), ""].map((h) => (
                   <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-400 whitespace-nowrap">{h}</th>
                 ))}
               </tr>
@@ -312,7 +314,7 @@ export default function ItemManagementPage() {
                     <td className="px-4 py-3">
                       <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${isProfit ? "bg-green-100 text-green-700" : "bg-red-100 text-red-600"}`}>
                         {isProfit ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
-                        {isProfit ? "Profit" : "Loss"}
+                        {isProfit ? t("dash.profit_label") : "Loss"}
                       </span>
                     </td>
                     <td className={`px-4 py-3 font-semibold tabular-nums ${isProfit ? "text-green-600" : "text-red-500"}`}>
@@ -341,12 +343,11 @@ export default function ItemManagementPage() {
           {paginated.length === 0 && (
             <div className="flex flex-col items-center justify-center py-16 text-slate-400">
               <div className="p-4 bg-slate-100 rounded-2xl mb-3"><Package size={32} className="opacity-40" /></div>
-              <p className="font-medium text-slate-500 text-sm">No items found</p>
-              <p className="text-xs mt-1 text-slate-400">{search || filter !== "all" ? "Try adjusting filters or search." : "Add your first item to get started."}</p>
+              <p className="font-medium text-slate-500 text-sm">{t("items.no_items")}</p>
+              <p className="text-xs mt-1 text-slate-400">{search || filter !== "all" ? "Try adjusting filters or search." : t("items.add_first")}</p>
               {!search && filter === "all" && (
                 <button onClick={openCreateModal} className="mt-4 flex items-center gap-1.5 bg-[#1372e6] text-white text-sm font-semibold px-4 py-2 rounded-lg hover:bg-[#1372e6] transition">
-                  <Plus size={14} /> Add Item
-                </button>
+                  <Plus size={14} /> {t("items.add")}</button>
               )}
             </div>
           )}
@@ -361,26 +362,26 @@ export default function ItemManagementPage() {
             <div className="bg-white rounded-2xl w-full max-w-xl shadow-2xl max-h-[90vh] flex flex-col">
               <div className="flex justify-between items-center px-4 sm:px-6 py-4 border-b border-slate-100 shrink-0">
                 <div>
-                  <h2 className="text-base font-semibold text-slate-800">{modalMode === "edit" ? "Edit Item" : "Add New Item"}</h2>
-                  <p className="text-xs text-slate-400 mt-0.5">{modalMode === "edit" ? "Update item details" : "Register a new item in inventory"}</p>
+                  <h2 className="text-base font-semibold text-slate-800">{modalMode === "edit" ? t("items.edit_title") : t("items.add_title")}</h2>
+                  <p className="text-xs text-slate-400 mt-0.5">{modalMode === "edit" ? t("common.edit") + " " + t("items.name").toLowerCase() : t("items.add_title")}</p>
                 </div>
                 <button onClick={closeModal} className="p-2 rounded-lg hover:bg-slate-100 text-slate-400 transition"><X size={17} /></button>
               </div>
               <div className="px-4 sm:px-6 py-4 sm:py-5 grid md:grid-cols-2 gap-4 overflow-y-auto flex-1">
                 <div className="md:col-span-2">
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Item Name <span className="text-red-400">*</span></label>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">{t("items.name")} <span className="text-red-400">*</span></label>
                   <input className={inputCls} placeholder="e.g. Sugar 1kg" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
                 </div>
                 <div className="md:col-span-2">
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Description</label>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">{t("items.description")}</label>
                   <input className={inputCls} placeholder="Optional description" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Cost Price <span className="text-red-400">*</span></label>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">{t("items.cost_price")} <span className="text-red-400">*</span></label>
                   <input type="number" min="0" className={inputCls} placeholder="0" value={form.cost_price} onChange={(e) => setForm({ ...form, cost_price: e.target.value })} />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Selling Price <span className="text-red-400">*</span></label>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">{t("items.selling_price")} <span className="text-red-400">*</span></label>
                   <input type="number" min="0" className={inputCls} placeholder="0" value={form.selling_price} onChange={(e) => setForm({ ...form, selling_price: e.target.value })} />
                 </div>
                 {form.cost_price && form.selling_price && (
@@ -391,22 +392,21 @@ export default function ItemManagementPage() {
                   </div>
                 )}
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Quantity <span className="text-red-400">*</span></label>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">{t("items.quantity")} <span className="text-red-400">*</span></label>
                   <input type="number" min="0" className={inputCls} placeholder="0" value={form.quantity} onChange={(e) => setForm({ ...form, quantity: e.target.value })} />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Supplier</label>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">{t("items.supplier")}</label>
                   <select className={inputCls} value={form.supplier_id} onChange={(e) => setForm({ ...form, supplier_id: e.target.value })}>
-                    <option value="">No supplier</option>
+                    <option value="">{t("items.no_supplier")}</option>
                     {suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
                   </select>
                 </div>
               </div>
               <div className="flex justify-end gap-2.5 px-4 sm:px-6 py-4 border-t border-slate-100 shrink-0">
-                <button onClick={closeModal} className="px-4 py-2 rounded-lg border border-slate-200 text-slate-600 text-sm font-medium hover:bg-slate-50 transition">Cancel</button>
-                <button onClick={submitForm} disabled={submitting}
+                <button onClick={closeModal} className="px-4 py-2 rounded-lg border border-slate-200 text-slate-600 text-sm font-medium hover:bg-slate-50 transition">{t("common.cancel")}</button><button onClick={submitForm} disabled={submitting}
                   className="px-5 py-2 rounded-lg bg-[#1372e6] text-white text-sm font-semibold hover:bg-[#1372e6] transition disabled:opacity-60">
-                  {submitting ? (modalMode === "edit" ? "Saving..." : "Adding...") : (modalMode === "edit" ? "Save Changes" : "Add Item")}
+                  {submitting ? (modalMode === "edit" ? t("common.saving") : t("common.adding")) : (modalMode === "edit" ? t("common.save") : t("items.add"))}
                 </button>
               </div>
             </div>

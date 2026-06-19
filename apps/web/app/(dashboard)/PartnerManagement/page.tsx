@@ -5,6 +5,7 @@ import Link from "next/link";
 import { partnerRequest } from "@/lib/supplier-api";
 import { itemRequest } from "@/lib/product-api";
 import { useDebounce } from "@/lib/hooks";
+import { useLanguage } from "@/lib/language-context";
 import DashboardHeader from "@/app/components/dashboard/DashboardHeader";
 import Pagination from "@/app/components/ui/Pagination";
 import {
@@ -44,6 +45,7 @@ const inputCls =
   "border border-slate-200 text-gray-800 placeholder:text-gray-400 rounded-lg px-3 py-2 w-full text-sm focus:outline-none focus:ring-2 focus:ring-green-500/30 focus:border-green-400 transition";
 
 export default function PartnerManagementPage() {
+  const { t } = useLanguage();
   const [partners, setPartners] = useState<Partner[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
@@ -200,7 +202,7 @@ export default function PartnerManagementPage() {
             <div className="flex items-center gap-2.5">
               <Users size={20} />
               <div>
-                <h1 className="text-base font-semibold">Partner Management</h1>
+                <h1 className="text-base font-semibold">{t("partners.title")}</h1>
                 <p className="text-teal-200 text-xs mt-0.5">
                   {lastUpdated ? `Updated ${lastUpdated.toLocaleTimeString()}` : "—"} · {partners.length.toLocaleString()} partners total
                 </p>
@@ -211,23 +213,22 @@ export default function PartnerManagementPage() {
                 className="p-2 rounded-lg bg-white/10 hover:bg-white/20 text-white transition disabled:opacity-50"><RefreshCw size={14} className={refreshing ? "animate-spin" : ""} /></button>
               <button onClick={openCreateModal}
                 className="bg-white text-green-700 px-3.5 py-1.5 rounded-lg flex items-center gap-1.5 text-sm font-semibold hover:bg-green-50 transition">
-                <Plus size={15} /> Add Partner
-              </button>
+                <Plus size={15} /> {t("partners.add")}</button>
             </div>
           </div>
           <div className="mt-4 flex flex-col md:flex-row gap-2.5">
             <div className="flex-1 flex items-center bg-white/10 rounded-lg px-3 py-2 gap-2">
               <Search size={15} className="shrink-0 text-teal-200" />
-              <input value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} placeholder="Search by name, phone, TIN or email..."
+              <input value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} placeholder={t("partners.search")}
                 className="bg-transparent outline-none w-full text-sm placeholder:text-teal-200" />
               {search && <button onClick={() => setSearch("")} className="text-teal-200 hover:text-white"><X size={13} /></button>}
             </div>
             <div className="flex items-center bg-white/10 rounded-lg px-3 py-2 gap-2">
               <Filter size={15} className="shrink-0 text-teal-200" />
               <select value={typeFilter} onChange={(e) => { setTypeFilter(e.target.value); setPage(1); }} className="bg-transparent outline-none text-sm">
-                <option value="all" className="text-gray-700">All Partners</option>
-                <option value="supplier" className="text-gray-700">Suppliers</option>
-                <option value="customer" className="text-gray-700">Customers</option>
+                <option value="all" className="text-gray-700">{t("partners.all")}</option>
+                <option value="supplier" className="text-gray-700">{t("partners.suppliers")}</option>
+                <option value="customer" className="text-gray-700">{t("partners.customers")}</option>
               </select>
             </div>
           </div>
@@ -235,11 +236,11 @@ export default function PartnerManagementPage() {
 
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-6">
           {[
-            { label: "Total Partners",   value: stats.total,           color: "text-green-600",   bg: "bg-green-50",   icon: <Users size={17} /> },
-            { label: "Suppliers",        value: stats.suppliers,       color: "text-[#1372e6]",    bg: "bg-[#EBF2FD]",    icon: <Building2 size={17} /> },
-            { label: "Customers",        value: stats.customers,       color: "text-purple-600",  bg: "bg-purple-50",  icon: <UserCheck size={17} /> },
-            { label: "Active Suppliers", value: stats.activeSuppliers, color: "text-emerald-600", bg: "bg-emerald-50", icon: <UserCog size={17} /> },
-            { label: "Items Supplied",   value: stats.itemsSupplied,   color: "text-indigo-600",  bg: "bg-indigo-50",  icon: <Package size={17} /> },
+            { label: t("partners.total"),   value: stats.total,           color: "text-green-600",   bg: "bg-green-50",   icon: <Users size={17} /> },
+            { label: t("partners.suppliers"),        value: stats.suppliers,       color: "text-[#1372e6]",    bg: "bg-[#EBF2FD]",    icon: <Building2 size={17} /> },
+            { label: t("partners.customers"),        value: stats.customers,       color: "text-purple-600",  bg: "bg-purple-50",  icon: <UserCheck size={17} /> },
+            { label: t("partners.active_suppliers"), value: stats.activeSuppliers, color: "text-emerald-600", bg: "bg-emerald-50", icon: <UserCog size={17} /> },
+            { label: t("partners.items_supplied"),   value: stats.itemsSupplied,   color: "text-indigo-600",  bg: "bg-indigo-50",  icon: <Package size={17} /> },
           ].map((card) => (
             <div key={card.label} className="bg-white rounded-xl border border-slate-200 p-4">
               <div className="flex flex-wrap justify-between items-start gap-2">
@@ -263,7 +264,7 @@ export default function PartnerManagementPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-200">
-                {["Name", "Type", "Phone", "TIN", "Email", "Items", ""].map((h) => (
+                {[t("common.name"), t("common.type"), t("common.phone"), "TIN", t("common.email"), t("partners.items_supplied"), ""].map((h) => (
                   <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-400 whitespace-nowrap">{h}</th>
                 ))}
               </tr>
@@ -281,7 +282,7 @@ export default function PartnerManagementPage() {
                     <td className="px-4 py-3">
                       <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${isSupplier ? "bg-[#D5E8FB] text-[#1372e6]" : "bg-purple-100 text-purple-700"}`}>
                         {isSupplier ? <Building2 size={10} /> : <UserCheck size={10} />}
-                        {isSupplier ? "Supplier" : "Customer"}
+                        {isSupplier ? t("partners.suppliers") : t("partners.customers")}
                       </span>
                     </td>
                     <td className="px-4 py-3">
@@ -323,12 +324,11 @@ export default function PartnerManagementPage() {
           {paginated.length === 0 && (
             <div className="flex flex-col items-center justify-center py-16 text-slate-400">
               <div className="p-4 bg-slate-100 rounded-2xl mb-3"><Activity size={32} className="opacity-40" /></div>
-              <p className="font-medium text-slate-500 text-sm">No partners found</p>
-              <p className="text-xs mt-1 text-slate-400">{search || typeFilter !== "all" ? "Try adjusting your filters." : "Add your first partner to get started."}</p>
+              <p className="font-medium text-slate-500 text-sm">{t("partners.no_partners")}</p>
+              <p className="text-xs mt-1 text-slate-400">{search || typeFilter !== "all" ? "Try adjusting your filters." : t("partners.add_first")}</p>
               {!search && typeFilter === "all" && (
                 <button onClick={openCreateModal} className="mt-4 flex items-center gap-1.5 bg-green-600 text-white text-sm font-semibold px-4 py-2 rounded-lg hover:bg-green-700 transition">
-                  <Plus size={14} /> Add Partner
-                </button>
+                  <Plus size={14} /> {t("partners.add")}</button>
               )}
             </div>
           )}
@@ -342,17 +342,17 @@ export default function PartnerManagementPage() {
             <div className="bg-white rounded-2xl w-full max-w-xl shadow-2xl max-h-[90vh] flex flex-col">
               <div className="flex justify-between items-center px-4 sm:px-6 py-4 border-b border-slate-100 shrink-0">
                 <div>
-                  <h2 className="text-base font-semibold text-slate-800">{modalMode === "edit" ? "Edit Partner" : "Add Partner"}</h2>
+                  <h2 className="text-base font-semibold text-slate-800">{modalMode === "edit" ? t("partners.edit_title") : t("partners.add_title")}</h2>
                   {previewType && <p className="text-xs text-slate-400 mt-0.5">Will be saved as a <span className={`font-semibold ${previewType === "supplier" ? "text-[#1372e6]" : "text-purple-600"}`}>{previewType === "supplier" ? "Supplier" : "Customer"}</span></p>}
                 </div>
                 <button onClick={closeModal} className="p-2 rounded-lg hover:bg-slate-100 text-slate-400 transition"><X size={17} /></button>
               </div>
               <div className="px-4 sm:px-6 py-4 sm:py-5 space-y-4 overflow-y-auto flex-1">
                 <div className="bg-slate-50 border border-slate-100 rounded-lg px-3 py-2 text-xs text-slate-500">
-                  Fill <span className="font-semibold text-[#1372e6]">TIN</span> → Supplier &nbsp;·&nbsp; Fill <span className="font-semibold text-purple-600">Phone only</span> → Customer
+                  {t("partners.tin_supplier")} &nbsp;·&nbsp; {t("partners.phone_customer")}
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Full Name <span className="text-red-400">*</span></label>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">{t("common.name")} <span className="text-red-400">*</span></label>
                   <input name="name" placeholder="e.g. INYANGE Industries" value={form.name} className={inputCls} onChange={handleChange} />
                   {errors.name && <p className="text-red-500 text-xs mt-1">{errors.name}</p>}
                 </div>
@@ -382,10 +382,9 @@ export default function PartnerManagementPage() {
                 </div>
               </div>
               <div className="flex justify-end gap-2.5 px-4 sm:px-6 py-4 border-t border-slate-100 shrink-0">
-                <button onClick={closeModal} className="px-4 py-2 rounded-lg border border-slate-200 text-slate-600 text-sm font-medium hover:bg-slate-50 transition">Cancel</button>
-                <button onClick={modalMode === "edit" ? updatePartner : createPartner} disabled={submitting}
+                <button onClick={closeModal} className="px-4 py-2 rounded-lg border border-slate-200 text-slate-600 text-sm font-medium hover:bg-slate-50 transition">{t("common.cancel")}</button><button onClick={modalMode === "edit" ? updatePartner : createPartner} disabled={submitting}
                   className="px-5 py-2 rounded-lg bg-green-600 text-white text-sm font-semibold hover:bg-green-700 transition disabled:opacity-60">
-                  {submitting ? (modalMode === "edit" ? "Saving..." : "Creating...") : (modalMode === "edit" ? "Save Changes" : "Add Partner")}
+                  {submitting ? (modalMode === "edit" ? t("common.saving") : t("common.adding")) : (modalMode === "edit" ? t("common.save") : t("partners.add"))}
                 </button>
               </div>
             </div>
