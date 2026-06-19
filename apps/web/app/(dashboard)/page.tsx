@@ -342,7 +342,7 @@ export default function DashboardPage() {
                     <YAxis hide />
                     <Tooltip
                       contentStyle={{ fontSize: 11, borderRadius: 8, border: "1px solid #e2e8f0", boxShadow: "0 2px 8px rgba(0,0,0,.06)" }}
-                      formatter={(v: unknown, name: string) => [
+                      formatter={(v: unknown, name: unknown) => [
                         fmtCurrency(typeof v === "number" ? v : 0),
                         name === "revenue" ? "Revenue" : "Profit",
                       ]}
