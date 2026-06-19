@@ -23,7 +23,7 @@ import {
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface StockAlert { id: string; name: string; quantity: number; selling_price: number; }
 interface Stats { products: number; partners: number; sales: number; revenue: number; lowStock: number; outOfStock: number; }
-interface DailyRecord { date: string; revenue: number; profit: number; sales_count: number; }
+interface DailyRecord { day: string; revenue: number; profit: number; sales_count: number; }
 interface RecentSale { id: string; product_name?: string; total_amount: number; quantity: number; profit?: number; created_at?: string; }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -187,7 +187,7 @@ export default function DashboardPage() {
 
   const currentShop   = shops.find((s) => s.id === user.shop_id);
   const onlineCount   = shops.filter((s) => shopPresence(s.last_seen_at, now).online).length;
-  const chartData     = dailyData.filter((d) => d.date).map((d) => ({ day: shortDay(d.date), revenue: d.revenue, profit: d.profit }));
+  const chartData     = dailyData.filter((d) => d.day).map((d) => ({ day: shortDay(d.day), revenue: d.revenue, profit: d.profit }));
   const revDeltaPct   = yesterdayRevenue > 0
     ? Math.round(((stats.revenue - yesterdayRevenue) / yesterdayRevenue) * 100)
     : null;
