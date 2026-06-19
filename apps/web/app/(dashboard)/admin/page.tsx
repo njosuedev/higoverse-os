@@ -23,9 +23,9 @@ import {
 type Tab = "overview" | "shops" | "users";
 type ShopSort = "newest" | "lastActive" | "name" | "users";
 
-const LI_BLUE  = "#0A66C2";
-const LI_LIGHT = "#70B5F9";
-const LI_MUTED = "#B0C4DE";
+const LI_BLUE  = "#1372e6";
+const LI_LIGHT = "#5B9DF3";
+const LI_MUTED = "#A8C8F8";
 const LI_GRAY  = "#C9CDD2";
 const POLL_INTERVAL = 30;
 
@@ -160,7 +160,7 @@ export default function AdminPage() {
   const userRoleData = [
     { name: "Owners", value: users.filter((u) => u.role === "owner").length, fill: LI_BLUE  },
     { name: "Staff",  value: users.filter((u) => u.role === "staff").length, fill: LI_LIGHT },
-    { name: "Admins", value: users.filter((u) => u.role === "admin").length, fill: "#1A3A5C" },
+    { name: "Admins", value: users.filter((u) => u.role === "admin").length, fill: "#0D4DB8" },
   ];
 
   const topShopsData = [...shops]
@@ -248,7 +248,7 @@ export default function AdminPage() {
         {/* ── Top bar ─────────────────────────────────────────────────────── */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 px-5 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: "#EEF3F8" }}>
+            <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: "#EBF2FD" }}>
               <ShieldCheck size={18} style={{ color: LI_BLUE }} />
             </div>
             <div>
@@ -286,7 +286,7 @@ export default function AdminPage() {
             <button key={t.key} onClick={() => setTab(t.key)}
               className="px-4 py-2 rounded-lg text-sm font-medium transition-all"
               style={tab === t.key
-                ? { background: "#EEF3F8", color: LI_BLUE }
+                ? { background: "#EBF2FD", color: LI_BLUE }
                 : { color: "#666666" }}>
               {t.label}
               {t.count !== undefined && (
