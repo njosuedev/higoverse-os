@@ -107,6 +107,24 @@ export async function sendHeartbeat(): Promise<void> {
   }
 }
 
+/** Clear last_seen_at so other shops see this shop as OFFLINE immediately after logout.
+ *  Must be called BEFORE clearAuth() so the token is still available. */
+export async function sendOffline(): Promise<void> {
+  try {
+    await authShopRequest("/api/v1/shop/heartbeat", { method: "DELETE" });
+  } catch {
+    // If the DELETE endpoint doesn't exist, try clearing via update
+    try {
+      await authShopRequest("/api/v1/shop", {
+        method: "PATCH",
+        body: JSON.stringify({ last_seen_at: null }),
+      });
+    } catch {
+      // Both failed — presence will expire naturally in ~5 minutes
+    }
+  }
+}
+
 /** Get any shop by ID */
 export async function getShopById(shopId: string): Promise<Shop | null> {
   const res = await authShopRequest(`/api/v1/shops`);

@@ -196,13 +196,16 @@ export default function PurchaseManagementPage() {
   const histTotalPages = Math.ceil(purchasesTotal / histPageSize);
 
   const invStats = useMemo(() => {
-    const totalSpent = purchases.reduce((s, p) => s + p.total_cost, 0);
-    const stockValue = products.reduce((s, p) => s + p.selling_price * p.quantity, 0);
-    const potProfit = products.reduce((s, p) => { const u = p.selling_price - p.cost_price; return s + (u > 0 ? u * p.quantity : 0); }, 0);
-    const lowStock = products.filter((p) => p.quantity > 0 && p.quantity <= 10).length;
-    const outStock = products.filter((p) => p.quantity === 0).length;
-    const suppliersUsed = new Set(products.map((p) => p.supplier_id).filter(Boolean)).size;
-    return { stockValue, potProfit, lowStock, outStock, suppliersUsed, totalSpent };
+    const totalSpent  = purchases.reduce((s, p) => s + p.total_cost, 0);
+    // Accounting: inventory at cost = what was paid (GAAP book value)
+    const costValue   = products.reduce((s, p) => s + (p.cost_price  || 0) * (p.quantity || 0), 0);
+    // Accounting: inventory at retail = expected revenue if all stock is sold
+    const retailValue = products.reduce((s, p) => s + (p.selling_price || 0) * (p.quantity || 0), 0);
+    // Accounting: gross profit on stock = unrealized margin locked in inventory
+    const grossProfit = retailValue - costValue;
+    const lowStock    = products.filter((p) => p.quantity > 0 && p.quantity <= 10).length;
+    const outStock    = products.filter((p) => p.quantity === 0).length;
+    return { costValue, retailValue, grossProfit, lowStock, outStock, totalSpent };
   }, [products, purchases]);
 
   const selectedProduct = isRestocking ? products.find((p) => p.id === form.product_id) : null;
@@ -320,20 +323,21 @@ export default function PurchaseManagementPage() {
         {/* STAT CARDS */}
         <div className="grid grid-cols-2 md:grid-cols-6 gap-3 mb-6">
           {[
-            { label: t("nav.items"),          value: productsTotal,                      color: "text-violet-600", bg: "bg-violet-50",  icon: <Package size={17} /> },
-            { label: t("reports.stock_value"), value: invStats.stockValue.toLocaleString(), color: "text-indigo-600", bg: "bg-indigo-50",  icon: <DollarSign size={17} /> },
-            { label: t("reports.pot_profit"), value: invStats.potProfit.toLocaleString(), color: "text-green-600",  bg: "bg-green-50",   icon: <TrendingUp size={17} /> },
-            { label: t("partners.suppliers"), value: invStats.suppliersUsed,             color: "text-blue-600",   bg: "bg-blue-50",    icon: <Truck size={17} /> },
-            { label: t("items.low_stock"),    value: invStats.lowStock,                  color: "text-amber-500",  bg: "bg-amber-50",   icon: <AlertCircle size={17} /> },
-            { label: t("items.out_stock"),    value: invStats.outStock,                  color: "text-red-600",    bg: "bg-red-50",     icon: <AlertCircle size={17} /> },
+            { label: "Total Products",        value: productsTotal,                        sub: "items in your shop",              color: "text-violet-600", bg: "bg-violet-50",  icon: <Package size={17} /> },
+            { label: "What You Paid",         value: invStats.costValue.toLocaleString(),   sub: "total cost of all stock",         color: "text-indigo-600", bg: "bg-indigo-50",  icon: <DollarSign size={17} /> },
+            { label: "If You Sell All",       value: invStats.retailValue.toLocaleString(), sub: "money you'd earn selling everything", color: "text-blue-600",   bg: "bg-blue-50",    icon: <TrendingUp size={17} /> },
+            { label: "Profit to Make",        value: invStats.grossProfit.toLocaleString(), sub: "extra money once all stock is sold",   color: "text-green-600",  bg: "bg-green-50",   icon: <TrendingUp size={17} /> },
+            { label: "Almost Finished",       value: invStats.lowStock,                    sub: "10 units or less — restock soon",  color: "text-amber-500",  bg: "bg-amber-50",   icon: <AlertCircle size={17} /> },
+            { label: "Finished / Empty",      value: invStats.outStock,                    sub: "zero units — buy more now",        color: "text-red-600",    bg: "bg-red-50",     icon: <AlertCircle size={17} /> },
           ].map((card) => (
             <div key={card.label} className="bg-white rounded-xl border border-slate-200 p-4">
               <div className="flex justify-between items-start">
                 <div>
                   <p className="text-xs font-medium text-gray-400 uppercase tracking-wide leading-none">{card.label}</p>
                   <p className={`text-xl font-bold mt-1.5 ${card.color}`}>{card.value}</p>
+                  <p className="text-[10px] text-slate-400 mt-0.5 leading-tight">{card.sub}</p>
                 </div>
-                <div className={`${card.bg} ${card.color} p-1.5 rounded-lg`}>{card.icon}</div>
+                <div className={`${card.bg} ${card.color} p-1.5 rounded-lg shrink-0`}>{card.icon}</div>
               </div>
             </div>
           ))}

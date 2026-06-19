@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { clearAuth, getToken, getUser, setAuth as persistAuth, type User } from "./auth";
+import { sendOffline } from "./shop-api";
 
 interface AuthState {
   user: User | null;
@@ -37,6 +38,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const logout = useCallback(() => {
+    // Send offline signal first — token is still in localStorage at this point
+    sendOffline();
     clearAuth(); // removes from localStorage
     setState({ user: null, token: null, ready: true });
     // Navigation is handled by AuthGuard reacting to user becoming null
