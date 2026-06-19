@@ -66,9 +66,11 @@ export default function DashboardHeader({
 
           {/* LOGO */}
           <Link href="/" className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-green-600 flex items-center justify-center text-white">
-              <LayoutDashboard size={16} />
-            </div>
+            {loading ? (
+              <div className="w-8 h-8 rounded-lg bg-slate-200 animate-pulse" />
+            ) : (
+              <img src="/higoverse.png" alt="Higoverse" className="w-8 h-8 rounded-lg object-cover" />
+            )}
             {loading ? (
               <div className="h-4 w-24 bg-slate-200 animate-pulse rounded" />
             ) : (
