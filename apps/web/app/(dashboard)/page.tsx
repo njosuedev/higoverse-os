@@ -88,7 +88,7 @@ const SERVICES = [
 ];
 
 const SVC_COLORS: Record<string, { bg: string; text: string; hover: string }> = {
-  blue:   { bg: "bg-blue-100",   text: "text-blue-600",   hover: "hover:bg-blue-600" },
+  blue:   { bg: "bg-[#EBF2FD]",   text: "text-[#1372e6]",   hover: "hover:bg-[#1372e6]" },
   indigo: { bg: "bg-indigo-100", text: "text-indigo-600", hover: "hover:bg-indigo-600" },
   teal:   { bg: "bg-teal-100",   text: "text-teal-600",   hover: "hover:bg-teal-600" },
   orange: { bg: "bg-orange-100", text: "text-orange-600", hover: "hover:bg-orange-600" },
@@ -199,8 +199,8 @@ export default function DashboardPage() {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-6">
 
         {/* ── HERO ────────────────────────────────────────────────────────────── */}
-        <section className="relative overflow-hidden rounded-2xl bg-blue-700 text-white shadow-lg">
-          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-indigo-600/50 via-transparent to-transparent pointer-events-none" />
+        <section className="relative overflow-hidden rounded-2xl text-white shadow-lg" style={{ background: "#1372e6" }}>
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-white/10 via-transparent to-transparent pointer-events-none" />
 
           <div className="relative z-10 flex flex-col md:flex-row md:items-center md:justify-between gap-4 px-6 py-5">
             {/* Left */}
@@ -306,7 +306,7 @@ export default function DashboardPage() {
             <div className="flex items-center justify-between mb-1">
               <div>
                 <h2 className="font-bold text-slate-900 flex items-center gap-2">
-                  <Activity size={16} className="text-blue-500" />
+                  <Activity size={16} className="text-[#1372e6]" />
                   Revenue — Last 7 Days
                 </h2>
                 {chartData.length > 0 && (
@@ -315,7 +315,7 @@ export default function DashboardPage() {
                   </p>
                 )}
               </div>
-              <Link href="/reports" className="text-xs font-semibold text-blue-600 hover:underline">
+              <Link href="/reports" className="text-xs font-semibold text-[#1372e6] hover:underline">
                 Full report →
               </Link>
             </div>
@@ -330,8 +330,8 @@ export default function DashboardPage() {
                   <AreaChart data={chartData} margin={{ top: 8, right: 4, bottom: 0, left: -20 }}>
                     <defs>
                       <linearGradient id="revFill" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%"  stopColor="#3b82f6" stopOpacity={0.25} />
-                        <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                        <stop offset="5%"  stopColor="#1372e6" stopOpacity={0.25} />
+                        <stop offset="95%" stopColor="#1372e6" stopOpacity={0} />
                       </linearGradient>
                       <linearGradient id="profFill" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="5%"  stopColor="#10b981" stopOpacity={0.2} />
@@ -347,13 +347,13 @@ export default function DashboardPage() {
                         name === "revenue" ? "Revenue" : "Profit",
                       ]}
                     />
-                    <Area type="monotone" dataKey="revenue" stroke="#3b82f6" fill="url(#revFill)" strokeWidth={2} dot={false} />
+                    <Area type="monotone" dataKey="revenue" stroke="#1372e6" fill="url(#revFill)" strokeWidth={2} dot={false} />
                     <Area type="monotone" dataKey="profit"  stroke="#10b981" fill="url(#profFill)" strokeWidth={1.5} dot={false} strokeDasharray="4 2" />
                   </AreaChart>
                 </ResponsiveContainer>
                 <div className="flex items-center gap-4 mt-2">
                   <span className="flex items-center gap-1.5 text-[11px] text-slate-500">
-                    <span className="w-3 h-0.5 bg-blue-500 rounded" /> Revenue
+                    <span className="w-3 h-0.5 rounded" style={{ background: "#1372e6" }} /> Revenue
                   </span>
                   <span className="flex items-center gap-1.5 text-[11px] text-slate-500">
                     <span className="w-3 h-0.5 bg-emerald-500 rounded border-dashed border-t border-emerald-500" /> Profit
@@ -370,7 +370,7 @@ export default function DashboardPage() {
                 <Receipt size={16} className="text-orange-500" />
                 Recent Sales
               </h2>
-              <Link href="/SaleManagement" className="text-xs font-semibold text-blue-600 hover:underline">
+              <Link href="/SaleManagement" className="text-xs font-semibold text-[#1372e6] hover:underline">
                 All sales →
               </Link>
             </div>
@@ -432,7 +432,7 @@ export default function DashboardPage() {
                   </span>
                 )}
               </h2>
-              <Link href="/ItemManagement" className="text-xs font-semibold text-blue-600 hover:underline">
+              <Link href="/ItemManagement" className="text-xs font-semibold text-[#1372e6] hover:underline">
                 View all →
               </Link>
             </div>
@@ -471,7 +471,7 @@ export default function DashboardPage() {
                     <div className="flex items-center gap-1.5 shrink-0">
                       <Link
                         href="/PurchaseManagement"
-                        className="flex items-center gap-1 text-[11px] font-semibold text-white bg-blue-600 hover:bg-blue-700 px-2.5 py-1 rounded-lg transition"
+                        className="flex items-center gap-1 text-[11px] font-semibold text-white bg-[#1372e6] hover:bg-[#0d5cc4] px-2.5 py-1 rounded-lg transition"
                       >
                         <Plus size={11} />
                         Restock
@@ -485,7 +485,7 @@ export default function DashboardPage() {
             {stockAlerts.length > 0 && (
               <div className="px-5 py-3 border-t border-slate-50">
                 <Link href="/PurchaseManagement"
-                  className="w-full flex items-center justify-center gap-2 text-sm font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 py-2 rounded-xl transition">
+                  className="w-full flex items-center justify-center gap-2 text-sm font-semibold text-[#1372e6] bg-[#EBF2FD] hover:bg-[#D5E8FB] py-2 rounded-xl transition">
                   <Truck size={15} />
                   Go to Purchases
                 </Link>
@@ -500,7 +500,7 @@ export default function DashboardPage() {
               {[
                 { href: "/SaleManagement",     icon: Plus,         label: "New Sale",      desc: "Record a transaction",  bg: "bg-orange-500", hover: "hover:bg-orange-600" },
                 { href: "/PurchaseManagement", icon: Truck,        label: "New Purchase",  desc: "Restock products",      bg: "bg-teal-600",   hover: "hover:bg-teal-700" },
-                { href: "/ItemManagement",     icon: Package,      label: "Manage Stock",  desc: "Items & inventory",     bg: "bg-blue-600",   hover: "hover:bg-blue-700" },
+                { href: "/ItemManagement",     icon: Package,      label: "Manage Stock",  desc: "Items & inventory",     bg: "bg-[#1372e6]",  hover: "hover:bg-[#0d5cc4]" },
                 { href: "/reports",            icon: BarChart3,    label: "View Reports",  desc: "Charts & analytics",    bg: "bg-violet-600", hover: "hover:bg-violet-700" },
               ].map((a) => (
                 <Link key={a.href} href={a.href}
@@ -571,10 +571,10 @@ export default function DashboardPage() {
         <section className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
           <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-slate-50">
             <div className="flex items-center gap-2.5">
-              <Globe size={16} className="text-blue-500" />
+              <Globe size={16} className="text-[#1372e6]" />
               <h2 className="font-bold text-slate-900">
                 Shops on Higoverse
-                <span className="ml-2 text-xs bg-blue-50 text-blue-700 font-semibold px-2 py-0.5 rounded-full align-middle">
+                <span className="ml-2 text-xs bg-[#EBF2FD] text-[#1372e6] font-semibold px-2 py-0.5 rounded-full align-middle">
                   {shops.length}
                 </span>
               </h2>
@@ -600,7 +600,7 @@ export default function DashboardPage() {
                     <div key={shop.id}
                       className={`flex items-center gap-3 p-3.5 rounded-xl border transition-all ${
                         isMine
-                          ? "border-blue-200 bg-blue-50"
+                          ? "border-[#A8C8F8] bg-[#EBF2FD]"
                           : presence.online
                             ? "border-green-200 bg-green-50/50"
                             : "border-slate-100 bg-slate-50/50 hover:bg-slate-50"
@@ -608,7 +608,7 @@ export default function DashboardPage() {
 
                       {/* Avatar */}
                       <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold text-sm shrink-0 ${
-                        isMine ? "bg-blue-600" : presence.online ? "bg-green-500" : "bg-slate-300"
+                        isMine ? "bg-[#1372e6]" : presence.online ? "bg-green-500" : "bg-slate-300"
                       }`}>
                         {initial}
                       </div>
@@ -617,12 +617,12 @@ export default function DashboardPage() {
                         <div className="flex items-center gap-2">
                           <p className="font-semibold text-slate-800 text-sm truncate">{shop.name}</p>
                           {isMine && (
-                            <span className="text-[10px] font-bold bg-blue-600 text-white px-2 py-0.5 rounded-full shrink-0">You</span>
+                            <span className="text-[10px] font-bold bg-[#1372e6] text-white px-2 py-0.5 rounded-full shrink-0">You</span>
                           )}
                         </div>
                         {shop.phone && <p className="text-xs text-slate-400 mt-0.5">{shop.phone}</p>}
                         <p className={`text-xs mt-1 font-medium flex items-center gap-1.5 ${
-                          isMine ? "text-blue-600" : presence.online ? "text-green-600" : "text-slate-400"
+                          isMine ? "text-[#1372e6]" : presence.online ? "text-green-600" : "text-slate-400"
                         }`}>
                           <span className={`w-1.5 h-1.5 rounded-full ${presence.color} ${presence.online || isMine ? "animate-pulse" : ""}`} />
                           {isMine ? "You are online" : presence.online ? "Online now" : `Last seen ${presence.label}`}
@@ -649,7 +649,7 @@ export default function DashboardPage() {
         <section className="pb-10">
           <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
             <div className="flex items-center gap-4 px-5 py-4 border-b border-slate-50">
-              <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center font-bold">
+              <div className="w-10 h-10 rounded-xl bg-[#D5E8FB] text-[#1372e6] flex items-center justify-center font-bold">
                 {(user.name || "U")[0].toUpperCase()}
               </div>
               <div>
@@ -669,7 +669,7 @@ export default function DashboardPage() {
                 { icon: <ShieldCheck size={14} />, label: "Security", value: "Protected" },
               ].map((info, i) => (
                 <div key={info.label} className={`flex items-center gap-3 px-5 py-4 ${i < 3 ? "border-b md:border-b-0 md:border-r" : ""} border-slate-50`}>
-                  <span className="text-blue-500 shrink-0">{info.icon}</span>
+                  <span className="text-[#1372e6] shrink-0">{info.icon}</span>
                   <div className="min-w-0">
                     <p className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">{info.label}</p>
                     <p className="text-sm font-bold text-slate-800 truncate mt-0.5">{info.value}</p>
@@ -692,7 +692,7 @@ interface KpiCardProps {
 }
 
 const KPI_COLORS: Record<string, { icon: string; border: string }> = {
-  blue:   { icon: "bg-blue-100 text-blue-600",   border: "border-blue-100" },
+  blue:   { icon: "bg-[#D5E8FB] text-[#1372e6]",   border: "border-[#D5E8FB]" },
   indigo: { icon: "bg-indigo-100 text-indigo-600", border: "border-indigo-100" },
   teal:   { icon: "bg-teal-100 text-teal-600",   border: "border-teal-100" },
   green:  { icon: "bg-green-100 text-green-600", border: "border-green-100" },
@@ -726,7 +726,7 @@ function KpiCard({ label, value, icon, color, href, sub, small, delta, warn }: K
       {sub && !delta && (
         <p className="text-[10px] text-slate-300 mt-0.5 truncate">{sub}</p>
       )}
-      <div className="mt-2 flex items-center gap-1 text-[10px] text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity font-medium">
+      <div className="mt-2 flex items-center gap-1 text-[10px] text-[#1372e6] opacity-0 group-hover:opacity-100 transition-opacity font-medium">
         Open <ArrowRight size={9} />
       </div>
     </Link>
