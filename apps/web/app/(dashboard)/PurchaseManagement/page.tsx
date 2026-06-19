@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -325,7 +325,7 @@ export default function PurchaseManagementPage() {
           {[
             { label: "Total Products",        value: productsTotal,                        sub: "items in your shop",              color: "text-violet-600", bg: "bg-violet-50",  icon: <Package size={17} /> },
             { label: "What You Paid",         value: invStats.costValue.toLocaleString(),   sub: "total cost of all stock",         color: "text-indigo-600", bg: "bg-indigo-50",  icon: <DollarSign size={17} /> },
-            { label: "If You Sell All",       value: invStats.retailValue.toLocaleString(), sub: "money you'd earn selling everything", color: "text-blue-600",   bg: "bg-blue-50",    icon: <TrendingUp size={17} /> },
+            { label: "If You Sell All",       value: invStats.retailValue.toLocaleString(), sub: "money you'd earn selling everything", color: "text-[#1372e6]",   bg: "bg-[#EBF2FD]",    icon: <TrendingUp size={17} /> },
             { label: "Profit to Make",        value: invStats.grossProfit.toLocaleString(), sub: "extra money once all stock is sold",   color: "text-green-600",  bg: "bg-green-50",   icon: <TrendingUp size={17} /> },
             { label: "Almost Finished",       value: invStats.lowStock,                    sub: "10 units or less — restock soon",  color: "text-amber-500",  bg: "bg-amber-50",   icon: <AlertCircle size={17} /> },
             { label: "Finished / Empty",      value: invStats.outStock,                    sub: "zero units — buy more now",        color: "text-red-600",    bg: "bg-red-50",     icon: <AlertCircle size={17} /> },

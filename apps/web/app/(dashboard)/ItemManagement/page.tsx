@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -159,13 +159,13 @@ export default function ItemManagementPage() {
   const alertItems = products.filter((p) => p.quantity <= 10);
 
   const inputCls =
-    "border border-slate-200 text-gray-800 placeholder:text-gray-400 rounded-lg px-3 py-2 w-full text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition";
+    "border border-slate-200 text-gray-800 placeholder:text-gray-400 rounded-lg px-3 py-2 w-full text-sm focus:outline-none focus:ring-2 focus:ring-[#1372e6]/30 focus:border-[#1372e6] transition";
 
   if (loading) return (
     <div className="min-h-screen bg-slate-50">
       <DashboardHeader />
       <div className="max-w-7xl mx-auto px-6 py-6">
-        <div className="rounded-2xl bg-linear-to-r from-blue-600 to-indigo-600 p-5 mb-6 animate-pulse">
+        <div className="rounded-2xl bg-linear-to-r from-[#1372e6] to-[#0d5cc4] p-5 mb-6 animate-pulse">
           <div className="flex justify-between"><div className="h-4 w-40 bg-white/20 rounded-lg" /><div className="h-8 w-24 bg-white/20 rounded-lg" /></div>
           <div className="h-9 bg-white/10 rounded-lg mt-4" />
         </div>
@@ -185,7 +185,7 @@ export default function ItemManagementPage() {
       <div className="max-w-7xl mx-auto px-6 py-6">
 
         {/* HEADER BANNER */}
-        <div className="bg-linear-to-r from-blue-600 to-indigo-600 text-white rounded-2xl p-5 mb-6">
+        <div className="bg-linear-to-r from-[#1372e6] to-[#0d5cc4] text-white rounded-2xl p-5 mb-6">
           <div className="flex justify-between items-center">
             <div className="flex items-center gap-2.5">
               <Package size={20} />
@@ -202,7 +202,7 @@ export default function ItemManagementPage() {
                 <RefreshCw size={14} className={refreshing ? "animate-spin" : ""} />
               </button>
               <button onClick={openCreateModal}
-                className="bg-white text-blue-700 px-3.5 py-1.5 rounded-lg flex items-center gap-1.5 text-sm font-semibold hover:bg-blue-50 transition">
+                className="bg-white text-[#1372e6] px-3.5 py-1.5 rounded-lg flex items-center gap-1.5 text-sm font-semibold hover:bg-[#EBF2FD] transition">
                 <Plus size={15} /> Add Item
               </button>
             </div>
@@ -243,7 +243,7 @@ export default function ItemManagementPage() {
         {/* STAT CARDS */}
         <div className="grid grid-cols-2 md:grid-cols-6 gap-3 mb-6">
           {[
-            { label: "Total Items",  value: stats.total,                            color: "text-blue-600",    bg: "bg-blue-50",    icon: <Boxes size={17} /> },
+            { label: "Total Items",  value: stats.total,                            color: "text-[#1372e6]",    bg: "bg-[#EBF2FD]",    icon: <Boxes size={17} /> },
             { label: "In Stock",     value: stats.inStock,                          color: "text-green-600",   bg: "bg-green-50",   icon: <Package size={17} /> },
             { label: "Low Stock",    value: stats.lowStock,                         color: "text-amber-500",   bg: "bg-amber-50",   icon: <AlertCircle size={17} /> },
             { label: "Out of Stock", value: stats.outStock,                         color: "text-red-600",     bg: "bg-red-50",     icon: <ShoppingBag size={17} /> },
@@ -328,7 +328,7 @@ export default function ItemManagementPage() {
                             <RefreshCw size={14} />
                           </Link>
                         )}
-                        <button onClick={() => openEditModal(p)} title="Edit" className="p-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600 transition"><Pencil size={14} /></button>
+                        <button onClick={() => openEditModal(p)} title="Edit" className="p-1.5 rounded-lg bg-[#EBF2FD] hover:bg-[#D5E8FB] text-[#1372e6] transition"><Pencil size={14} /></button>
                         <button onClick={() => deleteProduct(p.id)} disabled={deletingId === p.id} title="Delete" className="p-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 transition disabled:opacity-40"><Trash2 size={14} /></button>
                       </div>
                     </td>
@@ -344,7 +344,7 @@ export default function ItemManagementPage() {
               <p className="font-medium text-slate-500 text-sm">No items found</p>
               <p className="text-xs mt-1 text-slate-400">{search || filter !== "all" ? "Try adjusting filters or search." : "Add your first item to get started."}</p>
               {!search && filter === "all" && (
-                <button onClick={openCreateModal} className="mt-4 flex items-center gap-1.5 bg-blue-600 text-white text-sm font-semibold px-4 py-2 rounded-lg hover:bg-blue-700 transition">
+                <button onClick={openCreateModal} className="mt-4 flex items-center gap-1.5 bg-[#1372e6] text-white text-sm font-semibold px-4 py-2 rounded-lg hover:bg-[#1372e6] transition">
                   <Plus size={14} /> Add Item
                 </button>
               )}
@@ -405,7 +405,7 @@ export default function ItemManagementPage() {
               <div className="flex justify-end gap-2.5 px-6 py-4 border-t border-slate-100">
                 <button onClick={closeModal} className="px-4 py-2 rounded-lg border border-slate-200 text-slate-600 text-sm font-medium hover:bg-slate-50 transition">Cancel</button>
                 <button onClick={submitForm} disabled={submitting}
-                  className="px-5 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition disabled:opacity-60">
+                  className="px-5 py-2 rounded-lg bg-[#1372e6] text-white text-sm font-semibold hover:bg-[#1372e6] transition disabled:opacity-60">
                   {submitting ? (modalMode === "edit" ? "Saving..." : "Adding...") : (modalMode === "edit" ? "Save Changes" : "Add Item")}
                 </button>
               </div>

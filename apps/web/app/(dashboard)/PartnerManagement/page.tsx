@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -236,7 +236,7 @@ export default function PartnerManagementPage() {
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
           {[
             { label: "Total Partners",   value: stats.total,           color: "text-green-600",   bg: "bg-green-50",   icon: <Users size={17} /> },
-            { label: "Suppliers",        value: stats.suppliers,       color: "text-blue-600",    bg: "bg-blue-50",    icon: <Building2 size={17} /> },
+            { label: "Suppliers",        value: stats.suppliers,       color: "text-[#1372e6]",    bg: "bg-[#EBF2FD]",    icon: <Building2 size={17} /> },
             { label: "Customers",        value: stats.customers,       color: "text-purple-600",  bg: "bg-purple-50",  icon: <UserCheck size={17} /> },
             { label: "Active Suppliers", value: stats.activeSuppliers, color: "text-emerald-600", bg: "bg-emerald-50", icon: <UserCog size={17} /> },
             { label: "Items Supplied",   value: stats.itemsSupplied,   color: "text-indigo-600",  bg: "bg-indigo-50",  icon: <Package size={17} /> },
@@ -279,7 +279,7 @@ export default function PartnerManagementPage() {
                       <p className="text-xs text-slate-400 font-mono">{p.id?.slice(0, 8)}</p>
                     </td>
                     <td className="px-4 py-3">
-                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${isSupplier ? "bg-blue-100 text-blue-700" : "bg-purple-100 text-purple-700"}`}>
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${isSupplier ? "bg-[#D5E8FB] text-[#1372e6]" : "bg-purple-100 text-purple-700"}`}>
                         {isSupplier ? <Building2 size={10} /> : <UserCheck size={10} />}
                         {isSupplier ? "Supplier" : "Customer"}
                       </span>
@@ -289,7 +289,7 @@ export default function PartnerManagementPage() {
                         : <span className="text-slate-300">—</span>}
                     </td>
                     <td className="px-4 py-3">
-                      {p.tin ? <span className="font-mono text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded-md">{p.tin}</span>
+                      {p.tin ? <span className="font-mono text-xs bg-[#EBF2FD] text-[#1372e6] px-2 py-0.5 rounded-md">{p.tin}</span>
                         : <span className="text-slate-300">—</span>}
                     </td>
                     <td className="px-4 py-3">
@@ -343,13 +343,13 @@ export default function PartnerManagementPage() {
               <div className="flex justify-between items-center px-6 py-4 border-b border-slate-100">
                 <div>
                   <h2 className="text-base font-semibold text-slate-800">{modalMode === "edit" ? "Edit Partner" : "Add Partner"}</h2>
-                  {previewType && <p className="text-xs text-slate-400 mt-0.5">Will be saved as a <span className={`font-semibold ${previewType === "supplier" ? "text-blue-600" : "text-purple-600"}`}>{previewType === "supplier" ? "Supplier" : "Customer"}</span></p>}
+                  {previewType && <p className="text-xs text-slate-400 mt-0.5">Will be saved as a <span className={`font-semibold ${previewType === "supplier" ? "text-[#1372e6]" : "text-purple-600"}`}>{previewType === "supplier" ? "Supplier" : "Customer"}</span></p>}
                 </div>
                 <button onClick={closeModal} className="p-2 rounded-lg hover:bg-slate-100 text-slate-400 transition"><X size={17} /></button>
               </div>
               <div className="px-6 py-5 space-y-4">
                 <div className="bg-slate-50 border border-slate-100 rounded-lg px-3 py-2 text-xs text-slate-500">
-                  Fill <span className="font-semibold text-blue-600">TIN</span> → Supplier &nbsp;·&nbsp; Fill <span className="font-semibold text-purple-600">Phone only</span> → Customer
+                  Fill <span className="font-semibold text-[#1372e6]">TIN</span> → Supplier &nbsp;·&nbsp; Fill <span className="font-semibold text-purple-600">Phone only</span> → Customer
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">Full Name <span className="text-red-400">*</span></label>
@@ -363,7 +363,7 @@ export default function PartnerManagementPage() {
                     {errors.phone && <p className="text-red-500 text-xs mt-1">{errors.phone}</p>}
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1"><span className="flex items-center gap-1"><Building2 size={12} /> TIN <span className="text-blue-500">(Supplier)</span></span></label>
+                    <label className="block text-xs font-medium text-gray-600 mb-1"><span className="flex items-center gap-1"><Building2 size={12} /> TIN <span className="text-[#1372e6]">(Supplier)</span></span></label>
                     <input name="tin" placeholder="9-digit TIN" value={form.tin} maxLength={9} className={`${inputCls} font-mono`} onChange={handleChange} />
                     {errors.tin && <p className="text-red-500 text-xs mt-1">{errors.tin}</p>}
                   </div>

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
@@ -432,7 +432,7 @@ export default function ReportsPage() {
           <div className="flex flex-wrap justify-between items-start gap-2 mb-5">
             <div>
               <h2 className="text-sm font-semibold text-slate-800 flex items-center gap-2">
-                <Activity size={15} className="text-blue-500" />
+                <Activity size={15} className="text-[#1372e6]" />
                 Daily Revenue &amp; Profit — Last 30 Days
               </h2>
               <p className="text-xs text-slate-400 mt-0.5">
@@ -441,7 +441,7 @@ export default function ReportsPage() {
               </p>
             </div>
             <div className="flex items-center gap-4 text-xs">
-              <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-blue-500 inline-block" /> Revenue</span>
+              <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-[#1372e6] inline-block" /> Revenue</span>
               <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-emerald-500 inline-block" /> Profit</span>
             </div>
           </div>
@@ -453,8 +453,8 @@ export default function ReportsPage() {
               <AreaChart data={dailyChartData} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
                 <defs>
                   <linearGradient id="gradRevenue" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%"  stopColor="#3b82f6" stopOpacity={0.25} />
-                    <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.02} />
+                    <stop offset="5%"  stopColor="#1372e6" stopOpacity={0.25} />
+                    <stop offset="95%" stopColor="#1372e6" stopOpacity={0.02} />
                   </linearGradient>
                   <linearGradient id="gradProfit" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%"  stopColor="#10b981" stopOpacity={0.25} />
@@ -465,7 +465,7 @@ export default function ReportsPage() {
                 <XAxis dataKey="label" tick={{ fontSize: 10, fill: "#94a3b8" }} tickLine={false} axisLine={false} interval="preserveStartEnd" />
                 <YAxis tickFormatter={fmtRWF} tick={{ fontSize: 10, fill: "#94a3b8" }} tickLine={false} axisLine={false} width={44} />
                 <Tooltip content={<RevenueTooltip />} />
-                <Area type="monotone" dataKey="revenue" name="revenue" stroke="#3b82f6" strokeWidth={2} fill="url(#gradRevenue)" dot={false} activeDot={{ r: 4, fill: "#3b82f6" }} />
+                <Area type="monotone" dataKey="revenue" name="revenue" stroke="#1372e6" strokeWidth={2} fill="url(#gradRevenue)" dot={false} activeDot={{ r: 4, fill: "#1372e6" }} />
                 <Area type="monotone" dataKey="profit"  name="profit"  stroke="#10b981" strokeWidth={2} fill="url(#gradProfit)"  dot={false} activeDot={{ r: 4, fill: "#10b981" }} />
               </AreaChart>
             </ResponsiveContainer>
@@ -551,8 +551,8 @@ export default function ReportsPage() {
                   sublabel="Total if every item in stock is sold at your selling price"
                   value={stockRetail}
                   max={Math.max(stockCost, stockRetail, summary.revenue, 1)}
-                  color="bg-blue-500"
-                  textColor="text-blue-700"
+                  color="bg-[#1372e6]"
+                  textColor="text-[#1372e6]"
                 />
                 <ValueBar
                   label="Profit waiting in your stock"
@@ -736,7 +736,7 @@ export default function ReportsPage() {
         {summary && (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pb-10">
             <StatMini label="Items Sold"         value={fmtNum(summary.items_sold)}               sub={`to ${summary.unique_customers} customers`} color="text-indigo-600" icon={<ShoppingCart size={14} />} />
-            <StatMini label="Number of Sales"    value={fmtNum(summary.sales_count)}              sub="times you made a sale"                      color="text-blue-600"   icon={<DollarSign size={14} />} />
+            <StatMini label="Number of Sales"    value={fmtNum(summary.sales_count)}              sub="times you made a sale"                      color="text-[#1372e6]"   icon={<DollarSign size={14} />} />
             <StatMini label="Spent on Restocking" value={`RWF ${fmtRWF(summary.total_spent)}`}   sub={`${recentPurchases.length} purchase records`} color="text-violet-600" icon={<Truck size={14} />} />
             <StatMini label="Profit Waiting in Stock" value={`RWF ${fmtRWF(summary.potential_profit)}`} sub={`${stockCost > 0 ? ((summary.potential_profit / stockCost) * 100).toFixed(1) : 0}% return rate`} color="text-emerald-600" icon={<TrendingUp size={14} />} />
           </div>
@@ -759,7 +759,7 @@ export default function ReportsPage() {
 
 const kpiColors: Record<string, { bg: string; text: string; badge: string }> = {
   indigo:  { bg: "bg-indigo-50",   text: "text-indigo-600",   badge: "bg-indigo-100 text-indigo-700"   },
-  blue:    { bg: "bg-blue-50",     text: "text-blue-600",     badge: "bg-blue-100 text-blue-700"       },
+  blue:    { bg: "bg-[#EBF2FD]",     text: "text-[#1372e6]",     badge: "bg-[#D5E8FB] text-[#1372e6]"       },
   violet:  { bg: "bg-violet-50",   text: "text-violet-600",   badge: "bg-violet-100 text-violet-700"   },
   teal:    { bg: "bg-teal-50",     text: "text-teal-600",     badge: "bg-teal-100 text-teal-700"       },
   emerald: { bg: "bg-emerald-50",  text: "text-emerald-600",  badge: "bg-emerald-100 text-emerald-700" },
@@ -778,7 +778,7 @@ function KpiCard({ label, value, detail, icon, color, pulse, badge }: {
       {pulse && (
         <span className="absolute top-3 right-3 flex h-2 w-2">
           <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75" />
-          <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500" />
+          <span className="relative inline-flex rounded-full h-2 w-2 bg-[#1372e6]" />
         </span>
       )}
       <div className={`w-9 h-9 rounded-xl ${c.bg} ${c.text} flex items-center justify-center mb-3`}>
