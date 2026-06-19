@@ -281,9 +281,9 @@ export default function ReportsPage() {
   if (loading) return (
     <div className="min-h-screen bg-slate-50">
       <DashboardHeader />
-      <div className="max-w-7xl mx-auto px-6 py-6 space-y-6">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-6 space-y-6">
         <div className="h-28 rounded-2xl bg-slate-200 animate-pulse" />
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {[...Array(8)].map((_, i) => (
             <div key={i} className="bg-white rounded-xl border p-5 animate-pulse">
               <div className="h-3 w-20 bg-slate-200 rounded mb-3" />
@@ -734,7 +734,7 @@ export default function ReportsPage() {
 
         {/* ── SECONDARY STATS ROW ────────────────────────────────────────────── */}
         {summary && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pb-10">
+          <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-4 pb-10">
             <StatMini label="Items Sold"         value={fmtNum(summary.items_sold)}               sub={`to ${summary.unique_customers} customers`} color="text-indigo-600" icon={<ShoppingCart size={14} />} />
             <StatMini label="Number of Sales"    value={fmtNum(summary.sales_count)}              sub="times you made a sale"                      color="text-[#1372e6]"   icon={<DollarSign size={14} />} />
             <StatMini label="Spent on Restocking" value={`RWF ${fmtRWF(summary.total_spent)}`}   sub={`${recentPurchases.length} purchase records`} color="text-violet-600" icon={<Truck size={14} />} />

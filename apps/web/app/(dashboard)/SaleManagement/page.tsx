@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { itemRequest } from "@/lib/product-api";
@@ -343,12 +343,12 @@ ${customerName ? `<div class="row"><span class="label">Customer</span><span styl
   if (loading) return (
     <div className="min-h-screen bg-slate-50">
       <DashboardHeader />
-      <div className="max-w-7xl mx-auto px-6 py-6">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
         <div className="rounded-2xl bg-linear-to-r from-orange-500 to-amber-500 p-5 mb-6 animate-pulse">
           <div className="flex justify-between"><div className="h-4 w-40 bg-white/20 rounded-lg" /><div className="h-8 w-28 bg-white/20 rounded-lg" /></div>
           <div className="h-9 bg-white/10 rounded-lg mt-4" />
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-6">
           {[...Array(5)].map((_, i) => <div key={i} className="bg-white rounded-xl border p-4 animate-pulse"><div className="h-2.5 w-16 bg-slate-200 rounded mb-3" /><div className="h-5 w-10 bg-slate-200 rounded" /></div>)}
         </div>
       </div>
@@ -358,11 +358,11 @@ ${customerName ? `<div class="row"><span class="label">Customer</span><span styl
   return (
     <div className="min-h-screen bg-slate-50">
       <DashboardHeader />
-      <div className="max-w-7xl mx-auto px-6 py-6">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
 
         {/* HEADER */}
         <div className="bg-linear-to-r from-orange-500 to-amber-500 text-white rounded-2xl p-5 mb-6">
-          <div className="flex justify-between items-center">
+          <div className="flex flex-wrap justify-between items-center gap-2">
             <div className="flex items-center gap-2.5">
               <ShoppingBag size={20} />
               <div>
@@ -427,7 +427,7 @@ ${customerName ? `<div class="row"><span class="label">Customer</span><span styl
         )}
 
         {/* STAT CARDS */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-6">
           {[
             { label: t("sales.count"),       value: stats.total,                    color: "text-orange-600",  bg: "bg-orange-50",  icon: <ReceiptText size={17} /> },
             { label: t("sales.revenue"),      value: stats.revenue.toLocaleString(), color: "text-green-600",   bg: "bg-green-50",   icon: <DollarSign size={17} /> },
@@ -436,7 +436,7 @@ ${customerName ? `<div class="row"><span class="label">Customer</span><span styl
             { label: t("reports.customers"),  value: stats.uniqueCustomers,          color: "text-violet-600",  bg: "bg-violet-50",  icon: <Users size={17} /> },
           ].map((card) => (
             <div key={card.label} className="bg-white rounded-xl border border-slate-200 p-4">
-              <div className="flex justify-between items-start">
+              <div className="flex flex-wrap justify-between items-start gap-2">
                 <div>
                   <p className="text-xs font-medium text-gray-400 uppercase tracking-wide leading-none">{card.label}</p>
                   <p className={`text-xl font-bold mt-1.5 ${card.color}`}>{card.value}</p>
@@ -677,12 +677,12 @@ ${customerName ? `<div class="row"><span class="label">Customer</span><span styl
         {/* EDIT MODAL — single item */}
         {showModal && modalMode === "edit" && (
           <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-2xl w-full max-w-xl shadow-2xl">
-              <div className="flex justify-between items-center px-6 py-4 border-b border-slate-100">
+            <div className="bg-white rounded-2xl w-full max-w-xl shadow-2xl max-h-[90vh] flex flex-col">
+              <div className="flex justify-between items-center px-4 sm:px-6 py-4 border-b border-slate-100 shrink-0">
                 <h2 className="text-base font-semibold text-slate-800">{t("sales.edit_title")}</h2>
                 <button onClick={closeModal} className="p-2 rounded-lg hover:bg-slate-100 text-slate-400 transition"><X size={17} /></button>
               </div>
-              <div className="px-6 py-5 grid md:grid-cols-2 gap-4">
+              <div className="px-4 sm:px-6 py-4 sm:py-5 grid md:grid-cols-2 gap-4 overflow-y-auto flex-1">
                 <div className="md:col-span-2">
                   <label className="block text-xs font-medium text-gray-600 mb-1">{t("sales.product")} <span className="text-red-400">*</span></label>
                   <select className={inputCls} value={form.product_id} onChange={(e) => onProductChange(e.target.value)}>
@@ -736,7 +736,7 @@ ${customerName ? `<div class="row"><span class="label">Customer</span><span styl
                     value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
                 </div>
               </div>
-              <div className="flex justify-end gap-2.5 px-6 py-4 border-t border-slate-100">
+              <div className="flex justify-end gap-2.5 px-4 sm:px-6 py-4 border-t border-slate-100 shrink-0">
                 <button onClick={closeModal} className="px-4 py-2 rounded-lg border border-slate-200 text-slate-600 text-sm font-medium hover:bg-slate-50 transition">{t("common.cancel")}</button>
                 <button onClick={submitForm} disabled={submitting}
                   className="px-5 py-2 rounded-lg bg-orange-500 text-white text-sm font-semibold hover:bg-orange-600 transition disabled:opacity-60">

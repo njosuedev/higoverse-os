@@ -164,12 +164,12 @@ export default function ItemManagementPage() {
   if (loading) return (
     <div className="min-h-screen bg-slate-50">
       <DashboardHeader />
-      <div className="max-w-7xl mx-auto px-6 py-6">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
         <div className="rounded-2xl bg-linear-to-r from-[#1372e6] to-[#0d5cc4] p-5 mb-6 animate-pulse">
           <div className="flex justify-between"><div className="h-4 w-40 bg-white/20 rounded-lg" /><div className="h-8 w-24 bg-white/20 rounded-lg" /></div>
           <div className="h-9 bg-white/10 rounded-lg mt-4" />
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-6 gap-3 mb-6">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
           {[...Array(6)].map((_, i) => <div key={i} className="bg-white rounded-xl border p-4 animate-pulse"><div className="h-2.5 w-14 bg-slate-200 rounded mb-3" /><div className="h-5 w-10 bg-slate-200 rounded" /></div>)}
         </div>
         <div className="bg-white rounded-xl border overflow-hidden">
@@ -182,11 +182,11 @@ export default function ItemManagementPage() {
   return (
     <div className="min-h-screen bg-slate-50">
       <DashboardHeader />
-      <div className="max-w-7xl mx-auto px-6 py-6">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
 
         {/* HEADER BANNER */}
         <div className="bg-linear-to-r from-[#1372e6] to-[#0d5cc4] text-white rounded-2xl p-5 mb-6">
-          <div className="flex justify-between items-center">
+          <div className="flex flex-wrap justify-between items-center gap-2">
             <div className="flex items-center gap-2.5">
               <Package size={20} />
               <div>
@@ -241,7 +241,7 @@ export default function ItemManagementPage() {
         )}
 
         {/* STAT CARDS */}
-        <div className="grid grid-cols-2 md:grid-cols-6 gap-3 mb-6">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
           {[
             { label: "Total Items",  value: stats.total,                            color: "text-[#1372e6]",    bg: "bg-[#EBF2FD]",    icon: <Boxes size={17} /> },
             { label: "In Stock",     value: stats.inStock,                          color: "text-green-600",   bg: "bg-green-50",   icon: <Package size={17} /> },
@@ -251,7 +251,7 @@ export default function ItemManagementPage() {
             { label: "Pot. Profit",  value: stats.potentialProfit.toLocaleString(), color: "text-emerald-600", bg: "bg-emerald-50", icon: <BarChart3 size={17} /> },
           ].map((card) => (
             <div key={card.label} className="bg-white rounded-xl border border-slate-200 p-4">
-              <div className="flex justify-between items-start">
+              <div className="flex flex-wrap justify-between items-start gap-2">
                 <div>
                   <p className="text-xs font-medium text-gray-400 uppercase tracking-wide leading-none">{card.label}</p>
                   <p className={`text-xl font-bold mt-1.5 ${card.color}`}>{card.value}</p>
@@ -358,15 +358,15 @@ export default function ItemManagementPage() {
         {/* MODAL */}
         {showModal && (
           <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-2xl w-full max-w-xl shadow-2xl">
-              <div className="flex justify-between items-center px-6 py-4 border-b border-slate-100">
+            <div className="bg-white rounded-2xl w-full max-w-xl shadow-2xl max-h-[90vh] flex flex-col">
+              <div className="flex justify-between items-center px-4 sm:px-6 py-4 border-b border-slate-100 shrink-0">
                 <div>
                   <h2 className="text-base font-semibold text-slate-800">{modalMode === "edit" ? "Edit Item" : "Add New Item"}</h2>
                   <p className="text-xs text-slate-400 mt-0.5">{modalMode === "edit" ? "Update item details" : "Register a new item in inventory"}</p>
                 </div>
                 <button onClick={closeModal} className="p-2 rounded-lg hover:bg-slate-100 text-slate-400 transition"><X size={17} /></button>
               </div>
-              <div className="px-6 py-5 grid md:grid-cols-2 gap-4">
+              <div className="px-4 sm:px-6 py-4 sm:py-5 grid md:grid-cols-2 gap-4 overflow-y-auto flex-1">
                 <div className="md:col-span-2">
                   <label className="block text-xs font-medium text-gray-600 mb-1">Item Name <span className="text-red-400">*</span></label>
                   <input className={inputCls} placeholder="e.g. Sugar 1kg" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
@@ -402,7 +402,7 @@ export default function ItemManagementPage() {
                   </select>
                 </div>
               </div>
-              <div className="flex justify-end gap-2.5 px-6 py-4 border-t border-slate-100">
+              <div className="flex justify-end gap-2.5 px-4 sm:px-6 py-4 border-t border-slate-100 shrink-0">
                 <button onClick={closeModal} className="px-4 py-2 rounded-lg border border-slate-200 text-slate-600 text-sm font-medium hover:bg-slate-50 transition">Cancel</button>
                 <button onClick={submitForm} disabled={submitting}
                   className="px-5 py-2 rounded-lg bg-[#1372e6] text-white text-sm font-semibold hover:bg-[#1372e6] transition disabled:opacity-60">

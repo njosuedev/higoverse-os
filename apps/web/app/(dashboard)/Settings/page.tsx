@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useRef, useState } from "react";
 import { settingsRequest } from "@/lib/settings-api";
@@ -201,7 +201,7 @@ export default function SettingsPage() {
   if (loading) return (
     <div className="min-h-screen bg-slate-50">
       <DashboardHeader />
-      <div className="max-w-3xl mx-auto px-6 py-6 space-y-4">
+      <div className="max-w-3xl mx-auto px-4 sm:px-6 py-4 sm:py-6 space-y-4">
         <div className="rounded-2xl bg-slate-800 h-24 animate-pulse" />
         {[...Array(3)].map((_, i) => (
           <div key={i} className="bg-white rounded-xl border p-5 animate-pulse space-y-3">
@@ -218,11 +218,11 @@ export default function SettingsPage() {
     <div className="min-h-screen bg-slate-50 pb-32">
       <DashboardHeader />
 
-      <div className="max-w-3xl mx-auto px-6 py-6 space-y-4">
+      <div className="max-w-3xl mx-auto px-4 sm:px-6 py-4 sm:py-6 space-y-4">
 
         {/* ── HEADER ─────────────────────────────── */}
         <div className="bg-linear-to-r from-slate-700 to-slate-900 text-white rounded-2xl p-5">
-          <div className="flex justify-between items-center">
+          <div className="flex flex-wrap justify-between items-center gap-2">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center">
                 <Settings size={19} />

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -106,7 +106,7 @@ export default function DashboardHeader({
                       <button
                         key={l.code}
                         onClick={() => changeLang(l.code)}
-                        className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm transition hover:bg-slate-50 ${lang === l.code ? "bg-blue-50 text-blue-700 font-semibold" : "text-slate-700"}`}
+                        className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm transition hover:bg-slate-50 ${lang === l.code ? "bg-[#EBF2FD] text-[#1372e6] font-semibold" : "text-slate-700"}`}
                       >
                         <span>{l.flag}</span>
                         <span>{l.label}</span>
@@ -148,7 +148,7 @@ export default function DashboardHeader({
                 href={menu.href}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all
                 ${active
-                  ? isAdmin ? "bg-red-600 text-white" : "bg-green-600 text-white"
+                  ? isAdmin ? "bg-red-600 text-white" : "bg-[#1372e6] text-white"
                   : isAdmin ? "text-red-600 hover:bg-red-50 border border-red-200" : "text-slate-600 hover:bg-slate-100"
                 }`}
               >

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { useAuth } from "@/lib/auth-context";
@@ -243,7 +243,7 @@ export default function AdminPage() {
     <div className="min-h-screen" style={{ background: "#F3F2EE" }}>
       <DashboardHeader title="Admin" />
 
-      <main className="max-w-6xl mx-auto px-4 sm:px-6 py-6 space-y-4">
+      <main className="max-w-6xl mx-auto px-4 sm:px-6 py-4 sm:py-6 space-y-4">
 
         {/* ── Top bar ─────────────────────────────────────────────────────── */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 px-5 py-4 flex items-center justify-between">

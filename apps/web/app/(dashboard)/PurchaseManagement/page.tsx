@@ -218,12 +218,12 @@ export default function PurchaseManagementPage() {
   if (loading) return (
     <div className="min-h-screen bg-slate-50">
       <DashboardHeader />
-      <div className="max-w-7xl mx-auto px-6 py-6">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
         <div className="rounded-2xl bg-linear-to-r from-violet-600 to-purple-600 p-5 mb-6 animate-pulse">
           <div className="flex justify-between"><div className="h-4 w-44 bg-white/20 rounded-lg" /><div className="h-8 w-28 bg-white/20 rounded-lg" /></div>
           <div className="h-9 bg-white/10 rounded-lg mt-4" />
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-6 gap-3 mb-6">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
           {[...Array(6)].map((_, i) => <div key={i} className="bg-white rounded-xl border p-4 animate-pulse"><div className="h-2.5 w-16 bg-slate-200 rounded mb-3" /><div className="h-5 w-10 bg-slate-200 rounded" /></div>)}
         </div>
       </div>
@@ -233,11 +233,11 @@ export default function PurchaseManagementPage() {
   return (
     <div className="min-h-screen bg-slate-50">
       <DashboardHeader />
-      <div className="max-w-7xl mx-auto px-6 py-6">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
 
         {/* HEADER */}
         <div className="bg-linear-to-r from-violet-600 to-purple-600 text-white rounded-2xl p-5 mb-6">
-          <div className="flex justify-between items-center">
+          <div className="flex flex-wrap justify-between items-center gap-2">
             <div className="flex items-center gap-2.5">
               <ShoppingCart size={20} />
               <div>
@@ -321,7 +321,7 @@ export default function PurchaseManagementPage() {
         )}
 
         {/* STAT CARDS */}
-        <div className="grid grid-cols-2 md:grid-cols-6 gap-3 mb-6">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
           {[
             { label: "Total Products",        value: productsTotal,                        sub: "items in your shop",              color: "text-violet-600", bg: "bg-violet-50",  icon: <Package size={17} /> },
             { label: "What You Paid",         value: invStats.costValue.toLocaleString(),   sub: "total cost of all stock",         color: "text-indigo-600", bg: "bg-indigo-50",  icon: <DollarSign size={17} /> },
@@ -331,7 +331,7 @@ export default function PurchaseManagementPage() {
             { label: "Finished / Empty",      value: invStats.outStock,                    sub: "zero units — buy more now",        color: "text-red-600",    bg: "bg-red-50",     icon: <AlertCircle size={17} /> },
           ].map((card) => (
             <div key={card.label} className="bg-white rounded-xl border border-slate-200 p-4">
-              <div className="flex justify-between items-start">
+              <div className="flex flex-wrap justify-between items-start gap-2">
                 <div>
                   <p className="text-xs font-medium text-gray-400 uppercase tracking-wide leading-none">{card.label}</p>
                   <p className={`text-xl font-bold mt-1.5 ${card.color}`}>{card.value}</p>
@@ -488,8 +488,8 @@ export default function PurchaseManagementPage() {
         {/* MODAL */}
         {showModal && (
           <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-2xl w-full max-w-xl shadow-2xl">
-              <div className="flex justify-between items-center px-6 py-4 border-b border-slate-100">
+            <div className="bg-white rounded-2xl w-full max-w-xl shadow-2xl max-h-[90vh] flex flex-col">
+              <div className="flex justify-between items-center px-4 sm:px-6 py-4 border-b border-slate-100 shrink-0">
                 <div>
                   <h2 className="text-base font-semibold text-slate-800">
                     {isRestocking ? t("purchases.restock_title") : t("purchases.new_title")}
@@ -498,7 +498,7 @@ export default function PurchaseManagementPage() {
                 <button onClick={() => { setShowModal(false); setForm(EMPTY_FORM); setIsRestocking(false); }}
                   className="p-2 rounded-lg hover:bg-slate-100 text-slate-400 transition"><X size={17} /></button>
               </div>
-              <div className="px-6 py-5 grid md:grid-cols-2 gap-4">
+              <div className="px-4 sm:px-6 py-4 sm:py-5 grid md:grid-cols-2 gap-4 overflow-y-auto flex-1">
                 {!isRestocking && products.length > 0 && (
                   <div className="md:col-span-2">
                     <label className="block text-xs font-medium text-gray-600 mb-1">{t("purchases.select_existing")}</label>
@@ -570,7 +570,7 @@ export default function PurchaseManagementPage() {
                   )}
                 </div>
               </div>
-              <div className="flex justify-end gap-2.5 px-6 py-4 border-t border-slate-100">
+              <div className="flex justify-end gap-2.5 px-4 sm:px-6 py-4 border-t border-slate-100 shrink-0">
                 <button onClick={() => { setShowModal(false); setForm(EMPTY_FORM); setIsRestocking(false); }}
                   className="px-4 py-2 rounded-lg border border-slate-200 text-slate-600 text-sm font-medium hover:bg-slate-50 transition">
                   {t("common.cancel")}

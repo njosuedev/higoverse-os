@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
@@ -661,7 +661,7 @@ export default function DashboardPage() {
                 Active
               </span>
             </div>
-            <div className="grid sm:grid-cols-2 md:grid-cols-4">
+            <div className="grid sm:grid-cols-2 sm:grid-cols-2 lg:grid-cols-4">
               {[
                 { icon: <Mail size={14} />,        label: "Email",    value: user.email },
                 { icon: <Store size={14} />,       label: "Shop",     value: currentShop?.name || user.shop_id.slice(0, 8) + "…" },
