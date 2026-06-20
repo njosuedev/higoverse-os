@@ -8,6 +8,8 @@ import { itemRequest } from "@/lib/product-api";
 import { partnerRequest } from "@/lib/supplier-api";
 import { saleRequest } from "@/lib/sale-api";
 import { reportRequest } from "@/lib/report-api";
+import { expenseRequest } from "@/lib/expense-api";
+import { purchaseRequest } from "@/lib/purchase-api";
 import { listShops, type Shop as ShopInfo } from "@/lib/shop-api";
 import DashboardHeader from "../components/dashboard/DashboardHeader";
 import LoadingSkeleton from "@/app/components/dashboard/LoadingSkeleton";
@@ -16,9 +18,9 @@ import {
 } from "recharts";
 import {
   Package, Truck, ArrowRight, BarChart3, ShoppingCart, Users, Settings,
-  RefreshCw, AlertTriangle, TrendingUp, TrendingDown, Clock, Globe,
+  RefreshCw, AlertTriangle, TrendingUp, TrendingDown, Globe,
   CheckCircle, FileText, Store, Mail, User, ShieldCheck, Plus,
-  Activity, Receipt,
+  Activity, Receipt, Wallet, DollarSign,
 } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -76,11 +78,11 @@ function shopPresence(lastSeenAt: string | null, now: Date) {
 // ─── Static colours (no translation needed) ───────────────────────────────────
 const SVC_COLORS: Record<string, { bg: string; text: string }> = {
   blue:   { bg: "bg-[#EBF2FD]", text: "text-[#1372e6]" },
-  indigo: { bg: "bg-indigo-100", text: "text-indigo-600" },
-  teal:   { bg: "bg-teal-100",   text: "text-teal-600" },
-  orange: { bg: "bg-orange-100", text: "text-orange-600" },
-  violet: { bg: "bg-violet-100", text: "text-violet-600" },
-  pink:   { bg: "bg-pink-100",   text: "text-pink-600" },
+  indigo: { bg: "bg-[#EBF2FD]", text: "text-[#1372e6]" },
+  teal:   { bg: "bg-[#EBF2FD]", text: "text-[#1372e6]" },
+  orange: { bg: "bg-[#EBF2FD]", text: "text-[#1372e6]" },
+  violet: { bg: "bg-[#EBF2FD]", text: "text-[#1372e6]" },
+  pink:   { bg: "bg-[#EBF2FD]", text: "text-[#1372e6]" },
   slate:  { bg: "bg-slate-100",  text: "text-slate-600" },
 };
 
@@ -97,6 +99,7 @@ export default function DashboardPage() {
     { title: t("nav.partners"),         description: t("dash.partners_desc"),         icon: Users,        href: "/PartnerManagement",  color: "indigo" },
     { title: t("nav.purchases"),        description: t("dash.purchases_desc"),        icon: Truck,        href: "/PurchaseManagement", color: "teal" },
     { title: t("nav.sales"),            description: t("dash.sales_desc"),            icon: ShoppingCart, href: "/SaleManagement",     color: "orange" },
+    { title: t("nav.expenses"),          description: t("dash.expenses_desc"),         icon: Wallet,       href: "/ExpenseManagement",  color: "orange" },
     { title: t("nav.reports"),          description: t("dash.reports_desc"),          icon: BarChart3,    href: "/reports",            color: "violet" },
     { title: t("nav.proforma"),         description: t("dash.proforma_desc"),         icon: FileText,     href: "/proforma",           color: "pink" },
     { title: t("nav.settings"),         description: t("dash.settings_desc"),         icon: Settings,     href: "/Settings",           color: "slate" },
@@ -108,6 +111,8 @@ export default function DashboardPage() {
   const [dailyData, setDailyData]     = useState<DailyRecord[]>([]);
   const [recentSales, setRecentSales] = useState<RecentSale[]>([]);
   const [yesterdayRevenue, setYesterdayRevenue] = useState(0);
+  const [expenseToday, setExpenseToday] = useState({ total_expenses: 0, count: 0 });
+  const [purchaseCostToday, setPurchaseCostToday] = useState(0);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [dataLoading, setDataLoading] = useState(true);
   const [refreshing, setRefreshing]   = useState(false);
@@ -122,7 +127,7 @@ export default function DashboardPage() {
     if (soft) setRefreshing(true);
     try {
       const today = toDateStr(new Date());
-      const [productsRes, partnersRes, salesRes, stockRes, shopsRes, dailyRes, recentRes] = await Promise.allSettled([
+      const [productsRes, partnersRes, salesRes, stockRes, shopsRes, dailyRes, recentRes, expenseRes, purchaseRes] = await Promise.allSettled([
         itemRequest("/products?page=1&limit=1"),
         partnerRequest("/suppliers"),
         saleRequest(`/sales/summary?from_date=${today}&to_date=${today}`),
@@ -130,6 +135,8 @@ export default function DashboardPage() {
         listShops({ limit: 100 }),
         reportRequest("/reports/daily?days=8"),
         saleRequest("/sales?page=1&limit=8"),
+        expenseRequest(`/expenses/summary?from_date=${today}&to_date=${today}`),
+        purchaseRequest(`/purchases?from_date=${today}&to_date=${today}&page=1&limit=200`),
       ]);
 
       const productCount = productsRes.status === "fulfilled" ? (productsRes.value?.data?.total ?? 0) : 0;
@@ -154,6 +161,14 @@ export default function DashboardPage() {
       const recent: RecentSale[] = recentRes.status === "fulfilled"
         ? (recentRes.value?.data?.items ?? []) : [];
       setRecentSales(recent);
+
+      if (expenseRes.status === "fulfilled")
+        setExpenseToday(expenseRes.value?.data || { total_expenses: 0, count: 0 });
+
+      if (purchaseRes.status === "fulfilled") {
+        const purchaseItems: { total_cost?: number }[] = purchaseRes.value?.data?.items ?? [];
+        setPurchaseCostToday(purchaseItems.reduce((s, p) => s + (p.total_cost ?? 0), 0));
+      }
 
       setLastUpdated(new Date());
     } catch { /* informational */ } finally {
@@ -190,6 +205,11 @@ export default function DashboardPage() {
   const revDeltaPct = yesterdayRevenue > 0
     ? Math.round(((stats.revenue - yesterdayRevenue) / yesterdayRevenue) * 100)
     : null;
+  const netProfit = stats.revenue - purchaseCostToday - expenseToday.total_expenses;
+  const totalCosts = purchaseCostToday + expenseToday.total_expenses;
+  const purchasePct = stats.revenue > 0 ? Math.min(100, Math.round((purchaseCostToday / stats.revenue) * 100)) : 0;
+  const expensePct  = stats.revenue > 0 ? Math.min(100 - purchasePct, Math.round((expenseToday.total_expenses / stats.revenue) * 100)) : 0;
+  const netPct      = Math.max(0, 100 - purchasePct - expensePct);
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -274,6 +294,76 @@ export default function DashboardPage() {
             href="/ItemManagement" sub="zero units" warn={stats.outOfStock > 0} t={t} />
         </section>
 
+        {/* ── TODAY'S SHOP STATUS ──────────────────────────────────────────────── */}
+        <section className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="font-bold text-slate-900 flex items-center gap-2">
+              <DollarSign size={16} className="text-[#1372e6]" />
+              {t("dash.shop_status_today") || "Today's Shop Status"}
+            </h2>
+            <Link href="/reports" className="text-xs font-semibold text-[#1372e6] hover:underline">
+              {t("dash.full_report")} →
+            </Link>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="p-3 bg-green-50 rounded-xl">
+              <p className="text-[10px] text-slate-400 uppercase tracking-wide font-medium">{t("dash.revenue_today") || "Revenue"}</p>
+              <p className="text-lg font-bold text-green-700 mt-1">{stats.revenue > 0 ? fmtCurrency(stats.revenue) : "—"}</p>
+              <p className="text-xs text-slate-400 mt-0.5">{stats.sales} {t("dash.sales_today") || "sales"}</p>
+            </div>
+            <div className="p-3 bg-slate-100 rounded-xl">
+              <p className="text-[10px] text-slate-400 uppercase tracking-wide font-medium">{t("nav.purchases") || "Purchases"}</p>
+              <p className="text-lg font-bold text-slate-700 mt-1">{purchaseCostToday > 0 ? fmtCurrency(purchaseCostToday) : "—"}</p>
+              <p className="text-xs text-slate-400 mt-0.5">{t("dash.stock_cost") || "Stock cost"}</p>
+            </div>
+            <div className="p-3 bg-orange-50 rounded-xl">
+              <p className="text-[10px] text-slate-400 uppercase tracking-wide font-medium">{t("nav.expenses") || "Expenses"}</p>
+              <p className="text-lg font-bold text-orange-700 mt-1">{expenseToday.total_expenses > 0 ? fmtCurrency(expenseToday.total_expenses) : "—"}</p>
+              <p className="text-xs text-slate-400 mt-0.5">{expenseToday.count} {t("expenses.records") || "records"}</p>
+            </div>
+            <div className={`p-3 rounded-xl ${netProfit >= 0 ? "bg-[#EBF2FD]" : "bg-red-50"}`}>
+              <p className="text-[10px] text-slate-400 uppercase tracking-wide font-medium">{t("dash.net_profit") || "Net Profit"}</p>
+              <p className={`text-lg font-bold mt-1 ${netProfit >= 0 ? "text-[#1372e6]" : "text-red-600"}`}>
+                {totalCosts > 0 || stats.revenue > 0 ? fmtCurrency(netProfit) : "—"}
+              </p>
+              <p className="text-xs text-slate-400 mt-0.5">
+                {netProfit >= 0 ? (t("dash.profitable") || "Profitable ✓") : (t("dash.at_loss") || "At a loss")}
+              </p>
+            </div>
+          </div>
+
+          {stats.revenue > 0 && (
+            <div className="mt-4">
+              <div className="flex h-2.5 rounded-full overflow-hidden gap-0.5">
+                {purchasePct > 0 && (
+                  <div className="bg-slate-400 rounded-l-full transition-all" style={{ width: `${purchasePct}%` }} />
+                )}
+                {expensePct > 0 && (
+                  <div className="bg-amber-400 transition-all" style={{ width: `${expensePct}%` }} />
+                )}
+                {netPct > 0 && (
+                  <div className="bg-green-500 rounded-r-full flex-1 transition-all" />
+                )}
+              </div>
+              <div className="flex flex-wrap items-center gap-4 mt-2">
+                <span className="flex items-center gap-1.5 text-[11px] text-slate-500">
+                  <span className="w-2.5 h-2 rounded-sm bg-slate-400 inline-block" /> {t("nav.purchases") || "Purchases"} {purchasePct}%
+                </span>
+                <span className="flex items-center gap-1.5 text-[11px] text-slate-500">
+                  <span className="w-2.5 h-2 rounded-sm bg-amber-400 inline-block" /> {t("nav.expenses") || "Expenses"} {expensePct}%
+                </span>
+                <span className="flex items-center gap-1.5 text-[11px] text-slate-500">
+                  <span className="w-2.5 h-2 rounded-sm bg-green-500 inline-block" /> {t("dash.profit_label") || "Profit"} {netPct}%
+                </span>
+                <Link href="/ExpenseManagement" className="ml-auto text-[11px] font-semibold text-[#1372e6] hover:underline flex items-center gap-1">
+                  <Receipt size={11} /> {t("expenses.add") || "Add expense"}
+                </Link>
+              </div>
+            </div>
+          )}
+        </section>
+
         {/* ── 7-DAY CHART + RECENT SALES ──────────────────────────────────────── */}
         <div className="grid md:grid-cols-2 gap-6">
 
@@ -341,7 +431,7 @@ export default function DashboardPage() {
           <section className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
             <div className="flex items-center justify-between px-5 pt-5 pb-3">
               <h2 className="font-bold text-slate-900 flex items-center gap-2">
-                <Receipt size={16} className="text-orange-500" />
+                <Receipt size={16} className="text-[#1372e6]" />
                 {t("dash.recent_sales")}
               </h2>
               <Link href="/SaleManagement" className="text-xs font-semibold text-[#1372e6] hover:underline">
@@ -358,7 +448,7 @@ export default function DashboardPage() {
               <div className="divide-y divide-slate-50">
                 {recentSales.map((sale) => (
                   <div key={sale.id} className="flex items-center gap-3 px-5 py-3 hover:bg-slate-50 transition-colors">
-                    <div className="w-8 h-8 rounded-xl bg-orange-50 text-orange-600 flex items-center justify-center shrink-0">
+                    <div className="w-8 h-8 rounded-xl bg-[#EBF2FD] text-[#1372e6] flex items-center justify-center shrink-0">
                       <ShoppingCart size={14} />
                     </div>
                     <div className="flex-1 min-w-0">
@@ -383,7 +473,7 @@ export default function DashboardPage() {
 
             <div className="px-5 py-3 border-t border-slate-50">
               <Link href="/SaleManagement"
-                className="w-full flex items-center justify-center gap-2 text-sm font-semibold text-white bg-orange-500 hover:bg-orange-600 py-2 rounded-xl transition">
+                className="w-full flex items-center justify-center gap-2 text-sm font-semibold text-white py-2 rounded-xl transition hover:opacity-90" style={{ background: "#1372e6" }}>
                 <Plus size={15} />
                 {t("dash.record_new_sale")}
               </Link>
@@ -466,10 +556,10 @@ export default function DashboardPage() {
             <h2 className="font-bold text-slate-900 mb-4">{t("dash.quick_actions")}</h2>
             <div className="grid grid-cols-2 gap-3">
               {[
-                { href: "/SaleManagement",     icon: Plus,      label: t("dash.new_sale"),     desc: t("dash.new_sale_desc"),     bg: "bg-orange-500", hover: "hover:bg-orange-600" },
-                { href: "/PurchaseManagement", icon: Truck,     label: t("dash.new_purchase"), desc: t("dash.new_purchase_desc"), bg: "bg-teal-600",   hover: "hover:bg-teal-700" },
-                { href: "/ItemManagement",     icon: Package,   label: t("dash.manage_stock"), desc: t("dash.manage_stock_desc"), bg: "bg-[#1372e6]",  hover: "hover:bg-[#0d5cc4]" },
-                { href: "/reports",            icon: BarChart3, label: t("dash.view_reports"), desc: t("dash.charts_analytics"),  bg: "bg-violet-600", hover: "hover:bg-violet-700" },
+                { href: "/SaleManagement",     icon: Plus,      label: t("dash.new_sale"),     desc: t("dash.new_sale_desc"),     bg: "bg-[#1372e6]", hover: "hover:bg-[#0d5cc4]" },
+                { href: "/PurchaseManagement", icon: Truck,     label: t("dash.new_purchase"), desc: t("dash.new_purchase_desc"), bg: "bg-[#1372e6]", hover: "hover:bg-[#0d5cc4]" },
+                { href: "/ExpenseManagement",  icon: Wallet,    label: t("nav.expenses") || "Add Expense", desc: t("dash.expenses_desc") || "Log a business expense", bg: "bg-[#1372e6]", hover: "hover:bg-[#0d5cc4]" },
+                { href: "/reports",            icon: BarChart3, label: t("dash.view_reports"), desc: t("dash.charts_analytics"),  bg: "bg-[#1372e6]", hover: "hover:bg-[#0d5cc4]" },
               ].map((a) => (
                 <Link key={a.href} href={a.href}
                   className={`group flex items-center gap-3 p-3.5 rounded-xl text-white ${a.bg} ${a.hover} transition-all shadow-sm hover:shadow-md`}
@@ -660,13 +750,13 @@ interface KpiCardProps {
 }
 
 const KPI_COLORS: Record<string, { icon: string; border: string }> = {
-  blue:   { icon: "bg-[#D5E8FB] text-[#1372e6]",   border: "border-[#D5E8FB]" },
-  indigo: { icon: "bg-indigo-100 text-indigo-600", border: "border-indigo-100" },
-  teal:   { icon: "bg-teal-100 text-teal-600",     border: "border-teal-100" },
-  green:  { icon: "bg-green-100 text-green-600",   border: "border-green-100" },
-  orange: { icon: "bg-orange-100 text-orange-600", border: "border-orange-100" },
-  red:    { icon: "bg-red-100 text-red-600",       border: "border-red-200" },
-  slate:  { icon: "bg-slate-100 text-slate-500",   border: "border-slate-100" },
+  blue:   { icon: "bg-[#D5E8FB] text-[#1372e6]", border: "border-[#D5E8FB]" },
+  indigo: { icon: "bg-[#D5E8FB] text-[#1372e6]", border: "border-[#D5E8FB]" },
+  teal:   { icon: "bg-[#D5E8FB] text-[#1372e6]", border: "border-[#D5E8FB]" },
+  green:  { icon: "bg-green-100 text-green-600",  border: "border-green-100" },
+  orange: { icon: "bg-amber-100 text-amber-600",  border: "border-amber-100" },
+  red:    { icon: "bg-red-100 text-red-600",      border: "border-red-200" },
+  slate:  { icon: "bg-slate-100 text-slate-500",  border: "border-slate-100" },
 };
 
 function KpiCard({ label, value, icon, color, href, sub, small, delta, warn, t }: KpiCardProps) {

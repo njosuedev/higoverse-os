@@ -32,7 +32,7 @@ export default function Pagination({
   const to   = Math.min(page * pageSize, total);
 
   const btn = "w-8 h-8 flex items-center justify-center rounded-lg text-sm transition";
-  const active = "bg-slate-800 text-white font-semibold";
+  const active = "bg-[#1372e6] text-white font-semibold";
   const inactive = "text-slate-500 hover:bg-slate-100";
   const disabled = "text-slate-300 cursor-not-allowed";
 

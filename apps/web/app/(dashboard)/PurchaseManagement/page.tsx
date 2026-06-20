@@ -213,13 +213,13 @@ export default function PurchaseManagementPage() {
   const margin = form.cost_price && form.selling_price && Number(form.cost_price) > 0
     ? (((Number(form.selling_price) - Number(form.cost_price)) / Number(form.cost_price)) * 100).toFixed(1) : null;
 
-  const inputCls = "border border-slate-200 text-gray-800 placeholder:text-gray-400 rounded-lg px-3 py-2 w-full text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-400 transition";
+  const inputCls = "border border-slate-200 text-gray-800 placeholder:text-gray-400 rounded-lg px-3 py-2 w-full text-sm focus:outline-none focus:ring-2 focus:ring-[#1372e6]/30 focus:border-[#1372e6] transition";
 
   if (loading) return (
     <div className="min-h-screen bg-slate-50">
       <DashboardHeader />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
-        <div className="rounded-2xl bg-linear-to-r from-orange-500 to-amber-600 p-5 mb-6 animate-pulse">
+        <div className="rounded-2xl bg-linear-to-r from-[#1372e6] to-[#0d5cc4] p-5 mb-6 animate-pulse">
           <div className="flex justify-between"><div className="h-4 w-44 bg-white/20 rounded-lg" /><div className="h-8 w-28 bg-white/20 rounded-lg" /></div>
           <div className="h-9 bg-white/10 rounded-lg mt-4" />
         </div>
@@ -236,13 +236,13 @@ export default function PurchaseManagementPage() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
 
         {/* HEADER */}
-        <div className="bg-linear-to-r from-orange-500 to-amber-600 text-white rounded-2xl p-5 mb-6">
+        <div className="bg-linear-to-r from-[#1372e6] to-[#0d5cc4] text-white rounded-2xl p-5 mb-6">
           <div className="flex flex-wrap justify-between items-center gap-2">
             <div className="flex items-center gap-2.5">
               <ShoppingCart size={20} />
               <div>
                 <h1 className="text-base font-semibold">{t("purchases.title")}</h1>
-                <p className="text-orange-100 text-xs mt-0.5">
+                <p className="text-blue-100 text-xs mt-0.5">
                   {lastUpdated ? `${t("common.updated")} ${lastUpdated.toLocaleTimeString()}` : "—"} · {t("purchases.inventory")}: {productsTotal.toLocaleString()}
                 </p>
               </div>
@@ -253,7 +253,7 @@ export default function PurchaseManagementPage() {
                 <RefreshCw size={14} className={refreshing ? "animate-spin" : ""} />
               </button>
               <button onClick={openCreateModal}
-                className="bg-white text-orange-700 px-3.5 py-1.5 rounded-lg flex items-center gap-1.5 text-sm font-semibold hover:bg-orange-50 transition">
+                className="bg-white text-[#1372e6] px-3.5 py-1.5 rounded-lg flex items-center gap-1.5 text-sm font-semibold hover:bg-blue-50 transition">
                 <Plus size={15} /> {t("purchases.add")}
               </button>
             </div>
@@ -262,11 +262,11 @@ export default function PurchaseManagementPage() {
           {/* TABS */}
           <div className="mt-4 flex gap-2">
             <button onClick={() => setTab("inventory")}
-              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-sm font-medium transition ${tab === "inventory" ? "bg-white text-orange-700" : "bg-white/10 text-white hover:bg-white/20"}`}>
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-sm font-medium transition ${tab === "inventory" ? "bg-white text-[#1372e6]" : "bg-white/10 text-white hover:bg-white/20"}`}>
               <LayoutGrid size={14} /> {t("purchases.inventory")}
             </button>
             <button onClick={() => setTab("history")}
-              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-sm font-medium transition ${tab === "history" ? "bg-white text-orange-700" : "bg-white/10 text-white hover:bg-white/20"}`}>
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-sm font-medium transition ${tab === "history" ? "bg-white text-[#1372e6]" : "bg-white/10 text-white hover:bg-white/20"}`}>
               <History size={14} /> {t("purchases.history")} ({purchasesTotal.toLocaleString()})
             </button>
           </div>
@@ -277,21 +277,21 @@ export default function PurchaseManagementPage() {
               onFrom={(v) => { setDateFrom(v); setHistPage(1); }}
               onTo={(v) => { setDateTo(v); setHistPage(1); }}
               onClear={() => { setDateFrom(""); setDateTo(""); setHistPage(1); }}
-              accentClass="focus:ring-violet-300/40 focus:border-violet-300"
+              accentClass="focus:ring-[#1372e6]/30 focus:border-[#1372e6]"
             />
           )}
 
           {tab === "inventory" && (
             <div className="mt-3 flex flex-col md:flex-row gap-2.5">
               <div className="flex-1 flex items-center bg-white/10 rounded-lg px-3 py-2 gap-2">
-                <Search size={15} className="shrink-0 text-orange-100" />
+                <Search size={15} className="shrink-0 text-blue-100" />
                 <input value={invSearch} onChange={(e) => { setInvSearch(e.target.value); setInvPage(1); }}
                   placeholder={t("items.search")}
-                  className="bg-transparent outline-none w-full text-sm placeholder:text-orange-100" />
-                {invSearch && <button onClick={() => setInvSearch("")} className="text-orange-100 hover:text-white"><X size={13} /></button>}
+                  className="bg-transparent outline-none w-full text-sm placeholder:text-blue-100" />
+                {invSearch && <button onClick={() => setInvSearch("")} className="text-blue-100 hover:text-white"><X size={13} /></button>}
               </div>
               <div className="flex items-center bg-white/10 rounded-lg px-3 py-2 gap-2">
-                <Filter size={15} className="shrink-0 text-orange-100" />
+                <Filter size={15} className="shrink-0 text-blue-100" />
                 <select value={invFilter} onChange={(e) => { setInvFilter(e.target.value); setInvPage(1); }} className="bg-transparent outline-none text-sm">
                   <option value="all" className="text-gray-700">{t("items.all")}</option>
                   <option value="in_stock" className="text-gray-700">{t("items.in_stock")}</option>
@@ -323,8 +323,8 @@ export default function PurchaseManagementPage() {
         {/* STAT CARDS */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
           {[
-            { label: "Total Products",        value: productsTotal,                        sub: "items in your shop",              color: "text-violet-600", bg: "bg-violet-50",  icon: <Package size={17} /> },
-            { label: "What You Paid",         value: invStats.costValue.toLocaleString(),   sub: "total cost of all stock",         color: "text-indigo-600", bg: "bg-indigo-50",  icon: <DollarSign size={17} /> },
+            { label: "Total Products",        value: productsTotal,                        sub: "items in your shop",              color: "text-[#1372e6]", bg: "bg-[#EBF2FD]", icon: <Package size={17} /> },
+            { label: "What You Paid",         value: invStats.costValue.toLocaleString(),   sub: "total cost of all stock",         color: "text-[#1372e6]", bg: "bg-[#EBF2FD]", icon: <DollarSign size={17} /> },
             { label: "If You Sell All",       value: invStats.retailValue.toLocaleString(), sub: "money you'd earn selling everything", color: "text-[#1372e6]",   bg: "bg-[#EBF2FD]",    icon: <TrendingUp size={17} /> },
             { label: "Profit to Make",        value: invStats.grossProfit.toLocaleString(), sub: "extra money once all stock is sold",   color: "text-green-600",  bg: "bg-green-50",   icon: <TrendingUp size={17} /> },
             { label: "Almost Finished",       value: invStats.lowStock,                    sub: "10 units or less — restock soon",  color: "text-amber-500",  bg: "bg-amber-50",   icon: <AlertCircle size={17} /> },
@@ -368,7 +368,7 @@ export default function PurchaseManagementPage() {
                       <td className="px-4 py-3">
                         {supplier
                           ? <div><p className="font-medium text-slate-700">{supplier.name}</p>{supplier.phone && <p className="text-xs text-slate-400">{supplier.phone}</p>}</div>
-                          : <Link href="/PartnerManagement" className="text-xs text-violet-400 hover:underline flex items-center gap-0.5"><Truck size={11} /> {t("common.add")}</Link>}
+                          : <Link href="/PartnerManagement" className="text-xs text-[#1372e6] hover:underline flex items-center gap-0.5"><Truck size={11} /> {t("common.add")}</Link>}
                       </td>
                       <td className="px-4 py-3 text-slate-600 font-medium tabular-nums">{Number(p.cost_price).toLocaleString()}</td>
                       <td className="px-4 py-3 font-semibold text-green-600 tabular-nums">{Number(p.selling_price).toLocaleString()}</td>
@@ -390,7 +390,7 @@ export default function PurchaseManagementPage() {
                       <td className="px-4 py-3">
                         <button
                           onClick={() => { setForm({ product_id: p.id, product_name: p.name, description: p.description || "", cost_price: String(p.cost_price), selling_price: String(p.selling_price), quantity: "", supplier_id: p.supplier_id || "" }); setIsRestocking(true); setShowModal(true); }}
-                          className="px-2.5 py-1 rounded-lg bg-violet-50 hover:bg-violet-100 text-violet-600 text-xs font-medium transition">
+                          className="px-2.5 py-1 rounded-lg bg-[#EBF2FD] hover:bg-[#D5E8FB] text-[#1372e6] text-xs font-medium transition">
                           + {t("purchases.restock")}
                         </button>
                       </td>
@@ -404,7 +404,7 @@ export default function PurchaseManagementPage() {
                 <div className="p-4 bg-slate-100 rounded-2xl mb-3"><Package size={32} className="opacity-40" /></div>
                 <p className="font-medium text-slate-500 text-sm">{t("items.no_items")}</p>
                 {!invSearch && invFilter === "all" && (
-                  <button onClick={openCreateModal} className="mt-4 flex items-center gap-1.5 bg-violet-600 text-white text-sm font-semibold px-4 py-2 rounded-lg hover:bg-violet-700 transition">
+                  <button onClick={openCreateModal} className="mt-4 flex items-center gap-1.5 text-white text-sm font-semibold px-4 py-2 rounded-lg transition hover:opacity-90" style={{ background: "#1372e6" }}>
                     <Plus size={14} /> {t("purchases.add")}
                   </button>
                 )}
@@ -419,14 +419,14 @@ export default function PurchaseManagementPage() {
         {tab === "history" && (
           <div className="bg-white rounded-xl border border-slate-200 overflow-x-auto">
             {hasDateFilter && (
-              <div className="flex items-center gap-2 px-4 py-2.5 border-b border-slate-100 text-xs text-orange-700 bg-violet-50">
+              <div className="flex items-center gap-2 px-4 py-2.5 border-b border-slate-100 text-xs text-[#1372e6] bg-[#EBF2FD]">
                 <Calendar size={13} />
                 <span>
                   {dateFrom && <> {t("common.date")}: <span className="font-semibold">{dateFrom}</span></>}
                   {dateTo && <> → <span className="font-semibold">{dateTo}</span></>}
                   {" "}· <span className="font-semibold">{purchasesTotal.toLocaleString()}</span>
                 </span>
-                <button onClick={() => { setDateFrom(""); setDateTo(""); setHistPage(1); }} className="ml-auto text-violet-500 hover:text-orange-700"><X size={13} /></button>
+                <button onClick={() => { setDateFrom(""); setDateTo(""); setHistPage(1); }} className="ml-auto hover:opacity-70" style={{ color: "#1372e6" }}><X size={13} /></button>
               </div>
             )}
             <table className="w-full text-sm">
@@ -509,7 +509,7 @@ export default function PurchaseManagementPage() {
                   </div>
                 )}
                 {isRestocking && selectedProduct && (
-                  <div className="md:col-span-2 bg-violet-50 rounded-lg px-3 py-2 text-xs text-orange-700">
+                  <div className="md:col-span-2 bg-[#EBF2FD] rounded-lg px-3 py-2 text-xs text-[#1372e6]">
                     {t("purchases.restock")}: <span className="font-semibold">{selectedProduct.name}</span>
                     {" "}· {t("items.col_qty")}: <span className="font-bold">{selectedProduct.quantity}</span>
                   </div>
@@ -552,7 +552,7 @@ export default function PurchaseManagementPage() {
                   <input type="number" min="1" className={inputCls} placeholder="0"
                     value={form.quantity} onChange={(e) => setForm({ ...form, quantity: e.target.value })} />
                   {isRestocking && selectedProduct && form.quantity && (
-                    <p className="text-xs mt-1 text-violet-600">
+                    <p className="text-xs mt-1 text-[#1372e6]">
                       {selectedProduct.quantity} + {form.quantity} = <span className="font-bold">{selectedProduct.quantity + Number(form.quantity)}</span>
                     </p>
                   )}
@@ -564,7 +564,7 @@ export default function PurchaseManagementPage() {
                     {suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
                   </select>
                   {suppliers.length === 0 && (
-                    <p className="text-xs text-violet-500 mt-1">
+                    <p className="text-xs text-[#1372e6] mt-1">
                       <Link href="/PartnerManagement" className="hover:underline">{t("common.add")} supplier →</Link>
                     </p>
                   )}
@@ -576,7 +576,7 @@ export default function PurchaseManagementPage() {
                   {t("common.cancel")}
                 </button>
                 <button onClick={submitForm} disabled={submitting}
-                  className="px-5 py-2 rounded-lg bg-violet-600 text-white text-sm font-semibold hover:bg-violet-700 transition disabled:opacity-60">
+                  className="px-5 py-2 rounded-lg text-white text-sm font-semibold transition disabled:opacity-60 hover:opacity-90" style={{ background: "#1372e6" }}>
                   {submitting ? t("common.saving") : isRestocking ? t("purchases.restock") : t("purchases.new_product")}
                 </button>
               </div>

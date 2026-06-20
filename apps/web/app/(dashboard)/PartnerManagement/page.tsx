@@ -42,7 +42,7 @@ const EMPTY_FORM = { name: "", phone: "", tin: "", email: "", address: "" };
 const PAGE_SIZES = [25, 50, 100, 250];
 
 const inputCls =
-  "border border-slate-200 text-gray-800 placeholder:text-gray-400 rounded-lg px-3 py-2 w-full text-sm focus:outline-none focus:ring-2 focus:ring-green-500/30 focus:border-green-400 transition";
+  "border border-slate-200 text-gray-800 placeholder:text-gray-400 rounded-lg px-3 py-2 w-full text-sm focus:outline-none focus:ring-2 focus:ring-[#1372e6]/30 focus:border-[#1372e6] transition";
 
 export default function PartnerManagementPage() {
   const { t } = useLanguage();
@@ -178,7 +178,7 @@ export default function PartnerManagementPage() {
     <div className="min-h-screen bg-slate-50">
       <DashboardHeader />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
-        <div className="rounded-2xl bg-linear-to-r from-teal-600 to-teal-700 p-5 mb-6 animate-pulse">
+        <div className="rounded-2xl bg-linear-to-r from-[#1372e6] to-[#0d5cc4] p-5 mb-6 animate-pulse">
           <div className="flex justify-between"><div className="h-4 w-44 bg-white/20 rounded-lg" /><div className="h-8 w-28 bg-white/20 rounded-lg" /></div>
           <div className="h-9 bg-white/10 rounded-lg mt-4" />
         </div>
@@ -197,13 +197,13 @@ export default function PartnerManagementPage() {
       <DashboardHeader />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
 
-        <div className="bg-linear-to-r from-teal-600 to-teal-700 text-white rounded-2xl p-5 mb-6">
+        <div className="bg-linear-to-r from-[#1372e6] to-[#0d5cc4] text-white rounded-2xl p-5 mb-6">
           <div className="flex flex-wrap justify-between items-center gap-2">
             <div className="flex items-center gap-2.5">
               <Users size={20} />
               <div>
                 <h1 className="text-base font-semibold">{t("partners.title")}</h1>
-                <p className="text-teal-200 text-xs mt-0.5">
+                <p className="text-blue-100 text-xs mt-0.5">
                   {lastUpdated ? `Updated ${lastUpdated.toLocaleTimeString()}` : "—"} · {partners.length.toLocaleString()} partners total
                 </p>
               </div>
@@ -218,13 +218,13 @@ export default function PartnerManagementPage() {
           </div>
           <div className="mt-4 flex flex-col md:flex-row gap-2.5">
             <div className="flex-1 flex items-center bg-white/10 rounded-lg px-3 py-2 gap-2">
-              <Search size={15} className="shrink-0 text-teal-200" />
+              <Search size={15} className="shrink-0 text-blue-100" />
               <input value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} placeholder={t("partners.search")}
-                className="bg-transparent outline-none w-full text-sm placeholder:text-teal-200" />
-              {search && <button onClick={() => setSearch("")} className="text-teal-200 hover:text-white"><X size={13} /></button>}
+                className="bg-transparent outline-none w-full text-sm placeholder:text-blue-100" />
+              {search && <button onClick={() => setSearch("")} className="text-blue-100 hover:text-white"><X size={13} /></button>}
             </div>
             <div className="flex items-center bg-white/10 rounded-lg px-3 py-2 gap-2">
-              <Filter size={15} className="shrink-0 text-teal-200" />
+              <Filter size={15} className="shrink-0 text-blue-100" />
               <select value={typeFilter} onChange={(e) => { setTypeFilter(e.target.value); setPage(1); }} className="bg-transparent outline-none text-sm">
                 <option value="all" className="text-gray-700">{t("partners.all")}</option>
                 <option value="supplier" className="text-gray-700">{t("partners.suppliers")}</option>
@@ -238,9 +238,9 @@ export default function PartnerManagementPage() {
           {[
             { label: t("partners.total"),   value: stats.total,           color: "text-green-600",   bg: "bg-green-50",   icon: <Users size={17} /> },
             { label: t("partners.suppliers"),        value: stats.suppliers,       color: "text-[#1372e6]",    bg: "bg-[#EBF2FD]",    icon: <Building2 size={17} /> },
-            { label: t("partners.customers"),        value: stats.customers,       color: "text-purple-600",  bg: "bg-purple-50",  icon: <UserCheck size={17} /> },
-            { label: t("partners.active_suppliers"), value: stats.activeSuppliers, color: "text-emerald-600", bg: "bg-emerald-50", icon: <UserCog size={17} /> },
-            { label: t("partners.items_supplied"),   value: stats.itemsSupplied,   color: "text-indigo-600",  bg: "bg-indigo-50",  icon: <Package size={17} /> },
+            { label: t("partners.customers"),        value: stats.customers,       color: "text-[#1372e6]", bg: "bg-[#EBF2FD]", icon: <UserCheck size={17} /> },
+            { label: t("partners.active_suppliers"), value: stats.activeSuppliers, color: "text-[#1372e6]", bg: "bg-[#EBF2FD]", icon: <UserCog size={17} /> },
+            { label: t("partners.items_supplied"),   value: stats.itemsSupplied,   color: "text-[#1372e6]", bg: "bg-[#EBF2FD]", icon: <Package size={17} /> },
           ].map((card) => (
             <div key={card.label} className="bg-white rounded-xl border border-slate-200 p-4">
               <div className="flex flex-wrap justify-between items-start gap-2">
@@ -280,7 +280,7 @@ export default function PartnerManagementPage() {
                       <p className="text-xs text-slate-400 font-mono">{p.id?.slice(0, 8)}</p>
                     </td>
                     <td className="px-4 py-3">
-                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${isSupplier ? "bg-[#D5E8FB] text-[#1372e6]" : "bg-purple-100 text-purple-700"}`}>
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${isSupplier ? "bg-[#D5E8FB] text-[#1372e6]" : "bg-slate-100 text-slate-600"}`}>
                         {isSupplier ? <Building2 size={10} /> : <UserCheck size={10} />}
                         {isSupplier ? t("partners.suppliers") : t("partners.customers")}
                       </span>
@@ -304,7 +304,7 @@ export default function PartnerManagementPage() {
                             <Package size={10} />{itemCount} item{itemCount !== 1 ? "s" : ""}
                           </span>
                           {itemCount === 0 && (
-                            <Link href="/PurchaseManagement" className="text-xs text-violet-500 hover:underline flex items-center gap-0.5"><ShoppingCart size={11} /> Buy</Link>
+                            <Link href="/PurchaseManagement" className="text-xs text-[#1372e6] hover:underline flex items-center gap-0.5"><ShoppingCart size={11} /> Buy</Link>
                           )}
                         </div>
                       ) : <span className="text-xs text-slate-400 italic">Customer</span>}
@@ -343,7 +343,7 @@ export default function PartnerManagementPage() {
               <div className="flex justify-between items-center px-4 sm:px-6 py-4 border-b border-slate-100 shrink-0">
                 <div>
                   <h2 className="text-base font-semibold text-slate-800">{modalMode === "edit" ? t("partners.edit_title") : t("partners.add_title")}</h2>
-                  {previewType && <p className="text-xs text-slate-400 mt-0.5">Will be saved as a <span className={`font-semibold ${previewType === "supplier" ? "text-[#1372e6]" : "text-purple-600"}`}>{previewType === "supplier" ? "Supplier" : "Customer"}</span></p>}
+                  {previewType && <p className="text-xs text-slate-400 mt-0.5">Will be saved as a <span className={`font-semibold ${previewType === "supplier" ? "text-[#1372e6]" : "text-slate-600"}`}>{previewType === "supplier" ? "Supplier" : "Customer"}</span></p>}
                 </div>
                 <button onClick={closeModal} className="p-2 rounded-lg hover:bg-slate-100 text-slate-400 transition"><X size={17} /></button>
               </div>

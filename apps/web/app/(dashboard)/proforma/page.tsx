@@ -274,7 +274,7 @@ export default function ProformaPage() {
       <div className="max-w-5xl mx-auto px-6 py-6">
 
         {/* PAGE HEADER */}
-        <div className="bg-linear-to-r from-blue-600 to-indigo-600 text-white rounded-2xl p-5 mb-6">
+        <div className="text-white rounded-2xl p-5 mb-6" style={{ background: "#1372e6" }}>
           <div className="flex justify-between items-center">
             <div className="flex items-center gap-2.5">
               <FileText size={20} />

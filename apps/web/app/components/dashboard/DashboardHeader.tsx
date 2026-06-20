@@ -10,7 +10,7 @@ import { LANGUAGES } from "@/lib/i18n";
 import { settingsRequest } from "@/lib/settings-api";
 import {
   Activity, LayoutDashboard, Package, Truck, ShoppingCart,
-  BarChart3, Users, Settings, FileText, ChevronDown, ShieldCheck,
+  BarChart3, Users, Settings, FileText, ChevronDown, ShieldCheck, Receipt,
 } from "lucide-react";
 
 interface DashboardHeaderProps {
@@ -48,13 +48,14 @@ export default function DashboardHeader({
   const menus = [
     { key: "nav.home",      href: "/",                   icon: LayoutDashboard, active: "bg-[#1372e6] text-white",  idle: "text-slate-600 hover:bg-slate-100" },
     { key: "nav.items",     href: "/ItemManagement",     icon: Package,         active: "bg-[#1372e6] text-white",  idle: "text-slate-600 hover:bg-slate-100" },
-    { key: "nav.partners",  href: "/PartnerManagement",  icon: Users,           active: "bg-teal-600 text-white",   idle: "text-teal-700 hover:bg-teal-50" },
-    { key: "nav.purchases", href: "/PurchaseManagement", icon: Truck,           active: "bg-orange-500 text-white", idle: "text-orange-600 hover:bg-orange-50" },
-    { key: "nav.sales",     href: "/SaleManagement",     icon: ShoppingCart,    active: "bg-green-600 text-white",  idle: "text-green-700 hover:bg-green-50" },
-    { key: "nav.proforma",  href: "/proforma",           icon: FileText,        active: "bg-[#1372e6] text-white",  idle: "text-slate-600 hover:bg-slate-100" },
-    { key: "nav.reports",   href: "/reports",            icon: BarChart3,       active: "bg-violet-600 text-white", idle: "text-slate-600 hover:bg-slate-100" },
-    { key: "nav.settings",  href: "/Settings",           icon: Settings,        active: "bg-slate-700 text-white",  idle: "text-slate-600 hover:bg-slate-100" },
-    ...(user?.role === "admin" ? [{ key: "nav.admin", href: "/admin", icon: ShieldCheck, active: "bg-red-600 text-white", idle: "text-red-600 hover:bg-red-50 border border-red-200" }] : []),
+    { key: "nav.partners",  href: "/PartnerManagement",  icon: Users,           active: "bg-[#1372e6] text-white", idle: "text-slate-600 hover:bg-slate-100" },
+    { key: "nav.purchases", href: "/PurchaseManagement", icon: Truck,           active: "bg-[#1372e6] text-white", idle: "text-slate-600 hover:bg-slate-100" },
+    { key: "nav.sales",     href: "/SaleManagement",     icon: ShoppingCart,    active: "bg-[#1372e6] text-white", idle: "text-slate-600 hover:bg-slate-100" },
+    { key: "nav.proforma",  href: "/proforma",           icon: FileText,        active: "bg-[#1372e6] text-white", idle: "text-slate-600 hover:bg-slate-100" },
+    { key: "nav.expenses",  href: "/ExpenseManagement",  icon: Receipt,         active: "bg-[#1372e6] text-white", idle: "text-slate-600 hover:bg-slate-100" },
+    { key: "nav.reports",   href: "/reports",            icon: BarChart3,       active: "bg-[#1372e6] text-white", idle: "text-slate-600 hover:bg-slate-100" },
+    { key: "nav.settings",  href: "/Settings",           icon: Settings,        active: "bg-[#1372e6] text-white", idle: "text-slate-600 hover:bg-slate-100" },
+    ...(user?.role === "admin" ? [{ key: "nav.admin", href: "/admin", icon: ShieldCheck, active: "bg-red-600 text-white", idle: "text-slate-600 hover:bg-slate-100 border border-red-200" }] : []),
   ];
 
   return (

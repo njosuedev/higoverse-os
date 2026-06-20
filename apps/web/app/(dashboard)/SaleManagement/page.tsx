@@ -338,13 +338,13 @@ ${customerName ? `<div class="row"><span class="label">Customer</span><span styl
   const selectedProduct = products.find((p) => p.id === form.product_id);
   const hasDateFilter = dateFrom || dateTo;
 
-  const inputCls = "border border-slate-200 text-gray-800 placeholder:text-gray-400 rounded-lg px-3 py-2 w-full text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-400 transition";
+  const inputCls = "border border-slate-200 text-gray-800 placeholder:text-gray-400 rounded-lg px-3 py-2 w-full text-sm focus:outline-none focus:ring-2 focus:ring-[#1372e6]/30 focus:border-[#1372e6] transition";
 
   if (loading) return (
     <div className="min-h-screen bg-slate-50">
       <DashboardHeader />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
-        <div className="rounded-2xl bg-linear-to-r from-green-600 to-emerald-600 p-5 mb-6 animate-pulse">
+        <div className="rounded-2xl bg-linear-to-r from-[#1372e6] to-[#0d5cc4] p-5 mb-6 animate-pulse">
           <div className="flex justify-between"><div className="h-4 w-40 bg-white/20 rounded-lg" /><div className="h-8 w-28 bg-white/20 rounded-lg" /></div>
           <div className="h-9 bg-white/10 rounded-lg mt-4" />
         </div>
@@ -361,13 +361,13 @@ ${customerName ? `<div class="row"><span class="label">Customer</span><span styl
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
 
         {/* HEADER */}
-        <div className="bg-linear-to-r from-green-600 to-emerald-600 text-white rounded-2xl p-5 mb-6">
+        <div className="bg-linear-to-r from-[#1372e6] to-[#0d5cc4] text-white rounded-2xl p-5 mb-6">
           <div className="flex flex-wrap justify-between items-center gap-2">
             <div className="flex items-center gap-2.5">
               <ShoppingBag size={20} />
               <div>
                 <h1 className="text-base font-semibold">{t("sales.title")}</h1>
-                <p className="text-orange-100 text-xs mt-0.5">
+                <p className="text-blue-100 text-xs mt-0.5">
                   {lastUpdated ? `${t("common.updated")} ${lastUpdated.toLocaleTimeString()}` : "—"} · {t("common.total")}: {salesTotal.toLocaleString()}
                 </p>
               </div>
@@ -378,7 +378,7 @@ ${customerName ? `<div class="row"><span class="label">Customer</span><span styl
                 <RefreshCw size={14} className={refreshing ? "animate-spin" : ""} />
               </button>
               <button onClick={openCreateModal}
-                className="bg-white text-orange-600 px-3.5 py-1.5 rounded-lg flex items-center gap-1.5 text-sm font-semibold hover:bg-green-50 transition">
+                className="bg-white px-3.5 py-1.5 rounded-lg flex items-center gap-1.5 text-sm font-semibold hover:bg-blue-50 transition" style={{ color: "#1372e6" }}>
                 <Plus size={15} /> {t("sales.add")}
               </button>
             </div>
@@ -386,14 +386,14 @@ ${customerName ? `<div class="row"><span class="label">Customer</span><span styl
 
           <div className="mt-4 flex flex-col md:flex-row gap-2.5">
             <div className="flex-1 flex items-center bg-white/10 rounded-lg px-3 py-2 gap-2">
-              <Search size={15} className="shrink-0 text-orange-100" />
+              <Search size={15} className="shrink-0 text-blue-100" />
               <input value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }}
                 placeholder={t("items.search")}
-                className="bg-transparent outline-none w-full text-sm placeholder:text-orange-100" />
+                className="bg-transparent outline-none w-full text-sm placeholder:text-blue-100" />
               {search && <button onClick={() => setSearch("")} className="text-green-200 hover:text-white"><X size={13} /></button>}
             </div>
             <div className="flex items-center bg-white/10 rounded-lg px-3 py-2 gap-2">
-              <Filter size={15} className="shrink-0 text-orange-100" />
+              <Filter size={15} className="shrink-0 text-blue-100" />
               <select value={filter} onChange={(e) => { setFilter(e.target.value); setPage(1); }} className="bg-transparent outline-none text-sm">
                 <option value="all" className="text-gray-700">{t("sales.all")}</option>
                 <option value="profit" className="text-gray-700">{t("sales.profit")}</option>
@@ -407,12 +407,12 @@ ${customerName ? `<div class="row"><span class="label">Customer</span><span styl
             onFrom={(v) => { setDateFrom(v); setPage(1); }}
             onTo={(v) => { setDateTo(v); setPage(1); }}
             onClear={() => { setDateFrom(""); setDateTo(""); setPage(1); }}
-            accentClass="focus:ring-orange-300/40 focus:border-orange-300"
+            accentClass="focus:ring-[#1372e6]/30 focus:border-[#1372e6]"
           />
         </div>
 
         {hasDateFilter && (
-          <div className="flex items-center gap-2 mb-4 text-xs text-green-700 bg-orange-50 border border-orange-200 rounded-lg px-3 py-2">
+          <div className="flex items-center gap-2 mb-4 text-xs bg-[#EBF2FD] border border-[#A8C8F8] rounded-lg px-3 py-2" style={{ color: "#1372e6" }}>
             <Calendar size={13} />
             <span>
               {t("sales.filter_date")}:
@@ -420,7 +420,7 @@ ${customerName ? `<div class="row"><span class="label">Customer</span><span styl
               {dateTo && <> → <span className="font-semibold">{dateTo}</span></>}
               {" "}· <span className="font-semibold">{salesTotal.toLocaleString()}</span> {t("sales.count").toLowerCase()}
             </span>
-            <button onClick={() => { setDateFrom(""); setDateTo(""); setPage(1); }} className="ml-auto text-orange-500 hover:text-green-700">
+            <button onClick={() => { setDateFrom(""); setDateTo(""); setPage(1); }} className="ml-auto hover:opacity-70" style={{ color: "#1372e6" }}>
               <X size={13} />
             </button>
           </div>
@@ -429,11 +429,11 @@ ${customerName ? `<div class="row"><span class="label">Customer</span><span styl
         {/* STAT CARDS */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-6">
           {[
-            { label: t("sales.count"),       value: stats.total,                    color: "text-orange-600",  bg: "bg-orange-50",  icon: <ReceiptText size={17} /> },
-            { label: t("sales.revenue"),      value: stats.revenue.toLocaleString(), color: "text-green-600",   bg: "bg-green-50",   icon: <DollarSign size={17} /> },
-            { label: t("sales.profit"),       value: stats.profit.toLocaleString(),  color: "text-emerald-600", bg: "bg-emerald-50", icon: <TrendingUp size={17} /> },
-            { label: t("reports.items_sold"), value: stats.itemsSold,                color: "text-blue-600",    bg: "bg-blue-50",    icon: <Package size={17} /> },
-            { label: t("reports.customers"),  value: stats.uniqueCustomers,          color: "text-violet-600",  bg: "bg-violet-50",  icon: <Users size={17} /> },
+            { label: t("sales.count"),       value: stats.total,                    color: "text-[#1372e6]",  bg: "bg-[#EBF2FD]",  icon: <ReceiptText size={17} /> },
+            { label: t("sales.revenue"),      value: stats.revenue.toLocaleString(), color: "text-green-600",  bg: "bg-green-50",   icon: <DollarSign size={17} /> },
+            { label: t("sales.profit"),       value: stats.profit.toLocaleString(),  color: "text-green-700",  bg: "bg-green-50",   icon: <TrendingUp size={17} /> },
+            { label: t("reports.items_sold"), value: stats.itemsSold,                color: "text-[#1372e6]",  bg: "bg-[#EBF2FD]",  icon: <Package size={17} /> },
+            { label: t("reports.customers"),  value: stats.uniqueCustomers,          color: "text-[#1372e6]",  bg: "bg-[#EBF2FD]",  icon: <Users size={17} /> },
           ].map((card) => (
             <div key={card.label} className="bg-white rounded-xl border border-slate-200 p-4">
               <div className="flex flex-wrap justify-between items-start gap-2">
@@ -507,7 +507,7 @@ ${customerName ? `<div class="row"><span class="label">Customer</span><span styl
                           <Printer size={14} />
                         </button>
                         <button onClick={() => openEditModal(s)}
-                          className="p-1.5 rounded-lg bg-orange-50 hover:bg-orange-100 text-orange-600 transition">
+                          className="p-1.5 rounded-lg bg-[#EBF2FD] hover:bg-[#D5E8FB] text-[#1372e6] transition">
                           <Pencil size={14} />
                         </button>
                         <button onClick={() => deleteSale(s.id)} disabled={deletingId === s.id}
@@ -527,7 +527,7 @@ ${customerName ? `<div class="row"><span class="label">Customer</span><span styl
               <div className="p-4 bg-slate-100 rounded-2xl mb-3"><ShoppingBag size={32} className="opacity-40" /></div>
               <p className="font-medium text-slate-500 text-sm">{t("sales.no_sales")}</p>
               {!search && filter === "all" && !hasDateFilter && (
-                <button onClick={openCreateModal} className="mt-4 flex items-center gap-1.5 bg-orange-500 text-white text-sm font-semibold px-4 py-2 rounded-lg hover:bg-orange-600 transition">
+                <button onClick={openCreateModal} className="mt-4 flex items-center gap-1.5 text-white text-sm font-semibold px-4 py-2 rounded-lg transition hover:opacity-90" style={{ background: "#1372e6" }}>
                   <Plus size={14} /> {t("sales.add")}
                 </button>
               )}
@@ -573,7 +573,7 @@ ${customerName ? `<div class="row"><span class="label">Customer</span><span styl
                   <div className="bg-slate-50 px-4 py-2.5 border-b border-slate-200 flex justify-between items-center">
                     <span className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Items</span>
                     <button onClick={addLine}
-                      className="flex items-center gap-1 text-xs font-semibold text-orange-600 hover:text-green-700 bg-orange-50 hover:bg-orange-100 px-2.5 py-1 rounded-lg transition">
+                      className="flex items-center gap-1 text-xs font-semibold text-[#1372e6] bg-[#EBF2FD] hover:bg-[#D5E8FB] px-2.5 py-1 rounded-lg transition">
                       <Plus size={12} /> Add Item
                     </button>
                   </div>
@@ -592,7 +592,7 @@ ${customerName ? `<div class="row"><span class="label">Customer</span><span styl
                         <div key={line.id} className="px-4 py-3">
                           <div className="grid grid-cols-[2fr_80px_100px_90px_32px] gap-2 items-center">
                             <select
-                              className="border border-slate-200 text-gray-800 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-400 transition"
+                              className="border border-slate-200 text-gray-800 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1372e6]/30 focus:border-[#1372e6] transition"
                               value={line.product_id}
                               onChange={(e) => setLineProduct(line.id, e.target.value)}
                             >
@@ -608,13 +608,13 @@ ${customerName ? `<div class="row"><span class="label">Customer</span><span styl
                               max={p?.quantity}
                               value={line.quantity}
                               onChange={(e) => setLineQty(line.id, Number(e.target.value))}
-                              className="border border-slate-200 text-gray-800 rounded-lg px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-400 transition w-full"
+                              className="border border-slate-200 text-gray-800 rounded-lg px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-[#1372e6]/30 focus:border-[#1372e6] transition w-full"
                             />
                             <input
                               type="number" min="0"
                               value={line.unit_price}
                               onChange={(e) => setLinePrice(line.id, Number(e.target.value))}
-                              className="border border-slate-200 text-gray-800 rounded-lg px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-400 transition w-full"
+                              className="border border-slate-200 text-gray-800 rounded-lg px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-[#1372e6]/30 focus:border-[#1372e6] transition w-full"
                             />
                             <div className="text-right">
                               <p className="font-semibold text-slate-800 text-sm tabular-nums">{subtotal.toLocaleString()}</p>
@@ -665,7 +665,7 @@ ${customerName ? `<div class="row"><span class="label">Customer</span><span styl
                 <div className="flex gap-2.5">
                   <button onClick={closeModal} className="px-4 py-2 rounded-lg border border-slate-200 text-slate-600 text-sm font-medium hover:bg-slate-50 transition">{t("common.cancel")}</button>
                   <button onClick={submitForm} disabled={submitting}
-                    className="px-5 py-2 rounded-lg bg-orange-500 text-white text-sm font-semibold hover:bg-orange-600 transition disabled:opacity-60">
+                    className="px-5 py-2 rounded-lg text-white text-sm font-semibold transition disabled:opacity-60 hover:opacity-90" style={{ background: "#1372e6" }}>
                     {submitting ? t("common.saving") : `Record Sale${lineItems.filter((l) => l.product_id).length > 1 ? ` (${lineItems.filter((l) => l.product_id).length} items)` : ""}`}
                   </button>
                 </div>
@@ -739,7 +739,7 @@ ${customerName ? `<div class="row"><span class="label">Customer</span><span styl
               <div className="flex justify-end gap-2.5 px-4 sm:px-6 py-4 border-t border-slate-100 shrink-0">
                 <button onClick={closeModal} className="px-4 py-2 rounded-lg border border-slate-200 text-slate-600 text-sm font-medium hover:bg-slate-50 transition">{t("common.cancel")}</button>
                 <button onClick={submitForm} disabled={submitting}
-                  className="px-5 py-2 rounded-lg bg-orange-500 text-white text-sm font-semibold hover:bg-orange-600 transition disabled:opacity-60">
+                  className="px-5 py-2 rounded-lg text-white text-sm font-semibold transition disabled:opacity-60 hover:opacity-90" style={{ background: "#1372e6" }}>
                   {submitting ? t("common.saving") : t("common.save")}
                 </button>
               </div>
@@ -814,7 +814,7 @@ ${customerName ? `<div class="row"><span class="label">Customer</span><span styl
                   Close
                 </button>
                 <button onClick={() => printReceiptPopup(receipts)}
-                  className="flex-1 px-3 py-2 rounded-lg bg-orange-500 text-white text-xs font-semibold hover:bg-orange-600 transition flex items-center justify-center gap-1.5">
+                  className="flex-1 px-3 py-2 rounded-lg text-white text-xs font-semibold transition flex items-center justify-center gap-1.5 hover:opacity-90" style={{ background: "#1372e6" }}>
                   <Printer size={13} /> Print
                 </button>
               </div>

@@ -9,13 +9,14 @@ import {
 import { reportRequest } from "@/lib/report-api";
 import { itemRequest } from "@/lib/product-api";
 import { purchaseRequest } from "@/lib/purchase-api";
+import { expenseRequest } from "@/lib/expense-api";
 import { useLanguage } from "@/lib/language-context";
 import DashboardHeader from "@/app/components/dashboard/DashboardHeader";
 import DateRangeFilter from "@/app/components/ui/DateRangeFilter";
 import {
   BarChart3, TrendingUp, DollarSign, Package,
   ShoppingCart, AlertCircle, RefreshCw, Download, ArrowUpRight,
-  Wifi, AlertTriangle, CheckCircle, Activity, Truck,
+  Wifi, AlertTriangle, CheckCircle, Activity, Truck, Receipt,
 } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -107,6 +108,8 @@ export default function ReportsPage() {
   const [stockAlerts, setStockAlerts] = useState<StockAlert[]>([]);
   const [recentPurchases, setRecentPurchases] = useState<PurchaseRecord[]>([]);
   const [purchaseTotalSpent, setPurchaseTotalSpent] = useState(0);
+  const [expenseTotalPeriod, setExpenseTotalPeriod] = useState(0);
+  const [expenseCount, setExpenseCount] = useState(0);
   const [stockCost, setStockCost]     = useState(0); // cost_price × qty  (book value)
   const [stockRetail, setStockRetail] = useState(0); // selling_price × qty (retail value)
   const [loading, setLoading]   = useState(true);
@@ -137,14 +140,15 @@ export default function ReportsPage() {
         ...(dateTo   && { to_date: dateTo }),
       });
 
-      // Fetch from reports service, products service, and purchases service in parallel
-      const [sumRes, dayRes, topRes, alertRes, productsRes, purchasesRes] = await Promise.allSettled([
+      // Fetch from reports service, products service, purchases service, and expenses in parallel
+      const [sumRes, dayRes, topRes, alertRes, productsRes, purchasesRes, expenseRes] = await Promise.allSettled([
         reportRequest(`/reports/summary?${dateParams}`),
         reportRequest("/reports/daily?days=30"),
         reportRequest(`/reports/top-items?limit=10&${dateParams}`),
         reportRequest("/reports/stock-alerts"),
-        itemRequest("/products?limit=1000"),        // real stock data
-        purchaseRequest(`/purchases?${purchaseParams}`), // purchase history
+        itemRequest("/products?limit=1000"),
+        purchaseRequest(`/purchases?${purchaseParams}`),
+        expenseRequest(`/expenses/summary?${dateParams}`),
       ]);
 
       // Products from inventory service — compute stock metrics locally
@@ -170,6 +174,12 @@ export default function ReportsPage() {
       const totalSpentFromPurchases = purchases.reduce((s, p) => s + (p.total_cost || 0), 0);
       setRecentPurchases(purchases.slice(0, 10));
       setPurchaseTotalSpent(totalSpentFromPurchases);
+
+      if (expenseRes.status === "fulfilled") {
+        const expData = expenseRes.value?.data ?? {};
+        setExpenseTotalPeriod(expData.total_expenses ?? 0);
+        setExpenseCount(expData.count ?? 0);
+      }
 
       // Build summary — override stock fields with values computed from the products service
       if (sumRes.status === "fulfilled") {
@@ -391,8 +401,8 @@ export default function ReportsPage() {
                 pulse
               />
             </div>
-            {/* Row 2: Stock health + sales */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            {/* Row 2: Stock health + sales + expenses + net profit */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-4">
               <KpiCard
                 label="Out of Stock"
                 value={String(summary.out_of_stock)}
@@ -410,18 +420,32 @@ export default function ReportsPage() {
                 badge={summary.low_stock > 0 ? "RESTOCK SOON" : "OK"}
               />
               <KpiCard
-                label="Money Earned"
+                label="Revenue Earned"
                 value={`RWF ${fmtRWF(summary.revenue)}`}
-                detail={`Total from ${summary.sales_count} sales · ${margin}% kept as profit`}
+                detail={`Total from ${summary.sales_count} sales · ${summary.unique_customers} customers`}
                 icon={<ShoppingCart size={18} />}
                 color="teal"
               />
               <KpiCard
-                label="Profit Earned"
+                label="Gross Profit (Sales)"
                 value={`RWF ${fmtRWF(summary.profit)}`}
-                detail={`What's left after costs · ${summary.unique_customers} customers served`}
+                detail={`${margin}% margin · after cost of goods sold only`}
                 icon={<TrendingUp size={18} />}
                 color="emerald"
+              />
+              <KpiCard
+                label="Business Expenses"
+                value={expenseTotalPeriod > 0 ? `RWF ${fmtRWF(expenseTotalPeriod)}` : "—"}
+                detail={`${expenseCount} expense records in this period`}
+                icon={<Receipt size={18} />}
+                color="orange"
+              />
+              <KpiCard
+                label="Net Profit (Real)"
+                value={`RWF ${fmtRWF(summary.profit - expenseTotalPeriod)}`}
+                detail={`After expenses · ${summary.profit - expenseTotalPeriod >= 0 ? "Profitable" : "At a loss"}`}
+                icon={<DollarSign size={18} />}
+                color={summary.profit - expenseTotalPeriod >= 0 ? "blue" : "red"}
               />
             </div>
           </>
@@ -571,12 +595,30 @@ export default function ReportsPage() {
                   textColor="text-teal-700"
                 />
                 <ValueBar
-                  label={`Profit kept from sales (${dateFrom} → ${dateTo})`}
-                  sublabel="What remains after subtracting what the items cost you"
+                  label={`Gross profit from sales (${dateFrom} → ${dateTo})`}
+                  sublabel="After cost of goods sold — before business expenses"
                   value={summary.profit}
                   max={Math.max(stockCost, stockRetail, summary.revenue, 1)}
                   color="bg-emerald-500"
                   textColor="text-emerald-700"
+                />
+                {expenseTotalPeriod > 0 && (
+                  <ValueBar
+                    label={`Business expenses (${dateFrom} → ${dateTo})`}
+                    sublabel={`${expenseCount} records — rent, salaries, utilities, etc.`}
+                    value={expenseTotalPeriod}
+                    max={Math.max(stockCost, stockRetail, summary.revenue, 1)}
+                    color="bg-orange-400"
+                    textColor="text-orange-600"
+                  />
+                )}
+                <ValueBar
+                  label={`Net profit — real money kept (${dateFrom} → ${dateTo})`}
+                  sublabel="Gross profit minus all business expenses"
+                  value={Math.max(0, summary.profit - expenseTotalPeriod)}
+                  max={Math.max(stockCost, stockRetail, summary.revenue, 1)}
+                  color={summary.profit - expenseTotalPeriod >= 0 ? "bg-[#1372e6]" : "bg-red-400"}
+                  textColor={summary.profit - expenseTotalPeriod >= 0 ? "text-[#1372e6]" : "text-red-600"}
                 />
               </div>
 
@@ -736,9 +778,15 @@ export default function ReportsPage() {
         {summary && (
           <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-4 pb-10">
             <StatMini label="Items Sold"         value={fmtNum(summary.items_sold)}               sub={`to ${summary.unique_customers} customers`} color="text-indigo-600" icon={<ShoppingCart size={14} />} />
-            <StatMini label="Number of Sales"    value={fmtNum(summary.sales_count)}              sub="times you made a sale"                      color="text-[#1372e6]"   icon={<DollarSign size={14} />} />
-            <StatMini label="Spent on Restocking" value={`RWF ${fmtRWF(summary.total_spent)}`}   sub={`${recentPurchases.length} purchase records`} color="text-violet-600" icon={<Truck size={14} />} />
-            <StatMini label="Profit Waiting in Stock" value={`RWF ${fmtRWF(summary.potential_profit)}`} sub={`${stockCost > 0 ? ((summary.potential_profit / stockCost) * 100).toFixed(1) : 0}% return rate`} color="text-emerald-600" icon={<TrendingUp size={14} />} />
+            <StatMini label="Spent on Restocking" value={`RWF ${fmtRWF(summary.total_spent)}`}   sub={`${recentPurchases.length} purchase records`} color="text-teal-600" icon={<Truck size={14} />} />
+            <StatMini label="Business Expenses"  value={expenseTotalPeriod > 0 ? `RWF ${fmtRWF(expenseTotalPeriod)}` : "—"} sub={`${expenseCount} records this period`} color="text-orange-600" icon={<Receipt size={14} />} />
+            <StatMini
+              label="Net Profit (Real)"
+              value={`RWF ${fmtRWF(summary.profit - expenseTotalPeriod)}`}
+              sub={summary.profit - expenseTotalPeriod >= 0 ? "Profitable after all costs" : "Spending more than earning"}
+              color={summary.profit - expenseTotalPeriod >= 0 ? "text-[#1372e6]" : "text-red-600"}
+              icon={<DollarSign size={14} />}
+            />
           </div>
         )}
 
@@ -759,13 +807,14 @@ export default function ReportsPage() {
 
 const kpiColors: Record<string, { bg: string; text: string; badge: string }> = {
   indigo:  { bg: "bg-indigo-50",   text: "text-indigo-600",   badge: "bg-indigo-100 text-indigo-700"   },
-  blue:    { bg: "bg-[#EBF2FD]",     text: "text-[#1372e6]",     badge: "bg-[#D5E8FB] text-[#1372e6]"       },
+  blue:    { bg: "bg-[#EBF2FD]",   text: "text-[#1372e6]",   badge: "bg-[#D5E8FB] text-[#1372e6]"     },
   violet:  { bg: "bg-violet-50",   text: "text-violet-600",   badge: "bg-violet-100 text-violet-700"   },
   teal:    { bg: "bg-teal-50",     text: "text-teal-600",     badge: "bg-teal-100 text-teal-700"       },
   emerald: { bg: "bg-emerald-50",  text: "text-emerald-600",  badge: "bg-emerald-100 text-emerald-700" },
   red:     { bg: "bg-red-50",      text: "text-red-600",      badge: "bg-red-100 text-red-700"         },
   amber:   { bg: "bg-amber-50",    text: "text-amber-600",    badge: "bg-amber-100 text-amber-700"     },
   green:   { bg: "bg-green-50",    text: "text-green-600",    badge: "bg-green-100 text-green-700"     },
+  orange:  { bg: "bg-orange-50",   text: "text-orange-600",   badge: "bg-orange-100 text-orange-700"   },
 };
 
 function KpiCard({ label, value, detail, icon, color, pulse, badge }: {

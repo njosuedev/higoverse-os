@@ -249,8 +249,8 @@ export default function ItemManagementPage() {
             { label: t("items.in_stock"),     value: stats.inStock,                          color: "text-green-600",   bg: "bg-green-50",   icon: <Package size={17} /> },
             { label: t("items.low_stock"),    value: stats.lowStock,                         color: "text-amber-500",   bg: "bg-amber-50",   icon: <AlertCircle size={17} /> },
             { label: t("items.out_stock"), value: stats.outStock,                         color: "text-red-600",     bg: "bg-red-50",     icon: <ShoppingBag size={17} /> },
-            { label: t("items.stock_value"),  value: stats.stockValue.toLocaleString(),      color: "text-indigo-600",  bg: "bg-indigo-50",  icon: <DollarSign size={17} /> },
-            { label: t("items.pot_profit"),  value: stats.potentialProfit.toLocaleString(), color: "text-emerald-600", bg: "bg-emerald-50", icon: <BarChart3 size={17} /> },
+            { label: t("items.stock_value"),  value: stats.stockValue.toLocaleString(),      color: "text-[#1372e6]", bg: "bg-[#EBF2FD]", icon: <DollarSign size={17} /> },
+            { label: t("items.pot_profit"),  value: stats.potentialProfit.toLocaleString(), color: "text-green-700",  bg: "bg-green-50",   icon: <BarChart3 size={17} /> },
           ].map((card) => (
             <div key={card.label} className="bg-white rounded-xl border border-slate-200 p-4">
               <div className="flex flex-wrap justify-between items-start gap-2">

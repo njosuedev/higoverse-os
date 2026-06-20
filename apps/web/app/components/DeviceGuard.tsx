@@ -19,23 +19,20 @@ export default function DeviceGuard({
   >(null);
 
   useEffect(() => {
-    const checkDevice = () => {
-      // Allow tablets, laptops, desktops
-      setAllowed(window.innerWidth >= 768);
+    const isMobilePhone = () => {
+      const ua = navigator.userAgent;
+      // True phones: Android phones (not tablets) or iPhone
+      const isPhone = /iPhone|Android/i.test(ua) && !/iPad|Tablet/i.test(ua);
+      // On a phone, also confirm the screen is narrow (< 768px)
+      // A laptop/desktop will never have a phone UA regardless of window size
+      return isPhone && window.innerWidth < 768;
     };
 
+    const checkDevice = () => setAllowed(!isMobilePhone());
+
     checkDevice();
-
-    window.addEventListener(
-      "resize",
-      checkDevice
-    );
-
-    return () =>
-      window.removeEventListener(
-        "resize",
-        checkDevice
-      );
+    window.addEventListener("resize", checkDevice);
+    return () => window.removeEventListener("resize", checkDevice);
   }, []);
 
   // Prevent flashing content before check
