@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import text
 
 from app.api.routes.sales import router as sale_router
 from app.api.routes.debts import router as debt_router
@@ -25,6 +26,14 @@ app.include_router(debt_router)
 @app.on_event("startup")
 def on_startup():
     Base.metadata.create_all(bind=engine)
+    with engine.connect() as conn:
+        conn.execute(text(
+            "ALTER TABLE sales ADD COLUMN IF NOT EXISTS payment_method VARCHAR(20)"
+        ))
+        conn.execute(text(
+            "ALTER TABLE sales ADD COLUMN IF NOT EXISTS amount_paid NUMERIC(12, 2)"
+        ))
+        conn.commit()
 
 
 @app.get("/")
