@@ -8,7 +8,6 @@ const nextConfig: NextConfig = {
       { source: "/PartnerManagement",  destination: "/partners",  permanent: true },
       { source: "/PurchaseManagement", destination: "/purchases", permanent: true },
       { source: "/ExpenseManagement",  destination: "/expenses",  permanent: true },
-      { source: "/Settings",           destination: "/settings",  permanent: true },
     ];
   },
 
