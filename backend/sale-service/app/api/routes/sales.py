@@ -36,6 +36,8 @@ def _fmt(s: Sale) -> dict:
         "total_amount": float(s.total_amount),
         "profit": float(s.profit) if s.profit is not None else None,
         "notes": s.notes,
+        "payment_method": s.payment_method,
+        "amount_paid": float(s.amount_paid) if s.amount_paid is not None else None,
         "created_at": s.created_at.isoformat() if s.created_at else None,
     }
 
@@ -244,6 +246,8 @@ def create_sale(
         total_amount=total,
         profit=profit,
         notes=payload.notes,
+        payment_method=payload.payment_method,
+        amount_paid=float(payload.amount_paid) if payload.amount_paid is not None else None,
     )
     db.add(sale)
     db.commit()

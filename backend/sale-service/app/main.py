@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes.sales import router as sale_router
+from app.api.routes.debts import router as debt_router
 from app.db.database import Base, engine
 
 app = FastAPI(title="Sale Service", version="1.0.0")
@@ -18,6 +19,7 @@ app.add_middleware(
 )
 
 app.include_router(sale_router)
+app.include_router(debt_router)
 
 
 @app.on_event("startup")

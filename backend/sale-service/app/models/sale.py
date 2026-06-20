@@ -21,4 +21,6 @@ class Sale(Base):
     profit = Column(Numeric(12, 2), nullable=True)
 
     notes = Column(Text, nullable=True)
+    payment_method = Column(String(20), nullable=True)
+    amount_paid = Column(Numeric(12, 2), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)

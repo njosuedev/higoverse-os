@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { itemRequest } from "@/lib/product-api";
@@ -13,21 +13,42 @@ import DateRangeFilter from "@/app/components/ui/DateRangeFilter";
 import {
   ShoppingBag, Search, Filter, Plus, Trash2, Pencil, X,
   TrendingUp, DollarSign, Users, ReceiptText, Package, RefreshCw, Calendar, Printer,
+  Wallet, AlertCircle, CheckCircle2, Phone,
 } from "lucide-react";
 
 interface Sale {
   id: string; product_id: string; product_name?: string;
   customer_id?: string; quantity: number; unit_price: number;
-  total_amount: number; profit?: number; notes?: string; created_at?: string;
+  total_amount: number; profit?: number; notes?: string;
+  payment_method?: string; amount_paid?: number;
+  created_at?: string;
 }
 interface Product { id: string; name: string; selling_price: number; cost_price: number; quantity: number; }
 interface Partner { id: string; name: string; phone?: string; address?: string; }
 interface LineItem { id: string; product_id: string; quantity: number; unit_price: number; }
+interface Debt {
+  id: string; debtor_name: string; phone?: string;
+  amount_owed: number; amount_paid: number; balance: number;
+  notes?: string; is_paid: boolean; sale_id?: string; created_at?: string;
+}
 
 type ModalMode = "create" | "edit";
+type PaymentMethod = "cash" | "mtn" | "airtel" | "bank" | "debt";
 
 const EMPTY_FORM = { product_id: "", customer_id: "", quantity: "", unit_price: "", notes: "" };
 const PAGE_SIZES = [25, 50, 100, 250];
+const PAYMENT_METHODS: { value: PaymentMethod; label: string; color: string }[] = [
+  { value: "cash",   label: "Cash",   color: "bg-green-100 text-green-700 border-green-200" },
+  { value: "mtn",    label: "MTN",    color: "bg-yellow-100 text-yellow-700 border-yellow-200" },
+  { value: "airtel", label: "Airtel", color: "bg-red-100 text-red-700 border-red-200" },
+  { value: "bank",   label: "Bank",   color: "bg-blue-100 text-blue-700 border-blue-200" },
+  { value: "debt",   label: "Debt",   color: "bg-orange-100 text-orange-700 border-orange-200" },
+];
+
+function paymentBadge(method?: string) {
+  const m = PAYMENT_METHODS.find((p) => p.value === method) || PAYMENT_METHODS[0];
+  return <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded border ${m.color}`}>{m.label}</span>;
+}
 
 function genId() { return Math.random().toString(36).slice(2, 9); }
 function emptyLine(): LineItem { return { id: genId(), product_id: "", quantity: 1, unit_price: 0 }; }
@@ -53,32 +74,45 @@ export default function SaleManagementPage() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
 
-  // Modal state
   const [modalMode, setModalMode] = useState<ModalMode>("create");
   const [showModal, setShowModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState("");
 
-  // Edit mode uses single form
   const [form, setForm] = useState(EMPTY_FORM);
 
-  // Create mode uses line items
   const [lineItems, setLineItems] = useState<LineItem[]>([emptyLine()]);
   const [saleCustomer, setSaleCustomer] = useState("");
   const [saleNotes, setSaleNotes] = useState("");
 
-  // Shop settings (for receipt)
+  // Payment method state
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
+  const [amountSent, setAmountSent] = useState("");
+  const [debtorName, setDebtorName] = useState("");
+  const [debtorPhone, setDebtorPhone] = useState("");
+
   const [shopName, setShopName] = useState("");
   const [currency, setCurrency] = useState("RWF");
 
-  // Receipts for last sale batch
   const [receipts, setReceipts] = useState<Sale[]>([]);
+
+  // Debts state
+  const [debts, setDebts] = useState<Debt[]>([]);
+  const [debtsLoading, setDebtsLoading] = useState(false);
+  const [debtsTotalOutstanding, setDebtsTotalOutstanding] = useState(0);
+  const [showDebtModal, setShowDebtModal] = useState(false);
+  const [editingDebt, setEditingDebt] = useState<Debt | null>(null);
+  const [debtForm, setDebtForm] = useState({ debtor_name: "", phone: "", amount_owed: "", amount_paid: "0", notes: "" });
+  const [debtSubmitting, setDebtSubmitting] = useState(false);
+  const [payingDebtId, setPayingDebtId] = useState("");
+  const [paymentAmount, setPaymentAmount] = useState("");
+  const [showPayModal, setShowPayModal] = useState<Debt | null>(null);
+  const [deletingDebtId, setDeletingDebtId] = useState("");
 
   const loadDataRef = useRef<(soft?: boolean) => Promise<void>>(async () => {});
   useEffect(() => { loadDataRef.current = loadData; });
 
-  // Auto-refresh every 30 s
   useEffect(() => {
     const timer = setInterval(() => loadDataRef.current(true), 30_000);
     return () => clearInterval(timer);
@@ -87,7 +121,7 @@ export default function SaleManagementPage() {
   const debouncedSearch = useDebounce(search, 350);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { loadData(); }, []);
+  useEffect(() => { loadData(); loadDebts(); }, []);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { if (!loading) loadData(true); }, [dateFrom, dateTo, page, pageSize]);
 
@@ -119,8 +153,19 @@ export default function SaleManagementPage() {
     finally { setLoading(false); setRefreshing(false); }
   }
 
+  async function loadDebts() {
+    try {
+      setDebtsLoading(true);
+      const res = await saleRequest("/debts");
+      setDebts(res?.data?.items || []);
+      setDebtsTotalOutstanding(res?.data?.total_outstanding || 0);
+    } catch { /* non-fatal */ }
+    finally { setDebtsLoading(false); }
+  }
+
   function openCreateModal() {
     setLineItems([emptyLine()]); setSaleCustomer(""); setSaleNotes("");
+    setPaymentMethod("cash"); setAmountSent(""); setDebtorName(""); setDebtorPhone("");
     setEditingId(null); setModalMode("create"); setShowModal(true);
   }
   function openEditModal(s: Sale) {
@@ -130,9 +175,9 @@ export default function SaleManagementPage() {
   function closeModal() {
     setShowModal(false); setForm(EMPTY_FORM); setEditingId(null);
     setLineItems([emptyLine()]); setSaleCustomer(""); setSaleNotes("");
+    setPaymentMethod("cash"); setAmountSent(""); setDebtorName(""); setDebtorPhone("");
   }
 
-  // Line item helpers
   function addLine() { setLineItems((prev) => [...prev, emptyLine()]); }
   function removeLine(id: string) { setLineItems((prev) => prev.filter((l) => l.id !== id)); }
   function setLineProduct(id: string, productId: string) {
@@ -146,7 +191,6 @@ export default function SaleManagementPage() {
     setLineItems((prev) => prev.map((l) => l.id === id ? { ...l, unit_price: Math.max(0, price) } : l));
   }
 
-  // Edit mode: single product change
   function onProductChange(productId: string) {
     const product = products.find((p) => p.id === productId);
     setForm((f) => ({ ...f, product_id: productId, unit_price: product ? String(product.selling_price) : f.unit_price }));
@@ -171,9 +215,11 @@ export default function SaleManagementPage() {
       return;
     }
 
-    // CREATE — multi-item
     const validLines = lineItems.filter((l) => l.product_id && l.quantity > 0 && l.unit_price >= 0);
     if (validLines.length === 0) { alert("Add at least one item with a product selected."); return; }
+    if (paymentMethod === "debt" && !debtorName.trim()) { alert("Enter the debtor’s name."); return; }
+
+    const grandTotal = validLines.reduce((s, l) => s + l.quantity * l.unit_price, 0);
 
     try {
       setSubmitting(true);
@@ -190,12 +236,31 @@ export default function SaleManagementPage() {
               quantity: line.quantity,
               unit_price: line.unit_price,
               notes: saleNotes.trim() || undefined,
+              payment_method: paymentMethod,
+              amount_paid: amountSent ? Number(amountSent) : (paymentMethod === "debt" ? 0 : undefined),
             }),
           });
           if (res?.data?.id) created.push(res.data);
         } catch (e) {
           errors.push(e instanceof Error ? e.message : "Unknown error");
         }
+      }
+
+      if (paymentMethod === "debt" && created.length > 0) {
+        try {
+          await saleRequest("/debts", {
+            method: "POST",
+            body: JSON.stringify({
+              debtor_name: debtorName.trim(),
+              phone: debtorPhone.trim() || undefined,
+              amount_owed: grandTotal,
+              amount_paid: 0,
+              notes: saleNotes.trim() || undefined,
+              sale_id: created[0]?.id,
+            }),
+          });
+          await loadDebts();
+        } catch { /* non-fatal */ }
       }
 
       closeModal();
@@ -215,6 +280,65 @@ export default function SaleManagementPage() {
     finally { setDeletingId(""); }
   }
 
+  async function submitDebt() {
+    if (!debtForm.debtor_name.trim() || !debtForm.amount_owed) { alert("Name and amount owed are required."); return; }
+    try {
+      setDebtSubmitting(true);
+      if (editingDebt) {
+        await saleRequest(`/debts/${editingDebt.id}`, {
+          method: "PUT",
+          body: JSON.stringify({
+            debtor_name: debtForm.debtor_name.trim(),
+            phone: debtForm.phone.trim() || undefined,
+            amount_owed: Number(debtForm.amount_owed),
+            amount_paid: Number(debtForm.amount_paid),
+            notes: debtForm.notes.trim() || undefined,
+          }),
+        });
+      } else {
+        await saleRequest("/debts", {
+          method: "POST",
+          body: JSON.stringify({
+            debtor_name: debtForm.debtor_name.trim(),
+            phone: debtForm.phone.trim() || undefined,
+            amount_owed: Number(debtForm.amount_owed),
+            amount_paid: Number(debtForm.amount_paid),
+            notes: debtForm.notes.trim() || undefined,
+          }),
+        });
+      }
+      setShowDebtModal(false); setEditingDebt(null);
+      setDebtForm({ debtor_name: "", phone: "", amount_owed: "", amount_paid: "0", notes: "" });
+      await loadDebts();
+    } catch (err: unknown) { alert(err instanceof Error ? err.message : "Error"); }
+    finally { setDebtSubmitting(false); }
+  }
+
+  async function recordPayment() {
+    if (!showPayModal || !paymentAmount) return;
+    const newPaid = showPayModal.amount_paid + Number(paymentAmount);
+    try {
+      setPayingDebtId(showPayModal.id);
+      await saleRequest(`/debts/${showPayModal.id}`, {
+        method: "PUT",
+        body: JSON.stringify({ amount_paid: newPaid }),
+      });
+      setShowPayModal(null); setPaymentAmount("");
+      await loadDebts();
+    } catch (err: unknown) { alert(err instanceof Error ? err.message : "Error"); }
+    finally { setPayingDebtId(""); }
+  }
+
+  async function deleteDebt(id: string) {
+    if (!confirm("Delete this debt record?")) return;
+    try {
+      setDeletingDebtId(id);
+      await saleRequest(`/debts/${id}`, { method: "DELETE" });
+      await loadDebts();
+    } catch { alert("Delete failed."); }
+    finally { setDeletingDebtId(""); }
+  }
+
   function printReceiptPopup(salesToPrint: Sale[]) {
     const grandTotal = salesToPrint.reduce((s, x) => s + x.total_amount, 0);
     const receiptNo = salesToPrint[0]?.id?.slice(0, 8)?.toUpperCase() || "SALE";
@@ -222,6 +346,9 @@ export default function SaleManagementPage() {
       ? new Date(salesToPrint[0].created_at).toLocaleString([], { dateStyle: "medium", timeStyle: "short" })
       : new Date().toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
     const customerName = salesToPrint[0]?.customer_id ? customerMap[salesToPrint[0].customer_id]?.name : "";
+    const pm = salesToPrint[0]?.payment_method;
+    const paid = salesToPrint[0]?.amount_paid;
+    const change = paid && paid > grandTotal ? paid - grandTotal : 0;
 
     const itemsHtml = salesToPrint.map((s) =>
       `<tr>
@@ -231,6 +358,14 @@ export default function SaleManagementPage() {
         <td style="padding:6px 0 6px 4px;border-bottom:1px dotted #ddd;text-align:right;font-weight:600;white-space:nowrap;">${s.total_amount.toLocaleString()}</td>
       </tr>`
     ).join("");
+
+    const paymentHtml = pm ? `
+      <hr class="dashed">
+      <div class="row"><span class="label">Payment</span><span style="font-weight:700;text-transform:uppercase">${pm}</span></div>
+      ${paid ? `<div class="row"><span class="label">Amount Paid</span><span>${paid.toLocaleString()} ${currency}</span></div>` : ""}
+      ${change > 0 ? `<div class="row" style="color:#16a34a"><span class="label">Change</span><span style="font-weight:700">${change.toLocaleString()} ${currency}</span></div>` : ""}
+      ${pm === "debt" ? `<div class="row" style="color:#dc2626"><span class="label">&#9888; ON CREDIT</span><span style="font-weight:700">${grandTotal.toLocaleString()} ${currency} OWED</span></div>` : ""}
+    ` : "";
 
     const html = `<!DOCTYPE html>
 <html lang="en">
@@ -251,10 +386,7 @@ export default function SaleManagementPage() {
   thead th:first-child{text-align:left}
   .total-line{font-size:14px;font-weight:700}
   .footer-text{color:#888;font-size:10px;text-align:center;margin-top:4px}
-  @media print{
-    html,body{width:80mm;max-width:80mm;padding:4mm;margin:0}
-    @page{size:80mm auto;margin:0}
-  }
+  @media print{html,body{width:80mm;max-width:80mm;padding:4mm;margin:0}@page{size:80mm auto;margin:0}}
 </style>
 </head>
 <body>
@@ -281,13 +413,11 @@ ${customerName ? `<div class="row"><span class="label">Customer</span><span styl
   <span>GRAND TOTAL</span>
   <span>${grandTotal.toLocaleString()} ${currency}</span>
 </div>
+${paymentHtml}
 <hr class="dashed">
 <div class="footer-text" style="margin-top:12px">Thank you for your business!</div>
 <div class="footer-text">Powered by Higoverse</div>
-<script>
-  window.onload=function(){setTimeout(function(){window.print();},400);};
-  window.onafterprint=function(){window.close();};
-</script>
+<script>window.onload=function(){setTimeout(function(){window.print();},400);};window.onafterprint=function(){window.close();};</script>
 </body>
 </html>`;
 
@@ -327,18 +457,20 @@ ${customerName ? `<div class="row"><span class="label">Customer</span><span styl
     return { total: salesTotal, revenue, profit, itemsSold, uniqueCustomers };
   }, [sales, salesTotal]);
 
-  // Create modal: grand total and profit preview
   const createGrandTotal = lineItems.reduce((s, l) => s + l.quantity * l.unit_price, 0);
   const createGrandProfit = lineItems.reduce((s, l) => {
     const p = productMap[l.product_id];
     return s + (p ? (l.unit_price - p.cost_price) * l.quantity : 0);
   }, 0);
+  const changeAmount = amountSent && Number(amountSent) > createGrandTotal ? Number(amountSent) - createGrandTotal : 0;
 
   const totalPages = Math.ceil(salesTotal / pageSize);
   const selectedProduct = products.find((p) => p.id === form.product_id);
   const hasDateFilter = dateFrom || dateTo;
 
   const inputCls = "border border-slate-200 text-gray-800 placeholder:text-gray-400 rounded-lg px-3 py-2 w-full text-sm focus:outline-none focus:ring-2 focus:ring-[#1372e6]/30 focus:border-[#1372e6] transition";
+
+  const pendingDebts = debts.filter((d) => !d.is_paid);
 
   if (loading) return (
     <div className="min-h-screen bg-slate-50">
@@ -449,7 +581,7 @@ ${customerName ? `<div class="row"><span class="label">Customer</span><span styl
         </div>
 
         {/* TABLE */}
-        <div className="bg-white rounded-xl border border-slate-200 overflow-x-auto">
+        <div className="bg-white rounded-xl border border-slate-200 overflow-x-auto mb-6">
           {(debouncedSearch || filter !== "all") && (
             <div className="px-4 py-2.5 border-b border-slate-100 text-xs text-slate-500 bg-slate-50">
               <span className="font-semibold text-slate-700">{filtered.length.toLocaleString()}</span> results
@@ -459,7 +591,7 @@ ${customerName ? `<div class="row"><span class="label">Customer</span><span styl
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-200">
-                {[t("sales.col_date"), t("sales.col_product"), t("sales.col_customer"), t("sales.col_qty"), t("sales.col_price"), t("sales.col_total"), t("sales.col_profit"), t("common.notes"), ""].map((h) => (
+                {[t("sales.col_date"), t("sales.col_product"), t("sales.col_customer"), "Payment", t("sales.col_qty"), t("sales.col_price"), t("sales.col_total"), t("sales.col_profit"), t("common.notes"), ""].map((h) => (
                   <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-400 whitespace-nowrap">{h}</th>
                 ))}
               </tr>
@@ -492,6 +624,9 @@ ${customerName ? `<div class="row"><span class="label">Customer</span><span styl
                       {customer
                         ? <div><p className="font-medium text-slate-700">{customer.name}</p>{customer.phone && <p className="text-xs text-slate-400">{customer.phone}</p>}</div>
                         : <span className="text-slate-400 text-xs italic">—</span>}
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      {paymentBadge(s.payment_method)}
                     </td>
                     <td className="px-4 py-3 font-medium text-slate-700 tabular-nums">{s.quantity}</td>
                     <td className="px-4 py-3 text-slate-600 tabular-nums">{s.unit_price.toLocaleString()}</td>
@@ -538,7 +673,114 @@ ${customerName ? `<div class="row"><span class="label">Customer</span><span styl
             pageSize={pageSize} pageSizes={PAGE_SIZES} onPage={setPage} onPageSize={setPageSize} />
         </div>
 
-        {/* CREATE MODAL — multi-item */}
+        {/* DEBTS SECTION */}
+        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+          <div className="flex justify-between items-center px-5 py-4 border-b border-slate-100">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-orange-50 rounded-lg"><AlertCircle size={17} className="text-orange-500" /></div>
+              <div>
+                <h2 className="text-sm font-semibold text-slate-800">Debts Tracker</h2>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  {pendingDebts.length} pending ·{" "}
+                  <span className="text-orange-600 font-semibold">{debtsTotalOutstanding.toLocaleString()} {currency}</span> outstanding
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => { setEditingDebt(null); setDebtForm({ debtor_name: "", phone: "", amount_owed: "", amount_paid: "0", notes: "" }); setShowDebtModal(true); }}
+              className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg text-white transition hover:opacity-90"
+              style={{ background: "#1372e6" }}
+            >
+              <Plus size={13} /> Add Debt
+            </button>
+          </div>
+
+          {debtsLoading ? (
+            <div className="px-5 py-8 text-center text-xs text-slate-400">Loading debts…</div>
+          ) : debts.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12 text-slate-400">
+              <CheckCircle2 size={32} className="mb-2 text-green-300" />
+              <p className="text-sm font-medium text-slate-500">No debts recorded</p>
+            </div>
+          ) : (
+            <div className="divide-y divide-slate-100">
+              {debts.map((d) => {
+                const balance = d.amount_owed - d.amount_paid;
+                const pct = d.amount_owed > 0 ? Math.min(100, (d.amount_paid / d.amount_owed) * 100) : 0;
+                return (
+                  <div key={d.id} className={`px-5 py-4 ${d.is_paid ? "opacity-60" : ""}`}>
+                    <div className="flex flex-wrap justify-between items-start gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="font-semibold text-slate-800 text-sm">{d.debtor_name}</p>
+                          {d.is_paid
+                            ? <span className="text-[10px] font-semibold bg-green-100 text-green-700 border border-green-200 px-1.5 py-0.5 rounded">PAID</span>
+                            : <span className="text-[10px] font-semibold bg-orange-100 text-orange-700 border border-orange-200 px-1.5 py-0.5 rounded">PENDING</span>
+                          }
+                        </div>
+                        {d.phone && (
+                          <p className="text-xs text-slate-400 mt-0.5 flex items-center gap-1"><Phone size={10} />{d.phone}</p>
+                        )}
+                        {d.notes && <p className="text-xs text-slate-400 mt-0.5 italic">{d.notes}</p>}
+                        {d.created_at && (
+                          <p className="text-[10px] text-slate-300 mt-1">{new Date(d.created_at).toLocaleDateString()}</p>
+                        )}
+                        <div className="mt-2.5 flex items-center gap-2.5">
+                          <div className="flex-1 bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                            <div className="h-full rounded-full bg-green-500 transition-all" style={{ width: `${pct}%` }} />
+                          </div>
+                          <span className="text-[10px] text-slate-400 tabular-nums whitespace-nowrap">{Math.round(pct)}% paid</span>
+                        </div>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p className="text-xs text-slate-400">Owed</p>
+                        <p className="font-bold text-slate-800 tabular-nums">{d.amount_owed.toLocaleString()}</p>
+                        {d.amount_paid > 0 && (
+                          <>
+                            <p className="text-xs text-slate-400 mt-0.5">Paid</p>
+                            <p className="text-green-600 font-semibold tabular-nums text-sm">{d.amount_paid.toLocaleString()}</p>
+                          </>
+                        )}
+                        {!d.is_paid && (
+                          <>
+                            <p className="text-xs text-slate-400 mt-0.5">Balance</p>
+                            <p className="text-orange-600 font-bold tabular-nums">{balance.toLocaleString()} {currency}</p>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex gap-1.5 mt-3">
+                      {!d.is_paid && (
+                        <button
+                          onClick={() => { setShowPayModal(d); setPaymentAmount(""); }}
+                          disabled={payingDebtId === d.id}
+                          className="flex items-center gap-1 text-xs font-semibold bg-green-50 hover:bg-green-100 text-green-700 px-2.5 py-1.5 rounded-lg transition disabled:opacity-40"
+                        >
+                          <Wallet size={12} /> Record Payment
+                        </button>
+                      )}
+                      <button
+                        onClick={() => { setEditingDebt(d); setDebtForm({ debtor_name: d.debtor_name, phone: d.phone || "", amount_owed: String(d.amount_owed), amount_paid: String(d.amount_paid), notes: d.notes || "" }); setShowDebtModal(true); }}
+                        className="flex items-center gap-1 text-xs font-semibold bg-[#EBF2FD] hover:bg-[#D5E8FB] text-[#1372e6] px-2.5 py-1.5 rounded-lg transition"
+                      >
+                        <Pencil size={12} /> Edit
+                      </button>
+                      <button
+                        onClick={() => deleteDebt(d.id)}
+                        disabled={deletingDebtId === d.id}
+                        className="flex items-center gap-1 text-xs font-semibold bg-red-50 hover:bg-red-100 text-red-600 px-2.5 py-1.5 rounded-lg transition disabled:opacity-40"
+                      >
+                        <Trash2 size={12} /> Delete
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* CREATE MODAL */}
         {showModal && modalMode === "create" && (
           <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-2xl w-full max-w-2xl shadow-2xl flex flex-col max-h-[90vh]">
@@ -552,8 +794,8 @@ ${customerName ? `<div class="row"><span class="label">Customer</span><span styl
 
               <div className="px-6 py-4 overflow-y-auto flex-1">
 
-                {/* Customer + Notes row */}
-                <div className="grid md:grid-cols-2 gap-4 mb-5">
+                {/* Customer + Notes */}
+                <div className="grid md:grid-cols-2 gap-4 mb-4">
                   <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1.5">{t("sales.customer")}</label>
                     <select className={inputCls} value={saleCustomer} onChange={(e) => setSaleCustomer(e.target.value)}>
@@ -568,6 +810,74 @@ ${customerName ? `<div class="row"><span class="label">Customer</span><span styl
                   </div>
                 </div>
 
+                {/* Payment Method */}
+                <div className="mb-4 p-4 bg-slate-50 rounded-xl border border-slate-200">
+                  <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide mb-2.5">
+                    Payment Method
+                  </label>
+                  <div className="flex flex-wrap gap-2 mb-3">
+                    {PAYMENT_METHODS.map((m) => (
+                      <button
+                        key={m.value}
+                        type="button"
+                        onClick={() => { setPaymentMethod(m.value); setAmountSent(""); setDebtorName(""); setDebtorPhone(""); }}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition ${
+                          paymentMethod === m.value
+                            ? m.color + " ring-2 ring-offset-1 ring-current"
+                            : "bg-white text-slate-500 border-slate-200 hover:border-slate-300"
+                        }`}
+                      >
+                        {m.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {paymentMethod !== "debt" && (
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">
+                        Amount Sent <span className="text-slate-400 font-normal">(optional — to calculate change)</span>
+                      </label>
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="number" min="0" placeholder="0"
+                          className={inputCls}
+                          value={amountSent}
+                          onChange={(e) => setAmountSent(e.target.value)}
+                        />
+                        {changeAmount > 0 && (
+                          <div className="shrink-0 bg-green-50 border border-green-200 rounded-lg px-3 py-2 text-sm whitespace-nowrap">
+                            Change: <span className="font-bold text-green-700">{changeAmount.toLocaleString()} {currency}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {paymentMethod === "debt" && (
+                    <div className="grid sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">
+                          Debtor Name <span className="text-red-400">*</span>
+                        </label>
+                        <input
+                          className={inputCls} placeholder="Full name of debtor"
+                          value={debtorName} onChange={(e) => setDebtorName(e.target.value)}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">Phone (optional)</label>
+                        <input
+                          className={inputCls} placeholder="+250 7XX XXX XXX"
+                          value={debtorPhone} onChange={(e) => setDebtorPhone(e.target.value)}
+                        />
+                      </div>
+                      <div className="sm:col-span-2 bg-orange-50 border border-orange-200 rounded-lg px-3 py-2 text-xs text-orange-700">
+                        &#9888; This sale will be recorded as credit. The debtor will appear in the Debts Tracker below.
+                      </div>
+                    </div>
+                  )}
+                </div>
+
                 {/* Line items */}
                 <div className="border border-slate-200 rounded-xl overflow-hidden mb-4">
                   <div className="bg-slate-50 px-4 py-2.5 border-b border-slate-200 flex justify-between items-center">
@@ -578,7 +888,6 @@ ${customerName ? `<div class="row"><span class="label">Customer</span><span styl
                     </button>
                   </div>
 
-                  {/* Header row */}
                   <div className="grid grid-cols-[2fr_80px_100px_90px_32px] gap-2 px-4 py-2 bg-slate-50 border-b border-slate-100 text-[10px] font-semibold uppercase text-slate-400 tracking-wide">
                     <span>Product</span><span className="text-center">Qty</span><span className="text-center">Unit Price</span><span className="text-right">Subtotal</span><span />
                   </div>
@@ -603,30 +912,20 @@ ${customerName ? `<div class="row"><span class="label">Customer</span><span styl
                                 </option>
                               ))}
                             </select>
-                            <input
-                              type="number" min="1"
-                              max={p?.quantity}
-                              value={line.quantity}
+                            <input type="number" min="1" max={p?.quantity} value={line.quantity}
                               onChange={(e) => setLineQty(line.id, Number(e.target.value))}
-                              className="border border-slate-200 text-gray-800 rounded-lg px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-[#1372e6]/30 focus:border-[#1372e6] transition w-full"
-                            />
-                            <input
-                              type="number" min="0"
-                              value={line.unit_price}
+                              className="border border-slate-200 text-gray-800 rounded-lg px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-[#1372e6]/30 focus:border-[#1372e6] transition w-full" />
+                            <input type="number" min="0" value={line.unit_price}
                               onChange={(e) => setLinePrice(line.id, Number(e.target.value))}
-                              className="border border-slate-200 text-gray-800 rounded-lg px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-[#1372e6]/30 focus:border-[#1372e6] transition w-full"
-                            />
+                              className="border border-slate-200 text-gray-800 rounded-lg px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-[#1372e6]/30 focus:border-[#1372e6] transition w-full" />
                             <div className="text-right">
                               <p className="font-semibold text-slate-800 text-sm tabular-nums">{subtotal.toLocaleString()}</p>
                               {p && <p className={`text-[10px] tabular-nums ${profit >= 0 ? "text-green-500" : "text-red-400"}`}>
                                 {profit >= 0 ? "+" : ""}{profit.toLocaleString()}
                               </p>}
                             </div>
-                            <button
-                              onClick={() => removeLine(line.id)}
-                              disabled={lineItems.length === 1}
-                              className="p-1 rounded-lg hover:bg-red-50 text-slate-300 hover:text-red-400 transition disabled:opacity-20"
-                            >
+                            <button onClick={() => removeLine(line.id)} disabled={lineItems.length === 1}
+                              className="p-1 rounded-lg hover:bg-red-50 text-slate-300 hover:text-red-400 transition disabled:opacity-20">
                               <X size={14} />
                             </button>
                           </div>
@@ -642,7 +941,6 @@ ${customerName ? `<div class="row"><span class="label">Customer</span><span styl
                     })}
                   </div>
 
-                  {/* Totals row */}
                   <div className="px-4 py-3 bg-slate-50 border-t border-slate-200 flex justify-end gap-6">
                     <div className="text-right">
                       <p className="text-[10px] text-slate-400 uppercase tracking-wide">Grand Total</p>
@@ -674,7 +972,7 @@ ${customerName ? `<div class="row"><span class="label">Customer</span><span styl
           </div>
         )}
 
-        {/* EDIT MODAL — single item */}
+        {/* EDIT MODAL */}
         {showModal && modalMode === "edit" && (
           <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-2xl w-full max-w-xl shadow-2xl max-h-[90vh] flex flex-col">
@@ -747,6 +1045,89 @@ ${customerName ? `<div class="row"><span class="label">Customer</span><span styl
           </div>
         )}
 
+        {/* DEBT ADD/EDIT MODAL */}
+        {showDebtModal && (
+          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl">
+              <div className="flex justify-between items-center px-5 py-4 border-b border-slate-100">
+                <h2 className="text-sm font-semibold text-slate-800">{editingDebt ? "Edit Debt" : "Add Debt"}</h2>
+                <button onClick={() => { setShowDebtModal(false); setEditingDebt(null); }} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 transition"><X size={16} /></button>
+              </div>
+              <div className="px-5 py-4 space-y-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Debtor Name <span className="text-red-400">*</span></label>
+                  <input className={inputCls} placeholder="Full name"
+                    value={debtForm.debtor_name} onChange={(e) => setDebtForm({ ...debtForm, debtor_name: e.target.value })} />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Phone</label>
+                  <input className={inputCls} placeholder="+250 7XX XXX XXX"
+                    value={debtForm.phone} onChange={(e) => setDebtForm({ ...debtForm, phone: e.target.value })} />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Amount Owed <span className="text-red-400">*</span></label>
+                    <input type="number" min="0" className={inputCls} placeholder="0"
+                      value={debtForm.amount_owed} onChange={(e) => setDebtForm({ ...debtForm, amount_owed: e.target.value })} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Amount Paid So Far</label>
+                    <input type="number" min="0" className={inputCls} placeholder="0"
+                      value={debtForm.amount_paid} onChange={(e) => setDebtForm({ ...debtForm, amount_paid: e.target.value })} />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Notes</label>
+                  <input className={inputCls} placeholder="Optional"
+                    value={debtForm.notes} onChange={(e) => setDebtForm({ ...debtForm, notes: e.target.value })} />
+                </div>
+              </div>
+              <div className="flex justify-end gap-2.5 px-5 py-4 border-t border-slate-100">
+                <button onClick={() => { setShowDebtModal(false); setEditingDebt(null); }} className="px-4 py-2 rounded-lg border border-slate-200 text-slate-600 text-sm font-medium hover:bg-slate-50 transition">Cancel</button>
+                <button onClick={submitDebt} disabled={debtSubmitting}
+                  className="px-5 py-2 rounded-lg text-white text-sm font-semibold transition disabled:opacity-60 hover:opacity-90" style={{ background: "#1372e6" }}>
+                  {debtSubmitting ? "Saving…" : (editingDebt ? "Save Changes" : "Add Debt")}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* RECORD PAYMENT MODAL */}
+        {showPayModal && (
+          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl">
+              <div className="flex justify-between items-center px-5 py-4 border-b border-slate-100">
+                <h2 className="text-sm font-semibold text-slate-800">Record Payment</h2>
+                <button onClick={() => setShowPayModal(null)} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 transition"><X size={16} /></button>
+              </div>
+              <div className="px-5 py-4">
+                <p className="text-xs text-slate-500 mb-3">
+                  <span className="font-semibold text-slate-700">{showPayModal.debtor_name}</span> owes{" "}
+                  <span className="font-bold text-orange-600">{showPayModal.balance.toLocaleString()} {currency}</span>
+                </p>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Amount Being Paid Now <span className="text-red-400">*</span></label>
+                <input
+                  type="number" min="0" max={showPayModal.balance}
+                  className={inputCls} placeholder="0" autoFocus
+                  value={paymentAmount}
+                  onChange={(e) => setPaymentAmount(e.target.value)}
+                />
+                {paymentAmount && Number(paymentAmount) >= showPayModal.balance && (
+                  <p className="mt-2 text-xs text-green-600 font-medium">This will fully settle the debt.</p>
+                )}
+              </div>
+              <div className="flex justify-end gap-2.5 px-5 py-4 border-t border-slate-100">
+                <button onClick={() => setShowPayModal(null)} className="px-4 py-2 rounded-lg border border-slate-200 text-slate-600 text-sm font-medium hover:bg-slate-50 transition">Cancel</button>
+                <button onClick={recordPayment} disabled={!paymentAmount || payingDebtId === showPayModal.id}
+                  className="px-5 py-2 rounded-lg text-white text-sm font-semibold transition disabled:opacity-60 hover:opacity-90" style={{ background: "#1372e6" }}>
+                  {payingDebtId === showPayModal.id ? "Saving…" : "Confirm Payment"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* RECEIPT PREVIEW MODAL */}
         {receipts.length > 0 && (
           <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
@@ -759,7 +1140,6 @@ ${customerName ? `<div class="row"><span class="label">Customer</span><span styl
                 <button onClick={() => setReceipts([])} className="text-slate-400 hover:text-slate-600 transition"><X size={16} /></button>
               </div>
 
-              {/* Receipt preview body */}
               <div className="px-6 py-5 font-mono text-sm bg-white max-h-96 overflow-y-auto">
                 <div className="text-center mb-4">
                   <p className="font-bold text-base text-slate-900 uppercase tracking-widest">{shopName || "HIGOVERSE SHOP"}</p>
@@ -781,9 +1161,14 @@ ${customerName ? `<div class="row"><span class="label">Customer</span><span styl
                       <span className="font-medium">{customerMap[receipts[0].customer_id].name}</span>
                     </div>
                   )}
+                  {receipts[0]?.payment_method && (
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Payment</span>
+                      <span className="font-semibold uppercase">{receipts[0].payment_method}</span>
+                    </div>
+                  )}
                 </div>
                 <div className="border-t border-dashed border-slate-300 my-3" />
-                {/* Items */}
                 <div className="space-y-2 mb-3">
                   {receipts.map((s) => (
                     <div key={s.id}>
@@ -800,6 +1185,23 @@ ${customerName ? `<div class="row"><span class="label">Customer</span><span styl
                   <span>TOTAL</span>
                   <span>{receipts.reduce((s, x) => s + x.total_amount, 0).toLocaleString()} {currency}</span>
                 </div>
+                {receipts[0]?.amount_paid != null && receipts[0].amount_paid > 0 && (
+                  <>
+                    <div className="flex justify-between text-xs text-slate-600 mt-1.5">
+                      <span>Amount Paid</span>
+                      <span>{receipts[0].amount_paid.toLocaleString()} {currency}</span>
+                    </div>
+                    {receipts[0].amount_paid > receipts.reduce((s, x) => s + x.total_amount, 0) && (
+                      <div className="flex justify-between text-xs text-green-600 font-semibold mt-0.5">
+                        <span>Change</span>
+                        <span>{(receipts[0].amount_paid - receipts.reduce((s, x) => s + x.total_amount, 0)).toLocaleString()} {currency}</span>
+                      </div>
+                    )}
+                  </>
+                )}
+                {receipts[0]?.payment_method === "debt" && (
+                  <div className="mt-2 text-xs text-orange-600 font-semibold text-center border border-orange-200 rounded-lg py-1">&#9888; ON CREDIT — Amount owed</div>
+                )}
                 <div className="border-t border-dashed border-slate-300 my-3" />
                 <p className="text-center text-xs text-slate-400">Thank you for your business!</p>
               </div>

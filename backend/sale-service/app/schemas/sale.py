@@ -8,6 +8,8 @@ class SaleCreate(BaseModel):
     quantity: int = Field(..., gt=0)
     unit_price: Decimal = Field(..., ge=0)
     notes: str | None = None
+    payment_method: str | None = "cash"
+    amount_paid: Decimal | None = None
 
 
 class SaleUpdate(BaseModel):
@@ -16,3 +18,5 @@ class SaleUpdate(BaseModel):
     quantity: int | None = Field(None, gt=0)
     unit_price: Decimal | None = Field(None, ge=0)
     notes: str | None = None
+    payment_method: str | None = None
+    amount_paid: Decimal | None = None
