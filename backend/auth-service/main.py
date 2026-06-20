@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.v1 import auth
+from app.api.v1 import auth, shop
 
 app = FastAPI(
     title="Higoverse Auth Service"
@@ -24,6 +24,12 @@ app.include_router(
     auth.router,
     prefix="/api/v1/auth",
     tags=["Authentication"]
+)
+
+app.include_router(
+    shop.router,
+    prefix="/api/v1",
+    tags=["Shop"]
 )
 
 @app.get("/")
