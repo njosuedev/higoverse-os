@@ -95,14 +95,14 @@ export default function DashboardPage() {
 
   // ── Services defined inside component so t() works ────────────────────────
   const SERVICES = [
-    { title: t("dash.items_inventory"), description: t("dash.items_inventory_desc"), icon: Package,      href: "/ItemManagement",     color: "blue" },
-    { title: t("nav.partners"),         description: t("dash.partners_desc"),         icon: Users,        href: "/PartnerManagement",  color: "indigo" },
-    { title: t("nav.purchases"),        description: t("dash.purchases_desc"),        icon: Truck,        href: "/PurchaseManagement", color: "teal" },
-    { title: t("nav.sales"),            description: t("dash.sales_desc"),            icon: ShoppingCart, href: "/SaleManagement",     color: "orange" },
-    { title: t("nav.expenses"),          description: t("dash.expenses_desc"),         icon: Wallet,       href: "/ExpenseManagement",  color: "orange" },
-    { title: t("nav.reports"),          description: t("dash.reports_desc"),          icon: BarChart3,    href: "/reports",            color: "violet" },
-    { title: t("nav.proforma"),         description: t("dash.proforma_desc"),         icon: FileText,     href: "/proforma",           color: "pink" },
-    { title: t("nav.settings"),         description: t("dash.settings_desc"),         icon: Settings,     href: "/Settings",           color: "slate" },
+    { title: t("dash.items_inventory"), description: t("dash.items_inventory_desc"), icon: Package,      href: "/items",     color: "blue" },
+    { title: t("nav.partners"),         description: t("dash.partners_desc"),         icon: Users,        href: "/partners",  color: "indigo" },
+    { title: t("nav.purchases"),        description: t("dash.purchases_desc"),        icon: Truck,        href: "/purchases", color: "teal" },
+    { title: t("nav.sales"),            description: t("dash.sales_desc"),            icon: ShoppingCart, href: "/sales",     color: "orange" },
+    { title: t("nav.expenses"),          description: t("dash.expenses_desc"),         icon: Wallet,       href: "/expenses",  color: "orange" },
+    { title: t("nav.reports"),          description: t("dash.reports_desc"),          icon: BarChart3,    href: "/reports",   color: "violet" },
+    { title: t("nav.proforma"),         description: t("dash.proforma_desc"),         icon: FileText,     href: "/proforma",  color: "pink" },
+    { title: t("nav.settings"),         description: t("dash.settings_desc"),         icon: Settings,     href: "/settings",  color: "slate" },
   ];
 
   const [stats, setStats]             = useState<Stats>({ products: 0, partners: 0, sales: 0, revenue: 0, lowStock: 0, outOfStock: 0 });
@@ -274,11 +274,11 @@ export default function DashboardPage() {
         {/* ── KPI CARDS ────────────────────────────────────────────────────────── */}
         <section className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3">
           <KpiCard label={t("dash.products")}    value={stats.products.toLocaleString()}
-            icon={<Package size={18} />} color="blue" href="/ItemManagement" sub={t("dash.in_your_shop")} t={t} />
+            icon={<Package size={18} />} color="blue" href="/items" sub={t("dash.in_your_shop")} t={t} />
           <KpiCard label={t("dash.partners")}    value={stats.partners.toLocaleString()}
-            icon={<Users size={18} />} color="indigo" href="/PartnerManagement" sub={t("dash.suppliers_customers")} t={t} />
+            icon={<Users size={18} />} color="indigo" href="/partners" sub={t("dash.suppliers_customers")} t={t} />
           <KpiCard label={t("dash.sales_today")} value={stats.sales.toLocaleString()}
-            icon={<ShoppingCart size={18} />} color="teal" href="/SaleManagement" sub={t("dash.transactions")} t={t} />
+            icon={<ShoppingCart size={18} />} color="teal" href="/sales" sub={t("dash.transactions")} t={t} />
           <KpiCard label={t("dash.revenue_today")}
             value={stats.revenue > 0 ? fmtCurrency(stats.revenue) : t("common.no_data")}
             icon={<TrendingUp size={18} />} color="green" href="/reports" small
@@ -287,11 +287,11 @@ export default function DashboardPage() {
           <KpiCard label={t("items.low_stock")} value={stats.lowStock.toLocaleString()}
             icon={<AlertTriangle size={18} />}
             color={stats.lowStock > 0 ? "orange" : "slate"}
-            href="/ItemManagement" sub="≤ 10 units" warn={stats.lowStock > 0} t={t} />
+            href="/items" sub="≤ 10 units" warn={stats.lowStock > 0} t={t} />
           <KpiCard label={t("items.out_stock")} value={stats.outOfStock.toLocaleString()}
             icon={<Package size={18} />}
             color={stats.outOfStock > 0 ? "red" : "slate"}
-            href="/ItemManagement" sub="zero units" warn={stats.outOfStock > 0} t={t} />
+            href="/items" sub="zero units" warn={stats.outOfStock > 0} t={t} />
         </section>
 
         {/* ── TODAY'S SHOP STATUS ──────────────────────────────────────────────── */}
@@ -434,7 +434,7 @@ export default function DashboardPage() {
                 <Receipt size={16} className="text-[#1372e6]" />
                 {t("dash.recent_sales")}
               </h2>
-              <Link href="/SaleManagement" className="text-xs font-semibold text-[#1372e6] hover:underline">
+              <Link href="/sales" className="text-xs font-semibold text-[#1372e6] hover:underline">
                 {t("dash.all_sales")} →
               </Link>
             </div>
@@ -472,7 +472,7 @@ export default function DashboardPage() {
             )}
 
             <div className="px-5 py-3 border-t border-slate-50">
-              <Link href="/SaleManagement"
+              <Link href="/sales"
                 className="w-full flex items-center justify-center gap-2 text-sm font-semibold text-white py-2 rounded-xl transition hover:opacity-90" style={{ background: "#1372e6" }}>
                 <Plus size={15} />
                 {t("dash.record_new_sale")}
@@ -495,7 +495,7 @@ export default function DashboardPage() {
                   </span>
                 )}
               </h2>
-              <Link href="/ItemManagement" className="text-xs font-semibold text-[#1372e6] hover:underline">
+              <Link href="/items" className="text-xs font-semibold text-[#1372e6] hover:underline">
                 {t("dash.view_all")} →
               </Link>
             </div>
@@ -556,7 +556,7 @@ export default function DashboardPage() {
             <h2 className="font-bold text-slate-900 mb-4">{t("dash.quick_actions")}</h2>
             <div className="grid grid-cols-2 gap-3">
               {[
-                { href: "/SaleManagement",     icon: Plus,      label: t("dash.new_sale"),     desc: t("dash.new_sale_desc"),     bg: "bg-[#1372e6]", hover: "hover:bg-[#0d5cc4]" },
+                { href: "/sales",     icon: Plus,      label: t("dash.new_sale"),     desc: t("dash.new_sale_desc"),     bg: "bg-[#1372e6]", hover: "hover:bg-[#0d5cc4]" },
                 { href: "/PurchaseManagement", icon: Truck,     label: t("dash.new_purchase"), desc: t("dash.new_purchase_desc"), bg: "bg-[#1372e6]", hover: "hover:bg-[#0d5cc4]" },
                 { href: "/ExpenseManagement",  icon: Wallet,    label: t("nav.expenses") || "Add Expense", desc: t("dash.expenses_desc") || "Log a business expense", bg: "bg-[#1372e6]", hover: "hover:bg-[#0d5cc4]" },
                 { href: "/reports",            icon: BarChart3, label: t("dash.view_reports"), desc: t("dash.charts_analytics"),  bg: "bg-[#1372e6]", hover: "hover:bg-[#0d5cc4]" },

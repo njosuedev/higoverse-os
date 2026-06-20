@@ -47,14 +47,14 @@ export default function DashboardHeader({
 
   const menus = [
     { key: "nav.home",      href: "/",                   icon: LayoutDashboard, active: "bg-[#1372e6] text-white",  idle: "text-slate-600 hover:bg-slate-100" },
-    { key: "nav.items",     href: "/ItemManagement",     icon: Package,         active: "bg-[#1372e6] text-white",  idle: "text-slate-600 hover:bg-slate-100" },
-    { key: "nav.partners",  href: "/PartnerManagement",  icon: Users,           active: "bg-[#1372e6] text-white", idle: "text-slate-600 hover:bg-slate-100" },
-    { key: "nav.purchases", href: "/PurchaseManagement", icon: Truck,           active: "bg-[#1372e6] text-white", idle: "text-slate-600 hover:bg-slate-100" },
-    { key: "nav.sales",     href: "/SaleManagement",     icon: ShoppingCart,    active: "bg-[#1372e6] text-white", idle: "text-slate-600 hover:bg-slate-100" },
-    { key: "nav.proforma",  href: "/proforma",           icon: FileText,        active: "bg-[#1372e6] text-white", idle: "text-slate-600 hover:bg-slate-100" },
-    { key: "nav.expenses",  href: "/ExpenseManagement",  icon: Receipt,         active: "bg-[#1372e6] text-white", idle: "text-slate-600 hover:bg-slate-100" },
-    { key: "nav.reports",   href: "/reports",            icon: BarChart3,       active: "bg-[#1372e6] text-white", idle: "text-slate-600 hover:bg-slate-100" },
-    { key: "nav.settings",  href: "/Settings",           icon: Settings,        active: "bg-[#1372e6] text-white", idle: "text-slate-600 hover:bg-slate-100" },
+    { key: "nav.items",     href: "/items",     icon: Package,         active: "bg-[#1372e6] text-white",  idle: "text-slate-600 hover:bg-slate-100" },
+    { key: "nav.partners",  href: "/partners",  icon: Users,           active: "bg-[#1372e6] text-white", idle: "text-slate-600 hover:bg-slate-100" },
+    { key: "nav.purchases", href: "/purchases", icon: Truck,           active: "bg-[#1372e6] text-white", idle: "text-slate-600 hover:bg-slate-100" },
+    { key: "nav.sales",     href: "/sales",     icon: ShoppingCart,    active: "bg-[#1372e6] text-white", idle: "text-slate-600 hover:bg-slate-100" },
+    { key: "nav.proforma",  href: "/proforma",  icon: FileText,        active: "bg-[#1372e6] text-white", idle: "text-slate-600 hover:bg-slate-100" },
+    { key: "nav.expenses",  href: "/expenses",  icon: Receipt,         active: "bg-[#1372e6] text-white", idle: "text-slate-600 hover:bg-slate-100" },
+    { key: "nav.reports",   href: "/reports",   icon: BarChart3,       active: "bg-[#1372e6] text-white", idle: "text-slate-600 hover:bg-slate-100" },
+    { key: "nav.settings",  href: "/settings",  icon: Settings,        active: "bg-[#1372e6] text-white", idle: "text-slate-600 hover:bg-slate-100" },
     ...(user?.role === "admin" ? [{ key: "nav.admin", href: "/admin", icon: ShieldCheck, active: "bg-red-600 text-white", idle: "text-slate-600 hover:bg-slate-100 border border-red-200" }] : []),
   ];
 

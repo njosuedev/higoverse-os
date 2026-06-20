@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import AuthGuard from "@/app/components/AuthGuard";
 
 export const metadata: Metadata = {
-  title: "Reports",
-  description: "View daily revenue, profit trends, and business performance analytics.",
+  title: "Partners",
+  description: "Manage suppliers, customers, and business partners for your shop.",
 };
 
 export default function Layout({ children }: { children: React.ReactNode }) {
