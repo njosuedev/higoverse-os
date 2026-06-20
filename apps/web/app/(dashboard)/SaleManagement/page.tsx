@@ -33,16 +33,17 @@ interface Debt {
 }
 
 type ModalMode = "create" | "edit";
-type PaymentMethod = "cash" | "mtn" | "airtel" | "bank" | "debt";
+type PaymentMethod = "cash" | "mtn" | "airtel" | "bank" | "card" | "debt";
 
 const EMPTY_FORM = { product_id: "", customer_id: "", quantity: "", unit_price: "", notes: "" };
 const PAGE_SIZES = [25, 50, 100, 250];
 const PAYMENT_METHODS: { value: PaymentMethod; label: string; color: string }[] = [
-  { value: "cash",   label: "Cash",   color: "bg-green-100 text-green-700 border-green-200" },
-  { value: "mtn",    label: "MTN",    color: "bg-yellow-100 text-yellow-700 border-yellow-200" },
-  { value: "airtel", label: "Airtel", color: "bg-red-100 text-red-700 border-red-200" },
-  { value: "bank",   label: "Bank",   color: "bg-blue-100 text-blue-700 border-blue-200" },
-  { value: "debt",   label: "Debt",   color: "bg-orange-100 text-orange-700 border-orange-200" },
+  { value: "cash",   label: "Cash",        color: "bg-green-100 text-green-700 border-green-200" },
+  { value: "mtn",    label: "MTN",         color: "bg-yellow-100 text-yellow-700 border-yellow-200" },
+  { value: "airtel", label: "Airtel",      color: "bg-red-100 text-red-700 border-red-200" },
+  { value: "bank",   label: "Bank",        color: "bg-blue-100 text-blue-700 border-blue-200" },
+  { value: "card",   label: "Debit Card",  color: "bg-purple-100 text-purple-700 border-purple-200" },
+  { value: "debt",   label: "Debt",        color: "bg-orange-100 text-orange-700 border-orange-200" },
 ];
 
 function paymentBadge(method?: string) {
