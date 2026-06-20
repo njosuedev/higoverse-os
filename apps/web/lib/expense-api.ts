@@ -1,6 +1,6 @@
 import { getToken, handleUnauthorized } from "@/lib/auth";
 
-const EXPENSE_API = process.env.NEXT_PUBLIC_API_EXPENSES || "http://localhost:8005";
+const EXPENSE_API = "/api/expenses";
 
 export async function expenseRequest(endpoint: string, options: RequestInit = {}) {
   const token = getToken();

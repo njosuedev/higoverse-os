@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.routes.expenses import router as expense_router
 from app.db.database import Base, engine
 
-app = FastAPI(title="Expense Service", version="1.0.0")
+app = FastAPI(title="Expense Service", version="1.0.0", redirect_slashes=False)
 
 app.add_middleware(
     CORSMiddleware,

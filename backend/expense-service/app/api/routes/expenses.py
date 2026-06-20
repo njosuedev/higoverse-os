@@ -40,7 +40,7 @@ def _fmt(e: Expense) -> dict:
 # LIST EXPENSES
 # ─────────────────────────────────────────
 
-@router.get("/")
+@router.get("")
 def list_expenses(
     db: Session = Depends(get_db),
     user: dict = Depends(get_current_user),
@@ -180,7 +180,7 @@ def get_daily(
 # CREATE EXPENSE
 # ─────────────────────────────────────────
 
-@router.post("/")
+@router.post("")
 def create_expense(
     payload: ExpenseCreate,
     db: Session = Depends(get_db),
