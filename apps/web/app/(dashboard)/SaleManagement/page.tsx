@@ -446,6 +446,7 @@ ${paymentHtml}
       if (q && !name.includes(q) && !cust.includes(q) && !(s.notes || "").toLowerCase().includes(q)) return false;
       if (filter === "profit") return (s.profit || 0) > 0;
       if (filter === "loss") return (s.profit || 0) <= 0;
+      if (filter.startsWith("pay:")) return (s.payment_method || "cash") === filter.slice(4);
       return true;
     });
   }, [sales, debouncedSearch, filter, productMap, customerMap]);
@@ -455,7 +456,14 @@ ${paymentHtml}
     const profit = sales.reduce((s, x) => s + (x.profit || 0), 0);
     const itemsSold = sales.reduce((s, x) => s + x.quantity, 0);
     const uniqueCustomers = new Set(sales.map((x) => x.customer_id).filter(Boolean)).size;
-    return { total: salesTotal, revenue, profit, itemsSold, uniqueCustomers };
+    const margin = revenue > 0 ? (profit / revenue) * 100 : 0;
+    const avgSale = sales.length > 0 ? revenue / sales.length : 0;
+    const payBreakdown = PAYMENT_METHODS.reduce((acc, m) => {
+      const grp = sales.filter((s) => (s.payment_method || "cash") === m.value);
+      acc[m.value] = { count: grp.length, revenue: grp.reduce((s, x) => s + x.total_amount, 0) };
+      return acc;
+    }, {} as Record<string, { count: number; revenue: number }>);
+    return { total: salesTotal, revenue, profit, itemsSold, uniqueCustomers, margin, avgSale, payBreakdown };
   }, [sales, salesTotal]);
 
   const createGrandTotal = lineItems.reduce((s, l) => s + l.quantity * l.unit_price, 0);
@@ -531,6 +539,11 @@ ${paymentHtml}
                 <option value="all" className="text-gray-700">{t("sales.all")}</option>
                 <option value="profit" className="text-gray-700">{t("sales.profit")}</option>
                 <option value="loss" className="text-gray-700">Loss</option>
+                <optgroup label="By payment" className="text-gray-400">
+                  {PAYMENT_METHODS.map((m) => (
+                    <option key={m.value} value={`pay:${m.value}`} className="text-gray-700">{m.label} only</option>
+                  ))}
+                </optgroup>
               </select>
             </div>
           </div>
@@ -560,26 +573,83 @@ ${paymentHtml}
         )}
 
         {/* STAT CARDS */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-6">
-          {[
-            { label: t("sales.count"),       value: stats.total,                    color: "text-[#1372e6]",  bg: "bg-[#EBF2FD]",  icon: <ReceiptText size={17} /> },
-            { label: t("sales.revenue"),      value: stats.revenue.toLocaleString(), color: "text-green-600",  bg: "bg-green-50",   icon: <DollarSign size={17} /> },
-            { label: t("sales.profit"),       value: stats.profit.toLocaleString(),  color: "text-green-700",  bg: "bg-green-50",   icon: <TrendingUp size={17} /> },
-            { label: t("reports.items_sold"), value: stats.itemsSold,                color: "text-[#1372e6]",  bg: "bg-[#EBF2FD]",  icon: <Package size={17} /> },
-            { label: t("reports.customers"),  value: stats.uniqueCustomers,          color: "text-[#1372e6]",  bg: "bg-[#EBF2FD]",  icon: <Users size={17} /> },
-          ].map((card) => (
-            <div key={card.label} className="bg-white rounded-xl border border-slate-200 p-4">
-              <div className="flex flex-wrap justify-between items-start gap-2">
-                <div>
-                  <p className="text-xs font-medium text-gray-400 uppercase tracking-wide leading-none">{card.label}</p>
-                  <p className={`text-xl font-bold mt-1.5 ${card.color}`}>{card.value}</p>
-                  {hasDateFilter && <p className="text-xs text-slate-400 mt-0.5">{t("sales.today")}</p>}
-                </div>
-                <div className={`${card.bg} ${card.color} p-1.5 rounded-lg shrink-0`}>{card.icon}</div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-4">
+          <div className="bg-white rounded-xl border border-slate-200 p-4">
+            <div className="flex justify-between items-start">
+              <div>
+                <p className="text-xs font-medium text-gray-400 uppercase tracking-wide">{t("sales.count")}</p>
+                <p className="text-xl font-bold mt-1.5 text-[#1372e6]">{stats.total}</p>
+                <p className="text-xs text-slate-400 mt-0.5">{stats.itemsSold} items sold</p>
+              </div>
+              <div className="bg-[#EBF2FD] text-[#1372e6] p-1.5 rounded-lg"><ReceiptText size={17} /></div>
+            </div>
+          </div>
+          <div className="bg-white rounded-xl border border-slate-200 p-4">
+            <div className="flex justify-between items-start">
+              <div>
+                <p className="text-xs font-medium text-gray-400 uppercase tracking-wide">{t("sales.revenue")}</p>
+                <p className="text-xl font-bold mt-1.5 text-green-600">{stats.revenue.toLocaleString()}</p>
+                <p className="text-xs text-slate-400 mt-0.5">avg {Math.round(stats.avgSale).toLocaleString()} / sale</p>
+              </div>
+              <div className="bg-green-50 text-green-600 p-1.5 rounded-lg"><DollarSign size={17} /></div>
+            </div>
+          </div>
+          <div className="bg-white rounded-xl border border-slate-200 p-4">
+            <div className="flex justify-between items-start">
+              <div>
+                <p className="text-xs font-medium text-gray-400 uppercase tracking-wide">{t("sales.profit")}</p>
+                <p className={`text-xl font-bold mt-1.5 ${stats.profit >= 0 ? "text-green-700" : "text-red-500"}`}>
+                  {stats.profit >= 0 ? "+" : ""}{stats.profit.toLocaleString()}
+                </p>
+                <p className={`text-xs mt-0.5 font-semibold ${stats.margin >= 0 ? "text-green-500" : "text-red-400"}`}>
+                  {stats.margin.toFixed(1)}% margin
+                </p>
+              </div>
+              <div className={`p-1.5 rounded-lg ${stats.profit >= 0 ? "bg-green-50 text-green-700" : "bg-red-50 text-red-500"}`}>
+                <TrendingUp size={17} />
               </div>
             </div>
-          ))}
+          </div>
+          <div className="bg-white rounded-xl border border-slate-200 p-4">
+            <div className="flex justify-between items-start">
+              <div>
+                <p className="text-xs font-medium text-gray-400 uppercase tracking-wide">{t("reports.customers")}</p>
+                <p className="text-xl font-bold mt-1.5 text-[#1372e6]">{stats.uniqueCustomers}</p>
+                <p className="text-xs text-slate-400 mt-0.5">unique buyers</p>
+              </div>
+              <div className="bg-[#EBF2FD] text-[#1372e6] p-1.5 rounded-lg"><Users size={17} /></div>
+            </div>
+          </div>
+          <div className="bg-white rounded-xl border border-slate-200 p-4">
+            <div className="flex justify-between items-start">
+              <div>
+                <p className="text-xs font-medium text-gray-400 uppercase tracking-wide">Outstanding</p>
+                <p className="text-xl font-bold mt-1.5 text-orange-500">{debtsTotalOutstanding.toLocaleString()}</p>
+                <p className="text-xs text-slate-400 mt-0.5">{pendingDebts.length} unpaid {pendingDebts.length === 1 ? "debt" : "debts"}</p>
+              </div>
+              <div className="bg-orange-50 text-orange-500 p-1.5 rounded-lg"><AlertCircle size={17} /></div>
+            </div>
+          </div>
         </div>
+
+        {/* PAYMENT BREAKDOWN */}
+        {sales.length > 0 && (
+          <div className="bg-white rounded-xl border border-slate-200 px-4 py-3 mb-4 flex flex-wrap gap-3 items-center">
+            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wide mr-1">Payments</span>
+            {PAYMENT_METHODS.filter((m) => (stats.payBreakdown[m.value]?.count ?? 0) > 0).map((m) => {
+              const b = stats.payBreakdown[m.value];
+              return (
+                <div key={m.value} className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs ${m.color}`}>
+                  <span className="font-semibold">{m.label}</span>
+                  <span className="opacity-60">·</span>
+                  <span>{b.count} {b.count === 1 ? "sale" : "sales"}</span>
+                  <span className="opacity-60">·</span>
+                  <span className="font-semibold tabular-nums">{b.revenue.toLocaleString()}</span>
+                </div>
+              );
+            })}
+          </div>
+        )}
 
         {/* TABLE */}
         <div className="bg-white rounded-xl border border-slate-200 overflow-x-auto mb-6">
@@ -592,7 +662,7 @@ ${paymentHtml}
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-200">
-                {[t("sales.col_date"), t("sales.col_product"), t("sales.col_customer"), "Payment", t("sales.col_qty"), t("sales.col_price"), t("sales.col_total"), t("sales.col_profit"), t("common.notes"), ""].map((h) => (
+                {[t("sales.col_date"), t("sales.col_product"), t("sales.col_customer"), "Payment", t("sales.col_qty"), t("sales.col_price"), t("sales.col_total"), "Profit / Margin", t("common.notes"), ""].map((h) => (
                   <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-400 whitespace-nowrap">{h}</th>
                 ))}
               </tr>
@@ -604,7 +674,7 @@ ${paymentHtml}
                 const isProfit = (s.profit || 0) > 0;
                 const saleDate = s.created_at ? new Date(s.created_at) : null;
                 return (
-                  <tr key={s.id} className="hover:bg-slate-50/60 transition-colors">
+                  <tr key={s.id} className={`hover:bg-slate-50/60 transition-colors border-l-2 ${isProfit ? "border-l-green-400" : (s.profit || 0) < 0 ? "border-l-red-400" : "border-l-slate-200"}`}>
                     <td className="px-4 py-3 whitespace-nowrap">
                       {saleDate ? (
                         <div>
@@ -616,9 +686,17 @@ ${paymentHtml}
                     <td className="px-4 py-3">
                       {(() => {
                         const name = s.product_name || product?.name;
+                        const costPrice = product?.cost_price;
                         return name
-                          ? <div><p className="font-semibold text-slate-800">{name}</p><p className="text-xs text-slate-400 font-mono">{s.product_id.slice(0, 8)}</p></div>
-                          : <span className="text-slate-400 text-xs font-mono">{s.product_id.slice(0, 8)}</span>;
+                          ? <div>
+                              <p className="font-semibold text-slate-800">{name}</p>
+                              {costPrice !== undefined && (
+                                <p className="text-[10px] text-slate-400 mt-0.5">
+                                  cost {costPrice.toLocaleString()} · sell {s.unit_price.toLocaleString()}
+                                </p>
+                              )}
+                            </div>
+                          : <span className="text-slate-400 text-xs">Unknown product</span>;
                       })()}
                     </td>
                     <td className="px-4 py-3">
@@ -632,8 +710,13 @@ ${paymentHtml}
                     <td className="px-4 py-3 font-medium text-slate-700 tabular-nums">{s.quantity}</td>
                     <td className="px-4 py-3 text-slate-600 tabular-nums">{s.unit_price.toLocaleString()}</td>
                     <td className="px-4 py-3 font-semibold text-slate-800 tabular-nums">{s.total_amount.toLocaleString()}</td>
-                    <td className={`px-4 py-3 font-semibold tabular-nums ${isProfit ? "text-green-600" : "text-red-500"}`}>
-                      {isProfit ? "+" : ""}{(s.profit || 0).toLocaleString()}
+                    <td className={`px-4 py-3 tabular-nums ${isProfit ? "text-green-600" : "text-red-500"}`}>
+                      <span className="font-semibold">{isProfit ? "+" : ""}{(s.profit || 0).toLocaleString()}</span>
+                      {s.total_amount > 0 && (
+                        <span className="block text-[10px] font-normal opacity-60">
+                          {Math.round(((s.profit || 0) / s.total_amount) * 100)}% margin
+                        </span>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-slate-400 text-xs max-w-28 truncate">{s.notes || <span className="text-slate-200">—</span>}</td>
                     <td className="px-4 py-3">
@@ -655,6 +738,22 @@ ${paymentHtml}
                   </tr>
                 );
               })}
+              {filtered.length > 1 && (() => {
+                const fRev = filtered.reduce((s, x) => s + x.total_amount, 0);
+                const fProfit = filtered.reduce((s, x) => s + (x.profit || 0), 0);
+                const fMargin = fRev > 0 ? (fProfit / fRev) * 100 : 0;
+                return (
+                  <tr className="bg-slate-50 border-t-2 border-slate-200 text-xs font-semibold text-slate-500">
+                    <td className="px-4 py-2" colSpan={6}>Subtotal — {filtered.length} sales</td>
+                    <td className="px-4 py-2 tabular-nums text-slate-700">{fRev.toLocaleString()}</td>
+                    <td className={`px-4 py-2 tabular-nums ${fProfit >= 0 ? "text-green-600" : "text-red-500"}`}>
+                      {fProfit >= 0 ? "+" : ""}{fProfit.toLocaleString()}
+                      <span className="block text-[10px] font-normal opacity-70">{fMargin.toFixed(1)}% margin</span>
+                    </td>
+                    <td colSpan={2} />
+                  </tr>
+                );
+              })()}
             </tbody>
           </table>
 
