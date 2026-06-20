@@ -9,6 +9,13 @@ class Settings(BaseSettings):
     ALGORITHM:                   str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
 
+    # SMTP — set these in Vercel env vars to enable password reset emails
+    SMTP_HOST: str = os.getenv("SMTP_HOST", "smtp.gmail.com")
+    SMTP_PORT: int = int(os.getenv("SMTP_PORT", "587"))
+    SMTP_USER: str = os.getenv("SMTP_USER", "")
+    SMTP_PASS: str = os.getenv("SMTP_PASS", "")
+    SMTP_FROM: str = os.getenv("SMTP_FROM", "Higoverse <noreply@higoverse.com>")
+
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 

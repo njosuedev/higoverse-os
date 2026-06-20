@@ -9,6 +9,7 @@ from app.api.v1 import admin
 from app.db.session import engine as auth_engine
 from app.db.shop_session import shop_engine
 from app.models.shop import Shop
+from app.models.password_reset import PasswordReset  # noqa: F401 — registers table
 from app.models import user, role, refresh_token  # noqa: F401 — keeps all mapper classes in registry
 
 app = FastAPI(title="Higoverse Auth Service", redirect_slashes=False)
@@ -59,6 +60,7 @@ def on_startup():
             continue
         try:
             Shop.__table__.create(bind=engine, checkfirst=True)
+            PasswordReset.__table__.create(bind=engine, checkfirst=True)
             with engine.connect() as conn:
                 for sql in _MIGRATIONS:
                     conn.execute(text(sql))
