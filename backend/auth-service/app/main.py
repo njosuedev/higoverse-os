@@ -11,7 +11,7 @@ from app.db.shop_session import shop_engine
 from app.models.shop import Shop
 from app.models import user, role, refresh_token  # noqa: F401 — keeps all mapper classes in registry
 
-app = FastAPI(title="Higoverse Auth Service")
+app = FastAPI(title="Higoverse Auth Service", redirect_slashes=False)
 
 
 @app.exception_handler(Exception)
@@ -57,11 +57,14 @@ def on_startup():
     for engine in [auth_engine, shop_engine]:
         if not engine:
             continue
-        Shop.__table__.create(bind=engine, checkfirst=True)
-        with engine.connect() as conn:
-            for sql in _MIGRATIONS:
-                conn.execute(text(sql))
-            conn.commit()
+        try:
+            Shop.__table__.create(bind=engine, checkfirst=True)
+            with engine.connect() as conn:
+                for sql in _MIGRATIONS:
+                    conn.execute(text(sql))
+                conn.commit()
+        except Exception:
+            pass
 
 
 @app.get("/")
