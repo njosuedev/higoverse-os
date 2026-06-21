@@ -5,8 +5,11 @@ from app.api.v1 import advisor
 from app.db.base import Base
 from app.db.session import engine
 
-if engine:
-    Base.metadata.create_all(bind=engine)
+try:
+    if engine:
+        Base.metadata.create_all(bind=engine)
+except Exception as e:
+    print(f"[advisor] Table creation failed: {e}")
 
 app = FastAPI(title="Higoverse AI Advisor", version="1.0.0")
 
