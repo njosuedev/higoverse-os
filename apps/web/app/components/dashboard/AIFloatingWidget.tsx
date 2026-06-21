@@ -11,12 +11,12 @@ import { Bot, Send, X, Sparkles, User, AlertCircle } from "lucide-react";
 function TypingDots() {
   return (
     <div className="flex gap-3">
-      <div className="w-7 h-7 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-white flex-shrink-0">
+      <div className="w-7 h-7 rounded-xl bg-[#1372e6] flex items-center justify-center text-white flex-shrink-0">
         <Sparkles size={13} className="animate-pulse" />
       </div>
       <div className="bg-white border border-slate-200 rounded-2xl rounded-tl-sm px-3 py-2.5 flex items-center gap-1 shadow-sm">
         {[0, 1, 2].map((i) => (
-          <span key={i} className="w-1.5 h-1.5 bg-violet-400 rounded-full animate-bounce"
+          <span key={i} className="w-1.5 h-1.5 bg-blue-300 rounded-full animate-bounce"
             style={{ animationDelay: `${i * 0.18}s` }} />
         ))}
       </div>
@@ -47,7 +47,7 @@ function Bubble({ msg, shopLogo, shopName, displayContent, isStreaming }: {
             </div>
           )
         ) : (
-          <div className="w-full h-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center">
+          <div className="w-full h-full bg-[#1372e6] flex items-center justify-center">
             <Sparkles size={12} className="text-white" />
           </div>
         )}
@@ -57,7 +57,7 @@ function Bubble({ msg, shopLogo, shopName, displayContent, isStreaming }: {
         <pre className="whitespace-pre-wrap font-sans text-[11.5px] leading-relaxed">
           {content}
           {isStreaming && (
-            <span className="inline-block w-0.5 h-3 bg-violet-500 ml-0.5 align-middle animate-pulse rounded-full" />
+            <span className="inline-block w-0.5 h-3 bg-[#1372e6] ml-0.5 align-middle animate-pulse rounded-full" />
           )}
         </pre>
       </div>
@@ -180,14 +180,14 @@ export default function AIFloatingWidget() {
           style={{ height: "480px" }}>
 
           {/* Header */}
-          <div className="bg-gradient-to-r from-violet-600 to-purple-700 px-4 py-3 flex items-center gap-2.5">
+          <div className="bg-[#1372e6] px-4 py-3 flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center">
               <Bot size={16} className="text-white" />
             </div>
             <div className="flex-1">
               <p className="text-sm font-bold text-white">Higoverse AI</p>
-              <p className="text-[10px] text-purple-200 flex items-center gap-1">
-                <span className={`w-1.5 h-1.5 rounded-full inline-block ${loading ? "bg-amber-300 animate-pulse" : "bg-green-400"}`} />
+              <p className="text-[10px] text-blue-100 flex items-center gap-1">
+                <span className={`w-1.5 h-1.5 rounded-full inline-block ${loading ? "bg-white/60 animate-pulse" : "bg-green-400"}`} />
                 {loading ? "Thinking…" : "Ready to help"}
               </p>
             </div>
@@ -201,7 +201,7 @@ export default function AIFloatingWidget() {
           <div className="flex-1 overflow-y-auto p-3 space-y-3 bg-slate-50">
             {messages.length === 0 && (
               <div className="flex flex-col items-center justify-center h-full text-center px-4 pb-4">
-                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center mb-3 shadow-lg">
+                <div className="w-12 h-12 rounded-2xl bg-[#1372e6] flex items-center justify-center mb-3 shadow-lg">
                   <Sparkles size={22} className="text-white" />
                 </div>
                 <p className="text-xs font-semibold text-slate-700 mb-1">Ask me anything about your shop!</p>
@@ -209,9 +209,9 @@ export default function AIFloatingWidget() {
                 <div className="space-y-1.5 w-full">
                   {QUICK.map((q) => (
                     <button key={q.label} onClick={() => send(q.msg)}
-                      className="w-full text-left text-[11px] font-medium px-3 py-2 bg-white hover:bg-violet-50
-                        border border-slate-200 hover:border-violet-300 rounded-xl text-slate-600
-                        hover:text-violet-700 transition">
+                      className="w-full text-left text-[11px] font-medium px-3 py-2 bg-white hover:bg-blue-50
+                        border border-slate-200 hover:border-[#1372e6]/30 rounded-xl text-slate-600
+                        hover:text-[#1372e6] transition">
                       {q.label}
                     </button>
                   ))}
@@ -244,7 +244,7 @@ export default function AIFloatingWidget() {
               placeholder="Ask your AI advisor…"
               disabled={loading}
               className="flex-1 text-xs bg-slate-50 border border-slate-200 rounded-xl px-3 py-2
-                outline-none focus:border-violet-400 focus:bg-white transition placeholder-slate-400 text-slate-800" />
+                outline-none focus:border-[#1372e6] focus:bg-white transition placeholder-slate-400 text-slate-800" />
             <button onClick={() => send()} disabled={!input.trim() || loading}
               className="w-8 h-8 rounded-xl bg-[#1372e6] hover:bg-[#1060c9]
                 disabled:bg-slate-200 disabled:text-slate-400 text-white
@@ -271,13 +271,13 @@ export default function AIFloatingWidget() {
 
         {/* Ambient glow ring — always soft pulse */}
         {!open && (
-          <div className="absolute -inset-2 rounded-3xl bg-gradient-to-br from-violet-400 to-purple-600 opacity-20 animate-pulse blur-sm" />
+          <div className="absolute -inset-2 rounded-3xl bg-[#1372e6] opacity-20 animate-pulse blur-sm" />
         )}
 
         <button
           onClick={() => setOpen((o) => !o)}
-          className="relative w-16 h-16 rounded-2xl bg-gradient-to-br from-violet-500 via-purple-600 to-purple-800
-            text-white shadow-2xl shadow-violet-500/50 hover:shadow-violet-500/70
+          className="relative w-16 h-16 rounded-2xl bg-[#1372e6]
+            text-white shadow-2xl shadow-[#1372e6]/30 hover:shadow-[#1372e6]/50
             hover:scale-110 active:scale-95 transition-all duration-200 flex items-center justify-center overflow-hidden">
 
           {/* Shimmer stripe */}

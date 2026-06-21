@@ -29,32 +29,32 @@ const QUICK_ACTIONS = [
   {
     icon: Package, label: "advisor.quick.inventory",
     message: "Which products are running low on stock? What should I restock urgently?",
-    color: "bg-orange-50 border-orange-200 text-orange-700 hover:bg-orange-100 hover:border-orange-400",
-    iconBg: "bg-orange-100 text-orange-600",
+    color: "bg-blue-50 border-blue-100 text-[#1372e6] hover:bg-blue-100 hover:border-[#1372e6]",
+    iconBg: "bg-[#EBF4FF] text-[#1372e6]",
   },
   {
     icon: DollarSign, label: "advisor.quick.financial",
     message: "Give me a complete financial overview — revenue, expenses, and profit.",
-    color: "bg-green-50 border-green-200 text-green-700 hover:bg-green-100 hover:border-green-400",
-    iconBg: "bg-green-100 text-green-600",
+    color: "bg-blue-50 border-blue-100 text-[#1372e6] hover:bg-blue-100 hover:border-[#1372e6]",
+    iconBg: "bg-[#EBF4FF] text-[#1372e6]",
   },
   {
     icon: TrendingUp, label: "advisor.quick.growth",
     message: "What are my top-performing products and growth opportunities?",
-    color: "bg-violet-50 border-violet-200 text-violet-700 hover:bg-violet-100 hover:border-violet-400",
-    iconBg: "bg-violet-100 text-violet-600",
+    color: "bg-blue-50 border-blue-100 text-[#1372e6] hover:bg-blue-100 hover:border-[#1372e6]",
+    iconBg: "bg-[#EBF4FF] text-[#1372e6]",
   },
   {
     icon: ShoppingCart, label: "advisor.quick.attention",
     message: "Show me my sales analysis for today and this week.",
-    color: "bg-cyan-50 border-cyan-200 text-cyan-700 hover:bg-cyan-100 hover:border-cyan-400",
-    iconBg: "bg-cyan-100 text-cyan-600",
+    color: "bg-blue-50 border-blue-100 text-[#1372e6] hover:bg-blue-100 hover:border-[#1372e6]",
+    iconBg: "bg-[#EBF4FF] text-[#1372e6]",
   },
   {
     icon: Star, label: "advisor.quick.report",
     message: "Generate a full business report with all insights and recommendations.",
-    color: "bg-amber-50 border-amber-200 text-amber-700 hover:bg-amber-100 hover:border-amber-400",
-    iconBg: "bg-amber-100 text-amber-600",
+    color: "bg-blue-50 border-blue-100 text-[#1372e6] hover:bg-blue-100 hover:border-[#1372e6]",
+    iconBg: "bg-[#EBF4FF] text-[#1372e6]",
   },
 ];
 
@@ -124,7 +124,7 @@ function MessageBubble({ msg, shopLogo, shopName }: { msg: ChatMessage; shopLogo
             </div>
           )
         ) : (
-          <div className="w-full h-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center">
+          <div className="w-full h-full bg-[#1372e6] flex items-center justify-center">
             <Sparkles size={16} className="text-white" />
           </div>
         )}
@@ -147,13 +147,13 @@ function MessageBubble({ msg, shopLogo, shopName }: { msg: ChatMessage; shopLogo
 function TypingIndicator() {
   return (
     <div className="flex gap-3">
-      <div className="w-9 h-9 rounded-2xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-white shadow-sm flex-shrink-0">
+      <div className="w-9 h-9 rounded-2xl bg-[#1372e6] flex items-center justify-center text-white shadow-sm flex-shrink-0">
         <Sparkles size={16} className="animate-pulse" />
       </div>
       <div className="bg-white border border-slate-200 rounded-2xl rounded-tl-sm px-4 py-3.5 flex items-center gap-1.5 shadow-sm">
         <span className="text-[11px] text-slate-400 mr-1">Thinking</span>
         {[0, 1, 2].map((i) => (
-          <span key={i} className="w-1.5 h-1.5 bg-violet-400 rounded-full animate-bounce"
+          <span key={i} className="w-1.5 h-1.5 bg-blue-300 rounded-full animate-bounce"
             style={{ animationDelay: `${i * 0.18}s` }} />
         ))}
       </div>
@@ -253,17 +253,17 @@ export default function AdvisorPage() {
           ${sidebarOpen ? "flex absolute inset-0 z-40 bg-slate-50 p-4" : "hidden lg:flex"}`}>
 
           {/* Brand */}
-          <div className="bg-gradient-to-br from-violet-600 to-purple-700 rounded-2xl p-4 shadow-lg text-white">
+          <div className="bg-[#1372e6] rounded-2xl p-4 shadow-lg text-white">
             <div className="flex items-center gap-3 mb-2">
               <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center">
                 <Sparkles size={18} />
               </div>
               <div>
                 <p className="text-sm font-bold">AI Advisor</p>
-                <p className="text-[10px] text-purple-200">Higoverse AI · Free</p>
+                <p className="text-[10px] text-blue-100">Higoverse AI · Free</p>
               </div>
             </div>
-            <p className="text-[11px] text-purple-200 leading-relaxed">
+            <p className="text-[11px] text-blue-100 leading-relaxed">
               Your intelligent business companion — real-time insights from your shop data.
             </p>
           </div>
@@ -319,7 +319,7 @@ export default function AdvisorPage() {
               {conversations.map((c) => (
                 <div key={c.id} onClick={() => loadConversation(c.id)}
                   className={`group flex items-center gap-2 px-2.5 py-2 rounded-xl cursor-pointer transition
-                    ${convId === c.id ? "bg-violet-50 text-violet-700 border border-violet-200" : "hover:bg-slate-50 text-slate-600"}`}>
+                    ${convId === c.id ? "bg-blue-50 text-[#1372e6] border border-blue-100" : "hover:bg-slate-50 text-slate-600"}`}>
                   <MessageSquare size={11} className="flex-shrink-0 opacity-60" />
                   <span className="text-xs truncate flex-1 font-medium">{c.title || "Chat"}</span>
                   <button onClick={(e) => handleDeleteConv(c.id, e)}
@@ -341,14 +341,14 @@ export default function AdvisorPage() {
               className="lg:hidden p-1.5 hover:bg-slate-100 rounded-lg transition">
               <MessageSquare size={16} className="text-slate-500" />
             </button>
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shadow-md">
+            <div className="w-10 h-10 rounded-2xl bg-[#1372e6] flex items-center justify-center shadow-md">
               <Bot size={20} className="text-white" />
             </div>
             <div className="flex-1">
               <p className="text-sm font-bold text-slate-900">Higoverse AI Advisor</p>
               <p className="text-[10px] font-medium flex items-center gap-1.5">
-                <span className={`w-1.5 h-1.5 rounded-full inline-block ${loading ? "bg-amber-400 animate-pulse" : "bg-green-500"}`} />
-                <span className={loading ? "text-amber-500" : "text-green-500"}>
+                <span className={`w-1.5 h-1.5 rounded-full inline-block ${loading ? "bg-white/60 animate-pulse" : "bg-green-400"}`} />
+                <span className={loading ? "text-blue-100" : "text-green-300"}>
                   {loading ? "Analyzing your data…" : "Online · Ready to help"}
                 </span>
               </p>
@@ -361,7 +361,7 @@ export default function AdvisorPage() {
                     className="w-6 h-6 rounded-lg object-cover border border-slate-200"
                     onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
                 ) : (
-                  <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-[#1372e6] to-blue-700 flex items-center justify-center">
+                  <div className="w-6 h-6 rounded-lg bg-[#1372e6] flex items-center justify-center">
                     <Store size={11} className="text-white" />
                   </div>
                 )}
@@ -381,7 +381,7 @@ export default function AdvisorPage() {
             {messages.length === 0 && !loading && (
               <div className="h-full flex flex-col items-center justify-center text-center px-6">
                 <div className="relative mb-6">
-                  <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shadow-xl">
+                  <div className="w-20 h-20 rounded-3xl bg-[#1372e6] flex items-center justify-center shadow-xl">
                     <Sparkles size={34} className="text-white" />
                   </div>
                   <div className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-green-500 border-2 border-white flex items-center justify-center">
@@ -409,7 +409,7 @@ export default function AdvisorPage() {
                   })}
                 </div>
                 <p className="text-[11px] text-slate-400 mt-6">
-                  Or just say <span className="font-semibold text-violet-500">"Hi"</span> to start a conversation 👋
+                  Or just say <span className="font-semibold text-[#1372e6]">"Hi"</span> to start a conversation 👋
                 </p>
               </div>
             )}
@@ -451,7 +451,7 @@ export default function AdvisorPage() {
                 rows={1}
                 className="flex-1 resize-none text-sm text-slate-800 placeholder-slate-400
                   bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 outline-none
-                  focus:border-violet-400 focus:bg-white transition min-h-[40px]"
+                  focus:border-[#1372e6] focus:bg-white transition min-h-[40px]"
                 disabled={loading} />
               <button onClick={() => handleSend()} disabled={!input.trim() || loading}
                 className="flex-shrink-0 w-10 h-10 rounded-xl bg-[#1372e6] hover:bg-[#1060c9]
