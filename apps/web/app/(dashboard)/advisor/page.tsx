@@ -256,17 +256,11 @@ export default function AdvisorPage() {
           {/* Brand */}
           <div className="bg-gradient-to-br from-violet-600 to-purple-700 rounded-2xl p-4 shadow-lg text-white">
             <div className="flex items-center gap-3 mb-2">
-              {shop?.logo_url ? (
-                <img src={shop.logo_url} alt={shop.name}
-                  className="w-9 h-9 rounded-xl object-cover border-2 border-white/30 shadow"
-                  onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
-              ) : (
-                <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center">
-                  <Sparkles size={18} />
-                </div>
-              )}
+              <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center">
+                <Sparkles size={18} />
+              </div>
               <div>
-                <p className="text-sm font-bold">{shop?.name ?? "AI Advisor"}</p>
+                <p className="text-sm font-bold">AI Advisor</p>
                 <p className="text-[10px] text-purple-200">Higoverse AI · Free</p>
               </div>
             </div>
