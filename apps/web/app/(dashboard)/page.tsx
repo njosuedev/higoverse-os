@@ -222,7 +222,7 @@ export default function DashboardPage() {
   const netPct      = Math.max(0, 100 - purchasePct - expensePct);
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-white">
       <main className="max-w-7xl mx-auto px-3 sm:px-5 py-3 sm:py-4 space-y-4">
 
         {/* ── HERO ────────────────────────────────────────────────────────────── */}

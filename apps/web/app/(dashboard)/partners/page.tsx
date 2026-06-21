@@ -177,7 +177,7 @@ export default function PartnerManagementPage() {
   if (loading) return <PageSkeleton cards={5} rows={6} cols={7} />;
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-white">
       <div className="max-w-7xl mx-auto px-3 sm:px-5 py-3 sm:py-4">
 
         <div className="bg-[#1372e6] text-white rounded-xl p-4 mb-4">

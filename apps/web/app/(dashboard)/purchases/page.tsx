@@ -218,7 +218,7 @@ export default function PurchaseManagementPage() {
   if (loading) return <PageSkeleton cards={6} rows={6} cols={6} />;
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-white">
       <div className="max-w-7xl mx-auto px-3 sm:px-5 py-3 sm:py-4">
 
         {/* HEADER */}
