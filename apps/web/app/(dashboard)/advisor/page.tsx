@@ -211,11 +211,11 @@ export default function AdvisorPage() {
   }
 
   return (
-    <div className="flex bg-white" style={{ height: "calc(100vh - 90px)" }}>
+    <div className="flex bg-white" style={{ height: "calc(100vh - 60px)" }}>
 
       {/* ── SIDEBAR ─────────────────────────────────────────────────── */}
       <aside className={`w-60 flex-shrink-0 border-r border-slate-200 flex flex-col bg-slate-50
-        ${sidebarOpen ? "absolute inset-y-[90px] left-0 z-40 w-60 flex shadow-xl" : "hidden lg:flex"}`}>
+        ${sidebarOpen ? "absolute inset-y-[60px] left-0 z-40 w-60 flex shadow-xl" : "hidden lg:flex"}`}>
 
         {/* New chat */}
         <div className="p-3 border-b border-slate-200">
