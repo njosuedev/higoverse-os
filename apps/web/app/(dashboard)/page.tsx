@@ -18,7 +18,7 @@ import {
 import {
   Package, Truck, BarChart3, ShoppingCart, Users, Settings,
   RefreshCw, AlertTriangle, TrendingUp, TrendingDown, Globe,
-  CheckCircle, FileText, Store, Mail, User, ShieldCheck, Plus,
+  CheckCircle, FileText, Plus,
   Activity, Receipt, Wallet, DollarSign, MapPin, Phone,
 } from "lucide-react";
 
@@ -711,40 +711,58 @@ export default function DashboardPage() {
           )}
         </section>
 
-        {/* ── ACCOUNT INFO ────────────────────────────────────────────────────── */}
-        <section className="pb-8">
-          <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
-            <div className="flex items-center gap-3 px-4 py-3 border-b border-slate-50">
-              <div className="w-8 h-8 rounded-xl bg-[#D5E8FB] text-[#1372e6] flex items-center justify-center font-bold text-sm">
-                {(user.name || "U")[0].toUpperCase()}
-              </div>
+        {/* ── FOOTER ──────────────────────────────────────────────────────────── */}
+        <footer className="pb-6 border-t border-slate-200 pt-4">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+
+            {/* Brand */}
+            <div className="flex items-center gap-2">
+              <img src="/higoverse.png" alt="Higoverse" className="w-7 h-7 rounded-lg object-cover" />
               <div>
-                <p className="font-bold text-slate-900 text-sm">{user.name || "Owner"}</p>
-                <p className="text-slate-400 text-[10px]">{user.email}</p>
+                <p className="text-xs font-bold text-slate-700">Higoverse</p>
+                <p className="text-[9px] text-slate-400">Rwanda's Business Platform</p>
               </div>
-              <span className="ml-auto flex items-center gap-1 text-[10px] font-semibold text-green-700 bg-green-50 border border-green-200 px-2 py-1 rounded-full">
-                <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-                {t("dash.active")}
+            </div>
+
+            {/* Live business snapshot pills */}
+            <div className="flex items-center gap-1.5 flex-wrap justify-center">
+              <span className="flex items-center gap-1 text-[9px] font-semibold text-slate-600 bg-slate-100 px-2 py-1 rounded-full">
+                <Package size={10} className="text-[#1372e6]" /> {stats.products} {t("dash.products")}
               </span>
+              <span className="flex items-center gap-1 text-[9px] font-semibold text-slate-600 bg-slate-100 px-2 py-1 rounded-full">
+                <Users size={10} className="text-indigo-500" /> {stats.partners} {t("dash.partners")}
+              </span>
+              <span className="flex items-center gap-1 text-[9px] font-semibold text-slate-600 bg-slate-100 px-2 py-1 rounded-full">
+                <ShoppingCart size={10} className="text-teal-500" /> {stats.sales} {t("dash.sales_today")}
+              </span>
+              {stats.revenue > 0 && (
+                <span className="flex items-center gap-1 text-[9px] font-semibold text-green-700 bg-green-50 px-2 py-1 rounded-full">
+                  <TrendingUp size={10} /> {fmtCurrency(stats.revenue)}
+                </span>
+              )}
+              {onlineCount > 0 && (
+                <span className="flex items-center gap-1 text-[9px] font-semibold text-green-700 bg-green-50 px-2 py-1 rounded-full">
+                  <span className="w-1 h-1 rounded-full bg-green-500 animate-pulse" />
+                  {onlineCount} {t("dash.shops_live") || "shops live"}
+                </span>
+              )}
+              {stats.lowStock > 0 && (
+                <span className="flex items-center gap-1 text-[9px] font-semibold text-amber-700 bg-amber-50 px-2 py-1 rounded-full">
+                  <AlertTriangle size={10} /> {stats.lowStock} low stock
+                </span>
+              )}
             </div>
-            <div className="grid sm:grid-cols-2 lg:grid-cols-4">
-              {[
-                { icon: <Mail size={12} />,        label: t("common.email"),    value: user.email },
-                { icon: <Store size={12} />,       label: t("nav.settings"),    value: currentShop?.name || user.shop_id.slice(0, 8) + "…" },
-                { icon: <User size={12} />,        label: "Role",               value: user.role || "Owner" },
-                { icon: <ShieldCheck size={12} />, label: t("dash.security"),   value: t("dash.protected") },
-              ].map((info, i) => (
-                <div key={info.label} className={`flex items-center gap-2.5 px-4 py-3 ${i < 3 ? "border-b md:border-b-0 md:border-r" : ""} border-slate-50`}>
-                  <span className="text-[#1372e6] shrink-0">{info.icon}</span>
-                  <div className="min-w-0">
-                    <p className="text-[9px] text-slate-400 font-medium uppercase tracking-wider">{info.label}</p>
-                    <p className="text-xs font-bold text-slate-800 truncate mt-0.5">{info.value}</p>
-                  </div>
-                </div>
-              ))}
+
+            {/* Copyright + sync */}
+            <div className="text-center sm:text-right">
+              <p className="text-[9px] text-slate-400 font-medium">© {new Date().getFullYear()} Higoverse</p>
+              {lastUpdated && (
+                <p className="text-[9px] text-slate-300 mt-0.5">Synced {fmtTime(lastUpdated)}</p>
+              )}
             </div>
+
           </div>
-        </section>
+        </footer>
 
       </main>
     </div>
