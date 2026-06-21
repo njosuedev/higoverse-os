@@ -76,9 +76,11 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
           {menus.map((menu) => {
             const Icon = menu.icon;
             const active = menu.href === "/" ? pathname === "/" : pathname.startsWith(menu.href);
-            const isAdmin = menu.href === "/admin";
+            const isAdmin   = menu.href === "/admin";
+            const isAdvisor = menu.href === "/advisor";
             const indicatorColor = isAdmin ? "bg-red-500" : "bg-[#1372e6]";
-            const activeText    = isAdmin ? "text-red-600" : "text-[#1372e6]";
+            const activeText     = isAdmin ? "text-red-600" : "text-[#1372e6]";
+            const idleText       = isAdvisor ? "text-[#1372e6]" : "text-slate-600 hover:text-slate-900 hover:bg-slate-50";
 
             if (loading) {
               return <div key={menu.href} className="w-16 mx-1 my-auto h-8 bg-slate-100 animate-pulse rounded-lg flex-shrink-0" />;
@@ -88,7 +90,7 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
               <Link key={menu.href} href={menu.href}
                 className={`relative flex flex-col items-center justify-center gap-0.5 px-3 lg:px-4
                   flex-shrink-0 min-w-[56px] transition-colors
-                  ${active ? activeText : "text-slate-400 hover:text-slate-700 hover:bg-slate-50"}`}>
+                  ${active ? activeText : idleText}`}>
                 <Icon size={20} strokeWidth={active ? 2.5 : 1.8} />
                 <span className="text-[10px] font-semibold hidden sm:block leading-none">{t(menu.key)}</span>
                 {active && (
