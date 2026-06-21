@@ -14,19 +14,73 @@ _INTENTS = {
     "greeting": [
         "hi", "hello", "hey", "good morning", "good afternoon", "good evening",
         "what's up", "sup", "howdy", "greetings",
-        # rw
         "muraho", "mwaramutse", "mwiriwe", "bite", "amakuru",
-        # fr
         "bonjour", "bonsoir", "salut", "coucou", "bonne journée",
-        # sw
         "habari", "jambo", "hujambo", "karibu", "salam",
+    ],
+    "emotion_stress": [
+        "stress", "stressed", "tired", "exhausted", "overwhelm", "overwhelmed",
+        "anxious", "anxiety", "worried", "worry", "scared", "afraid", "nervous",
+        "struggling", "struggle", "hard time", "difficult", "tough", "rough",
+        "frustrated", "frustrat", "giving up", "i quit", "can't do this",
+        "losing hope", "hopeless", "burned out", "burnout", "depressed",
+        # rw
+        "nshakaye", "birangoye", "umunaniro", "ndananiwe", "biragoye",
+        # fr
+        "stressé", "fatigué", "épuisé", "inquiet", "difficile", "découragé",
+        # sw
+        "nimechoka", "wasiwasi", "nimeshuka", "ngumu", "shida",
+    ],
+    "emotion_happy": [
+        "happy", "excited", "great day", "amazing", "wonderful", "fantastic",
+        "doing well", "good news", "celebrating", "made a sale", "big sale",
+        "proud", "success", "won", "milestone", "achievement",
+        # rw
+        "numereye neza", "nezerwa", "nishimiye", "inkuru nziza",
+        # fr
+        "heureux", "content", "bonne nouvelle", "réussite", "succès",
+        # sw
+        "furaha", "nimefurahi", "habari njema", "mafanikio",
+    ],
+    "smalltalk": [
+        "how are you", "how do you do", "how's it going", "you okay",
+        "are you real", "do you feel", "are you human", "are you alive",
+        "do you understand", "can you think", "what do you think",
+        "tell me something", "talk to me", "i'm bored", "just chatting",
+        "let's talk", "what's new", "anything interesting",
+        "what time", "what day", "what's today",
+        # rw
+        "urakora ite", "uriho", "wigeze wibaza",
+        # fr
+        "comment tu vas", "tu vas bien", "c'est quoi ton avis", "parle moi",
+        # sw
+        "uko vipi", "wewe ni nani", "unafikiria nini",
+    ],
+    "joke": [
+        "joke", "funny", "make me laugh", "tell me a joke", "humor",
+        "something funny", "cheer me up", "laugh",
+        # rw
+        "ntabwo ngukunda", "ndashaka gusetsa",
+        # fr
+        "blague", "fais moi rire", "quelque chose de drôle",
+        # sw
+        "utani", "nichekesha", "kitu cha kuchekesha",
+    ],
+    "advice": [
+        "what should i do", "i need advice", "help me decide", "what do you think",
+        "advice", "suggest", "should i", "is it a good idea", "what would you do",
+        "not sure what to do", "confused", "lost", "don't know",
+        # rw
+        "nkire inama", "nagomba inama", "nkore iki",
+        # fr
+        "que faire", "conseil", "tu penses quoi", "qu'est-ce que je dois faire",
+        # sw
+        "nifanye nini", "nisaidie", "ushauri",
     ],
     "thanks": [
         "thank", "thanks", "thank you", "appreciate", "great", "awesome",
         "perfect", "helpful", "nice", "good job", "well done",
-        # rw
         "murakoze", "urakoze", "ni byiza", "ni nziza",
-        # fr
         "merci", "super", "parfait", "excellent", "c'est bien",
         # sw
         "asante", "nashukuru", "vizuri sana", "nzuri",
@@ -321,6 +375,397 @@ I'm your intelligent business companion with real-time access to {name}'s data �
 💬 I speak English, Kinyarwanda, French & Swahili — your choice!
 
 What would you like to know? 😊"""
+
+
+# ── Human conversation handlers ──────────────────────────────────────────────
+
+def _build_stress(ctx: dict, lang: str) -> str:
+    name = _shop_name(ctx)
+    if lang == "rw":
+        return f"""Numva bimeze neza ko ubibaza. 🤝
+
+Ubucuruzi bugeza abantu benshi mu bihe bikomeye — si wowe gusa.
+
+Izi nizo mpamvu nyinshi ziteranya ubucuruzi n'umunaniro:
+• Amagurishwa agenda nabi udashakashaka
+• Amafaranga yaguriyemo yiyongera vuba
+• Ububiko burimo ingorane
+• Gutwara umutwe byinshi mu gihe kimwe
+
+Ibintu 3 bishobora gufasha ubu:
+
+1️⃣ Tuma amakuru y'ukuri — reba imiterere y'iduka ryawe {name} ubu, hanyuma dufatanye ibyemezo bihamye
+2️⃣ Icyo kintu kimwe — ntukore byinshi hamwe. Hitamo ingorane imwe ikomeye maze tuyisubiremo
+3️⃣ Kubahiriza ibyo wageze — reba amagurishwa yawe n'inyungu uzibuke inkomoko
+
+Mbwira ibintu bikurindira — nzagufasha usangire ingorane imwe na rimwe! 💪"""
+
+    if lang == "fr":
+        return f"""Je comprends, et c'est tout à fait normal de ressentir ça. 🤝
+
+Gérer un commerce peut être épuisant — vous n'êtes pas seul(e).
+
+Les causes fréquentes de stress en commerce:
+• Les ventes qui baissent sans raison apparente
+• Les coûts qui augmentent plus vite que les revenus
+• Les problèmes de stock et de fournisseurs
+• Trop de choses à gérer en même temps
+
+3 choses qui peuvent aider maintenant:
+
+1️⃣ Voyons les chiffres réels — regardons ensemble l'état de {name} aujourd'hui
+2️⃣ Une chose à la fois — identifions le problème numéro 1 et attaquons-le
+3️⃣ Reconnaissez vos succès — regardez ce que vous avez accompli jusqu'ici
+
+Dites-moi ce qui vous pèse le plus en ce moment — on règle ça ensemble! 💪"""
+
+    if lang == "sw":
+        return f"""Naelewa, na ni kawaida kuhisi hivyo. 🤝
+
+Kuendesha biashara kunaweza kuchoshea — huwezi kuwa peke yako katika hili.
+
+Sababu za kawaida za msongo katika biashara:
+• Mauzo yanayoshuka bila sababu
+• Gharama zinazoongezeka haraka kuliko mapato
+• Matatizo ya akiba na wasambazaji
+• Mambo mengi sana kufanya kwa wakati mmoja
+
+Mambo 3 yanayoweza kusaidia sasa hivi:
+
+1️⃣ Hebu tuangalie nambari halisi — tuchunguze hali ya {name} leo pamoja
+2️⃣ Kitu kimoja kwa wakati mmoja — taitambue tatizo kuu moja na tulishughulikie
+3️⃣ Tambua mafanikio yako — angalia ulichofika
+
+Niambie kinachokusumbua zaidi sasa hivi — tutashughulikia pamoja! 💪"""
+
+    return f"""Hey, I hear you — and it's completely okay to feel that way. 🤝
+
+Running a business is genuinely hard, and stress is part of the journey. You're not alone in this.
+
+Common reasons business owners feel overwhelmed:
+• Sales fluctuating without clear reason
+• Costs creeping up faster than revenue
+• Stock and supplier headaches
+• Too many decisions to make at once
+
+Here's what usually helps:
+
+1️⃣ Look at the real numbers — let me pull up {name}'s actual data so we work from facts, not fear
+2️⃣ One thing at a time — tell me what's worrying you most and we'll tackle just that
+3️⃣ Count your wins — you built something real, and that matters
+
+What's weighing on you most right now? I'm listening, and we'll figure it out together. 💪"""
+
+
+def _build_happy(ctx: dict, lang: str) -> str:
+    name = _shop_name(ctx)
+    if lang == "rw":
+        return f"""Nishimiye cyane kumva inkuru nziza! 🎉
+
+Ibikorwa byiza bikwiye gushimiwa — wiha agaciro gakwiye!
+
+Ukomeze ukomeze aho wari — ariko nshobora kukugezaho amakuru y'uko {name} igenda kandi ufate muri iyi myanya myiza:
+
+• 📊 Reba imiterere y'iduka uyu munsi
+• 📈 Reba amahirwe yo kongera ubucuruzi
+• 💰 Suzuma imari yawe ubike inzira yo imbere
+
+Mbwira iby'uyu munsi wagize byiza! 🚀"""
+
+    if lang == "fr":
+        return f"""C'est fantastique à entendre! 🎉
+
+Prenez un moment pour célébrer — vous le méritez vraiment!
+
+Profitons de cette énergie positive pour {name}. Quand on est dans un bon état d'esprit, c'est le meilleur moment pour:
+
+• 📊 Vérifier vos chiffres du jour
+• 📈 Explorer les opportunités de croissance
+• 💰 Planifier la prochaine étape
+
+Dites-moi ce qui s'est bien passé aujourd'hui! 🚀"""
+
+    if lang == "sw":
+        return f"""Hiyo ni habari nzuri sana! 🎉
+
+Chukua muda kusherehekea — unastahili!
+
+Hebu tutumie nguvu hii nzuri kwa {name}. Wakati wa furaha ndio wakati bora wa:
+
+• 📊 Kuangalia nambari za leo
+• 📈 Kuchunguza fursa za ukuaji
+• 💰 Kupanga hatua inayofuata
+
+Niambie kilichoenda vizuri leo! 🚀"""
+
+    return f"""That's wonderful to hear! 🎉
+
+Take a moment to appreciate that — seriously, you earned it!
+
+Let's channel that energy into {name}. Good days are the perfect time to:
+
+• 📊 Check today's numbers while you're in a winning mindset
+• 📈 Think about growth opportunities
+• 💰 Plan your next move from a position of strength
+
+Tell me what went well — and let's see how we can build on it! 🚀"""
+
+
+def _build_smalltalk(ctx: dict, lang: str, message: str) -> str:
+    lower = message.lower()
+    name  = _shop_name(ctx)
+    hour  = datetime.now(timezone.utc).hour
+    day   = datetime.now(timezone.utc).strftime("%A, %B %d")
+
+    # "how are you"
+    if any(w in lower for w in ["how are you", "how do you do", "uko vipi", "comment tu vas", "urakora ite"]):
+        if lang == "rw":
+            return f"""Nkora neza cyane, murakoze kubaza! 😊
+
+Ndi hano buri gihe, gufasha abacuruzi nka wewe gutera imbere. Uyu munsi ni {day}.
+
+Wowe urakora ite? {name} igenda bite? Mbwira ibintu bikurindira — nzagufasha! 💬"""
+        if lang == "fr":
+            return f"""Je vais très bien, merci de demander! 😊
+
+Je suis ici 24h/24 pour aider les commerçants comme vous. Aujourd'hui c'est {day}.
+
+Et vous, comment ça va? {name} se porte bien? Dites-moi ce qui se passe! 💬"""
+        if lang == "sw":
+            return f"""Niko vizuri sana, asante kwa kuuliza! 😊
+
+Nipo hapa siku na usiku kusaidia wafanyabiashara kama wewe. Leo ni {day}.
+
+Je wewe uko vipi? {name} inakwenda vipi? Niambie kinachoendelea! 💬"""
+        return f"""I'm doing great, thanks for asking! 😊
+
+I'm here around the clock helping business owners like you make smarter decisions. Today is {day}.
+
+How about you? How are things going at {name}? Tell me what's on your mind! 💬"""
+
+    # "are you real / human / AI"
+    if any(w in lower for w in ["are you real", "are you human", "are you alive", "do you feel", "can you think", "wewe ni nani"]):
+        if lang == "rw":
+            return """Mbaza ikibazo cyiza! 🤖
+
+Ndi AI — sisoma nka muntu, ariko nabanye n'amakuru y'ubucuruzi bwawe kandi mpanga ibisubizo by'ukuri.
+
+Ibintu ntakora:
+• Ntagira amarangamutima — ariko nshobora kumva ingorane zawe no gutera imbere
+• Siniruka — ariko nzabaho igihe cyose ukeneye
+• Sisobanuza byose — ariko ku bibazo by'ubucuruzi ndi inzobere
+
+Ibintu nakora neza:
+• 📊 Isesengura ry'amakuru y'iduka ryawe
+• 💡 Inama zihamye zifatiye ku makuru
+• 💬 Gutumanahana nawe igihe cyose
+
+Birakagirwa ko hari ibintu bishobora kuntera ingorane — ariko nzajya niha akamaro! 😊"""
+        if lang == "fr":
+            return """Bonne question! 🤖
+
+Je suis une IA — je ne ressens pas les choses comme un humain, mais j'ai accès à vos données réelles et je construis des réponses honnêtes basées sur des faits.
+
+Ce que je ne peux PAS faire:
+• Ressentir des émotions — mais je peux comprendre vos défis
+• Me tromper intentionnellement — je dis toujours ce que les données montrent
+• Tout savoir — mais sur votre commerce, je suis assez bon!
+
+Ce que je FAIS très bien:
+• 📊 Analyser les données réelles de votre commerce
+• 💡 Donner des conseils basés sur les faits
+• 💬 Être disponible quand vous en avez besoin
+
+Je ne suis peut-être pas humain — mais je suis sincèrement là pour vous aider! 😊"""
+        return """Great question! 🤖
+
+I'm an AI — I don't feel things the way you do, but I genuinely have access to your real shop data and I give you honest, fact-based answers.
+
+What I CAN'T do:
+• Feel emotions — but I can understand your challenges and respond thoughtfully
+• Lie to you — I always tell you what the data actually shows
+• Know everything — but about your specific business, I'm pretty sharp!
+
+What I DO really well:
+• 📊 Analyze your real business data in real time
+• 💡 Give you honest advice based on actual numbers
+• 💬 Be available whenever you need me, no judgment
+
+I may not be human — but I genuinely care about helping your business succeed! 😊"""
+
+    # "what time / what day"
+    if any(w in lower for w in ["what time", "what day", "what's today", "date"]):
+        period = "morning ☀️" if hour < 12 else "afternoon 🌤️" if hour < 17 else "evening 🌙"
+        if lang == "rw":
+            return f"""Uyu munsi ni {day}, {hour:02d}:00 UTC. 🕐
+
+Imiterere y'iduka ryawe ni iyihe uyu {period.split()[0]}? Mbwira! 💬"""
+        if lang == "fr":
+            return f"""Aujourd'hui c'est {day}, {hour:02d}:00 UTC. 🕐
+
+Comment se passe votre {period.split()[0]}? Dites-moi! 💬"""
+        return f"""It's {day}, {hour:02d}:00 UTC — {period}. 🕐
+
+How's your {period.split()[0]} going at {name}? Ask me anything! 💬"""
+
+    # generic smalltalk
+    if lang == "rw":
+        return f"""Nshimishwa kuganira nawe! 😊
+
+Ndi umufasha wawe w'ubucuruzi, kandi nshobora gufasha cyane aho ubucuruzi buhuriye na we.
+
+Uyu munsi buri neza? {name} igenda bite? Baza ikibazo cyose cyerekeye ubucuruzi bwawe — nzasubiza neza! 💬"""
+    if lang == "fr":
+        return f"""Ravi de discuter avec vous! 😊
+
+Je suis votre conseiller commercial — je suis meilleur sur les sujets liés à votre business qu'en bavardage général, mais je suis là!
+
+Votre journée se passe bien? {name} va bien? Posez-moi n'importe quelle question sur votre commerce! 💬"""
+    if lang == "sw":
+        return f"""Ninafurahi kuzungumza nawe! 😊
+
+Mimi ni mshauri wako wa biashara — ninaelewa zaidi kuhusu biashara yako kuliko mazungumzo ya kawaida.
+
+Siku yako inaenda vipi? {name} inakwenda vipi? Niulize chochote kuhusu biashara yako! 💬"""
+    return f"""Always happy to chat! 😊
+
+I'm your business companion — I'm much better at business talk than small talk, but I'm still here for you!
+
+How's your day going? How's {name} treating you today? Ask me anything business-related and I'll give you real, data-backed answers! 💬"""
+
+
+def _build_joke(ctx: dict, lang: str) -> str:
+    import random
+    jokes_en = [
+        ("Why did the shop owner go to art school?", "Because he wanted to improve his \"sale\" techniques! 🎨"),
+        ("Why did the cashier get promoted?", "Because she always knew how to \"count\" on herself! 💰"),
+        ("What do you call a business that sells only mirrors?", "A company you can really see yourself working for! 🪞"),
+        ("Why don't business owners ever win at cards?", "Because they always fold under pressure! 🃏"),
+        ("What's a shopkeeper's favorite type of music?", "Cash flow! 🎵"),
+    ]
+    jokes_fr = [
+        ("Pourquoi le commerçant est allé au cinéma?", "Pour voir un film de caisse! 🎬"),
+        ("Que dit un vendeur épuisé?", "J'en peux plus des soldes! 😂"),
+        ("Pourquoi l'inventaire était triste?", "Parce qu'il se sentait en \"rupture de stock\" émotionnelle! 📦"),
+    ]
+    jokes_rw = [
+        ("Ni iki gituma umucuruzi aryama vuba?", "Kuko agomba gutera imbere mu matutwe! 😂"),
+        ("Umucuruzi yashimye iki?", "Amagurishwa menshi n'amafaranga make y'inguzanyo! 💸"),
+    ]
+    jokes_sw = [
+        ("Kwa nini mfanyabiashara alikwenda hospitalini?", "Kwa sababu biashara yake ilikuwa 'maradhi'! 😂"),
+        ("Mfanyabiashara alisema nini kwa benki?", "Tafadhali nipe mkopo — niko 'ndani ya hasara'! 💸"),
+    ]
+
+    pool = jokes_rw if lang == "rw" else jokes_fr if lang == "fr" else jokes_sw if lang == "sw" else jokes_en
+    setup, punchline = random.choice(pool)
+
+    if lang == "rw":
+        return f"""Ibi biraseka! 😄
+
+{setup}
+
+👉 {punchline}
+
+Hahaha! Ntukunde cyane? 😂
+
+Kandi ubizi, igihe kirahagije — reka turebe uko {_shop_name(ctx)} igenda uyu munsi! 📊"""
+    if lang == "fr":
+        return f"""Voilà qui va vous faire sourire! 😄
+
+{setup}
+
+👉 {punchline}
+
+Ha! J'espère que ça vous a fait rire! 😂
+
+Bon, trêve de plaisanteries — on jette un œil sur {_shop_name(ctx)}? 📊"""
+    if lang == "sw":
+        return f"""Hii itakufurahisha! 😄
+
+{setup}
+
+👉 {punchline}
+
+Haha! Tumaini ilikufurahisha! 😂
+
+Sawa, tuweke mbali utani kwa sasa — tuangalie jinsi {_shop_name(ctx)} inavyofanya leo? 📊"""
+    return f"""Here's one that might make you smile! 😄
+
+{setup}
+
+👉 {punchline}
+
+Ha! Hope that landed! 😂
+
+Alright, back to business — want me to check how {_shop_name(ctx)} is doing today? 📊"""
+
+
+def _build_advice(ctx: dict, lang: str, message: str) -> str:
+    name = _shop_name(ctx)
+    if lang == "rw":
+        return f"""Nzagufasha gufata ibyemezo byiza! 🤔
+
+Mbere yo gutanga inama, ngomba kumenya byinshi:
+
+🔍 Mbwira ingorane cyangwa icyemezo gikomeye ufite ubu muri {name}?
+
+Urugero:
+• "Nkeneye gufata icyemezo ku biciro by'ibicuruzwa"
+• "Simbizi niba ngomba kongera ububiko"
+• "Mbona ibicuruzwa birangira ariko biraruhije"
+• "Simbizi niba ngomba gufungura ahantu hashya"
+
+Nisubiza ibyemezo bifatiye ku makuru y'ukuri y'iduka ryawe — si igitekerezo gusa!
+
+Mbwira ingorane yawe nyayo! 💬"""
+    if lang == "fr":
+        return f"""Je suis là pour vous aider à décider! 🤔
+
+Avant de vous conseiller, j'ai besoin de comprendre votre situation:
+
+🔍 Quelle est la décision ou le problème principal que vous affrontez dans {name} en ce moment?
+
+Par exemple:
+• "Je ne sais pas si je dois augmenter mes prix"
+• "J'hésite à commander plus de stock"
+• "Je perds des clients mais je ne sais pas pourquoi"
+• "Je veux ouvrir un deuxième magasin"
+
+Je base mes conseils sur vos données réelles — pas de l'intuition aléatoire!
+
+Décrivez votre situation et on analyse ensemble! 💬"""
+    if lang == "sw":
+        return f"""Niko hapa kukusaidia kufanya maamuzi mazuri! 🤔
+
+Kabla ya kukupa ushauri, nahitaji kuelewa hali yako:
+
+🔍 Ni tatizo gani au uamuzi gani mkubwa unakabiliana nao katika {name} sasa hivi?
+
+Mfano:
+• "Sijui kama niongeze bei za bidhaa"
+• "Ninasita kuagiza bidhaa zaidi"
+• "Ninapoteza wateja lakini sijui kwa nini"
+• "Nataka kufungua duka jingine"
+
+Ninakupa ushauri kulingana na data halisi ya biashara yako — si nadharia tu!
+
+Niambie hali yako na tutachambua pamoja! 💬"""
+    return f"""I'd love to help you think this through! 🤔
+
+Before I give advice, I need to understand your situation better:
+
+🔍 What's the specific decision or challenge you're facing at {name} right now?
+
+For example:
+• "Should I raise my prices?"
+• "I'm not sure whether to order more stock"
+• "I'm losing customers but don't know why"
+• "I want to expand but I'm not sure if I can afford it"
+
+I base my advice on your actual data, not guesswork — so the more specific you are, the better I can help!
+
+Tell me what's on your mind and let's work through it together! 💬"""
 
 
 # ── Data-driven response builders ────────────────────────────────────────────
@@ -962,51 +1407,52 @@ def _build_full_report(ctx: dict, lang: str) -> str:
 
 
 def _build_unknown(message: str, lang: str) -> str:
+    short = message[:60] + ("…" if len(message) > 60 else "")
     if lang == "rw":
-        return f"""Mmmh, simeze neza icyo ubaza: "{message}" 🤔
+        return f"""Hmm, simeze neza neza: "{short}" 🤔
 
-Ariko nshobora kukugezaho amakuru ku bibazo nk'ibi:
+Ariko nshobora kukugezaho amakuru ku bijyanye n'ubucuruzi bwawe! Baza:
 
 📊 "Iduka ryanjye rigenze bite uyu munsi?"
 📦 "Ni ibicuruzwa bihe bikenewe kuzuzwa?"
 💰 "Isesengura ry'imari yanjye?"
 🛒 "Amagurishwa yanjye yo muri iki cyumweru?"
-📈 "Ni iki kinshobora gufasha gutera imbere?"
-📋 "Mpore raporo yuzuye y'ubucuruzi"
+📈 "Inama zo kongera ubucuruzi?"
+📋 "Mpore raporo yuzuye"
+😊 Cyangwa baza "Muraho!" duganire!
 
-Gerageza ubaze kimwe muri ibi — nzasubiza neza! 😊"""
-
+Gerageza! 💬"""
     if lang == "fr":
-        return f"""Hmm, je n'ai pas très bien compris: "{message}" 🤔
+        return f"""Hmm, je n'ai pas tout à fait compris: "{short}" 🤔
 
-Mais je peux vous aider avec des questions comme:
+Je suis spécialisé dans les conseils commerciaux, mais essayez:
 
 📊 "Comment va mon commerce aujourd'hui?"
-📦 "Quels produits dois-je réapprovisionner?"
-💰 "Analyse financière de mon commerce"
+📦 "Quels produits réapprovisionner?"
+💰 "Analyse de mes finances"
 🛒 "Mes ventes cette semaine?"
-📈 "Comment puis-je faire croître mon commerce?"
+📈 "Comment croître?"
 📋 "Génère un rapport complet"
+😊 Ou dites juste "Salut!" pour papoter!
 
-Essayez l'une de ces formulations — je ferai de mon mieux! 😊"""
-
+Posez-moi n'importe quelle question! 💬"""
     if lang == "sw":
-        return f"""Hmm, sielewi vizuri: "{message}" 🤔
+        return f"""Hmm, sielewi vizuri: "{short}" 🤔
 
-Lakini ninaweza kukusaidia na maswali kama haya:
+Mimi ni mtaalamu wa biashara, lakini jaribu:
 
 📊 "Biashara yangu inakwenda vipi leo?"
 📦 "Bidhaa zipi zinahitaji kujazwa?"
 💰 "Uchambuzi wa fedha zangu"
-🛒 "Mauzo yangu ya wiki hii?"
-📈 "Ninawezaje kukuza biashara yangu?"
+🛒 "Mauzo ya wiki hii?"
+📈 "Ninawezaje kukua?"
 📋 "Tengeneza ripoti kamili"
+😊 Au sema tu "Habari!" tuongee!
 
-Jaribu moja ya hizi — nitafanya kila niwezalo! 😊"""
+Niulize chochote! 💬"""
+    return f"""Hmm, I'm not quite sure about: "{short}" 🤔
 
-    return f"""Hmm, I'm not quite sure what you mean by: "{message}" 🤔
-
-No worries though! Here are some things I can definitely help with:
+I'm best at business topics, but I can also just chat! Try:
 
 📊 "How is my business doing today?"
 📦 "Which products need restocking?"
@@ -1014,9 +1460,9 @@ No worries though! Here are some things I can definitely help with:
 🛒 "Show me my sales this week"
 📈 "How can I grow my business?"
 📋 "Generate a full business report"
-👋 Or just say hi and we can chat!
+😊 Or just say "Hi!" if you want to talk
 
-Try one of these and I'll give you a great answer! 😊"""
+What's on your mind? I'm here! 💬"""
 
 
 # ── Public entry point ────────────────────────────────────────────────────────
@@ -1034,24 +1480,32 @@ def generate_reply(
     t0     = time.perf_counter()
     intent = _detect_intent(user_message)
 
+    # Handlers that need the raw message text
+    message_aware = {"smalltalk", "advice"}
+
     dispatch = {
-        "greeting":    _build_greeting,
-        "thanks":      _build_thanks,
-        "help":        _build_help,
-        "performance": _build_performance,
-        "inventory":   _build_inventory,
-        "financial":   _build_financial,
-        "sales":       _build_sales,
-        "growth":      _build_growth,
-        "purchases":   _build_purchases,
-        "report":      _build_full_report,
+        "greeting":       _build_greeting,
+        "thanks":         _build_thanks,
+        "help":           _build_help,
+        "emotion_stress": _build_stress,
+        "emotion_happy":  _build_happy,
+        "smalltalk":      _build_smalltalk,
+        "joke":           _build_joke,
+        "advice":         _build_advice,
+        "performance":    _build_performance,
+        "inventory":      _build_inventory,
+        "financial":      _build_financial,
+        "sales":          _build_sales,
+        "growth":         _build_growth,
+        "purchases":      _build_purchases,
+        "report":         _build_full_report,
     }
 
-    builder = dispatch.get(intent, _build_unknown)
-    if builder in (_build_greeting, _build_thanks, _build_help):
-        reply = builder(context, language)
-    elif builder == _build_unknown or builder is None:
+    builder = dispatch.get(intent)
+    if builder is None:
         reply = _build_unknown(user_message, language)
+    elif intent in message_aware:
+        reply = builder(context, language, user_message)
     else:
         reply = builder(context, language)
 
