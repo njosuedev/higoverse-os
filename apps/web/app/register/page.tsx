@@ -111,6 +111,7 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState<string | null>(null);
   const [touched, setTouch]   = useState<Partial<Record<keyof FormData, boolean>>>({});
+  const [emailTaken, setEmailTaken] = useState(false);
 
   // step 3 — email verification
   const [verifyEmail, setVerifyEmail]   = useState("");
@@ -137,6 +138,7 @@ export default function RegisterPage() {
   const set = (k: keyof FormData, v: string) => {
     setForm(p => ({ ...p, [k]: v }));
     setTouch(p => ({ ...p, [k]: true }));
+    if (k === "email") { setEmailTaken(false); setError(null); }
   };
 
   const handleLogoFile = async (file: File) => {
@@ -170,6 +172,7 @@ export default function RegisterPage() {
   const handleSubmit = async () => {
     if (!step2Ok) return;
     setError(null);
+    setEmailTaken(false);
     setLoading(true);
     try {
       const AUTH_URL = process.env.NEXT_PUBLIC_AUTH_API || "https://higoverse-auth.vercel.app";
@@ -194,9 +197,24 @@ export default function RegisterPage() {
       });
       const text = await res.text();
       if (!res.ok) {
-        let msg = "Registration failed";
-        try { msg = JSON.parse(text)?.detail || msg; } catch { msg = text || msg; }
-        setError(msg);
+        let raw = "";
+        try { raw = JSON.parse(text)?.detail || ""; } catch { raw = text || ""; }
+        const lower = raw.toLowerCase();
+
+        if (lower.includes("already exists") || lower.includes("already registered")) {
+          setEmailTaken(true);
+          return;
+        }
+        if (lower.includes("verification email") || lower.includes("failed to send")) {
+          // Account created but email sending failed — jump to step 3 so user can resend
+          setVerifyEmail(form.email.trim());
+          setOtp("");
+          setVerifyError("We had trouble sending the verification email. Tap \"Resend code\" below to try again.");
+          setResendTimer(0);
+          setStep(3);
+          return;
+        }
+        setError(raw || "Registration failed. Please try again.");
         return;
       }
       setVerifyEmail(form.email.trim());
@@ -204,8 +222,8 @@ export default function RegisterPage() {
       setVerifyError(null);
       setResendTimer(60);
       setStep(3);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Network error. Please try again.");
+    } catch {
+      setError("Connection problem. Please check your internet and try again.");
     } finally {
       setLoading(false);
     }
@@ -556,7 +574,32 @@ export default function RegisterPage() {
                   </div>
                 </div>
 
-                <div className="flex gap-3 mt-6">
+                {/* Email already taken */}
+                {emailTaken && (
+                  <div className="mt-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-4">
+                    <p className="text-sm font-semibold text-amber-800 flex items-center gap-2">
+                      <AlertCircle size={15} className="shrink-0 text-amber-500" />
+                      This email is already registered
+                    </p>
+                    <p className="text-xs text-amber-700 mt-1 leading-relaxed">
+                      An account with <span className="font-semibold">{form.email}</span> already exists.
+                      Use a different email, or{" "}
+                      <Link href="/login" className="font-semibold underline underline-offset-2 hover:text-amber-900">
+                        sign in to your existing account
+                      </Link>.
+                    </p>
+                  </div>
+                )}
+
+                {/* Generic error */}
+                {error && !emailTaken && (
+                  <div className="mt-5 flex items-start gap-2.5 rounded-xl border border-red-200 bg-red-50 px-4 py-3.5 text-sm text-red-700">
+                    <AlertCircle size={15} className="shrink-0 mt-0.5 text-red-500" />
+                    <span>{error}</span>
+                  </div>
+                )}
+
+                <div className="flex gap-3 mt-5">
                   <button onClick={() => setStep(1)}
                     className="h-12 px-5 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 transition flex items-center gap-1.5 text-sm font-medium">
                     <ChevronLeft size={15} /> Back
