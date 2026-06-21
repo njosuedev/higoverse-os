@@ -286,6 +286,11 @@ const dict: Record<Lang, Record<string, string>> = {
     "dash.suppliers_customers": "suppliers & customers",
     "dash.transactions": "transactions",
     "dash.expenses_desc": "Track shop costs and calculate real profit.",
+    "dash.shop_status_today": "Today's Shop Status",
+    "dash.stock_cost": "Stock cost today",
+    "dash.net_profit": "Net Profit",
+    "dash.profitable": "Profitable ✓",
+    "dash.at_loss": "At a loss",
 
     // nav
     "nav.expenses": "Expenses",
@@ -593,6 +598,11 @@ const dict: Record<Lang, Record<string, string>> = {
     "dash.suppliers_customers": "abaganishi n'abakiriya",
     "dash.transactions": "ibikorwa",
     "dash.expenses_desc": "Genzura amafaranga yaguriyemo kandi menya inyungu nyayo.",
+    "dash.shop_status_today": "Imiterere y'Iduka Uyu Munsi",
+    "dash.stock_cost": "Igiciro cy'ububiko uyu munsi",
+    "dash.net_profit": "Inyungu Nyayo",
+    "dash.profitable": "Bikunze ✓",
+    "dash.at_loss": "Igiciro kirenze",
 
     "nav.expenses": "Amafaranga Yaguriyemo",
 
@@ -898,6 +908,11 @@ const dict: Record<Lang, Record<string, string>> = {
     "dash.suppliers_customers": "fournisseurs et clients",
     "dash.transactions": "transactions",
     "dash.expenses_desc": "Suivez les coûts et calculez le bénéfice réel.",
+    "dash.shop_status_today": "État de la Boutique Aujourd'hui",
+    "dash.stock_cost": "Coût des stocks aujourd'hui",
+    "dash.net_profit": "Bénéfice Net",
+    "dash.profitable": "Rentable ✓",
+    "dash.at_loss": "En perte",
 
     "nav.expenses": "Dépenses",
 
@@ -1203,6 +1218,11 @@ const dict: Record<Lang, Record<string, string>> = {
     "dash.suppliers_customers": "wasambazaji na wateja",
     "dash.transactions": "miamala",
     "dash.expenses_desc": "Fuatilia gharama na uhesabu faida halisi.",
+    "dash.shop_status_today": "Hali ya Duka Leo",
+    "dash.stock_cost": "Gharama za stoo leo",
+    "dash.net_profit": "Faida Halisi",
+    "dash.profitable": "Inafaidika ✓",
+    "dash.at_loss": "Hasara",
 
     "nav.expenses": "Matumizi",
 
