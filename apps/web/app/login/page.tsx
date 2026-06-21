@@ -2,9 +2,10 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import Image from "next/image";
 import { useAuth } from "@/lib/auth-context";
 import {
-  Mail, Lock, Loader2, Activity, Boxes, DollarSign,
+  Mail, Lock, Loader2, Boxes, DollarSign,
   Truck, BarChart3, ShieldCheck, CheckCircle2,
   KeyRound, ArrowLeft, Eye, EyeOff, RefreshCw,
 } from "lucide-react";
@@ -146,9 +147,7 @@ export default function LoginPage() {
 
         <div className="relative z-10 flex flex-col justify-center px-16 text-white">
           <div className="flex items-center gap-3 mb-10">
-            <div className="h-12 w-12 rounded-2xl bg-white/10 flex items-center justify-center">
-              <Activity className="w-6 h-6 text-white" />
-            </div>
+            <Image src="/higoverse.png" alt="Higoverse" width={48} height={48} className="rounded-2xl" />
             <span className="font-bold text-2xl">Higoverse</span>
           </div>
 
