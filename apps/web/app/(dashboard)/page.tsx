@@ -758,37 +758,51 @@ interface KpiCardProps {
   t: (key: string) => string;
 }
 
-const KPI_COLORS: Record<string, { icon: string; border: string }> = {
-  blue:   { icon: "bg-[#D5E8FB] text-[#1372e6]", border: "border-[#D5E8FB]" },
-  indigo: { icon: "bg-[#D5E8FB] text-[#1372e6]", border: "border-[#D5E8FB]" },
-  teal:   { icon: "bg-[#D5E8FB] text-[#1372e6]", border: "border-[#D5E8FB]" },
-  green:  { icon: "bg-green-100 text-green-600",  border: "border-green-100" },
-  orange: { icon: "bg-amber-100 text-amber-600",  border: "border-amber-100" },
-  red:    { icon: "bg-red-100 text-red-600",      border: "border-red-200" },
-  slate:  { icon: "bg-slate-100 text-slate-500",  border: "border-slate-100" },
+const KPI_COLORS: Record<string, { icon: string; accent: string; bg: string }> = {
+  blue:   { icon: "bg-[#EBF4FF] text-[#1372e6]",  accent: "bg-[#1372e6]",  bg: "" },
+  indigo: { icon: "bg-indigo-50 text-indigo-600",  accent: "bg-indigo-500", bg: "" },
+  teal:   { icon: "bg-teal-50 text-teal-600",      accent: "bg-teal-500",   bg: "" },
+  green:  { icon: "bg-green-50 text-green-600",    accent: "bg-green-500",  bg: "" },
+  orange: { icon: "bg-amber-50 text-amber-600",    accent: "bg-amber-500",  bg: "" },
+  red:    { icon: "bg-red-50 text-red-600",        accent: "bg-red-500",    bg: "" },
+  slate:  { icon: "bg-slate-100 text-slate-400",   accent: "bg-slate-300",  bg: "" },
 };
 
 function KpiCard({ label, value, icon, color, href, sub, small, delta, warn, t }: KpiCardProps) {
   const c = KPI_COLORS[color] ?? KPI_COLORS.slate;
   return (
-    <Link href={href}
-      className={`bg-white border rounded-xl p-3 shadow-sm block ${warn ? "border-red-200" : c.border}`}>
-      <div className={`w-8 h-8 rounded-xl ${c.icon} flex items-center justify-center mb-2`}>
-        {icon}
-      </div>
-      <p className="text-[9px] text-slate-400 font-medium">{label}</p>
-      <p className={`font-extrabold text-slate-900 mt-0.5 leading-tight truncate ${small ? "text-xs" : "text-base"}`}>
-        {value}
-      </p>
-      {delta !== null && delta !== undefined && (
-        <p className={`text-[9px] font-semibold mt-0.5 flex items-center gap-0.5 ${delta >= 0 ? "text-green-600" : "text-red-500"}`}>
-          {delta >= 0 ? <TrendingUp size={8} /> : <TrendingDown size={8} />}
-          {Math.abs(delta)}% {t("dash.vs_yesterday")}
+    <Link href={href} className="relative bg-white border border-slate-100 rounded-xl p-3 block overflow-hidden shadow-sm">
+      {/* Left accent bar */}
+      <div className={`absolute left-0 top-0 bottom-0 w-1 rounded-l-xl ${warn ? "bg-red-500" : c.accent}`} />
+
+      <div className="pl-2.5">
+        {/* Top row: label + icon */}
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-[9px] text-slate-400 uppercase tracking-widest font-semibold">{label}</p>
+          <div className={`w-7 h-7 rounded-lg ${c.icon} flex items-center justify-center flex-shrink-0`}>
+            {icon}
+          </div>
+        </div>
+
+        {/* Value */}
+        <p className={`font-extrabold text-slate-900 leading-tight truncate ${small ? "text-sm" : "text-lg"}`}>
+          {value}
         </p>
-      )}
-      {sub && !delta && (
-        <p className="text-[9px] text-slate-300 mt-0.5 truncate">{sub}</p>
-      )}
+
+        {/* Delta badge or sub text */}
+        <div className="mt-1.5 h-4 flex items-center">
+          {delta !== null && delta !== undefined ? (
+            <span className={`inline-flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full ${
+              delta >= 0 ? "bg-green-50 text-green-600" : "bg-red-50 text-red-500"
+            }`}>
+              {delta >= 0 ? <TrendingUp size={8} /> : <TrendingDown size={8} />}
+              {Math.abs(delta)}% {t("dash.vs_yesterday")}
+            </span>
+          ) : sub ? (
+            <p className="text-[9px] text-slate-400 truncate">{sub}</p>
+          ) : null}
+        </div>
+      </div>
     </Link>
   );
 }
