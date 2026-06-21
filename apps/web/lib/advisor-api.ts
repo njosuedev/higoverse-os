@@ -1,7 +1,7 @@
 import { getToken, handleUnauthorized } from "@/lib/auth";
 
 const ADVISOR_API =
-  process.env.NEXT_PUBLIC_API_ADVISOR || "https://higoverse-advisor.vercel.app";
+  process.env.NEXT_PUBLIC_API_ADVISOR || "https://higoverse-advisor.onrender.com";
 
 async function advisorRequest(endpoint: string, options: RequestInit = {}) {
   const token = getToken();
