@@ -54,13 +54,14 @@ def register_shop(db: Session, shop_db: Session, data):
     )
     db.add(shop_in_authdb)
 
-    # 6. CREATE OWNER USER in auth_db
+    # 6. CREATE OWNER USER in auth_db (inactive until email is verified)
     user = User(
         email=data.email,
         password_hash=hash_password(data.password),
         shop_id=shop_id,
         role=data.role,
         role_id=None,
+        is_active=False,
     )
     db.add(user)
 
@@ -86,6 +87,12 @@ def login_user(db: Session, email: str, password: str):
         raise HTTPException(
             status_code=401,
             detail="Invalid email or password"
+        )
+
+    if not user.is_active:
+        raise HTTPException(
+            status_code=403,
+            detail="Email not verified. Please enter the code sent to your inbox."
         )
 
     # 3. CREATE JWT TOKEN

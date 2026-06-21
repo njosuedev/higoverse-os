@@ -35,3 +35,8 @@ class ResetPasswordRequest(BaseModel):
     email: EmailStr
     otp: str
     new_password: str
+
+
+class VerifyRegistrationRequest(BaseModel):
+    email: EmailStr
+    otp: str

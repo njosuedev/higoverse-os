@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import {
   Building2, Mail, Phone, Lock, Eye, EyeOff,
   MapPin, FileText, ChevronRight, ChevronLeft,
-  CheckCircle2, AlertCircle, Loader2, Activity,
+  CheckCircle2, AlertCircle, Loader2, RefreshCw,
   Store, ShieldCheck, Boxes, BarChart3,
 } from "lucide-react";
 
@@ -82,11 +83,25 @@ const inputCls = "w-full h-12 pl-10 pr-4 bg-transparent outline-none text-slate-
 /* ── Page ───────────────────────────────────────────────── */
 export default function RegisterPage() {
   const router = useRouter();
-  const [step, setStep]       = useState<1 | 2>(1);
+  const [step, setStep]       = useState<1 | 2 | 3>(1);
   const [showPw, setShowPw]   = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState<string | null>(null);
   const [touched, setTouch]   = useState<Partial<Record<keyof FormData, boolean>>>({});
+
+  // step 3 — email verification
+  const [verifyEmail, setVerifyEmail]   = useState("");
+  const [otp, setOtp]                   = useState("");
+  const [verifyLoading, setVerifyLoading] = useState(false);
+  const [verifyError, setVerifyError]   = useState<string | null>(null);
+  const [resendTimer, setResendTimer]   = useState(0);
+
+  // countdown for resend button
+  useEffect(() => {
+    if (resendTimer <= 0) return;
+    const t = setTimeout(() => setResendTimer(s => s - 1), 1000);
+    return () => clearTimeout(t);
+  }, [resendTimer]);
 
   const [form, setForm] = useState<FormData>({
     shop_name: "", business_type: "", address: "", description: "",
@@ -114,7 +129,7 @@ export default function RegisterPage() {
   const step2Ok = v.email && v.phone && v.password && v.confirm;
   const pw      = passwordStrength(form.password);
 
-  /* ── Submit ──────────────────────────────────────────── */
+  /* ── Submit (step 2 → 3) ─────────────────────────────── */
   const handleSubmit = async () => {
     if (!step2Ok) return;
     setError(null);
@@ -146,11 +161,62 @@ export default function RegisterPage() {
         setError(msg);
         return;
       }
-      router.push("/login?registered=1");
+      setVerifyEmail(form.email.trim());
+      setOtp("");
+      setVerifyError(null);
+      setResendTimer(60);
+      setStep(3);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Network error. Please try again.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  /* ── Verify email OTP (step 3) ───────────────────────── */
+  const handleVerify = async () => {
+    if (otp.length !== 6) return;
+    setVerifyError(null);
+    setVerifyLoading(true);
+    try {
+      const AUTH_URL = process.env.NEXT_PUBLIC_AUTH_API || "https://higoverse-auth.vercel.app";
+      const res  = await fetch(`${AUTH_URL}/api/v1/auth/verify-registration`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: verifyEmail, otp }),
+      });
+      const text = await res.text();
+      if (!res.ok) {
+        let msg = "Verification failed";
+        try { msg = JSON.parse(text)?.detail || msg; } catch { msg = text || msg; }
+        setVerifyError(msg);
+        return;
+      }
+      router.push("/login?registered=1");
+    } catch (err) {
+      setVerifyError(err instanceof Error ? err.message : "Network error. Please try again.");
+    } finally {
+      setVerifyLoading(false);
+    }
+  };
+
+  /* ── Resend verification code ────────────────────────── */
+  const handleResend = async () => {
+    setVerifyError(null);
+    setVerifyLoading(true);
+    try {
+      const AUTH_URL = process.env.NEXT_PUBLIC_AUTH_API || "https://higoverse-auth.vercel.app";
+      await fetch(`${AUTH_URL}/api/v1/auth/resend-verification`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: verifyEmail }),
+      });
+      setOtp("");
+      setResendTimer(60);
+    } catch {
+      setVerifyError("Network error. Please try again.");
+    } finally {
+      setVerifyLoading(false);
     }
   };
 
@@ -167,9 +233,7 @@ export default function RegisterPage() {
         <div className="relative z-10 flex flex-col justify-center flex-1 px-12 text-white">
           {/* Brand */}
           <div className="flex items-center gap-3 mb-10">
-            <div className="w-11 h-11 rounded-2xl bg-white/10 flex items-center justify-center">
-              <Activity size={22} />
-            </div>
+            <Image src="/higoverse.png" alt="Higoverse" width={44} height={44} className="rounded-2xl" />
             <span className="font-bold text-xl tracking-tight">Higoverse</span>
           </div>
 
@@ -200,6 +264,7 @@ export default function RegisterPage() {
             {[
               { n: 1, title: "Shop Information",   sub: "Name, type & location" },
               { n: 2, title: "Account & Security", sub: "Email, phone & password" },
+              { n: 3, title: "Verify Email",        sub: "Enter the code we sent you" },
             ].map(s => (
               <div key={s.n} className={`flex items-center gap-3 p-3 rounded-xl transition-all ${step === s.n ? "bg-white/15" : "opacity-50"}`}>
                 <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${step > s.n ? "bg-green-400 text-white" : step === s.n ? "bg-white text-slate-900" : "bg-white/20 text-white"}`}>
@@ -221,21 +286,19 @@ export default function RegisterPage() {
 
           {/* Mobile brand */}
           <div className="flex lg:hidden items-center gap-2 mb-6">
-            <div className="w-8 h-8 rounded-xl bg-blue-600 flex items-center justify-center">
-              <Activity size={16} className="text-white" />
-            </div>
+            <Image src="/higoverse.png" alt="Higoverse" width={32} height={32} className="rounded-xl" />
             <span className="font-bold text-slate-800">Higoverse</span>
           </div>
 
           {/* Progress bar */}
           <div className="mb-6">
             <div className="flex items-center justify-between mb-2">
-              <p className="text-xs font-medium text-slate-500">Step {step} of 2</p>
-              <p className="text-xs text-slate-400">{step === 1 ? "Shop details" : "Account setup"}</p>
+              <p className="text-xs font-medium text-slate-500">Step {step} of 3</p>
+              <p className="text-xs text-slate-400">{step === 1 ? "Shop details" : step === 2 ? "Account setup" : "Email verification"}</p>
             </div>
             <div className="h-1.5 bg-slate-200 rounded-full overflow-hidden">
               <div className="h-full bg-linear-to-r from-blue-500 to-indigo-500 rounded-full transition-all duration-500"
-                style={{ width: step === 1 ? "50%" : "100%" }} />
+                style={{ width: step === 1 ? "33%" : step === 2 ? "66%" : "100%" }} />
             </div>
           </div>
 
@@ -415,6 +478,65 @@ export default function RegisterPage() {
                 <p className="text-center text-xs text-slate-400 mt-4">
                   By registering you agree to our Terms of Service
                 </p>
+              </>
+            )}
+
+            {/* ── STEP 3: Email Verification ─────────── */}
+            {step === 3 && (
+              <>
+                <div className="flex items-center justify-center w-14 h-14 bg-blue-50 rounded-2xl mb-4 mx-auto">
+                  <Mail size={26} className="text-blue-600" />
+                </div>
+                <div className="text-center mb-6">
+                  <h2 className="text-2xl font-bold text-slate-900">Check your email</h2>
+                  <p className="text-slate-500 text-sm mt-1">
+                    We sent a 6-digit code to
+                  </p>
+                  <p className="font-semibold text-slate-800 text-sm mt-0.5 break-all">{verifyEmail}</p>
+                </div>
+
+                {verifyError && (
+                  <div className="mb-4 flex items-center gap-2 bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-xl text-sm">
+                    <AlertCircle size={15} className="shrink-0" /> {verifyError}
+                  </div>
+                )}
+
+                <div className="space-y-5">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">6-digit code</label>
+                    <input
+                      type="text" inputMode="numeric" maxLength={6} placeholder="000000"
+                      value={otp}
+                      onChange={e => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                      className="w-full h-14 text-center text-2xl font-bold tracking-[0.5em] rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-gray-700 outline-none transition"
+                      autoFocus
+                    />
+                  </div>
+
+                  <button
+                    onClick={handleVerify}
+                    disabled={otp.length !== 6 || verifyLoading}
+                    className="w-full h-12 rounded-xl bg-linear-to-r from-blue-600 to-indigo-600 text-white font-semibold flex items-center justify-center gap-2 disabled:opacity-50 hover:opacity-90 transition"
+                  >
+                    {verifyLoading ? <><Loader2 size={16} className="animate-spin" /> Verifying…</> : "Verify Email"}
+                  </button>
+                </div>
+
+                <div className="mt-5 text-center">
+                  {resendTimer > 0 ? (
+                    <p className="text-sm text-slate-400">
+                      Resend code in <span className="font-semibold text-slate-600">{resendTimer}s</span>
+                    </p>
+                  ) : (
+                    <button
+                      onClick={handleResend}
+                      disabled={verifyLoading}
+                      className="flex items-center gap-1.5 text-sm text-blue-600 hover:underline mx-auto disabled:opacity-50"
+                    >
+                      <RefreshCw size={13} /> Resend code
+                    </button>
+                  )}
+                </div>
               </>
             )}
           </div>
