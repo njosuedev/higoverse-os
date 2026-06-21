@@ -3,7 +3,6 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { useRouter } from "next/navigation";
-import DashboardHeader from "@/app/components/dashboard/DashboardHeader";
 import {
   getAdminStats, getAdminShops, getAdminUsers,
   toggleShop, deleteShop, toggleUser, updateUserRole,
@@ -241,9 +240,7 @@ export default function AdminPage() {
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen" style={{ background: "#F3F2EE" }}>
-      <DashboardHeader />
-
-      <main className="max-w-6xl mx-auto px-4 sm:px-6 py-4 sm:py-6 space-y-4">
+      <main className="max-w-6xl mx-auto px-3 sm:px-5 py-3 sm:py-4 space-y-4">
 
         {/* ── Top bar ─────────────────────────────────────────────────────── */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 px-5 py-4 flex items-center justify-between">

@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { expenseRequest } from "@/lib/expense-api";
 import { useLanguage } from "@/lib/language-context";
-import DashboardHeader from "@/app/components/dashboard/DashboardHeader";
 import PageSkeleton from "@/app/components/dashboard/PageSkeleton";
 import Pagination from "@/app/components/ui/Pagination";
 import DateRangeFilter from "@/app/components/ui/DateRangeFilter";
@@ -189,8 +188,7 @@ export default function ExpenseManagementPage() {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <DashboardHeader />
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
+      <div className="max-w-7xl mx-auto px-3 sm:px-5 py-3 sm:py-4">
 
         {/* ── HEADER ─────────────────────────────────────────── */}
         <div className="text-white rounded-2xl p-5 mb-6" style={{ background: "#1372e6" }}>

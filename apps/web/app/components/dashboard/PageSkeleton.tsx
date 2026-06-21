@@ -1,7 +1,5 @@
 "use client";
 
-import DashboardHeader from "./DashboardHeader";
-
 interface Props {
   /** number of stat pill cards under the banner */
   cards?: number;
@@ -27,8 +25,6 @@ export default function PageSkeleton({
 }: Props) {
   return (
     <div className="min-h-screen bg-slate-50">
-      <DashboardHeader />
-
       <div className="max-w-7xl mx-auto px-3 sm:px-5 py-3 sm:py-4 space-y-3">
 
         {/* Banner */}

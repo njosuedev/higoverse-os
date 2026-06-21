@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useRef, useCallback } from "react";
-import DashboardHeader from "@/app/components/dashboard/DashboardHeader";
 import { useLanguage } from "@/lib/language-context";
 import { useShop } from "@/lib/shop-context";
 import { playAIResponse } from "@/lib/sound";
@@ -247,9 +246,7 @@ export default function AdvisorPage() {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <DashboardHeader />
-
-      <div className="max-w-7xl mx-auto px-4 py-5 flex gap-4 h-[calc(100vh-78px)]">
+      <div className="max-w-7xl mx-auto px-3 sm:px-5 py-3 flex gap-4 h-[calc(100vh-78px)]">
 
         {/* ── SIDEBAR ─────────────────────────────────────────── */}
         <aside className={`flex-shrink-0 w-64 flex-col gap-3

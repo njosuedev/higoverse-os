@@ -6,7 +6,6 @@ import { getMyShop, updateMyShop } from "@/lib/shop-api";
 import { changePassword } from "@/lib/auth-api";
 import { useLanguage } from "@/lib/language-context";
 import { type Lang } from "@/lib/i18n";
-import DashboardHeader from "@/app/components/dashboard/DashboardHeader";
 import PageSkeleton from "@/app/components/dashboard/PageSkeleton";
 import {
   Settings, Save, RefreshCw, Store, Phone, MapPin, DollarSign,
@@ -246,9 +245,7 @@ export default function SettingsPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 pb-32">
-      <DashboardHeader />
-
-      <div className="max-w-3xl mx-auto px-4 sm:px-6 py-4 sm:py-6 space-y-4">
+      <div className="max-w-3xl mx-auto px-3 sm:px-5 py-3 sm:py-4 space-y-4">
 
         {/* ── HEADER ─────────────────────────────── */}
         <div className="bg-linear-to-r from-slate-700 to-slate-900 text-white rounded-2xl p-5">

@@ -11,7 +11,6 @@ import { reportRequest } from "@/lib/report-api";
 import { expenseRequest } from "@/lib/expense-api";
 import { purchaseRequest } from "@/lib/purchase-api";
 import { listShops, type Shop as ShopInfo } from "@/lib/shop-api";
-import DashboardHeader from "../components/dashboard/DashboardHeader";
 import LoadingSkeleton from "@/app/components/dashboard/LoadingSkeleton";
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer,
@@ -224,8 +223,6 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <DashboardHeader />
-
       <main className="max-w-7xl mx-auto px-3 sm:px-5 py-3 sm:py-4 space-y-4">
 
         {/* ── HERO ────────────────────────────────────────────────────────────── */}
@@ -650,7 +647,7 @@ export default function DashboardPage() {
 
                 return (
                   <div key={shop.id}
-                    className={`relative rounded-2xl border shadow-sm bg-white ${
+                    className={`relative rounded-xl border bg-white ${
                       isMine
                         ? "border-[#A8C8F8] ring-2 ring-[#1372e6]/20"
                         : presence.online
@@ -659,51 +656,46 @@ export default function DashboardPage() {
                     }`}>
 
                     {/* Cover band */}
-                    <div className="h-14 bg-[#1372e6] rounded-t-2xl relative overflow-hidden">
+                    <div className="h-16 bg-[#1372e6] rounded-t-xl relative overflow-hidden">
                       {isMine && (
-                        <span className="absolute top-1.5 right-1.5 text-[8px] font-black bg-white text-[#1372e6] px-1.5 py-0.5 rounded-full shadow">
+                        <span className="absolute top-1.5 right-1.5 text-[8px] font-black bg-white text-[#1372e6] px-1.5 py-0.5 rounded-full leading-none shadow">
                           YOU
                         </span>
                       )}
                       {presence.online && !isMine && (
-                        <span className="absolute top-1.5 right-1.5 flex items-center gap-1 text-[8px] font-black bg-green-500 text-white px-1.5 py-0.5 rounded-full shadow">
+                        <span className="absolute top-1.5 right-1.5 flex items-center gap-0.5 text-[8px] font-black bg-green-500 text-white px-1.5 py-0.5 rounded-full leading-none shadow">
                           <span className="w-1 h-1 rounded-full bg-white animate-pulse" />
                           LIVE
                         </span>
                       )}
                     </div>
 
-                    {/* Logo — sits below cover, not overlapping, fully visible */}
-                    <div className="px-3 pb-3 pt-2">
-                      <div className="mb-2 flex items-center justify-center">
-                        <div className="w-14 h-14 rounded-2xl border-2 border-slate-200 shadow-sm overflow-hidden bg-slate-100 flex items-center justify-center">
-                          {shop.logo_url ? (
-                            <img src={shop.logo_url} alt={shop.name} className="w-full h-full object-cover" />
-                          ) : (
-                            <span className="text-lg font-black text-white bg-[#1372e6] w-full h-full flex items-center justify-center">
-                              {initial}
-                            </span>
-                          )}
-                        </div>
+                    {/* Circular avatar overlapping cover */}
+                    <div className="relative z-10 flex justify-center -mt-7">
+                      <div className="w-14 h-14 rounded-full border-4 border-white overflow-hidden bg-slate-100 flex items-center justify-center shadow-sm">
+                        {shop.logo_url ? (
+                          <img src={shop.logo_url} alt={shop.name} className="w-full h-full object-cover" />
+                        ) : (
+                          <span className="text-base font-black text-white bg-[#1372e6] w-full h-full flex items-center justify-center">
+                            {initial}
+                          </span>
+                        )}
                       </div>
+                    </div>
 
-                      <p className="text-xs font-bold text-slate-900 leading-tight truncate text-center" title={shop.name}>
+                    {/* Info */}
+                    <div className="px-3 pb-3 pt-1.5 text-center">
+                      <p className="text-xs font-semibold text-slate-900 leading-tight truncate" title={shop.name}>
                         {shop.name}
                       </p>
 
                       {shop.phone && (
-                        <p className="text-[9px] text-slate-400 mt-0.5 flex items-center justify-center gap-1 truncate">
-                          <Phone size={8} /> {shop.phone}
+                        <p className="text-[9px] text-slate-400 mt-0.5 truncate">
+                          {shop.phone}
                         </p>
                       )}
 
-                      {(shop as any).address && (
-                        <p className="text-[9px] text-slate-400 mt-0.5 flex items-center justify-center gap-1 truncate">
-                          <MapPin size={8} /> {(shop as any).address}
-                        </p>
-                      )}
-
-                      <div className={`mt-1.5 flex items-center justify-center gap-1 text-[9px] font-semibold ${
+                      <div className={`mt-1.5 flex items-center justify-center gap-1 text-[9px] font-medium ${
                         isMine ? "text-[#1372e6]" : presence.online ? "text-green-600" : "text-slate-400"
                       }`}>
                         <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${

@@ -7,7 +7,6 @@ import { partnerRequest } from "@/lib/supplier-api";
 import { purchaseRequest } from "@/lib/purchase-api";
 import { useDebounce } from "@/lib/hooks";
 import { useLanguage } from "@/lib/language-context";
-import DashboardHeader from "@/app/components/dashboard/DashboardHeader";
 import PageSkeleton from "@/app/components/dashboard/PageSkeleton";
 import Pagination from "@/app/components/ui/Pagination";
 import DateRangeFilter from "@/app/components/ui/DateRangeFilter";
@@ -220,8 +219,7 @@ export default function PurchaseManagementPage() {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <DashboardHeader />
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
+      <div className="max-w-7xl mx-auto px-3 sm:px-5 py-3 sm:py-4">
 
         {/* HEADER */}
         <div className="bg-linear-to-r from-[#1372e6] to-[#0d5cc4] text-white rounded-2xl p-5 mb-6">

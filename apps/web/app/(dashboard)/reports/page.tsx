@@ -11,7 +11,6 @@ import { itemRequest } from "@/lib/product-api";
 import { purchaseRequest } from "@/lib/purchase-api";
 import { expenseRequest } from "@/lib/expense-api";
 import { useLanguage } from "@/lib/language-context";
-import DashboardHeader from "@/app/components/dashboard/DashboardHeader";
 import PageSkeleton from "@/app/components/dashboard/PageSkeleton";
 import DateRangeFilter from "@/app/components/ui/DateRangeFilter";
 import {
@@ -306,8 +305,7 @@ export default function ReportsPage() {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <DashboardHeader />
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-6">
+      <div className="max-w-7xl mx-auto px-3 sm:px-5 py-3 sm:py-4 space-y-4">
 
         {/* ── HEADER ─────────────────────────────────────────────────────────── */}
         <div className="bg-linear-to-r from-slate-800 to-slate-900 text-white rounded-2xl p-5">

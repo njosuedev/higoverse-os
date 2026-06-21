@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import DashboardHeader from "@/app/components/dashboard/DashboardHeader";
 import { useLanguage } from "@/lib/language-context";
 import { itemRequest } from "@/lib/product-api";
 import { settingsRequest } from "@/lib/settings-api";
@@ -270,9 +269,8 @@ export default function ProformaPage() {
   const grandTotal2 = subtotal2 + taxAmt2;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50/30">
-      <DashboardHeader />
-      <div className="max-w-5xl mx-auto px-6 py-6">
+    <div className="min-h-screen bg-slate-50">
+      <div className="max-w-5xl mx-auto px-3 sm:px-5 py-3 sm:py-4">
 
         {/* PAGE HEADER */}
         <div className="text-white rounded-2xl p-5 mb-6" style={{ background: "#1372e6" }}>
