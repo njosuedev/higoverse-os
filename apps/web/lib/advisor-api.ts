@@ -41,8 +41,6 @@ export interface ChatResponse {
   reply: string;
   conversation_id: string;
   message_id: string;
-  messages_used: number;
-  messages_remaining: number;
   language: string;
 }
 
@@ -53,54 +51,14 @@ export interface Conversation {
   updated_at: string;
 }
 
-export interface Subscription {
-  shop_id: string;
-  shop_name: string;
-  plan: string;
-  status: string;
-  is_active: boolean;
-  messages_used: number;
-  messages_limit: number;
-  messages_remaining: number;
-  trial_ends_at: string | null;
-  period_end: string | null;
-  created_at: string;
-}
-
-export interface Plan {
-  id: string;
-  label: string;
-  messages: number;
-  price_rwf: number;
-  price_monthly: string;
-}
-
 export async function sendChat(
   message: string,
   conversationId: string | null,
   language: string,
 ): Promise<ChatResponse> {
-  const data = await advisorRequest("/advisor/chat", {
+  return advisorRequest("/advisor/chat", {
     method: "POST",
     body: JSON.stringify({ message, conversation_id: conversationId, language }),
-  });
-  return data as ChatResponse;
-}
-
-export async function getSubscription(): Promise<Subscription> {
-  const data = await advisorRequest("/advisor/subscription/");
-  return data as Subscription;
-}
-
-export async function getPlans(): Promise<Plan[]> {
-  const data = await advisorRequest("/advisor/subscription/plans");
-  return (data?.data ?? []) as Plan[];
-}
-
-export async function upgradePlan(plan: string) {
-  return advisorRequest("/advisor/subscription/upgrade", {
-    method: "POST",
-    body: JSON.stringify({ plan }),
   });
 }
 
