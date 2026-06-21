@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
 import { useLanguage } from "@/lib/language-context";
@@ -201,7 +201,18 @@ export default function DashboardPage() {
 
   const currentShop = shops.find((s) => s.id === user.shop_id);
   const onlineCount = shops.filter((s) => shopPresence(s.last_seen_at, now).online).length;
-  const chartData   = dailyData.filter((d) => d.day).map((d) => ({ day: shortDay(d.day), revenue: d.revenue, profit: d.profit }));
+  const chartData = useMemo(() => {
+    const byDay: Record<string, DailyRecord> = {};
+    dailyData.forEach((d) => { if (d.day) byDay[d.day] = d; });
+    const result = [];
+    for (let i = 7; i >= 0; i--) {
+      const d = new Date(); d.setDate(d.getDate() - i);
+      const key = toDateStr(d);
+      const row = byDay[key] ?? { day: key, revenue: 0, profit: 0, sales_count: 0 };
+      result.push({ day: shortDay(key), revenue: row.revenue, profit: row.profit });
+    }
+    return result;
+  }, [dailyData]);
   const revDeltaPct = yesterdayRevenue > 0
     ? Math.round(((stats.revenue - yesterdayRevenue) / yesterdayRevenue) * 100)
     : null;
@@ -384,58 +395,48 @@ export default function DashboardPage() {
                   <Activity size={16} className="text-[#1372e6]" />
                   {t("dash.revenue_7d")}
                 </h2>
-                {chartData.length > 0 && (
-                  <p className="text-xs text-slate-400 mt-0.5">
-                    {t("common.total")}: {fmtCurrency(chartData.reduce((s, d) => s + d.revenue, 0))}
-                  </p>
-                )}
+                <p className="text-xs text-slate-400 mt-0.5">
+                  {t("common.total")}: {fmtCurrency(chartData.reduce((s, d) => s + d.revenue, 0))}
+                </p>
               </div>
               <Link href="/reports" className="text-xs font-semibold text-[#1372e6] hover:underline">
                 {t("dash.full_report")} →
               </Link>
             </div>
 
-            {chartData.length === 0 ? (
-              <div className="h-32 flex items-center justify-center text-slate-400 text-sm">
-                {t("common.no_data")}
-              </div>
-            ) : (
-              <>
-                <ResponsiveContainer width="100%" height={130}>
-                  <AreaChart data={chartData} margin={{ top: 8, right: 4, bottom: 0, left: -20 }}>
-                    <defs>
-                      <linearGradient id="revFill" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%"  stopColor="#1372e6" stopOpacity={0.25} />
-                        <stop offset="95%" stopColor="#1372e6" stopOpacity={0} />
-                      </linearGradient>
-                      <linearGradient id="profFill" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%"  stopColor="#10b981" stopOpacity={0.2} />
-                        <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
-                      </linearGradient>
-                    </defs>
-                    <XAxis dataKey="day" tick={{ fontSize: 10, fill: "#94a3b8" }} tickLine={false} axisLine={false} />
-                    <YAxis hide />
-                    <Tooltip
-                      contentStyle={{ fontSize: 11, borderRadius: 8, border: "1px solid #e2e8f0", boxShadow: "0 2px 8px rgba(0,0,0,.06)" }}
-                      formatter={(v: unknown, name: unknown) => [
-                        fmtCurrency(typeof v === "number" ? v : 0),
-                        name === "revenue" ? t("dash.revenue_label") : t("dash.profit_label"),
-                      ]}
-                    />
-                    <Area type="monotone" dataKey="revenue" stroke="#1372e6" fill="url(#revFill)" strokeWidth={2} dot={false} />
-                    <Area type="monotone" dataKey="profit"  stroke="#10b981" fill="url(#profFill)" strokeWidth={1.5} dot={false} strokeDasharray="4 2" />
-                  </AreaChart>
-                </ResponsiveContainer>
-                <div className="flex items-center gap-4 mt-2">
-                  <span className="flex items-center gap-1.5 text-[11px] text-slate-500">
-                    <span className="w-3 h-0.5 rounded" style={{ background: "#1372e6" }} /> {t("dash.revenue_label")}
-                  </span>
-                  <span className="flex items-center gap-1.5 text-[11px] text-slate-500">
-                    <span className="w-3 h-0.5 bg-emerald-500 rounded" /> {t("dash.profit_label")}
-                  </span>
-                </div>
-              </>
-            )}
+            <ResponsiveContainer width="100%" height={130}>
+              <AreaChart data={chartData} margin={{ top: 8, right: 4, bottom: 0, left: -20 }}>
+                <defs>
+                  <linearGradient id="revFill" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%"  stopColor="#1372e6" stopOpacity={0.25} />
+                    <stop offset="95%" stopColor="#1372e6" stopOpacity={0} />
+                  </linearGradient>
+                  <linearGradient id="profFill" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%"  stopColor="#10b981" stopOpacity={0.2} />
+                    <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <XAxis dataKey="day" tick={{ fontSize: 10, fill: "#94a3b8" }} tickLine={false} axisLine={false} />
+                <YAxis hide />
+                <Tooltip
+                  contentStyle={{ fontSize: 11, borderRadius: 8, border: "1px solid #e2e8f0", boxShadow: "0 2px 8px rgba(0,0,0,.06)" }}
+                  formatter={(v: unknown, name: unknown) => [
+                    fmtCurrency(typeof v === "number" ? v : 0),
+                    name === "revenue" ? t("dash.revenue_label") : t("dash.profit_label"),
+                  ]}
+                />
+                <Area type="monotone" dataKey="revenue" stroke="#1372e6" fill="url(#revFill)" strokeWidth={2} dot={false} />
+                <Area type="monotone" dataKey="profit"  stroke="#10b981" fill="url(#profFill)" strokeWidth={1.5} dot={false} strokeDasharray="4 2" />
+              </AreaChart>
+            </ResponsiveContainer>
+            <div className="flex items-center gap-4 mt-2">
+              <span className="flex items-center gap-1.5 text-[11px] text-slate-500">
+                <span className="w-3 h-0.5 rounded" style={{ background: "#1372e6" }} /> {t("dash.revenue_label")}
+              </span>
+              <span className="flex items-center gap-1.5 text-[11px] text-slate-500">
+                <span className="w-3 h-0.5 bg-emerald-500 rounded" /> {t("dash.profit_label")}
+              </span>
+            </div>
           </section>
 
           <section className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
