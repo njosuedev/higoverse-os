@@ -148,6 +148,7 @@ export default function SettingsPage() {
   }
 
   async function saveShop() {
+    if (!shopForm.address) { setShopErr("Please select a district."); return; }
     setShopStatus("saving"); setShopErr("");
     try {
       await updateMyShop({
@@ -364,29 +365,37 @@ export default function SettingsPage() {
                   onChange={(e) => setShopForm({ ...shopForm, phone: e.target.value })}
                 />
               </Field>
-              <Field label={<><MapPin size={11} className="inline mr-1" />{t("common.address")}</>}>
-                <select
-                  className={inputCls}
-                  value={shopForm.address}
-                  onChange={(e) => setShopForm({ ...shopForm, address: e.target.value })}
-                >
-                  <option value="">— Select district —</option>
-                  <optgroup label="Kigali City">
-                    {["Gasabo","Kicukiro","Nyarugenge"].map(d=><option key={d} value={`${d}, Kigali`}>{d}</option>)}
-                  </optgroup>
-                  <optgroup label="Eastern Province">
-                    {["Bugesera","Gatsibo","Kayonza","Kirehe","Ngoma","Nyagatare","Rwamagana"].map(d=><option key={d} value={`${d}, Eastern Province`}>{d}</option>)}
-                  </optgroup>
-                  <optgroup label="Western Province">
-                    {["Karongi","Ngororero","Nyabihu","Nyamasheke","Rubavu","Rusizi","Rutsiro"].map(d=><option key={d} value={`${d}, Western Province`}>{d}</option>)}
-                  </optgroup>
-                  <optgroup label="Northern Province">
-                    {["Burera","Gakenke","Gicumbi","Musanze","Rulindo"].map(d=><option key={d} value={`${d}, Northern Province`}>{d}</option>)}
-                  </optgroup>
-                  <optgroup label="Southern Province">
-                    {["Gisagara","Huye","Kamonyi","Muhanga","Nyamagabe","Nyanza","Nyaruguru","Ruhango"].map(d=><option key={d} value={`${d}, Southern Province`}>{d}</option>)}
-                  </optgroup>
-                </select>
+              <Field label={<><MapPin size={11} className="inline mr-1" />{t("common.address")} <span className="text-red-400">*</span></>}>
+                <div className="relative">
+                  <select
+                    className={`${inputCls} appearance-none pr-9 pl-3 ${!shopForm.address ? "text-gray-400 border-red-300 focus:border-red-400 focus:ring-red-500/20" : ""}`}
+                    value={shopForm.address}
+                    onChange={(e) => setShopForm({ ...shopForm, address: e.target.value })}
+                  >
+                    <option value="" disabled>Select your district…</option>
+                    <optgroup label="── Kigali City ──">
+                      {["Gasabo","Kicukiro","Nyarugenge"].map(d=><option key={d} value={`${d}, Kigali`}>{d}</option>)}
+                    </optgroup>
+                    <optgroup label="── Eastern Province ──">
+                      {["Bugesera","Gatsibo","Kayonza","Kirehe","Ngoma","Nyagatare","Rwamagana"].map(d=><option key={d} value={`${d}, Eastern Province`}>{d}</option>)}
+                    </optgroup>
+                    <optgroup label="── Western Province ──">
+                      {["Karongi","Ngororero","Nyabihu","Nyamasheke","Rubavu","Rusizi","Rutsiro"].map(d=><option key={d} value={`${d}, Western Province`}>{d}</option>)}
+                    </optgroup>
+                    <optgroup label="── Northern Province ──">
+                      {["Burera","Gakenke","Gicumbi","Musanze","Rulindo"].map(d=><option key={d} value={`${d}, Northern Province`}>{d}</option>)}
+                    </optgroup>
+                    <optgroup label="── Southern Province ──">
+                      {["Gisagara","Huye","Kamonyi","Muhanga","Nyamagabe","Nyanza","Nyaruguru","Ruhango"].map(d=><option key={d} value={`${d}, Southern Province`}>{d}</option>)}
+                    </optgroup>
+                  </select>
+                  <ChevronDown size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                </div>
+                {!shopForm.address && (
+                  <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
+                    <AlertCircle size={11} /> District is required
+                  </p>
+                )}
               </Field>
             </div>
 

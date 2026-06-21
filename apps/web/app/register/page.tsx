@@ -6,7 +6,7 @@ import Link from "next/link";
 import Image from "next/image";
 import {
   Building2, Mail, Phone, Lock, Eye, EyeOff,
-  MapPin, FileText, ChevronRight, ChevronLeft,
+  MapPin, FileText, ChevronRight, ChevronLeft, ChevronDown,
   CheckCircle2, AlertCircle, Loader2, RefreshCw,
   Store, ShieldCheck, Boxes, BarChart3, ImagePlus, X,
 } from "lucide-react";
@@ -154,7 +154,7 @@ export default function RegisterPage() {
   const v = {
     shop_name:     form.shop_name.trim().length >= 2,
     business_type: form.business_type !== "",
-    address:       true,                               // optional
+    address:       form.address !== "",
     description:   true,                              // optional
     email:         emailRe.test(form.email),
     phone:         phoneRe.test(form.phone.replace(/\s/g, "")),
@@ -162,7 +162,7 @@ export default function RegisterPage() {
     confirm:       form.confirm === form.password && form.confirm.length > 0,
   };
 
-  const step1Ok = v.shop_name && v.business_type;
+  const step1Ok = v.shop_name && v.business_type && v.address;
   const step2Ok = v.email && v.phone && v.password && v.confirm;
   const pw      = passwordStrength(form.password);
 
@@ -392,27 +392,35 @@ export default function RegisterPage() {
                   {/* Address */}
                   <div>
                     <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">
-                      Address <span className="text-slate-400 font-normal normal-case">(optional)</span>
+                      District / Address <span className="text-red-500">*</span>
                     </label>
-                    <Field icon={<MapPin size={16} />}>
-                      <select value={form.address} onChange={e => set("address", e.target.value)} className={inputCls}>
-                        <option value="">— Select district —</option>
-                        <optgroup label="Kigali City">
+                    <Field icon={<MapPin size={16} />} valid={v.address} touched={!!touched.address}
+                      hint={v.address ? "District selected" : "Please select your district"}>
+                      <select
+                        value={form.address}
+                        onChange={e => set("address", e.target.value)}
+                        className={`${inputCls} appearance-none pr-10 ${!form.address ? "text-slate-400" : "text-slate-800"}`}
+                      >
+                        <option value="" disabled>Select your district…</option>
+                        <optgroup label="── Kigali City ──">
                           {["Gasabo","Kicukiro","Nyarugenge"].map(d=><option key={d} value={`${d}, Kigali`}>{d}</option>)}
                         </optgroup>
-                        <optgroup label="Eastern Province">
+                        <optgroup label="── Eastern Province ──">
                           {["Bugesera","Gatsibo","Kayonza","Kirehe","Ngoma","Nyagatare","Rwamagana"].map(d=><option key={d} value={`${d}, Eastern Province`}>{d}</option>)}
                         </optgroup>
-                        <optgroup label="Western Province">
+                        <optgroup label="── Western Province ──">
                           {["Karongi","Ngororero","Nyabihu","Nyamasheke","Rubavu","Rusizi","Rutsiro"].map(d=><option key={d} value={`${d}, Western Province`}>{d}</option>)}
                         </optgroup>
-                        <optgroup label="Northern Province">
+                        <optgroup label="── Northern Province ──">
                           {["Burera","Gakenke","Gicumbi","Musanze","Rulindo"].map(d=><option key={d} value={`${d}, Northern Province`}>{d}</option>)}
                         </optgroup>
-                        <optgroup label="Southern Province">
+                        <optgroup label="── Southern Province ──">
                           {["Gisagara","Huye","Kamonyi","Muhanga","Nyamagabe","Nyanza","Nyaruguru","Ruhango"].map(d=><option key={d} value={`${d}, Southern Province`}>{d}</option>)}
                         </optgroup>
                       </select>
+                      <span className="absolute right-3.5 text-slate-400 pointer-events-none">
+                        <ChevronDown size={16} />
+                      </span>
                     </Field>
                   </div>
 
@@ -460,7 +468,7 @@ export default function RegisterPage() {
                   </div>
                 </div>
 
-                <button onClick={() => { setTouch({ shop_name: true, business_type: true }); if (step1Ok) setStep(2); }}
+                <button onClick={() => { setTouch({ shop_name: true, business_type: true, address: true }); if (step1Ok) setStep(2); }}
                   className="mt-6 w-full h-12 rounded-xl bg-linear-to-r from-blue-600 to-indigo-600 text-white font-semibold flex items-center justify-center gap-2 hover:opacity-90 transition">
                   Continue <ChevronRight size={16} />
                 </button>
