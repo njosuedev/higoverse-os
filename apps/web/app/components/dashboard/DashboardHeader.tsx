@@ -10,7 +10,7 @@ import { LANGUAGES } from "@/lib/i18n";
 import { settingsRequest } from "@/lib/settings-api";
 import {
   Activity, LayoutDashboard, Package, Truck, ShoppingCart,
-  BarChart3, Users, Settings, FileText, ChevronDown, ShieldCheck, Receipt,
+  BarChart3, Users, Settings, FileText, ChevronDown, ShieldCheck, Receipt, Sparkles,
 } from "lucide-react";
 
 interface DashboardHeaderProps {
@@ -55,6 +55,7 @@ export default function DashboardHeader({
     { key: "nav.expenses",  href: "/expenses",  icon: Receipt,         active: "bg-[#1372e6] text-white", idle: "text-slate-600 hover:bg-slate-100" },
     { key: "nav.reports",   href: "/reports",   icon: BarChart3,       active: "bg-[#1372e6] text-white", idle: "text-slate-600 hover:bg-slate-100" },
     { key: "nav.settings",  href: "/settings",  icon: Settings,        active: "bg-[#1372e6] text-white", idle: "text-slate-600 hover:bg-slate-100" },
+    { key: "nav.advisor",   href: "/advisor",   icon: Sparkles,        active: "bg-gradient-to-r from-violet-500 to-purple-600 text-white", idle: "text-violet-600 hover:bg-violet-50 border border-violet-200" },
     ...(user?.role === "admin" ? [{ key: "nav.admin", href: "/admin", icon: ShieldCheck, active: "bg-red-600 text-white", idle: "text-slate-600 hover:bg-slate-100 border border-red-200" }] : []),
   ];
 
