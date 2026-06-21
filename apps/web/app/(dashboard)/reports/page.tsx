@@ -12,6 +12,7 @@ import { purchaseRequest } from "@/lib/purchase-api";
 import { expenseRequest } from "@/lib/expense-api";
 import { useLanguage } from "@/lib/language-context";
 import DashboardHeader from "@/app/components/dashboard/DashboardHeader";
+import PageSkeleton from "@/app/components/dashboard/PageSkeleton";
 import DateRangeFilter from "@/app/components/ui/DateRangeFilter";
 import {
   BarChart3, TrendingUp, DollarSign, Package,
@@ -301,24 +302,7 @@ export default function ReportsPage() {
     daily.slice(-7).reduce((s, d) => s + d.revenue, 0), [daily]);
 
   // ── Loading skeleton ────────────────────────────────────────────────────────
-  if (loading) return (
-    <div className="min-h-screen bg-slate-50">
-      <DashboardHeader />
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-6 space-y-6">
-        <div className="h-28 rounded-2xl bg-slate-200 animate-pulse" />
-        <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {[...Array(8)].map((_, i) => (
-            <div key={i} className="bg-white rounded-xl border p-5 animate-pulse">
-              <div className="h-3 w-20 bg-slate-200 rounded mb-3" />
-              <div className="h-7 w-16 bg-slate-200 rounded" />
-              <div className="h-2 w-12 bg-slate-100 rounded mt-2" />
-            </div>
-          ))}
-        </div>
-        <div className="h-72 rounded-2xl bg-white border animate-pulse" />
-      </div>
-    </div>
-  );
+  if (loading) return <PageSkeleton cards={8} showTable={false} showChart />;
 
   return (
     <div className="min-h-screen bg-slate-50">

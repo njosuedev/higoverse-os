@@ -7,6 +7,7 @@ import { changePassword } from "@/lib/auth-api";
 import { useLanguage } from "@/lib/language-context";
 import { type Lang } from "@/lib/i18n";
 import DashboardHeader from "@/app/components/dashboard/DashboardHeader";
+import PageSkeleton from "@/app/components/dashboard/PageSkeleton";
 import {
   Settings, Save, RefreshCw, Store, Phone, MapPin, DollarSign,
   AlertCircle, FileText, Lock, Eye, EyeOff, CheckCircle2, ChevronDown,
@@ -241,21 +242,7 @@ export default function SettingsPage() {
 
   const inputCls = "border border-slate-200 bg-white text-gray-800 placeholder:text-gray-400 rounded-lg px-3 py-2.5 w-full text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition";
 
-  if (loading) return (
-    <div className="min-h-screen bg-slate-50">
-      <DashboardHeader />
-      <div className="max-w-3xl mx-auto px-4 sm:px-6 py-4 sm:py-6 space-y-4">
-        <div className="rounded-2xl bg-slate-800 h-24 animate-pulse" />
-        {[...Array(3)].map((_, i) => (
-          <div key={i} className="bg-white rounded-xl border p-5 animate-pulse space-y-3">
-            <div className="h-3 w-32 bg-slate-200 rounded" />
-            <div className="h-10 bg-slate-100 rounded-lg" />
-            <div className="h-10 bg-slate-100 rounded-lg" />
-          </div>
-        ))}
-      </div>
-    </div>
-  );
+  if (loading) return <PageSkeleton cards={0} showTable={false} showForm />;
 
   return (
     <div className="min-h-screen bg-slate-50 pb-32">

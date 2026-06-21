@@ -7,6 +7,7 @@ import { itemRequest } from "@/lib/product-api";
 import { useDebounce } from "@/lib/hooks";
 import { useLanguage } from "@/lib/language-context";
 import DashboardHeader from "@/app/components/dashboard/DashboardHeader";
+import PageSkeleton from "@/app/components/dashboard/PageSkeleton";
 import Pagination from "@/app/components/ui/Pagination";
 import {
   Users, Search, Filter, Plus, Trash2, Pencil, X,
@@ -174,23 +175,7 @@ export default function PartnerManagementPage() {
 
   const previewType = form.tin.trim() ? "supplier" : form.phone.trim() ? "customer" : null;
 
-  if (loading) return (
-    <div className="min-h-screen bg-slate-50">
-      <DashboardHeader />
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
-        <div className="rounded-2xl bg-linear-to-r from-[#1372e6] to-[#0d5cc4] p-5 mb-6 animate-pulse">
-          <div className="flex justify-between"><div className="h-4 w-44 bg-white/20 rounded-lg" /><div className="h-8 w-28 bg-white/20 rounded-lg" /></div>
-          <div className="h-9 bg-white/10 rounded-lg mt-4" />
-        </div>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-6">
-          {[...Array(5)].map((_, i) => <div key={i} className="bg-white rounded-xl border p-4 animate-pulse"><div className="h-2.5 w-16 bg-slate-200 rounded mb-3" /><div className="h-5 w-10 bg-slate-200 rounded" /></div>)}
-        </div>
-        <div className="bg-white rounded-xl border overflow-hidden">
-          {[...Array(6)].map((_, i) => <div key={i} className="border-b grid grid-cols-7 px-4 py-3 gap-4 animate-pulse"><div className="h-2.5 bg-slate-100 rounded" /><div className="h-5 w-14 bg-slate-100 rounded-full" /><div className="h-2.5 bg-slate-100 rounded" /><div className="h-2.5 bg-slate-100 rounded" /><div className="h-2.5 bg-slate-100 rounded" /><div className="h-5 w-14 bg-slate-100 rounded-full" /><div className="flex gap-1.5"><div className="h-7 w-7 bg-slate-100 rounded-lg" /><div className="h-7 w-7 bg-slate-100 rounded-lg" /></div></div>)}
-        </div>
-      </div>
-    </div>
-  );
+  if (loading) return <PageSkeleton cards={5} rows={6} cols={7} />;
 
   return (
     <div className="min-h-screen bg-slate-50">

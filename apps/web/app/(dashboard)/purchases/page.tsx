@@ -8,6 +8,7 @@ import { purchaseRequest } from "@/lib/purchase-api";
 import { useDebounce } from "@/lib/hooks";
 import { useLanguage } from "@/lib/language-context";
 import DashboardHeader from "@/app/components/dashboard/DashboardHeader";
+import PageSkeleton from "@/app/components/dashboard/PageSkeleton";
 import Pagination from "@/app/components/ui/Pagination";
 import DateRangeFilter from "@/app/components/ui/DateRangeFilter";
 import {
@@ -215,20 +216,7 @@ export default function PurchaseManagementPage() {
 
   const inputCls = "border border-slate-200 text-gray-800 placeholder:text-gray-400 rounded-lg px-3 py-2 w-full text-sm focus:outline-none focus:ring-2 focus:ring-[#1372e6]/30 focus:border-[#1372e6] transition";
 
-  if (loading) return (
-    <div className="min-h-screen bg-slate-50">
-      <DashboardHeader />
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
-        <div className="rounded-2xl bg-linear-to-r from-[#1372e6] to-[#0d5cc4] p-5 mb-6 animate-pulse">
-          <div className="flex justify-between"><div className="h-4 w-44 bg-white/20 rounded-lg" /><div className="h-8 w-28 bg-white/20 rounded-lg" /></div>
-          <div className="h-9 bg-white/10 rounded-lg mt-4" />
-        </div>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
-          {[...Array(6)].map((_, i) => <div key={i} className="bg-white rounded-xl border p-4 animate-pulse"><div className="h-2.5 w-16 bg-slate-200 rounded mb-3" /><div className="h-5 w-10 bg-slate-200 rounded" /></div>)}
-        </div>
-      </div>
-    </div>
-  );
+  if (loading) return <PageSkeleton cards={6} rows={6} cols={6} />;
 
   return (
     <div className="min-h-screen bg-slate-50">
