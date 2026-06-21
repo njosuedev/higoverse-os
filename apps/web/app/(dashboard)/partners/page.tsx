@@ -217,7 +217,7 @@ export default function PartnerManagementPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-6">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-3">
           {[
             { label: t("partners.total"),   value: stats.total,           color: "text-green-600",   bg: "bg-green-50",   icon: <Users size={17} /> },
             { label: t("partners.suppliers"),        value: stats.suppliers,       color: "text-[#1372e6]",    bg: "bg-[#EBF2FD]",    icon: <Building2 size={17} /> },
@@ -225,11 +225,11 @@ export default function PartnerManagementPage() {
             { label: t("partners.active_suppliers"), value: stats.activeSuppliers, color: "text-[#1372e6]", bg: "bg-[#EBF2FD]", icon: <UserCog size={17} /> },
             { label: t("partners.items_supplied"),   value: stats.itemsSupplied,   color: "text-[#1372e6]", bg: "bg-[#EBF2FD]", icon: <Package size={17} /> },
           ].map((card) => (
-            <div key={card.label} className="bg-white rounded-xl border border-slate-200 p-4">
+            <div key={card.label} className="bg-white rounded-xl border border-slate-200 p-3">
               <div className="flex flex-wrap justify-between items-start gap-2">
                 <div>
                   <p className="text-xs font-medium text-gray-400 uppercase tracking-wide leading-none">{card.label}</p>
-                  <p className={`text-xl font-bold mt-1.5 ${card.color}`}>{card.value}</p>
+                  <p className={`text-base font-bold mt-1.5 ${card.color}`}>{card.value}</p>
                 </div>
                 <div className={`${card.bg} ${card.color} p-1.5 rounded-lg`}>{card.icon}</div>
               </div>
@@ -248,7 +248,7 @@ export default function PartnerManagementPage() {
             <thead>
               <tr className="bg-slate-50 border-b border-slate-200">
                 {[t("common.name"), t("common.type"), t("common.phone"), "TIN", t("common.email"), t("partners.items_supplied"), ""].map((h) => (
-                  <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-400 whitespace-nowrap">{h}</th>
+                  <th key={h} className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-400 whitespace-nowrap">{h}</th>
                 ))}
               </tr>
             </thead>
@@ -258,29 +258,29 @@ export default function PartnerManagementPage() {
                 const itemCount = isSupplier ? (supplierItemCount[p.id] || 0) : null;
                 return (
                   <tr key={p.id} className="hover:bg-slate-50/60 transition-colors">
-                    <td className="px-4 py-3">
+                    <td className="px-3 py-2">
                       <p className="font-semibold text-slate-800">{p.name}</p>
                       <p className="text-xs text-slate-400 font-mono">{p.id?.slice(0, 8)}</p>
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-3 py-2">
                       <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${isSupplier ? "bg-[#D5E8FB] text-[#1372e6]" : "bg-slate-100 text-slate-600"}`}>
                         {isSupplier ? <Building2 size={10} /> : <UserCheck size={10} />}
                         {isSupplier ? t("partners.suppliers") : t("partners.customers")}
                       </span>
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-3 py-2">
                       {p.phone ? <div className="flex items-center gap-1.5 text-slate-600"><Phone size={12} className="text-slate-400 shrink-0" />{p.phone}</div>
                         : <span className="text-slate-300">—</span>}
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-3 py-2">
                       {p.tin ? <span className="font-mono text-xs bg-[#EBF2FD] text-[#1372e6] px-2 py-0.5 rounded-md">{p.tin}</span>
                         : <span className="text-slate-300">—</span>}
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-3 py-2">
                       {p.email ? <div className="flex items-center gap-1.5 text-slate-600"><Mail size={12} className="text-slate-400 shrink-0" /><span className="truncate max-w-32">{p.email}</span></div>
                         : <span className="text-slate-300">—</span>}
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-3 py-2">
                       {isSupplier ? (
                         <div className="flex items-center gap-1.5">
                           <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${itemCount && itemCount > 0 ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-400"}`}>
@@ -292,7 +292,7 @@ export default function PartnerManagementPage() {
                         </div>
                       ) : <span className="text-xs text-slate-400 italic">Customer</span>}
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-3 py-2">
                       <div className="flex items-center gap-1.5">
                         <button onClick={() => openEditModal(p)} title="Edit" className="p-1.5 rounded-lg bg-green-50 hover:bg-green-100 text-green-600 transition"><Pencil size={14} /></button>
                         <button onClick={() => deletePartner(p.id)} disabled={deletingId === p.id} title="Delete" className="p-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 transition disabled:opacity-40"><Trash2 size={14} /></button>

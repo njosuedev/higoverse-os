@@ -308,7 +308,7 @@ export default function ReportsPage() {
       <div className="max-w-7xl mx-auto px-3 sm:px-5 py-3 sm:py-4 space-y-4">
 
         {/* ── HEADER ─────────────────────────────────────────────────────────── */}
-        <div className="bg-linear-to-r from-slate-800 to-slate-900 text-white rounded-2xl p-5">
+        <div className="bg-slate-800 text-white rounded-xl p-4">
           <div className="flex flex-wrap justify-between items-start gap-4">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center">
@@ -356,7 +356,7 @@ export default function ReportsPage() {
 
         {/* ── ERROR BANNER ───────────────────────────────────────────────────── */}
         {error && (
-          <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700">
+          <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-xl px-3 py-2 text-sm text-red-700">
             <AlertCircle size={15} className="shrink-0 mt-0.5" />
             <div>
               <p className="font-semibold">Could not load report data</p>
@@ -542,7 +542,7 @@ export default function ReportsPage() {
                   { label: "Finished",         count: summary.out_of_stock, color: "bg-red-500",  text: "text-red-700",  bg: "bg-red-50" },
                 ].map((s) => (
                   <div key={s.label} className={`${s.bg} rounded-xl p-3 text-center`}>
-                    <p className={`text-xl font-bold ${s.text}`}>{s.count}</p>
+                    <p className={`text-base font-bold ${s.text}`}>{s.count}</p>
                     <p className="text-xs text-slate-500 mt-0.5">{s.label}</p>
                   </div>
                 ))}
@@ -621,7 +621,7 @@ export default function ReportsPage() {
                 {stockCost > 0 && (
                   <div className="bg-violet-50 rounded-xl p-3">
                     <p className="text-xs text-slate-500">Profit rate on stock</p>
-                    <p className="text-xl font-bold text-violet-700 mt-0.5">
+                    <p className="text-base font-bold text-violet-700 mt-0.5">
                       {((summary.potential_profit / stockCost) * 100).toFixed(1)}%
                     </p>
                     <p className="text-[10px] text-slate-400 mt-0.5">For every 100 RWF you spent, you earn this extra</p>
@@ -630,7 +630,7 @@ export default function ReportsPage() {
                 {summary.revenue > 0 && (
                   <div className="bg-emerald-50 rounded-xl p-3">
                     <p className="text-xs text-slate-500">Profit rate on sales</p>
-                    <p className="text-xl font-bold text-emerald-700 mt-0.5">{margin}%</p>
+                    <p className="text-base font-bold text-emerald-700 mt-0.5">{margin}%</p>
                     <p className="text-[10px] text-slate-400 mt-0.5">For every 100 RWF sold, this is your profit</p>
                   </div>
                 )}
@@ -694,17 +694,17 @@ export default function ReportsPage() {
                     ? (((item.selling_price - item.cost_price) / item.cost_price) * 100).toFixed(0) : "—";
                   return (
                     <tr key={item.id} className="hover:bg-slate-50/60">
-                      <td className="px-4 py-3 font-medium text-slate-800">{item.name}</td>
-                      <td className="px-4 py-3">
+                      <td className="px-3 py-2 font-medium text-slate-800">{item.name}</td>
+                      <td className="px-3 py-2">
                         <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold
                           ${item.quantity === 0 ? "bg-red-100 text-red-700" : "bg-amber-100 text-amber-700"}`}>
                           {item.quantity}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-slate-600 tabular-nums">{item.cost_price.toLocaleString()}</td>
-                      <td className="px-4 py-3 font-semibold text-green-600 tabular-nums">{item.selling_price.toLocaleString()}</td>
-                      <td className="px-4 py-3 text-slate-500 text-xs font-medium">{marginPct !== "—" ? `+${marginPct}%` : "—"}</td>
-                      <td className="px-4 py-3">
+                      <td className="px-3 py-2 text-slate-600 tabular-nums">{item.cost_price.toLocaleString()}</td>
+                      <td className="px-3 py-2 font-semibold text-green-600 tabular-nums">{item.selling_price.toLocaleString()}</td>
+                      <td className="px-3 py-2 text-slate-500 text-xs font-medium">{marginPct !== "—" ? `+${marginPct}%` : "—"}</td>
+                      <td className="px-3 py-2">
                         <Link
                           href={`/PurchaseManagement?name=${encodeURIComponent(item.name)}&cost=${item.cost_price}&selling=${item.selling_price}&supplierId=${item.supplier_id ?? ""}`}
                           className="text-xs font-semibold text-violet-600 hover:underline flex items-center gap-0.5">
@@ -818,7 +818,7 @@ function KpiCard({ label, value, detail, icon, color, pulse, badge }: {
 }) {
   const c = kpiColors[color] ?? kpiColors.indigo;
   return (
-    <div className={`bg-white rounded-2xl border border-slate-200 p-4 shadow-sm hover:shadow-md transition-all ${pulse ? "relative" : ""}`}>
+    <div className={`bg-white rounded-2xl border border-slate-200 p-3 shadow-sm hover:shadow-md transition-all ${pulse ? "relative" : ""}`}>
       {pulse && (
         <span className="absolute top-3 right-3 flex h-2 w-2">
           <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75" />
@@ -867,7 +867,7 @@ function StatMini({ label, value, sub, color, icon }: {
   label: string; value: string; sub: string; color: string; icon: React.ReactNode;
 }) {
   return (
-    <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+    <div className="bg-white rounded-xl border border-slate-200 p-3 shadow-sm">
       <div className="flex items-center gap-1.5 text-slate-400 mb-2">
         {icon}
         <span className="text-xs font-medium uppercase tracking-wide">{label}</span>

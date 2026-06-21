@@ -170,7 +170,7 @@ export default function ItemManagementPage() {
       <div className="max-w-7xl mx-auto px-3 sm:px-5 py-3 sm:py-4">
 
         {/* HEADER BANNER */}
-        <div className="bg-linear-to-r from-[#1372e6] to-[#0d5cc4] text-white rounded-2xl p-5 mb-6">
+        <div className="bg-[#1372e6] text-white rounded-xl p-4 mb-3">
           <div className="flex flex-wrap justify-between items-center gap-2">
             <div className="flex items-center gap-2.5">
               <Package size={20} />
@@ -213,7 +213,7 @@ export default function ItemManagementPage() {
 
         {/* LOW STOCK ALERT */}
         {alertItems.length > 0 && (
-          <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 mb-6">
+          <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 mb-6">
             <AlertCircle size={16} className="text-amber-600 shrink-0 mt-0.5" />
             <div className="flex-1 min-w-0">
               <p className="text-sm font-semibold text-amber-800">{alertItems.length} item{alertItems.length > 1 ? "s" : ""} {t("items.restock_alert")}</p>
@@ -226,7 +226,7 @@ export default function ItemManagementPage() {
         )}
 
         {/* STAT CARDS */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-3">
           {[
             { label: "items.total", value: stats.total,                            color: "text-[#1372e6]",    bg: "bg-[#EBF2FD]",    icon: <Boxes size={17} /> },
             { label: t("items.in_stock"),     value: stats.inStock,                          color: "text-green-600",   bg: "bg-green-50",   icon: <Package size={17} /> },
@@ -235,11 +235,11 @@ export default function ItemManagementPage() {
             { label: t("items.stock_value"),  value: stats.stockValue.toLocaleString(),      color: "text-[#1372e6]", bg: "bg-[#EBF2FD]", icon: <DollarSign size={17} /> },
             { label: t("items.pot_profit"),  value: stats.potentialProfit.toLocaleString(), color: "text-green-700",  bg: "bg-green-50",   icon: <BarChart3 size={17} /> },
           ].map((card) => (
-            <div key={card.label} className="bg-white rounded-xl border border-slate-200 p-4">
+            <div key={card.label} className="bg-white rounded-xl border border-slate-200 p-3">
               <div className="flex flex-wrap justify-between items-start gap-2">
                 <div>
                   <p className="text-xs font-medium text-gray-400 uppercase tracking-wide leading-none">{card.label}</p>
-                  <p className={`text-xl font-bold mt-1.5 ${card.color}`}>{card.value}</p>
+                  <p className={`text-base font-bold mt-1.5 ${card.color}`}>{card.value}</p>
                 </div>
                 <div className={`${card.bg} ${card.color} p-1.5 rounded-lg`}>{card.icon}</div>
               </div>
@@ -259,7 +259,7 @@ export default function ItemManagementPage() {
             <thead>
               <tr className="bg-slate-50 border-b border-slate-200">
                 {[t("items.col_product"), t("items.col_supplier"), t("items.col_cost"), t("items.col_selling"), t("items.col_margin"), t("items.col_qty"), t("common.status"), t("items.col_unit_profit"), t("items.col_total_profit"), ""].map((h) => (
-                  <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-400 whitespace-nowrap">{h}</th>
+                  <th key={h} className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-400 whitespace-nowrap">{h}</th>
                 ))}
               </tr>
             </thead>
@@ -273,40 +273,40 @@ export default function ItemManagementPage() {
                 const restockUrl = `/PurchaseManagement?name=${encodeURIComponent(p.name)}&cost=${p.cost_price}&selling=${p.selling_price}&supplierId=${p.supplier_id || ""}`;
                 return (
                   <tr key={p.id} className={`hover:bg-slate-50/60 transition-colors ${needsRestock ? "bg-amber-50/30" : ""}`}>
-                    <td className="px-4 py-3">
+                    <td className="px-3 py-2">
                       <p className="font-semibold text-slate-800">{p.name}</p>
                       <p className="text-xs text-slate-400 font-mono">{p.id?.slice(0, 8)}</p>
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-3 py-2">
                       {supplier ? <div><p className="font-medium text-slate-700">{supplier.name}</p>{supplier.phone && <p className="text-xs text-slate-400">{supplier.phone}</p>}</div>
                         : <span className="text-slate-300">—</span>}
                     </td>
-                    <td className="px-4 py-3 text-slate-600 font-medium tabular-nums">{Number(p.cost_price || 0).toLocaleString()}</td>
-                    <td className="px-4 py-3 font-semibold text-green-600 tabular-nums">{Number(p.selling_price || 0).toLocaleString()}</td>
-                    <td className="px-4 py-3">
+                    <td className="px-3 py-2 text-slate-600 font-medium tabular-nums">{Number(p.cost_price || 0).toLocaleString()}</td>
+                    <td className="px-3 py-2 font-semibold text-green-600 tabular-nums">{Number(p.selling_price || 0).toLocaleString()}</td>
+                    <td className="px-3 py-2">
                       <span className={`text-xs font-bold ${margin >= 0 ? "text-green-600" : "text-red-500"}`}>
                         {margin >= 0 ? "+" : ""}{margin.toFixed(1)}%
                       </span>
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-3 py-2">
                       <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${
                         p.quantity === 0 ? "bg-red-100 text-red-700" : p.quantity <= 10 ? "bg-amber-100 text-amber-700" : "bg-green-100 text-green-700"}`}>
                         {p.quantity}
                       </span>
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-3 py-2">
                       <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${isProfit ? "bg-green-100 text-green-700" : "bg-red-100 text-red-600"}`}>
                         {isProfit ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
                         {isProfit ? t("dash.profit_label") : "Loss"}
                       </span>
                     </td>
-                    <td className={`px-4 py-3 font-semibold tabular-nums ${isProfit ? "text-green-600" : "text-red-500"}`}>
+                    <td className={`px-3 py-2 font-semibold tabular-nums ${isProfit ? "text-green-600" : "text-red-500"}`}>
                       {isProfit ? "+" : ""}{Number(p.profit_money || 0).toLocaleString()}
                     </td>
-                    <td className={`px-4 py-3 font-semibold tabular-nums ${isProfit ? "text-green-600" : "text-red-500"}`}>
+                    <td className={`px-3 py-2 font-semibold tabular-nums ${isProfit ? "text-green-600" : "text-red-500"}`}>
                       {isProfit ? "+" : ""}{totalProfit.toLocaleString()}
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-3 py-2">
                       <div className="flex items-center gap-1.5">
                         {needsRestock && (
                           <Link href={restockUrl} title="Restock" className="p-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-600 transition">

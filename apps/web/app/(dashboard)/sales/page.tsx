@@ -488,7 +488,7 @@ ${paymentHtml}
       <div className="max-w-7xl mx-auto px-3 sm:px-5 py-3 sm:py-4">
 
         {/* HEADER */}
-        <div className="bg-linear-to-r from-[#1372e6] to-[#0d5cc4] text-white rounded-2xl p-5 mb-6">
+        <div className="bg-[#1372e6] text-white rounded-xl p-4 mb-3">
           <div className="flex flex-wrap justify-between items-center gap-2">
             <div className="flex items-center gap-2.5">
               <ShoppingBag size={20} />
@@ -560,31 +560,31 @@ ${paymentHtml}
 
         {/* STAT CARDS */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-4">
-          <div className="bg-white rounded-xl border border-slate-200 p-4">
+          <div className="bg-white rounded-xl border border-slate-200 p-3">
             <div className="flex justify-between items-start">
               <div>
                 <p className="text-xs font-medium text-gray-400 uppercase tracking-wide">{t("sales.count")}</p>
-                <p className="text-xl font-bold mt-1.5 text-[#1372e6]">{stats.total}</p>
+                <p className="text-base font-bold mt-1.5 text-[#1372e6]">{stats.total}</p>
                 <p className="text-xs text-slate-400 mt-0.5">{stats.itemsSold} items sold</p>
               </div>
               <div className="bg-[#EBF2FD] text-[#1372e6] p-1.5 rounded-lg"><ReceiptText size={17} /></div>
             </div>
           </div>
-          <div className="bg-white rounded-xl border border-slate-200 p-4">
+          <div className="bg-white rounded-xl border border-slate-200 p-3">
             <div className="flex justify-between items-start">
               <div>
                 <p className="text-xs font-medium text-gray-400 uppercase tracking-wide">{t("sales.revenue")}</p>
-                <p className="text-xl font-bold mt-1.5 text-green-600">{stats.revenue.toLocaleString()}</p>
+                <p className="text-base font-bold mt-1.5 text-green-600">{stats.revenue.toLocaleString()}</p>
                 <p className="text-xs text-slate-400 mt-0.5">avg {Math.round(stats.avgSale).toLocaleString()} / sale</p>
               </div>
               <div className="bg-green-50 text-green-600 p-1.5 rounded-lg"><DollarSign size={17} /></div>
             </div>
           </div>
-          <div className="bg-white rounded-xl border border-slate-200 p-4">
+          <div className="bg-white rounded-xl border border-slate-200 p-3">
             <div className="flex justify-between items-start">
               <div>
                 <p className="text-xs font-medium text-gray-400 uppercase tracking-wide">{t("sales.profit")}</p>
-                <p className={`text-xl font-bold mt-1.5 ${stats.profit >= 0 ? "text-green-700" : "text-red-500"}`}>
+                <p className={`text-base font-bold mt-1.5 ${stats.profit >= 0 ? "text-green-700" : "text-red-500"}`}>
                   {stats.profit >= 0 ? "+" : ""}{stats.profit.toLocaleString()}
                 </p>
                 <p className={`text-xs mt-0.5 font-semibold ${stats.margin >= 0 ? "text-green-500" : "text-red-400"}`}>
@@ -596,21 +596,21 @@ ${paymentHtml}
               </div>
             </div>
           </div>
-          <div className="bg-white rounded-xl border border-slate-200 p-4">
+          <div className="bg-white rounded-xl border border-slate-200 p-3">
             <div className="flex justify-between items-start">
               <div>
                 <p className="text-xs font-medium text-gray-400 uppercase tracking-wide">{t("reports.customers")}</p>
-                <p className="text-xl font-bold mt-1.5 text-[#1372e6]">{stats.uniqueCustomers}</p>
+                <p className="text-base font-bold mt-1.5 text-[#1372e6]">{stats.uniqueCustomers}</p>
                 <p className="text-xs text-slate-400 mt-0.5">unique buyers</p>
               </div>
               <div className="bg-[#EBF2FD] text-[#1372e6] p-1.5 rounded-lg"><Users size={17} /></div>
             </div>
           </div>
-          <div className="bg-white rounded-xl border border-slate-200 p-4">
+          <div className="bg-white rounded-xl border border-slate-200 p-3">
             <div className="flex justify-between items-start">
               <div>
                 <p className="text-xs font-medium text-gray-400 uppercase tracking-wide">Outstanding</p>
-                <p className="text-xl font-bold mt-1.5 text-orange-500">{debtsTotalOutstanding.toLocaleString()}</p>
+                <p className="text-base font-bold mt-1.5 text-orange-500">{debtsTotalOutstanding.toLocaleString()}</p>
                 <p className="text-xs text-slate-400 mt-0.5">{pendingDebts.length} unpaid {pendingDebts.length === 1 ? "debt" : "debts"}</p>
               </div>
               <div className="bg-orange-50 text-orange-500 p-1.5 rounded-lg"><AlertCircle size={17} /></div>
@@ -620,7 +620,7 @@ ${paymentHtml}
 
         {/* PAYMENT BREAKDOWN */}
         {sales.length > 0 && (
-          <div className="bg-white rounded-xl border border-slate-200 px-4 py-3 mb-4 flex flex-wrap gap-3 items-center">
+          <div className="bg-white rounded-xl border border-slate-200 px-3 py-2 mb-4 flex flex-wrap gap-3 items-center">
             <span className="text-xs font-semibold text-slate-400 uppercase tracking-wide mr-1">Payments</span>
             {PAYMENT_METHODS.filter((m) => (stats.payBreakdown[m.value]?.count ?? 0) > 0).map((m) => {
               const b = stats.payBreakdown[m.value];
@@ -649,7 +649,7 @@ ${paymentHtml}
             <thead>
               <tr className="bg-slate-50 border-b border-slate-200">
                 {[t("sales.col_date"), t("sales.col_product"), t("sales.col_customer"), "Payment", t("sales.col_qty"), t("sales.col_price"), t("sales.col_total"), "Profit / Margin", t("common.notes"), ""].map((h) => (
-                  <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-400 whitespace-nowrap">{h}</th>
+                  <th key={h} className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-400 whitespace-nowrap">{h}</th>
                 ))}
               </tr>
             </thead>
@@ -661,7 +661,7 @@ ${paymentHtml}
                 const saleDate = s.created_at ? new Date(s.created_at) : null;
                 return (
                   <tr key={s.id} className={`hover:bg-slate-50/60 transition-colors border-l-2 ${isProfit ? "border-l-green-400" : (s.profit || 0) < 0 ? "border-l-red-400" : "border-l-slate-200"}`}>
-                    <td className="px-4 py-3 whitespace-nowrap">
+                    <td className="px-3 py-2 whitespace-nowrap">
                       {saleDate ? (
                         <div>
                           <p className="text-xs font-medium text-slate-700">{toDateStr(saleDate)}</p>
@@ -669,7 +669,7 @@ ${paymentHtml}
                         </div>
                       ) : <span className="text-slate-300 text-xs">—</span>}
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-3 py-2">
                       {(() => {
                         const name = s.product_name || product?.name;
                         const costPrice = product?.cost_price;
@@ -685,18 +685,18 @@ ${paymentHtml}
                           : <span className="text-slate-400 text-xs">Unknown product</span>;
                       })()}
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-3 py-2">
                       {customer
                         ? <div><p className="font-medium text-slate-700">{customer.name}</p>{customer.phone && <p className="text-xs text-slate-400">{customer.phone}</p>}</div>
                         : <span className="text-slate-400 text-xs italic">—</span>}
                     </td>
-                    <td className="px-4 py-3 whitespace-nowrap">
+                    <td className="px-3 py-2 whitespace-nowrap">
                       {paymentBadge(s.payment_method)}
                     </td>
-                    <td className="px-4 py-3 font-medium text-slate-700 tabular-nums">{s.quantity}</td>
-                    <td className="px-4 py-3 text-slate-600 tabular-nums">{s.unit_price.toLocaleString()}</td>
-                    <td className="px-4 py-3 font-semibold text-slate-800 tabular-nums">{s.total_amount.toLocaleString()}</td>
-                    <td className={`px-4 py-3 tabular-nums ${isProfit ? "text-green-600" : "text-red-500"}`}>
+                    <td className="px-3 py-2 font-medium text-slate-700 tabular-nums">{s.quantity}</td>
+                    <td className="px-3 py-2 text-slate-600 tabular-nums">{s.unit_price.toLocaleString()}</td>
+                    <td className="px-3 py-2 font-semibold text-slate-800 tabular-nums">{s.total_amount.toLocaleString()}</td>
+                    <td className={`px-3 py-2 tabular-nums ${isProfit ? "text-green-600" : "text-red-500"}`}>
                       <span className="font-semibold">{isProfit ? "+" : ""}{(s.profit || 0).toLocaleString()}</span>
                       {s.total_amount > 0 && (
                         <span className="block text-[10px] font-normal opacity-60">
@@ -704,8 +704,8 @@ ${paymentHtml}
                         </span>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-slate-400 text-xs max-w-28 truncate">{s.notes || <span className="text-slate-200">—</span>}</td>
-                    <td className="px-4 py-3">
+                    <td className="px-3 py-2 text-slate-400 text-xs max-w-28 truncate">{s.notes || <span className="text-slate-200">—</span>}</td>
+                    <td className="px-3 py-2">
                       <div className="flex items-center gap-1.5">
                         <button onClick={() => printReceiptPopup([s])} title="Print receipt"
                           className="p-1.5 rounded-lg bg-slate-50 hover:bg-slate-100 text-slate-500 transition">
@@ -984,7 +984,7 @@ ${paymentHtml}
                       const subtotal = line.quantity * line.unit_price;
                       const profit = p ? (line.unit_price - p.cost_price) * line.quantity : 0;
                       return (
-                        <div key={line.id} className="px-4 py-3">
+                        <div key={line.id} className="px-3 py-2">
                           <div className="grid grid-cols-[2fr_80px_100px_90px_32px] gap-2 items-center">
                             <select
                               className="border border-slate-200 text-gray-800 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1372e6]/30 focus:border-[#1372e6] transition"
@@ -1027,7 +1027,7 @@ ${paymentHtml}
                     })}
                   </div>
 
-                  <div className="px-4 py-3 bg-slate-50 border-t border-slate-200 flex justify-end gap-6">
+                  <div className="px-3 py-2 bg-slate-50 border-t border-slate-200 flex justify-end gap-6">
                     <div className="text-right">
                       <p className="text-[10px] text-slate-400 uppercase tracking-wide">Grand Total</p>
                       <p className="font-bold text-lg text-slate-800 tabular-nums">{createGrandTotal.toLocaleString()} <span className="text-xs font-normal text-slate-400">{currency}</span></p>
@@ -1103,7 +1103,7 @@ ${paymentHtml}
                     value={form.unit_price} onChange={(e) => setForm({ ...form, unit_price: e.target.value })} />
                 </div>
                 {form.product_id && form.quantity && form.unit_price && (
-                  <div className="md:col-span-2 bg-slate-50 rounded-lg px-4 py-3 flex gap-6 text-sm">
+                  <div className="md:col-span-2 bg-slate-50 rounded-lg px-3 py-2 flex gap-6 text-sm">
                     <div><p className="text-xs text-gray-400">{t("common.total")}</p><p className="font-bold text-slate-800">{(Number(form.quantity) * Number(form.unit_price)).toLocaleString()}</p></div>
                     {selectedProduct && (
                       <div><p className="text-xs text-gray-400">{t("sales.col_profit")}</p>
@@ -1292,7 +1292,7 @@ ${paymentHtml}
                 <p className="text-center text-xs text-slate-400">Thank you for your business!</p>
               </div>
 
-              <div className="flex gap-2 px-4 py-3 border-t border-slate-100 bg-slate-50">
+              <div className="flex gap-2 px-3 py-2 border-t border-slate-100 bg-slate-50">
                 <button onClick={() => { setReceipts([]); openCreateModal(); }}
                   className="flex-1 px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-600 text-xs font-medium hover:bg-slate-100 transition">
                   New Sale

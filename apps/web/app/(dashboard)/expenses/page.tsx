@@ -191,7 +191,7 @@ export default function ExpenseManagementPage() {
       <div className="max-w-7xl mx-auto px-3 sm:px-5 py-3 sm:py-4">
 
         {/* ── HEADER ─────────────────────────────────────────── */}
-        <div className="text-white rounded-2xl p-5 mb-6" style={{ background: "#1372e6" }}>
+        <div className="text-white rounded-xl p-4 mb-3" style={{ background: "#1372e6" }}>
           <div className="flex flex-wrap justify-between items-center gap-2">
             <div className="flex items-center gap-2.5">
               <Receipt size={20} />
@@ -246,7 +246,7 @@ export default function ExpenseManagementPage() {
         </div>
 
         {/* ── STAT CARDS ─────────────────────────────────────── */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
           {[
             {
               label: t("expenses.total_today"),
@@ -273,11 +273,11 @@ export default function ExpenseManagementPage() {
               color: "text-violet-600", bg: "bg-violet-50", icon: <BarChart3 size={17} />,
             },
           ].map((card) => (
-            <div key={card.label} className="bg-white rounded-xl border border-slate-200 p-4">
+            <div key={card.label} className="bg-white rounded-xl border border-slate-200 p-3">
               <div className="flex flex-wrap justify-between items-start gap-2">
                 <div>
                   <p className="text-xs font-medium text-gray-400 uppercase tracking-wide leading-none">{card.label}</p>
-                  <p className={`text-xl font-bold mt-1.5 ${card.color}`}>{card.value}</p>
+                  <p className={`text-base font-bold mt-1.5 ${card.color}`}>{card.value}</p>
                   <p className="text-[10px] text-slate-400 mt-0.5 leading-tight">{card.sub}</p>
                 </div>
                 <div className={`${card.bg} ${card.color} p-1.5 rounded-lg shrink-0`}>{card.icon}</div>
@@ -311,7 +311,7 @@ export default function ExpenseManagementPage() {
                   t("expenses.col_notes"),
                   "",
                 ].map((h) => (
-                  <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-400 whitespace-nowrap">{h}</th>
+                  <th key={h} className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-400 whitespace-nowrap">{h}</th>
                 ))}
               </tr>
             </thead>
@@ -321,7 +321,7 @@ export default function ExpenseManagementPage() {
                 const colors = CATEGORY_COLORS[e.category] || CATEGORY_COLORS.other;
                 return (
                   <tr key={e.id} className="hover:bg-slate-50/60 transition-colors">
-                    <td className="px-4 py-3 whitespace-nowrap">
+                    <td className="px-3 py-2 whitespace-nowrap">
                       {d ? (
                         <div>
                           <p className="text-xs font-medium text-slate-700">{toDateStr(d)}</p>
@@ -329,22 +329,22 @@ export default function ExpenseManagementPage() {
                         </div>
                       ) : <span className="text-slate-300 text-xs">—</span>}
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-3 py-2">
                       <p className="font-semibold text-slate-800">{e.title}</p>
                       <p className="text-xs text-slate-400 font-mono">{e.id.slice(0, 8)}</p>
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-3 py-2">
                       <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${colors.badge}`}>
                         {t(`expenses.cat.${e.category}`)}
                       </span>
                     </td>
-                    <td className="px-4 py-3 font-bold tabular-nums" style={{ color: "#1372e6" }}>
+                    <td className="px-3 py-2 font-bold tabular-nums" style={{ color: "#1372e6" }}>
                       {Number(e.amount).toLocaleString()}
                     </td>
-                    <td className="px-4 py-3 text-slate-500 text-xs max-w-[200px] truncate">
+                    <td className="px-3 py-2 text-slate-500 text-xs max-w-[200px] truncate">
                       {e.notes || <span className="text-slate-300 italic">—</span>}
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-3 py-2">
                       <button onClick={() => deleteExpense(e.id)} disabled={deletingId === e.id}
                         className="p-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 transition disabled:opacity-40">
                         <Trash2 size={14} />

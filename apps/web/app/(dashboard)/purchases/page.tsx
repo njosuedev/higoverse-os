@@ -222,7 +222,7 @@ export default function PurchaseManagementPage() {
       <div className="max-w-7xl mx-auto px-3 sm:px-5 py-3 sm:py-4">
 
         {/* HEADER */}
-        <div className="bg-linear-to-r from-[#1372e6] to-[#0d5cc4] text-white rounded-2xl p-5 mb-6">
+        <div className="bg-[#1372e6] text-white rounded-xl p-4 mb-3">
           <div className="flex flex-wrap justify-between items-center gap-2">
             <div className="flex items-center gap-2.5">
               <ShoppingCart size={20} />
@@ -291,7 +291,7 @@ export default function PurchaseManagementPage() {
 
         {/* STOCK ALERT */}
         {(invStats.lowStock > 0 || invStats.outStock > 0) && (
-          <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 mb-6">
+          <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 mb-6">
             <AlertCircle size={16} className="text-amber-600 shrink-0 mt-0.5" />
             <div className="flex-1">
               <p className="text-sm font-semibold text-amber-800">
@@ -307,7 +307,7 @@ export default function PurchaseManagementPage() {
         )}
 
         {/* STAT CARDS */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-3">
           {[
             { label: "Total Products",        value: productsTotal,                        sub: "items in your shop",              color: "text-[#1372e6]", bg: "bg-[#EBF2FD]", icon: <Package size={17} /> },
             { label: "What You Paid",         value: invStats.costValue.toLocaleString(),   sub: "total cost of all stock",         color: "text-[#1372e6]", bg: "bg-[#EBF2FD]", icon: <DollarSign size={17} /> },
@@ -316,11 +316,11 @@ export default function PurchaseManagementPage() {
             { label: "Almost Finished",       value: invStats.lowStock,                    sub: "10 units or less — restock soon",  color: "text-amber-500",  bg: "bg-amber-50",   icon: <AlertCircle size={17} /> },
             { label: "Finished / Empty",      value: invStats.outStock,                    sub: "zero units — buy more now",        color: "text-red-600",    bg: "bg-red-50",     icon: <AlertCircle size={17} /> },
           ].map((card) => (
-            <div key={card.label} className="bg-white rounded-xl border border-slate-200 p-4">
+            <div key={card.label} className="bg-white rounded-xl border border-slate-200 p-3">
               <div className="flex flex-wrap justify-between items-start gap-2">
                 <div>
                   <p className="text-xs font-medium text-gray-400 uppercase tracking-wide leading-none">{card.label}</p>
-                  <p className={`text-xl font-bold mt-1.5 ${card.color}`}>{card.value}</p>
+                  <p className={`text-base font-bold mt-1.5 ${card.color}`}>{card.value}</p>
                   <p className="text-[10px] text-slate-400 mt-0.5 leading-tight">{card.sub}</p>
                 </div>
                 <div className={`${card.bg} ${card.color} p-1.5 rounded-lg shrink-0`}>{card.icon}</div>
@@ -336,7 +336,7 @@ export default function PurchaseManagementPage() {
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200">
                   {[t("items.col_product"), t("items.col_supplier"), t("items.cost_price"), t("items.selling_price"), t("items.col_margin"), t("items.col_qty"), t("common.status"), ""].map((h) => (
-                    <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-400 whitespace-nowrap">{h}</th>
+                    <th key={h} className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-400 whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -347,33 +347,33 @@ export default function PurchaseManagementPage() {
                   const needsRestock = p.quantity <= 10;
                   return (
                     <tr key={p.id} className={`hover:bg-slate-50/60 transition-colors ${p.quantity === 0 ? "bg-red-50/20" : needsRestock ? "bg-amber-50/20" : ""}`}>
-                      <td className="px-4 py-3">
+                      <td className="px-3 py-2">
                         <p className="font-semibold text-slate-800">{p.name}</p>
                         <p className="text-xs text-slate-400 font-mono">{p.id?.slice(0, 8)}</p>
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-3 py-2">
                         {supplier
                           ? <div><p className="font-medium text-slate-700">{supplier.name}</p>{supplier.phone && <p className="text-xs text-slate-400">{supplier.phone}</p>}</div>
                           : <Link href="/PartnerManagement" className="text-xs text-[#1372e6] hover:underline flex items-center gap-0.5"><Truck size={11} /> {t("common.add")}</Link>}
                       </td>
-                      <td className="px-4 py-3 text-slate-600 font-medium tabular-nums">{Number(p.cost_price).toLocaleString()}</td>
-                      <td className="px-4 py-3 font-semibold text-green-600 tabular-nums">{Number(p.selling_price).toLocaleString()}</td>
-                      <td className="px-4 py-3">
+                      <td className="px-3 py-2 text-slate-600 font-medium tabular-nums">{Number(p.cost_price).toLocaleString()}</td>
+                      <td className="px-3 py-2 font-semibold text-green-600 tabular-nums">{Number(p.selling_price).toLocaleString()}</td>
+                      <td className="px-3 py-2">
                         <span className={`text-xs font-bold ${margin2 >= 0 ? "text-green-600" : "text-red-500"}`}>
                           {margin2 >= 0 ? "+" : ""}{margin2.toFixed(1)}%
                         </span>
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-3 py-2">
                         <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${p.quantity === 0 ? "bg-red-100 text-red-700" : p.quantity <= 10 ? "bg-amber-100 text-amber-700" : "bg-green-100 text-green-700"}`}>
                           {p.quantity}
                         </span>
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-3 py-2">
                         <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-semibold ${p.quantity === 0 ? "bg-red-100 text-red-700" : p.quantity <= 10 ? "bg-amber-100 text-amber-700" : "bg-green-100 text-green-700"}`}>
                           {p.quantity === 0 ? t("items.out_stock") : p.quantity <= 10 ? t("items.low_stock") : t("items.in_stock")}
                         </span>
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-3 py-2">
                         <button
                           onClick={() => { setForm({ product_id: p.id, product_name: p.name, description: p.description || "", cost_price: String(p.cost_price), selling_price: String(p.selling_price), quantity: "", supplier_id: p.supplier_id || "" }); setIsRestocking(true); setShowModal(true); }}
                           className="px-2.5 py-1 rounded-lg bg-[#EBF2FD] hover:bg-[#D5E8FB] text-[#1372e6] text-xs font-medium transition">
@@ -419,7 +419,7 @@ export default function PurchaseManagementPage() {
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200">
                   {[t("purchases.col_date"), t("purchases.col_product"), t("purchases.col_supplier"), t("purchases.col_qty"), t("purchases.col_unit"), t("purchases.col_total"), ""].map((h) => (
-                    <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-400 whitespace-nowrap">{h}</th>
+                    <th key={h} className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-400 whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -429,7 +429,7 @@ export default function PurchaseManagementPage() {
                   const d = p.created_at ? new Date(p.created_at) : null;
                   return (
                     <tr key={p.id} className="hover:bg-slate-50/60 transition-colors">
-                      <td className="px-4 py-3 whitespace-nowrap">
+                      <td className="px-3 py-2 whitespace-nowrap">
                         {d ? (
                           <div>
                             <p className="text-xs font-medium text-slate-700">{toDateStr(d)}</p>
@@ -437,19 +437,19 @@ export default function PurchaseManagementPage() {
                           </div>
                         ) : <span className="text-slate-300 text-xs">—</span>}
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-3 py-2">
                         <p className="font-semibold text-slate-800">{p.product_name}</p>
                         {p.product_id && <p className="text-xs text-slate-400 font-mono">{p.product_id.slice(0, 8)}</p>}
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-3 py-2">
                         {supplier
                           ? <div><p className="font-medium text-slate-700">{supplier.name}</p>{supplier.phone && <p className="text-xs text-slate-400">{supplier.phone}</p>}</div>
                           : <span className="text-slate-300 text-xs italic">—</span>}
                       </td>
-                      <td className="px-4 py-3 font-medium text-slate-700 tabular-nums">{p.quantity_added}</td>
-                      <td className="px-4 py-3 text-slate-600 tabular-nums">{p.cost_price.toLocaleString()}</td>
-                      <td className="px-4 py-3 font-semibold text-slate-800 tabular-nums">{p.total_cost.toLocaleString()}</td>
-                      <td className="px-4 py-3">
+                      <td className="px-3 py-2 font-medium text-slate-700 tabular-nums">{p.quantity_added}</td>
+                      <td className="px-3 py-2 text-slate-600 tabular-nums">{p.cost_price.toLocaleString()}</td>
+                      <td className="px-3 py-2 font-semibold text-slate-800 tabular-nums">{p.total_cost.toLocaleString()}</td>
+                      <td className="px-3 py-2">
                         <button onClick={() => deleteHistoryRecord(p.id)} disabled={deletingId === p.id}
                           className="p-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 transition disabled:opacity-40">
                           <Trash2 size={14} />
