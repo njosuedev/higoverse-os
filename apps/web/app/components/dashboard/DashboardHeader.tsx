@@ -6,11 +6,12 @@ import { useState, useRef, useEffect } from "react";
 import LogoutButton from "@/app/components/LogoutButton";
 import { useLanguage } from "@/lib/language-context";
 import { useAuth } from "@/lib/auth-context";
+import { useShop } from "@/lib/shop-context";
 import { LANGUAGES } from "@/lib/i18n";
 import { settingsRequest } from "@/lib/settings-api";
 import {
   Activity, LayoutDashboard, Package, Truck, ShoppingCart,
-  BarChart3, Users, Settings, FileText, ChevronDown, ShieldCheck, Receipt, Sparkles,
+  BarChart3, Users, Settings, FileText, ChevronDown, ShieldCheck, Receipt, Sparkles, Store,
 } from "lucide-react";
 
 interface DashboardHeaderProps {
@@ -25,6 +26,7 @@ export default function DashboardHeader({
   const pathname = usePathname();
   const { lang, setLang, t } = useLanguage();
   const { user } = useAuth();
+  const { shop } = useShop();
   const [langOpen, setLangOpen] = useState(false);
   const dropRef = useRef<HTMLDivElement>(null);
 
@@ -67,17 +69,45 @@ export default function DashboardHeader({
         {/* TOP BAR */}
         <div className="h-12 flex items-center justify-between">
 
-          {/* LOGO */}
-          <Link href="/" className="flex items-center gap-2">
+          {/* LOGO + SHOP */}
+          <Link href="/" className="flex items-center gap-2.5">
+            {/* App logo */}
             {loading ? (
               <div className="w-8 h-8 rounded-lg bg-slate-200 animate-pulse" />
             ) : (
               <img src="/higoverse.png" alt="Higoverse" className="w-8 h-8 rounded-lg object-cover" />
             )}
-            {loading ? (
-              <div className="h-4 w-24 bg-slate-200 animate-pulse rounded" />
-            ) : (
+
+            {/* Separator + shop logo/name */}
+            {!loading && shop && (
+              <>
+                <span className="text-slate-300 text-lg font-light select-none">|</span>
+                {shop.logo_url ? (
+                  <img
+                    src={shop.logo_url}
+                    alt={shop.name}
+                    className="w-7 h-7 rounded-lg object-cover border border-slate-200 shadow-sm"
+                    onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                  />
+                ) : (
+                  <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-[#1372e6] to-blue-700 flex items-center justify-center flex-shrink-0">
+                    <Store size={13} className="text-white" />
+                  </div>
+                )}
+                <div className="hidden sm:flex flex-col leading-tight">
+                  <span className="font-bold text-[12px] text-slate-900 leading-none">{shop.name}</span>
+                  <span className="text-[9px] text-slate-400 leading-none mt-0.5">Your Shop</span>
+                </div>
+              </>
+            )}
+
+            {/* Fallback title when shop not loaded */}
+            {!loading && !shop && (
               <span className="font-semibold text-sm text-slate-900">{title}</span>
+            )}
+
+            {loading && (
+              <div className="h-4 w-24 bg-slate-200 animate-pulse rounded" />
             )}
           </Link>
 

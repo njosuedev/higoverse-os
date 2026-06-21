@@ -3,6 +3,8 @@
 import { useState, useRef, useCallback } from "react";
 import DashboardHeader from "@/app/components/dashboard/DashboardHeader";
 import { useLanguage } from "@/lib/language-context";
+import { useShop } from "@/lib/shop-context";
+import { Store } from "lucide-react";
 import {
   sendChat,
   getConversations,
@@ -146,6 +148,7 @@ function TypingIndicator() {
 
 export default function AdvisorPage() {
   const { t, lang } = useLanguage();
+  const { shop }    = useShop();
 
   const [messages,      setMessages]      = useState<ChatMessage[]>([]);
   const [input,         setInput]         = useState("");
@@ -238,12 +241,18 @@ export default function AdvisorPage() {
           {/* Brand */}
           <div className="bg-gradient-to-br from-violet-600 to-purple-700 rounded-2xl p-4 shadow-lg text-white">
             <div className="flex items-center gap-3 mb-2">
-              <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center">
-                <Sparkles size={18} />
-              </div>
+              {shop?.logo_url ? (
+                <img src={shop.logo_url} alt={shop.name}
+                  className="w-9 h-9 rounded-xl object-cover border-2 border-white/30 shadow"
+                  onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+              ) : (
+                <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center">
+                  <Sparkles size={18} />
+                </div>
+              )}
               <div>
-                <p className="text-sm font-bold">AI Advisor</p>
-                <p className="text-[10px] text-purple-200">Higoverse · Free</p>
+                <p className="text-sm font-bold">{shop?.name ?? "AI Advisor"}</p>
+                <p className="text-[10px] text-purple-200">Higoverse AI · Free</p>
               </div>
             </div>
             <p className="text-[11px] text-purple-200 leading-relaxed">
@@ -336,6 +345,21 @@ export default function AdvisorPage() {
                 </span>
               </p>
             </div>
+            {/* Shop identity */}
+            {shop && (
+              <div className="hidden sm:flex items-center gap-2 border border-slate-200 rounded-xl px-2.5 py-1.5 bg-slate-50">
+                {shop.logo_url ? (
+                  <img src={shop.logo_url} alt={shop.name}
+                    className="w-6 h-6 rounded-lg object-cover border border-slate-200"
+                    onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+                ) : (
+                  <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-[#1372e6] to-blue-700 flex items-center justify-center">
+                    <Store size={11} className="text-white" />
+                  </div>
+                )}
+                <span className="text-xs font-semibold text-slate-700 max-w-[120px] truncate">{shop.name}</span>
+              </div>
+            )}
             {convId && (
               <button onClick={() => { setMessages([]); setConvId(null); }}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 text-xs text-slate-500 hover:bg-slate-50 transition">
