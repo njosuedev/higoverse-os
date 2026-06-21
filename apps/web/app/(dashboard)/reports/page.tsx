@@ -259,8 +259,21 @@ export default function ReportsPage() {
   const margin = summary && summary.revenue > 0
     ? ((summary.profit / summary.revenue) * 100).toFixed(1) : "0.0";
 
-  const dailyChartData = useMemo(() =>
-    daily.map((d) => ({ ...d, label: d.day.slice(5) })), [daily]);
+  const dailyChartData = useMemo(() => {
+    // Build a full 30-day scaffold so the line chart always has a complete range.
+    // The API only returns days that have sales; empty days get zero values.
+    const byDay: Record<string, DayRow> = {};
+    daily.forEach((d) => { byDay[d.day] = d; });
+
+    const result = [];
+    for (let i = 29; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const key = toDateStr(d);
+      result.push(byDay[key] ?? { day: key, revenue: 0, profit: 0, sales_count: 0 });
+    }
+    return result.map((d) => ({ ...d, label: d.day.slice(5) }));
+  }, [daily]);
 
   const maxDailyRevenue = useMemo(() =>
     Math.max(...daily.map((d) => d.revenue), 1), [daily]);
