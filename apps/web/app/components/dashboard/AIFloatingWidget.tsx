@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useLanguage } from "@/lib/language-context";
 import { useShop } from "@/lib/shop-context";
 import { sendChat, type ChatMessage } from "@/lib/advisor-api";
+import { playAIResponse } from "@/lib/sound";
 import { Bot, Send, X, Sparkles, User, AlertCircle } from "lucide-react";
 
 function TypingDots() {
@@ -115,6 +116,7 @@ export default function AIFloatingWidget() {
       };
       setMessages((p) => [...p, ai]);
       setConvId(res.conversation_id);
+      playAIResponse();
       scroll();
     } catch (err: any) {
       setMessages((p) => p.filter((m) => m.id !== opt.id));

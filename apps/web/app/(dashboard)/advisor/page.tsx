@@ -4,6 +4,7 @@ import { useState, useRef, useCallback } from "react";
 import DashboardHeader from "@/app/components/dashboard/DashboardHeader";
 import { useLanguage } from "@/lib/language-context";
 import { useShop } from "@/lib/shop-context";
+import { playAIResponse } from "@/lib/sound";
 import { Store } from "lucide-react";
 import {
   sendChat,
@@ -229,6 +230,7 @@ export default function AdvisorPage() {
       };
       setMessages((p) => [...p, ai]);
       setConvId(res.conversation_id);
+      playAIResponse();
       scrollBottom();
     } catch (err: any) {
       setMessages((p) => p.filter((m) => m.id !== optimistic.id));
