@@ -1,17 +1,10 @@
 import type { Metadata } from "next";
-import { Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
 
 import AuthGuard from "@/app/components/AuthGuard";
 import DeviceGuard from "@/app/components/DeviceGuard";
 import { LanguageProvider } from "@/lib/language-context";
 import { AuthProvider } from "@/lib/auth-context";
-
-const jakarta = Plus_Jakarta_Sans({
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
-  display: "swap",
-});
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://higoverse-os.vercel.app"),
@@ -110,7 +103,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={jakarta.className}>
+      <body>
         <AuthProvider>
           <LanguageProvider>
             <AuthGuard>

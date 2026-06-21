@@ -9,7 +9,7 @@ import { useAuth } from "@/lib/auth-context";
 import { LANGUAGES } from "@/lib/i18n";
 import { settingsRequest } from "@/lib/settings-api";
 import {
-  LayoutDashboard, Package, Truck, ShoppingCart,
+  Home, Package, Truck, ShoppingCart,
   BarChart3, Users, Settings, FileText, ChevronDown,
   ShieldCheck, Receipt, Sparkles,
 } from "lucide-react";
@@ -38,7 +38,7 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
   const currentLang = LANGUAGES.find((l) => l.code === lang) ?? LANGUAGES[0];
 
   const menus = [
-    { key: "nav.home",      href: "/",          icon: LayoutDashboard },
+    { key: "nav.home",      href: "/",          icon: Home },
     { key: "nav.items",     href: "/items",      icon: Package },
     { key: "nav.partners",  href: "/partners",   icon: Users },
     { key: "nav.purchases", href: "/purchases",  icon: Truck },
