@@ -30,8 +30,8 @@ async def get_shop_info(token: str) -> dict:
     """Fetch shop profile from auth service."""
     headers = {"Authorization": f"Bearer {token}"}
     async with httpx.AsyncClient() as client:
-        data = await _get(client, f"{settings.AUTH_API}/api/v1/shop/my-shop", headers)
-        if data:
+        data = await _get(client, f"{settings.AUTH_API}/api/v1/shop", headers)
+        if data and isinstance(data, dict) and data.get("id"):
             return data
     return {}
 
@@ -52,7 +52,7 @@ async def gather_context(token: str) -> dict:
             purchases,
             suppliers,
         ) = await asyncio.gather(
-            _get(client, f"{settings.AUTH_API}/api/v1/shop/my-shop", headers),
+            _get(client, f"{settings.AUTH_API}/api/v1/shop", headers),
             _get(client, f"{settings.SALES_API}/sales/stats", headers),
             _get(client, f"{settings.SALES_API}/sales/stats/daily?days=14", headers),
             _get(client, f"{settings.SALES_API}/sales?limit=20", headers),
