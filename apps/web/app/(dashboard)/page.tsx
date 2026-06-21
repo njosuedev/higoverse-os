@@ -17,10 +17,10 @@ import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer,
 } from "recharts";
 import {
-  Package, Truck, ArrowRight, BarChart3, ShoppingCart, Users, Settings,
+  Package, Truck, BarChart3, ShoppingCart, Users, Settings,
   RefreshCw, AlertTriangle, TrendingUp, TrendingDown, Globe,
   CheckCircle, FileText, Store, Mail, User, ShieldCheck, Plus,
-  Activity, Receipt, Wallet, DollarSign,
+  Activity, Receipt, Wallet, DollarSign, MapPin, Phone,
 } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -75,7 +75,7 @@ function shopPresence(lastSeenAt: string | null, now: Date) {
   return { online: false, label: d.toLocaleDateString([], { month: "short", day: "numeric" }), color: "bg-slate-300" };
 }
 
-// ─── Static colours (no translation needed) ───────────────────────────────────
+
 const SVC_COLORS: Record<string, { bg: string; text: string }> = {
   blue:   { bg: "bg-[#EBF2FD]", text: "text-[#1372e6]" },
   indigo: { bg: "bg-[#EBF2FD]", text: "text-[#1372e6]" },
@@ -93,7 +93,6 @@ export default function DashboardPage() {
   const { user } = useAuth();
   const { t } = useLanguage();
 
-  // ── Services defined inside component so t() works ────────────────────────
   const SERVICES = [
     { title: t("dash.items_inventory"), description: t("dash.items_inventory_desc"), icon: Package,      href: "/items",     color: "blue" },
     { title: t("nav.partners"),         description: t("dash.partners_desc"),         icon: Users,        href: "/partners",  color: "indigo" },
@@ -227,64 +226,63 @@ export default function DashboardPage() {
     <div className="min-h-screen bg-slate-50">
       <DashboardHeader />
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-6 space-y-6">
+      <main className="max-w-7xl mx-auto px-3 sm:px-5 py-3 sm:py-4 space-y-4">
 
         {/* ── HERO ────────────────────────────────────────────────────────────── */}
-        <section className="relative overflow-hidden rounded-2xl text-white shadow-lg" style={{ background: "#1372e6" }}>
+        <section className="relative overflow-hidden rounded-xl text-white shadow-md" style={{ background: "#1372e6" }}>
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-white/10 via-transparent to-transparent pointer-events-none" />
 
-          <div className="relative z-10 flex flex-col md:flex-row md:items-center md:justify-between gap-4 px-6 py-5">
-            <div className="flex items-center gap-4">
+          <div className="relative z-10 flex flex-col md:flex-row md:items-center md:justify-between gap-3 px-4 py-3.5">
+            <div className="flex items-center gap-3">
               {currentShop?.logo_url && (
-                // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={currentShop.logo_url}
                   alt={currentShop.name}
-                  className="w-14 h-14 rounded-xl object-cover border-2 border-white/20 shadow-lg shrink-0"
+                  className="w-11 h-11 rounded-xl object-cover border-2 border-white/20 shadow shrink-0"
                 />
               )}
               <div>
-                <p className="text-blue-200 text-xs font-medium uppercase tracking-widest">{t("dash.welcome")}</p>
-                <h1 className="text-2xl md:text-3xl font-bold mt-0.5">{currentShop?.name || user.name || "My Shop"}</h1>
-                <p className="text-blue-200 text-sm mt-0.5">{user.name} · {user.role || "Owner"}</p>
+                <p className="text-blue-200 text-[10px] font-medium uppercase tracking-widest">{t("dash.welcome")}</p>
+                <h1 className="text-xl md:text-2xl font-bold mt-0.5">{currentShop?.name || user.name || "My Shop"}</h1>
+                <p className="text-blue-200 text-xs mt-0.5">{user.name} · {user.role || "Owner"}</p>
               </div>
             </div>
 
-            <div className="flex items-center gap-4 flex-wrap">
-              <div className="bg-white/10 px-4 py-2.5 rounded-xl text-center">
-                <p className="text-blue-200 text-[10px] uppercase tracking-wider">{t("dash.sales_today")}</p>
-                <p className="text-xl font-bold">{stats.sales}</p>
+            <div className="flex items-center gap-3 flex-wrap">
+              <div className="bg-white/10 px-3 py-2 rounded-xl text-center">
+                <p className="text-blue-200 text-[9px] uppercase tracking-wider">{t("dash.sales_today")}</p>
+                <p className="text-lg font-bold">{stats.sales}</p>
               </div>
-              <div className="bg-white/10 px-4 py-2.5 rounded-xl text-center">
-                <p className="text-blue-200 text-[10px] uppercase tracking-wider">{t("dash.revenue_today")}</p>
-                <p className="text-xl font-bold text-green-300">
+              <div className="bg-white/10 px-3 py-2 rounded-xl text-center">
+                <p className="text-blue-200 text-[9px] uppercase tracking-wider">{t("dash.revenue_today")}</p>
+                <p className="text-lg font-bold text-green-300">
                   {stats.revenue > 0 ? `RWF ${fmtShort(stats.revenue)}` : "—"}
                 </p>
               </div>
               {(stats.lowStock > 0 || stats.outOfStock > 0) && (
-                <div className="bg-red-500/20 border border-red-400/30 px-4 py-2.5 rounded-xl text-center">
-                  <p className="text-red-200 text-[10px] uppercase tracking-wider">{t("dash.needs_restock")}</p>
-                  <p className="text-xl font-bold text-red-200">{stats.lowStock + stats.outOfStock}</p>
+                <div className="bg-red-500/20 border border-red-400/30 px-3 py-2 rounded-xl text-center">
+                  <p className="text-red-200 text-[9px] uppercase tracking-wider">{t("dash.needs_restock")}</p>
+                  <p className="text-lg font-bold text-red-200">{stats.lowStock + stats.outOfStock}</p>
                 </div>
               )}
             </div>
 
-            <div className="flex items-center gap-3 shrink-0">
+            <div className="flex items-center gap-2.5 shrink-0">
               <div className="text-right">
-                <p className="text-2xl font-mono font-bold tabular-nums">{fmtTime(now)}</p>
-                <p className="text-blue-300 text-xs">{fmtDate(now)}</p>
+                <p className="text-xl font-mono font-bold tabular-nums">{fmtTime(now)}</p>
+                <p className="text-blue-300 text-[10px]">{fmtDate(now)}</p>
               </div>
               <button
                 onClick={manualRefresh} disabled={refreshing}
-                className="w-9 h-9 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center transition disabled:opacity-50"
+                className="w-8 h-8 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center transition disabled:opacity-50"
                 title={t("common.refresh")}
               >
-                <RefreshCw size={15} className={refreshing ? "animate-spin" : ""} />
+                <RefreshCw size={13} className={refreshing ? "animate-spin" : ""} />
               </button>
             </div>
           </div>
 
-          <div className="relative z-10 border-t border-white/10 px-6 py-2 flex items-center gap-3 text-xs text-blue-200">
+          <div className="relative z-10 border-t border-white/10 px-4 py-1.5 flex items-center gap-3 text-[10px] text-blue-200">
             <span className="flex items-center gap-1.5">
               <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
               {t("dash.live_refresh")} {countdown}s
@@ -294,33 +292,33 @@ export default function DashboardPage() {
         </section>
 
         {/* ── KPI CARDS ────────────────────────────────────────────────────────── */}
-        <section className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3">
+        <section className="grid grid-cols-3 sm:grid-cols-3 xl:grid-cols-6 gap-2.5">
           <KpiCard label={t("dash.products")}    value={stats.products.toLocaleString()}
-            icon={<Package size={18} />} color="blue" href="/items" sub={t("dash.in_your_shop")} t={t} />
+            icon={<Package size={15} />} color="blue" href="/items" sub={t("dash.in_your_shop")} t={t} />
           <KpiCard label={t("dash.partners")}    value={stats.partners.toLocaleString()}
-            icon={<Users size={18} />} color="indigo" href="/partners" sub={t("dash.suppliers_customers")} t={t} />
+            icon={<Users size={15} />} color="indigo" href="/partners" sub={t("dash.suppliers_customers")} t={t} />
           <KpiCard label={t("dash.sales_today")} value={stats.sales.toLocaleString()}
-            icon={<ShoppingCart size={18} />} color="teal" href="/sales" sub={t("dash.transactions")} t={t} />
+            icon={<ShoppingCart size={15} />} color="teal" href="/sales" sub={t("dash.transactions")} t={t} />
           <KpiCard label={t("dash.revenue_today")}
             value={stats.revenue > 0 ? fmtCurrency(stats.revenue) : t("common.no_data")}
-            icon={<TrendingUp size={18} />} color="green" href="/reports" small
+            icon={<TrendingUp size={15} />} color="green" href="/reports" small
             delta={revDeltaPct}
             sub={yesterdayRevenue > 0 ? `Yesterday: ${fmtCurrency(yesterdayRevenue)}` : "first day data"} t={t} />
           <KpiCard label={t("items.low_stock")} value={stats.lowStock.toLocaleString()}
-            icon={<AlertTriangle size={18} />}
+            icon={<AlertTriangle size={15} />}
             color={stats.lowStock > 0 ? "orange" : "slate"}
             href="/items" sub="≤ 10 units" warn={stats.lowStock > 0} t={t} />
           <KpiCard label={t("items.out_stock")} value={stats.outOfStock.toLocaleString()}
-            icon={<Package size={18} />}
+            icon={<Package size={15} />}
             color={stats.outOfStock > 0 ? "red" : "slate"}
             href="/items" sub="zero units" warn={stats.outOfStock > 0} t={t} />
         </section>
 
         {/* ── TODAY'S SHOP STATUS ──────────────────────────────────────────────── */}
-        <section className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="font-bold text-slate-900 flex items-center gap-2">
-              <DollarSign size={16} className="text-[#1372e6]" />
+        <section className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="font-bold text-slate-900 text-sm flex items-center gap-2">
+              <DollarSign size={14} className="text-[#1372e6]" />
               {t("dash.shop_status_today") || "Today's Shop Status"}
             </h2>
             <Link href="/reports" className="text-xs font-semibold text-[#1372e6] hover:underline">
@@ -328,58 +326,52 @@ export default function DashboardPage() {
             </Link>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <div className="p-3 bg-green-50 rounded-xl">
-              <p className="text-[10px] text-slate-400 uppercase tracking-wide font-medium">{t("dash.revenue_today") || "Revenue"}</p>
-              <p className="text-lg font-bold text-green-700 mt-1">{stats.revenue > 0 ? fmtCurrency(stats.revenue) : "—"}</p>
-              <p className="text-xs text-slate-400 mt-0.5">{stats.sales} {t("dash.sales_today") || "sales"}</p>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+            <div className="p-2.5 bg-green-50 rounded-xl">
+              <p className="text-[9px] text-slate-400 uppercase tracking-wide font-medium">{t("dash.revenue_today") || "Revenue"}</p>
+              <p className="text-base font-bold text-green-700 mt-0.5">{stats.revenue > 0 ? fmtCurrency(stats.revenue) : "—"}</p>
+              <p className="text-[10px] text-slate-400 mt-0.5">{stats.sales} {t("dash.sales_today") || "sales"}</p>
             </div>
-            <div className="p-3 bg-slate-100 rounded-xl">
-              <p className="text-[10px] text-slate-400 uppercase tracking-wide font-medium">{t("nav.purchases") || "Purchases"}</p>
-              <p className="text-lg font-bold text-slate-700 mt-1">{purchaseCostToday > 0 ? fmtCurrency(purchaseCostToday) : "—"}</p>
-              <p className="text-xs text-slate-400 mt-0.5">{t("dash.stock_cost") || "Stock cost"}</p>
+            <div className="p-2.5 bg-slate-100 rounded-xl">
+              <p className="text-[9px] text-slate-400 uppercase tracking-wide font-medium">{t("nav.purchases") || "Purchases"}</p>
+              <p className="text-base font-bold text-slate-700 mt-0.5">{purchaseCostToday > 0 ? fmtCurrency(purchaseCostToday) : "—"}</p>
+              <p className="text-[10px] text-slate-400 mt-0.5">{t("dash.stock_cost") || "Stock cost"}</p>
             </div>
-            <div className="p-3 bg-orange-50 rounded-xl">
-              <p className="text-[10px] text-slate-400 uppercase tracking-wide font-medium">{t("nav.expenses") || "Expenses"}</p>
-              <p className="text-lg font-bold text-orange-700 mt-1">{expenseToday.total_expenses > 0 ? fmtCurrency(expenseToday.total_expenses) : "—"}</p>
-              <p className="text-xs text-slate-400 mt-0.5">{expenseToday.count} {t("expenses.records") || "records"}</p>
+            <div className="p-2.5 bg-orange-50 rounded-xl">
+              <p className="text-[9px] text-slate-400 uppercase tracking-wide font-medium">{t("nav.expenses") || "Expenses"}</p>
+              <p className="text-base font-bold text-orange-700 mt-0.5">{expenseToday.total_expenses > 0 ? fmtCurrency(expenseToday.total_expenses) : "—"}</p>
+              <p className="text-[10px] text-slate-400 mt-0.5">{expenseToday.count} {t("expenses.records") || "records"}</p>
             </div>
-            <div className={`p-3 rounded-xl ${netProfit >= 0 ? "bg-[#EBF2FD]" : "bg-red-50"}`}>
-              <p className="text-[10px] text-slate-400 uppercase tracking-wide font-medium">{t("dash.net_profit") || "Net Profit"}</p>
-              <p className={`text-lg font-bold mt-1 ${netProfit >= 0 ? "text-[#1372e6]" : "text-red-600"}`}>
+            <div className={`p-2.5 rounded-xl ${netProfit >= 0 ? "bg-[#EBF2FD]" : "bg-red-50"}`}>
+              <p className="text-[9px] text-slate-400 uppercase tracking-wide font-medium">{t("dash.net_profit") || "Net Profit"}</p>
+              <p className={`text-base font-bold mt-0.5 ${netProfit >= 0 ? "text-[#1372e6]" : "text-red-600"}`}>
                 {totalCosts > 0 || stats.revenue > 0 ? fmtCurrency(netProfit) : "—"}
               </p>
-              <p className="text-xs text-slate-400 mt-0.5">
+              <p className="text-[10px] text-slate-400 mt-0.5">
                 {netProfit >= 0 ? (t("dash.profitable") || "Profitable ✓") : (t("dash.at_loss") || "At a loss")}
               </p>
             </div>
           </div>
 
           {stats.revenue > 0 && (
-            <div className="mt-4">
-              <div className="flex h-2.5 rounded-full overflow-hidden gap-0.5">
-                {purchasePct > 0 && (
-                  <div className="bg-slate-400 rounded-l-full transition-all" style={{ width: `${purchasePct}%` }} />
-                )}
-                {expensePct > 0 && (
-                  <div className="bg-amber-400 transition-all" style={{ width: `${expensePct}%` }} />
-                )}
-                {netPct > 0 && (
-                  <div className="bg-green-500 rounded-r-full flex-1 transition-all" />
-                )}
+            <div className="mt-3">
+              <div className="flex h-2 rounded-full overflow-hidden gap-0.5">
+                {purchasePct > 0 && <div className="bg-slate-400 rounded-l-full" style={{ width: `${purchasePct}%` }} />}
+                {expensePct  > 0 && <div className="bg-amber-400"               style={{ width: `${expensePct}%` }} />}
+                {netPct      > 0 && <div className="bg-green-500 rounded-r-full flex-1" />}
               </div>
-              <div className="flex flex-wrap items-center gap-4 mt-2">
-                <span className="flex items-center gap-1.5 text-[11px] text-slate-500">
-                  <span className="w-2.5 h-2 rounded-sm bg-slate-400 inline-block" /> {t("nav.purchases") || "Purchases"} {purchasePct}%
+              <div className="flex flex-wrap items-center gap-3 mt-1.5">
+                <span className="flex items-center gap-1 text-[10px] text-slate-500">
+                  <span className="w-2 h-1.5 rounded-sm bg-slate-400 inline-block" /> {t("nav.purchases") || "Purchases"} {purchasePct}%
                 </span>
-                <span className="flex items-center gap-1.5 text-[11px] text-slate-500">
-                  <span className="w-2.5 h-2 rounded-sm bg-amber-400 inline-block" /> {t("nav.expenses") || "Expenses"} {expensePct}%
+                <span className="flex items-center gap-1 text-[10px] text-slate-500">
+                  <span className="w-2 h-1.5 rounded-sm bg-amber-400 inline-block" /> {t("nav.expenses") || "Expenses"} {expensePct}%
                 </span>
-                <span className="flex items-center gap-1.5 text-[11px] text-slate-500">
-                  <span className="w-2.5 h-2 rounded-sm bg-green-500 inline-block" /> {t("dash.profit_label") || "Profit"} {netPct}%
+                <span className="flex items-center gap-1 text-[10px] text-slate-500">
+                  <span className="w-2 h-1.5 rounded-sm bg-green-500 inline-block" /> {t("dash.profit_label") || "Profit"} {netPct}%
                 </span>
-                <Link href="/ExpenseManagement" className="ml-auto text-[11px] font-semibold text-[#1372e6] hover:underline flex items-center gap-1">
-                  <Receipt size={11} /> {t("expenses.add") || "Add expense"}
+                <Link href="/ExpenseManagement" className="ml-auto text-[10px] font-semibold text-[#1372e6] hover:underline flex items-center gap-1">
+                  <Receipt size={10} /> {t("expenses.add") || "Add expense"}
                 </Link>
               </div>
             </div>
@@ -387,16 +379,15 @@ export default function DashboardPage() {
         </section>
 
         {/* ── 7-DAY CHART + RECENT SALES ──────────────────────────────────────── */}
-        <div className="grid md:grid-cols-2 gap-6">
-
-          <section className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+        <div className="grid md:grid-cols-2 gap-4">
+          <section className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
             <div className="flex items-center justify-between mb-1">
               <div>
-                <h2 className="font-bold text-slate-900 flex items-center gap-2">
-                  <Activity size={16} className="text-[#1372e6]" />
+                <h2 className="font-bold text-slate-900 text-sm flex items-center gap-2">
+                  <Activity size={14} className="text-[#1372e6]" />
                   {t("dash.revenue_7d")}
                 </h2>
-                <p className="text-xs text-slate-400 mt-0.5">
+                <p className="text-[10px] text-slate-400 mt-0.5">
                   {t("common.total")}: {fmtCurrency(chartData.reduce((s, d) => s + d.revenue, 0))}
                 </p>
               </div>
@@ -405,8 +396,8 @@ export default function DashboardPage() {
               </Link>
             </div>
 
-            <ResponsiveContainer width="100%" height={130}>
-              <AreaChart data={chartData} margin={{ top: 8, right: 4, bottom: 0, left: -20 }}>
+            <ResponsiveContainer width="100%" height={110}>
+              <AreaChart data={chartData} margin={{ top: 6, right: 4, bottom: 0, left: -20 }}>
                 <defs>
                   <linearGradient id="revFill" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%"  stopColor="#1372e6" stopOpacity={0.25} />
@@ -417,10 +408,10 @@ export default function DashboardPage() {
                     <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <XAxis dataKey="day" tick={{ fontSize: 10, fill: "#94a3b8" }} tickLine={false} axisLine={false} />
+                <XAxis dataKey="day" tick={{ fontSize: 9, fill: "#94a3b8" }} tickLine={false} axisLine={false} />
                 <YAxis hide />
                 <Tooltip
-                  contentStyle={{ fontSize: 11, borderRadius: 8, border: "1px solid #e2e8f0", boxShadow: "0 2px 8px rgba(0,0,0,.06)" }}
+                  contentStyle={{ fontSize: 10, borderRadius: 8, border: "1px solid #e2e8f0", boxShadow: "0 2px 8px rgba(0,0,0,.06)" }}
                   formatter={(v: unknown, name: unknown) => [
                     fmtCurrency(typeof v === "number" ? v : 0),
                     name === "revenue" ? t("dash.revenue_label") : t("dash.profit_label"),
@@ -430,20 +421,20 @@ export default function DashboardPage() {
                 <Area type="monotone" dataKey="profit"  stroke="#10b981" fill="url(#profFill)" strokeWidth={1.5} dot={false} strokeDasharray="4 2" />
               </AreaChart>
             </ResponsiveContainer>
-            <div className="flex items-center gap-4 mt-2">
-              <span className="flex items-center gap-1.5 text-[11px] text-slate-500">
-                <span className="w-3 h-0.5 rounded" style={{ background: "#1372e6" }} /> {t("dash.revenue_label")}
+            <div className="flex items-center gap-3 mt-1.5">
+              <span className="flex items-center gap-1 text-[10px] text-slate-500">
+                <span className="w-2.5 h-0.5 rounded" style={{ background: "#1372e6" }} /> {t("dash.revenue_label")}
               </span>
-              <span className="flex items-center gap-1.5 text-[11px] text-slate-500">
-                <span className="w-3 h-0.5 bg-emerald-500 rounded" /> {t("dash.profit_label")}
+              <span className="flex items-center gap-1 text-[10px] text-slate-500">
+                <span className="w-2.5 h-0.5 bg-emerald-500 rounded" /> {t("dash.profit_label")}
               </span>
             </div>
           </section>
 
-          <section className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
-            <div className="flex items-center justify-between px-5 pt-5 pb-3">
-              <h2 className="font-bold text-slate-900 flex items-center gap-2">
-                <Receipt size={16} className="text-[#1372e6]" />
+          <section className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+            <div className="flex items-center justify-between px-4 pt-4 pb-2.5">
+              <h2 className="font-bold text-slate-900 text-sm flex items-center gap-2">
+                <Receipt size={14} className="text-[#1372e6]" />
                 {t("dash.recent_sales")}
               </h2>
               <Link href="/sales" className="text-xs font-semibold text-[#1372e6] hover:underline">
@@ -452,30 +443,27 @@ export default function DashboardPage() {
             </div>
 
             {recentSales.length === 0 ? (
-              <div className="px-5 pb-5 text-slate-400 text-sm flex items-center gap-2 py-6">
-                <ShoppingCart size={16} />
-                {t("dash.no_sales_today")}
+              <div className="px-4 pb-4 text-slate-400 text-xs flex items-center gap-2 py-5">
+                <ShoppingCart size={14} /> {t("dash.no_sales_today")}
               </div>
             ) : (
               <div className="divide-y divide-slate-50">
                 {recentSales.map((sale) => (
-                  <div key={sale.id} className="flex items-center gap-3 px-5 py-3 hover:bg-slate-50 transition-colors">
-                    <div className="w-8 h-8 rounded-xl bg-[#EBF2FD] text-[#1372e6] flex items-center justify-center shrink-0">
-                      <ShoppingCart size={14} />
+                  <div key={sale.id} className="flex items-center gap-2.5 px-4 py-2.5 hover:bg-slate-50 transition-colors">
+                    <div className="w-7 h-7 rounded-lg bg-[#EBF2FD] text-[#1372e6] flex items-center justify-center shrink-0">
+                      <ShoppingCart size={12} />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-slate-800 truncate">
-                        {sale.product_name || t("nav.sales")}
-                      </p>
-                      <p className="text-xs text-slate-400">
+                      <p className="text-xs font-semibold text-slate-800 truncate">{sale.product_name || t("nav.sales")}</p>
+                      <p className="text-[10px] text-slate-400">
                         {sale.quantity} unit{sale.quantity !== 1 ? "s" : ""}
                         {sale.created_at ? ` · ${timeAgo(parseUTC(sale.created_at))}` : ""}
                       </p>
                     </div>
                     <div className="text-right shrink-0">
-                      <p className="text-sm font-bold text-slate-800">{fmtCurrency(sale.total_amount)}</p>
+                      <p className="text-xs font-bold text-slate-800">{fmtCurrency(sale.total_amount)}</p>
                       {sale.profit != null && sale.profit > 0 && (
-                        <p className="text-[11px] text-green-600">+{fmtCurrency(sale.profit)} {t("dash.profit_label")}</p>
+                        <p className="text-[9px] text-green-600">+{fmtCurrency(sale.profit)}</p>
                       )}
                     </div>
                   </div>
@@ -483,26 +471,25 @@ export default function DashboardPage() {
               </div>
             )}
 
-            <div className="px-5 py-3 border-t border-slate-50">
+            <div className="px-4 py-2.5 border-t border-slate-50">
               <Link href="/sales"
-                className="w-full flex items-center justify-center gap-2 text-sm font-semibold text-white py-2 rounded-xl transition hover:opacity-90" style={{ background: "#1372e6" }}>
-                <Plus size={15} />
-                {t("dash.record_new_sale")}
+                className="w-full flex items-center justify-center gap-1.5 text-xs font-semibold text-white py-2 rounded-xl transition hover:opacity-90" style={{ background: "#1372e6" }}>
+                <Plus size={12} /> {t("dash.record_new_sale")}
               </Link>
             </div>
           </section>
         </div>
 
         {/* ── STOCK ALERTS + QUICK ACTIONS ────────────────────────────────────── */}
-        <div className="grid md:grid-cols-2 gap-6">
+        <div className="grid md:grid-cols-2 gap-4">
 
-          <section className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
-            <div className="flex items-center justify-between px-5 pt-5 pb-3">
-              <h2 className="font-bold text-slate-900 flex items-center gap-2">
-                <AlertTriangle size={16} className="text-orange-500" />
+          <section className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+            <div className="flex items-center justify-between px-4 pt-4 pb-2.5">
+              <h2 className="font-bold text-slate-900 text-sm flex items-center gap-2">
+                <AlertTriangle size={14} className="text-orange-500" />
                 {t("reports.stock_alerts")}
                 {stockAlerts.length > 0 && (
-                  <span className="text-[11px] font-bold bg-red-100 text-red-600 px-2 py-0.5 rounded-full">
+                  <span className="text-[10px] font-bold bg-red-100 text-red-600 px-1.5 py-0.5 rounded-full">
                     {stockAlerts.length}
                   </span>
                 )}
@@ -513,94 +500,84 @@ export default function DashboardPage() {
             </div>
 
             {stockAlerts.length === 0 ? (
-              <div className="px-5 pb-5 flex items-center gap-3 py-6">
-                <div className="w-10 h-10 rounded-xl bg-green-100 flex items-center justify-center">
-                  <CheckCircle size={18} className="text-green-600" />
+              <div className="px-4 pb-4 flex items-center gap-3 py-5">
+                <div className="w-8 h-8 rounded-xl bg-green-100 flex items-center justify-center">
+                  <CheckCircle size={15} className="text-green-600" />
                 </div>
                 <div>
-                  <p className="font-semibold text-slate-700 text-sm">{t("dash.all_stock_healthy")}</p>
-                  <p className="text-slate-400 text-xs">{t("dash.no_restock_needed")}</p>
+                  <p className="font-semibold text-slate-700 text-xs">{t("dash.all_stock_healthy")}</p>
+                  <p className="text-slate-400 text-[10px]">{t("dash.no_restock_needed")}</p>
                 </div>
               </div>
             ) : (
               <div className="divide-y divide-slate-50">
                 {stockAlerts.map((item) => (
                   <div key={item.id}
-                    className={`flex items-center gap-3 px-5 py-3 ${
-                      item.quantity === 0 ? "bg-red-50/40" : "bg-amber-50/30"
-                    }`}>
-                    <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${
-                      item.quantity === 0 ? "bg-red-500" : "bg-amber-500"
-                    }`} />
+                    className={`flex items-center gap-2.5 px-4 py-2.5 ${item.quantity === 0 ? "bg-red-50/40" : "bg-amber-50/30"}`}>
+                    <div className={`w-2 h-2 rounded-full shrink-0 ${item.quantity === 0 ? "bg-red-500" : "bg-amber-500"}`} />
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-slate-800 truncate">{item.name}</p>
-                      <p className="text-xs text-slate-400">
+                      <p className="text-xs font-semibold text-slate-800 truncate">{item.name}</p>
+                      <p className="text-[10px] text-slate-400">
                         {item.quantity === 0 ? t("dash.empty_stock") : `${item.quantity} ${t("dash.units_left")}`}
                         {" · "}{fmtCurrency(item.selling_price)}
                       </p>
                     </div>
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      <Link
-                        href="/PurchaseManagement"
-                        className="flex items-center gap-1 text-[11px] font-semibold text-white bg-[#1372e6] hover:bg-[#0d5cc4] px-2.5 py-1 rounded-lg transition"
-                      >
-                        <Plus size={11} />
-                        {t("reports.restock")}
-                      </Link>
-                    </div>
+                    <Link
+                      href="/PurchaseManagement"
+                      className="flex items-center gap-1 text-[10px] font-semibold text-white bg-[#1372e6] hover:bg-[#0d5cc4] px-2 py-1 rounded-lg transition"
+                    >
+                      <Plus size={10} /> {t("reports.restock")}
+                    </Link>
                   </div>
                 ))}
               </div>
             )}
 
             {stockAlerts.length > 0 && (
-              <div className="px-5 py-3 border-t border-slate-50">
+              <div className="px-4 py-2.5 border-t border-slate-50">
                 <Link href="/PurchaseManagement"
-                  className="w-full flex items-center justify-center gap-2 text-sm font-semibold text-[#1372e6] bg-[#EBF2FD] hover:bg-[#D5E8FB] py-2 rounded-xl transition">
-                  <Truck size={15} />
-                  {t("items.go_purchases")}
+                  className="w-full flex items-center justify-center gap-1.5 text-xs font-semibold text-[#1372e6] bg-[#EBF2FD] hover:bg-[#D5E8FB] py-2 rounded-xl transition">
+                  <Truck size={12} /> {t("items.go_purchases")}
                 </Link>
               </div>
             )}
           </section>
 
-          <section className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
-            <h2 className="font-bold text-slate-900 mb-4">{t("dash.quick_actions")}</h2>
-            <div className="grid grid-cols-2 gap-3">
+          <section className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+            <h2 className="font-bold text-slate-900 text-sm mb-3">{t("dash.quick_actions")}</h2>
+            <div className="grid grid-cols-2 gap-2.5">
               {[
-                { href: "/sales",     icon: Plus,      label: t("dash.new_sale"),     desc: t("dash.new_sale_desc"),     bg: "bg-[#1372e6]", hover: "hover:bg-[#0d5cc4]" },
-                { href: "/PurchaseManagement", icon: Truck,     label: t("dash.new_purchase"), desc: t("dash.new_purchase_desc"), bg: "bg-[#1372e6]", hover: "hover:bg-[#0d5cc4]" },
-                { href: "/ExpenseManagement",  icon: Wallet,    label: t("nav.expenses") || "Add Expense", desc: t("dash.expenses_desc") || "Log a business expense", bg: "bg-[#1372e6]", hover: "hover:bg-[#0d5cc4]" },
-                { href: "/reports",            icon: BarChart3, label: t("dash.view_reports"), desc: t("dash.charts_analytics"),  bg: "bg-[#1372e6]", hover: "hover:bg-[#0d5cc4]" },
+                { href: "/sales",              icon: Plus,      label: t("dash.new_sale"),     desc: t("dash.new_sale_desc") },
+                { href: "/PurchaseManagement", icon: Truck,     label: t("dash.new_purchase"), desc: t("dash.new_purchase_desc") },
+                { href: "/ExpenseManagement",  icon: Wallet,    label: t("nav.expenses") || "Add Expense", desc: t("dash.expenses_desc") || "Log a business expense" },
+                { href: "/reports",            icon: BarChart3, label: t("dash.view_reports"), desc: t("dash.charts_analytics") },
               ].map((a) => (
                 <Link key={a.href} href={a.href}
-                  className={`group flex items-center gap-3 p-3.5 rounded-xl text-white ${a.bg} ${a.hover} transition-all shadow-sm hover:shadow-md`}
+                  className="flex items-center gap-2.5 p-3 rounded-xl text-white bg-[#1372e6] shadow-sm"
                 >
-                  <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
-                    <a.icon size={17} />
+                  <div className="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
+                    <a.icon size={14} />
                   </div>
                   <div className="min-w-0">
-                    <p className="text-sm font-bold leading-tight">{a.label}</p>
-                    <p className="text-[11px] text-white/70 mt-0.5">{a.desc}</p>
+                    <p className="text-xs font-bold leading-tight">{a.label}</p>
+                    <p className="text-[10px] text-white/70 mt-0.5 truncate">{a.desc}</p>
                   </div>
                 </Link>
               ))}
             </div>
 
             {stats.sales > 0 && (
-              <div className="mt-4 p-3 bg-slate-50 rounded-xl border border-slate-100 flex items-center gap-3">
-                <div className="w-8 h-8 rounded-xl bg-green-100 flex items-center justify-center">
-                  <TrendingUp size={15} className="text-green-600" />
+              <div className="mt-3 p-2.5 bg-slate-50 rounded-xl border border-slate-100 flex items-center gap-2.5">
+                <div className="w-7 h-7 rounded-xl bg-green-100 flex items-center justify-center">
+                  <TrendingUp size={13} className="text-green-600" />
                 </div>
                 <div>
                   <p className="text-xs font-semibold text-slate-700">
                     {stats.sales} sale{stats.sales !== 1 ? "s" : ""} · {fmtCurrency(stats.revenue)}
                   </p>
                   {revDeltaPct !== null && (
-                    <p className={`text-[11px] font-medium mt-0.5 flex items-center gap-1 ${
-                      revDeltaPct >= 0 ? "text-green-600" : "text-red-500"
-                    }`}>
-                      {revDeltaPct >= 0 ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
+                    <p className={`text-[10px] font-medium mt-0.5 flex items-center gap-1 ${revDeltaPct >= 0 ? "text-green-600" : "text-red-500"}`}>
+                      {revDeltaPct >= 0 ? <TrendingUp size={9} /> : <TrendingDown size={9} />}
                       {Math.abs(revDeltaPct)}% {t("dash.vs_yesterday")}
                     </p>
                   )}
@@ -612,23 +589,21 @@ export default function DashboardPage() {
 
         {/* ── BUSINESS SERVICES ───────────────────────────────────────────────── */}
         <section>
-          <h2 className="font-bold text-slate-900 text-lg mb-4">{t("dash.services")}</h2>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-7 gap-3">
+          <h2 className="font-bold text-slate-900 text-sm mb-3">{t("dash.services")}</h2>
+          <div className="grid grid-cols-4 sm:grid-cols-4 md:grid-cols-8 gap-2">
             {SERVICES.map((svc) => {
               const Icon = svc.icon;
               const c = SVC_COLORS[svc.color] ?? SVC_COLORS.slate;
               return (
                 <Link key={svc.href} href={svc.href}
-                  className="group bg-white border border-slate-200 rounded-2xl p-4 hover:shadow-md transition-all text-center hover:border-slate-300"
+                  className="bg-white border border-slate-200 rounded-xl p-3 text-center block"
                 >
-                  <div className={`w-11 h-11 rounded-xl ${c.bg} ${c.text} flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform`}>
-                    <Icon size={20} />
+                  <div className={`w-9 h-9 rounded-xl ${c.bg} ${c.text} flex items-center justify-center mx-auto mb-2`}>
+                    <Icon size={17} />
                   </div>
-                  <p className="text-xs font-bold text-slate-800 leading-tight">{svc.title}</p>
-                  <p className="text-[10px] text-slate-400 mt-1 leading-snug hidden sm:block">{svc.description}</p>
-                  <div className="mt-2 flex items-center justify-center gap-1 text-[10px] text-green-600">
-                    <CheckCircle size={10} />
-                    {t("dash.open")}
+                  <p className="text-[10px] font-bold text-slate-800 leading-tight">{svc.title}</p>
+                  <div className="mt-1.5 flex items-center justify-center gap-0.5 text-[9px] text-green-600">
+                    <CheckCircle size={8} /> {t("dash.open")}
                   </div>
                 </Link>
               );
@@ -636,114 +611,142 @@ export default function DashboardPage() {
           </div>
         </section>
 
-        {/* ── SHOPS ON HIGOVERSE ──────────────────────────────────────────────── */}
-        <section className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
-          <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-slate-50">
-            <div className="flex items-center gap-2.5">
-              <Globe size={16} className="text-[#1372e6]" />
-              <h2 className="font-bold text-slate-900">
+        {/* ── SHOPS ON HIGOVERSE — Social Media Cards ─────────────────────────── */}
+        <section>
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <Globe size={14} className="text-[#1372e6]" />
+              <h2 className="font-bold text-slate-900 text-sm">
                 {t("dash.shops_higoverse")}
-                <span className="ml-2 text-xs bg-[#EBF2FD] text-[#1372e6] font-semibold px-2 py-0.5 rounded-full align-middle">
+                <span className="ml-2 text-[10px] bg-[#EBF2FD] text-[#1372e6] font-semibold px-2 py-0.5 rounded-full align-middle">
                   {shops.length}
                 </span>
               </h2>
             </div>
             {onlineCount > 0 && (
-              <span className="flex items-center gap-1.5 text-xs font-semibold text-green-700 bg-green-50 border border-green-200 px-2.5 py-1 rounded-full">
+              <span className="flex items-center gap-1.5 text-[10px] font-semibold text-green-700 bg-green-50 border border-green-200 px-2 py-1 rounded-full">
                 <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
                 {onlineCount} {t("common.online")}
               </span>
             )}
           </div>
 
-          <div className="p-5">
-            {shops.length === 0 ? (
-              <p className="text-slate-400 text-sm text-center py-4">{t("common.no_data")}</p>
-            ) : (
-              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                {shops.map((shop) => {
-                  const isMine   = shop.id === user.shop_id;
-                  const presence = shopPresence(shop.last_seen_at, now);
-                  const initial  = (shop.name || "?")[0].toUpperCase();
-                  const avatarBg = isMine ? "bg-[#1372e6]" : presence.online ? "bg-green-500" : "bg-slate-300";
-                  const presenceLabel = presence.label === "never_seen"
-                    ? t("dash.never_seen")
-                    : presence.label === "online_now"
-                    ? t("dash.online_now")
-                    : `${t("dash.last_seen")} ${presence.label}`;
-                  return (
-                    <div key={shop.id}
-                      className={`flex items-center gap-3 p-3.5 rounded-xl border transition-all ${
-                        isMine
-                          ? "border-[#A8C8F8] bg-[#EBF2FD]"
-                          : presence.online
-                            ? "border-green-200 bg-green-50/50"
-                            : "border-slate-100 bg-slate-50/50 hover:bg-slate-50"
-                      }`}>
-                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold text-sm shrink-0 overflow-hidden ${avatarBg}`}>
-                        {shop.logo_url ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={shop.logo_url} alt={shop.name} className="w-10 h-10 object-cover" />
-                        ) : initial}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <p className="font-semibold text-slate-800 text-sm truncate">{shop.name}</p>
-                          {isMine && (
-                            <span className="text-[10px] font-bold bg-[#1372e6] text-white px-2 py-0.5 rounded-full shrink-0">You</span>
-                          )}
-                        </div>
-                        {shop.phone && <p className="text-xs text-slate-400 mt-0.5">{shop.phone}</p>}
-                        <p className={`text-xs mt-1 font-medium flex items-center gap-1.5 ${
-                          isMine ? "text-[#1372e6]" : presence.online ? "text-green-600" : "text-slate-400"
-                        }`}>
-                          <span className={`w-1.5 h-1.5 rounded-full ${presence.color} ${presence.online || isMine ? "animate-pulse" : ""}`} />
-                          {isMine ? t("dash.you_online") : presenceLabel}
-                        </p>
-                      </div>
-                      {!isMine && (
-                        <span className={`text-[10px] font-bold px-2 py-1 rounded-full shrink-0 ${
-                          presence.online ? "bg-green-500 text-white" : "bg-slate-200 text-slate-500"
-                        }`}>
-                          {presence.online ? "LIVE" : "OFF"}
+          {shops.length === 0 ? (
+            <div className="bg-white border border-slate-200 rounded-xl p-6 text-center">
+              <Globe size={28} className="text-slate-300 mx-auto mb-2" />
+              <p className="text-slate-400 text-xs">{t("common.no_data")}</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+              {shops.map((shop) => {
+                const isMine   = shop.id === user.shop_id;
+                const presence = shopPresence(shop.last_seen_at, now);
+                const initial  = (shop.name || "?")[0].toUpperCase();
+                const presenceLabel = presence.label === "never_seen"
+                  ? t("dash.never_seen")
+                  : presence.label === "online_now"
+                  ? t("dash.online_now")
+                  : `${t("dash.last_seen")} ${presence.label}`;
+
+                return (
+                  <div key={shop.id}
+                    className={`relative rounded-2xl border shadow-sm bg-white ${
+                      isMine
+                        ? "border-[#A8C8F8] ring-2 ring-[#1372e6]/20"
+                        : presence.online
+                          ? "border-green-200"
+                          : "border-slate-200"
+                    }`}>
+
+                    {/* Cover band */}
+                    <div className="h-14 bg-[#1372e6] rounded-t-2xl relative overflow-hidden">
+                      {isMine && (
+                        <span className="absolute top-1.5 right-1.5 text-[8px] font-black bg-white text-[#1372e6] px-1.5 py-0.5 rounded-full shadow">
+                          YOU
+                        </span>
+                      )}
+                      {presence.online && !isMine && (
+                        <span className="absolute top-1.5 right-1.5 flex items-center gap-1 text-[8px] font-black bg-green-500 text-white px-1.5 py-0.5 rounded-full shadow">
+                          <span className="w-1 h-1 rounded-full bg-white animate-pulse" />
+                          LIVE
                         </span>
                       )}
                     </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+
+                    {/* Logo — sits below cover, not overlapping, fully visible */}
+                    <div className="px-3 pb-3 pt-2">
+                      <div className="mb-2 flex items-center justify-center">
+                        <div className="w-14 h-14 rounded-2xl border-2 border-slate-200 shadow-sm overflow-hidden bg-slate-100 flex items-center justify-center">
+                          {shop.logo_url ? (
+                            <img src={shop.logo_url} alt={shop.name} className="w-full h-full object-cover" />
+                          ) : (
+                            <span className="text-lg font-black text-white bg-[#1372e6] w-full h-full flex items-center justify-center">
+                              {initial}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <p className="text-xs font-bold text-slate-900 leading-tight truncate text-center" title={shop.name}>
+                        {shop.name}
+                      </p>
+
+                      {shop.phone && (
+                        <p className="text-[9px] text-slate-400 mt-0.5 flex items-center justify-center gap-1 truncate">
+                          <Phone size={8} /> {shop.phone}
+                        </p>
+                      )}
+
+                      {(shop as any).address && (
+                        <p className="text-[9px] text-slate-400 mt-0.5 flex items-center justify-center gap-1 truncate">
+                          <MapPin size={8} /> {(shop as any).address}
+                        </p>
+                      )}
+
+                      <div className={`mt-1.5 flex items-center justify-center gap-1 text-[9px] font-semibold ${
+                        isMine ? "text-[#1372e6]" : presence.online ? "text-green-600" : "text-slate-400"
+                      }`}>
+                        <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+                          presence.online ? "bg-green-500" : "bg-slate-300"
+                        } ${(presence.online || isMine) ? "animate-pulse" : ""}`} />
+                        {isMine ? t("dash.you_online") : presenceLabel}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </section>
 
         {/* ── ACCOUNT INFO ────────────────────────────────────────────────────── */}
-        <section className="pb-10">
-          <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
-            <div className="flex items-center gap-4 px-5 py-4 border-b border-slate-50">
-              <div className="w-10 h-10 rounded-xl bg-[#D5E8FB] text-[#1372e6] flex items-center justify-center font-bold">
+        <section className="pb-8">
+          <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+            <div className="flex items-center gap-3 px-4 py-3 border-b border-slate-50">
+              <div className="w-8 h-8 rounded-xl bg-[#D5E8FB] text-[#1372e6] flex items-center justify-center font-bold text-sm">
                 {(user.name || "U")[0].toUpperCase()}
               </div>
               <div>
-                <p className="font-bold text-slate-900">{user.name || "Owner"}</p>
-                <p className="text-slate-400 text-xs">{user.email}</p>
+                <p className="font-bold text-slate-900 text-sm">{user.name || "Owner"}</p>
+                <p className="text-slate-400 text-[10px]">{user.email}</p>
               </div>
-              <span className="ml-auto flex items-center gap-1.5 text-xs font-semibold text-green-700 bg-green-50 border border-green-200 px-2.5 py-1 rounded-full">
+              <span className="ml-auto flex items-center gap-1 text-[10px] font-semibold text-green-700 bg-green-50 border border-green-200 px-2 py-1 rounded-full">
                 <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
                 {t("dash.active")}
               </span>
             </div>
             <div className="grid sm:grid-cols-2 lg:grid-cols-4">
               {[
-                { icon: <Mail size={14} />,        label: t("common.email"),    value: user.email },
-                { icon: <Store size={14} />,       label: t("nav.settings"),    value: currentShop?.name || user.shop_id.slice(0, 8) + "…" },
-                { icon: <User size={14} />,        label: "Role",               value: user.role || "Owner" },
-                { icon: <ShieldCheck size={14} />, label: t("dash.security"),   value: t("dash.protected") },
+                { icon: <Mail size={12} />,        label: t("common.email"),    value: user.email },
+                { icon: <Store size={12} />,       label: t("nav.settings"),    value: currentShop?.name || user.shop_id.slice(0, 8) + "…" },
+                { icon: <User size={12} />,        label: "Role",               value: user.role || "Owner" },
+                { icon: <ShieldCheck size={12} />, label: t("dash.security"),   value: t("dash.protected") },
               ].map((info, i) => (
-                <div key={info.label} className={`flex items-center gap-3 px-5 py-4 ${i < 3 ? "border-b md:border-b-0 md:border-r" : ""} border-slate-50`}>
+                <div key={info.label} className={`flex items-center gap-2.5 px-4 py-3 ${i < 3 ? "border-b md:border-b-0 md:border-r" : ""} border-slate-50`}>
                   <span className="text-[#1372e6] shrink-0">{info.icon}</span>
                   <div className="min-w-0">
-                    <p className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">{info.label}</p>
-                    <p className="text-sm font-bold text-slate-800 truncate mt-0.5">{info.value}</p>
+                    <p className="text-[9px] text-slate-400 font-medium uppercase tracking-wider">{info.label}</p>
+                    <p className="text-xs font-bold text-slate-800 truncate mt-0.5">{info.value}</p>
                   </div>
                 </div>
               ))}
@@ -777,30 +780,23 @@ function KpiCard({ label, value, icon, color, href, sub, small, delta, warn, t }
   const c = KPI_COLORS[color] ?? KPI_COLORS.slate;
   return (
     <Link href={href}
-      className={`group bg-white border rounded-2xl p-4 shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5 block ${
-        warn ? "border-red-200" : c.border
-      }`}>
-      <div className={`w-9 h-9 rounded-xl ${c.icon} flex items-center justify-center mb-2.5 group-hover:scale-110 transition-transform`}>
+      className={`bg-white border rounded-xl p-3 shadow-sm block ${warn ? "border-red-200" : c.border}`}>
+      <div className={`w-8 h-8 rounded-xl ${c.icon} flex items-center justify-center mb-2`}>
         {icon}
       </div>
-      <p className="text-xs text-slate-400 font-medium">{label}</p>
-      <p className={`font-extrabold text-slate-900 mt-0.5 leading-tight truncate ${small ? "text-sm" : "text-xl"}`}>
+      <p className="text-[9px] text-slate-400 font-medium">{label}</p>
+      <p className={`font-extrabold text-slate-900 mt-0.5 leading-tight truncate ${small ? "text-xs" : "text-base"}`}>
         {value}
       </p>
       {delta !== null && delta !== undefined && (
-        <p className={`text-[11px] font-semibold mt-0.5 flex items-center gap-0.5 ${
-          delta >= 0 ? "text-green-600" : "text-red-500"
-        }`}>
-          {delta >= 0 ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
+        <p className={`text-[9px] font-semibold mt-0.5 flex items-center gap-0.5 ${delta >= 0 ? "text-green-600" : "text-red-500"}`}>
+          {delta >= 0 ? <TrendingUp size={8} /> : <TrendingDown size={8} />}
           {Math.abs(delta)}% {t("dash.vs_yesterday")}
         </p>
       )}
       {sub && !delta && (
-        <p className="text-[10px] text-slate-300 mt-0.5 truncate">{sub}</p>
+        <p className="text-[9px] text-slate-300 mt-0.5 truncate">{sub}</p>
       )}
-      <div className="mt-2 flex items-center gap-1 text-[10px] text-[#1372e6] opacity-0 group-hover:opacity-100 transition-opacity font-medium">
-        {t("dash.open")} <ArrowRight size={9} />
-      </div>
     </Link>
   );
 }
