@@ -395,8 +395,24 @@ export default function RegisterPage() {
                       Address <span className="text-slate-400 font-normal normal-case">(optional)</span>
                     </label>
                     <Field icon={<MapPin size={16} />}>
-                      <input value={form.address} onChange={e => set("address", e.target.value)}
-                        placeholder="e.g. Kigali, Gasabo District" className={inputCls} />
+                      <select value={form.address} onChange={e => set("address", e.target.value)} className={inputCls}>
+                        <option value="">— Select district —</option>
+                        <optgroup label="Kigali City">
+                          {["Gasabo","Kicukiro","Nyarugenge"].map(d=><option key={d} value={`${d}, Kigali`}>{d}</option>)}
+                        </optgroup>
+                        <optgroup label="Eastern Province">
+                          {["Bugesera","Gatsibo","Kayonza","Kirehe","Ngoma","Nyagatare","Rwamagana"].map(d=><option key={d} value={`${d}, Eastern Province`}>{d}</option>)}
+                        </optgroup>
+                        <optgroup label="Western Province">
+                          {["Karongi","Ngororero","Nyabihu","Nyamasheke","Rubavu","Rusizi","Rutsiro"].map(d=><option key={d} value={`${d}, Western Province`}>{d}</option>)}
+                        </optgroup>
+                        <optgroup label="Northern Province">
+                          {["Burera","Gakenke","Gicumbi","Musanze","Rulindo"].map(d=><option key={d} value={`${d}, Northern Province`}>{d}</option>)}
+                        </optgroup>
+                        <optgroup label="Southern Province">
+                          {["Gisagara","Huye","Kamonyi","Muhanga","Nyamagabe","Nyanza","Nyaruguru","Ruhango"].map(d=><option key={d} value={`${d}, Southern Province`}>{d}</option>)}
+                        </optgroup>
+                      </select>
                     </Field>
                   </div>
 

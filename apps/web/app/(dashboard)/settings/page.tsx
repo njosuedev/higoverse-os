@@ -365,12 +365,28 @@ export default function SettingsPage() {
                 />
               </Field>
               <Field label={<><MapPin size={11} className="inline mr-1" />{t("common.address")}</>}>
-                <input
+                <select
                   className={inputCls}
-                  placeholder="e.g. Kigali, Gasabo"
                   value={shopForm.address}
                   onChange={(e) => setShopForm({ ...shopForm, address: e.target.value })}
-                />
+                >
+                  <option value="">— Select district —</option>
+                  <optgroup label="Kigali City">
+                    {["Gasabo","Kicukiro","Nyarugenge"].map(d=><option key={d} value={`${d}, Kigali`}>{d}</option>)}
+                  </optgroup>
+                  <optgroup label="Eastern Province">
+                    {["Bugesera","Gatsibo","Kayonza","Kirehe","Ngoma","Nyagatare","Rwamagana"].map(d=><option key={d} value={`${d}, Eastern Province`}>{d}</option>)}
+                  </optgroup>
+                  <optgroup label="Western Province">
+                    {["Karongi","Ngororero","Nyabihu","Nyamasheke","Rubavu","Rusizi","Rutsiro"].map(d=><option key={d} value={`${d}, Western Province`}>{d}</option>)}
+                  </optgroup>
+                  <optgroup label="Northern Province">
+                    {["Burera","Gakenke","Gicumbi","Musanze","Rulindo"].map(d=><option key={d} value={`${d}, Northern Province`}>{d}</option>)}
+                  </optgroup>
+                  <optgroup label="Southern Province">
+                    {["Gisagara","Huye","Kamonyi","Muhanga","Nyamagabe","Nyanza","Nyaruguru","Ruhango"].map(d=><option key={d} value={`${d}, Southern Province`}>{d}</option>)}
+                  </optgroup>
+                </select>
               </Field>
             </div>
 
