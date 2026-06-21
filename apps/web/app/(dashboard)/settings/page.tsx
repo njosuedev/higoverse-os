@@ -266,9 +266,14 @@ export default function SettingsPage() {
         <div className="bg-linear-to-r from-slate-700 to-slate-900 text-white rounded-2xl p-5">
           <div className="flex flex-wrap justify-between items-center gap-2">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center">
-                <Settings size={19} />
-              </div>
+              {logoUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={logoUrl} alt="Shop logo" className="w-10 h-10 rounded-xl object-cover border-2 border-white/20" />
+              ) : (
+                <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center">
+                  <Settings size={19} />
+                </div>
+              )}
               <div>
                 <h1 className="text-base font-semibold">{t("settings.title")}</h1>
                 <p className="text-slate-400 text-xs mt-0.5">

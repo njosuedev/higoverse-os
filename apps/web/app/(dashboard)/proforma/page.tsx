@@ -13,7 +13,7 @@ import {
 
 interface LineItem { id: string; product_name: string; qty: number; unit_price: number; }
 interface Product { id: string; name: string; selling_price: number; }
-interface ShopInfo { name: string; phone?: string; address?: string; email?: string; }
+interface ShopInfo { name: string; phone?: string; address?: string; email?: string; logo_url?: string; }
 
 function genId() { return Math.random().toString(36).slice(2, 9); }
 function genInvoiceNo() { return `PRO-${Date.now().toString().slice(-6)}`; }
@@ -61,7 +61,7 @@ export default function ProformaPage() {
       }
       if (shopRes.status === "fulfilled" && shopRes.value) {
         const s = shopRes.value;
-        setShop({ name: s.name || "", phone: s.phone, address: s.address, email: s.email });
+        setShop({ name: s.name || "", phone: s.phone, address: s.address, email: s.email, logo_url: s.logo_url });
       }
     });
   }, []);
@@ -174,6 +174,7 @@ export default function ProformaPage() {
   <!-- Header -->
   <div class="header">
     <div class="logo-block">
+      ${shop.logo_url ? `<img src="${shop.logo_url}" alt="${shop.name}" style="width:64px;height:64px;object-fit:cover;border-radius:10px;margin-bottom:8px;display:block;" />` : ""}
       <div class="logo-name">${shop.name || "Your Business"}</div>
       ${shop.address ? `<div class="logo-sub">${shop.address}</div>` : ""}
       ${shop.phone ? `<div class="logo-sub">Tel: ${shop.phone}</div>` : ""}
@@ -447,8 +448,11 @@ export default function ProformaPage() {
             <div className="bg-white rounded-xl border border-slate-200 p-4">
               <h3 className="text-xs font-semibold uppercase text-slate-400 tracking-wide mb-3">Issued By</h3>
               <div className="flex items-start gap-2.5">
-                <div className="w-9 h-9 rounded-lg bg-blue-600 flex items-center justify-center text-white font-bold text-sm shrink-0">
-                  {(shop.name || "?")[0]?.toUpperCase()}
+                <div className="w-9 h-9 rounded-lg overflow-hidden shrink-0 flex items-center justify-center bg-blue-600 text-white font-bold text-sm">
+                  {shop.logo_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={shop.logo_url} alt={shop.name} className="w-9 h-9 object-cover" />
+                  ) : (shop.name || "?")[0]?.toUpperCase()}
                 </div>
                 <div>
                   <p className="font-semibold text-slate-800 text-sm">{shop.name || "Your Shop"}</p>

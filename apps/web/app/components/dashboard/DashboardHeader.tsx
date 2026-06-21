@@ -8,6 +8,7 @@ import { useLanguage } from "@/lib/language-context";
 import { useAuth } from "@/lib/auth-context";
 import { LANGUAGES } from "@/lib/i18n";
 import { settingsRequest } from "@/lib/settings-api";
+import { getMyShop } from "@/lib/shop-api";
 import {
   Activity, LayoutDashboard, Package, Truck, ShoppingCart,
   BarChart3, Users, Settings, FileText, ChevronDown, ShieldCheck, Receipt,
@@ -26,6 +27,8 @@ export default function DashboardHeader({
   const { lang, setLang, t } = useLanguage();
   const { user } = useAuth();
   const [langOpen, setLangOpen] = useState(false);
+  const [shopLogo, setShopLogo]   = useState<string>("");
+  const [shopName, setShopName]   = useState<string>("");
   const dropRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -35,6 +38,14 @@ export default function DashboardHeader({
     document.addEventListener("mousedown", onClickOutside);
     return () => document.removeEventListener("mousedown", onClickOutside);
   }, []);
+
+  useEffect(() => {
+    if (!user) return;
+    getMyShop().then((s) => {
+      if (s?.logo_url) setShopLogo(s.logo_url);
+      if (s?.name)     setShopName(s.name);
+    }).catch(() => {});
+  }, [user?.shop_id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function changeLang(code: typeof lang) {
     setLang(code);
@@ -70,13 +81,16 @@ export default function DashboardHeader({
           <Link href="/" className="flex items-center gap-2">
             {loading ? (
               <div className="w-8 h-8 rounded-lg bg-slate-200 animate-pulse" />
+            ) : shopLogo ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={shopLogo} alt={shopName || title} className="w-8 h-8 rounded-lg object-cover border border-slate-100" />
             ) : (
               <img src="/higoverse.png" alt="Higoverse" className="w-8 h-8 rounded-lg object-cover" />
             )}
             {loading ? (
               <div className="h-4 w-24 bg-slate-200 animate-pulse rounded" />
             ) : (
-              <span className="font-semibold text-sm text-slate-900">{title}</span>
+              <span className="font-semibold text-sm text-slate-900">{shopName || title}</span>
             )}
           </Link>
 

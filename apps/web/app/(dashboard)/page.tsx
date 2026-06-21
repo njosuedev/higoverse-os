@@ -222,10 +222,20 @@ export default function DashboardPage() {
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-white/10 via-transparent to-transparent pointer-events-none" />
 
           <div className="relative z-10 flex flex-col md:flex-row md:items-center md:justify-between gap-4 px-6 py-5">
-            <div>
-              <p className="text-blue-200 text-xs font-medium uppercase tracking-widest">{t("dash.welcome")}</p>
-              <h1 className="text-2xl md:text-3xl font-bold mt-0.5">{currentShop?.name || user.name || "My Shop"}</h1>
-              <p className="text-blue-200 text-sm mt-0.5">{user.name} · {user.role || "Owner"}</p>
+            <div className="flex items-center gap-4">
+              {currentShop?.logo_url && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={currentShop.logo_url}
+                  alt={currentShop.name}
+                  className="w-14 h-14 rounded-xl object-cover border-2 border-white/20 shadow-lg shrink-0"
+                />
+              )}
+              <div>
+                <p className="text-blue-200 text-xs font-medium uppercase tracking-widest">{t("dash.welcome")}</p>
+                <h1 className="text-2xl md:text-3xl font-bold mt-0.5">{currentShop?.name || user.name || "My Shop"}</h1>
+                <p className="text-blue-200 text-sm mt-0.5">{user.name} · {user.role || "Owner"}</p>
+              </div>
             </div>
 
             <div className="flex items-center gap-4 flex-wrap">
@@ -653,6 +663,7 @@ export default function DashboardPage() {
                   const isMine   = shop.id === user.shop_id;
                   const presence = shopPresence(shop.last_seen_at, now);
                   const initial  = (shop.name || "?")[0].toUpperCase();
+                  const avatarBg = isMine ? "bg-[#1372e6]" : presence.online ? "bg-green-500" : "bg-slate-300";
                   const presenceLabel = presence.label === "never_seen"
                     ? t("dash.never_seen")
                     : presence.label === "online_now"
@@ -667,10 +678,11 @@ export default function DashboardPage() {
                             ? "border-green-200 bg-green-50/50"
                             : "border-slate-100 bg-slate-50/50 hover:bg-slate-50"
                       }`}>
-                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold text-sm shrink-0 ${
-                        isMine ? "bg-[#1372e6]" : presence.online ? "bg-green-500" : "bg-slate-300"
-                      }`}>
-                        {initial}
+                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold text-sm shrink-0 overflow-hidden ${avatarBg}`}>
+                        {shop.logo_url ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={shop.logo_url} alt={shop.name} className="w-10 h-10 object-cover" />
+                        ) : initial}
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
