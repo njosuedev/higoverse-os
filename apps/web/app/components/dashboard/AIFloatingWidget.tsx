@@ -219,25 +219,57 @@ export default function AIFloatingWidget() {
       )}
 
       {/* FAB button */}
-      <button
-        onClick={() => setOpen((o) => !o)}
-        className={`relative w-14 h-14 rounded-2xl bg-gradient-to-br from-violet-500 to-purple-700
-          text-white shadow-lg hover:shadow-xl hover:scale-105 active:scale-95 transition-all flex items-center justify-center
-          ${pulsing ? "ring-4 ring-violet-400 ring-opacity-60" : ""}`}>
-        {open ? <X size={22} /> : <Sparkles size={22} />}
+      <div className="relative group">
+
+        {/* Hover tooltip */}
+        {!open && (
+          <div className="absolute right-full mr-3 top-1/2 -translate-y-1/2 pointer-events-none
+            opacity-0 group-hover:opacity-100 transition-all duration-200 translate-x-1 group-hover:translate-x-0">
+            <div className="bg-slate-900 text-white text-[10px] font-semibold px-3 py-1.5 rounded-lg whitespace-nowrap shadow-xl">
+              Ask AI Advisor
+              <span className="absolute left-full top-1/2 -translate-y-1/2 border-[5px] border-transparent border-l-slate-900" />
+            </div>
+          </div>
+        )}
+
+        {/* Ambient glow ring — always soft pulse */}
+        {!open && (
+          <div className="absolute -inset-2 rounded-3xl bg-gradient-to-br from-violet-400 to-purple-600 opacity-20 animate-pulse blur-sm" />
+        )}
+
+        <button
+          onClick={() => setOpen((o) => !o)}
+          className="relative w-16 h-16 rounded-2xl bg-gradient-to-br from-violet-500 via-purple-600 to-purple-800
+            text-white shadow-2xl shadow-violet-500/50 hover:shadow-violet-500/70
+            hover:scale-110 active:scale-95 transition-all duration-200 flex items-center justify-center overflow-hidden">
+
+          {/* Shimmer stripe */}
+          <div className="absolute inset-0 bg-gradient-to-tr from-white/20 via-white/5 to-transparent pointer-events-none" />
+
+          {open ? (
+            <X size={24} className="relative z-10" />
+          ) : (
+            <div className="relative z-10 flex flex-col items-center gap-0.5">
+              <Sparkles size={22} />
+              <span className="text-[7px] font-bold tracking-widest opacity-80 leading-none">AI</span>
+            </div>
+          )}
+        </button>
+
+        {/* Badge */}
         {!open && messages.length === 0 && (
-          <span className="absolute -top-1 -right-1 w-5 h-5 bg-green-500 rounded-full
-            border-2 border-white flex items-center justify-center text-[8px] font-bold text-white">
-            AI
+          <span className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-green-500 rounded-full
+            border-2 border-white flex items-center justify-center shadow-sm animate-bounce text-white">
+            <span className="text-[9px] font-bold">✦</span>
           </span>
         )}
         {!open && messages.length > 0 && (
-          <span className="absolute -top-1 -right-1 w-5 h-5 bg-blue-500 rounded-full
-            border-2 border-white flex items-center justify-center text-[9px] font-bold text-white">
+          <span className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-[#1372e6] rounded-full
+            border-2 border-white flex items-center justify-center text-[9px] font-bold text-white shadow-sm">
             {messages.filter(m => m.role === "assistant").length}
           </span>
         )}
-      </button>
+      </div>
     </div>
   );
 }
