@@ -305,10 +305,10 @@ export default function ReportsPage() {
 
   return (
     <div className="min-h-screen bg-white">
-      <div className="max-w-7xl mx-auto px-3 sm:px-5 py-3 sm:py-4 space-y-4">
+      <div className="max-w-7xl mx-auto px-3 sm:px-5 py-3 sm:py-4 space-y-3">
 
         {/* ── HEADER ─────────────────────────────────────────────────────────── */}
-        <div className="bg-slate-800 text-white rounded-xl p-4">
+        <div className="bg-[#1372e6] text-white rounded-xl p-3">
           <div className="flex flex-wrap justify-between items-start gap-4">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center">
@@ -341,7 +341,7 @@ export default function ReportsPage() {
             </div>
           </div>
 
-          <div className="mt-4">
+          <div className="mt-2">
             <DateRangeFilter
               from={dateFrom} to={dateTo}
               onFrom={setDateFrom} onTo={setDateTo}
@@ -370,7 +370,7 @@ export default function ReportsPage() {
         {summary && (
           <>
             {/* Row 1: Stock money summary */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <KpiCard
                 label="Stock Value"
                 value={`RWF ${fmtRWF(stockCost)}`}
@@ -397,7 +397,7 @@ export default function ReportsPage() {
               />
             </div>
             {/* Row 2: Stock health + sales + expenses + net profit */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3">
               <KpiCard
                 label="Out of Stock"
                 value={String(summary.out_of_stock)}
@@ -447,8 +447,8 @@ export default function ReportsPage() {
         )}
 
         {/* ── REVENUE + PROFIT AREA CHART ────────────────────────────────────── */}
-        <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
-          <div className="flex flex-wrap justify-between items-start gap-2 mb-5">
+        <div className="bg-white rounded-xl border border-slate-200 p-2.5">
+          <div className="flex flex-wrap justify-between items-start gap-2 mb-3">
             <div>
               <h2 className="text-sm font-semibold text-slate-800 flex items-center gap-2">
                 <Activity size={15} className="text-[#1372e6]" />
@@ -468,7 +468,7 @@ export default function ReportsPage() {
           {dailyChartData.length === 0 ? (
             <div className="h-52 flex items-center justify-center text-slate-400 text-sm">{t("common.no_data")}</div>
           ) : (
-            <ResponsiveContainer width="100%" height={220}>
+            <ResponsiveContainer width="100%" height={170}>
               <AreaChart data={dailyChartData} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
                 <defs>
                   <linearGradient id="gradRevenue" x1="0" y1="0" x2="0" y2="1">
@@ -493,12 +493,12 @@ export default function ReportsPage() {
 
         {/* ── STOCK HEALTH PIE + STOCK VALUE vs POTENTIAL ────────────────────── */}
         {summary && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
 
             {/* Stock Health Pie */}
-            <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
+            <div className="bg-white rounded-xl border border-slate-200 p-3 shadow-sm">
               <h2 className="text-sm font-semibold text-slate-800 mb-1">How Is Your Stock?</h2>
-              <p className="text-xs text-slate-400 mb-4">
+              <p className="text-xs text-slate-400 mb-2">
                 {summary.total_products} products total &mdash;&nbsp;
                 <span className="text-red-500 font-medium">{summary.out_of_stock} finished</span>,&nbsp;
                 <span className="text-amber-500 font-medium">{summary.low_stock} almost finished</span>
@@ -507,7 +507,7 @@ export default function ReportsPage() {
               {stockPieData.length === 0 ? (
                 <div className="h-48 flex items-center justify-center text-slate-400 text-sm">No stock data</div>
               ) : (
-                <ResponsiveContainer width="100%" height={200}>
+                <ResponsiveContainer width="100%" height={150}>
                   <PieChart>
                     <Pie
                       data={stockPieData}
@@ -535,14 +535,14 @@ export default function ReportsPage() {
               )}
 
               {/* Legend pills */}
-              <div className="grid grid-cols-3 gap-2 mt-2">
+              <div className="grid grid-cols-3 gap-2 mt-1.5">
                 {[
                   { label: "Good",             count: Math.max(0, summary.total_products - summary.out_of_stock - summary.low_stock), color: "bg-green-500", text: "text-green-700", bg: "bg-green-50" },
                   { label: "Almost Finished", count: summary.low_stock,   color: "bg-amber-400", text: "text-amber-700", bg: "bg-amber-50" },
                   { label: "Finished",         count: summary.out_of_stock, color: "bg-red-500",  text: "text-red-700",  bg: "bg-red-50" },
                 ].map((s) => (
-                  <div key={s.label} className={`${s.bg} rounded-xl p-3 text-center`}>
-                    <p className={`text-base font-bold ${s.text}`}>{s.count}</p>
+                  <div key={s.label} className={`${s.bg} rounded-lg p-2 text-center`}>
+                    <p className={`text-sm font-bold ${s.text}`}>{s.count}</p>
                     <p className="text-xs text-slate-500 mt-0.5">{s.label}</p>
                   </div>
                 ))}
@@ -550,13 +550,13 @@ export default function ReportsPage() {
             </div>
 
             {/* Money Breakdown */}
-            <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
+            <div className="bg-white rounded-xl border border-slate-200 p-3 shadow-sm">
               <h2 className="text-sm font-semibold text-slate-800 mb-0.5">Where Your Money Is</h2>
-              <p className="text-xs text-slate-400 mb-4">
+              <p className="text-xs text-slate-400 mb-2">
                 Each bar shows how big that number is compared to the others
               </p>
 
-              <div className="space-y-5 mb-5">
+              <div className="space-y-2.5 mb-3">
                 <ValueBar
                   label="What you paid for your stock"
                   sublabel="The total cost of all items sitting in your shop right now"
@@ -617,20 +617,20 @@ export default function ReportsPage() {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-2">
                 {stockCost > 0 && (
-                  <div className="bg-violet-50 rounded-xl p-3">
+                  <div className="bg-violet-50 rounded-lg p-2">
                     <p className="text-xs text-slate-500">Profit rate on stock</p>
-                    <p className="text-base font-bold text-violet-700 mt-0.5">
+                    <p className="text-sm font-bold text-violet-700 mt-0.5">
                       {((summary.potential_profit / stockCost) * 100).toFixed(1)}%
                     </p>
                     <p className="text-[10px] text-slate-400 mt-0.5">For every 100 RWF you spent, you earn this extra</p>
                   </div>
                 )}
                 {summary.revenue > 0 && (
-                  <div className="bg-emerald-50 rounded-xl p-3">
+                  <div className="bg-emerald-50 rounded-lg p-2">
                     <p className="text-xs text-slate-500">Profit rate on sales</p>
-                    <p className="text-base font-bold text-emerald-700 mt-0.5">{margin}%</p>
+                    <p className="text-sm font-bold text-emerald-700 mt-0.5">{margin}%</p>
                     <p className="text-[10px] text-slate-400 mt-0.5">For every 100 RWF sold, this is your profit</p>
                   </div>
                 )}
@@ -641,8 +641,8 @@ export default function ReportsPage() {
 
         {/* ── TOP ITEMS HORIZONTAL BAR ───────────────────────────────────────── */}
         {topItemsChart.length > 0 && (
-          <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
-            <div className="flex justify-between items-center mb-4">
+          <div className="bg-white rounded-xl border border-slate-200 p-3 shadow-sm">
+            <div className="flex justify-between items-center mb-2">
               <div>
                 <h2 className="text-sm font-semibold text-slate-800">{t("reports.top_items")}</h2>
                 <p className="text-xs text-slate-400 mt-0.5">Revenue &amp; profit by product</p>
@@ -652,7 +652,7 @@ export default function ReportsPage() {
                 <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-emerald-500 inline-block" /> Profit</span>
               </div>
             </div>
-            <ResponsiveContainer width="100%" height={Math.max(200, topItemsChart.length * 40)}>
+            <ResponsiveContainer width="100%" height={Math.max(160, topItemsChart.length * 32)}>
               <BarChart data={topItemsChart} layout="vertical" margin={{ top: 0, right: 16, left: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
                 <XAxis type="number" tickFormatter={fmtRWF} tick={{ fontSize: 10, fill: "#94a3b8" }} tickLine={false} axisLine={false} />
@@ -667,8 +667,8 @@ export default function ReportsPage() {
 
         {/* ── STOCK ALERTS TABLE ─────────────────────────────────────────────── */}
         {stockAlerts.length > 0 ? (
-          <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
-            <div className="flex justify-between items-center px-5 py-4 border-b border-slate-100">
+          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+            <div className="flex justify-between items-center px-4 py-3 border-b border-slate-100">
               <div className="flex items-center gap-2">
                 <AlertCircle size={16} className="text-amber-500" />
                 <h2 className="text-sm font-semibold text-slate-700">
@@ -684,7 +684,7 @@ export default function ReportsPage() {
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-100">
                   {[t("items.name"), "Qty Left", "You Paid", "You Sell For", "Profit %", "Action"].map((h) => (
-                    <th key={h} className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-gray-400 whitespace-nowrap">{h}</th>
+                    <th key={h} className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-400 whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -728,8 +728,8 @@ export default function ReportsPage() {
 
         {/* ── RECENT PURCHASES ───────────────────────────────────────────────── */}
         {recentPurchases.length > 0 && (
-          <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
-            <div className="flex justify-between items-center px-5 py-4 border-b border-slate-100">
+          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+            <div className="flex justify-between items-center px-4 py-3 border-b border-slate-100">
               <div className="flex items-center gap-2">
                 <Truck size={16} className="text-violet-500" />
                 <h2 className="text-sm font-semibold text-slate-700">
@@ -754,13 +754,13 @@ export default function ReportsPage() {
                   const d = p.created_at ? new Date(p.created_at) : null;
                   return (
                     <tr key={p.id} className="hover:bg-slate-50/60">
-                      <td className="px-4 py-2.5 text-xs text-slate-500 whitespace-nowrap">
+                      <td className="px-3 py-2 text-xs text-slate-500 whitespace-nowrap">
                         {d ? toDateStr(d) : "—"}
                       </td>
-                      <td className="px-4 py-2.5 font-medium text-slate-800">{p.product_name}</td>
-                      <td className="px-4 py-2.5 tabular-nums text-slate-600">{p.quantity_added}</td>
-                      <td className="px-4 py-2.5 tabular-nums text-slate-600">{(p.cost_price || 0).toLocaleString()}</td>
-                      <td className="px-4 py-2.5 font-semibold text-slate-800 tabular-nums">{(p.total_cost || 0).toLocaleString()}</td>
+                      <td className="px-3 py-2 font-medium text-slate-800">{p.product_name}</td>
+                      <td className="px-3 py-2 tabular-nums text-slate-600">{p.quantity_added}</td>
+                      <td className="px-3 py-2 tabular-nums text-slate-600">{(p.cost_price || 0).toLocaleString()}</td>
+                      <td className="px-3 py-2 font-semibold text-slate-800 tabular-nums">{(p.total_cost || 0).toLocaleString()}</td>
                     </tr>
                   );
                 })}
@@ -771,7 +771,7 @@ export default function ReportsPage() {
 
         {/* ── SECONDARY STATS ROW ────────────────────────────────────────────── */}
         {summary && (
-          <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-4 pb-10">
+          <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 pb-6">
             <StatMini label="Items Sold"         value={fmtNum(summary.items_sold)}               sub={`to ${summary.unique_customers} customers`} color="text-indigo-600" icon={<ShoppingCart size={14} />} />
             <StatMini label="Spent on Restocking" value={`RWF ${fmtRWF(summary.total_spent)}`}   sub={`${recentPurchases.length} purchase records`} color="text-teal-600" icon={<Truck size={14} />} />
             <StatMini label="Business Expenses"  value={expenseTotalPeriod > 0 ? `RWF ${fmtRWF(expenseTotalPeriod)}` : "—"} sub={`${expenseCount} records this period`} color="text-orange-600" icon={<Receipt size={14} />} />
@@ -818,18 +818,18 @@ function KpiCard({ label, value, detail, icon, color, pulse, badge }: {
 }) {
   const c = kpiColors[color] ?? kpiColors.indigo;
   return (
-    <div className={`bg-white rounded-2xl border border-slate-200 p-3 shadow-sm hover:shadow-md transition-all ${pulse ? "relative" : ""}`}>
+    <div className={`bg-white rounded-xl border border-slate-200 p-3 transition-all ${pulse ? "relative" : ""}`}>
       {pulse && (
         <span className="absolute top-3 right-3 flex h-2 w-2">
           <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75" />
           <span className="relative inline-flex rounded-full h-2 w-2 bg-[#1372e6]" />
         </span>
       )}
-      <div className={`w-9 h-9 rounded-xl ${c.bg} ${c.text} flex items-center justify-center mb-3`}>
+      <div className={`w-7 h-7 rounded-lg ${c.bg} ${c.text} flex items-center justify-center mb-2`}>
         {icon}
       </div>
       <p className="text-xs text-slate-400 font-medium uppercase tracking-wide">{label}</p>
-      <p className={`text-2xl font-extrabold mt-1 ${c.text} leading-none`}>{value}</p>
+      <p className={`text-base font-bold mt-1 ${c.text} leading-none`}>{value}</p>
       <p className="text-xs text-slate-400 mt-1.5">{detail}</p>
       {badge && (
         <span className={`inline-block mt-2 text-[10px] font-bold px-2 py-0.5 rounded-full ${c.badge}`}>
@@ -872,7 +872,7 @@ function StatMini({ label, value, sub, color, icon }: {
         {icon}
         <span className="text-xs font-medium uppercase tracking-wide">{label}</span>
       </div>
-      <p className={`text-lg font-bold ${color}`}>{value}</p>
+      <p className={`text-sm font-bold ${color}`}>{value}</p>
       <p className="text-xs text-slate-400 mt-0.5">{sub}</p>
     </div>
   );
