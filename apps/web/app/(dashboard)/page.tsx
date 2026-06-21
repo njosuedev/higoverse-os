@@ -197,10 +197,6 @@ export default function DashboardPage() {
     };
   }, [user?.shop_id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (!user || dataLoading) return <LoadingSkeleton />;
-
-  const currentShop = shops.find((s) => s.id === user.shop_id);
-  const onlineCount = shops.filter((s) => shopPresence(s.last_seen_at, now).online).length;
   const chartData = useMemo(() => {
     const byDay: Record<string, DailyRecord> = {};
     dailyData.forEach((d) => { if (d.day) byDay[d.day] = d; });
@@ -213,6 +209,11 @@ export default function DashboardPage() {
     }
     return result;
   }, [dailyData]);
+
+  if (!user || dataLoading) return <LoadingSkeleton />;
+
+  const currentShop = shops.find((s) => s.id === user.shop_id);
+  const onlineCount = shops.filter((s) => shopPresence(s.last_seen_at, now).online).length;
   const revDeltaPct = yesterdayRevenue > 0
     ? Math.round(((stats.revenue - yesterdayRevenue) / yesterdayRevenue) * 100)
     : null;
