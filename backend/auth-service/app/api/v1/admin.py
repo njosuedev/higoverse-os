@@ -143,14 +143,20 @@ def admin_delete_shop(
     shop = shop_db.query(Shop).filter(Shop.id == shop_id).first()
     if not shop:
         raise HTTPException(status_code=404, detail="Shop not found")
-    shop_db.delete(shop)
-    shop_db.commit()
 
-    # also remove from auth db mirror
+    # Delete users first (FK: users.shop_id → shops.id in auth_db)
+    db.query(User).filter(User.shop_id == shop_id).delete(synchronize_session=False)
+    db.flush()
+
+    # Remove shop mirror from auth_db
     auth_shop = db.query(Shop).filter(Shop.id == shop_id).first()
     if auth_shop:
         db.delete(auth_shop)
-        db.commit()
+    db.commit()
+
+    # Remove shop from shop_db (no FK dependencies there)
+    shop_db.delete(shop)
+    shop_db.commit()
 
     return {"success": True, "message": "Shop deleted"}
 

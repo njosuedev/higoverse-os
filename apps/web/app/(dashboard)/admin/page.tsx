@@ -623,18 +623,22 @@ export default function AdminPage() {
                             {shop.is_active ? <><ToggleRight size={12} />Disable</> : <><ToggleLeft size={12} />Enable</>}
                           </button>
                           {deleteConfirm === shop.id ? (
-                            <>
+                            <div className="flex items-center gap-1.5 bg-red-50 border border-red-200 rounded-lg px-2.5 py-1.5">
+                              <span className="text-[11px] text-red-600 font-medium">
+                                Delete <span className="font-bold">{shop.name}</span> + all its users?
+                              </span>
                               <button onClick={() => handleDeleteShop(shop.id)} disabled={busy}
-                                className="text-xs px-2.5 py-1 rounded-full bg-red-600 text-white hover:bg-red-700 transition disabled:opacity-40 font-medium">
-                                Confirm
+                                className="text-xs px-2.5 py-1 rounded-full bg-red-600 text-white hover:bg-red-700 transition disabled:opacity-40 font-bold shrink-0">
+                                {busy ? "Deleting…" : "Yes, delete"}
                               </button>
                               <button onClick={() => setDeleteConfirm(null)}
-                                className="text-xs px-2 py-1 rounded-full text-gray-400 hover:bg-gray-100 transition">
+                                className="text-xs px-2 py-1 rounded-full text-gray-500 hover:bg-gray-100 transition shrink-0">
                                 Cancel
                               </button>
-                            </>
+                            </div>
                           ) : (
                             <button onClick={() => setDeleteConfirm(shop.id)} disabled={busy}
+                              title="Delete shop"
                               className="p-1.5 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition disabled:opacity-40">
                               <Trash2 size={13} />
                             </button>
