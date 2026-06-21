@@ -8,6 +8,7 @@ class RegisterShopRequest(BaseModel):
     phone:       str | None = None
     address:     str | None = None
     description: str | None = None
+    logo_url:    str | None = None
     role:        str = "owner"
 
 

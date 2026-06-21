@@ -26,6 +26,7 @@ class Shop(Base):
     phone       = Column(String(50))
     address     = Column(String(500))
     description = Column(Text)
+    logo_url    = Column(Text, nullable=True)
     is_active   = Column(Boolean, default=True)
     created_at  = Column(DateTime(timezone=True), default=_utcnow)
     updated_at  = Column(DateTime(timezone=True), onupdate=func.now())

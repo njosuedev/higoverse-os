@@ -10,7 +10,7 @@ import DashboardHeader from "@/app/components/dashboard/DashboardHeader";
 import {
   Settings, Save, RefreshCw, Store, Phone, MapPin, DollarSign,
   AlertCircle, FileText, Lock, Eye, EyeOff, CheckCircle2, ChevronDown,
-  Globe, BarChart, ShieldCheck, Pencil,
+  Globe, BarChart, ShieldCheck, Pencil, ImagePlus, X, Loader2,
 } from "lucide-react";
 
 interface ShopForm {
@@ -39,6 +39,27 @@ const PW_DEFAULTS: PwForm = { current: "", next: "", confirm: "" };
 
 function deepEq<T>(a: T, b: T) { return JSON.stringify(a) === JSON.stringify(b); }
 
+function compressImage(file: File, maxPx = 256, quality = 0.85): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = reject;
+    reader.onload = (e) => {
+      const img = new window.Image();
+      img.onerror = reject;
+      img.onload = () => {
+        const scale = Math.min(1, maxPx / Math.max(img.width, img.height));
+        const canvas = document.createElement("canvas");
+        canvas.width  = Math.round(img.width  * scale);
+        canvas.height = Math.round(img.height * scale);
+        canvas.getContext("2d")!.drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL("image/jpeg", quality));
+      };
+      img.src = e.target!.result as string;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
 type SectionStatus = "idle" | "saving" | "saved" | "error";
 
 export default function SettingsPage() {
@@ -62,6 +83,11 @@ export default function SettingsPage() {
   const [opsErr, setOpsErr]   = useState("");
   const [pwErr, setPwErr]     = useState("");
 
+  const [logoUrl, setLogoUrl]       = useState("");
+  const savedLogoUrl                = useRef("");
+  const [logoLoading, setLogoLoading] = useState(false);
+  const logoDirty = logoUrl !== savedLogoUrl.current;
+
   const [loading, setLoading]   = useState(true);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [showPw, setShowPw]     = useState(false);
@@ -75,7 +101,7 @@ export default function SettingsPage() {
   const opsDirty  = !deepEq(opsForm,  savedOps.current);
   const pwDirty   = pwForm.current.length > 0 || pwForm.next.length > 0;
 
-  const anyDirty = shopDirty || opsDirty;
+  const anyDirty = shopDirty || opsDirty || logoDirty;
 
   useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -103,10 +129,13 @@ export default function SettingsPage() {
         tax_rate:            s?.tax_rate            ?? 0,
       };
 
+      const logo = shop?.logo_url || "";
       setShopForm(newShop);
       setOpsForm(newOps);
-      savedShop.current = { ...newShop };
-      savedOps.current  = { ...newOps };
+      setLogoUrl(logo);
+      savedShop.current    = { ...newShop };
+      savedOps.current     = { ...newOps };
+      savedLogoUrl.current = logo;
     } catch (err) {
       console.error(err);
     } finally {
@@ -126,6 +155,7 @@ export default function SettingsPage() {
         phone:       shopForm.phone,
         address:     shopForm.address,
         description: shopForm.description,
+        logo_url:    logoUrl || undefined,
       });
       // Also sync to settings-service
       await settingsRequest("/settings/", {
@@ -136,13 +166,25 @@ export default function SettingsPage() {
           address:   shopForm.address,
         }),
       }).catch(() => {}); // best-effort
-      savedShop.current = { ...shopForm };
+      savedShop.current    = { ...shopForm };
+      savedLogoUrl.current = logoUrl;
       setShopStatus("saved");
       setLastSaved(new Date());
       statusTimer(setShopStatus);
     } catch (err) {
       setShopErr(err instanceof Error ? err.message : "Failed to save shop info.");
       setShopStatus("error");
+    }
+  }
+
+  async function handleLogoFile(file: File) {
+    if (!file.type.startsWith("image/")) return;
+    setLogoLoading(true);
+    try {
+      const compressed = await compressImage(file);
+      setLogoUrl(compressed);
+    } finally {
+      setLogoLoading(false);
     }
   }
 
@@ -253,7 +295,7 @@ export default function SettingsPage() {
         <Section
           icon={<Store size={15} />}
           title={t("settings.shop_info")}
-          dirty={shopDirty}
+          dirty={shopDirty || logoDirty}
           status={shopStatus}
           onSave={saveShop}
           saveLabel="Save Profile"
@@ -261,6 +303,44 @@ export default function SettingsPage() {
           {shopErr && <ErrorBanner msg={shopErr} />}
 
           <div className="space-y-4">
+            {/* Logo */}
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-2">
+                Shop Logo <span className="text-slate-400">(optional)</span>
+              </label>
+              <div className="flex items-center gap-4">
+                {logoUrl ? (
+                  <div className="relative w-16 h-16 shrink-0">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={logoUrl} alt="Shop logo" className="w-16 h-16 rounded-xl object-cover border border-slate-200" />
+                    <button
+                      type="button"
+                      onClick={() => setLogoUrl("")}
+                      className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 transition"
+                    >
+                      <X size={11} />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="w-16 h-16 rounded-xl border-2 border-dashed border-slate-300 flex items-center justify-center text-slate-300 shrink-0">
+                    {logoLoading ? <Loader2 size={20} className="animate-spin text-blue-400" /> : <ImagePlus size={20} />}
+                  </div>
+                )}
+                <label className="cursor-pointer flex-1">
+                  <div className="h-10 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 transition flex items-center justify-center gap-2 text-sm text-slate-500 font-medium">
+                    <ImagePlus size={14} /> {logoUrl ? "Change logo" : "Upload logo"}
+                  </div>
+                  <input
+                    type="file" accept="image/*" className="hidden"
+                    onChange={(e) => { const f = e.target.files?.[0]; if (f) handleLogoFile(f); }}
+                  />
+                </label>
+              </div>
+              {logoDirty && !logoLoading && (
+                <p className="text-[11px] text-amber-600 mt-1.5">Logo has unsaved changes — click Save Profile to apply.</p>
+              )}
+            </div>
+
             <Field label={t("settings.shop_name")} required>
               <input
                 className={inputCls}
@@ -506,6 +586,7 @@ export default function SettingsPage() {
                 onClick={() => {
                   setShopForm({ ...savedShop.current });
                   setOpsForm({ ...savedOps.current });
+                  setLogoUrl(savedLogoUrl.current);
                 }}
                 className="px-4 py-2 rounded-lg border border-slate-200 text-slate-600 text-sm font-medium hover:bg-slate-50 transition"
               >

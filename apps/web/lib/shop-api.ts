@@ -32,6 +32,7 @@ export interface Shop {
   phone?: string;
   address?: string;
   description?: string;
+  logo_url?: string;
   is_active: boolean;
   created_at: string | null;
   updated_at: string | null;
@@ -51,6 +52,7 @@ export interface ShopUpdatePayload {
   phone?: string;
   address?: string;
   description?: string;
+  logo_url?: string;
 }
 
 /** Paginated list of active shops — auth-service is the source of truth */

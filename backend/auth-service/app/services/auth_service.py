@@ -40,6 +40,7 @@ def register_shop(db: Session, shop_db: Session, data):
         phone=data.phone,
         address=data.address,
         description=data.description,
+        logo_url=data.logo_url,
     )
     shop_db.add(shop_in_shopdb)
 
@@ -51,6 +52,7 @@ def register_shop(db: Session, shop_db: Session, data):
         phone=data.phone,
         address=data.address,
         description=data.description,
+        logo_url=data.logo_url,
     )
     db.add(shop_in_authdb)
 

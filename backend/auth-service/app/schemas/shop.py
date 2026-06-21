@@ -7,6 +7,7 @@ class ShopUpdate(BaseModel):
     phone:       Optional[str] = None
     address:     Optional[str] = None
     description: Optional[str] = None
+    logo_url:    Optional[str] = None
 
 
 class ShopResponse(BaseModel):
@@ -16,6 +17,7 @@ class ShopResponse(BaseModel):
     phone:       Optional[str]
     address:     Optional[str]
     description: Optional[str]
+    logo_url:    Optional[str]
     is_active:   bool
     created_at:  Optional[str]
     updated_at:  Optional[str]

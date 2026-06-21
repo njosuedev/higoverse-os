@@ -21,6 +21,7 @@ class Shop(Base):
     address     = Column(String(500))
     description = Column(Text)
 
+    logo_url     = Column(Text, nullable=True)
     is_active    = Column(Boolean, default=True)
 
     created_at   = Column(DateTime(timezone=True), default=_utcnow)

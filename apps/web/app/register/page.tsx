@@ -8,19 +8,42 @@ import {
   Building2, Mail, Phone, Lock, Eye, EyeOff,
   MapPin, FileText, ChevronRight, ChevronLeft,
   CheckCircle2, AlertCircle, Loader2, RefreshCw,
-  Store, ShieldCheck, Boxes, BarChart3,
+  Store, ShieldCheck, Boxes, BarChart3, ImagePlus, X,
 } from "lucide-react";
 
 /* ── Types ─────────────────────────────────────────────── */
 interface FormData {
-  shop_name:    string;
+  shop_name:     string;
   business_type: string;
-  address:      string;
-  description:  string;
-  email:        string;
-  phone:        string;
-  password:     string;
-  confirm:      string;
+  address:       string;
+  description:   string;
+  email:         string;
+  phone:         string;
+  password:      string;
+  confirm:       string;
+}
+
+/* ── Helpers ─────────────────────────────────────────────── */
+function compressImage(file: File, maxPx = 256, quality = 0.85): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = reject;
+    reader.onload = (e) => {
+      const img = new window.Image();
+      img.onerror = reject;
+      img.onload = () => {
+        const scale = Math.min(1, maxPx / Math.max(img.width, img.height));
+        const w = Math.round(img.width * scale);
+        const h = Math.round(img.height * scale);
+        const canvas = document.createElement("canvas");
+        canvas.width = w; canvas.height = h;
+        canvas.getContext("2d")!.drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL("image/jpeg", quality));
+      };
+      img.src = e.target!.result as string;
+    };
+    reader.readAsDataURL(file);
+  });
 }
 
 const BUSINESS_TYPES = [
@@ -34,8 +57,8 @@ const BUSINESS_TYPES = [
   "Other",
 ];
 
-/* ── Helpers ────────────────────────────────────────────── */
 const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const phoneRe = /^07\d{8}$/;
 
 function passwordStrength(p: string) {
   let s = 0;
@@ -103,6 +126,9 @@ export default function RegisterPage() {
     return () => clearTimeout(t);
   }, [resendTimer]);
 
+  const [logoUrl, setLogoUrl]       = useState<string>("");
+  const [logoLoading, setLogoLoading] = useState(false);
+
   const [form, setForm] = useState<FormData>({
     shop_name: "", business_type: "", address: "", description: "",
     email: "", phone: "", password: "", confirm: "",
@@ -113,6 +139,17 @@ export default function RegisterPage() {
     setTouch(p => ({ ...p, [k]: true }));
   };
 
+  const handleLogoFile = async (file: File) => {
+    if (!file.type.startsWith("image/")) return;
+    setLogoLoading(true);
+    try {
+      const compressed = await compressImage(file);
+      setLogoUrl(compressed);
+    } finally {
+      setLogoLoading(false);
+    }
+  };
+
   /* ── Validation ──────────────────────────────────────── */
   const v = {
     shop_name:     form.shop_name.trim().length >= 2,
@@ -120,7 +157,7 @@ export default function RegisterPage() {
     address:       true,                               // optional
     description:   true,                              // optional
     email:         emailRe.test(form.email),
-    phone:         form.phone.replace(/\D/g, "").length >= 9,
+    phone:         phoneRe.test(form.phone.replace(/\s/g, "")),
     password:      form.password.length >= 6,
     confirm:       form.confirm === form.password && form.confirm.length > 0,
   };
@@ -143,11 +180,12 @@ export default function RegisterPage() {
       const payload: Record<string, string> = {
         shop_name: form.shop_name.trim(),
         email:     form.email.trim(),
-        phone:     form.phone.trim(),
+        phone:     form.phone.replace(/\s/g, ""),
         password:  form.password,
       };
       if (form.address.trim())  payload.address     = form.address.trim();
       if (descParts)            payload.description = descParts;
+      if (logoUrl)              payload.logo_url    = logoUrl;
 
       const res  = await fetch(`${AUTH_URL}/api/v1/auth/register`, {
         method: "POST",
@@ -374,6 +412,36 @@ export default function RegisterPage() {
                         className="w-full pl-10 pr-4 pt-3 pb-3 bg-transparent outline-none text-slate-800 placeholder:text-slate-400 text-sm resize-none rounded-xl" />
                     </div>
                   </div>
+
+                  {/* Logo */}
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">
+                      Shop Logo <span className="text-slate-400 font-normal normal-case">(optional)</span>
+                    </label>
+                    <div className="flex items-center gap-4">
+                      {logoUrl ? (
+                        <div className="relative w-16 h-16 shrink-0">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={logoUrl} alt="logo preview" className="w-16 h-16 rounded-xl object-cover border border-slate-200" />
+                          <button type="button" onClick={() => setLogoUrl("")}
+                            className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center">
+                            <X size={11} />
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="w-16 h-16 rounded-xl border-2 border-dashed border-slate-300 flex items-center justify-center text-slate-300 shrink-0">
+                          {logoLoading ? <Loader2 size={20} className="animate-spin text-blue-400" /> : <ImagePlus size={20} />}
+                        </div>
+                      )}
+                      <label className="flex-1 cursor-pointer">
+                        <div className="h-10 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 transition flex items-center justify-center gap-2 text-sm text-slate-500 font-medium">
+                          <ImagePlus size={15} /> {logoUrl ? "Change logo" : "Upload logo"}
+                        </div>
+                        <input type="file" accept="image/*" className="hidden"
+                          onChange={e => { const f = e.target.files?.[0]; if (f) handleLogoFile(f); }} />
+                      </label>
+                    </div>
+                  </div>
                 </div>
 
                 <button onClick={() => { setTouch({ shop_name: true, business_type: true }); if (step1Ok) setStep(2); }}
@@ -418,9 +486,9 @@ export default function RegisterPage() {
                   <div>
                     <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Phone Number *</label>
                     <Field icon={<Phone size={16} />} valid={v.phone} touched={!!touched.phone}
-                      hint={v.phone ? "Valid phone" : "At least 9 digits required"}>
+                      hint={v.phone ? "Valid Rwandan number" : "Must be 07XXXXXXXX (10 digits)"}>
                       <input type="tel" value={form.phone} onChange={e => set("phone", e.target.value)}
-                        placeholder="+250 7XX XXX XXX" autoComplete="tel" className={inputCls} />
+                        placeholder="07XXXXXXXX" autoComplete="tel" className={inputCls} />
                     </Field>
                   </div>
 
