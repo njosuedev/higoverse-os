@@ -11,7 +11,7 @@ import { settingsRequest } from "@/lib/settings-api";
 import {
   Home, Package, Truck, ShoppingCart,
   BarChart3, Users, Settings, FileText, ChevronDown,
-  ShieldCheck, Receipt, Sparkles,
+  ShieldCheck, Receipt, Sparkles, Cog,
 } from "lucide-react";
 
 export default function DashboardHeader({ loading = false }: { loading?: boolean }) {
@@ -46,7 +46,6 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
     { key: "nav.proforma",  href: "/proforma",   icon: FileText },
     { key: "nav.expenses",  href: "/expenses",   icon: Receipt },
     { key: "nav.reports",   href: "/reports",    icon: BarChart3 },
-    { key: "nav.settings",  href: "/settings",   icon: Settings },
     { key: "nav.advisor",   href: "/advisor",    icon: Sparkles },
     ...(user?.role === "admin"
       ? [{ key: "nav.admin", href: "/admin", icon: ShieldCheck }]
@@ -109,6 +108,15 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
             <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
             {loading ? <div className="h-3 w-10 bg-slate-200 animate-pulse rounded" /> : t("common.online")}
           </div>
+
+          {/* Settings */}
+          {!loading && (
+            <Link href="/settings"
+              className={`p-1.5 rounded-lg transition
+                ${pathname === "/settings" ? "text-[#1372e6] bg-[#EBF2FD]" : "text-slate-500 hover:text-slate-800 hover:bg-slate-100"}`}>
+              <Cog size={18} />
+            </Link>
+          )}
 
           {/* Language switcher */}
           {!loading && (
