@@ -14,14 +14,13 @@ import {
 } from "lucide-react";
 
 interface DashboardHeaderProps {
-  title?: string;
   loading?: boolean;
 }
 
 export default function DashboardHeader({
-  title = "Higoverse",
   loading = false,
 }: DashboardHeaderProps) {
+  const title = "Higoverse";
   const pathname = usePathname();
   const { lang, setLang, t } = useLanguage();
   const { user } = useAuth();

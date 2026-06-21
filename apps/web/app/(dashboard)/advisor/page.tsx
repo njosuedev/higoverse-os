@@ -247,7 +247,7 @@ export default function AdvisorPage() {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <DashboardHeader title="AI Advisor" />
+      <DashboardHeader />
 
       <div className="max-w-7xl mx-auto px-4 py-5 flex gap-4 h-[calc(100vh-78px)]">
 

@@ -241,7 +241,7 @@ export default function AdminPage() {
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen" style={{ background: "#F3F2EE" }}>
-      <DashboardHeader title="Admin" />
+      <DashboardHeader />
 
       <main className="max-w-6xl mx-auto px-4 sm:px-6 py-4 sm:py-6 space-y-4">
 
