@@ -1,29 +1,51 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useState, useRef, useEffect } from "react";
-import LogoutButton from "@/app/components/LogoutButton";
 import { useLanguage } from "@/lib/language-context";
 import { useAuth } from "@/lib/auth-context";
+import { useShop } from "@/lib/shop-context";
 import { LANGUAGES } from "@/lib/i18n";
 import { settingsRequest } from "@/lib/settings-api";
 import {
-  Home, Package, Truck, ShoppingCart,
-  BarChart3, Users, Settings, FileText, ChevronDown,
-  ShieldCheck, Receipt, Sparkles, Cog,
+  Home, Package, Truck, ShoppingCart, BarChart3,
+  Users, FileText, ChevronDown, ShieldCheck, Receipt,
+  Sparkles, Settings, LogOut, Moon, Sun, Globe, Wifi,
 } from "lucide-react";
 
+function useDarkMode() {
+  const [dark, setDark] = useState(false);
+  useEffect(() => {
+    const saved = localStorage.getItem("darkMode") === "true";
+    setDark(saved);
+    document.documentElement.classList.toggle("dark", saved);
+  }, []);
+  function toggle() {
+    setDark((d) => {
+      const next = !d;
+      localStorage.setItem("darkMode", String(next));
+      document.documentElement.classList.toggle("dark", next);
+      return next;
+    });
+  }
+  return { dark, toggle };
+}
+
 export default function DashboardHeader({ loading = false }: { loading?: boolean }) {
-  const pathname = usePathname();
+  const pathname   = usePathname();
+  const router     = useRouter();
   const { lang, setLang, t } = useLanguage();
-  const { user } = useAuth();
-  const [langOpen, setLangOpen] = useState(false);
-  const dropRef = useRef<HTMLDivElement>(null);
+  const { user, logout } = useAuth();
+  const { shop } = useShop();
+  const { dark, toggle: toggleDark } = useDarkMode();
+
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     function onOutside(e: MouseEvent) {
-      if (dropRef.current && !dropRef.current.contains(e.target as Node)) setLangOpen(false);
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
     }
     document.addEventListener("mousedown", onOutside);
     return () => document.removeEventListener("mousedown", onOutside);
@@ -31,8 +53,13 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
 
   async function changeLang(code: typeof lang) {
     setLang(code);
-    setLangOpen(false);
     settingsRequest("/settings", { method: "PUT", body: JSON.stringify({ language: code }) }).catch(() => {});
+  }
+
+  function handleLogout() {
+    setMenuOpen(false);
+    logout();
+    router.replace("/login");
   }
 
   const currentLang = LANGUAGES.find((l) => l.code === lang) ?? LANGUAGES[0];
@@ -54,13 +81,14 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
 
   return (
     <>
-      {/* Spacer so page content clears the fixed header */}
       <div className="h-[60px]" />
 
-      <header className="fixed top-0 left-0 right-0 z-50 bg-white border-b border-slate-200 shadow-sm h-[60px]"
-        style={{ display: "grid", gridTemplateColumns: "1fr auto 1fr" }}>
+      <header
+        className="fixed top-0 left-0 right-0 z-50 bg-white border-b border-slate-200 shadow-sm h-[60px]"
+        style={{ display: "grid", gridTemplateColumns: "1fr auto 1fr" }}
+      >
 
-        {/* ── LEFT: Logo ─────────────────────────────── */}
+        {/* ── LEFT: Logo ── */}
         <div className="flex items-center px-4">
           <Link href="/" className="flex items-center gap-2.5 hover:opacity-80 transition">
             {loading
@@ -70,82 +98,156 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
           </Link>
         </div>
 
-        {/* ── CENTER: Nav tabs — truly centered ──────── */}
+        {/* ── CENTER: Nav tabs ── */}
         <nav className="flex items-stretch overflow-x-auto scrollbar-hide">
-          {menus.map((menu) => {
-            const Icon = menu.icon;
-            const active = menu.href === "/" ? pathname === "/" : pathname.startsWith(menu.href);
-            const isAdmin   = menu.href === "/admin";
-            const isAdvisor = menu.href === "/advisor";
-            const indicatorColor = isAdmin ? "bg-red-500" : "bg-[#1372e6]";
-            const activeText     = isAdmin ? "text-red-600" : "text-[#1372e6]";
-            const idleText       = isAdvisor ? "text-[#1372e6]" : "text-slate-600 hover:text-slate-900 hover:bg-slate-50";
+          {loading
+            ? Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="w-16 mx-1 my-auto h-8 bg-slate-100 animate-pulse rounded-lg flex-shrink-0" />
+              ))
+            : menus.map((menu) => {
+                const Icon = menu.icon;
+                const active = menu.href === "/" ? pathname === "/" : pathname.startsWith(menu.href);
+                const isAdmin   = menu.href === "/admin";
+                const isAdvisor = menu.href === "/advisor";
+                const indicatorColor = isAdmin ? "bg-red-500" : "bg-[#1372e6]";
+                const activeText     = isAdmin ? "text-red-600" : "text-[#1372e6]";
+                const idleText       = isAdvisor
+                  ? "text-[#1372e6] hover:bg-slate-50"
+                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-50";
 
-            if (loading) {
-              return <div key={menu.href} className="w-16 mx-1 my-auto h-8 bg-slate-100 animate-pulse rounded-lg flex-shrink-0" />;
-            }
-
-            return (
-              <Link key={menu.href} href={menu.href}
-                className={`relative flex flex-col items-center justify-center gap-0.5 px-3 lg:px-4
-                  flex-shrink-0 min-w-[56px] transition-colors
-                  ${active ? activeText : idleText}`}>
-                <Icon size={20} strokeWidth={active ? 2.5 : 1.8} />
-                <span className="text-[10px] font-semibold hidden sm:block leading-none">{t(menu.key)}</span>
-                {active && (
-                  <span className={`absolute bottom-0 left-1.5 right-1.5 h-[3px] rounded-t-full ${indicatorColor}`} />
-                )}
-              </Link>
-            );
-          })}
+                return (
+                  <Link key={menu.href} href={menu.href}
+                    className={`relative flex flex-col items-center justify-center gap-0.5 px-3 lg:px-4
+                      flex-shrink-0 min-w-[56px] transition-colors
+                      ${active ? activeText : idleText}`}>
+                    <Icon size={20} strokeWidth={active ? 2.5 : 1.8} />
+                    <span className="text-[10px] font-semibold hidden sm:block leading-none">{t(menu.key)}</span>
+                    {active && (
+                      <span className={`absolute bottom-0 left-1.5 right-1.5 h-[3px] rounded-t-full ${indicatorColor}`} />
+                    )}
+                  </Link>
+                );
+              })}
         </nav>
 
-        {/* ── RIGHT: Controls ─────────────────────────── */}
-        <div className="flex items-center justify-end gap-2 px-4">
+        {/* ── RIGHT: Single settings menu button ── */}
+        <div className="flex items-center justify-end px-4">
+          <div ref={menuRef} className="relative">
 
-          {/* Online pill */}
-          <div className="hidden md:flex items-center gap-1.5 text-[11px] font-semibold text-green-700 bg-green-50 border border-green-200 px-2.5 py-1 rounded-full">
-            <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-            {loading ? <div className="h-3 w-10 bg-slate-200 animate-pulse rounded" /> : t("common.online")}
-          </div>
-
-          {/* Settings */}
-          {!loading && (
-            <Link href="/settings"
-              className={`p-1.5 rounded-lg transition
-                ${pathname === "/settings" ? "text-[#1372e6] bg-[#EBF2FD]" : "text-slate-500 hover:text-slate-800 hover:bg-slate-100"}`}>
-              <Cog size={18} />
-            </Link>
-          )}
-
-          {/* Language switcher */}
-          {!loading && (
-            <div ref={dropRef} className="relative">
-              <button onClick={() => setLangOpen((o) => !o)}
-                className="flex items-center gap-1 text-[11px] font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg px-2.5 py-1.5 transition">
-                <span>{currentLang.flag}</span>
-                <span className="hidden sm:inline">{currentLang.code.toUpperCase()}</span>
-                <ChevronDown size={10} className={`transition-transform ${langOpen ? "rotate-180" : ""}`} />
-              </button>
-              {langOpen && (
-                <div className="absolute right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-50 min-w-[160px] overflow-hidden">
-                  {LANGUAGES.map((l) => (
-                    <button key={l.code} onClick={() => changeLang(l.code)}
-                      className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm transition hover:bg-slate-50
-                        ${lang === l.code ? "bg-[#EBF2FD] text-[#1372e6] font-semibold" : "text-slate-700"}`}>
-                      <span>{l.flag}</span>
-                      <span>{l.label}</span>
-                    </button>
-                  ))}
+            {/* Trigger: shop avatar or gear */}
+            <button
+              onClick={() => setMenuOpen((o) => !o)}
+              className={`flex items-center gap-2 px-2 py-1.5 rounded-xl transition
+                ${menuOpen ? "bg-slate-100" : "hover:bg-slate-100"}`}
+            >
+              {loading ? (
+                <div className="w-8 h-8 rounded-full bg-slate-200 animate-pulse" />
+              ) : shop?.logo_url ? (
+                <img src={shop.logo_url} alt={shop.name}
+                  className="w-8 h-8 rounded-full object-cover border border-slate-200" />
+              ) : (
+                <div className="w-8 h-8 rounded-full bg-[#1372e6] flex items-center justify-center text-white text-xs font-bold">
+                  {shop?.name?.[0]?.toUpperCase() ?? "H"}
                 </div>
               )}
-            </div>
-          )}
+              <ChevronDown size={14} className={`text-slate-500 transition-transform hidden sm:block ${menuOpen ? "rotate-180" : ""}`} />
+            </button>
 
-          {/* Logout */}
-          {loading
-            ? <div className="h-8 w-20 bg-slate-200 animate-pulse rounded-lg" />
-            : <LogoutButton />}
+            {/* Dropdown */}
+            {menuOpen && (
+              <div className="absolute right-0 top-full mt-2 w-[280px] bg-white border border-slate-200 rounded-2xl shadow-2xl z-50 overflow-hidden">
+
+                {/* Shop identity */}
+                <div className="px-4 py-4 border-b border-slate-100">
+                  <div className="flex items-center gap-3">
+                    {shop?.logo_url ? (
+                      <img src={shop.logo_url} alt={shop.name}
+                        className="w-12 h-12 rounded-xl object-cover border border-slate-200" />
+                    ) : (
+                      <div className="w-12 h-12 rounded-xl bg-[#1372e6] flex items-center justify-center text-white font-bold text-lg">
+                        {shop?.name?.[0]?.toUpperCase() ?? "H"}
+                      </div>
+                    )}
+                    <div className="min-w-0">
+                      <p className="font-bold text-slate-900 text-sm truncate">{shop?.name ?? "My Shop"}</p>
+                      <p className="text-xs text-slate-500 truncate">{user?.email ?? ""}</p>
+                      <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-green-700 bg-green-50 border border-green-200 px-1.5 py-0.5 rounded-full mt-1">
+                        <Wifi size={9} />Online
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Config options */}
+                <div className="px-2 py-2 space-y-0.5">
+
+                  {/* Dark mode toggle */}
+                  <div className="flex items-center justify-between px-3 py-2.5 rounded-xl hover:bg-slate-50 transition cursor-pointer"
+                    onClick={toggleDark}>
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-slate-600">
+                        {dark ? <Sun size={16} /> : <Moon size={16} />}
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-slate-800">{dark ? "Light Mode" : "Dark Mode"}</p>
+                        <p className="text-[10px] text-slate-400">{dark ? "Switch to light" : "Switch to dark"}</p>
+                      </div>
+                    </div>
+                    {/* Toggle switch */}
+                    <div className={`w-10 h-5 rounded-full transition-colors relative ${dark ? "bg-[#1372e6]" : "bg-slate-300"}`}>
+                      <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${dark ? "translate-x-5" : "translate-x-0.5"}`} />
+                    </div>
+                  </div>
+
+                  {/* Language */}
+                  <div className="px-3 py-2">
+                    <div className="flex items-center gap-3 mb-2">
+                      <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-slate-600">
+                        <Globe size={16} />
+                      </div>
+                      <p className="text-sm font-medium text-slate-800">Language</p>
+                    </div>
+                    <div className="grid grid-cols-2 gap-1.5 ml-11">
+                      {LANGUAGES.map((l) => (
+                        <button key={l.code} onClick={() => changeLang(l.code)}
+                          className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition
+                            ${lang === l.code
+                              ? "bg-[#EBF2FD] text-[#1372e6] border border-[#1372e6]/20"
+                              : "bg-slate-50 text-slate-600 hover:bg-slate-100"}`}>
+                          <span>{l.flag}</span>
+                          <span>{l.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Settings page link */}
+                  <Link href="/settings" onClick={() => setMenuOpen(false)}
+                    className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-slate-50 transition">
+                    <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-slate-600">
+                      <Settings size={16} />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-slate-800">Settings</p>
+                      <p className="text-[10px] text-slate-400">Shop, profile &amp; preferences</p>
+                    </div>
+                  </Link>
+                </div>
+
+                {/* Logout */}
+                <div className="px-2 py-2 border-t border-slate-100">
+                  <button onClick={handleLogout}
+                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-red-50 transition group">
+                    <div className="w-8 h-8 rounded-lg bg-red-50 group-hover:bg-red-100 flex items-center justify-center text-red-500 transition">
+                      <LogOut size={16} />
+                    </div>
+                    <p className="text-sm font-medium text-red-600">Log Out</p>
+                  </button>
+                </div>
+
+              </div>
+            )}
+          </div>
         </div>
 
       </header>
