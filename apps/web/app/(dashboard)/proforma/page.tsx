@@ -269,7 +269,7 @@ export default function ProformaPage() {
   const grandTotal2 = subtotal2 + taxAmt2;
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen">
       <div className="max-w-5xl mx-auto px-3 sm:px-5 py-3 sm:py-4">
 
         {/* PAGE HEADER */}

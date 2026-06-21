@@ -222,11 +222,11 @@ export default function DashboardPage() {
   const netPct      = Math.max(0, 100 - purchasePct - expensePct);
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen">
       <main className="max-w-7xl mx-auto px-3 sm:px-5 py-3 sm:py-4 space-y-4">
 
         {/* ── HERO ────────────────────────────────────────────────────────────── */}
-        <section className="relative overflow-hidden rounded-xl text-white shadow-md" style={{ background: "#1372e6" }}>
+        <section className="relative overflow-hidden rounded-xl text-white shadow-md bg-[#1372e6]">
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-white/10 via-transparent to-transparent pointer-events-none" />
 
           <div className="relative z-10 flex flex-col md:flex-row md:items-center md:justify-between gap-3 px-4 py-3.5">

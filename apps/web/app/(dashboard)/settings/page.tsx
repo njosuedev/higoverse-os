@@ -244,7 +244,7 @@ export default function SettingsPage() {
   if (loading) return <PageSkeleton cards={0} showTable={false} showForm />;
 
   return (
-    <div className="min-h-screen bg-white pb-32">
+    <div className="min-h-screen pb-32">
       <div className="max-w-3xl mx-auto px-3 sm:px-5 py-3 sm:py-4 space-y-4">
 
         {/* ── HEADER ─────────────────────────────── */}

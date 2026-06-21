@@ -103,6 +103,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
+      {/* Anti-flash: apply dark class before first paint so there's no white flash */}
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: `(function(){try{if(localStorage.getItem('darkMode')==='true')document.documentElement.classList.add('dark')}catch(e){}})();` }} />
+      </head>
       <body>
         <AuthProvider>
           <LanguageProvider>

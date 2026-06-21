@@ -187,7 +187,7 @@ export default function ExpenseManagementPage() {
   if (loading) return <PageSkeleton cards={4} rows={6} cols={5} />;
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen">
       <div className="max-w-7xl mx-auto px-3 sm:px-5 py-3 sm:py-4">
 
         {/* ── HEADER ─────────────────────────────────────────── */}
