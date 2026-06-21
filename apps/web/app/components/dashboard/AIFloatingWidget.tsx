@@ -24,8 +24,12 @@ function TypingDots() {
   );
 }
 
-function Bubble({ msg, shopLogo, shopName }: { msg: ChatMessage; shopLogo?: string; shopName?: string }) {
+function Bubble({ msg, shopLogo, shopName, displayContent, isStreaming }: {
+  msg: ChatMessage; shopLogo?: string; shopName?: string;
+  displayContent?: string; isStreaming?: boolean;
+}) {
   const isUser = msg.role === "user";
+  const content = displayContent ?? msg.content;
   return (
     <div className={`flex gap-2 ${isUser ? "flex-row-reverse" : "flex-row"}`}>
       <div className="flex-shrink-0 w-7 h-7 rounded-xl overflow-hidden">
@@ -50,7 +54,12 @@ function Bubble({ msg, shopLogo, shopName }: { msg: ChatMessage; shopLogo?: stri
       </div>
       <div className={`max-w-[80%] rounded-2xl px-3 py-2 text-xs leading-relaxed shadow-sm
         ${isUser ? "bg-[#1372e6] text-white rounded-tr-sm" : "bg-white border border-slate-200 text-slate-700 rounded-tl-sm"}`}>
-        <pre className="whitespace-pre-wrap font-sans text-[11.5px] leading-relaxed">{msg.content}</pre>
+        <pre className="whitespace-pre-wrap font-sans text-[11.5px] leading-relaxed">
+          {content}
+          {isStreaming && (
+            <span className="inline-block w-0.5 h-3 bg-violet-500 ml-0.5 align-middle animate-pulse rounded-full" />
+          )}
+        </pre>
       </div>
     </div>
   );
@@ -68,6 +77,10 @@ export default function AIFloatingWidget() {
   const [convId,   setConvId]   = useState<string | null>(null);
   const [error,    setError]    = useState<string | null>(null);
   const [pulsing,  setPulsing]  = useState(false);
+
+  const [streamingId,   setStreamingId]   = useState<string | null>(null);
+  const [streamingText, setStreamingText] = useState("");
+  const streamRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef  = useRef<HTMLInputElement>(null);
@@ -90,6 +103,11 @@ export default function AIFloatingWidget() {
     return () => { clearTimeout(t); clearTimeout(t2); };
   }, []);
 
+  // Cleanup typewriter on unmount
+  useEffect(() => {
+    return () => { if (streamRef.current) clearInterval(streamRef.current); };
+  }, []);
+
   // Don't render on the full advisor page — all hooks are already called above
   if (pathname === "/advisor") return null;
 
@@ -109,14 +127,31 @@ export default function AIFloatingWidget() {
 
     try {
       const res = await sendChat(msg, convId, lang);
+      const aiId = res.message_id || `ai-${Date.now()}`;
       const ai: ChatMessage = {
-        id: res.message_id || `ai-${Date.now()}`, role: "assistant",
+        id: aiId, role: "assistant",
         content: res.reply, language: res.language,
         created_at: new Date().toISOString(),
       };
       setMessages((p) => [...p, ai]);
       setConvId(res.conversation_id);
       playAIResponse();
+
+      // Word-by-word typewriter
+      const words = res.reply.split(" ");
+      let w = 0;
+      setStreamingId(aiId);
+      setStreamingText("");
+      if (streamRef.current) clearInterval(streamRef.current);
+      streamRef.current = setInterval(() => {
+        w++;
+        setStreamingText(words.slice(0, w).join(" "));
+        if (w >= words.length) {
+          clearInterval(streamRef.current!);
+          streamRef.current = null;
+          setStreamingId(null);
+        }
+      }, 60);
       scroll();
     } catch (err: any) {
       setMessages((p) => p.filter((m) => m.id !== opt.id));
@@ -186,7 +221,9 @@ export default function AIFloatingWidget() {
             {messages.map((m) => (
               <Bubble key={m.id} msg={m}
                 shopLogo={shop?.logo_url ?? undefined}
-                shopName={shop?.name ?? undefined} />
+                shopName={shop?.name ?? undefined}
+                displayContent={m.id === streamingId ? streamingText : undefined}
+                isStreaming={m.id === streamingId} />
             ))}
             {loading && <TypingDots />}
             {error && (
