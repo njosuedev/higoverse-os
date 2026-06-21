@@ -3,8 +3,9 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { useLanguage } from "@/lib/language-context";
+import { useShop } from "@/lib/shop-context";
 import { sendChat, type ChatMessage } from "@/lib/advisor-api";
-import { Bot, Send, X, Sparkles, Minus, User, AlertCircle } from "lucide-react";
+import { Bot, Send, X, Sparkles, User, AlertCircle } from "lucide-react";
 
 function TypingDots() {
   return (
@@ -22,13 +23,29 @@ function TypingDots() {
   );
 }
 
-function Bubble({ msg }: { msg: ChatMessage }) {
+function Bubble({ msg, shopLogo, shopName }: { msg: ChatMessage; shopLogo?: string; shopName?: string }) {
   const isUser = msg.role === "user";
   return (
     <div className={`flex gap-2 ${isUser ? "flex-row-reverse" : "flex-row"}`}>
-      <div className={`flex-shrink-0 w-7 h-7 rounded-xl flex items-center justify-center text-white text-[10px]
-        ${isUser ? "bg-[#1372e6]" : "bg-gradient-to-br from-violet-500 to-purple-600"}`}>
-        {isUser ? <User size={12} /> : <Sparkles size={12} />}
+      <div className="flex-shrink-0 w-7 h-7 rounded-xl overflow-hidden">
+        {isUser ? (
+          shopLogo ? (
+            <img src={shopLogo} alt={shopName ?? "Shop"} className="w-full h-full object-cover"
+              onError={(e) => {
+                const el = e.currentTarget as HTMLImageElement;
+                el.style.display = "none";
+                el.parentElement!.classList.add("bg-[#1372e6]", "flex", "items-center", "justify-center");
+              }} />
+          ) : (
+            <div className="w-full h-full bg-[#1372e6] flex items-center justify-center">
+              <User size={12} className="text-white" />
+            </div>
+          )
+        ) : (
+          <div className="w-full h-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center">
+            <Sparkles size={12} className="text-white" />
+          </div>
+        )}
       </div>
       <div className={`max-w-[80%] rounded-2xl px-3 py-2 text-xs leading-relaxed shadow-sm
         ${isUser ? "bg-[#1372e6] text-white rounded-tr-sm" : "bg-white border border-slate-200 text-slate-700 rounded-tl-sm"}`}>
@@ -39,8 +56,9 @@ function Bubble({ msg }: { msg: ChatMessage }) {
 }
 
 export default function AIFloatingWidget() {
-  const pathname = usePathname();
+  const pathname  = usePathname();
   const { lang }  = useLanguage();
+  const { shop }  = useShop();
 
   const [open,     setOpen]     = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -52,9 +70,6 @@ export default function AIFloatingWidget() {
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef  = useRef<HTMLInputElement>(null);
-
-  // Don't show on the full advisor page
-  if (pathname === "/advisor") return null;
 
   const scroll = useCallback(() => {
     setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
@@ -73,6 +88,9 @@ export default function AIFloatingWidget() {
     const t2 = setTimeout(() => setPulsing(false), 6000);
     return () => { clearTimeout(t); clearTimeout(t2); };
   }, []);
+
+  // Don't render on the full advisor page — all hooks are already called above
+  if (pathname === "/advisor") return null;
 
   async function send(text?: string) {
     const msg = (text ?? input).trim();
@@ -163,7 +181,11 @@ export default function AIFloatingWidget() {
                 </div>
               </div>
             )}
-            {messages.map((m) => <Bubble key={m.id} msg={m} />)}
+            {messages.map((m) => (
+              <Bubble key={m.id} msg={m}
+                shopLogo={shop?.logo_url ?? undefined}
+                shopName={shop?.name ?? undefined} />
+            ))}
             {loading && <TypingDots />}
             {error && (
               <div className="flex items-center gap-1.5 text-red-600 text-[11px] bg-red-50 border border-red-200 rounded-xl px-3 py-2">

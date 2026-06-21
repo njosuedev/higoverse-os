@@ -102,17 +102,32 @@ function MessageText({ content }: { content: string }) {
   );
 }
 
-function MessageBubble({ msg }: { msg: ChatMessage }) {
+function MessageBubble({ msg, shopLogo, shopName }: { msg: ChatMessage; shopLogo?: string; shopName?: string }) {
   const isUser = msg.role === "user";
   return (
     <div className={`flex gap-3 ${isUser ? "flex-row-reverse" : "flex-row"}`}>
 
       {/* Avatar */}
-      <div className={`flex-shrink-0 w-9 h-9 rounded-2xl flex items-center justify-center shadow-sm
-        ${isUser
-          ? "bg-[#1372e6] text-white"
-          : "bg-gradient-to-br from-violet-500 to-purple-600 text-white"}`}>
-        {isUser ? <User size={16} /> : <Sparkles size={16} />}
+      <div className="flex-shrink-0 w-9 h-9 rounded-2xl overflow-hidden shadow-sm">
+        {isUser ? (
+          shopLogo ? (
+            <img src={shopLogo} alt={shopName ?? "Shop"} className="w-full h-full object-cover"
+              onError={(e) => {
+                const el = e.currentTarget as HTMLImageElement;
+                el.style.display = "none";
+                el.parentElement!.classList.add("bg-[#1372e6]", "flex", "items-center", "justify-center");
+                el.parentElement!.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>`;
+              }} />
+          ) : (
+            <div className="w-full h-full bg-[#1372e6] flex items-center justify-center">
+              <User size={16} className="text-white" />
+            </div>
+          )
+        ) : (
+          <div className="w-full h-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center">
+            <Sparkles size={16} className="text-white" />
+          </div>
+        )}
       </div>
 
       {/* Bubble */}
@@ -407,7 +422,11 @@ export default function AdvisorPage() {
             )}
 
             <div className="space-y-5">
-              {messages.map((msg) => <MessageBubble key={msg.id} msg={msg} />)}
+              {messages.map((msg) => (
+                <MessageBubble key={msg.id} msg={msg}
+                  shopLogo={shop?.logo_url ?? undefined}
+                  shopName={shop?.name ?? undefined} />
+              ))}
               {loading && <TypingIndicator />}
               <div ref={bottomRef} />
             </div>
