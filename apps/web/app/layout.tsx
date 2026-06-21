@@ -102,7 +102,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       {/* Anti-flash: apply dark class before first paint so there's no white flash */}
       <head>
         <script dangerouslySetInnerHTML={{ __html: `(function(){try{if(localStorage.getItem('darkMode')==='true')document.documentElement.classList.add('dark')}catch(e){}})();` }} />
