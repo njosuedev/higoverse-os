@@ -59,38 +59,34 @@ export default function DashboardHeader({
   ];
 
   return (
-    <div className="h-[78px]">
+    <div className="h-[90px]">
     <header className="fixed top-0 left-0 right-0 z-50 bg-white border-b border-slate-200 shadow-sm">
       <div className="max-w-7xl mx-auto px-4">
 
-        {/* TOP BAR */}
-        <div className="h-12 flex items-center justify-between">
+        {/* TOP ROW — logo + actions */}
+        <div className="h-[46px] flex items-center justify-between">
 
           {/* LOGO */}
-          <Link href="/" className="flex items-center gap-2">
+          <Link href="/" className="flex items-center gap-2 flex-shrink-0">
             {loading ? (
-              <div className="w-8 h-8 rounded-lg bg-slate-200 animate-pulse" />
+              <div className="w-8 h-8 rounded-xl bg-slate-200 animate-pulse" />
             ) : (
-              <img src="/higoverse.png" alt="Higoverse" className="w-8 h-8 rounded-lg object-cover" />
+              <img src="/higoverse.png" alt="Higoverse" className="w-8 h-8 rounded-xl object-cover" />
             )}
             {loading ? (
               <div className="h-4 w-24 bg-slate-200 animate-pulse rounded" />
             ) : (
-              <span className="font-semibold text-sm text-slate-900">{title}</span>
+              <span className="font-bold text-sm text-slate-900 hidden sm:inline">{title}</span>
             )}
           </Link>
 
-          {/* RIGHT SIDE */}
-          <div className="flex items-center gap-3">
+          {/* RIGHT ACTIONS */}
+          <div className="flex items-center gap-2">
 
             {/* ONLINE STATUS */}
-            <div className="hidden md:flex items-center gap-1.5 text-green-600 text-xs font-medium">
-              <Activity size={13} />
-              {loading ? (
-                <div className="h-3 w-10 bg-slate-200 animate-pulse rounded" />
-              ) : (
-                t("common.online")
-              )}
+            <div className="hidden md:flex items-center gap-1.5 text-xs font-semibold text-green-600 bg-green-50 px-2.5 py-1 rounded-full">
+              <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+              {loading ? <div className="h-3 w-10 bg-slate-200 animate-pulse rounded" /> : t("common.online")}
             </div>
 
             {/* LANGUAGE SWITCHER */}
@@ -98,11 +94,11 @@ export default function DashboardHeader({
               <div ref={dropRef} className="relative">
                 <button
                   onClick={() => setLangOpen((o) => !o)}
-                  className="flex items-center gap-1 text-xs font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg px-2 py-1.5 transition"
+                  className="flex items-center gap-1 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg px-2.5 py-1.5 transition"
                 >
                   <span>{currentLang.flag}</span>
                   <span className="hidden sm:inline">{currentLang.code.toUpperCase()}</span>
-                  <ChevronDown size={11} className={`transition-transform ${langOpen ? "rotate-180" : ""}`} />
+                  <ChevronDown size={10} className={`transition-transform ${langOpen ? "rotate-180" : ""}`} />
                 </button>
                 {langOpen && (
                   <div className="absolute right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-50 min-w-40 overflow-hidden">
@@ -130,8 +126,8 @@ export default function DashboardHeader({
           </div>
         </div>
 
-        {/* NAVIGATION */}
-        <nav className="flex items-center gap-1 overflow-x-auto py-2 scrollbar-hide">
+        {/* FACEBOOK-STYLE NAV TABS */}
+        <nav className="flex items-stretch overflow-x-auto scrollbar-hide">
           {menus.map((menu) => {
             const Icon = menu.icon;
             const active =
@@ -139,24 +135,43 @@ export default function DashboardHeader({
                 ? pathname === "/"
                 : pathname.startsWith(menu.href);
 
+            const isAdvisor = menu.href === "/advisor";
+            const isAdmin   = menu.href === "/admin";
+
             if (loading) {
-              return (
-                <div key={menu.href} className="h-7 w-24 bg-slate-200 animate-pulse rounded-lg mx-1" />
-              );
+              return <div key={menu.href} className="h-[44px] w-20 mx-1 my-auto bg-slate-100 animate-pulse rounded-lg" />;
             }
+
+            const textColor = active
+              ? isAdvisor ? "text-violet-600" : isAdmin ? "text-red-600" : "text-[#1372e6]"
+              : isAdvisor ? "text-violet-500" : "text-slate-500";
+
+            const hoverBg = active
+              ? ""
+              : isAdvisor ? "hover:bg-violet-50" : "hover:bg-slate-100";
+
+            const indicatorColor = isAdvisor
+              ? "bg-violet-500"
+              : isAdmin ? "bg-red-500" : "bg-[#1372e6]";
 
             return (
               <Link
                 key={menu.href}
                 href={menu.href}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all ${active ? menu.active : menu.idle}`}
+                className={`relative flex items-center gap-1.5 px-3 sm:px-4 h-[44px] text-xs font-semibold whitespace-nowrap flex-shrink-0 rounded-t-lg transition-colors ${textColor} ${hoverBg}`}
               >
-                <Icon size={14} />
-                {t(menu.key)}
+                <Icon size={16} className="flex-shrink-0" />
+                <span>{t(menu.key)}</span>
+
+                {/* Active blue underline — the Facebook signature */}
+                {active && (
+                  <div className={`absolute bottom-0 left-1 right-1 h-[3px] rounded-t-full ${indicatorColor}`} />
+                )}
               </Link>
             );
           })}
         </nav>
+
       </div>
     </header>
     </div>
