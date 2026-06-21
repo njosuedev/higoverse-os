@@ -1,103 +1,113 @@
 """
-Standalone AI Business Advisor Engine.
-No external AI API. Uses intent detection + real shop data + response templates.
-Supports: English, Kinyarwanda, French, Swahili.
+Standalone AI Business Advisor Engine — conversational, friendly, multilingual.
+No external API. Intent detection + real shop data + warm response templates.
+Supports: English (en), Kinyarwanda (rw), French (fr), Swahili (sw).
 """
 from __future__ import annotations
-import re
 import time
 from datetime import datetime, timezone
 from typing import Any
 
-# ── Intent keywords per language ────────────────────────────────────────────
+# ── Intent keyword map ───────────────────────────────────────────────────────
 
 _INTENTS = {
+    "greeting": [
+        "hi", "hello", "hey", "good morning", "good afternoon", "good evening",
+        "what's up", "sup", "howdy", "greetings",
+        # rw
+        "muraho", "mwaramutse", "mwiriwe", "bite", "amakuru",
+        # fr
+        "bonjour", "bonsoir", "salut", "coucou", "bonne journée",
+        # sw
+        "habari", "jambo", "hujambo", "karibu", "salam",
+    ],
+    "thanks": [
+        "thank", "thanks", "thank you", "appreciate", "great", "awesome",
+        "perfect", "helpful", "nice", "good job", "well done",
+        # rw
+        "murakoze", "urakoze", "ni byiza", "ni nziza",
+        # fr
+        "merci", "super", "parfait", "excellent", "c'est bien",
+        # sw
+        "asante", "nashukuru", "vizuri sana", "nzuri",
+    ],
+    "help": [
+        "help", "what can you", "what do you", "how do you", "capabilities",
+        "what are you", "who are you", "tell me about", "your name",
+        # rw
+        "nshobora", "ubufasha", "urikora iki",
+        # fr
+        "aide", "que peux-tu", "qui es-tu", "comment tu",
+        # sw
+        "msaada", "unaweza", "wewe ni nani", "unafanya nini",
+    ],
     "performance": [
         "performance", "how is", "how am i", "doing today", "summary", "overview",
-        "status", "business today", "shop today", "how are", "situation",
-        # rw
+        "status", "business today", "shop today", "how are", "situation", "check",
         "imiterere", "uko bigenze", "incamake", "uyu munsi",
-        # fr
-        "performance", "comment va", "résumé", "bilan", "aujourd'hui",
-        # sw
+        "comment va", "résumé", "bilan", "aujourd'hui",
         "utendaji", "jinsi", "muhtasari", "leo",
     ],
     "inventory": [
         "stock", "inventory", "restock", "low", "out of", "product", "item",
-        "running out", "empty", "shortage", "refill", "quantity",
-        # rw
+        "running out", "empty", "shortage", "refill", "quantity", "warehouse",
         "ububiko", "ibicuruzwa", "birangiye", "bikenewe", "kuzuza",
-        # fr
-        "inventaire", "stock", "réapprovisionner", "rupture", "articles",
-        # sw
+        "inventaire", "réapprovisionner", "rupture", "articles",
         "akiba", "bidhaa", "imalizika", "kujaza", "stoo",
     ],
     "financial": [
         "revenue", "profit", "expense", "cost", "money", "income", "loss",
-        "earning", "spending", "financial", "finance", "cash",
-        # rw
+        "earning", "spending", "financial", "finance", "cash", "budget",
         "amafaranga", "inyungu", "igiciro", "umusaruro", "ibyaguriye",
-        # fr
-        "revenu", "profit", "dépense", "coût", "argent", "bénéfice", "perte",
-        # sw
+        "revenu", "dépense", "coût", "argent", "bénéfice", "perte",
         "mapato", "faida", "gharama", "pesa", "hasara", "fedha",
     ],
     "sales": [
         "sale", "sales", "transaction", "sold", "customer", "order", "recent",
-        "today sale", "sell",
-        # rw
-        "amagurishwa", "igurisha", "abakiriya", "ibicuruzwa byagurishijwe",
-        # fr
-        "vente", "ventes", "transaction", "vendu", "client", "commande",
-        # sw
-        "mauzo", "uuzaji", "muamala", "aliyeuza", "wateja",
+        "today sale", "sell", "buyers",
+        "amagurishwa", "igurisha", "abakiriya",
+        "vente", "ventes", "vendu", "client", "commande",
+        "mauzo", "uuzaji", "muamala", "wateja",
     ],
     "growth": [
         "grow", "growth", "improve", "best product", "top product", "opportunity",
         "increase", "focus", "strategy", "recommend", "suggestion", "advice",
-        # rw
+        "tip", "tips",
         "gutera imbere", "ibicuruzwa byiza", "inama", "ingenzi",
-        # fr
         "croissance", "meilleur produit", "améliorer", "opportunité", "conseil",
-        # sw
         "ukuaji", "bidhaa bora", "kuboresha", "fursa", "ushauri",
     ],
     "purchases": [
         "purchase", "bought", "supplier", "buying", "reorder", "procurement",
-        # rw
         "ibigurwa", "abaganishi", "kugura",
-        # fr
         "achat", "fournisseur", "approvisionnement",
-        # sw
         "manunuzi", "wasambazaji", "kununua",
     ],
     "report": [
         "report", "full report", "complete", "everything", "all data", "detailed",
         "generate report", "monthly report", "weekly report",
-        # rw
         "raporo", "raporo yose", "byose",
-        # fr
         "rapport", "rapport complet", "tout",
-        # sw
         "ripoti", "ripoti kamili", "kila kitu",
     ],
 }
 
-# ── Formatters ────────────────────────────────────────────────────────────────
+# ── Helpers ──────────────────────────────────────────────────────────────────
 
 def _fmt_rwf(amount: Any) -> str:
     try:
-        return f"{float(amount):,.0f} RWF"
+        v = float(amount)
+        return f"{v:,.0f} RWF"
     except Exception:
-        return "N/A"
+        return "—"
 
 
 def _pct_change(current: float, previous: float) -> str:
     if previous == 0:
-        return "N/A"
+        return "new"
     pct = ((current - previous) / previous) * 100
-    arrow = "▲" if pct >= 0 else "▼"
-    return f"{arrow} {abs(pct):.1f}%"
+    arrow = "📈" if pct >= 0 else "📉"
+    return f"{arrow} {abs(pct):.1f}% {'up' if pct >= 0 else 'down'}"
 
 
 def _detect_intent(message: str) -> str:
@@ -111,7 +121,209 @@ def _detect_intent(message: str) -> str:
     return best if scores[best] > 0 else "performance"
 
 
-# ── Response builders ─────────────────────────────────────────────────────────
+def _shop_name(ctx: dict) -> str:
+    return ctx.get("shop", {}).get("name", "your shop")
+
+
+# ── Conversational handlers ──────────────────────────────────────────────────
+
+def _build_greeting(ctx: dict, lang: str) -> str:
+    name = _shop_name(ctx)
+    hour = datetime.now(timezone.utc).hour
+    time_greet = "Good morning" if hour < 12 else "Good afternoon" if hour < 17 else "Good evening"
+
+    if lang == "rw":
+        return f"""Muraho! 👋 Ikaze kuri Higoverse AI Advisor!
+
+Ndi umufasha wawe w'ubucuruzi. Nshobora kukugezaho amakuru y'uko {name} igenda.
+
+Reka nkwereke ibintu nshobora gukora:
+
+📊 Imiterere y'iduka — Ni gute ubucuruzi bwawe bugeze uyu munsi?
+📦 Ububiko — Ni ibicuruzwa bihe bikenewe kuzuzwa?
+💰 Imari — Amafaranga yinjiye, yaguriyemo, n'inyungu
+🛒 Amagurishwa — Amagurishwa y'uyumunsi n'icyumweru
+📈 Gutera imbere — Inama zo kongera ubucuruzi
+📋 Raporo yuzuye — Isesengura ryose
+
+Wandikie ikibazo cyose, nzasubiza vuba! 😊"""
+
+    if lang == "fr":
+        return f"""{time_greet}! 👋 Bienvenue sur Higoverse AI Advisor!
+
+Je suis votre assistant commercial intelligent. Je peux analyser les données de {name} en temps réel.
+
+Voici ce que je peux faire pour vous:
+
+📊 Performance — Comment va votre commerce aujourd'hui?
+📦 Inventaire — Quels articles manquent de stock?
+💰 Finances — Revenus, dépenses et bénéfices
+🛒 Ventes — Analyse de vos transactions
+📈 Croissance — Opportunités et recommandations
+📋 Rapport complet — Tout en un seul coup d'œil
+
+Posez-moi n'importe quelle question! 😊"""
+
+    if lang == "sw":
+        return f"""{time_greet}! 👋 Karibu kwa Higoverse AI Advisor!
+
+Mimi ni mshauri wako wa biashara. Naweza kukuonyesha jinsi {name} inavyofanya.
+
+Hivi ndivyo ninavyoweza kukusaidia:
+
+📊 Utendaji — Biashara yako inakwenda vipi leo?
+📦 Akiba — Bidhaa zipi zinahitaji kujazwa?
+💰 Fedha — Mapato, gharama na faida
+🛒 Mauzo — Uchambuzi wa miamala yako
+📈 Ukuaji — Fursa na mapendekezo
+📋 Ripoti kamili — Kila kitu kwa pamoja
+
+Niulize chochote! 😊"""
+
+    return f"""{time_greet}! 👋 Welcome to Higoverse AI Advisor!
+
+I'm your intelligent business companion. I have real-time access to {name}'s data and can help you make smarter decisions.
+
+Here's what I can do for you:
+
+📊 Performance check — How is your business doing today?
+📦 Inventory analysis — Which products need restocking?
+💰 Financial overview — Revenue, expenses, and profit
+🛒 Sales breakdown — Today's and this week's transactions
+📈 Growth tips — Opportunities and recommendations
+📋 Full business report — Everything at a glance
+
+Just ask me anything — I'm here to help! 😊"""
+
+
+def _build_thanks(ctx: dict, lang: str) -> str:
+    if lang == "rw":
+        return """Nta kibazo! 😊 Ni ugushimwa gukorana nawe.
+
+Ese hari ikindi kintu wifuza kumenya ku bijyanye n'ubucuruzi bwawe? Nshobora gusesengura:
+
+• 📊 Imiterere y'iduka ryawe
+• 📦 Imiterere y'ububiko
+• 💰 Isesengura ry'imari
+• 📈 Inama zo gutera imbere
+
+Baza igihe cyose ushaka! 🚀"""
+
+    if lang == "fr":
+        return """De rien! 😊 C'est un plaisir de travailler avec vous.
+
+Y a-t-il autre chose que vous aimeriez savoir sur votre commerce?
+
+• 📊 Performance du jour
+• 📦 État des stocks
+• 💰 Analyse financière
+• 📈 Opportunités de croissance
+
+N'hésitez pas à poser d'autres questions! 🚀"""
+
+    if lang == "sw":
+        return """Karibu sana! 😊 Ni furaha kufanya kazi nawe.
+
+Je, kuna kitu kingine ungependa kujua kuhusu biashara yako?
+
+• 📊 Utendaji wa leo
+• 📦 Hali ya akiba
+• 💰 Uchambuzi wa fedha
+• 📈 Fursa za ukuaji
+
+Niulize wakati wowote! 🚀"""
+
+    return """You're very welcome! 😊 It's a pleasure helping you run a smarter business.
+
+Is there anything else you'd like to explore?
+
+• 📊 Today's performance overview
+• 📦 Inventory & stock levels
+• 💰 Financial analysis
+• 📈 Growth opportunities & tips
+
+I'm always here — just ask! 🚀"""
+
+
+def _build_help(ctx: dict, lang: str) -> str:
+    name = _shop_name(ctx)
+    if lang == "rw":
+        return f"""Ndwitwa Higoverse AI Advisor! 🤖
+
+Ndi umufasha w'ubucuruzi wubakiwe kugenzura amakuru ya {name} kandi nkugezaho inama z'ukuri.
+
+🧠 IBINTU NSHOBORA GUKORA:
+
+📊 Imiterere — Gusesengura amagurishwa n'amafaranga y'uyu munsi
+📦 Ububiko — Kugaragaza ibicuruzwa bikenewe cyangwa birangiye
+💰 Imari — Isesengura ry'amafaranga yinjiye, yaguriyemo n'inyungu
+🛒 Amagurishwa — Gusesengura amagurishwa yayu munsi n'iy'icyumweru
+📈 Gutera imbere — Inama n'amahirwe yo kongera ubucuruzi
+🚚 Ibigurwa — Gusesengura ibigurwa n'abaganishi
+📋 Raporo yuzuye — Isesengura ryose hamwe
+
+💬 Nshobora kuvugana nawe mu Kinyarwanda, Icyongereza, Igifaransa, cyangwa Kiswahili!
+
+Baza ikibazo cyose! 😊"""
+
+    if lang == "fr":
+        return f"""Je suis Higoverse AI Advisor! 🤖
+
+Je suis votre assistant commercial intelligent qui analyse les données de {name} en temps réel.
+
+🧠 MES CAPACITÉS:
+
+📊 Performance — Analyse des ventes et revenus du jour
+📦 Inventaire — Articles en rupture ou à faible stock
+💰 Finances — Revenus, dépenses et bénéfice net
+🛒 Ventes — Transactions du jour et de la semaine
+📈 Croissance — Recommandations et opportunités
+🚚 Achats — Historique et analyse fournisseurs
+📋 Rapport complet — Vue d'ensemble complète
+
+💬 Je parle Français, Anglais, Kinyarwanda et Swahili!
+
+Posez-moi n'importe quelle question! 😊"""
+
+    if lang == "sw":
+        return f"""Mimi ni Higoverse AI Advisor! 🤖
+
+Mimi ni mshauri wako wa biashara anayechambua data ya {name} wakati halisi.
+
+🧠 NINAVYOWEZA KUKUSAIDIA:
+
+📊 Utendaji — Uchambuzi wa mauzo na mapato ya leo
+📦 Akiba — Bidhaa zinazokwisha au zilizoisha
+💰 Fedha — Mapato, gharama na faida halisi
+🛒 Mauzo — Miamala ya leo na ya wiki
+📈 Ukuaji — Mapendekezo na fursa
+🚚 Manunuzi — Historia na uchambuzi wa wasambazaji
+📋 Ripoti kamili — Muhtasari wa kila kitu
+
+💬 Ninazungumza Kiswahili, Kiingereza, Kifaransa na Kinyarwanda!
+
+Niulize chochote! 😊"""
+
+    return f"""I'm Higoverse AI Advisor! 🤖
+
+I'm your intelligent business companion with real-time access to {name}'s data — ready to give you honest, data-driven insights.
+
+🧠 WHAT I CAN DO:
+
+📊 Performance check — How your business is doing right now
+📦 Inventory analysis — Which products need attention
+💰 Financial overview — Revenue, expenses & net profit
+🛒 Sales breakdown — Today's and this week's transactions
+📈 Growth opportunities — Actionable tips to grow faster
+🚚 Purchase analysis — Supplier & restocking overview
+📋 Full business report — Everything in one comprehensive view
+
+💬 I speak English, Kinyarwanda, French & Swahili — your choice!
+
+What would you like to know? 😊"""
+
+
+# ── Data-driven response builders ────────────────────────────────────────────
 
 def _build_performance(ctx: dict, lang: str) -> str:
     shop      = ctx.get("shop", {})
@@ -125,101 +337,92 @@ def _build_performance(ctx: dict, lang: str) -> str:
     revenue_today = stats.get("revenue_today", stats.get("today_revenue", 0))
     sales_today   = stats.get("sales_today",   stats.get("today_count",   0))
     revenue_month = stats.get("revenue_month", stats.get("month_revenue", 0))
-    profit_est    = float(revenue_today) * 0.3
     expense_total = finances.get("total_expenses_listed", 0)
+    profit_est    = float(revenue_today) * 0.3
     low_stock_cnt = len(inventory.get("low_stock_items", []))
     total_prods   = inventory.get("total_products", 0)
 
-    # Trend from daily data
-    trend_note = ""
+    trend = ""
     if isinstance(daily, list) and len(daily) >= 2:
         try:
             last   = float(daily[-1].get("revenue", 0))
             before = float(daily[-2].get("revenue", 0))
-            pct    = _pct_change(last, before)
-            trend_note = f"\n• Sales trend vs yesterday: {pct}"
+            trend  = f"\n📊 Trend vs yesterday: {_pct_change(last, before)}"
         except Exception:
             pass
 
+    health = "🟢 Looking good!" if low_stock_cnt == 0 else f"🟡 {low_stock_cnt} item(s) need restocking"
+
     if lang == "rw":
-        return f"""📊 Incamake y'Ubucuruzi — {shop_name}
-━━━━━━━━━━━━━━━━━━━━━━━━━
+        return f"""Dore amakuru mashya ya {shop_name}! 📊
 
 💰 Amafaranga Yinjiye Uyu Munsi: {_fmt_rwf(revenue_today)}
-🛒 Amagurishwa Uyu Munsi: {sales_today}
+🛒 Amagurishwa Uyu Munsi: {sales_today} y'amagurishwa
 📅 Amafaranga y'Uku Kwezi: {_fmt_rwf(revenue_month)}
 💡 Inyungu Yibazwa (~30%): {_fmt_rwf(profit_est)}
-📦 Ibicuruzwa Muri Ububiko: {total_prods}
-⚠️ Ibicuruzwa Bikenewe Kuzuzwa: {low_stock_cnt}{trend_note}
+📦 Ibicuruzwa Muri Ububiko: {total_prods}{trend}
 
-📊 IBIKURIKIRA BY'UKURI:
-• Amafaranga yose yaguriyemo yanditswe: {_fmt_rwf(expense_total)}
-• Inyungu nyayo ifatwa nk'amafaranga yinjiye ahagaze amafaranga yaguriyemo
+🏥 Imiterere y'Ububiko: {health}
 
-⚡ Ibikorwa Bikurikira:
-1. {"Zuza ububiko bw'ibicuruzwa " + str(low_stock_cnt) + " bikenewe" if low_stock_cnt > 0 else "Ububiko bwose buri mwanya — komeza gutanga"}
-2. Reba amagurishwa y'uku kwezi ugereranye n'ukwezi gushize
-3. Suzuma amafaranga yaguriyemo ushake aho ushobora kuzigama"""
+⚡ Ibigomba Gukozwe:
+{"• Zuza ibicuruzwa " + str(low_stock_cnt) + " bikenewe kuzuzwa byihuse!" if low_stock_cnt > 0 else "• Ububiko bwose buri mwanya — komeza gutanga!"}
+• Kigereranye amafaranga yinjiye n'ay'ukwezi gushize
+• Suzuma amafaranga yaguriyemo ushake aho ushobora kuzigama
+
+Ese ushaka ko nsesengura ibyiciro runaka? Baza gusa! 💬"""
 
     if lang == "fr":
-        return f"""📊 Résumé Commercial — {shop_name}
-━━━━━━━━━━━━━━━━━━━━━━━━━
+        return f"""Voici les dernières nouvelles de {shop_name}! 📊
 
 💰 Revenu Aujourd'hui: {_fmt_rwf(revenue_today)}
-🛒 Ventes Aujourd'hui: {sales_today}
+🛒 Ventes Aujourd'hui: {sales_today} commandes
 📅 Revenu du Mois: {_fmt_rwf(revenue_month)}
 💡 Bénéfice Estimé (~30%): {_fmt_rwf(profit_est)}
-📦 Produits en Stock: {total_prods}
-⚠️ Articles à Réapprovisionner: {low_stock_cnt}{trend_note}
+📦 Produits en Stock: {total_prods}{trend}
 
-📊 FAITS VÉRIFIÉS:
-• Total dépenses enregistrées: {_fmt_rwf(expense_total)}
-• Le bénéfice net = Revenu − Dépenses
+🏥 Santé du Stock: {health}
 
-⚡ Prochaines Étapes:
-1. {"Réapprovisionnez " + str(low_stock_cnt) + " article(s) en rupture" if low_stock_cnt > 0 else "Tous les stocks sont sains — continuez ainsi"}
-2. Comparez les ventes mensuelles avec le mois précédent
-3. Analysez vos dépenses pour identifier des économies possibles"""
+⚡ Actions Recommandées:
+{"• Réapprovisionnez " + str(low_stock_cnt) + " article(s) en urgence!" if low_stock_cnt > 0 else "• Tous les stocks sont sains — continuez comme ça!"}
+• Comparez avec le mois dernier pour repérer les tendances
+• Analysez les dépenses pour identifier des économies
+
+Voulez-vous approfondir un point particulier? 💬"""
 
     if lang == "sw":
-        return f"""📊 Muhtasari wa Biashara — {shop_name}
-━━━━━━━━━━━━━━━━━━━━━━━━━
+        return f"""Hivi ndivyo habari za hivi karibuni za {shop_name}! 📊
 
 💰 Mapato Leo: {_fmt_rwf(revenue_today)}
-🛒 Mauzo Leo: {sales_today}
+🛒 Mauzo Leo: {sales_today} maagizo
 📅 Mapato ya Mwezi: {_fmt_rwf(revenue_month)}
 💡 Faida Inayokadiriwa (~30%): {_fmt_rwf(profit_est)}
-📦 Bidhaa Zilizopo: {total_prods}
-⚠️ Bidhaa Zinazohitaji Kujazwa: {low_stock_cnt}{trend_note}
+📦 Bidhaa Zilizopo: {total_prods}{trend}
 
-📊 UKWELI ULIOTHIBITISHWA:
-• Jumla ya gharama zilizorekodiwa: {_fmt_rwf(expense_total)}
-• Faida halisi = Mapato − Gharama
+🏥 Hali ya Akiba: {health}
 
-⚡ Hatua Zinazofuata:
-1. {"Jaza akiba ya bidhaa " + str(low_stock_cnt) + " zinazokwisha" if low_stock_cnt > 0 else "Akiba zote ziko sawa — endelea hivyo"}
-2. Linganisha mauzo ya mwezi huu na mwezi uliopita
-3. Kagua gharama zako ili kupata uokoaji"""
+⚡ Hatua Zinazopendekezwa:
+{"• Jaza bidhaa " + str(low_stock_cnt) + " haraka kabla hazijaisha!" if low_stock_cnt > 0 else "• Akiba zote ziko sawa — endelea hivyo!"}
+• Linganisha na mwezi uliopita kuona mwelekeo
+• Kagua gharama ili kupata uokoaji
 
-    # English (default)
-    return f"""📊 Business Performance Summary — {shop_name}
-━━━━━━━━━━━━━━━━━━━━━━━━━
+Ungependa kuchunguza kitu chochote zaidi? 💬"""
+
+    return f"""Here's the latest on {shop_name}! 📊
 
 💰 Revenue Today: {_fmt_rwf(revenue_today)}
 🛒 Sales Today: {sales_today} orders
 📅 Revenue This Month: {_fmt_rwf(revenue_month)}
-💡 Estimated Profit (~30%): {_fmt_rwf(profit_est)}
-📦 Products in Inventory: {total_prods}
-⚠️ Items Needing Restock: {low_stock_cnt}{trend_note}
+💡 Estimated Profit Today (~30%): {_fmt_rwf(profit_est)}
+📦 Products in Inventory: {total_prods}{trend}
 
-📊 VERIFIED FACTS:
-• Total recorded expenses: {_fmt_rwf(expense_total)}
-• Net profit = Revenue − All expenses
+🏥 Stock Health: {health}
 
-⚡ Next Steps:
-1. {"Restock " + str(low_stock_cnt) + " low-stock item(s) urgently" if low_stock_cnt > 0 else "All stock levels are healthy — keep it up"}
-2. Compare this month's sales to last month for trend analysis
-3. Review your top expense categories for potential savings"""
+⚡ What I'd recommend right now:
+{"• Restock " + str(low_stock_cnt) + " low-stock item(s) before you miss sales!" if low_stock_cnt > 0 else "• Stock levels are all healthy — great job!"}
+• Compare this month's revenue with last month to spot the trend
+• Review your top expense category for potential savings
+
+Want me to dig deeper into any of these? Just ask! 💬"""
 
 
 def _build_inventory(ctx: dict, lang: str) -> str:
@@ -231,30 +434,33 @@ def _build_inventory(ctx: dict, lang: str) -> str:
 
     def low_lines():
         if not low:
-            return "  ✅ No items below restock level"
+            return "  ✅ All products are above restock level — great!"
         return "\n".join(
-            f"  • {i.get('name','?')}: {i.get('qty',0)} units left (restock at {i.get('restock_at',0)})"
+            f"  ⚠️ {i.get('name','?')}: {i.get('qty',0)} left (restock at {i.get('restock_at',0)})"
             for i in low[:10]
         )
 
     def out_lines():
         if not out:
-            return "  ✅ None"
-        return "  • " + "\n  • ".join(out[:8])
+            return "  ✅ Nothing out of stock!"
+        return "  🚫 " + "\n  🚫 ".join(str(x) for x in out[:8])
 
     def top_lines():
         if not top:
-            return "  No data"
+            return "  No data yet — record more stock to see rankings"
         return "\n".join(
             f"  {idx+1}. {i.get('name','?')} — {i.get('qty',0)} units @ {_fmt_rwf(i.get('price',0))}"
             for idx, i in enumerate(top[:5])
         )
 
-    if lang == "rw":
-        return f"""📦 Isesengura ry'Ububiko
-━━━━━━━━━━━━━━━━━━━━━━━━━
+    urgency = "🔴 Urgent restocking needed!" if out else ("🟡 Some items running low" if low else "🟢 Inventory is in great shape!")
 
-📋 Ibicuruzwa Byose: {total}
+    if lang == "rw":
+        return f"""Reka nsesengure ububiko bwawe 📦
+
+Imiterere Rusange: {urgency}
+Ibicuruzwa Byose: {total}
+
 ⚠️ Bikenewe Kuzuzwa ({len(low)}):
 {low_lines()}
 
@@ -264,16 +470,18 @@ def _build_inventory(ctx: dict, lang: str) -> str:
 🏆 Ibicuruzwa Bifite Agaciro Gakomeye:
 {top_lines()}
 
-⚡ Ibikorwa Bikurikira:
-1. Zuza ibicuruzwa birangiye cyangwa bikenewe kuzuzwa vuba
-2. Kora amasoko ku bigendera neza kugira ngo bigume bifite
-3. Suzuma ibicuruzwa bidagurishwa bireba kuyavanaho"""
+💡 Inama Yanjye:
+{"Zuza vuba ibicuruzwa birangiye — birateza akagero k'amagurishwa!" if out else "Tanga ibicuruzwa bikenewe kuzuzwa mbere y'uko birangira."}
+Ibicuruzwa bifasha cyane bishobora gutwikiriwa neza.
+
+Ushaka kumenya ibyiciro byihariye? Baza! 💬"""
 
     if lang == "fr":
-        return f"""📦 Analyse de l'Inventaire
-━━━━━━━━━━━━━━━━━━━━━━━━━
+        return f"""Voici l'analyse de votre inventaire 📦
 
-📋 Total Produits: {total}
+État Général: {urgency}
+Total Produits: {total}
+
 ⚠️ À Réapprovisionner ({len(low)}):
 {low_lines()}
 
@@ -283,16 +491,18 @@ def _build_inventory(ctx: dict, lang: str) -> str:
 🏆 Top Produits par Valeur:
 {top_lines()}
 
-⚡ Prochaines Étapes:
-1. Réapprovisionnez immédiatement les articles en rupture
-2. Commandez les articles sous le seuil minimal
-3. Étudiez les articles qui ne se vendent pas pour les éliminer"""
+💡 Mon Conseil:
+{"Réapprovisionnez en urgence les articles épuisés — chaque heure de rupture = ventes perdues!" if out else "Commandez les articles en jaune avant qu'ils s'épuisent."}
+Vos meilleurs produits méritent plus de stock et de visibilité.
+
+Vous voulez plus de détails? Demandez! 💬"""
 
     if lang == "sw":
-        return f"""📦 Uchambuzi wa Akiba
-━━━━━━━━━━━━━━━━━━━━━━━━━
+        return f"""Hapa kuna uchambuzi wa akiba yako 📦
 
-📋 Jumla ya Bidhaa: {total}
+Hali ya Jumla: {urgency}
+Jumla ya Bidhaa: {total}
+
 ⚠️ Zinahitaji Kujazwa ({len(low)}):
 {low_lines()}
 
@@ -302,16 +512,18 @@ def _build_inventory(ctx: dict, lang: str) -> str:
 🏆 Bidhaa Bora kwa Thamani:
 {top_lines()}
 
-⚡ Hatua Zinazofuata:
-1. Jaza mara moja bidhaa zilizoisha
-2. Agiza bidhaa zilizo chini ya kiwango cha chini
-3. Kagua bidhaa ambazo hazinunuliwi na uziondoe"""
+💡 Ushauri Wangu:
+{"Jaza haraka bidhaa zilizoisha — kila saa ya ukosefu = mauzo yaliyopotea!" if out else "Agiza bidhaa zinazokwisha kabla hazijaisha."}
+Bidhaa bora zaidi zinahitaji akiba zaidi na uonekano.
 
-    return f"""📦 Inventory Intelligence Report
-━━━━━━━━━━━━━━━━━━━━━━━━━
+Ungependa maelezo zaidi? Niulize! 💬"""
 
-📋 Total Products: {total}
-⚠️ Low Stock / Needs Restock ({len(low)}):
+    return f"""Let me break down your inventory for you 📦
+
+Overall Status: {urgency}
+Total Products: {total}
+
+⚠️ Needs Restocking ({len(low)}):
 {low_lines()}
 
 🚫 Out of Stock ({len(out)}):
@@ -320,10 +532,11 @@ def _build_inventory(ctx: dict, lang: str) -> str:
 🏆 Top Products by Stock Value:
 {top_lines()}
 
-⚡ Next Steps:
-1. Restock out-of-stock items immediately to avoid lost sales
-2. Place orders for items below their restock threshold
-3. Review slow-moving products — consider promotions or removing them"""
+💡 My take:
+{"Restock out-of-stock items ASAP — every hour without stock is lost revenue!" if out else "Order low-stock items before they run out completely."}
+Your best-value products deserve priority stocking and maybe some promotion.
+
+Want to explore a specific product or category? Just ask! 💬"""
 
 
 def _build_financial(ctx: dict, lang: str) -> str:
@@ -331,101 +544,111 @@ def _build_financial(ctx: dict, lang: str) -> str:
     stats    = sales.get("stats", {})
     finances = ctx.get("finances", {})
 
-    revenue_today  = stats.get("revenue_today",  stats.get("today_revenue",  0))
-    revenue_month  = stats.get("revenue_month",  stats.get("month_revenue",  0))
-    expense_total  = finances.get("total_expenses_listed", 0)
-    by_cat         = finances.get("expenses_by_category", {})
-    recent_exp     = finances.get("recent_expenses", [])
-    net_profit     = float(revenue_month) - float(expense_total)
-    margin         = (net_profit / float(revenue_month) * 100) if float(revenue_month) > 0 else 0
+    revenue_today = stats.get("revenue_today",  stats.get("today_revenue",  0))
+    revenue_month = stats.get("revenue_month",  stats.get("month_revenue",  0))
+    expense_total = finances.get("total_expenses_listed", 0)
+    by_cat        = finances.get("expenses_by_category", {})
+    net_profit    = float(revenue_month) - float(expense_total)
+    margin        = (net_profit / float(revenue_month) * 100) if float(revenue_month) > 0 else 0
+
+    health = "🟢 Profitable!" if net_profit > 0 else "🔴 Net loss — action needed!"
+    margin_note = "Excellent margin! 🎉" if margin > 30 else ("Good margin 👍" if margin > 15 else "Margin needs improvement ⚠️")
 
     def cat_lines():
         if not by_cat:
-            return "  No expense breakdown available"
-        sorted_cats = sorted(by_cat.items(), key=lambda x: x[1], reverse=True)
-        return "\n".join(f"  • {cat}: {_fmt_rwf(amt)}" for cat, amt in sorted_cats[:6])
+            return "  No expense breakdown yet — start recording expenses!"
+        sorted_cats = sorted(by_cat.items(), key=lambda x: float(x[1]), reverse=True)
+        return "\n".join(f"  💸 {cat}: {_fmt_rwf(amt)}" for cat, amt in sorted_cats[:6])
 
     if lang == "rw":
-        return f"""💰 Isesengura ry'Imari
-━━━━━━━━━━━━━━━━━━━━━━━━━
+        return f"""Dore isesengura ry'imari yawe 💰
 
-📊 UKURI:
+📊 Imari y'Ukweli:
 • Amafaranga Yinjiye Uyu Munsi: {_fmt_rwf(revenue_today)}
 • Amafaranga Yinjiye Uku Kwezi: {_fmt_rwf(revenue_month)}
-• Amafaranga Yaguriyemo (yanditswe): {_fmt_rwf(expense_total)}
+• Amafaranga Yaguriyemo: {_fmt_rwf(expense_total)}
 • Inyungu Nyayo y'Ukwezi: {_fmt_rwf(net_profit)}
 • Igenga ry'Inyungu: {margin:.1f}%
 
-📂 Amafaranga Yaguriyemo Hakurikijwe Inzego:
+Imiterere: {health} — {margin_note}
+
+💸 Amafaranga Yaguriyemo Hakurikijwe Inzego:
 {cat_lines()}
 
-⚡ Ibikorwa Bikurikira:
-1. {"Inyungu ni nziza — komeza kugenzura amafaranga yaguriyemo" if net_profit > 0 else "⚠️ Igiciro kirenze — ongesha amagurishwa cyangwa menge amafaranga yaguriyemo"}
-2. Reba inzego zifite amafaranga menshi — urebe aho ushobora kuzigama
-3. Jya wandika amafaranga yose yaguriyemo buri munsi"""
+💡 Inama Yanjye:
+{"Igenga ryawe ni ryiza — komeza kugenzura no kuzigama!" if net_profit > 0 else "⚠️ Igiciro kirenze amafaranga yinjiye. Ongesha amagurishwa cyangwa menge amafaranga yaguriyemo bihuse."}
+Inzego zifite amafaranga menshi zirasabwa isesengura ryimbitse.
+
+Ushaka isesengura ry'ibyiciro runaka? 💬"""
 
     if lang == "fr":
-        return f"""💰 Analyse Financière
-━━━━━━━━━━━━━━━━━━━━━━━━━
+        return f"""Voici une analyse complète de vos finances 💰
 
-📊 FAITS VÉRIFIÉS:
+📊 Chiffres Réels:
 • Revenu Aujourd'hui: {_fmt_rwf(revenue_today)}
 • Revenu du Mois: {_fmt_rwf(revenue_month)}
-• Dépenses Enregistrées: {_fmt_rwf(expense_total)}
+• Total Dépenses: {_fmt_rwf(expense_total)}
 • Bénéfice Net du Mois: {_fmt_rwf(net_profit)}
 • Marge Bénéficiaire: {margin:.1f}%
 
-📂 Dépenses par Catégorie:
+Santé Financière: {health} — {margin_note}
+
+💸 Dépenses par Catégorie:
 {cat_lines()}
 
-⚡ Prochaines Étapes:
-1. {"Bonne marge — continuez à surveiller les coûts" if net_profit > 0 else "⚠️ Perte nette — augmentez les ventes ou réduisez les dépenses"}
-2. La catégorie la plus coûteuse mérite un examen approfondi
-3. Enregistrez toutes les dépenses quotidiennement pour un suivi précis"""
+💡 Mon Conseil:
+{"Bonne santé financière — continuez à surveiller et optimiser!" if net_profit > 0 else "⚠️ Perte nette ce mois. Augmentez les ventes ou réduisez les coûts d'urgence."}
+La catégorie la plus coûteuse mérite un examen approfondi.
+
+Vous voulez analyser une catégorie en particulier? 💬"""
 
     if lang == "sw":
-        return f"""💰 Uchambuzi wa Fedha
-━━━━━━━━━━━━━━━━━━━━━━━━━
+        return f"""Hapa kuna uchambuzi kamili wa fedha zako 💰
 
-📊 UKWELI ULIOTHIBITISHWA:
+📊 Nambari Halisi:
 • Mapato Leo: {_fmt_rwf(revenue_today)}
 • Mapato ya Mwezi: {_fmt_rwf(revenue_month)}
-• Gharama Zilizorekodiwa: {_fmt_rwf(expense_total)}
+• Jumla ya Gharama: {_fmt_rwf(expense_total)}
 • Faida Halisi ya Mwezi: {_fmt_rwf(net_profit)}
 • Asilimia ya Faida: {margin:.1f}%
 
-📂 Gharama kwa Kitengo:
+Afya ya Fedha: {health} — {margin_note}
+
+💸 Gharama kwa Kitengo:
 {cat_lines()}
 
-⚡ Hatua Zinazofuata:
-1. {"Faida nzuri — endelea kufuatilia gharama" if net_profit > 0 else "⚠️ Hasara — ongeza mauzo au punguza gharama"}
-2. Kitengo kikubwa cha gharama kinahitaji ukaguzi
-3. Rekodi gharama zote kila siku kwa ufuatiliaji sahihi"""
+💡 Ushauri Wangu:
+{"Fedha zako ziko vizuri — endelea kufuatilia na kuboresha!" if net_profit > 0 else "⚠️ Hasara ya mtaji mwezi huu. Ongeza mauzo au punguza gharama haraka."}
+Kitengo kikubwa cha gharama kinahitaji ukaguzi wa kina.
 
-    return f"""💰 Financial Overview
-━━━━━━━━━━━━━━━━━━━━━━━━━
+Ungependa kuchunguza kitengo maalum? 💬"""
 
-📊 VERIFIED FACTS:
+    return f"""Here's your complete financial picture 💰
+
+📊 Real Numbers:
 • Revenue Today: {_fmt_rwf(revenue_today)}
 • Revenue This Month: {_fmt_rwf(revenue_month)}
 • Total Recorded Expenses: {_fmt_rwf(expense_total)}
 • Net Profit This Month: {_fmt_rwf(net_profit)}
 • Profit Margin: {margin:.1f}%
 
-📂 Expenses by Category:
+Financial Health: {health} — {margin_note}
+
+💸 Expenses by Category:
 {cat_lines()}
 
-⚡ Next Steps:
-1. {"Healthy margin — keep monitoring cost creep" if net_profit > 0 else "⚠️ Net loss — increase sales volume or cut top expense categories"}
-2. Your highest expense category deserves a closer review
-3. Record all expenses daily for accurate profit tracking"""
+💡 My take:
+{"Good financial health — keep monitoring costs and look for savings opportunities!" if net_profit > 0 else "⚠️ You're running a net loss this month. Prioritize increasing sales volume or cutting your top expense."}
+Your highest expense category is worth a deeper review.
+
+Want to explore a specific area? I'm happy to dig in! 💬"""
 
 
 def _build_sales(ctx: dict, lang: str) -> str:
-    sales   = ctx.get("sales", {})
-    stats   = sales.get("stats", {})
-    recent  = sales.get("recent_20", [])
-    daily   = sales.get("daily_14_days", [])
+    sales  = ctx.get("sales", {})
+    stats  = sales.get("stats", {})
+    recent = sales.get("recent_20", [])
+    daily  = sales.get("daily_14_days", [])
 
     revenue_today = stats.get("revenue_today", stats.get("today_revenue", 0))
     sales_today   = stats.get("sales_today",   stats.get("today_count",   0))
@@ -433,86 +656,88 @@ def _build_sales(ctx: dict, lang: str) -> str:
 
     def recent_lines():
         if not recent:
-            return "  No recent transactions recorded"
+            return "  No transactions recorded yet"
         lines = []
         for s in recent[:8]:
             amt  = _fmt_rwf(s.get("total_amount", s.get("amount", s.get("total", 0))))
             date = str(s.get("date", s.get("created_at", "—")))[:10]
-            lines.append(f"  • {date} — {amt}")
+            lines.append(f"  🧾 {date} — {amt}")
         return "\n".join(lines)
 
     def daily_lines():
         if not daily or not isinstance(daily, list):
-            return "  No daily data available"
+            return "  No daily data available yet"
         return "\n".join(
-            f"  • {d.get('day','?')}: {_fmt_rwf(d.get('revenue',0))} ({d.get('sales_count',0)} sales)"
+            f"  📅 {d.get('day','?')}: {_fmt_rwf(d.get('revenue',0))} ({d.get('sales_count',0)} sales)"
             for d in daily[-7:]
         )
 
     if lang == "rw":
-        return f"""🛒 Isesengura ry'Amagurishwa
-━━━━━━━━━━━━━━━━━━━━━━━━━
+        return f"""Reka nsesengure amagurishwa yawe 🛒
 
-📊 UKURI:
-• Amagurishwa Uyu Munsi: {sales_today}
+📊 Imibare y'Ukuri:
+• Amagurishwa Uyu Munsi: {sales_today} y'amagurishwa
 • Amafaranga Uyu Munsi: {_fmt_rwf(revenue_today)}
 • Amafaranga y'Icyumweru: {_fmt_rwf(revenue_week)}
 
 📅 Amagurishwa y'Iminsi 7 Ishize:
 {daily_lines()}
 
-🕐 Amagurishwa Ashya:
+🧾 Amagurishwa Ashya:
 {recent_lines()}
 
-⚡ Ibikorwa Bikurikira:
-1. Reba amasaha menshi amagurishwa akozwe ukore ko ibicuruzwa biriho
-2. Iminsi itagurishwa cyane reba impamvu
-3. Shishikariza abakiriya babonye ubu gusubira"""
+💡 Inama Yanjye:
+• Reba amasaha menshi amagurishwa akozwe ukore ko ibicuruzwa biriho
+• Iminsi itagurishwa cyane reba impamvu — ni lishe cyangwa igihe gikomeye?
+• Shishikariza abakiriya babonye ubu gusubira
+
+Ushaka isesengura ryimbitse ry'amagurishwa? 💬"""
 
     if lang == "fr":
-        return f"""🛒 Analyse des Ventes
-━━━━━━━━━━━━━━━━━━━━━━━━━
+        return f"""Analysons vos ventes ensemble 🛒
 
-📊 FAITS VÉRIFIÉS:
-• Ventes Aujourd'hui: {sales_today}
+📊 Chiffres Réels:
+• Ventes Aujourd'hui: {sales_today} commandes
 • Revenu Aujourd'hui: {_fmt_rwf(revenue_today)}
 • Revenu Cette Semaine: {_fmt_rwf(revenue_week)}
 
-📅 Ventes des 7 Derniers Jours:
+📅 Performance des 7 Derniers Jours:
 {daily_lines()}
 
-🕐 Transactions Récentes:
+🧾 Transactions Récentes:
 {recent_lines()}
 
-⚡ Prochaines Étapes:
-1. Identifiez les heures de pointe et assurez-vous d'avoir du stock
-2. Analysez les jours de faibles ventes pour en comprendre la cause
-3. Fidélisez les clients réguliers avec des offres spéciales"""
+💡 Mon Conseil:
+• Repérez vos heures de pointe et assurez-vous que le stock suit
+• Les jours de faibles ventes méritent une enquête — météo, événement, stock?
+• Fidélisez les clients récents avec des offres spéciales
+
+Voulez-vous analyser un aspect particulier? 💬"""
 
     if lang == "sw":
-        return f"""🛒 Uchambuzi wa Mauzo
-━━━━━━━━━━━━━━━━━━━━━━━━━
+        return f"""Hebu tuchambue mauzo yako 🛒
 
-📊 UKWELI:
-• Mauzo Leo: {sales_today}
+📊 Nambari Halisi:
+• Mauzo Leo: {sales_today} maagizo
 • Mapato Leo: {_fmt_rwf(revenue_today)}
 • Mapato Wiki Hii: {_fmt_rwf(revenue_week)}
 
-📅 Mauzo ya Siku 7 Zilizopita:
+📅 Utendaji wa Siku 7 Zilizopita:
 {daily_lines()}
 
-🕐 Miamala ya Hivi Karibuni:
+🧾 Miamala ya Hivi Karibuni:
 {recent_lines()}
 
-⚡ Hatua Zinazofuata:
-1. Tambua nyakati za kilele za mauzo na hakikisha bidhaa zipo
-2. Chunguza sababu za siku zenye mauzo ya chini
-3. Wahimize wateja wa kawaida kurudi kwa ofa maalum"""
+💡 Ushauri Wangu:
+• Tambua nyakati za kilele za mauzo na hakikisha bidhaa zipo
+• Siku zenye mauzo ya chini — chunguza sababu (hali ya hewa, akiba, matukio)
+• Wahimize wateja wa hivi karibuni kurudi kwa ofa maalum
 
-    return f"""🛒 Sales Analysis
-━━━━━━━━━━━━━━━━━━━━━━━━━
+Ungependa kuchunguza zaidi? 💬"""
 
-📊 VERIFIED FACTS:
+    return f"""Let's look at your sales together 🛒
+
+📊 Real Numbers:
 • Sales Today: {sales_today} orders
 • Revenue Today: {_fmt_rwf(revenue_today)}
 • Revenue This Week: {_fmt_rwf(revenue_week)}
@@ -520,13 +745,15 @@ def _build_sales(ctx: dict, lang: str) -> str:
 📅 Last 7 Days Performance:
 {daily_lines()}
 
-🕐 Recent Transactions:
+🧾 Recent Transactions:
 {recent_lines()}
 
-⚡ Next Steps:
-1. Identify your peak sales hours and ensure stock is available then
-2. Investigate low-sales days — are they patterns or one-offs?
-3. Follow up with recent customers to encourage repeat purchases"""
+💡 What I notice:
+• Identify your peak sales hours and make sure stock is always available then
+• Low-sales days deserve investigation — weather, stock gaps, or seasonal patterns?
+• Follow up with recent customers to encourage repeat visits
+
+Want me to dig into something specific? 💬"""
 
 
 def _build_growth(ctx: dict, lang: str) -> str:
@@ -544,84 +771,85 @@ def _build_growth(ctx: dict, lang: str) -> str:
 
     def top_lines():
         if not top:
-            return "  Insufficient data — record more sales to see top performers"
+            return "  Not enough data yet — keep recording sales!"
         return "\n".join(
-            f"  {i+1}. {p.get('name','?')} — {p.get('qty',0)} units @ {_fmt_rwf(p.get('price',0))}"
+            f"  🥇 #{i+1}: {p.get('name','?')} — {p.get('qty',0)} units @ {_fmt_rwf(p.get('price',0))}"
             for i, p in enumerate(top[:5])
         )
 
-    restock_note = f"Restock {len(low)} low-stock items to avoid lost sales." if low else "Stock levels are healthy."
+    tip1 = f"Restock {len(low)} low-stock items before you miss sales!" if low else "Stock levels look healthy — great foundation for growth!"
+    tip2 = "Your margin is strong — consider investing profit back into more inventory." if margin > 20 else "Focus on cutting your biggest expense or nudging prices up slightly."
 
     if lang == "rw":
-        return f"""📈 Amahirwe yo Gutera Imbere
-━━━━━━━━━━━━━━━━━━━━━━━━━
+        return f"""Dore amahirwe yo gutera imbere! 📈
 
-🏆 Ibicuruzwa Bifite Agaciro Gakomeye:
+🏆 Ibicuruzwa Bifasha Cyane:
 {top_lines()}
 
-💡 INAMA:
-• Inyungu nyayo y'ukwezi: {_fmt_rwf(net_profit)} ({margin:.1f}% igenga)
-• {"Igenga ry'inyungu ni ryiza — reka uburyo bwifashwe" if margin > 20 else "Ongesha ibiciro cyangwa menge amafaranga yaguriyemo kugira ngo inyungu yiyongere"}
-• {restock_note}
-• Ibicuruzwa byiganjemo bishobora gutwikiriwa neza
+💰 Inyungu y'Ukwezi: {_fmt_rwf(net_profit)} ({margin:.1f}% igenga)
 
-⚡ Ibikorwa Bikurikira:
-1. Ongesha ububiko bw'ibicuruzwa bifasha cyane muri iyo nzego
-2. Gerageza kwamamaza ibicuruzwa bidagurishwa cyane
-3. Gerageza guteranya ibicuruzwa bigurwa buri gihe"""
+🚀 INAMA 3 INGAMBA:
+
+1️⃣ {"Zuza ububiko bw'ibicuruzwa " + str(len(low)) + " bikenewe mbere y'uko birangira!" if low else "Ububiko ni mwanya — komeza gutanga ibicuruzwa byiza!"}
+
+2️⃣ {"Igenga ryawe ni ryiza — shyira inyungu muri ububiko bwiyongere" if margin > 20 else "Tekereza kongera ibiciro by'ibicuruzwa byiza cyangwa menge amafaranga yaguriyemo."}
+
+3️⃣ Teranya ibicuruzwa bigurwa buri gihe kugira ngo ibiciro bisabe buri gurishwa bibe byinshi.
+
+Ese ushaka ko tugira inama ku bicuruzwa bihariye? 💬"""
 
     if lang == "fr":
-        return f"""📈 Opportunités de Croissance
-━━━━━━━━━━━━━━━━━━━━━━━━━
+        return f"""Voici vos opportunités de croissance! 📈
 
-🏆 Top Produits par Valeur de Stock:
+🏆 Vos Meilleurs Produits:
 {top_lines()}
 
-💡 RECOMMANDATIONS:
-• Bénéfice net du mois: {_fmt_rwf(net_profit)} (marge {margin:.1f}%)
-• {"Bonne marge — maintenez votre stratégie actuelle" if margin > 20 else "Augmentez les prix ou réduisez les coûts pour améliorer la marge"}
-• {restock_note}
-• Vos meilleurs produits méritent plus de stock et de visibilité
+💰 Bénéfice du Mois: {_fmt_rwf(net_profit)} (marge {margin:.1f}%)
 
-⚡ Prochaines Étapes:
-1. Augmentez l'inventaire de vos 3 meilleurs produits
-2. Testez des promotions sur les articles qui ne bougent pas
-3. Créez des offres groupées avec vos articles populaires"""
+🚀 MES 3 RECOMMANDATIONS CLÉS:
+
+1️⃣ {"Réapprovisionnez " + str(len(low)) + " article(s) en urgence pour ne pas manquer de ventes!" if low else "Stocks sains — excellente base pour la croissance!"}
+
+2️⃣ {"Bonne marge — réinvestissez dans plus de stock de vos meilleurs produits!" if margin > 20 else "Envisagez d'augmenter légèrement les prix sur vos produits phares ou de réduire vos plus grosses dépenses."}
+
+3️⃣ Créez des offres groupées avec vos articles populaires pour augmenter le panier moyen.
+
+Voulez-vous des conseils sur un produit spécifique? 💬"""
 
     if lang == "sw":
-        return f"""📈 Fursa za Ukuaji
-━━━━━━━━━━━━━━━━━━━━━━━━━
+        return f"""Hizi ndizo fursa zako za ukuaji! 📈
 
-🏆 Bidhaa Bora kwa Thamani ya Stoo:
+🏆 Bidhaa Bora Zaidi:
 {top_lines()}
 
-💡 MAPENDEKEZO:
-• Faida halisi ya mwezi: {_fmt_rwf(net_profit)} (asilimia {margin:.1f}%)
-• {"Faida nzuri — endelea na mkakati wako" if margin > 20 else "Ongeza bei au punguza gharama ili kuboresha faida"}
-• {restock_note}
-• Bidhaa bora zaidi zinahitaji akiba zaidi na uonekano
+💰 Faida ya Mwezi: {_fmt_rwf(net_profit)} (asilimia {margin:.1f}%)
 
-⚡ Hatua Zinazofuata:
-1. Ongeza akiba ya bidhaa 3 bora zaidi
-2. Jaribu matangazo kwa bidhaa ambazo haziuziki
-3. Unda vifurushi vya bidhaa maarufu"""
+🚀 MAPENDEKEZO YANGU 3 MAKUU:
 
-    return f"""📈 Growth Opportunities & Recommendations
-━━━━━━━━━━━━━━━━━━━━━━━━━
+1️⃣ {"Jaza bidhaa " + str(len(low)) + " zinazokwisha kabla hazijaisha na kupoteza mauzo!" if low else "Akiba ziko sawa — msingi mzuri wa ukuaji!"}
 
-🏆 Top Products by Stock Value:
+2️⃣ {"Faida nzuri — wekeza tena faida kwenye akiba zaidi ya bidhaa bora!" if margin > 20 else "Fikiria kuongeza bei kidogo kwa bidhaa bora au kupunguza gharama kubwa zaidi."}
+
+3️⃣ Unda vifurushi vya bidhaa maarufu ili kuongeza thamani ya kila manunuzi.
+
+Ungependa ushauri kuhusu bidhaa maalum? 💬"""
+
+    return f"""Here are your real growth opportunities! 📈
+
+🏆 Your Top Performing Products:
 {top_lines()}
 
-💡 RECOMMENDATIONS:
-• Monthly net profit: {_fmt_rwf(net_profit)} ({margin:.1f}% margin)
-• {"Strong margin — maintain your current pricing strategy" if margin > 20 else "Consider raising prices on top products or cutting your biggest expense"}
-• {restock_note}
-• Your best-selling products deserve priority stocking and promotion
+💰 Monthly Profit: {_fmt_rwf(net_profit)} ({margin:.1f}% margin)
 
-⚡ Next Steps:
-1. Increase inventory for your top 3 performing products
-2. Run promotions on slow-moving stock to free up cash
-3. Bundle popular items together to increase average order value"""
+🚀 MY TOP 3 RECOMMENDATIONS:
+
+1️⃣ {tip1}
+
+2️⃣ {tip2}
+
+3️⃣ Bundle your top-selling products together — it increases average order value without extra marketing spend.
+
+Would you like specific advice on any product or area? I'm happy to go deeper! 💬"""
 
 
 def _build_purchases(ctx: dict, lang: str) -> str:
@@ -631,134 +859,164 @@ def _build_purchases(ctx: dict, lang: str) -> str:
 
     def purchase_lines():
         if not purchases:
-            return "  No recent purchases recorded"
+            return "  No recent purchases recorded yet"
         lines = []
         for p in purchases[:8]:
             amt  = _fmt_rwf(p.get("total_amount", p.get("amount", p.get("total", 0))))
             date = str(p.get("date", p.get("created_at", "—")))[:10]
             name = p.get("product_name", p.get("item_name", p.get("name", "—")))
-            lines.append(f"  • {date} — {name}: {amt}")
+            lines.append(f"  🚚 {date} — {name}: {amt}")
         return "\n".join(lines)
 
     if lang == "rw":
-        return f"""🚚 Isesengura ry'Ibigurwa
-━━━━━━━━━━━━━━━━━━━━━━━━━
+        return f"""Dore isesengura ry'ibigurwa byawe 🚚
 
 📊 Abaganishi Bose: {suppliers}
+
 🕐 Ibigurwa Bishya:
 {purchase_lines()}
 
-⚡ Ibikorwa Bikurikira:
-1. Reba ibigurwa byagurijwe vuba ugereranye n'ububiko bwawe
-2. Gura ibicuruzwa bikenewe mbere y'uko birangira
-3. Fata amasezerano n'abaganishi beza kugira ngo ubike neza"""
+💡 Inama Yanjye:
+• Kigereranye ibigurwa byagurijwe vuba n'ububiko bwawe bw'ubu
+• Gura ibicuruzwa bikenewe mbere y'uko birangira — wirekera akaga
+• Gerageza gutura amasezerano n'abaganishi beza kugira ngo ubike ibiciro byiza
+
+Ushaka isesengura ryimbitse ry'ibigurwa? 💬"""
 
     if lang == "fr":
-        return f"""🚚 Analyse des Achats
-━━━━━━━━━━━━━━━━━━━━━━━━━
+        return f"""Voici l'analyse de vos achats et fournisseurs 🚚
 
 📊 Total Fournisseurs: {suppliers}
+
 🕐 Achats Récents:
 {purchase_lines()}
 
-⚡ Prochaines Étapes:
-1. Comparez vos achats récents avec vos niveaux de stock actuels
-2. Passez commande pour les articles en rupture avant qu'ils manquent
-3. Négociez de meilleurs tarifs avec vos principaux fournisseurs"""
+💡 Mon Conseil:
+• Comparez vos achats récents avec vos niveaux de stock actuels
+• Passez commande pour les articles bas avant la rupture — n'attendez pas!
+• Négociez de meilleurs tarifs avec vos fournisseurs les plus utilisés
+
+Vous voulez analyser vos achats en détail? 💬"""
 
     if lang == "sw":
-        return f"""🚚 Uchambuzi wa Manunuzi
-━━━━━━━━━━━━━━━━━━━━━━━━━
+        return f"""Hapa kuna uchambuzi wa manunuzi yako 🚚
 
 📊 Jumla ya Wasambazaji: {suppliers}
+
 🕐 Manunuzi ya Hivi Karibuni:
 {purchase_lines()}
 
-⚡ Hatua Zinazofuata:
-1. Linganisha manunuzi ya hivi karibuni na viwango vya akiba yako
-2. Agiza bidhaa zinazokwisha kabla hazijaisha
-3. Jadiliana bei bora na wasambazaji wako wakuu"""
+💡 Ushauri Wangu:
+• Linganisha manunuzi ya hivi karibuni na viwango vya akiba yako sasa hivi
+• Agiza bidhaa zinazokwisha kabla hazijaisha kabisa
+• Jadiliana bei bora na wasambazaji wako wakuu
 
-    return f"""🚚 Purchases & Supplier Overview
-━━━━━━━━━━━━━━━━━━━━━━━━━
+Ungependa uchambuzi wa kina wa manunuzi? 💬"""
+
+    return f"""Here's your purchasing and supplier overview 🚚
 
 📊 Total Suppliers: {suppliers}
+
 🕐 Recent Purchases:
 {purchase_lines()}
 
-⚡ Next Steps:
-1. Cross-check recent purchases against current stock levels
-2. Reorder items that are running low before they run out
-3. Negotiate better pricing with your most-used suppliers"""
+💡 My suggestions:
+• Cross-check these purchases against your current stock levels
+• Reorder low-stock items before they run out — don't wait for zero
+• Negotiate better pricing with your most-used suppliers — even 5% off adds up
+
+Want a deeper dive into purchasing patterns? 💬"""
 
 
 def _build_full_report(ctx: dict, lang: str) -> str:
-    perf  = _build_performance(ctx, lang)
-    inv   = _build_inventory(ctx, lang)
-    fin   = _build_financial(ctx, lang)
-    sales = _build_sales(ctx, lang)
-
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-    header = {
-        "en": f"📋 FULL BUSINESS REPORT — Generated {now}",
-        "rw": f"📋 RAPORO YUZUYE Y'UBUCURUZI — Yakozwe {now}",
-        "fr": f"📋 RAPPORT COMPLET — Généré le {now}",
-        "sw": f"📋 RIPOTI KAMILI — Imetolewa {now}",
-    }.get(lang, f"📋 FULL BUSINESS REPORT — Generated {now}")
+    shop = ctx.get("shop", {}).get("name", "Your Shop")
 
-    separator = "\n\n" + "━" * 30 + "\n\n"
-    return header + separator + perf + separator + inv + separator + fin
+    headers = {
+        "en": f"📋 Complete Business Report — {shop}\n🕐 Generated: {now}",
+        "rw": f"📋 Raporo Yuzuye y'Ubucuruzi — {shop}\n🕐 Yakozwe: {now}",
+        "fr": f"📋 Rapport Complet de Commerce — {shop}\n🕐 Généré le: {now}",
+        "sw": f"📋 Ripoti Kamili ya Biashara — {shop}\n🕐 Imetolewa: {now}",
+    }
+    dividers = {
+        "en": "\n\n─────────────────────────────\n\n",
+        "rw": "\n\n─────────────────────────────\n\n",
+        "fr": "\n\n─────────────────────────────\n\n",
+        "sw": "\n\n─────────────────────────────\n\n",
+    }
+    closers = {
+        "en": "\n\nThat's your full picture! Let me know if you'd like to explore any section further. 💬",
+        "rw": "\n\nIyo ni raporo yuzuye! Baza niba ushaka isesengura ryimbitse ry'icyiciro runaka. 💬",
+        "fr": "\n\nVoilà votre tableau complet! N'hésitez pas à demander plus de détails. 💬",
+        "sw": "\n\nHiyo ni picha yako kamili! Niulize ukitaka kuchunguza sehemu yoyote zaidi. 💬",
+    }
 
+    div = dividers.get(lang, dividers["en"])
+    return (
+        headers.get(lang, headers["en"])
+        + div + _build_performance(ctx, lang)
+        + div + _build_inventory(ctx, lang)
+        + div + _build_financial(ctx, lang)
+        + closers.get(lang, closers["en"])
+    )
 
-# ── Unknown intent fallback ───────────────────────────────────────────────────
 
 def _build_unknown(message: str, lang: str) -> str:
     if lang == "rw":
-        return f"""🤔 Ikibazo cyawe: "{message}"
+        return f"""Mmmh, simeze neza icyo ubaza: "{message}" 🤔
 
-Sisobanuye neza icyo ubaza. Gerageza kubaza kimwe muri ibi:
+Ariko nshobora kukugezaho amakuru ku bibazo nk'ibi:
 
-• 📊 Imiterere y'iduka ryanjye ryagenze bite uyu munsi?
-• 📦 Ni ibicuruzwa bihe bikenewe kuzuzwa?
-• 💰 Isesengura ry'imari yanjye?
-• 🛒 Amagurishwa yanjye yo muri iki cyumweru?
-• 📈 Amahirwe yo gutera imbere?
-• 📋 Raporo yuzuye y'ubucuruzi?"""
+📊 "Iduka ryanjye rigenze bite uyu munsi?"
+📦 "Ni ibicuruzwa bihe bikenewe kuzuzwa?"
+💰 "Isesengura ry'imari yanjye?"
+🛒 "Amagurishwa yanjye yo muri iki cyumweru?"
+📈 "Ni iki kinshobora gufasha gutera imbere?"
+📋 "Mpore raporo yuzuye y'ubucuruzi"
+
+Gerageza ubaze kimwe muri ibi — nzasubiza neza! 😊"""
 
     if lang == "fr":
-        return f"""🤔 Votre question: "{message}"
+        return f"""Hmm, je n'ai pas très bien compris: "{message}" 🤔
 
-Je n'ai pas bien compris. Essayez l'une de ces questions:
+Mais je peux vous aider avec des questions comme:
 
-• 📊 Comment se porte mon commerce aujourd'hui?
-• 📦 Quels produits dois-je réapprovisionner?
-• 💰 Analyse de mes finances?
-• 🛒 Mes ventes de cette semaine?
-• 📈 Opportunités de croissance?
-• 📋 Rapport complet de mon commerce?"""
+📊 "Comment va mon commerce aujourd'hui?"
+📦 "Quels produits dois-je réapprovisionner?"
+💰 "Analyse financière de mon commerce"
+🛒 "Mes ventes cette semaine?"
+📈 "Comment puis-je faire croître mon commerce?"
+📋 "Génère un rapport complet"
+
+Essayez l'une de ces formulations — je ferai de mon mieux! 😊"""
 
     if lang == "sw":
-        return f"""🤔 Swali lako: "{message}"
+        return f"""Hmm, sielewi vizuri: "{message}" 🤔
 
-Sijaelewa vizuri. Jaribu moja ya maswali haya:
+Lakini ninaweza kukusaidia na maswali kama haya:
 
-• 📊 Biashara yangu inakwenda vipi leo?
-• 📦 Bidhaa zipi zinahitaji kujazwa?
-• 💰 Uchambuzi wa fedha zangu?
-• 🛒 Mauzo yangu ya wiki hii?
-• 📈 Fursa za ukuaji?
-• 📋 Ripoti kamili ya biashara?"""
+📊 "Biashara yangu inakwenda vipi leo?"
+📦 "Bidhaa zipi zinahitaji kujazwa?"
+💰 "Uchambuzi wa fedha zangu"
+🛒 "Mauzo yangu ya wiki hii?"
+📈 "Ninawezaje kukuza biashara yangu?"
+📋 "Tengeneza ripoti kamili"
 
-    return f"""🤔 I'm not sure I understood: "{message}"
+Jaribu moja ya hizi — nitafanya kila niwezalo! 😊"""
 
-Try asking me one of these:
+    return f"""Hmm, I'm not quite sure what you mean by: "{message}" 🤔
 
-• 📊 How is my business performing today?
-• 📦 Which products need restocking?
-• 💰 Give me a financial overview
-• 🛒 Show me my sales this week
-• 📈 What are my growth opportunities?
-• 📋 Generate a full business report"""
+No worries though! Here are some things I can definitely help with:
+
+📊 "How is my business doing today?"
+📦 "Which products need restocking?"
+💰 "Give me a financial overview"
+🛒 "Show me my sales this week"
+📈 "How can I grow my business?"
+📋 "Generate a full business report"
+👋 Or just say hi and we can chat!
+
+Try one of these and I'll give you a great answer! 😊"""
 
 
 # ── Public entry point ────────────────────────────────────────────────────────
@@ -771,12 +1029,15 @@ def generate_reply(
 ) -> tuple[str, int, int, float, int]:
     """
     Returns (reply_text, tokens_input, tokens_output, cost_usd, elapsed_ms).
-    All zeros for tokens/cost — standalone engine, no external API.
+    Standalone engine — tokens/cost always zero.
     """
     t0     = time.perf_counter()
     intent = _detect_intent(user_message)
 
     dispatch = {
+        "greeting":    _build_greeting,
+        "thanks":      _build_thanks,
+        "help":        _build_help,
         "performance": _build_performance,
         "inventory":   _build_inventory,
         "financial":   _build_financial,
@@ -786,11 +1047,13 @@ def generate_reply(
         "report":      _build_full_report,
     }
 
-    builder = dispatch.get(intent)
-    if builder:
+    builder = dispatch.get(intent, _build_unknown)
+    if builder in (_build_greeting, _build_thanks, _build_help):
         reply = builder(context, language)
-    else:
+    elif builder == _build_unknown or builder is None:
         reply = _build_unknown(user_message, language)
+    else:
+        reply = builder(context, language)
 
     elapsed_ms = int((time.perf_counter() - t0) * 1000)
     return reply, 0, 0, 0.0, elapsed_ms
