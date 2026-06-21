@@ -488,9 +488,12 @@ export default function AdminPage() {
                         .slice(0, 5)
                         .map((s) => (
                           <div key={s.id} className="flex items-center gap-2.5 p-2 rounded-lg" style={{ background: "#F3F2EE" }}>
-                            <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0"
-                              style={{ background: LI_BLUE }}>
-                              {(s.name ?? "?")[0].toUpperCase()}
+                            <div className="w-7 h-7 rounded-full overflow-hidden flex items-center justify-center text-xs font-bold text-white shrink-0"
+                              style={{ background: s.logo_url ? "transparent" : LI_BLUE }}>
+                              {s.logo_url
+                                // eslint-disable-next-line @next/next/no-img-element
+                                ? <img src={s.logo_url} alt={s.name} className="w-7 h-7 object-cover" />
+                                : (s.name ?? "?")[0].toUpperCase()}
                             </div>
                             <div className="flex-1 min-w-0">
                               <p className="text-sm font-medium text-gray-800 truncate">{s.name}</p>
@@ -561,9 +564,12 @@ export default function AdminPage() {
                     <div key={shop.id}>
                       <div className={`flex items-center gap-3 px-5 py-3.5 hover:bg-gray-50 transition-colors ${!shop.is_active ? "opacity-55" : ""}`}>
                         {/* Avatar */}
-                        <div className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold text-white shrink-0"
-                          style={{ background: online ? "#057642" : LI_BLUE }}>
-                          {(shop.name ?? "?")[0].toUpperCase()}
+                        <div className="w-10 h-10 rounded-full overflow-hidden flex items-center justify-center text-sm font-bold text-white shrink-0"
+                          style={{ background: shop.logo_url ? "transparent" : online ? "#057642" : LI_BLUE }}>
+                          {shop.logo_url
+                            // eslint-disable-next-line @next/next/no-img-element
+                            ? <img src={shop.logo_url} alt={shop.name} className="w-10 h-10 object-cover" />
+                            : (shop.name ?? "?")[0].toUpperCase()}
                         </div>
 
                         {/* Info */}
@@ -643,6 +649,10 @@ export default function AdminPage() {
                             {/* Info */}
                             <div className="bg-white rounded-xl border border-gray-200 p-4">
                               <p className="text-[10px] uppercase tracking-wider text-gray-400 font-semibold mb-3">Shop Info</p>
+                              {shop.logo_url && (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img src={shop.logo_url} alt={shop.name} className="w-16 h-16 rounded-xl object-cover mb-3 border border-gray-100" />
+                              )}
                               <div className="space-y-2">
                                 {[
                                   { icon: <Store size={11} />,  label: "Name",    value: shop.name },

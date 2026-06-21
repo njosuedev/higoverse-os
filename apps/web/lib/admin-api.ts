@@ -42,6 +42,7 @@ export interface AdminShop {
   phone?: string;
   address?: string;
   description?: string;
+  logo_url?: string;
   is_active: boolean;
   owner_email: string | null;
   user_count: number;

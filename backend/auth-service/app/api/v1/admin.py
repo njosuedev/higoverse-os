@@ -25,6 +25,7 @@ def _fmt_shop(s: Shop, owner_email: str | None = None, user_count: int = 0) -> d
         "phone":        s.phone,
         "address":      s.address,
         "description":  s.description,
+        "logo_url":     s.logo_url,
         "is_active":    s.is_active,
         "owner_email":  owner_email,
         "user_count":   user_count,
