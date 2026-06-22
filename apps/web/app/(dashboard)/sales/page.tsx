@@ -13,7 +13,7 @@ import DateRangeFilter from "@/app/components/ui/DateRangeFilter";
 import {
   ShoppingBag, Search, Filter, Plus, Trash2, Pencil, X,
   TrendingUp, DollarSign, Users, ReceiptText, Package, RefreshCw, Calendar, Printer,
-  Wallet, AlertCircle, CheckCircle2, Phone,
+  Wallet, AlertCircle, CheckCircle2, Phone, ChevronDown,
 } from "lucide-react";
 
 interface Sale {
@@ -488,144 +488,114 @@ ${paymentHtml}
       <div className="max-w-7xl mx-auto px-3 sm:px-5 py-3 sm:py-4">
 
         {/* HEADER */}
-        <div className="text-white rounded-xl p-4 mb-3" style={{ backgroundColor: "#1372e6" }}>
-          <div className="flex flex-wrap justify-between items-center gap-2">
-            <div className="flex items-center gap-2.5">
-              <ShoppingBag size={20} />
+        <div className="relative rounded-2xl mb-2 overflow-hidden"
+          style={{ background: "linear-gradient(135deg, #1372e6 0%, #1168d6 50%, #0a47a0 100%)" }}>
+          <div style={{ position:"absolute",inset:0,pointerEvents:"none",
+            backgroundImage:"radial-gradient(circle, rgba(255,255,255,0.06) 1px, transparent 1px)",
+            backgroundSize:"20px 20px" }} />
+
+          {/* Row 1: icon + title + actions */}
+          <div className="relative flex items-center gap-3 px-4 pt-3 pb-2">
+            <div className="flex items-center gap-2.5 min-w-0 mr-auto">
+              <div className="w-8 h-8 rounded-xl bg-white/15 border border-white/20 flex items-center justify-center shrink-0">
+                <ShoppingBag size={15} className="text-white" strokeWidth={2} />
+              </div>
               <div>
-                <h1 className="text-base font-semibold">{t("sales.title")}</h1>
-                <p className="text-blue-100 text-xs mt-0.5">
-                  {lastUpdated ? `${t("common.updated")} ${lastUpdated.toLocaleTimeString()}` : "—"} · {t("common.total")}: {salesTotal.toLocaleString()}
-                </p>
+                <p className="text-[10px] font-semibold text-blue-200 uppercase tracking-widest leading-none">Sales</p>
+                <h1 className="text-base font-extrabold text-white leading-tight tracking-tight">{t("sales.title")}</h1>
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 shrink-0">
               <button onClick={() => loadData(true)} disabled={refreshing}
-                className="p-2 rounded-lg bg-white/10 hover:bg-white/20 text-white transition disabled:opacity-50">
-                <RefreshCw size={14} className={refreshing ? "animate-spin" : ""} />
+                className="w-7 h-7 rounded-lg bg-white/10 hover:bg-white/20 border border-white/15 flex items-center justify-center text-white transition-all disabled:opacity-40">
+                <RefreshCw size={12} className={refreshing ? "animate-spin" : ""} />
               </button>
               <button onClick={openCreateModal}
-                className="bg-white px-3.5 py-1.5 rounded-lg flex items-center gap-1.5 text-sm font-semibold hover:bg-blue-50 transition" style={{ color: "#1372e6" }}>
-                <Plus size={15} /> {t("sales.add")}
+                className="flex items-center gap-1.5 bg-white text-[#1372e6] px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-blue-50 active:scale-95 transition-all shadow-lg shadow-black/20">
+                <Plus size={12} strokeWidth={3} /> {t("sales.add")}
               </button>
             </div>
           </div>
 
-          <div className="mt-4 flex flex-col md:flex-row gap-2.5">
-            <div className="flex-1 flex items-center bg-white/10 rounded-lg px-3 py-2 gap-2">
-              <Search size={15} className="shrink-0 text-blue-100" />
-              <input value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-                placeholder={t("items.search")}
-                className="bg-transparent outline-none w-full text-sm placeholder:text-blue-100" />
-              {search && <button onClick={() => setSearch("")} className="text-green-200 hover:text-white"><X size={13} /></button>}
-            </div>
-            <div className="flex items-center bg-white/10 rounded-lg px-3 py-2 gap-2">
-              <Filter size={15} className="shrink-0 text-blue-100" />
-              <select value={filter} onChange={(e) => { setFilter(e.target.value); setPage(1); }} className="bg-transparent outline-none text-sm">
-                <option value="all" className="text-gray-700">{t("sales.all")}</option>
-                <option value="profit" className="text-gray-700">{t("sales.profit")}</option>
-                <option value="loss" className="text-gray-700">Loss</option>
-                <optgroup label="By payment" className="text-gray-400">
-                  {PAYMENT_METHODS.map((m) => (
-                    <option key={m.value} value={`pay:${m.value}`} className="text-gray-700">{m.label} only</option>
-                  ))}
-                </optgroup>
-              </select>
-            </div>
+          {/* Row 2: live indicator */}
+          <div className="relative flex items-center gap-1.5 px-4 pb-2">
+            <span className="relative flex h-1.5 w-1.5">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
+              <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-green-400" />
+            </span>
+            <p className="text-[10px] text-blue-100/70">
+              Live · <span className="font-semibold text-white/80">{salesTotal.toLocaleString()} sales</span>
+              {lastUpdated && <span className="ml-1 text-blue-200/50">· Updated {lastUpdated.toLocaleTimeString()}</span>}
+            </p>
           </div>
 
-          <DateRangeFilter
-            from={dateFrom} to={dateTo}
-            onFrom={(v) => { setDateFrom(v); setPage(1); }}
-            onTo={(v) => { setDateTo(v); setPage(1); }}
-            onClear={() => { setDateFrom(""); setDateTo(""); setPage(1); }}
-            accentClass="focus:ring-[#1372e6]/30 focus:border-[#1372e6]"
-          />
+          {/* Row 3: search + filter + date range */}
+          <div className="relative px-4 pb-3 space-y-2">
+            <div className="flex gap-2">
+              <div className="flex-1 flex items-center gap-2 bg-white/10 hover:bg-white/15 focus-within:bg-white/20 border border-white/10 focus-within:border-white/30 rounded-xl px-3 py-2 transition-all group shadow-inner">
+                <Search size={13} className="shrink-0 text-white/40 group-focus-within:text-white/80 transition-colors" />
+                <input value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+                  placeholder={t("items.search")}
+                  className="bg-transparent outline-none w-full text-sm text-white placeholder:text-white/35 font-medium" />
+                {search && (
+                  <button onClick={() => setSearch("")} className="w-4 h-4 rounded-full bg-white/20 hover:bg-white/35 flex items-center justify-center text-white/70 hover:text-white transition-all shrink-0">
+                    <X size={9} />
+                  </button>
+                )}
+              </div>
+              <div className="flex items-center gap-1.5 bg-white/10 hover:bg-white/15 border border-white/10 rounded-xl px-2.5 py-2 transition-all">
+                <Filter size={11} className="shrink-0 text-white/50" />
+                <select value={filter} onChange={(e) => { setFilter(e.target.value); setPage(1); }}
+                  className="bg-transparent outline-none text-xs text-white font-semibold appearance-none cursor-pointer">
+                  <option value="all" className="text-gray-800">{t("sales.all")}</option>
+                  <option value="profit" className="text-gray-800">{t("sales.profit")}</option>
+                  <option value="loss" className="text-gray-800">Loss</option>
+                  <optgroup label="By payment" className="text-gray-600">
+                    {PAYMENT_METHODS.map((m) => (
+                      <option key={m.value} value={`pay:${m.value}`} className="text-gray-800">{m.label} only</option>
+                    ))}
+                  </optgroup>
+                </select>
+                <ChevronDown size={10} className="text-white/35 shrink-0" />
+              </div>
+            </div>
+            <DateRangeFilter
+              from={dateFrom} to={dateTo}
+              onFrom={(v) => { setDateFrom(v); setPage(1); }}
+              onTo={(v) => { setDateTo(v); setPage(1); }}
+              onClear={() => { setDateFrom(""); setDateTo(""); setPage(1); }}
+              accentClass="focus:ring-[#1372e6]/30 focus:border-[#1372e6]"
+            />
+          </div>
         </div>
 
-        {hasDateFilter && (
-          <div className="flex items-center gap-2 mb-4 text-xs bg-[#EBF2FD] border border-[#A8C8F8] rounded-lg px-3 py-2" style={{ color: "#1372e6" }}>
-            <Calendar size={13} />
-            <span>
-              {t("sales.filter_date")}:
-              {dateFrom && <> <span className="font-semibold">{dateFrom}</span></>}
-              {dateTo && <> → <span className="font-semibold">{dateTo}</span></>}
-              {" "}· <span className="font-semibold">{salesTotal.toLocaleString()}</span> {t("sales.count").toLowerCase()}
-            </span>
-            <button onClick={() => { setDateFrom(""); setDateTo(""); setPage(1); }} className="ml-auto hover:opacity-70" style={{ color: "#1372e6" }}>
-              <X size={13} />
-            </button>
-          </div>
-        )}
-
         {/* STAT CARDS */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-4">
-          <div className="bg-white rounded-xl border border-slate-200 p-3">
-            <div className="flex justify-between items-start">
-              <div>
-                <p className="text-xs font-medium text-gray-400 uppercase tracking-wide">{t("sales.count")}</p>
-                <p className="text-base font-bold mt-1.5 text-[#1372e6]">{stats.total}</p>
-                <p className="text-xs text-slate-400 mt-0.5">{stats.itemsSold} items sold</p>
+        <div className="grid grid-cols-3 sm:grid-cols-5 gap-1.5 mb-2">
+          {[
+            { label: t("sales.count"),        value: stats.total,                                                            color: "text-[#1372e6]",  dot: "bg-[#1372e6]"  },
+            { label: t("sales.revenue"),       value: stats.revenue.toLocaleString(),                                         color: "text-green-600",  dot: "bg-green-500"  },
+            { label: t("sales.profit"),        value: `${stats.profit >= 0 ? "+" : ""}${stats.profit.toLocaleString()}`,      color: stats.profit >= 0 ? "text-green-700" : "text-red-500", dot: stats.profit >= 0 ? "bg-green-500" : "bg-red-500" },
+            { label: t("reports.customers"),   value: stats.uniqueCustomers,                                                  color: "text-[#1372e6]",  dot: "bg-blue-400"   },
+            { label: "Outstanding",            value: debtsTotalOutstanding.toLocaleString(),                                  color: "text-orange-500", dot: "bg-orange-400" },
+          ].map((card) => (
+            <div key={card.label} className="bg-white rounded-lg border border-slate-200 px-2.5 py-2">
+              <div className="flex items-center gap-1 mb-1">
+                <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${card.dot}`} />
+                <p className="text-[9px] font-semibold text-slate-400 uppercase tracking-wider leading-none truncate">{card.label}</p>
               </div>
-              <div className="p-1.5 rounded-lg text-white" style={{ backgroundColor: "#1372e6" }}><ReceiptText size={17} strokeWidth={2.5} /></div>
+              <p className={`text-sm font-bold leading-none tabular-nums ${card.color}`}>{card.value}</p>
             </div>
-          </div>
-          <div className="bg-white rounded-xl border border-slate-200 p-3">
-            <div className="flex justify-between items-start">
-              <div>
-                <p className="text-xs font-medium text-gray-400 uppercase tracking-wide">{t("sales.revenue")}</p>
-                <p className="text-base font-bold mt-1.5 text-green-600">{stats.revenue.toLocaleString()}</p>
-                <p className="text-xs text-slate-400 mt-0.5">avg {Math.round(stats.avgSale).toLocaleString()} / sale</p>
-              </div>
-              <div className="p-1.5 rounded-lg text-white" style={{ backgroundColor: "#1372e6" }}><DollarSign size={17} strokeWidth={2.5} /></div>
-            </div>
-          </div>
-          <div className="bg-white rounded-xl border border-slate-200 p-3">
-            <div className="flex justify-between items-start">
-              <div>
-                <p className="text-xs font-medium text-gray-400 uppercase tracking-wide">{t("sales.profit")}</p>
-                <p className={`text-base font-bold mt-1.5 ${stats.profit >= 0 ? "text-green-700" : "text-red-500"}`}>
-                  {stats.profit >= 0 ? "+" : ""}{stats.profit.toLocaleString()}
-                </p>
-                <p className={`text-xs mt-0.5 font-semibold ${stats.margin >= 0 ? "text-green-500" : "text-red-400"}`}>
-                  {stats.margin.toFixed(1)}% margin
-                </p>
-              </div>
-              <div className="p-1.5 rounded-lg text-white" style={{ backgroundColor: "#1372e6" }}>
-                <TrendingUp size={17} strokeWidth={2.5} />
-              </div>
-            </div>
-          </div>
-          <div className="bg-white rounded-xl border border-slate-200 p-3">
-            <div className="flex justify-between items-start">
-              <div>
-                <p className="text-xs font-medium text-gray-400 uppercase tracking-wide">{t("reports.customers")}</p>
-                <p className="text-base font-bold mt-1.5 text-[#1372e6]">{stats.uniqueCustomers}</p>
-                <p className="text-xs text-slate-400 mt-0.5">unique buyers</p>
-              </div>
-              <div className="p-1.5 rounded-lg text-white" style={{ backgroundColor: "#1372e6" }}><Users size={17} strokeWidth={2.5} /></div>
-            </div>
-          </div>
-          <div className="bg-white rounded-xl border border-slate-200 p-3">
-            <div className="flex justify-between items-start">
-              <div>
-                <p className="text-xs font-medium text-gray-400 uppercase tracking-wide">Outstanding</p>
-                <p className="text-base font-bold mt-1.5 text-orange-500">{debtsTotalOutstanding.toLocaleString()}</p>
-                <p className="text-xs text-slate-400 mt-0.5">{pendingDebts.length} unpaid {pendingDebts.length === 1 ? "debt" : "debts"}</p>
-              </div>
-              <div className="p-1.5 rounded-lg text-white" style={{ backgroundColor: "#1372e6" }}><AlertCircle size={17} strokeWidth={2.5} /></div>
-            </div>
-          </div>
+          ))}
         </div>
 
         {/* PAYMENT BREAKDOWN */}
         {sales.length > 0 && (
-          <div className="bg-white rounded-xl border border-slate-200 px-3 py-2 mb-4 flex flex-wrap gap-3 items-center">
-            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wide mr-1">Payments</span>
+          <div className="bg-white rounded-xl border border-slate-200 px-3 py-1.5 mb-2 flex flex-wrap gap-2 items-center">
+            <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mr-1">Payments</span>
             {PAYMENT_METHODS.filter((m) => (stats.payBreakdown[m.value]?.count ?? 0) > 0).map((m) => {
               const b = stats.payBreakdown[m.value];
               return (
-                <div key={m.value} className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs ${m.color}`}>
+                <div key={m.value} className={`flex items-center gap-1 px-2 py-0.5 rounded-lg border text-[10px] ${m.color}`}>
                   <span className="font-semibold">{m.label}</span>
                   <span className="opacity-60">·</span>
                   <span>{b.count} {b.count === 1 ? "sale" : "sales"}</span>

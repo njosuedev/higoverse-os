@@ -308,40 +308,51 @@ export default function ReportsPage() {
       <div className="max-w-7xl mx-auto px-3 sm:px-5 py-3 sm:py-4 space-y-3">
 
         {/* ── HEADER ─────────────────────────────────────────────────────────── */}
-        <div className="text-white rounded-xl p-3" style={{ backgroundColor: "#1372e6" }}>
-          <div className="flex flex-wrap justify-between items-start gap-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center">
-                <BarChart3 size={20} />
+        <div className="relative rounded-2xl mb-2 overflow-hidden"
+          style={{ background: "linear-gradient(135deg, #1372e6 0%, #1168d6 50%, #0a47a0 100%)" }}>
+          <div style={{ position:"absolute",inset:0,pointerEvents:"none",
+            backgroundImage:"radial-gradient(circle, rgba(255,255,255,0.06) 1px, transparent 1px)",
+            backgroundSize:"20px 20px" }} />
+
+          <div className="relative flex items-center gap-3 px-4 pt-3 pb-2">
+            <div className="flex items-center gap-2.5 min-w-0 mr-auto">
+              <div className="w-8 h-8 rounded-xl bg-white/15 border border-white/20 flex items-center justify-center shrink-0">
+                <BarChart3 size={15} className="text-white" strokeWidth={2}/>
               </div>
               <div>
-                <h1 className="text-base font-semibold">{t("reports.title")}</h1>
-                <div className="flex items-center gap-3 mt-0.5">
-                  <span className="flex items-center gap-1 text-xs text-slate-400">
-                    <Wifi size={11} className="text-green-400" />
-                    <span className="text-green-400 font-medium">Live</span>
-                  </span>
-                  {lastUpdated && (
-                    <span className="text-slate-400 text-xs">
-                      {timeAgo(lastUpdated)} · refresh in {countdown}s
-                    </span>
-                  )}
-                </div>
+                <p className="text-[10px] font-semibold text-blue-200 uppercase tracking-widest leading-none">Analytics</p>
+                <h1 className="text-base font-extrabold text-white leading-tight tracking-tight">{t("reports.title")}</h1>
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 shrink-0">
+              {lastUpdated && (
+                <span className="text-[10px] text-blue-200/60 hidden sm:block">
+                  {timeAgo(lastUpdated)} · {countdown}s
+                </span>
+              )}
               <button onClick={manualRefresh} disabled={refreshing}
-                className="p-2 rounded-lg bg-white/10 hover:bg-white/20 text-white transition disabled:opacity-50">
-                <RefreshCw size={14} className={refreshing ? "animate-spin" : ""} />
+                className="w-7 h-7 rounded-lg bg-white/10 hover:bg-white/20 border border-white/15 flex items-center justify-center text-white transition-all disabled:opacity-40">
+                <RefreshCw size={12} className={refreshing ? "animate-spin" : ""}/>
               </button>
               <button onClick={() => window.print()}
-                className="flex items-center gap-1.5 bg-white/10 hover:bg-white/20 text-white text-sm px-3 py-2 rounded-lg transition">
-                <Download size={14} /> {t("reports.export")}
+                className="flex items-center gap-1.5 bg-white text-[#1372e6] px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-blue-50 active:scale-95 transition-all shadow-lg shadow-black/20">
+                <Download size={12}/> {t("reports.export")}
               </button>
             </div>
           </div>
 
-          <div className="mt-2">
+          <div className="relative flex items-center gap-1.5 px-4 pb-2">
+            <span className="relative flex h-1.5 w-1.5">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"/>
+              <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-green-400"/>
+            </span>
+            <p className="text-[10px] text-blue-100/70">
+              <span className="text-green-400 font-semibold">Live</span>
+              {lastUpdated && <span className="ml-1 text-blue-200/50">· Updated {lastUpdated.toLocaleTimeString()}</span>}
+            </p>
+          </div>
+
+          <div className="relative px-4 pb-3">
             <DateRangeFilter
               from={dateFrom} to={dateTo}
               onFrom={setDateFrom} onTo={setDateTo}
@@ -370,7 +381,7 @@ export default function ReportsPage() {
         {summary && (
           <>
             {/* Row 1: Stock money summary */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5">
               <KpiCard
                 label="Stock Value"
                 value={`RWF ${fmtRWF(stockCost)}`}
@@ -397,7 +408,7 @@ export default function ReportsPage() {
               />
             </div>
             {/* Row 2: Stock health + sales + expenses + net profit */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-1.5">
               <KpiCard
                 label="Out of Stock"
                 value={String(summary.out_of_stock)}
@@ -668,23 +679,23 @@ export default function ReportsPage() {
         {/* ── STOCK ALERTS TABLE ─────────────────────────────────────────────── */}
         {stockAlerts.length > 0 ? (
           <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
-            <div className="flex justify-between items-center px-4 py-3 border-b border-slate-100">
+            <div className="flex justify-between items-center px-4 py-2 border-b border-slate-100">
               <div className="flex items-center gap-2">
-                <AlertCircle size={16} className="text-amber-500" />
+                <AlertCircle size={14} className="text-amber-500" />
                 <h2 className="text-sm font-semibold text-slate-700">
                   {t("reports.stock_alerts")} — {stockAlerts.length} {t("nav.items").toLowerCase()}
                 </h2>
               </div>
               <Link href="/PurchaseManagement"
-                className="flex items-center gap-1.5 text-xs font-semibold text-[#1372e6] bg-[#EBF2FD] hover:bg-[#D5E8FB] px-3 py-1.5 rounded-lg transition">
-                <ArrowUpRight size={12} /> {t("purchases.add")}
+                className="flex items-center gap-1.5 text-xs font-semibold text-[#1372e6] bg-[#EBF2FD] hover:bg-[#D5E8FB] px-3 py-1 rounded-lg transition">
+                <ArrowUpRight size={11} /> {t("purchases.add")}
               </Link>
             </div>
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-100">
                   {[t("items.name"), "Qty Left", "You Paid", "You Sell For", "Profit %", "Action"].map((h) => (
-                    <th key={h} className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-400 whitespace-nowrap">{h}</th>
+                    <th key={h} className="px-3 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-500 whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -694,17 +705,17 @@ export default function ReportsPage() {
                     ? (((item.selling_price - item.cost_price) / item.cost_price) * 100).toFixed(0) : "—";
                   return (
                     <tr key={item.id} className="hover:bg-slate-50/60">
-                      <td className="px-3 py-2 font-medium text-slate-800">{item.name}</td>
-                      <td className="px-3 py-2">
+                      <td className="px-3 py-1.5 font-medium text-slate-800">{item.name}</td>
+                      <td className="px-3 py-1.5">
                         <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold
                           ${item.quantity === 0 ? "bg-red-100 text-red-700" : "bg-amber-100 text-amber-700"}`}>
                           {item.quantity}
                         </span>
                       </td>
-                      <td className="px-3 py-2 text-slate-600 tabular-nums">{item.cost_price.toLocaleString()}</td>
-                      <td className="px-3 py-2 font-semibold text-green-600 tabular-nums">{item.selling_price.toLocaleString()}</td>
-                      <td className="px-3 py-2 text-slate-500 text-xs font-medium">{marginPct !== "—" ? `+${marginPct}%` : "—"}</td>
-                      <td className="px-3 py-2">
+                      <td className="px-3 py-1.5 text-slate-600 tabular-nums">{item.cost_price.toLocaleString()}</td>
+                      <td className="px-3 py-1.5 font-semibold text-green-600 tabular-nums">{item.selling_price.toLocaleString()}</td>
+                      <td className="px-3 py-1.5 text-slate-500 text-xs font-medium">{marginPct !== "—" ? `+${marginPct}%` : "—"}</td>
+                      <td className="px-3 py-1.5">
                         <Link
                           href={`/PurchaseManagement?name=${encodeURIComponent(item.name)}&cost=${item.cost_price}&selling=${item.selling_price}&supplierId=${item.supplier_id ?? ""}`}
                           className="text-xs font-semibold text-[#1372e6] hover:underline flex items-center gap-0.5">
@@ -729,23 +740,23 @@ export default function ReportsPage() {
         {/* ── RECENT PURCHASES ───────────────────────────────────────────────── */}
         {recentPurchases.length > 0 && (
           <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
-            <div className="flex justify-between items-center px-4 py-3 border-b border-slate-100">
+            <div className="flex justify-between items-center px-4 py-2 border-b border-slate-100">
               <div className="flex items-center gap-2">
-                <Truck size={16} className="text-[#1372e6]" />
+                <Truck size={14} className="text-[#1372e6]" />
                 <h2 className="text-sm font-semibold text-slate-700">
                   Recent Purchases — <span className="text-[#1372e6]">RWF {fmtRWF(purchaseTotalSpent)} spent</span>
                 </h2>
               </div>
               <Link href="/PurchaseManagement"
-                className="flex items-center gap-1.5 text-xs font-semibold text-[#1372e6] bg-[#EBF2FD] hover:bg-[#D5E8FB] px-3 py-1.5 rounded-lg transition">
-                <ArrowUpRight size={12} /> View All
+                className="flex items-center gap-1.5 text-xs font-semibold text-[#1372e6] bg-[#EBF2FD] hover:bg-[#D5E8FB] px-3 py-1 rounded-lg transition">
+                <ArrowUpRight size={11} /> View All
               </Link>
             </div>
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-100">
                   {["Date", "Product", "Qty Added", "Unit Cost", "Total Cost"].map((h) => (
-                    <th key={h} className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-gray-400 whitespace-nowrap">{h}</th>
+                    <th key={h} className="px-3 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-500 whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -754,13 +765,13 @@ export default function ReportsPage() {
                   const d = p.created_at ? new Date(p.created_at) : null;
                   return (
                     <tr key={p.id} className="hover:bg-slate-50/60">
-                      <td className="px-3 py-2 text-xs text-slate-500 whitespace-nowrap">
+                      <td className="px-3 py-1.5 text-xs text-slate-500 whitespace-nowrap">
                         {d ? toDateStr(d) : "—"}
                       </td>
-                      <td className="px-3 py-2 font-medium text-slate-800">{p.product_name}</td>
-                      <td className="px-3 py-2 tabular-nums text-slate-600">{p.quantity_added}</td>
-                      <td className="px-3 py-2 tabular-nums text-slate-600">{(p.cost_price || 0).toLocaleString()}</td>
-                      <td className="px-3 py-2 font-semibold text-slate-800 tabular-nums">{(p.total_cost || 0).toLocaleString()}</td>
+                      <td className="px-3 py-1.5 font-medium text-slate-800">{p.product_name}</td>
+                      <td className="px-3 py-1.5 tabular-nums text-slate-600">{p.quantity_added}</td>
+                      <td className="px-3 py-1.5 tabular-nums text-slate-600">{(p.cost_price || 0).toLocaleString()}</td>
+                      <td className="px-3 py-1.5 font-semibold text-slate-800 tabular-nums">{(p.total_cost || 0).toLocaleString()}</td>
                     </tr>
                   );
                 })}
@@ -771,7 +782,7 @@ export default function ReportsPage() {
 
         {/* ── SECONDARY STATS ROW ────────────────────────────────────────────── */}
         {summary && (
-          <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 pb-6">
+          <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-1.5 pb-6">
             <StatMini label="Items Sold"         value={fmtNum(summary.items_sold)}               sub={`to ${summary.unique_customers} customers`} color="text-indigo-600" icon={<ShoppingCart size={14} />} />
             <StatMini label="Spent on Restocking" value={`RWF ${fmtRWF(summary.total_spent)}`}   sub={`${recentPurchases.length} purchase records`} color="text-teal-600" icon={<Truck size={14} />} />
             <StatMini label="Business Expenses"  value={expenseTotalPeriod > 0 ? `RWF ${fmtRWF(expenseTotalPeriod)}` : "—"} sub={`${expenseCount} records this period`} color="text-orange-600" icon={<Receipt size={14} />} />
@@ -828,9 +839,9 @@ function KpiCard({ label, value, detail, icon, color, pulse, badge }: {
       <div className={`w-7 h-7 rounded-lg ${c.bg} ${c.text} flex items-center justify-center mb-2`}>
         {icon}
       </div>
-      <p className="text-xs text-slate-400 font-medium uppercase tracking-wide">{label}</p>
-      <p className={`text-base font-bold mt-1 ${c.text} leading-none`}>{value}</p>
-      <p className="text-xs text-slate-400 mt-1.5">{detail}</p>
+      <p className="text-[10px] text-slate-400 font-medium uppercase tracking-wide">{label}</p>
+      <p className={`text-sm font-bold mt-1 ${c.text} leading-none`}>{value}</p>
+      <p className="text-[10px] text-slate-400 mt-1.5">{detail}</p>
       {badge && (
         <span className={`inline-block mt-2 text-[10px] font-bold px-2 py-0.5 rounded-full ${c.badge}`}>
           {badge}
@@ -867,13 +878,13 @@ function StatMini({ label, value, sub, color, icon }: {
   label: string; value: string; sub: string; color: string; icon: React.ReactNode;
 }) {
   return (
-    <div className="bg-white rounded-xl border border-slate-200 p-3 shadow-sm">
-      <div className="flex items-center gap-1.5 text-slate-400 mb-2">
+    <div className="bg-white rounded-xl border border-slate-200 px-2.5 py-2 shadow-sm">
+      <div className="flex items-center gap-1.5 text-slate-400 mb-1.5">
         {icon}
-        <span className="text-xs font-medium uppercase tracking-wide">{label}</span>
+        <span className="text-[9px] font-medium uppercase tracking-wide">{label}</span>
       </div>
-      <p className={`text-sm font-bold ${color}`}>{value}</p>
-      <p className="text-xs text-slate-400 mt-0.5">{sub}</p>
+      <p className={`text-xs font-bold ${color}`}>{value}</p>
+      <p className="text-[9px] text-slate-400 mt-0.5">{sub}</p>
     </div>
   );
 }

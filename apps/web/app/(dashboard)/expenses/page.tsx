@@ -8,7 +8,7 @@ import Pagination from "@/app/components/ui/Pagination";
 import DateRangeFilter from "@/app/components/ui/DateRangeFilter";
 import {
   Receipt, RefreshCw, Plus, Trash2, X, Search, Filter,
-  Calendar, TrendingDown, DollarSign, BarChart3, Tag, AlertCircle,
+  Calendar, TrendingDown, DollarSign, BarChart3, Tag, AlertCircle, ChevronDown,
 } from "lucide-react";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -191,105 +191,112 @@ export default function ExpenseManagementPage() {
       <div className="max-w-7xl mx-auto px-3 sm:px-5 py-3 sm:py-4">
 
         {/* ── HEADER ─────────────────────────────────────────── */}
-        <div className="text-white rounded-xl p-4 mb-3" style={{ background: "#1372e6" }}>
-          <div className="flex flex-wrap justify-between items-center gap-2">
-            <div className="flex items-center gap-2.5">
-              <Receipt size={20} />
+        <div className="relative rounded-2xl mb-2 overflow-hidden"
+          style={{ background: "linear-gradient(135deg, #1372e6 0%, #1168d6 50%, #0a47a0 100%)" }}>
+          <div style={{ position: "absolute", inset: 0, pointerEvents: "none",
+            backgroundImage: "radial-gradient(circle, rgba(255,255,255,0.06) 1px, transparent 1px)",
+            backgroundSize: "20px 20px" }} />
+
+          {/* Row 1: icon + title + actions */}
+          <div className="relative flex items-center gap-3 px-4 pt-3 pb-2">
+            <div className="flex items-center gap-2.5 min-w-0 mr-auto">
+              <div className="w-8 h-8 rounded-xl bg-white/15 border border-white/20 flex items-center justify-center shrink-0">
+                <Receipt size={15} className="text-white" strokeWidth={2} />
+              </div>
               <div>
-                <h1 className="text-base font-semibold">{t("expenses.title")}</h1>
-                <p className="text-blue-100 text-xs mt-0.5">
-                  {lastUpdated ? `${t("common.updated")} ${lastUpdated.toLocaleTimeString()}` : "—"} · {total.toLocaleString()} {t("expenses.records")}
-                </p>
+                <p className="text-[10px] font-semibold text-blue-200 uppercase tracking-widest leading-none">Finance</p>
+                <h1 className="text-base font-extrabold text-white leading-tight tracking-tight">{t("expenses.title")}</h1>
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 shrink-0">
               <button onClick={() => loadAll(true)} disabled={refreshing}
-                className="p-2 rounded-lg bg-white/10 hover:bg-white/20 text-white transition disabled:opacity-50">
-                <RefreshCw size={14} className={refreshing ? "animate-spin" : ""} />
+                className="w-7 h-7 rounded-lg bg-white/10 hover:bg-white/20 border border-white/15 flex items-center justify-center text-white transition-all disabled:opacity-40">
+                <RefreshCw size={12} className={refreshing ? "animate-spin" : ""} />
               </button>
               <button onClick={openModal}
-                className="bg-white px-3.5 py-1.5 rounded-lg flex items-center gap-1.5 text-sm font-semibold hover:bg-blue-50 transition" style={{ color: "#1372e6" }}>
-                <Plus size={15} /> {t("expenses.add")}
+                className="flex items-center gap-1.5 bg-white text-[#1372e6] px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-blue-50 active:scale-95 transition-all shadow-lg shadow-black/20">
+                <Plus size={12} strokeWidth={3} /> {t("expenses.add")}
               </button>
             </div>
           </div>
 
-          {/* SEARCH + FILTERS */}
-          <div className="mt-4 flex flex-col sm:flex-row gap-2.5">
-            <div className="flex-1 flex items-center bg-white/10 rounded-lg px-3 py-2 gap-2">
-              <Search size={15} className="shrink-0 text-blue-100" />
-              <input value={search} onChange={(e) => setSearch(e.target.value)}
-                placeholder={t("expenses.search")}
-                className="bg-transparent outline-none w-full text-sm placeholder:text-blue-100" />
-              {search && <button onClick={() => setSearch("")} className="text-blue-100 hover:text-white"><X size={13} /></button>}
-            </div>
-            <div className="flex items-center bg-white/10 rounded-lg px-3 py-2 gap-2">
-              <Filter size={15} className="shrink-0 text-blue-100" />
-              <select value={catFilter} onChange={(e) => { setCatFilter(e.target.value as Category | ""); setPage(1); }}
-                className="bg-transparent outline-none text-sm">
-                <option value="" className="text-gray-700">{t("expenses.all_categories")}</option>
-                {ALL_CATEGORIES.map((c) => (
-                  <option key={c} value={c} className="text-gray-700">{t(`expenses.cat.${c}`)}</option>
-                ))}
-              </select>
-            </div>
+          {/* Row 2: live indicator */}
+          <div className="relative flex items-center gap-1.5 px-4 pb-2">
+            <span className="relative flex h-1.5 w-1.5">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
+              <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-green-400" />
+            </span>
+            <p className="text-[10px] text-blue-100/70">
+              Live · <span className="font-semibold text-white/80">{total.toLocaleString()} {t("expenses.records")}</span>
+              {lastUpdated && <span className="ml-1 text-blue-200/50">· Updated {lastUpdated.toLocaleTimeString()}</span>}
+            </p>
           </div>
 
-          {/* DATE RANGE */}
-          <DateRangeFilter
-            from={dateFrom} to={dateTo}
-            onFrom={(v) => { setDateFrom(v); setPage(1); }}
-            onTo={(v)   => { setDateTo(v);   setPage(1); }}
-            onClear={()  => { setDateFrom(""); setDateTo(""); setPage(1); }}
-            accentClass="focus:ring-[#1372e6]/30 focus:border-[#1372e6]"
-          />
+          {/* Row 3: search + category filter + date range */}
+          <div className="relative px-4 pb-3 space-y-2">
+            <div className="flex gap-2">
+              <div className="flex-1 flex items-center gap-2 bg-white/10 hover:bg-white/15 focus-within:bg-white/20 border border-white/10 focus-within:border-white/30 rounded-xl px-3 py-2 transition-all group shadow-inner">
+                <Search size={13} className="shrink-0 text-white/40 group-focus-within:text-white/80 transition-colors" />
+                <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t("expenses.search")}
+                  className="bg-transparent outline-none w-full text-sm text-white placeholder:text-white/35 font-medium" />
+                {search && <button onClick={() => setSearch("")} className="w-4 h-4 rounded-full bg-white/20 hover:bg-white/35 flex items-center justify-center text-white/70 hover:text-white transition-all shrink-0"><X size={9} /></button>}
+              </div>
+              <div className="flex items-center gap-1.5 bg-white/10 hover:bg-white/15 border border-white/10 rounded-xl px-2.5 py-2 transition-all">
+                <Filter size={11} className="shrink-0 text-white/50" />
+                <select value={catFilter} onChange={(e) => { setCatFilter(e.target.value as Category | ""); setPage(1); }}
+                  className="bg-transparent outline-none text-xs text-white font-semibold appearance-none cursor-pointer">
+                  <option value="" className="text-gray-800">{t("expenses.all_categories")}</option>
+                  {ALL_CATEGORIES.map((c) => (
+                    <option key={c} value={c} className="text-gray-800">{t(`expenses.cat.${c}`)}</option>
+                  ))}
+                </select>
+                <ChevronDown size={10} className="text-white/35 shrink-0" />
+              </div>
+            </div>
+            <DateRangeFilter
+              from={dateFrom} to={dateTo}
+              onFrom={(v) => { setDateFrom(v); setPage(1); }}
+              onTo={(v) => { setDateTo(v); setPage(1); }}
+              onClear={() => { setDateFrom(""); setDateTo(""); setPage(1); }}
+              accentClass="focus:ring-[#1372e6]/30 focus:border-[#1372e6]"
+            />
+          </div>
         </div>
 
         {/* ── STAT CARDS ─────────────────────────────────────── */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 mb-2">
           {[
-            {
-              label: t("expenses.total_today"),
-              value: summaryToday.total_expenses.toLocaleString(),
-              sub: `${summaryToday.count} ${t("expenses.records")}`,
-              color: "text-[#1372e6]", bg: "bg-[#EBF2FD]", icon: <TrendingDown size={17} strokeWidth={2.5} />,
-            },
-            {
-              label: t("expenses.total_month"),
-              value: summaryMonth.total_expenses.toLocaleString(),
-              sub: `${summaryMonth.count} ${t("expenses.records")}`,
-              color: "text-[#0d5cc4]", bg: "bg-[#D5E8FB]", icon: <DollarSign size={17} strokeWidth={2.5} />,
-            },
-            {
-              label: t("expenses.top_category"),
-              value: topCategory ? t(`expenses.cat.${topCategory.category}`) : "—",
-              sub: topCategory ? topCategory.total.toLocaleString() : t("common.no_data"),
-              color: "text-orange-600", bg: "bg-orange-50", icon: <Tag size={17} strokeWidth={2.5} />,
-            },
-            {
-              label: t("expenses.categories_used"),
-              value: byCategory.length,
-              sub: `${ALL_CATEGORIES.length} ${t("expenses.available")}`,
-              color: "text-violet-600", bg: "bg-violet-50", icon: <BarChart3 size={17} strokeWidth={2.5} />,
-            },
+            { label: t("expenses.total_today"),     value: summaryToday.total_expenses.toLocaleString(), sub: `${summaryToday.count} ${t("expenses.records")}`,  color: "text-[#1372e6]",  dot: "bg-[#1372e6]" },
+            { label: t("expenses.total_month"),     value: summaryMonth.total_expenses.toLocaleString(), sub: `${summaryMonth.count} ${t("expenses.records")}`,  color: "text-blue-700",   dot: "bg-blue-600" },
+            { label: t("expenses.top_category"),    value: topCategory ? t(`expenses.cat.${topCategory.category}`) : "—", sub: topCategory ? topCategory.total.toLocaleString() : t("common.no_data"), color: "text-orange-600", dot: "bg-orange-400" },
+            { label: t("expenses.categories_used"), value: String(byCategory.length), sub: `${ALL_CATEGORIES.length} ${t("expenses.available")}`, color: "text-violet-600", dot: "bg-violet-500" },
           ].map((card) => (
-            <div key={card.label} className="bg-white rounded-xl border border-slate-200 p-3">
-              <div className="flex flex-wrap justify-between items-start gap-2">
-                <div>
-                  <p className="text-xs font-medium text-gray-400 uppercase tracking-wide leading-none">{card.label}</p>
-                  <p className={`text-base font-bold mt-1.5 ${card.color}`}>{card.value}</p>
-                  <p className="text-[10px] text-slate-400 mt-0.5 leading-tight">{card.sub}</p>
-                </div>
-                <div className="p-1.5 rounded-lg shrink-0 text-white" style={{ backgroundColor: "#1372e6" }}>{card.icon}</div>
+            <div key={card.label} className="bg-white rounded-lg border border-slate-200 px-2.5 py-2">
+              <div className="flex items-center gap-1 mb-1">
+                <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${card.dot}`} />
+                <p className="text-[9px] font-semibold text-slate-400 uppercase tracking-wider leading-none truncate">{card.label}</p>
               </div>
+              <p className={`text-sm font-bold leading-none tabular-nums ${card.color}`}>{card.value}</p>
+              {card.sub && <p className="text-[9px] text-slate-400 mt-0.5 leading-tight truncate">{card.sub}</p>}
             </div>
           ))}
         </div>
 
         {/* ── EXPENSES TABLE ─────────────────────────────────── */}
-        <div className="bg-white rounded-xl border border-slate-200 overflow-x-auto">
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+
+          {/* toolbar */}
+          <div className="flex items-center justify-between px-3 py-1.5 border-b border-slate-100 bg-slate-50/60">
+            <p className="text-[10px] text-slate-500">
+              Showing <span className="font-semibold text-slate-700">{filteredExpenses.length.toLocaleString()}</span> of <span className="font-semibold text-slate-700">{total.toLocaleString()}</span> {t("expenses.records")}
+            </p>
+            {(search || catFilter) && (
+              <button onClick={() => { setSearch(""); setCatFilter(""); setPage(1); }} className="flex items-center gap-1 text-[10px] text-slate-400 hover:text-slate-600 transition"><X size={10} /> Clear</button>
+            )}
+          </div>
+
           {hasDateFilter && (
-            <div className="flex items-center gap-2 px-4 py-2.5 border-b border-slate-100 text-xs bg-[#EBF2FD]" style={{ color: "#1372e6" }}>
+            <div className="flex items-center gap-2 px-4 py-1.5 border-b border-slate-100 text-xs bg-[#EBF2FD]" style={{ color: "#1372e6" }}>
               <Calendar size={13} />
               <span>
                 {dateFrom && <> {t("common.date")}: <span className="font-semibold">{dateFrom}</span></>}
@@ -300,66 +307,70 @@ export default function ExpenseManagementPage() {
             </div>
           )}
 
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-slate-50 border-b border-slate-200">
-                {[
-                  t("expenses.col_date"),
-                  t("expenses.col_title"),
-                  t("expenses.col_category"),
-                  t("expenses.col_amount"),
-                  t("expenses.col_notes"),
-                  "",
-                ].map((h) => (
-                  <th key={h} className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-400 whitespace-nowrap">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {filteredExpenses.map((e) => {
-                const d = e.expense_date ? new Date(e.expense_date) : null;
-                const colors = CATEGORY_COLORS[e.category] || CATEGORY_COLORS.other;
-                return (
-                  <tr key={e.id} className="hover:bg-slate-50/60 transition-colors">
-                    <td className="px-3 py-2 whitespace-nowrap">
-                      {d ? (
-                        <div>
-                          <p className="text-xs font-medium text-slate-700">{toDateStr(d)}</p>
-                          <p className="text-xs text-slate-400">{d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</p>
-                        </div>
-                      ) : <span className="text-slate-300 text-xs">—</span>}
-                    </td>
-                    <td className="px-3 py-2">
-                      <p className="font-semibold text-slate-800">{e.title}</p>
-                      <p className="text-xs text-slate-400 font-mono">{e.id.slice(0, 8)}</p>
-                    </td>
-                    <td className="px-3 py-2">
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${colors.badge}`}>
-                        {t(`expenses.cat.${e.category}`)}
-                      </span>
-                    </td>
-                    <td className="px-3 py-2 font-bold tabular-nums" style={{ color: "#1372e6" }}>
-                      {Number(e.amount).toLocaleString()}
-                    </td>
-                    <td className="px-3 py-2 text-slate-500 text-xs max-w-[200px] truncate">
-                      {e.notes || <span className="text-slate-300 italic">—</span>}
-                    </td>
-                    <td className="px-3 py-2">
-                      <button onClick={() => deleteExpense(e.id)} disabled={deletingId === e.id}
-                        className="p-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 transition disabled:opacity-40">
-                        <Trash2 size={14} />
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-200">
+                  {[
+                    t("expenses.col_date"),
+                    t("expenses.col_title"),
+                    t("expenses.col_category"),
+                    t("expenses.col_amount"),
+                    t("expenses.col_notes"),
+                    "",
+                  ].map((h) => (
+                    <th key={h} className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-500 whitespace-nowrap">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {filteredExpenses.map((e) => {
+                  const d = e.expense_date ? new Date(e.expense_date) : null;
+                  const colors = CATEGORY_COLORS[e.category] || CATEGORY_COLORS.other;
+                  return (
+                    <tr key={e.id} className="hover:bg-slate-50/60 transition-colors">
+                      <td className="px-3 py-1.5 whitespace-nowrap">
+                        {d ? (
+                          <div>
+                            <p className="text-xs font-medium text-slate-700">{toDateStr(d)}</p>
+                            <p className="text-[10px] text-slate-400">{d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</p>
+                          </div>
+                        ) : <span className="text-slate-300 text-xs">—</span>}
+                      </td>
+                      <td className="px-3 py-1.5">
+                        <p className="font-semibold text-slate-800 text-xs leading-tight">{e.title}</p>
+                        <p className="text-[10px] text-slate-400 font-mono">{e.id.slice(0, 8)}</p>
+                      </td>
+                      <td className="px-3 py-1.5">
+                        <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${colors.badge}`}>
+                          {t(`expenses.cat.${e.category}`)}
+                        </span>
+                      </td>
+                      <td className="px-3 py-1.5 font-bold tabular-nums text-xs" style={{ color: "#1372e6" }}>
+                        {Number(e.amount).toLocaleString()}
+                      </td>
+                      <td className="px-3 py-1.5 text-slate-500 text-[10px] max-w-[200px] truncate">
+                        {e.notes || <span className="text-slate-300 italic">—</span>}
+                      </td>
+                      <td className="px-3 py-1.5">
+                        <button onClick={() => deleteExpense(e.id)} disabled={deletingId === e.id}
+                          className="p-1 rounded bg-red-50 hover:bg-red-100 text-red-500 transition disabled:opacity-40">
+                          <Trash2 size={11} />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
 
           {filteredExpenses.length === 0 && (
-            <div className="flex flex-col items-center justify-center py-16 text-slate-400">
-              <div className="p-4 bg-slate-100 rounded-2xl mb-3"><AlertCircle size={32} className="opacity-40" /></div>
-              <p className="font-medium text-slate-500 text-sm">{t("expenses.no_expenses")}</p>
+            <div className="flex flex-col items-center justify-center py-12 text-slate-400">
+              <div className="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center mb-4">
+                <AlertCircle size={28} className="opacity-40" />
+              </div>
+              <p className="font-semibold text-slate-500 text-sm">{t("expenses.no_expenses")}</p>
               {!search && !catFilter && (
                 <button onClick={openModal}
                   className="mt-4 flex items-center gap-1.5 text-white text-sm font-semibold px-4 py-2 rounded-lg transition hover:opacity-90" style={{ background: "#1372e6" }}>
@@ -375,25 +386,25 @@ export default function ExpenseManagementPage() {
 
         {/* ── BY-CATEGORY BREAKDOWN ───────────────────────────── */}
         {byCategory.length > 0 && (
-          <div className="mt-6 bg-white rounded-xl border border-slate-200 p-5">
-            <h2 className="text-sm font-semibold text-slate-700 mb-4 flex items-center gap-2">
+          <div className="mt-3 bg-white rounded-xl border border-slate-200 p-3">
+            <h2 className="text-sm font-semibold text-slate-700 mb-2 flex items-center gap-2">
               <BarChart3 size={15} style={{ color: "#1372e6" }} />
               {t("expenses.breakdown_title")}
             </h2>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
               {byCategory.map((row) => {
                 const colors = CATEGORY_COLORS[row.category] || CATEGORY_COLORS.other;
                 const grandTotal = byCategory.reduce((s, r) => s + r.total, 0);
                 const pct = grandTotal > 0 ? Math.round((row.total / grandTotal) * 100) : 0;
                 return (
-                  <div key={row.category} className={`rounded-xl p-3 ${colors.bg}`}>
-                    <p className={`text-xs font-semibold uppercase tracking-wide ${colors.text}`}>{t(`expenses.cat.${row.category}`)}</p>
-                    <p className={`text-lg font-bold mt-1 ${colors.text}`}>{row.total.toLocaleString()}</p>
+                  <div key={row.category} className={`rounded-xl p-2.5 ${colors.bg}`}>
+                    <p className={`text-[10px] font-semibold uppercase tracking-wide ${colors.text}`}>{t(`expenses.cat.${row.category}`)}</p>
+                    <p className={`text-sm font-bold mt-1 ${colors.text}`}>{row.total.toLocaleString()}</p>
                     <div className="flex items-center justify-between mt-1">
-                      <p className="text-xs text-slate-400">{row.count} {t("expenses.records")}</p>
-                      <p className={`text-xs font-bold ${colors.text}`}>{pct}%</p>
+                      <p className="text-[10px] text-slate-400">{row.count} {t("expenses.records")}</p>
+                      <p className={`text-[10px] font-bold ${colors.text}`}>{pct}%</p>
                     </div>
-                    <div className="mt-2 h-1 bg-black/10 rounded-full overflow-hidden">
+                    <div className="mt-1.5 h-1 bg-black/10 rounded-full overflow-hidden">
                       <div className={`h-full rounded-full ${colors.text.replace("text-", "bg-")}`} style={{ width: `${pct}%` }} />
                     </div>
                   </div>

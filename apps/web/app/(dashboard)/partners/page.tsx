@@ -11,7 +11,7 @@ import Pagination from "@/app/components/ui/Pagination";
 import {
   Users, Search, Filter, Plus, Trash2, Pencil, X,
   UserCheck, UserCog, Activity, Package, ShoppingCart,
-  Building2, Phone, Mail, MapPin, RefreshCw,
+  Building2, Phone, Mail, MapPin, RefreshCw, ChevronDown,
 } from "lucide-react";
 
 interface RawPartner { id: string; name: string; phone?: string; email?: string; address?: string; }
@@ -180,138 +180,183 @@ export default function PartnerManagementPage() {
     <div className="min-h-screen">
       <div className="max-w-7xl mx-auto px-3 sm:px-5 py-3 sm:py-4">
 
-        <div className="text-white rounded-xl p-4 mb-4" style={{ backgroundColor: "#1372e6" }}>
-          <div className="flex flex-wrap justify-between items-center gap-2">
-            <div className="flex items-center gap-2.5">
-              <Users size={20} />
+        {/* HEADER BANNER */}
+        <div
+          className="relative rounded-2xl mb-2 overflow-hidden"
+          style={{ background: "linear-gradient(135deg, #1372e6 0%, #1168d6 50%, #0a47a0 100%)" }}
+        >
+          <div style={{ position: "absolute", inset: 0, pointerEvents: "none", backgroundImage: "radial-gradient(circle, rgba(255,255,255,0.06) 1px, transparent 1px)", backgroundSize: "20px 20px" }} />
+
+          {/* Row 1: icon+title · actions */}
+          <div className="relative flex items-center gap-3 px-4 pt-3 pb-2">
+            <div className="flex items-center gap-2.5 min-w-0 mr-auto">
+              <div className="w-8 h-8 rounded-xl bg-white/15 border border-white/20 flex items-center justify-center shrink-0">
+                <Users size={15} className="text-white" strokeWidth={2} />
+              </div>
               <div>
-                <h1 className="text-base font-semibold">{t("partners.title")}</h1>
-                <p className="text-blue-100 text-xs mt-0.5">
-                  {lastUpdated ? `Updated ${lastUpdated.toLocaleTimeString()}` : "—"} · {partners.length.toLocaleString()} partners total
-                </p>
+                <p className="text-[10px] font-semibold text-blue-200 uppercase tracking-widest leading-none">Partners</p>
+                <h1 className="text-base font-extrabold text-white leading-tight tracking-tight">{t("partners.title")}</h1>
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <button onClick={() => loadData(true)} disabled={refreshing}
-                className="p-2 rounded-lg bg-white/10 hover:bg-white/20 text-white transition disabled:opacity-50"><RefreshCw size={14} className={refreshing ? "animate-spin" : ""} /></button>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <button onClick={() => loadData(true)} disabled={refreshing} title="Refresh"
+                className="w-7 h-7 rounded-lg bg-white/10 hover:bg-white/20 border border-white/15 flex items-center justify-center text-white transition-all disabled:opacity-40">
+                <RefreshCw size={12} className={refreshing ? "animate-spin" : ""} />
+              </button>
               <button onClick={openCreateModal}
-                className="bg-white text-green-700 px-3.5 py-1.5 rounded-lg flex items-center gap-1.5 text-sm font-semibold hover:bg-green-50 transition">
-                <Plus size={15} /> {t("partners.add")}</button>
+                className="flex items-center gap-1.5 bg-white text-[#1372e6] px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-blue-50 active:scale-95 transition-all shadow-lg shadow-black/20">
+                <Plus size={12} strokeWidth={3} /> {t("partners.add")}
+              </button>
             </div>
           </div>
-          <div className="mt-4 flex flex-col md:flex-row gap-2.5">
-            <div className="flex-1 flex items-center bg-white/10 rounded-lg px-3 py-2 gap-2">
-              <Search size={15} className="shrink-0 text-blue-100" />
+
+          {/* Row 2: live indicator */}
+          <div className="relative flex items-center gap-1.5 px-4 pb-2">
+            <span className="relative flex h-1.5 w-1.5">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
+              <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-green-400" />
+            </span>
+            <p className="text-[10px] text-blue-100/70">
+              Live · <span className="font-semibold text-white/80">{partners.length.toLocaleString()} partners</span>
+              {lastUpdated && <span className="ml-1 text-blue-200/50">· Updated {lastUpdated.toLocaleTimeString()}</span>}
+            </p>
+          </div>
+
+          {/* Row 3: search + filter */}
+          <div className="relative flex gap-2 px-4 pb-3">
+            <div className="flex-1 flex items-center gap-2 bg-white/10 hover:bg-white/15 focus-within:bg-white/20 border border-white/10 focus-within:border-white/30 rounded-xl px-3 py-2 transition-all group shadow-inner">
+              <Search size={13} className="shrink-0 text-white/40 group-focus-within:text-white/80 transition-colors" />
               <input value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} placeholder={t("partners.search")}
-                className="bg-transparent outline-none w-full text-sm placeholder:text-blue-100" />
-              {search && <button onClick={() => setSearch("")} className="text-blue-100 hover:text-white"><X size={13} /></button>}
+                className="bg-transparent outline-none w-full text-sm text-white placeholder:text-white/35 font-medium" />
+              {search && (
+                <button onClick={() => setSearch("")} className="w-4 h-4 rounded-full bg-white/20 hover:bg-white/35 flex items-center justify-center text-white/70 hover:text-white transition-all shrink-0">
+                  <X size={9} />
+                </button>
+              )}
             </div>
-            <div className="flex items-center bg-white/10 rounded-lg px-3 py-2 gap-2">
-              <Filter size={15} className="shrink-0 text-blue-100" />
-              <select value={typeFilter} onChange={(e) => { setTypeFilter(e.target.value); setPage(1); }} className="bg-transparent outline-none text-sm">
-                <option value="all" className="text-gray-700">{t("partners.all")}</option>
-                <option value="supplier" className="text-gray-700">{t("partners.suppliers")}</option>
-                <option value="customer" className="text-gray-700">{t("partners.customers")}</option>
+            <div className="flex items-center gap-1.5 bg-white/10 hover:bg-white/15 border border-white/10 rounded-xl px-2.5 py-2 transition-all">
+              <Filter size={11} className="shrink-0 text-white/50" />
+              <select value={typeFilter} onChange={(e) => { setTypeFilter(e.target.value); setPage(1); }}
+                className="bg-transparent outline-none text-xs text-white font-semibold appearance-none cursor-pointer">
+                <option value="all" className="text-gray-800">{t("partners.all")}</option>
+                <option value="supplier" className="text-gray-800">{t("partners.suppliers")}</option>
+                <option value="customer" className="text-gray-800">{t("partners.customers")}</option>
               </select>
+              <ChevronDown size={10} className="text-white/35 shrink-0" />
             </div>
           </div>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-3">
+        {/* STAT CARDS */}
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5 mb-2">
           {[
-            { label: t("partners.total"),   value: stats.total,           color: "text-green-600",   bg: "bg-green-50",   icon: <Users size={17} strokeWidth={2.5} /> },
-            { label: t("partners.suppliers"),        value: stats.suppliers,       color: "text-[#1372e6]",    bg: "bg-[#EBF2FD]",    icon: <Building2 size={17} strokeWidth={2.5} /> },
-            { label: t("partners.customers"),        value: stats.customers,       color: "text-[#1372e6]", bg: "bg-[#EBF2FD]", icon: <UserCheck size={17} strokeWidth={2.5} /> },
-            { label: t("partners.active_suppliers"), value: stats.activeSuppliers, color: "text-[#1372e6]", bg: "bg-[#EBF2FD]", icon: <UserCog size={17} strokeWidth={2.5} /> },
-            { label: t("partners.items_supplied"),   value: stats.itemsSupplied,   color: "text-[#1372e6]", bg: "bg-[#EBF2FD]", icon: <Package size={17} strokeWidth={2.5} /> },
+            { label: t("partners.total"),            value: stats.total,           color: "text-[#1372e6]", dot: "bg-[#1372e6]" },
+            { label: t("partners.suppliers"),         value: stats.suppliers,       color: "text-blue-600",  dot: "bg-blue-500" },
+            { label: t("partners.customers"),         value: stats.customers,       color: "text-slate-700", dot: "bg-slate-400" },
+            { label: t("partners.active_suppliers"),  value: stats.activeSuppliers, color: "text-green-600", dot: "bg-green-500" },
+            { label: t("partners.items_supplied"),    value: stats.itemsSupplied,   color: "text-amber-600", dot: "bg-amber-500" },
           ].map((card) => (
-            <div key={card.label} className="bg-white rounded-xl border border-slate-200 p-3">
-              <div className="flex flex-wrap justify-between items-start gap-2">
-                <div>
-                  <p className="text-xs font-medium text-gray-400 uppercase tracking-wide leading-none">{card.label}</p>
-                  <p className={`text-base font-bold mt-1.5 ${card.color}`}>{card.value}</p>
-                </div>
-                <div className="p-1.5 rounded-lg text-white" style={{ backgroundColor: "#1372e6" }}>{card.icon}</div>
+            <div key={card.label} className="bg-white rounded-lg border border-slate-200 px-2.5 py-2">
+              <div className="flex items-center gap-1 mb-1">
+                <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${card.dot}`} />
+                <p className="text-[9px] font-semibold text-slate-400 uppercase tracking-wider leading-none truncate">{card.label}</p>
               </div>
+              <p className={`text-sm font-bold leading-none tabular-nums ${card.color}`}>{card.value}</p>
             </div>
           ))}
         </div>
 
-        <div className="bg-white rounded-xl border border-slate-200 overflow-x-auto">
-          {(debouncedSearch || typeFilter !== "all") && (
-            <div className="px-4 py-2.5 border-b border-slate-100 text-xs text-slate-500 bg-slate-50">
-              <span className="font-semibold text-slate-700">{filtered.length.toLocaleString()}</span> results
-              {debouncedSearch && <> matching &ldquo;<span className="font-medium">{debouncedSearch}</span>&rdquo;</>}
-            </div>
-          )}
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-slate-50 border-b border-slate-200">
-                {[t("common.name"), t("common.type"), t("common.phone"), "TIN", t("common.email"), t("partners.items_supplied"), ""].map((h) => (
-                  <th key={h} className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-400 whitespace-nowrap">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {paginated.map((p) => {
-                const isSupplier = p.partnerType === "supplier";
-                const itemCount = isSupplier ? (supplierItemCount[p.id] || 0) : null;
-                return (
-                  <tr key={p.id} className="hover:bg-slate-50/60 transition-colors">
-                    <td className="px-3 py-2">
-                      <p className="font-semibold text-slate-800">{p.name}</p>
-                      <p className="text-xs text-slate-400 font-mono">{p.id?.slice(0, 8)}</p>
-                    </td>
-                    <td className="px-3 py-2">
-                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${isSupplier ? "bg-[#D5E8FB] text-[#1372e6]" : "bg-slate-100 text-slate-600"}`}>
-                        {isSupplier ? <Building2 size={10} /> : <UserCheck size={10} />}
-                        {isSupplier ? t("partners.suppliers") : t("partners.customers")}
-                      </span>
-                    </td>
-                    <td className="px-3 py-2">
-                      {p.phone ? <div className="flex items-center gap-1.5 text-slate-600"><Phone size={12} className="text-slate-400 shrink-0" />{p.phone}</div>
-                        : <span className="text-slate-300">—</span>}
-                    </td>
-                    <td className="px-3 py-2">
-                      {p.tin ? <span className="font-mono text-xs bg-[#EBF2FD] text-[#1372e6] px-2 py-0.5 rounded-md">{p.tin}</span>
-                        : <span className="text-slate-300">—</span>}
-                    </td>
-                    <td className="px-3 py-2">
-                      {p.email ? <div className="flex items-center gap-1.5 text-slate-600"><Mail size={12} className="text-slate-400 shrink-0" /><span className="truncate max-w-32">{p.email}</span></div>
-                        : <span className="text-slate-300">—</span>}
-                    </td>
-                    <td className="px-3 py-2">
-                      {isSupplier ? (
-                        <div className="flex items-center gap-1.5">
-                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${itemCount && itemCount > 0 ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-400"}`}>
-                            <Package size={10} />{itemCount} item{itemCount !== 1 ? "s" : ""}
-                          </span>
-                          {itemCount === 0 && (
-                            <Link href="/PurchaseManagement" className="text-xs text-[#1372e6] hover:underline flex items-center gap-0.5"><ShoppingCart size={11} /> Buy</Link>
-                          )}
+        {/* TABLE */}
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+          {/* Toolbar */}
+          <div className="flex items-center justify-between px-3 py-1.5 border-b border-slate-100 bg-slate-50/60">
+            <p className="text-[10px] text-slate-500">
+              Showing <span className="font-semibold text-slate-700">{paginated.length}</span> of <span className="font-semibold text-slate-700">{filtered.length}</span> partners
+            </p>
+            {(debouncedSearch || typeFilter !== "all") && (
+              <button onClick={() => { setSearch(""); setTypeFilter("all"); setPage(1); }}
+                className="flex items-center gap-1 text-[10px] text-slate-400 hover:text-slate-600 transition">
+                <X size={10} /> Clear filters
+              </button>
+            )}
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-200">
+                  {[t("common.name"), t("common.type"), t("common.phone"), "TIN", t("common.email"), t("partners.items_supplied"), ""].map((h) => (
+                    <th key={h} className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-500 whitespace-nowrap">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {paginated.map((p) => {
+                  const isSupplier = p.partnerType === "supplier";
+                  const itemCount = isSupplier ? (supplierItemCount[p.id] || 0) : null;
+                  return (
+                    <tr key={p.id} className="group border-b border-slate-50 last:border-0 hover:bg-slate-50/70 transition-colors">
+                      <td className="px-3 py-1.5">
+                        <p className="font-semibold text-slate-800 text-xs leading-tight">{p.name}</p>
+                        <p className="text-[10px] text-slate-400 font-mono">{p.id?.slice(0, 8)}</p>
+                      </td>
+                      <td className="px-3 py-1.5">
+                        <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${isSupplier ? "bg-[#D5E8FB] text-[#1372e6]" : "bg-slate-100 text-slate-600"}`}>
+                          {isSupplier ? <Building2 size={9} /> : <UserCheck size={9} />}
+                          {isSupplier ? t("partners.suppliers") : t("partners.customers")}
+                        </span>
+                      </td>
+                      <td className="px-3 py-1.5">
+                        {p.phone
+                          ? <div className="flex items-center gap-1 text-xs text-slate-600"><Phone size={11} className="text-slate-400 shrink-0" />{p.phone}</div>
+                          : <span className="text-slate-300 text-xs">—</span>}
+                      </td>
+                      <td className="px-3 py-1.5">
+                        {p.tin
+                          ? <span className="font-mono text-[10px] bg-[#EBF2FD] text-[#1372e6] px-1.5 py-0.5 rounded-md">{p.tin}</span>
+                          : <span className="text-slate-300 text-xs">—</span>}
+                      </td>
+                      <td className="px-3 py-1.5">
+                        {p.email
+                          ? <div className="flex items-center gap-1 text-xs text-slate-600"><Mail size={11} className="text-slate-400 shrink-0" /><span className="truncate max-w-32">{p.email}</span></div>
+                          : <span className="text-slate-300 text-xs">—</span>}
+                      </td>
+                      <td className="px-3 py-1.5">
+                        {isSupplier ? (
+                          <div className="flex items-center gap-1">
+                            <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${itemCount && itemCount > 0 ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-400"}`}>
+                              <Package size={9} />{itemCount} item{itemCount !== 1 ? "s" : ""}
+                            </span>
+                            {itemCount === 0 && (
+                              <Link href="/PurchaseManagement" className="text-[10px] text-[#1372e6] hover:underline flex items-center gap-0.5"><ShoppingCart size={10} /> Buy</Link>
+                            )}
+                          </div>
+                        ) : <span className="text-[10px] text-slate-400 italic">Customer</span>}
+                      </td>
+                      <td className="px-3 py-1.5">
+                        <div className="flex items-center justify-center gap-1 opacity-60 group-hover:opacity-100 transition-opacity">
+                          <button onClick={() => openEditModal(p)} title="Edit"
+                            className="p-1 rounded bg-[#EBF2FD] hover:bg-[#D5E8FB] text-[#1372e6] transition"><Pencil size={11} /></button>
+                          <button onClick={() => deletePartner(p.id)} disabled={deletingId === p.id} title="Delete"
+                            className="p-1 rounded bg-red-50 hover:bg-red-100 text-red-500 transition disabled:opacity-40"><Trash2 size={11} /></button>
                         </div>
-                      ) : <span className="text-xs text-slate-400 italic">Customer</span>}
-                    </td>
-                    <td className="px-3 py-2">
-                      <div className="flex items-center gap-1.5">
-                        <button onClick={() => openEditModal(p)} title="Edit" className="p-1.5 rounded-lg bg-green-50 hover:bg-green-100 text-green-600 transition"><Pencil size={14} /></button>
-                        <button onClick={() => deletePartner(p.id)} disabled={deletingId === p.id} title="Delete" className="p-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 transition disabled:opacity-40"><Trash2 size={14} /></button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
 
           {paginated.length === 0 && (
-            <div className="flex flex-col items-center justify-center py-16 text-slate-400">
-              <div className="p-4 bg-slate-100 rounded-2xl mb-3"><Activity size={32} className="opacity-40" /></div>
-              <p className="font-medium text-slate-500 text-sm">{t("partners.no_partners")}</p>
-              <p className="text-xs mt-1 text-slate-400">{search || typeFilter !== "all" ? "Try adjusting your filters." : t("partners.add_first")}</p>
+            <div className="flex flex-col items-center justify-center py-12 text-slate-400">
+              <div className="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center mb-4"><Activity size={28} className="opacity-40" /></div>
+              <p className="font-semibold text-slate-500 text-sm">{t("partners.no_partners")}</p>
+              <p className="text-xs mt-1.5 text-slate-400">{search || typeFilter !== "all" ? "Try adjusting your filters." : t("partners.add_first")}</p>
               {!search && typeFilter === "all" && (
-                <button onClick={openCreateModal} className="mt-4 flex items-center gap-1.5 bg-green-600 text-white text-sm font-semibold px-4 py-2 rounded-lg hover:bg-green-700 transition">
-                  <Plus size={14} /> {t("partners.add")}</button>
+                <button onClick={openCreateModal} className="mt-5 flex items-center gap-1.5 bg-[#1372e6] text-white text-sm font-semibold px-5 py-2.5 rounded-xl hover:opacity-90 transition">
+                  <Plus size={14} /> {t("partners.add")}
+                </button>
               )}
             </div>
           )}
