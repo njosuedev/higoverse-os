@@ -11,7 +11,7 @@ import {
   Store, ShieldCheck, Boxes, BarChart3, ImagePlus, X,
 } from "lucide-react";
 
-/* ── Types ─────────────────────────────────────────────── */
+/* ── Types ── */
 interface FormData {
   shop_name:     string;
   business_type: string;
@@ -23,7 +23,7 @@ interface FormData {
   confirm:       string;
 }
 
-/* ── Helpers ─────────────────────────────────────────────── */
+/* ── Image compressor ── */
 function compressImage(file: File, maxPx = 256, quality = 0.85): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -47,14 +47,9 @@ function compressImage(file: File, maxPx = 256, quality = 0.85): Promise<string>
 }
 
 const BUSINESS_TYPES = [
-  "Retail Store",
-  "Food & Beverage",
-  "Electronics",
-  "Pharmacy / Health",
-  "Fashion & Clothing",
-  "Hardware & Tools",
-  "Wholesale",
-  "Other",
+  "Retail Store", "Food & Beverage", "Electronics",
+  "Pharmacy / Health", "Fashion & Clothing", "Hardware & Tools",
+  "Wholesale", "Other",
 ];
 
 const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -67,43 +62,16 @@ function passwordStrength(p: string) {
   if (/[A-Z]/.test(p))        s++;
   if (/[0-9]/.test(p))        s++;
   if (/[^A-Za-z0-9]/.test(p)) s++;
-  if (s <= 2) return { label: "Weak",   color: "bg-red-500",    width: "30%" };
-  if (s <= 4) return { label: "Medium", color: "bg-orange-400", width: "65%" };
-  return             { label: "Strong", color: "bg-green-500",  width: "100%" };
+  if (s <= 2) return { label: "Weak",   color: "bg-red-400",    text: "text-red-500",    width: "30%" };
+  if (s <= 4) return { label: "Medium", color: "bg-orange-400", text: "text-orange-500", width: "65%" };
+  return             { label: "Strong", color: "bg-green-500",  text: "text-green-600",  width: "100%" };
 }
 
-function Field({
-  icon, children, hint, valid, touched,
-}: {
-  icon: React.ReactNode;
-  children: React.ReactNode;
-  hint?: string;
-  valid?: boolean;
-  touched?: boolean;
-}) {
-  return (
-    <div>
-      <div className={`relative flex items-center rounded-xl border transition-all bg-white ${
-        !touched       ? "border-slate-200"
-        : valid        ? "border-blue-400 ring-2 ring-blue-100"
-        :                "border-red-400 ring-2 ring-red-100"
-      }`}>
-        <span className="absolute left-3.5 text-slate-400">{icon}</span>
-        {children}
-      </div>
-      {touched && hint && (
-        <p className={`text-xs mt-1.5 flex items-center gap-1 ${valid ? "text-blue-600" : "text-red-500"}`}>
-          {valid ? <CheckCircle2 size={11} /> : <AlertCircle size={11} />}
-          {hint}
-        </p>
-      )}
-    </div>
-  );
-}
+/* ── Shared input class (matches login page) ── */
+const field = "w-full h-12 rounded-lg bg-gray-100 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:bg-white focus:ring-2 focus:ring-blue-500 transition";
+const fieldIcon = "pl-10 pr-4";
 
-const inputCls = "w-full h-12 pl-10 pr-4 bg-transparent outline-none text-slate-800 placeholder:text-slate-400 text-sm rounded-xl";
-
-/* ── Page ───────────────────────────────────────────────── */
+/* ── Page ── */
 export default function RegisterPage() {
   const router = useRouter();
   const [step, setStep]       = useState<1 | 2 | 3>(1);
@@ -113,27 +81,25 @@ export default function RegisterPage() {
   const [touched, setTouch]   = useState<Partial<Record<keyof FormData, boolean>>>({});
   const [emailTaken, setEmailTaken] = useState(false);
 
-  // step 3 — email verification
-  const [verifyEmail, setVerifyEmail]   = useState("");
-  const [otp, setOtp]                   = useState("");
+  const [verifyEmail, setVerifyEmail]     = useState("");
+  const [otp, setOtp]                     = useState("");
   const [verifyLoading, setVerifyLoading] = useState(false);
-  const [verifyError, setVerifyError]   = useState<string | null>(null);
-  const [resendTimer, setResendTimer]   = useState(0);
+  const [verifyError, setVerifyError]     = useState<string | null>(null);
+  const [resendTimer, setResendTimer]     = useState(0);
 
-  // countdown for resend button
-  useEffect(() => {
-    if (resendTimer <= 0) return;
-    const t = setTimeout(() => setResendTimer(s => s - 1), 1000);
-    return () => clearTimeout(t);
-  }, [resendTimer]);
-
-  const [logoUrl, setLogoUrl]       = useState<string>("");
+  const [logoUrl, setLogoUrl]         = useState<string>("");
   const [logoLoading, setLogoLoading] = useState(false);
 
   const [form, setForm] = useState<FormData>({
     shop_name: "", business_type: "", address: "", description: "",
     email: "", phone: "", password: "", confirm: "",
   });
+
+  useEffect(() => {
+    if (resendTimer <= 0) return;
+    const t = setTimeout(() => setResendTimer(s => s - 1), 1000);
+    return () => clearTimeout(t);
+  }, [resendTimer]);
 
   const set = (k: keyof FormData, v: string) => {
     setForm(p => ({ ...p, [k]: v }));
@@ -144,41 +110,34 @@ export default function RegisterPage() {
   const handleLogoFile = async (file: File) => {
     if (!file.type.startsWith("image/")) return;
     setLogoLoading(true);
-    try {
-      const compressed = await compressImage(file);
-      setLogoUrl(compressed);
-    } finally {
-      setLogoLoading(false);
-    }
+    try { setLogoUrl(await compressImage(file)); }
+    finally { setLogoLoading(false); }
   };
 
-  /* ── Validation ──────────────────────────────────────── */
+  /* ── Validation ── */
   const v = {
     shop_name:     form.shop_name.trim().length >= 2,
     business_type: form.business_type !== "",
     address:       form.address !== "",
-    description:   true,                              // optional
+    description:   true,
     email:         emailRe.test(form.email),
     phone:         phoneRe.test(form.phone.replace(/\s/g, "")),
     password:      form.password.length >= 6,
     confirm:       form.confirm === form.password && form.confirm.length > 0,
   };
-
   const step1Ok = v.shop_name && v.business_type && v.address;
   const step2Ok = v.email && v.phone && v.password && v.confirm;
   const pw      = passwordStrength(form.password);
 
-  /* ── Submit (step 2 → 3) ─────────────────────────────── */
+  /* ── Submit ── */
   const handleSubmit = async () => {
     if (!step2Ok) return;
-    setError(null);
-    setEmailTaken(false);
-    setLoading(true);
+    setError(null); setEmailTaken(false); setLoading(true);
     try {
       const AUTH_URL = process.env.NEXT_PUBLIC_AUTH_API || "https://higoverse-auth.vercel.app";
       const descParts = [
         form.business_type !== "Other" ? form.business_type : "",
-        form.description.trim() ? form.description.trim() : "",
+        form.description.trim(),
       ].filter(Boolean).join(" — ");
       const payload: Record<string, string> = {
         shop_name: form.shop_name.trim(),
@@ -186,13 +145,12 @@ export default function RegisterPage() {
         phone:     form.phone.replace(/\s/g, ""),
         password:  form.password,
       };
-      if (form.address.trim())  payload.address     = form.address.trim();
-      if (descParts)            payload.description = descParts;
-      if (logoUrl)              payload.logo_url    = logoUrl;
+      if (form.address.trim()) payload.address     = form.address.trim();
+      if (descParts)           payload.description = descParts;
+      if (logoUrl)             payload.logo_url    = logoUrl;
 
       const res  = await fetch(`${AUTH_URL}/api/v1/auth/register`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
       const text = await res.text();
@@ -200,485 +158,446 @@ export default function RegisterPage() {
         let raw = "";
         try { raw = JSON.parse(text)?.detail || ""; } catch { raw = text || ""; }
         const lower = raw.toLowerCase();
-
-        if (lower.includes("already exists") || lower.includes("already registered")) {
-          setEmailTaken(true);
-          return;
-        }
+        if (lower.includes("already exists") || lower.includes("already registered")) { setEmailTaken(true); return; }
         if (lower.includes("verification email") || lower.includes("failed to send")) {
-          // Account created but email sending failed — jump to step 3 so user can resend
-          setVerifyEmail(form.email.trim());
-          setOtp("");
-          setVerifyError("We had trouble sending the verification email. Tap \"Resend code\" below to try again.");
-          setResendTimer(0);
-          setStep(3);
-          return;
+          setVerifyEmail(form.email.trim()); setOtp("");
+          setVerifyError("We had trouble sending the verification email. Tap \"Resend code\" below.");
+          setResendTimer(0); setStep(3); return;
         }
-        setError(raw || "Registration failed. Please try again.");
-        return;
+        setError(raw || "Registration failed. Please try again."); return;
       }
-      setVerifyEmail(form.email.trim());
-      setOtp("");
-      setVerifyError(null);
-      setResendTimer(60);
-      setStep(3);
-    } catch {
-      setError("Connection problem. Please check your internet and try again.");
-    } finally {
-      setLoading(false);
-    }
+      setVerifyEmail(form.email.trim()); setOtp(""); setVerifyError(null);
+      setResendTimer(60); setStep(3);
+    } catch { setError("Connection problem. Please check your internet and try again."); }
+    finally  { setLoading(false); }
   };
 
-  /* ── Verify email OTP (step 3) ───────────────────────── */
+  /* ── Verify email ── */
   const handleVerify = async () => {
     if (otp.length !== 6) return;
-    setVerifyError(null);
-    setVerifyLoading(true);
+    setVerifyError(null); setVerifyLoading(true);
     try {
       const AUTH_URL = process.env.NEXT_PUBLIC_AUTH_API || "https://higoverse-auth.vercel.app";
       const res  = await fetch(`${AUTH_URL}/api/v1/auth/verify-registration`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: verifyEmail, otp }),
       });
       const text = await res.text();
       if (!res.ok) {
         let msg = "Verification failed";
         try { msg = JSON.parse(text)?.detail || msg; } catch { msg = text || msg; }
-        setVerifyError(msg);
-        return;
+        setVerifyError(msg); return;
       }
       router.push("/login?registered=1");
     } catch (err) {
       setVerifyError(err instanceof Error ? err.message : "Network error. Please try again.");
-    } finally {
-      setVerifyLoading(false);
-    }
+    } finally { setVerifyLoading(false); }
   };
 
-  /* ── Resend verification code ────────────────────────── */
+  /* ── Resend ── */
   const handleResend = async () => {
-    setVerifyError(null);
-    setVerifyLoading(true);
+    setVerifyError(null); setVerifyLoading(true);
     try {
       const AUTH_URL = process.env.NEXT_PUBLIC_AUTH_API || "https://higoverse-auth.vercel.app";
       await fetch(`${AUTH_URL}/api/v1/auth/resend-verification`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: verifyEmail }),
       });
-      setOtp("");
-      setResendTimer(60);
-    } catch {
-      setVerifyError("Network error. Please try again.");
-    } finally {
-      setVerifyLoading(false);
-    }
+      setOtp(""); setResendTimer(60);
+    } catch { setVerifyError("Network error. Please try again."); }
+    finally  { setVerifyLoading(false); }
   };
 
-  /* ── UI ──────────────────────────────────────────────── */
+  /* ── Input ring helper ── */
+  const ring = (valid: boolean, t: boolean) =>
+    t ? (valid ? "ring-2 ring-blue-500 bg-white" : "ring-2 ring-red-400 bg-white") : "";
+
   return (
-    <div className="min-h-screen flex bg-white">
+    <div className="min-h-screen flex flex-col lg:flex-row">
 
-      {/* ── LEFT PANEL ─────────────────────────────────── */}
-      <div className="hidden lg:flex w-5/12 relative overflow-hidden flex-col justify-between">
-        <div className="absolute inset-0 bg-linear-to-br from-slate-950 via-blue-900 to-indigo-700" />
-        <div className="absolute top-[-120px] left-[-120px] w-96 h-96 bg-blue-500/30 blur-3xl rounded-full" />
-        <div className="absolute bottom-[-120px] right-[-120px] w-96 h-96 bg-indigo-500/30 blur-3xl rounded-full" />
+      {/* ══ LEFT PANEL ══ */}
+      <div className="hidden lg:flex lg:w-[52%] bg-[#f0f4ff] flex-col justify-between px-16 py-12">
 
-        <div className="relative z-10 flex flex-col justify-center flex-1 px-12 text-white">
-          {/* Brand */}
-          <div className="flex items-center gap-3 mb-10">
-            <Image src="/higoverse.png" alt="Higoverse" width={44} height={44} className="rounded-2xl" />
-            <span className="font-bold text-xl tracking-tight">Higoverse</span>
-          </div>
+        {/* Brand */}
+        <div className="flex items-center gap-3">
+          <Image src="/higoverse.png" alt="Higoverse" width={36} height={36} className="rounded-xl" />
+          <span className="text-slate-800 font-bold text-lg tracking-tight">Higoverse</span>
+        </div>
 
-          <h1 className="text-4xl font-bold leading-tight">
-            Open your digital <br /> shop today
+        {/* Headline + features */}
+        <div>
+          <p className="text-xs font-semibold text-blue-500 uppercase tracking-widest mb-4">Business OS</p>
+          <h1 className="text-4xl font-bold text-slate-900 leading-tight mb-5">
+            Open your digital<br />shop today,<br />
+            <span className="text-blue-600">it&apos;s free.</span>
           </h1>
-          <p className="mt-4 text-blue-100 text-sm leading-relaxed max-w-xs">
-            Get a full-featured business management workspace in under a minute — inventory, sales, analytics and more.
+          <p className="text-slate-500 text-sm leading-relaxed max-w-sm mb-10">
+            Get a full-featured business workspace in under a minute — inventory, sales, analytics and more.
           </p>
 
-          {/* Feature list */}
-          <div className="mt-8 space-y-3">
+          <div className="grid grid-cols-2 gap-3 max-w-sm mb-10">
             {[
-              { icon: <Boxes size={16} />,    label: "Real-time inventory tracking" },
-              { icon: <BarChart3 size={16} />, label: "Business analytics dashboard" },
-              { icon: <Store size={16} />,     label: "Multi-service management" },
-              { icon: <ShieldCheck size={16}/>, label: "Secure cloud storage" },
-            ].map(f => (
-              <div key={f.label} className="flex items-center gap-3 text-sm text-blue-100">
-                <div className="w-7 h-7 rounded-lg bg-white/10 flex items-center justify-center shrink-0">{f.icon}</div>
-                {f.label}
+              { icon: <Boxes size={15} />,      label: "Inventory",  sub: "Real-time stock" },
+              { icon: <BarChart3 size={15} />,  label: "Analytics",  sub: "Live reports" },
+              { icon: <Store size={15} />,       label: "Sales",      sub: "Fast checkout" },
+              { icon: <ShieldCheck size={15} />, label: "Secure",     sub: "Cloud storage" },
+            ].map((f) => (
+              <div key={f.label} className="flex items-center gap-3 bg-white rounded-xl p-3 shadow-sm border border-blue-100">
+                <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center text-blue-600 shrink-0">
+                  {f.icon}
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-slate-800">{f.label}</p>
+                  <p className="text-[11px] text-slate-400">{f.sub}</p>
+                </div>
               </div>
             ))}
           </div>
 
-          {/* Step progress preview */}
-          <div className="mt-10 space-y-3">
+          {/* Step progress */}
+          <div className="space-y-2 max-w-sm">
             {[
-              { n: 1, title: "Shop Information",   sub: "Name, type & location" },
-              { n: 2, title: "Account & Security", sub: "Email, phone & password" },
-              { n: 3, title: "Verify Email",        sub: "Enter the code we sent you" },
-            ].map(s => (
-              <div key={s.n} className={`flex items-center gap-3 p-3 rounded-xl transition-all ${step === s.n ? "bg-white/15" : "opacity-50"}`}>
-                <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${step > s.n ? "bg-green-400 text-white" : step === s.n ? "bg-white text-slate-900" : "bg-white/20 text-white"}`}>
+              { n: 1, title: "Shop details",    sub: "Name, type & location" },
+              { n: 2, title: "Your account",    sub: "Email, phone & password" },
+              { n: 3, title: "Verify email",    sub: "Enter the code we send you" },
+            ].map((s) => (
+              <div key={s.n}
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all ${
+                  step === s.n ? "bg-white border border-blue-100 shadow-sm" : "opacity-40"
+                }`}>
+                <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
+                  step > s.n
+                    ? "bg-green-100 text-green-600"
+                    : step === s.n
+                    ? "bg-blue-600 text-white"
+                    : "bg-gray-200 text-gray-500"
+                }`}>
                   {step > s.n ? <CheckCircle2 size={14} /> : s.n}
                 </div>
                 <div>
-                  <p className="text-sm font-semibold">{s.title}</p>
-                  <p className="text-xs text-blue-200">{s.sub}</p>
+                  <p className="text-sm font-semibold text-slate-800">{s.title}</p>
+                  <p className="text-[11px] text-slate-400">{s.sub}</p>
                 </div>
               </div>
             ))}
           </div>
         </div>
+
+        <p className="text-[11px] text-slate-400">© 2025 Higoverse · Secure · Private</p>
       </div>
 
-      {/* ── RIGHT PANEL ────────────────────────────────── */}
-      <div className="flex-1 flex items-center justify-center px-6 py-10 bg-slate-50">
-        <div className="w-full max-w-md">
+      {/* ══ RIGHT PANEL ══ */}
+      <div className="flex-1 flex items-start justify-center bg-white px-6 py-10 overflow-y-auto">
+        <div className="w-full max-w-[440px]">
 
           {/* Mobile brand */}
-          <div className="flex lg:hidden items-center gap-2 mb-6">
-            <Image src="/higoverse.png" alt="Higoverse" width={32} height={32} className="rounded-xl" />
-            <span className="font-bold text-slate-800">Higoverse</span>
+          <div className="flex lg:hidden items-center gap-2 mb-7">
+            <Image src="/higoverse.png" alt="Higoverse" width={30} height={30} className="rounded-lg" />
+            <span className="font-bold text-gray-900">Higoverse</span>
           </div>
 
           {/* Progress bar */}
-          <div className="mb-6">
-            <div className="flex items-center justify-between mb-2">
-              <p className="text-xs font-medium text-slate-500">Step {step} of 3</p>
-              <p className="text-xs text-slate-400">{step === 1 ? "Shop details" : step === 2 ? "Account setup" : "Email verification"}</p>
+          <div className="mb-7">
+            <div className="flex justify-between text-xs text-gray-400 mb-2">
+              <span>Step {step} of 3</span>
+              <span>{step === 1 ? "Shop details" : step === 2 ? "Account setup" : "Email verification"}</span>
             </div>
-            <div className="h-1.5 bg-slate-200 rounded-full overflow-hidden">
-              <div className="h-full bg-linear-to-r from-blue-500 to-indigo-500 rounded-full transition-all duration-500"
+            <div className="h-1 bg-gray-100 rounded-full overflow-hidden">
+              <div className="h-full bg-blue-600 rounded-full transition-all duration-500"
                 style={{ width: step === 1 ? "33%" : step === 2 ? "66%" : "100%" }} />
             </div>
           </div>
 
-          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 sm:p-8">
-
-            {/* Error */}
-            {error && (
-              <div className="mb-5 flex items-center gap-2 bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-xl text-sm">
-                <AlertCircle size={15} className="shrink-0" /> {error}
+          {/* ── STEP 1 ── */}
+          {step === 1 && (
+            <>
+              <div className="mb-6">
+                <h2 className="text-2xl font-bold text-gray-900">Shop details</h2>
+                <p className="text-sm text-gray-500 mt-1">Tell us about your business</p>
               </div>
-            )}
 
-            {/* ── STEP 1: Shop Info ─────────────────────── */}
-            {step === 1 && (
-              <>
-                <div className="mb-6">
-                  <h2 className="text-2xl font-bold text-slate-900">Shop Information</h2>
-                  <p className="text-slate-500 text-sm mt-1">Tell us about your business</p>
-                </div>
-
-                <div className="space-y-4">
-                  {/* Shop name */}
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Shop Name *</label>
-                    <Field icon={<Building2 size={16} />} valid={v.shop_name} touched={!!touched.shop_name}
-                      hint={v.shop_name ? "Looks good" : "Minimum 2 characters required"}>
-                      <input value={form.shop_name} onChange={e => set("shop_name", e.target.value)}
-                        placeholder="e.g. Kigali Electronics" className={inputCls} />
-                    </Field>
+              <div className="space-y-4">
+                {/* Shop name */}
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1.5">Shop name <span className="text-red-400">*</span></label>
+                  <div className="relative">
+                    <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4 pointer-events-none" />
+                    <input value={form.shop_name} onChange={e => set("shop_name", e.target.value)}
+                      placeholder="e.g. Kigali Electronics"
+                      className={`${field} ${fieldIcon} ${ring(v.shop_name, !!touched.shop_name)}`} />
                   </div>
-
-                  {/* Business type */}
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Business Type *</label>
-                    <div className={`relative rounded-xl border transition-all bg-white ${
-                      !touched.business_type ? "border-slate-200"
-                      : v.business_type      ? "border-blue-400 ring-2 ring-blue-100"
-                      :                        "border-red-400 ring-2 ring-red-100"
-                    }`}>
-                      <Store size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                      <select value={form.business_type}
-                        onChange={e => set("business_type", e.target.value)}
-                        className="w-full h-12 pl-10 pr-4 bg-transparent outline-none text-sm text-slate-800 appearance-none rounded-xl">
-                        <option value="">Select business type…</option>
-                        {BUSINESS_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-                      </select>
-                    </div>
-                    {touched.business_type && !v.business_type && (
-                      <p className="text-xs mt-1.5 text-red-500 flex items-center gap-1"><AlertCircle size={11} /> Please select a type</p>
-                    )}
-                  </div>
-
-                  {/* Address */}
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">
-                      District / Address <span className="text-red-500">*</span>
-                    </label>
-                    <Field icon={<MapPin size={16} />} valid={v.address} touched={!!touched.address}
-                      hint={v.address ? "District selected" : "Please select your district"}>
-                      <select
-                        value={form.address}
-                        onChange={e => set("address", e.target.value)}
-                        className={`${inputCls} appearance-none pr-10 ${!form.address ? "text-slate-400" : "text-slate-800"}`}
-                      >
-                        <option value="" disabled>Select your district…</option>
-                        <optgroup label="── Kigali City ──">
-                          {["Gasabo","Kicukiro","Nyarugenge"].map(d=><option key={d} value={`${d}, Kigali`}>{d}</option>)}
-                        </optgroup>
-                        <optgroup label="── Eastern Province ──">
-                          {["Bugesera","Gatsibo","Kayonza","Kirehe","Ngoma","Nyagatare","Rwamagana"].map(d=><option key={d} value={`${d}, Eastern Province`}>{d}</option>)}
-                        </optgroup>
-                        <optgroup label="── Western Province ──">
-                          {["Karongi","Ngororero","Nyabihu","Nyamasheke","Rubavu","Rusizi","Rutsiro"].map(d=><option key={d} value={`${d}, Western Province`}>{d}</option>)}
-                        </optgroup>
-                        <optgroup label="── Northern Province ──">
-                          {["Burera","Gakenke","Gicumbi","Musanze","Rulindo"].map(d=><option key={d} value={`${d}, Northern Province`}>{d}</option>)}
-                        </optgroup>
-                        <optgroup label="── Southern Province ──">
-                          {["Gisagara","Huye","Kamonyi","Muhanga","Nyamagabe","Nyanza","Nyaruguru","Ruhango"].map(d=><option key={d} value={`${d}, Southern Province`}>{d}</option>)}
-                        </optgroup>
-                      </select>
-                      <span className="absolute right-3.5 text-slate-400 pointer-events-none">
-                        <ChevronDown size={16} />
-                      </span>
-                    </Field>
-                  </div>
-
-                  {/* Description */}
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">
-                      About your shop <span className="text-slate-400 font-normal normal-case">(optional)</span>
-                    </label>
-                    <div className="relative rounded-xl border border-slate-200 bg-white">
-                      <FileText size={16} className="absolute left-3.5 top-3.5 text-slate-400" />
-                      <textarea value={form.description} onChange={e => set("description", e.target.value)}
-                        placeholder="Brief description of what you sell…" rows={3}
-                        className="w-full pl-10 pr-4 pt-3 pb-3 bg-transparent outline-none text-slate-800 placeholder:text-slate-400 text-sm resize-none rounded-xl" />
-                    </div>
-                  </div>
-
-                  {/* Logo */}
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">
-                      Shop Logo <span className="text-slate-400 font-normal normal-case">(optional)</span>
-                    </label>
-                    <div className="flex items-center gap-4">
-                      {logoUrl ? (
-                        <div className="relative w-16 h-16 shrink-0">
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img src={logoUrl} alt="logo preview" className="w-16 h-16 rounded-xl object-cover border border-slate-200" />
-                          <button type="button" onClick={() => setLogoUrl("")}
-                            className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center">
-                            <X size={11} />
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="w-16 h-16 rounded-xl border-2 border-dashed border-slate-300 flex items-center justify-center text-slate-300 shrink-0">
-                          {logoLoading ? <Loader2 size={20} className="animate-spin text-blue-400" /> : <ImagePlus size={20} />}
-                        </div>
-                      )}
-                      <label className="flex-1 cursor-pointer">
-                        <div className="h-10 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 transition flex items-center justify-center gap-2 text-sm text-slate-500 font-medium">
-                          <ImagePlus size={15} /> {logoUrl ? "Change logo" : "Upload logo"}
-                        </div>
-                        <input type="file" accept="image/*" className="hidden"
-                          onChange={e => { const f = e.target.files?.[0]; if (f) handleLogoFile(f); }} />
-                      </label>
-                    </div>
-                  </div>
-                </div>
-
-                <button onClick={() => { setTouch({ shop_name: true, business_type: true, address: true }); if (step1Ok) setStep(2); }}
-                  className="mt-6 w-full h-12 rounded-xl bg-linear-to-r from-blue-600 to-indigo-600 text-white font-semibold flex items-center justify-center gap-2 hover:opacity-90 transition">
-                  Continue <ChevronRight size={16} />
-                </button>
-              </>
-            )}
-
-            {/* ── STEP 2: Account ───────────────────────── */}
-            {step === 2 && (
-              <>
-                <div className="mb-6">
-                  <h2 className="text-2xl font-bold text-slate-900">Account & Security</h2>
-                  <p className="text-slate-500 text-sm mt-1">Set up your login credentials</p>
-                </div>
-
-                {/* Shop summary chip */}
-                <div className="flex items-center gap-2 bg-blue-50 border border-blue-100 rounded-xl px-4 py-2.5 mb-5">
-                  <div className="w-7 h-7 rounded-lg bg-blue-100 flex items-center justify-center">
-                    <Store size={14} className="text-blue-600" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-slate-800 truncate">{form.shop_name}</p>
-                    <p className="text-xs text-slate-500 truncate">{form.business_type}{form.address ? ` · ${form.address}` : ""}</p>
-                  </div>
-                  <button onClick={() => setStep(1)} className="ml-auto text-xs text-blue-600 hover:underline shrink-0">Edit</button>
-                </div>
-
-                <div className="space-y-4">
-                  {/* Email */}
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Business Email *</label>
-                    <Field icon={<Mail size={16} />} valid={v.email} touched={!!touched.email}
-                      hint={v.email ? "Valid email" : "Enter a valid email address"}>
-                      <input type="email" value={form.email} onChange={e => set("email", e.target.value)}
-                        placeholder="admin@yourshop.com" autoComplete="email" className={inputCls} />
-                    </Field>
-                  </div>
-
-                  {/* Phone */}
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Phone Number *</label>
-                    <Field icon={<Phone size={16} />} valid={v.phone} touched={!!touched.phone}
-                      hint={v.phone ? "Valid Rwandan number" : "Must be 07XXXXXXXX (10 digits)"}>
-                      <input type="tel" value={form.phone} onChange={e => set("phone", e.target.value)}
-                        placeholder="07XXXXXXXX" autoComplete="tel" className={inputCls} />
-                    </Field>
-                  </div>
-
-                  {/* Password */}
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Password *</label>
-                    <Field icon={<Lock size={16} />} valid={v.password} touched={!!touched.password}
-                      hint={v.password ? `Strength: ${pw.label}` : "Minimum 6 characters"}>
-                      <input type={showPw ? "text" : "password"} value={form.password}
-                        onChange={e => set("password", e.target.value)}
-                        placeholder="Create a strong password" autoComplete="new-password"
-                        className={inputCls + " pr-10"} />
-                      <button type="button" onClick={() => setShowPw(p => !p)}
-                        className="absolute right-3 text-slate-400 hover:text-slate-600">
-                        {showPw ? <EyeOff size={16} /> : <Eye size={16} />}
-                      </button>
-                    </Field>
-                    {form.password && (
-                      <div className="mt-2">
-                        <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                          <div className={`h-full ${pw.color} transition-all duration-300`} style={{ width: pw.width }} />
-                        </div>
-                        <div className="flex justify-between mt-1">
-                          <span className="text-xs text-slate-400">Weak</span>
-                          <span className={`text-xs font-semibold ${pw.color.replace("bg-", "text-")}`}>{pw.label}</span>
-                          <span className="text-xs text-slate-400">Strong</span>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Confirm password */}
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Confirm Password *</label>
-                    <Field icon={<ShieldCheck size={16} />} valid={v.confirm} touched={!!touched.confirm}
-                      hint={v.confirm ? "Passwords match" : "Passwords do not match"}>
-                      <input type={showPw ? "text" : "password"} value={form.confirm}
-                        onChange={e => set("confirm", e.target.value)}
-                        placeholder="Repeat your password" autoComplete="new-password" className={inputCls} />
-                    </Field>
-                  </div>
-                </div>
-
-                {/* Email already taken */}
-                {emailTaken && (
-                  <div className="mt-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-4">
-                    <p className="text-sm font-semibold text-amber-800 flex items-center gap-2">
-                      <AlertCircle size={15} className="shrink-0 text-amber-500" />
-                      This email is already registered
-                    </p>
-                    <p className="text-xs text-amber-700 mt-1 leading-relaxed">
-                      An account with <span className="font-semibold">{form.email}</span> already exists.
-                      Use a different email, or{" "}
-                      <Link href="/login" className="font-semibold underline underline-offset-2 hover:text-amber-900">
-                        sign in to your existing account
-                      </Link>.
-                    </p>
-                  </div>
-                )}
-
-                {/* Generic error */}
-                {error && !emailTaken && (
-                  <div className="mt-5 flex items-start gap-2.5 rounded-xl border border-red-200 bg-red-50 px-4 py-3.5 text-sm text-red-700">
-                    <AlertCircle size={15} className="shrink-0 mt-0.5 text-red-500" />
-                    <span>{error}</span>
-                  </div>
-                )}
-
-                <div className="flex gap-3 mt-5">
-                  <button onClick={() => setStep(1)}
-                    className="h-12 px-5 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 transition flex items-center gap-1.5 text-sm font-medium">
-                    <ChevronLeft size={15} /> Back
-                  </button>
-                  <button onClick={handleSubmit} disabled={!step2Ok || loading}
-                    className="flex-1 h-12 rounded-xl bg-linear-to-r from-blue-600 to-indigo-600 text-white font-semibold flex items-center justify-center gap-2 disabled:opacity-50 hover:opacity-90 transition">
-                    {loading ? <><Loader2 size={16} className="animate-spin" /> Creating…</> : "Create Workspace"}
-                  </button>
-                </div>
-
-                <p className="text-center text-xs text-slate-400 mt-4">
-                  By registering you agree to our Terms of Service
-                </p>
-              </>
-            )}
-
-            {/* ── STEP 3: Email Verification ─────────── */}
-            {step === 3 && (
-              <>
-                <div className="flex items-center justify-center w-14 h-14 bg-blue-50 rounded-2xl mb-4 mx-auto">
-                  <Mail size={26} className="text-blue-600" />
-                </div>
-                <div className="text-center mb-6">
-                  <h2 className="text-2xl font-bold text-slate-900">Check your email</h2>
-                  <p className="text-slate-500 text-sm mt-1">
-                    We sent a 6-digit code to
-                  </p>
-                  <p className="font-semibold text-slate-800 text-sm mt-0.5 break-all">{verifyEmail}</p>
-                </div>
-
-                {verifyError && (
-                  <div className="mb-4 flex items-center gap-2 bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-xl text-sm">
-                    <AlertCircle size={15} className="shrink-0" /> {verifyError}
-                  </div>
-                )}
-
-                <div className="space-y-5">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">6-digit code</label>
-                    <input
-                      type="text" inputMode="numeric" maxLength={6} placeholder="000000"
-                      value={otp}
-                      onChange={e => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                      className="w-full h-14 text-center text-2xl font-bold tracking-[0.5em] rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-gray-700 outline-none transition"
-                      autoFocus
-                    />
-                  </div>
-
-                  <button
-                    onClick={handleVerify}
-                    disabled={otp.length !== 6 || verifyLoading}
-                    className="w-full h-12 rounded-xl bg-linear-to-r from-blue-600 to-indigo-600 text-white font-semibold flex items-center justify-center gap-2 disabled:opacity-50 hover:opacity-90 transition"
-                  >
-                    {verifyLoading ? <><Loader2 size={16} className="animate-spin" /> Verifying…</> : "Verify Email"}
-                  </button>
-                </div>
-
-                <div className="mt-5 text-center">
-                  {resendTimer > 0 ? (
-                    <p className="text-sm text-slate-400">
-                      Resend code in <span className="font-semibold text-slate-600">{resendTimer}s</span>
-                    </p>
-                  ) : (
-                    <button
-                      onClick={handleResend}
-                      disabled={verifyLoading}
-                      className="flex items-center gap-1.5 text-sm text-blue-600 hover:underline mx-auto disabled:opacity-50"
-                    >
-                      <RefreshCw size={13} /> Resend code
-                    </button>
+                  {touched.shop_name && !v.shop_name && (
+                    <p className="mt-1 text-xs text-red-500 flex items-center gap-1"><AlertCircle size={11} /> Minimum 2 characters</p>
                   )}
                 </div>
-              </>
-            )}
-          </div>
 
-          <p className="text-center text-sm text-slate-500 mt-5">
+                {/* Business type */}
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1.5">Business type <span className="text-red-400">*</span></label>
+                  <div className="relative">
+                    <Store className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4 pointer-events-none" />
+                    <select value={form.business_type} onChange={e => set("business_type", e.target.value)}
+                      className={`${field} ${fieldIcon} pr-8 appearance-none ${ring(v.business_type, !!touched.business_type)} ${!form.business_type ? "text-gray-400" : "text-gray-900"}`}>
+                      <option value="">Select type…</option>
+                      {BUSINESS_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                    </select>
+                    <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4 pointer-events-none" />
+                  </div>
+                  {touched.business_type && !v.business_type && (
+                    <p className="mt-1 text-xs text-red-500 flex items-center gap-1"><AlertCircle size={11} /> Please select a type</p>
+                  )}
+                </div>
+
+                {/* Address */}
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1.5">District <span className="text-red-400">*</span></label>
+                  <div className="relative">
+                    <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4 pointer-events-none" />
+                    <select value={form.address} onChange={e => set("address", e.target.value)}
+                      className={`${field} ${fieldIcon} pr-8 appearance-none ${ring(v.address, !!touched.address)} ${!form.address ? "text-gray-400" : "text-gray-900"}`}>
+                      <option value="" disabled>Select district…</option>
+                      <optgroup label="── Kigali City ──">
+                        {["Gasabo","Kicukiro","Nyarugenge"].map(d => <option key={d} value={`${d}, Kigali`}>{d}</option>)}
+                      </optgroup>
+                      <optgroup label="── Eastern Province ──">
+                        {["Bugesera","Gatsibo","Kayonza","Kirehe","Ngoma","Nyagatare","Rwamagana"].map(d => <option key={d} value={`${d}, Eastern Province`}>{d}</option>)}
+                      </optgroup>
+                      <optgroup label="── Western Province ──">
+                        {["Karongi","Ngororero","Nyabihu","Nyamasheke","Rubavu","Rusizi","Rutsiro"].map(d => <option key={d} value={`${d}, Western Province`}>{d}</option>)}
+                      </optgroup>
+                      <optgroup label="── Northern Province ──">
+                        {["Burera","Gakenke","Gicumbi","Musanze","Rulindo"].map(d => <option key={d} value={`${d}, Northern Province`}>{d}</option>)}
+                      </optgroup>
+                      <optgroup label="── Southern Province ──">
+                        {["Gisagara","Huye","Kamonyi","Muhanga","Nyamagabe","Nyanza","Nyaruguru","Ruhango"].map(d => <option key={d} value={`${d}, Southern Province`}>{d}</option>)}
+                      </optgroup>
+                    </select>
+                    <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4 pointer-events-none" />
+                  </div>
+                  {touched.address && !v.address && (
+                    <p className="mt-1 text-xs text-red-500 flex items-center gap-1"><AlertCircle size={11} /> Please select a district</p>
+                  )}
+                </div>
+
+                {/* Description */}
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1.5">About your shop <span className="text-gray-400">(optional)</span></label>
+                  <div className="relative">
+                    <FileText className="absolute left-3 top-3.5 text-gray-400 w-4 h-4 pointer-events-none" />
+                    <textarea value={form.description} onChange={e => set("description", e.target.value)}
+                      placeholder="Brief description of what you sell…" rows={3}
+                      className="w-full rounded-lg bg-gray-100 pl-10 pr-4 pt-3 pb-3 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:bg-white focus:ring-2 focus:ring-blue-500 resize-none transition" />
+                  </div>
+                </div>
+
+                {/* Logo */}
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1.5">Shop logo <span className="text-gray-400">(optional)</span></label>
+                  <div className="flex items-center gap-3">
+                    {logoUrl ? (
+                      <div className="relative w-14 h-14 shrink-0">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={logoUrl} alt="logo" className="w-14 h-14 rounded-xl object-cover border border-gray-200" />
+                        <button type="button" onClick={() => setLogoUrl("")}
+                          className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center">
+                          <X size={11} />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="w-14 h-14 rounded-xl bg-gray-100 border-2 border-dashed border-gray-300 flex items-center justify-center text-gray-300 shrink-0">
+                        {logoLoading ? <Loader2 size={18} className="animate-spin text-blue-400" /> : <ImagePlus size={18} />}
+                      </div>
+                    )}
+                    <label className="flex-1 cursor-pointer">
+                      <div className="h-10 rounded-lg bg-gray-100 hover:bg-gray-200 transition flex items-center justify-center gap-2 text-sm text-gray-500 font-medium">
+                        <ImagePlus size={14} /> {logoUrl ? "Change logo" : "Upload logo"}
+                      </div>
+                      <input type="file" accept="image/*" className="hidden"
+                        onChange={e => { const f = e.target.files?.[0]; if (f) handleLogoFile(f); }} />
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              <button onClick={() => { setTouch({ shop_name: true, business_type: true, address: true }); if (step1Ok) setStep(2); }}
+                className="mt-6 w-full h-12 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold flex items-center justify-center gap-2 transition">
+                Continue <ChevronRight size={16} />
+              </button>
+            </>
+          )}
+
+          {/* ── STEP 2 ── */}
+          {step === 2 && (
+            <>
+              <div className="mb-5">
+                <h2 className="text-2xl font-bold text-gray-900">Your account</h2>
+                <p className="text-sm text-gray-500 mt-1">Set up your login credentials</p>
+              </div>
+
+              {/* Shop summary */}
+              <div className="flex items-center gap-2.5 bg-blue-50 border border-blue-100 rounded-xl px-3 py-2.5 mb-5">
+                <div className="w-7 h-7 rounded-lg bg-blue-100 flex items-center justify-center shrink-0">
+                  <Store size={14} className="text-blue-600" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-gray-800 truncate">{form.shop_name}</p>
+                  <p className="text-xs text-gray-500 truncate">{form.business_type}{form.address ? ` · ${form.address}` : ""}</p>
+                </div>
+                <button onClick={() => setStep(1)} className="ml-auto text-xs text-blue-600 hover:underline shrink-0">Edit</button>
+              </div>
+
+              <div className="space-y-4">
+                {/* Email */}
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1.5">Email <span className="text-red-400">*</span></label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4 pointer-events-none" />
+                    <input type="email" value={form.email} onChange={e => set("email", e.target.value)}
+                      placeholder="admin@yourshop.com" autoComplete="email"
+                      className={`${field} ${fieldIcon} ${ring(v.email, !!touched.email)}`} />
+                  </div>
+                  {touched.email && !v.email && (
+                    <p className="mt-1 text-xs text-red-500 flex items-center gap-1"><AlertCircle size={11} /> Enter a valid email</p>
+                  )}
+                </div>
+
+                {/* Phone */}
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1.5">Phone <span className="text-red-400">*</span></label>
+                  <div className="relative">
+                    <Phone className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4 pointer-events-none" />
+                    <input type="tel" value={form.phone} onChange={e => set("phone", e.target.value)}
+                      placeholder="07XXXXXXXX" autoComplete="tel"
+                      className={`${field} ${fieldIcon} ${ring(v.phone, !!touched.phone)}`} />
+                  </div>
+                  {touched.phone && !v.phone && (
+                    <p className="mt-1 text-xs text-red-500 flex items-center gap-1"><AlertCircle size={11} /> Must be 07XXXXXXXX (10 digits)</p>
+                  )}
+                </div>
+
+                {/* Password */}
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1.5">Password <span className="text-red-400">*</span></label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4 pointer-events-none" />
+                    <input type={showPw ? "text" : "password"} value={form.password}
+                      onChange={e => set("password", e.target.value)}
+                      placeholder="Create a strong password" autoComplete="new-password"
+                      className={`${field} pl-10 pr-10 ${ring(v.password, !!touched.password)}`} />
+                    <button type="button" onClick={() => setShowPw(p => !p)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition">
+                      {showPw ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
+                  {form.password && (
+                    <div className="mt-2">
+                      <div className="h-1 bg-gray-100 rounded-full overflow-hidden">
+                        <div className={`h-full ${pw.color} transition-all duration-300`} style={{ width: pw.width }} />
+                      </div>
+                      <p className={`text-xs mt-1 ${pw.text}`}>{pw.label} password</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Confirm */}
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1.5">Confirm password <span className="text-red-400">*</span></label>
+                  <div className="relative">
+                    <ShieldCheck className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4 pointer-events-none" />
+                    <input type={showPw ? "text" : "password"} value={form.confirm}
+                      onChange={e => set("confirm", e.target.value)}
+                      placeholder="Repeat your password" autoComplete="new-password"
+                      className={`${field} ${fieldIcon} ${ring(v.confirm, !!touched.confirm)}`} />
+                  </div>
+                  {touched.confirm && !v.confirm && (
+                    <p className="mt-1 text-xs text-red-500 flex items-center gap-1"><AlertCircle size={11} /> Passwords do not match</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Email taken */}
+              {emailTaken && (
+                <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
+                  <p className="text-sm font-semibold text-amber-800 flex items-center gap-1.5">
+                    <AlertCircle size={14} className="text-amber-500" /> Email already registered
+                  </p>
+                  <p className="text-xs text-amber-700 mt-1">
+                    <Link href="/login" className="font-semibold underline hover:text-amber-900">Sign in instead</Link>
+                    {" "}or use a different email.
+                  </p>
+                </div>
+              )}
+
+              {error && !emailTaken && (
+                <div className="mt-4 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-600">
+                  <AlertCircle size={14} className="shrink-0 mt-0.5" /> {error}
+                </div>
+              )}
+
+              <div className="flex gap-3 mt-5">
+                <button onClick={() => setStep(1)}
+                  className="h-12 px-5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 text-sm font-medium flex items-center gap-1.5 transition">
+                  <ChevronLeft size={15} /> Back
+                </button>
+                <button onClick={handleSubmit} disabled={!step2Ok || loading}
+                  className="flex-1 h-12 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-50 transition">
+                  {loading ? <><Loader2 size={15} className="animate-spin" /> Creating…</> : "Create workspace"}
+                </button>
+              </div>
+
+              <p className="text-center text-xs text-gray-400 mt-4">By registering you agree to our Terms of Service</p>
+            </>
+          )}
+
+          {/* ── STEP 3: Verify ── */}
+          {step === 3 && (
+            <>
+              <div className="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center mb-5">
+                <Mail size={22} className="text-blue-600" />
+              </div>
+              <h2 className="text-2xl font-bold text-gray-900 mb-1">Check your inbox</h2>
+              <p className="text-sm text-gray-500 mb-0.5">We sent a 6-digit code to</p>
+              <p className="text-sm font-semibold text-gray-800 mb-6 break-all">{verifyEmail}</p>
+
+              {verifyError && (
+                <div className="mb-4 flex items-center gap-2 rounded-lg bg-red-50 border border-red-200 px-3 py-2.5 text-sm text-red-600">
+                  <AlertCircle size={14} className="shrink-0" /> {verifyError}
+                </div>
+              )}
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1.5">6-digit code</label>
+                  <input
+                    type="text" inputMode="numeric" maxLength={6} placeholder="000000"
+                    value={otp} onChange={e => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                    className="w-full h-12 text-center text-2xl font-bold tracking-[0.4em] rounded-lg bg-gray-100 text-gray-900 placeholder-gray-300 focus:outline-none focus:bg-white focus:ring-2 focus:ring-blue-500 transition"
+                    autoFocus
+                  />
+                </div>
+
+                <button onClick={handleVerify} disabled={otp.length !== 6 || verifyLoading}
+                  className="w-full h-12 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-50 transition">
+                  {verifyLoading ? <><Loader2 size={15} className="animate-spin" /> Verifying…</> : "Verify email"}
+                </button>
+              </div>
+
+              <div className="mt-4 text-center">
+                {resendTimer > 0 ? (
+                  <p className="text-sm text-gray-400">Resend in <span className="font-semibold text-gray-600">{resendTimer}s</span></p>
+                ) : (
+                  <button onClick={handleResend} disabled={verifyLoading}
+                    className="inline-flex items-center gap-1.5 text-sm text-blue-600 hover:underline disabled:opacity-50">
+                    <RefreshCw size={12} /> Resend code
+                  </button>
+                )}
+              </div>
+            </>
+          )}
+
+          <p className="text-center text-sm text-gray-500 mt-8">
             Already have an account?{" "}
-            <Link href="/login" className="text-blue-600 font-semibold">Sign in</Link>
+            <Link href="/login" className="text-blue-600 font-semibold hover:underline">Sign in</Link>
           </p>
         </div>
       </div>

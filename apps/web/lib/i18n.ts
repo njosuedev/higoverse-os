@@ -348,7 +348,7 @@ const dict: Record<Lang, Record<string, string>> = {
     "nav.home": "Ahabanza",
     "nav.items": "Ibicuruzwa",
     "nav.partners": "Inshuti",
-    "nav.purchases": "Ibigurwa",
+    "nav.purchases": "Ibyaranguwe",
     "nav.sales": "Amagurishwa",
     "nav.reports": "Raporo",
     "nav.settings": "Igenamiterere",
