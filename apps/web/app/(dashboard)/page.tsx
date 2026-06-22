@@ -226,7 +226,7 @@ export default function DashboardPage() {
       <main className="max-w-7xl mx-auto px-3 sm:px-5 py-3 sm:py-4 space-y-4">
 
         {/* ── HERO ────────────────────────────────────────────────────────────── */}
-        <section className="relative overflow-hidden rounded-xl text-white shadow-md bg-[#1372e6]">
+        <section className="relative overflow-hidden rounded-xl text-white shadow-md" style={{ backgroundColor: "#1372e6" }}>
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-white/10 via-transparent to-transparent pointer-events-none" />
 
           <div className="relative z-10 flex flex-col md:flex-row md:items-center md:justify-between gap-3 px-4 py-3.5">
@@ -291,22 +291,22 @@ export default function DashboardPage() {
         {/* ── KPI CARDS ────────────────────────────────────────────────────────── */}
         <section className="grid grid-cols-3 sm:grid-cols-3 xl:grid-cols-6 gap-2.5">
           <KpiCard label={t("dash.products")}    value={stats.products.toLocaleString()}
-            icon={<Package size={15} />} color="blue" href="/items" sub={t("dash.in_your_shop")} t={t} />
+            icon={<Package size={15} strokeWidth={2.5} />} color="blue" href="/items" sub={t("dash.in_your_shop")} t={t} />
           <KpiCard label={t("dash.partners")}    value={stats.partners.toLocaleString()}
-            icon={<Users size={15} />} color="indigo" href="/partners" sub={t("dash.suppliers_customers")} t={t} />
+            icon={<Users size={15} strokeWidth={2.5} />} color="indigo" href="/partners" sub={t("dash.suppliers_customers")} t={t} />
           <KpiCard label={t("dash.sales_today")} value={stats.sales.toLocaleString()}
-            icon={<ShoppingCart size={15} />} color="teal" href="/sales" sub={t("dash.transactions")} t={t} />
+            icon={<ShoppingCart size={15} strokeWidth={2.5} />} color="teal" href="/sales" sub={t("dash.transactions")} t={t} />
           <KpiCard label={t("dash.revenue_today")}
             value={stats.revenue > 0 ? fmtCurrency(stats.revenue) : t("common.no_data")}
-            icon={<TrendingUp size={15} />} color="green" href="/reports" small
+            icon={<TrendingUp size={15} strokeWidth={2.5} />} color="green" href="/reports" small
             delta={revDeltaPct}
             sub={yesterdayRevenue > 0 ? `Yesterday: ${fmtCurrency(yesterdayRevenue)}` : "first day data"} t={t} />
           <KpiCard label={t("items.low_stock")} value={stats.lowStock.toLocaleString()}
-            icon={<AlertTriangle size={15} />}
+            icon={<AlertTriangle size={15} strokeWidth={2.5} />}
             color={stats.lowStock > 0 ? "orange" : "slate"}
             href="/items" sub="≤ 10 units" warn={stats.lowStock > 0} t={t} />
           <KpiCard label={t("items.out_stock")} value={stats.outOfStock.toLocaleString()}
-            icon={<Package size={15} />}
+            icon={<Package size={15} strokeWidth={2.5} />}
             color={stats.outOfStock > 0 ? "red" : "slate"}
             href="/items" sub="zero units" warn={stats.outOfStock > 0} t={t} />
         </section>
@@ -318,7 +318,7 @@ export default function DashboardPage() {
               <DollarSign size={14} className="text-[#1372e6]" />
               {t("dash.shop_status_today") || "Today's Shop Status"}
             </h2>
-            <Link href="/reports" className="text-xs font-semibold text-[#1372e6] hover:underline">
+            <Link href="/reports" className="text-xs font-semibold text-white px-3 py-1 rounded-lg transition hover:opacity-90" style={{ backgroundColor: "#1372e6" }}>
               {t("dash.full_report")} →
             </Link>
           </div>
@@ -367,8 +367,8 @@ export default function DashboardPage() {
                 <span className="flex items-center gap-1 text-[10px] text-slate-500">
                   <span className="w-2 h-1.5 rounded-sm bg-green-500 inline-block" /> {t("dash.profit_label") || "Profit"} {netPct}%
                 </span>
-                <Link href="/ExpenseManagement" className="ml-auto text-[10px] font-semibold text-[#1372e6] hover:underline flex items-center gap-1">
-                  <Receipt size={10} /> {t("expenses.add") || "Add expense"}
+                <Link href="/ExpenseManagement" className="ml-auto text-[10px] font-semibold text-white px-2.5 py-1 rounded-lg flex items-center gap-1 transition hover:opacity-90" style={{ backgroundColor: "#1372e6" }}>
+                  <Receipt size={10} strokeWidth={2.5} /> {t("expenses.add") || "Record Expense"}
                 </Link>
               </div>
             </div>
@@ -381,14 +381,16 @@ export default function DashboardPage() {
             <div className="flex items-center justify-between mb-1">
               <div>
                 <h2 className="font-bold text-slate-900 text-sm flex items-center gap-2">
-                  <Activity size={14} className="text-[#1372e6]" />
+                  <span className="w-5 h-5 rounded-md flex items-center justify-center text-white" style={{ backgroundColor: "#1372e6" }}>
+                    <Activity size={11} strokeWidth={2.5} />
+                  </span>
                   {t("dash.revenue_7d")}
                 </h2>
                 <p className="text-[10px] text-slate-400 mt-0.5">
                   {t("common.total")}: {fmtCurrency(chartData.reduce((s, d) => s + d.revenue, 0))}
                 </p>
               </div>
-              <Link href="/reports" className="text-xs font-semibold text-[#1372e6] hover:underline">
+              <Link href="/reports" className="text-xs font-semibold text-white px-3 py-1 rounded-lg transition hover:opacity-90" style={{ backgroundColor: "#1372e6" }}>
                 {t("dash.full_report")} →
               </Link>
             </div>
@@ -434,7 +436,7 @@ export default function DashboardPage() {
                 <Receipt size={14} className="text-[#1372e6]" />
                 {t("dash.recent_sales")}
               </h2>
-              <Link href="/sales" className="text-xs font-semibold text-[#1372e6] hover:underline">
+              <Link href="/sales" className="text-xs font-semibold text-white px-3 py-1 rounded-lg transition hover:opacity-90" style={{ backgroundColor: "#1372e6" }}>
                 {t("dash.all_sales")} →
               </Link>
             </div>
@@ -447,8 +449,8 @@ export default function DashboardPage() {
               <div className="divide-y divide-slate-50">
                 {recentSales.map((sale) => (
                   <div key={sale.id} className="flex items-center gap-2.5 px-4 py-2.5 hover:bg-slate-50 transition-colors">
-                    <div className="w-7 h-7 rounded-lg bg-[#EBF2FD] text-[#1372e6] flex items-center justify-center shrink-0">
-                      <ShoppingCart size={12} />
+                    <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 text-white" style={{ backgroundColor: "#1372e6" }}>
+                      <ShoppingCart size={12} strokeWidth={2.5} />
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-xs font-semibold text-slate-800 truncate">{sale.product_name || t("nav.sales")}</p>
@@ -491,7 +493,7 @@ export default function DashboardPage() {
                   </span>
                 )}
               </h2>
-              <Link href="/items" className="text-xs font-semibold text-[#1372e6] hover:underline">
+              <Link href="/items" className="text-xs font-semibold text-white px-3 py-1 rounded-lg transition hover:opacity-90" style={{ backgroundColor: "#1372e6" }}>
                 {t("dash.view_all")} →
               </Link>
             </div>
@@ -550,10 +552,11 @@ export default function DashboardPage() {
                 { href: "/reports",            icon: BarChart3, label: t("dash.view_reports"), desc: t("dash.charts_analytics") },
               ].map((a) => (
                 <Link key={a.href} href={a.href}
-                  className="flex items-center gap-2.5 p-3 rounded-xl text-white bg-[#1372e6] shadow-sm"
+                  className="flex items-center gap-2.5 p-3 rounded-xl text-white shadow-sm"
+                  style={{ backgroundColor: "#1372e6" }}
                 >
                   <div className="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
-                    <a.icon size={14} />
+                    <a.icon size={14} strokeWidth={2.5} />
                   </div>
                   <div className="min-w-0">
                     <p className="text-xs font-bold leading-tight">{a.label}</p>
@@ -595,8 +598,8 @@ export default function DashboardPage() {
                 <Link key={svc.href} href={svc.href}
                   className="bg-white border border-slate-200 rounded-xl p-3 text-center block"
                 >
-                  <div className={`w-9 h-9 rounded-xl ${c.bg} ${c.text} flex items-center justify-center mx-auto mb-2`}>
-                    <Icon size={17} />
+                  <div className="w-9 h-9 rounded-xl flex items-center justify-center mx-auto mb-2 text-white" style={{ backgroundColor: "#1372e6" }}>
+                    <Icon size={17} strokeWidth={2.5} />
                   </div>
                   <p className="text-[10px] font-bold text-slate-800 leading-tight">{svc.title}</p>
                   <div className="mt-1.5 flex items-center justify-center gap-0.5 text-[9px] text-green-600">
@@ -656,7 +659,7 @@ export default function DashboardPage() {
                     }`}>
 
                     {/* Cover band */}
-                    <div className="h-16 bg-[#1372e6] rounded-t-xl relative overflow-hidden">
+                    <div className="h-16 rounded-t-xl relative overflow-hidden" style={{ backgroundColor: "#1372e6" }}>
                       {isMine && (
                         <span className="absolute top-1.5 right-1.5 text-[8px] font-black bg-white text-[#1372e6] px-1.5 py-0.5 rounded-full leading-none shadow">
                           YOU
@@ -676,7 +679,7 @@ export default function DashboardPage() {
                         {shop.logo_url ? (
                           <img src={shop.logo_url} alt={shop.name} className="w-full h-full object-cover" />
                         ) : (
-                          <span className="text-base font-black text-white bg-[#1372e6] w-full h-full flex items-center justify-center">
+                          <span className="text-base font-black text-white w-full h-full flex items-center justify-center" style={{ backgroundColor: "#1372e6" }}>
                             {initial}
                           </span>
                         )}
@@ -730,10 +733,10 @@ export default function DashboardPage() {
                 <Package size={10} className="text-[#1372e6]" /> {stats.products} {t("dash.products")}
               </span>
               <span className="flex items-center gap-1 text-[9px] font-semibold text-slate-600 bg-slate-100 px-2 py-1 rounded-full">
-                <Users size={10} className="text-indigo-500" /> {stats.partners} {t("dash.partners")}
+                <Users size={10} className="text-[#1372e6]" /> {stats.partners} {t("dash.partners")}
               </span>
               <span className="flex items-center gap-1 text-[9px] font-semibold text-slate-600 bg-slate-100 px-2 py-1 rounded-full">
-                <ShoppingCart size={10} className="text-teal-500" /> {stats.sales} {t("dash.sales_today")}
+                <ShoppingCart size={10} className="text-[#1372e6]" /> {stats.sales} {t("dash.sales_today")}
               </span>
               {stats.revenue > 0 && (
                 <span className="flex items-center gap-1 text-[9px] font-semibold text-green-700 bg-green-50 px-2 py-1 rounded-full">
@@ -778,8 +781,8 @@ interface KpiCardProps {
 
 const KPI_COLORS: Record<string, { icon: string; accent: string; bg: string }> = {
   blue:   { icon: "bg-[#EBF4FF] text-[#1372e6]",  accent: "bg-[#1372e6]",  bg: "" },
-  indigo: { icon: "bg-indigo-50 text-indigo-600",  accent: "bg-indigo-500", bg: "" },
-  teal:   { icon: "bg-teal-50 text-teal-600",      accent: "bg-teal-500",   bg: "" },
+  indigo: { icon: "bg-[#EBF2FD] text-[#1372e6]",  accent: "bg-[#1372e6]", bg: "" },
+  teal:   { icon: "bg-[#EBF2FD] text-[#1372e6]",  accent: "bg-[#1372e6]", bg: "" },
   green:  { icon: "bg-green-50 text-green-600",    accent: "bg-green-500",  bg: "" },
   orange: { icon: "bg-amber-50 text-amber-600",    accent: "bg-amber-500",  bg: "" },
   red:    { icon: "bg-red-50 text-red-600",        accent: "bg-red-500",    bg: "" },
@@ -797,7 +800,7 @@ function KpiCard({ label, value, icon, color, href, sub, small, delta, warn, t }
         {/* Top row: label + icon */}
         <div className="flex items-center justify-between mb-2">
           <p className="text-[9px] text-slate-400 uppercase tracking-widest font-semibold">{label}</p>
-          <div className={`w-7 h-7 rounded-lg ${c.icon} flex items-center justify-center flex-shrink-0`}>
+          <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 text-white" style={{ backgroundColor: "#1372e6" }}>
             {icon}
           </div>
         </div>

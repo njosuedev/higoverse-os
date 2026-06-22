@@ -488,7 +488,7 @@ ${paymentHtml}
       <div className="max-w-7xl mx-auto px-3 sm:px-5 py-3 sm:py-4">
 
         {/* HEADER */}
-        <div className="bg-[#1372e6] text-white rounded-xl p-4 mb-3">
+        <div className="text-white rounded-xl p-4 mb-3" style={{ backgroundColor: "#1372e6" }}>
           <div className="flex flex-wrap justify-between items-center gap-2">
             <div className="flex items-center gap-2.5">
               <ShoppingBag size={20} />
@@ -567,7 +567,7 @@ ${paymentHtml}
                 <p className="text-base font-bold mt-1.5 text-[#1372e6]">{stats.total}</p>
                 <p className="text-xs text-slate-400 mt-0.5">{stats.itemsSold} items sold</p>
               </div>
-              <div className="bg-[#EBF2FD] text-[#1372e6] p-1.5 rounded-lg"><ReceiptText size={17} /></div>
+              <div className="p-1.5 rounded-lg text-white" style={{ backgroundColor: "#1372e6" }}><ReceiptText size={17} strokeWidth={2.5} /></div>
             </div>
           </div>
           <div className="bg-white rounded-xl border border-slate-200 p-3">
@@ -577,7 +577,7 @@ ${paymentHtml}
                 <p className="text-base font-bold mt-1.5 text-green-600">{stats.revenue.toLocaleString()}</p>
                 <p className="text-xs text-slate-400 mt-0.5">avg {Math.round(stats.avgSale).toLocaleString()} / sale</p>
               </div>
-              <div className="bg-green-50 text-green-600 p-1.5 rounded-lg"><DollarSign size={17} /></div>
+              <div className="p-1.5 rounded-lg text-white" style={{ backgroundColor: "#1372e6" }}><DollarSign size={17} strokeWidth={2.5} /></div>
             </div>
           </div>
           <div className="bg-white rounded-xl border border-slate-200 p-3">
@@ -591,8 +591,8 @@ ${paymentHtml}
                   {stats.margin.toFixed(1)}% margin
                 </p>
               </div>
-              <div className={`p-1.5 rounded-lg ${stats.profit >= 0 ? "bg-green-50 text-green-700" : "bg-red-50 text-red-500"}`}>
-                <TrendingUp size={17} />
+              <div className="p-1.5 rounded-lg text-white" style={{ backgroundColor: "#1372e6" }}>
+                <TrendingUp size={17} strokeWidth={2.5} />
               </div>
             </div>
           </div>
@@ -603,7 +603,7 @@ ${paymentHtml}
                 <p className="text-base font-bold mt-1.5 text-[#1372e6]">{stats.uniqueCustomers}</p>
                 <p className="text-xs text-slate-400 mt-0.5">unique buyers</p>
               </div>
-              <div className="bg-[#EBF2FD] text-[#1372e6] p-1.5 rounded-lg"><Users size={17} /></div>
+              <div className="p-1.5 rounded-lg text-white" style={{ backgroundColor: "#1372e6" }}><Users size={17} strokeWidth={2.5} /></div>
             </div>
           </div>
           <div className="bg-white rounded-xl border border-slate-200 p-3">
@@ -613,7 +613,7 @@ ${paymentHtml}
                 <p className="text-base font-bold mt-1.5 text-orange-500">{debtsTotalOutstanding.toLocaleString()}</p>
                 <p className="text-xs text-slate-400 mt-0.5">{pendingDebts.length} unpaid {pendingDebts.length === 1 ? "debt" : "debts"}</p>
               </div>
-              <div className="bg-orange-50 text-orange-500 p-1.5 rounded-lg"><AlertCircle size={17} /></div>
+              <div className="p-1.5 rounded-lg text-white" style={{ backgroundColor: "#1372e6" }}><AlertCircle size={17} strokeWidth={2.5} /></div>
             </div>
           </div>
         </div>

@@ -308,7 +308,7 @@ export default function ReportsPage() {
       <div className="max-w-7xl mx-auto px-3 sm:px-5 py-3 sm:py-4 space-y-3">
 
         {/* ── HEADER ─────────────────────────────────────────────────────────── */}
-        <div className="bg-[#1372e6] text-white rounded-xl p-3">
+        <div className="text-white rounded-xl p-3" style={{ backgroundColor: "#1372e6" }}>
           <div className="flex flex-wrap justify-between items-start gap-4">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center">
@@ -376,7 +376,7 @@ export default function ReportsPage() {
                 value={`RWF ${fmtRWF(stockCost)}`}
                 detail={`How much you paid for all ${fmtNum(summary.total_products)} items in stock`}
                 icon={<Package size={18} />}
-                color="indigo"
+                color="blue"
                 pulse
               />
               <KpiCard
@@ -392,7 +392,7 @@ export default function ReportsPage() {
                 value={`RWF ${fmtRWF(summary.potential_profit)}`}
                 detail={`Extra money from selling all stock · ${stockCost > 0 ? ((summary.potential_profit / stockCost) * 100).toFixed(1) : 0}% return on what you paid`}
                 icon={<TrendingUp size={18} />}
-                color="violet"
+                color="blue"
                 pulse
               />
             </div>
@@ -419,7 +419,7 @@ export default function ReportsPage() {
                 value={`RWF ${fmtRWF(summary.revenue)}`}
                 detail={`Total from ${summary.sales_count} sales · ${summary.unique_customers} customers`}
                 icon={<ShoppingCart size={18} />}
-                color="teal"
+                color="blue"
               />
               <KpiCard
                 label="Gross Profit (Sales)"
@@ -619,9 +619,9 @@ export default function ReportsPage() {
 
               <div className="grid grid-cols-2 gap-2">
                 {stockCost > 0 && (
-                  <div className="bg-violet-50 rounded-lg p-2">
+                  <div className="bg-[#EBF2FD] rounded-lg p-2">
                     <p className="text-xs text-slate-500">Profit rate on stock</p>
-                    <p className="text-sm font-bold text-violet-700 mt-0.5">
+                    <p className="text-sm font-bold text-[#1372e6] mt-0.5">
                       {((summary.potential_profit / stockCost) * 100).toFixed(1)}%
                     </p>
                     <p className="text-[10px] text-slate-400 mt-0.5">For every 100 RWF you spent, you earn this extra</p>
@@ -676,7 +676,7 @@ export default function ReportsPage() {
                 </h2>
               </div>
               <Link href="/PurchaseManagement"
-                className="flex items-center gap-1.5 text-xs font-semibold text-violet-600 bg-violet-50 hover:bg-violet-100 px-3 py-1.5 rounded-lg transition">
+                className="flex items-center gap-1.5 text-xs font-semibold text-[#1372e6] bg-[#EBF2FD] hover:bg-[#D5E8FB] px-3 py-1.5 rounded-lg transition">
                 <ArrowUpRight size={12} /> {t("purchases.add")}
               </Link>
             </div>
@@ -707,7 +707,7 @@ export default function ReportsPage() {
                       <td className="px-3 py-2">
                         <Link
                           href={`/PurchaseManagement?name=${encodeURIComponent(item.name)}&cost=${item.cost_price}&selling=${item.selling_price}&supplierId=${item.supplier_id ?? ""}`}
-                          className="text-xs font-semibold text-violet-600 hover:underline flex items-center gap-0.5">
+                          className="text-xs font-semibold text-[#1372e6] hover:underline flex items-center gap-0.5">
                           <ArrowUpRight size={11} /> {t("reports.restock")}
                         </Link>
                       </td>
@@ -731,13 +731,13 @@ export default function ReportsPage() {
           <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
             <div className="flex justify-between items-center px-4 py-3 border-b border-slate-100">
               <div className="flex items-center gap-2">
-                <Truck size={16} className="text-violet-500" />
+                <Truck size={16} className="text-[#1372e6]" />
                 <h2 className="text-sm font-semibold text-slate-700">
-                  Recent Purchases — <span className="text-violet-600">RWF {fmtRWF(purchaseTotalSpent)} spent</span>
+                  Recent Purchases — <span className="text-[#1372e6]">RWF {fmtRWF(purchaseTotalSpent)} spent</span>
                 </h2>
               </div>
               <Link href="/PurchaseManagement"
-                className="flex items-center gap-1.5 text-xs font-semibold text-violet-600 bg-violet-50 hover:bg-violet-100 px-3 py-1.5 rounded-lg transition">
+                className="flex items-center gap-1.5 text-xs font-semibold text-[#1372e6] bg-[#EBF2FD] hover:bg-[#D5E8FB] px-3 py-1.5 rounded-lg transition">
                 <ArrowUpRight size={12} /> View All
               </Link>
             </div>
@@ -801,10 +801,10 @@ export default function ReportsPage() {
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
 const kpiColors: Record<string, { bg: string; text: string; badge: string }> = {
-  indigo:  { bg: "bg-indigo-50",   text: "text-indigo-600",   badge: "bg-indigo-100 text-indigo-700"   },
+  indigo:  { bg: "bg-[#EBF2FD]",   text: "text-[#1372e6]",   badge: "bg-[#D5E8FB] text-[#1372e6]"     },
   blue:    { bg: "bg-[#EBF2FD]",   text: "text-[#1372e6]",   badge: "bg-[#D5E8FB] text-[#1372e6]"     },
-  violet:  { bg: "bg-violet-50",   text: "text-violet-600",   badge: "bg-violet-100 text-violet-700"   },
-  teal:    { bg: "bg-teal-50",     text: "text-teal-600",     badge: "bg-teal-100 text-teal-700"       },
+  violet:  { bg: "bg-[#EBF2FD]",   text: "text-[#1372e6]",   badge: "bg-[#D5E8FB] text-[#1372e6]"     },
+  teal:    { bg: "bg-[#EBF2FD]",   text: "text-[#1372e6]",   badge: "bg-[#D5E8FB] text-[#1372e6]"     },
   emerald: { bg: "bg-emerald-50",  text: "text-emerald-600",  badge: "bg-emerald-100 text-emerald-700" },
   red:     { bg: "bg-red-50",      text: "text-red-600",      badge: "bg-red-100 text-red-700"         },
   amber:   { bg: "bg-amber-50",    text: "text-amber-600",    badge: "bg-amber-100 text-amber-700"     },

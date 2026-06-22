@@ -1,5 +1,13 @@
 import type { Metadata } from "next";
+import { Sora } from "next/font/google";
 import "./globals.css";
+
+const sora = Sora({
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "600", "700", "800"],
+  variable: "--font-sans",
+  display: "swap",
+});
 
 import AuthGuard from "@/app/components/AuthGuard";
 import DeviceGuard from "@/app/components/DeviceGuard";
@@ -107,7 +115,7 @@ export default function RootLayout({
       <head>
         <script dangerouslySetInnerHTML={{ __html: `(function(){try{if(localStorage.getItem('darkMode')==='true')document.documentElement.classList.add('dark')}catch(e){}})();` }} />
       </head>
-      <body>
+      <body className={`${sora.variable} ${sora.className}`}>
         <AuthProvider>
           <LanguageProvider>
             <AuthGuard>

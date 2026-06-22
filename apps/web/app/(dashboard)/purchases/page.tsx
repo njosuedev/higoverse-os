@@ -222,7 +222,7 @@ export default function PurchaseManagementPage() {
       <div className="max-w-7xl mx-auto px-3 sm:px-5 py-3 sm:py-4">
 
         {/* HEADER */}
-        <div className="bg-[#1372e6] text-white rounded-xl p-4 mb-3">
+        <div className="text-white rounded-xl p-4 mb-3" style={{ backgroundColor: "#1372e6" }}>
           <div className="flex flex-wrap justify-between items-center gap-2">
             <div className="flex items-center gap-2.5">
               <ShoppingCart size={20} />
@@ -309,12 +309,12 @@ export default function PurchaseManagementPage() {
         {/* STAT CARDS */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-3">
           {[
-            { label: "Total Products",        value: productsTotal,                        sub: "items in your shop",              color: "text-[#1372e6]", bg: "bg-[#EBF2FD]", icon: <Package size={17} /> },
-            { label: "What You Paid",         value: invStats.costValue.toLocaleString(),   sub: "total cost of all stock",         color: "text-[#1372e6]", bg: "bg-[#EBF2FD]", icon: <DollarSign size={17} /> },
-            { label: "If You Sell All",       value: invStats.retailValue.toLocaleString(), sub: "money you'd earn selling everything", color: "text-[#1372e6]",   bg: "bg-[#EBF2FD]",    icon: <TrendingUp size={17} /> },
-            { label: "Profit to Make",        value: invStats.grossProfit.toLocaleString(), sub: "extra money once all stock is sold",   color: "text-green-600",  bg: "bg-green-50",   icon: <TrendingUp size={17} /> },
-            { label: "Almost Finished",       value: invStats.lowStock,                    sub: "10 units or less — restock soon",  color: "text-amber-500",  bg: "bg-amber-50",   icon: <AlertCircle size={17} /> },
-            { label: "Finished / Empty",      value: invStats.outStock,                    sub: "zero units — buy more now",        color: "text-red-600",    bg: "bg-red-50",     icon: <AlertCircle size={17} /> },
+            { label: "Total Products",        value: productsTotal,                        sub: "items in your shop",              color: "text-[#1372e6]", bg: "bg-[#EBF2FD]", icon: <Package size={17} strokeWidth={2.5} /> },
+            { label: "What You Paid",         value: invStats.costValue.toLocaleString(),   sub: "total cost of all stock",         color: "text-[#1372e6]", bg: "bg-[#EBF2FD]", icon: <DollarSign size={17} strokeWidth={2.5} /> },
+            { label: "If You Sell All",       value: invStats.retailValue.toLocaleString(), sub: "money you'd earn selling everything", color: "text-[#1372e6]",   bg: "bg-[#EBF2FD]",    icon: <TrendingUp size={17} strokeWidth={2.5} /> },
+            { label: "Profit to Make",        value: invStats.grossProfit.toLocaleString(), sub: "extra money once all stock is sold",   color: "text-green-600",  bg: "bg-green-50",   icon: <TrendingUp size={17} strokeWidth={2.5} /> },
+            { label: "Almost Finished",       value: invStats.lowStock,                    sub: "10 units or less — restock soon",  color: "text-amber-500",  bg: "bg-amber-50",   icon: <AlertCircle size={17} strokeWidth={2.5} /> },
+            { label: "Finished / Empty",      value: invStats.outStock,                    sub: "zero units — buy more now",        color: "text-red-600",    bg: "bg-red-50",     icon: <AlertCircle size={17} strokeWidth={2.5} /> },
           ].map((card) => (
             <div key={card.label} className="bg-white rounded-xl border border-slate-200 p-3">
               <div className="flex flex-wrap justify-between items-start gap-2">
@@ -323,7 +323,7 @@ export default function PurchaseManagementPage() {
                   <p className={`text-base font-bold mt-1.5 ${card.color}`}>{card.value}</p>
                   <p className="text-[10px] text-slate-400 mt-0.5 leading-tight">{card.sub}</p>
                 </div>
-                <div className={`${card.bg} ${card.color} p-1.5 rounded-lg shrink-0`}>{card.icon}</div>
+                <div className="p-1.5 rounded-lg shrink-0 text-white" style={{ backgroundColor: "#1372e6" }}>{card.icon}</div>
               </div>
             </div>
           ))}

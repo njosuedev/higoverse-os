@@ -180,7 +180,7 @@ export default function PartnerManagementPage() {
     <div className="min-h-screen">
       <div className="max-w-7xl mx-auto px-3 sm:px-5 py-3 sm:py-4">
 
-        <div className="bg-[#1372e6] text-white rounded-xl p-4 mb-4">
+        <div className="text-white rounded-xl p-4 mb-4" style={{ backgroundColor: "#1372e6" }}>
           <div className="flex flex-wrap justify-between items-center gap-2">
             <div className="flex items-center gap-2.5">
               <Users size={20} />
@@ -219,11 +219,11 @@ export default function PartnerManagementPage() {
 
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-3">
           {[
-            { label: t("partners.total"),   value: stats.total,           color: "text-green-600",   bg: "bg-green-50",   icon: <Users size={17} /> },
-            { label: t("partners.suppliers"),        value: stats.suppliers,       color: "text-[#1372e6]",    bg: "bg-[#EBF2FD]",    icon: <Building2 size={17} /> },
-            { label: t("partners.customers"),        value: stats.customers,       color: "text-[#1372e6]", bg: "bg-[#EBF2FD]", icon: <UserCheck size={17} /> },
-            { label: t("partners.active_suppliers"), value: stats.activeSuppliers, color: "text-[#1372e6]", bg: "bg-[#EBF2FD]", icon: <UserCog size={17} /> },
-            { label: t("partners.items_supplied"),   value: stats.itemsSupplied,   color: "text-[#1372e6]", bg: "bg-[#EBF2FD]", icon: <Package size={17} /> },
+            { label: t("partners.total"),   value: stats.total,           color: "text-green-600",   bg: "bg-green-50",   icon: <Users size={17} strokeWidth={2.5} /> },
+            { label: t("partners.suppliers"),        value: stats.suppliers,       color: "text-[#1372e6]",    bg: "bg-[#EBF2FD]",    icon: <Building2 size={17} strokeWidth={2.5} /> },
+            { label: t("partners.customers"),        value: stats.customers,       color: "text-[#1372e6]", bg: "bg-[#EBF2FD]", icon: <UserCheck size={17} strokeWidth={2.5} /> },
+            { label: t("partners.active_suppliers"), value: stats.activeSuppliers, color: "text-[#1372e6]", bg: "bg-[#EBF2FD]", icon: <UserCog size={17} strokeWidth={2.5} /> },
+            { label: t("partners.items_supplied"),   value: stats.itemsSupplied,   color: "text-[#1372e6]", bg: "bg-[#EBF2FD]", icon: <Package size={17} strokeWidth={2.5} /> },
           ].map((card) => (
             <div key={card.label} className="bg-white rounded-xl border border-slate-200 p-3">
               <div className="flex flex-wrap justify-between items-start gap-2">
@@ -231,7 +231,7 @@ export default function PartnerManagementPage() {
                   <p className="text-xs font-medium text-gray-400 uppercase tracking-wide leading-none">{card.label}</p>
                   <p className={`text-base font-bold mt-1.5 ${card.color}`}>{card.value}</p>
                 </div>
-                <div className={`${card.bg} ${card.color} p-1.5 rounded-lg`}>{card.icon}</div>
+                <div className="p-1.5 rounded-lg text-white" style={{ backgroundColor: "#1372e6" }}>{card.icon}</div>
               </div>
             </div>
           ))}

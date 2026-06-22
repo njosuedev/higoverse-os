@@ -252,25 +252,25 @@ export default function ExpenseManagementPage() {
               label: t("expenses.total_today"),
               value: summaryToday.total_expenses.toLocaleString(),
               sub: `${summaryToday.count} ${t("expenses.records")}`,
-              color: "text-[#1372e6]", bg: "bg-[#EBF2FD]", icon: <TrendingDown size={17} />,
+              color: "text-[#1372e6]", bg: "bg-[#EBF2FD]", icon: <TrendingDown size={17} strokeWidth={2.5} />,
             },
             {
               label: t("expenses.total_month"),
               value: summaryMonth.total_expenses.toLocaleString(),
               sub: `${summaryMonth.count} ${t("expenses.records")}`,
-              color: "text-[#0d5cc4]", bg: "bg-[#D5E8FB]", icon: <DollarSign size={17} />,
+              color: "text-[#0d5cc4]", bg: "bg-[#D5E8FB]", icon: <DollarSign size={17} strokeWidth={2.5} />,
             },
             {
               label: t("expenses.top_category"),
               value: topCategory ? t(`expenses.cat.${topCategory.category}`) : "—",
               sub: topCategory ? topCategory.total.toLocaleString() : t("common.no_data"),
-              color: "text-orange-600", bg: "bg-orange-50", icon: <Tag size={17} />,
+              color: "text-orange-600", bg: "bg-orange-50", icon: <Tag size={17} strokeWidth={2.5} />,
             },
             {
               label: t("expenses.categories_used"),
               value: byCategory.length,
               sub: `${ALL_CATEGORIES.length} ${t("expenses.available")}`,
-              color: "text-violet-600", bg: "bg-violet-50", icon: <BarChart3 size={17} />,
+              color: "text-violet-600", bg: "bg-violet-50", icon: <BarChart3 size={17} strokeWidth={2.5} />,
             },
           ].map((card) => (
             <div key={card.label} className="bg-white rounded-xl border border-slate-200 p-3">
@@ -280,7 +280,7 @@ export default function ExpenseManagementPage() {
                   <p className={`text-base font-bold mt-1.5 ${card.color}`}>{card.value}</p>
                   <p className="text-[10px] text-slate-400 mt-0.5 leading-tight">{card.sub}</p>
                 </div>
-                <div className={`${card.bg} ${card.color} p-1.5 rounded-lg shrink-0`}>{card.icon}</div>
+                <div className="p-1.5 rounded-lg shrink-0 text-white" style={{ backgroundColor: "#1372e6" }}>{card.icon}</div>
               </div>
             </div>
           ))}
