@@ -14,6 +14,7 @@ import {
   ShoppingBag, Search, Filter, Plus, Trash2, Pencil, X,
   TrendingUp, DollarSign, Users, ReceiptText, Package, RefreshCw, Calendar, Printer,
   Wallet, AlertCircle, CheckCircle2, Phone, ChevronDown,
+  Download, Upload, FileSpreadsheet, FileText,
 } from "lucide-react";
 
 interface Sale {
@@ -111,6 +112,7 @@ export default function SaleManagementPage() {
   const [showPayModal, setShowPayModal] = useState<Debt | null>(null);
   const [deletingDebtId, setDeletingDebtId] = useState("");
 
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const loadDataRef = useRef<(soft?: boolean) => Promise<void>>(async () => {});
   useEffect(() => { loadDataRef.current = loadData; });
 
@@ -338,6 +340,95 @@ export default function SaleManagementPage() {
       await loadDebts();
     } catch { alert("Delete failed."); }
     finally { setDeletingDebtId(""); }
+  }
+
+  async function downloadTemplate() {
+    const XLSX = await import("xlsx");
+    const ws = XLSX.utils.aoa_to_sheet([
+      ["product_name", "quantity", "unit_price", "payment_method", "notes"],
+      ["Sugar 1kg", "5", "1000", "cash", ""],
+      ["Rice 5kg", "2", "4500", "mtn", ""],
+    ]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Sales");
+    XLSX.writeFile(wb, "sales_template.xlsx");
+  }
+
+  async function handleImportSales(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const XLSX = await import("xlsx");
+      const data = await file.arrayBuffer();
+      const wb = XLSX.read(data);
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows: Record<string, string>[] = XLSX.utils.sheet_to_json(ws);
+      let imported = 0, failed = 0;
+      for (const row of rows) {
+        try {
+          const productName = (row.product_name || row["Product Name"] || "").trim();
+          const product = products.find((p) => p.name.toLowerCase() === productName.toLowerCase());
+          if (!product) { failed++; continue; }
+          await saleRequest("/sales", {
+            method: "POST",
+            body: JSON.stringify({
+              product_id: product.id,
+              quantity: Number(row.quantity || row.Quantity || 1),
+              unit_price: Number(row.unit_price || row["Unit Price"] || product.selling_price),
+              payment_method: (row.payment_method || row["Payment Method"] || "cash").toLowerCase(),
+              notes: (row.notes || row.Notes || "").trim() || undefined,
+            }),
+          });
+          imported++;
+        } catch { failed++; }
+      }
+      e.target.value = "";
+      alert(`Imported ${imported} sales${failed ? `, ${failed} failed` : ""}.`);
+      await loadData(true);
+    } catch { alert("Failed to parse file."); }
+  }
+
+  async function exportSalesExcel() {
+    const XLSX = await import("xlsx");
+    const data = filtered.map((s) => ({
+      Date: s.created_at ? new Date(s.created_at).toLocaleDateString() : "",
+      Product: s.product_name || productMap[s.product_id]?.name || "",
+      Customer: customerMap[s.customer_id || ""]?.name || "",
+      Payment: s.payment_method || "cash",
+      Qty: s.quantity,
+      "Unit Price": s.unit_price,
+      Total: s.total_amount,
+      Profit: s.profit || 0,
+    }));
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Sales");
+    XLSX.writeFile(wb, "sales.xlsx");
+  }
+
+  async function exportSalesPDF() {
+    const { jsPDF } = await import("jspdf");
+    const { default: autoTable } = await import("jspdf-autotable");
+    const doc = new jsPDF({ orientation: "landscape" });
+    doc.setFontSize(14);
+    doc.text("Sales Report", 14, 16);
+    autoTable(doc, {
+      startY: 22,
+      head: [["Date", "Product", "Customer", "Payment", "Qty", "Unit Price", "Total", "Profit"]],
+      body: filtered.map((s) => [
+        s.created_at ? new Date(s.created_at).toLocaleDateString() : "—",
+        s.product_name || productMap[s.product_id]?.name || "—",
+        customerMap[s.customer_id || ""]?.name || "—",
+        s.payment_method || "cash",
+        String(s.quantity),
+        s.unit_price.toLocaleString(),
+        s.total_amount.toLocaleString(),
+        (s.profit || 0).toLocaleString(),
+      ]),
+      styles: { fontSize: 7 },
+      headStyles: { fillColor: [19, 114, 230] },
+    });
+    doc.save("sales.pdf");
   }
 
   function printReceiptPopup(salesToPrint: Sale[]) {
@@ -608,7 +699,32 @@ ${paymentHtml}
         )}
 
         {/* TABLE */}
-        <div className="bg-white rounded-xl border border-slate-200 overflow-x-auto mb-6">
+        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden mb-6">
+          <div className="flex items-center justify-between px-3 py-1.5 border-b border-slate-100 bg-slate-50/60">
+            <p className="text-[10px] text-slate-500">
+              <span className="font-semibold text-slate-700">{filtered.length.toLocaleString()}</span> of <span className="font-semibold text-slate-700">{salesTotal.toLocaleString()}</span> sales
+            </p>
+            <div className="flex items-center gap-1.5">
+              <button onClick={downloadTemplate} title="Download import template"
+                className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium border border-violet-200 text-violet-600 bg-white hover:bg-violet-50 transition">
+                <Download size={10} /> Template
+              </button>
+              <button onClick={() => fileInputRef.current?.click()} title="Import from CSV/Excel"
+                className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium border border-violet-200 text-violet-600 bg-white hover:bg-violet-50 transition">
+                <Upload size={10} /> Import
+              </button>
+              <button onClick={exportSalesExcel} title="Export to Excel"
+                className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium border border-green-200 text-green-600 bg-white hover:bg-green-50 transition">
+                <FileSpreadsheet size={10} /> Excel
+              </button>
+              <button onClick={exportSalesPDF} title="Export to PDF"
+                className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium border border-red-200 text-red-600 bg-white hover:bg-red-50 transition">
+                <FileText size={10} /> PDF
+              </button>
+            </div>
+          </div>
+          <input ref={fileInputRef} type="file" accept=".csv,.xlsx,.xls" className="hidden" onChange={handleImportSales} />
+          <div className="overflow-x-auto">
           {(debouncedSearch || filter !== "all") && (
             <div className="px-4 py-2.5 border-b border-slate-100 text-xs text-slate-500 bg-slate-50">
               <span className="font-semibold text-slate-700">{filtered.length.toLocaleString()}</span> results
@@ -712,6 +828,7 @@ ${paymentHtml}
               })()}
             </tbody>
           </table>
+          </div>
 
           {filtered.length === 0 && (
             <div className="flex flex-col items-center justify-center py-16 text-slate-400">

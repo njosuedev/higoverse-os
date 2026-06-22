@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { itemRequest } from "@/lib/product-api";
 import { partnerRequest } from "@/lib/supplier-api";
@@ -14,6 +14,7 @@ import {
   ShoppingCart, AlertCircle, Search, Filter, Plus, Trash2, X,
   Truck, DollarSign, TrendingUp, Package, Users, RefreshCw,
   History, LayoutGrid, Calendar, ChevronDown,
+  Download, Upload, FileSpreadsheet, FileText,
 } from "lucide-react";
 
 interface Product {
@@ -66,8 +67,122 @@ export default function PurchaseManagementPage() {
   const [isRestocking, setIsRestocking] = useState(false);
 
   const debouncedInvSearch = useDebounce(invSearch, 350);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { loadAll(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function downloadTemplate() {
+    const XLSX = await import("xlsx");
+    const ws = XLSX.utils.aoa_to_sheet([
+      ["product_name", "description", "cost_price", "selling_price", "quantity_added"],
+      ["Sugar 1kg", "White sugar bag", "800", "1000", "50"],
+      ["Rice 5kg", "Long grain rice", "3500", "4500", "20"],
+    ]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Purchases");
+    XLSX.writeFile(wb, "purchases_template.xlsx");
+  }
+
+  async function handleImport(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const XLSX = await import("xlsx");
+      const data = await file.arrayBuffer();
+      const wb = XLSX.read(data);
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows: Record<string, string>[] = XLSX.utils.sheet_to_json(ws);
+      let imported = 0, failed = 0;
+      for (const row of rows) {
+        try {
+          const name = (row.product_name || row["Product Name"] || "").trim();
+          const cost = Number(row.cost_price || row["Cost Price"] || 0);
+          const qty = Number(row.quantity_added || row["Qty Added"] || 0);
+          if (!name || !cost || !qty) { failed++; continue; }
+          const payload: Record<string, unknown> = {
+            product_name: name,
+            cost_price: cost,
+            selling_price: row.selling_price ? Number(row.selling_price) : undefined,
+            quantity_added: qty,
+            description: (row.description || row.Description || "").trim() || undefined,
+          };
+          await purchaseRequest("/purchases", { method: "POST", body: JSON.stringify(payload) });
+          imported++;
+        } catch { failed++; }
+      }
+      e.target.value = "";
+      alert(`Imported ${imported} records${failed ? `, ${failed} failed` : ""}.`);
+      await loadAll(true);
+    } catch { alert("Failed to parse file."); }
+  }
+
+  async function exportExcel() {
+    const XLSX = await import("xlsx");
+    let data: Record<string, unknown>[];
+    if (tab === "inventory") {
+      data = paginatedProducts.map((p) => ({
+        Product: p.name,
+        Description: p.description || "",
+        Supplier: supplierMap[p.supplier_id ?? ""]?.name || "",
+        "Cost Price": p.cost_price,
+        "Selling Price": p.selling_price,
+        Quantity: p.quantity,
+      }));
+    } else {
+      data = purchases.map((p) => ({
+        Date: p.created_at ? new Date(p.created_at).toLocaleDateString() : "",
+        Product: p.product_name,
+        Supplier: supplierMap[p.supplier_id ?? ""]?.name || "",
+        "Qty Added": p.quantity_added,
+        "Cost Price": p.cost_price,
+        "Total Cost": p.total_cost,
+      }));
+    }
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, tab === "inventory" ? "Inventory" : "History");
+    XLSX.writeFile(wb, `purchases_${tab}.xlsx`);
+  }
+
+  async function exportPDF() {
+    const { jsPDF } = await import("jspdf");
+    const { default: autoTable } = await import("jspdf-autotable");
+    const doc = new jsPDF();
+    doc.setFontSize(14);
+    if (tab === "inventory") {
+      doc.text("Inventory", 14, 16);
+      autoTable(doc, {
+        startY: 22,
+        head: [["Product", "Supplier", "Cost Price", "Selling Price", "Qty"]],
+        body: paginatedProducts.map((p) => [
+          p.name,
+          supplierMap[p.supplier_id ?? ""]?.name || "—",
+          p.cost_price.toLocaleString(),
+          p.selling_price.toLocaleString(),
+          String(p.quantity),
+        ]),
+        styles: { fontSize: 8 },
+        headStyles: { fillColor: [19, 114, 230] },
+      });
+    } else {
+      doc.text("Purchase History", 14, 16);
+      autoTable(doc, {
+        startY: 22,
+        head: [["Date", "Product", "Supplier", "Qty Added", "Cost Price", "Total"]],
+        body: purchases.map((p) => [
+          p.created_at ? new Date(p.created_at).toLocaleDateString() : "—",
+          p.product_name,
+          supplierMap[p.supplier_id ?? ""]?.name || "—",
+          String(p.quantity_added),
+          p.cost_price.toLocaleString(),
+          p.total_cost.toLocaleString(),
+        ]),
+        styles: { fontSize: 8 },
+        headStyles: { fillColor: [19, 114, 230] },
+      });
+    }
+    doc.save(`purchases_${tab}.pdf`);
+  }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { if (!loading) loadHistory(true); }, [dateFrom, dateTo, histPage, histPageSize]);
 
@@ -352,7 +467,32 @@ export default function PurchaseManagementPage() {
 
         {/* INVENTORY TABLE */}
         {tab === "inventory" && (
-          <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-x-auto">
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="flex items-center justify-between px-3 py-1.5 border-b border-slate-100 bg-slate-50/60">
+              <p className="text-[10px] text-slate-500">
+                <span className="font-semibold text-slate-700">{paginatedProducts.length}</span> of <span className="font-semibold text-slate-700">{filteredProducts.length}</span> products
+              </p>
+              <div className="flex items-center gap-1.5">
+                <button onClick={downloadTemplate} title="Download import template"
+                  className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium border border-violet-200 text-violet-600 bg-white hover:bg-violet-50 transition">
+                  <Download size={10} /> Template
+                </button>
+                <button onClick={() => fileInputRef.current?.click()} title="Import from CSV/Excel"
+                  className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium border border-violet-200 text-violet-600 bg-white hover:bg-violet-50 transition">
+                  <Upload size={10} /> Import
+                </button>
+                <button onClick={exportExcel} title="Export to Excel"
+                  className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium border border-green-200 text-green-600 bg-white hover:bg-green-50 transition">
+                  <FileSpreadsheet size={10} /> Excel
+                </button>
+                <button onClick={exportPDF} title="Export to PDF"
+                  className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium border border-red-200 text-red-600 bg-white hover:bg-red-50 transition">
+                  <FileText size={10} /> PDF
+                </button>
+              </div>
+            </div>
+            <input ref={fileInputRef} type="file" accept=".csv,.xlsx,.xls" className="hidden" onChange={handleImport} />
+            <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200">
@@ -406,6 +546,7 @@ export default function PurchaseManagementPage() {
                 })}
               </tbody>
             </table>
+            </div>
             {paginatedProducts.length === 0 && (
               <div className="flex flex-col items-center justify-center py-12 text-slate-400">
                 <div className="p-4 bg-slate-100 rounded-2xl mb-3"><Package size={28} className="opacity-40" /></div>
@@ -424,7 +565,30 @@ export default function PurchaseManagementPage() {
 
         {/* HISTORY TABLE */}
         {tab === "history" && (
-          <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-x-auto">
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="flex items-center justify-between px-3 py-1.5 border-b border-slate-100 bg-slate-50/60">
+              <p className="text-[10px] text-slate-500">
+                <span className="font-semibold text-slate-700">{purchases.length}</span> of <span className="font-semibold text-slate-700">{purchasesTotal}</span> records
+              </p>
+              <div className="flex items-center gap-1.5">
+                <button onClick={downloadTemplate} title="Download import template"
+                  className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium border border-violet-200 text-violet-600 bg-white hover:bg-violet-50 transition">
+                  <Download size={10} /> Template
+                </button>
+                <button onClick={() => fileInputRef.current?.click()} title="Import from CSV/Excel"
+                  className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium border border-violet-200 text-violet-600 bg-white hover:bg-violet-50 transition">
+                  <Upload size={10} /> Import
+                </button>
+                <button onClick={exportExcel} title="Export to Excel"
+                  className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium border border-green-200 text-green-600 bg-white hover:bg-green-50 transition">
+                  <FileSpreadsheet size={10} /> Excel
+                </button>
+                <button onClick={exportPDF} title="Export to PDF"
+                  className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium border border-red-200 text-red-600 bg-white hover:bg-red-50 transition">
+                  <FileText size={10} /> PDF
+                </button>
+              </div>
+            </div>
             {hasDateFilter && (
               <div className="flex items-center gap-2 px-4 py-1.5 border-b border-slate-100 text-[10px] text-[#1372e6] bg-[#EBF2FD]">
                 <Calendar size={12} />
@@ -436,6 +600,7 @@ export default function PurchaseManagementPage() {
                 <button onClick={() => { setDateFrom(""); setDateTo(""); setHistPage(1); }} className="ml-auto hover:opacity-70" style={{ color: "#1372e6" }}><X size={12} /></button>
               </div>
             )}
+            <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200">
@@ -481,6 +646,7 @@ export default function PurchaseManagementPage() {
                 })}
               </tbody>
             </table>
+            </div>
             {purchases.length === 0 && (
               <div className="flex flex-col items-center justify-center py-12 text-slate-400">
                 <div className="p-4 bg-slate-100 rounded-2xl mb-3"><History size={28} className="opacity-40" /></div>

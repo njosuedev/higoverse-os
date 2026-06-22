@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { partnerRequest } from "@/lib/supplier-api";
 import { itemRequest } from "@/lib/product-api";
@@ -12,6 +12,7 @@ import {
   Users, Search, Filter, Plus, Trash2, Pencil, X,
   UserCheck, UserCog, Activity, Package, ShoppingCart,
   Building2, Phone, Mail, MapPin, RefreshCw, ChevronDown,
+  Download, Upload, FileSpreadsheet, FileText,
 } from "lucide-react";
 
 interface RawPartner { id: string; name: string; phone?: string; email?: string; address?: string; }
@@ -66,8 +67,89 @@ export default function PartnerManagementPage() {
   const [errors, setErrors] = useState<FormErrors>({});
 
   const debouncedSearch = useDebounce(search, 350);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { loadData(); }, []);
+
+  async function downloadTemplate() {
+    const XLSX = await import("xlsx");
+    const ws = XLSX.utils.aoa_to_sheet([
+      ["name", "phone", "tin", "email", "address"],
+      ["INYANGE Industries", "", "123456789", "inyange@example.com", "KN 5 Ave Kigali"],
+      ["John Doe", "0781234567", "", "john@example.com", "Musanze"],
+    ]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Partners");
+    XLSX.writeFile(wb, "partners_template.xlsx");
+  }
+
+  async function handleImport(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const XLSX = await import("xlsx");
+      const data = await file.arrayBuffer();
+      const wb = XLSX.read(data);
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows: Record<string, string>[] = XLSX.utils.sheet_to_json(ws);
+      let imported = 0, failed = 0;
+      for (const row of rows) {
+        try {
+          await partnerRequest("/suppliers", {
+            method: "POST",
+            body: JSON.stringify({
+              name: (row.name || row.Name || "").trim(),
+              phone: (row.phone || row.Phone || "").trim() || null,
+              email: (row.email || row.Email || "").trim() || null,
+              address: encodeAddress((row.tin || row.TIN || "").trim(), (row.address || row.Address || "").trim()) || null,
+            }),
+          });
+          imported++;
+        } catch { failed++; }
+      }
+      e.target.value = "";
+      alert(`Imported ${imported} partners${failed ? `, ${failed} failed` : ""}.`);
+      await loadData(true);
+    } catch { alert("Failed to parse file."); }
+  }
+
+  async function exportExcel() {
+    const XLSX = await import("xlsx");
+    const data = filtered.map((p) => ({
+      Name: p.name,
+      Type: p.partnerType === "supplier" ? "Supplier" : "Customer",
+      Phone: p.phone || "",
+      TIN: p.tin || "",
+      Email: p.email || "",
+      Address: p.realAddress || "",
+    }));
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Partners");
+    XLSX.writeFile(wb, "partners.xlsx");
+  }
+
+  async function exportPDF() {
+    const { jsPDF } = await import("jspdf");
+    const { default: autoTable } = await import("jspdf-autotable");
+    const doc = new jsPDF();
+    doc.setFontSize(14);
+    doc.text("Partners", 14, 16);
+    autoTable(doc, {
+      startY: 22,
+      head: [["Name", "Type", "Phone", "TIN", "Email"]],
+      body: filtered.map((p) => [
+        p.name,
+        p.partnerType === "supplier" ? "Supplier" : "Customer",
+        p.phone || "—",
+        p.tin || "—",
+        p.email || "—",
+      ]),
+      styles: { fontSize: 8 },
+      headStyles: { fillColor: [19, 114, 230] },
+    });
+    doc.save("partners.pdf");
+  }
 
   async function loadData(soft = false) {
     try {
@@ -273,13 +355,32 @@ export default function PartnerManagementPage() {
             <p className="text-[10px] text-slate-500">
               Showing <span className="font-semibold text-slate-700">{paginated.length}</span> of <span className="font-semibold text-slate-700">{filtered.length}</span> partners
             </p>
-            {(debouncedSearch || typeFilter !== "all") && (
-              <button onClick={() => { setSearch(""); setTypeFilter("all"); setPage(1); }}
-                className="flex items-center gap-1 text-[10px] text-slate-400 hover:text-slate-600 transition">
-                <X size={10} /> Clear filters
+            <div className="flex items-center gap-1.5">
+              {(debouncedSearch || typeFilter !== "all") && (
+                <button onClick={() => { setSearch(""); setTypeFilter("all"); setPage(1); }}
+                  className="flex items-center gap-1 text-[10px] text-slate-400 hover:text-slate-600 transition mr-1">
+                  <X size={10} /> Clear filters
+                </button>
+              )}
+              <button onClick={downloadTemplate} title="Download import template"
+                className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium border border-violet-200 text-violet-600 bg-white hover:bg-violet-50 transition">
+                <Download size={10} /> Template
               </button>
-            )}
+              <button onClick={() => fileInputRef.current?.click()} title="Import from CSV/Excel"
+                className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium border border-violet-200 text-violet-600 bg-white hover:bg-violet-50 transition">
+                <Upload size={10} /> Import
+              </button>
+              <button onClick={exportExcel} title="Export to Excel"
+                className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium border border-green-200 text-green-600 bg-white hover:bg-green-50 transition">
+                <FileSpreadsheet size={10} /> Excel
+              </button>
+              <button onClick={exportPDF} title="Export to PDF"
+                className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium border border-red-200 text-red-600 bg-white hover:bg-red-50 transition">
+                <FileText size={10} /> PDF
+              </button>
+            </div>
           </div>
+          <input ref={fileInputRef} type="file" accept=".csv,.xlsx,.xls" className="hidden" onChange={handleImport} />
 
           <div className="overflow-x-auto">
             <table className="w-full">

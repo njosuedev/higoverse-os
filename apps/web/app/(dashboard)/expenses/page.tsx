@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { expenseRequest } from "@/lib/expense-api";
 import { useLanguage } from "@/lib/language-context";
 import PageSkeleton from "@/app/components/dashboard/PageSkeleton";
@@ -9,6 +9,7 @@ import DateRangeFilter from "@/app/components/ui/DateRangeFilter";
 import {
   Receipt, RefreshCw, Plus, Trash2, X, Search, Filter,
   Calendar, TrendingDown, DollarSign, BarChart3, Tag, AlertCircle, ChevronDown,
+  Download, Upload, FileSpreadsheet, FileText,
 } from "lucide-react";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -82,9 +83,96 @@ export default function ExpenseManagementPage() {
   const [deletingId, setDeletingId]   = useState("");
   const [form, setForm]               = useState(EMPTY_FORM);
 
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   useEffect(() => { loadAll(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { if (!loading) loadExpenses(); }, [page, pageSize, dateFrom, dateTo, catFilter]);
+
+  async function downloadTemplate() {
+    const XLSX = await import("xlsx");
+    const ws = XLSX.utils.aoa_to_sheet([
+      ["title", "category", "amount", "expense_date", "notes"],
+      ["Monthly Rent", "rent", "200000", toDateStr(new Date()), "Office rent payment"],
+      ["Electricity Bill", "utilities", "50000", toDateStr(new Date()), ""],
+    ]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Expenses");
+    XLSX.writeFile(wb, "expenses_template.xlsx");
+  }
+
+  async function handleImport(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const XLSX = await import("xlsx");
+      const data = await file.arrayBuffer();
+      const wb = XLSX.read(data);
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows: Record<string, string>[] = XLSX.utils.sheet_to_json(ws);
+      let imported = 0, failed = 0;
+      for (const row of rows) {
+        try {
+          const title = (row.title || row.Title || "").trim();
+          const amount = Number(row.amount || row.Amount || 0);
+          const expDate = (row.expense_date || row["Expense Date"] || toDateStr(new Date())).trim();
+          if (!title || !amount) { failed++; continue; }
+          const cat = (row.category || row.Category || "other").toLowerCase() as Category;
+          await expenseRequest("/expenses", {
+            method: "POST",
+            body: JSON.stringify({
+              title,
+              category: ALL_CATEGORIES.includes(cat) ? cat : "other",
+              amount,
+              notes: (row.notes || row.Notes || "").trim() || undefined,
+              expense_date: expDate + (expDate.includes("T") ? "" : "T00:00:00"),
+            }),
+          });
+          imported++;
+        } catch { failed++; }
+      }
+      e.target.value = "";
+      alert(`Imported ${imported} expenses${failed ? `, ${failed} failed` : ""}.`);
+      await loadAll(true);
+    } catch { alert("Failed to parse file."); }
+  }
+
+  async function exportExcel() {
+    const XLSX = await import("xlsx");
+    const data = filteredExpenses.map((e) => ({
+      Date: e.expense_date ? new Date(e.expense_date).toLocaleDateString() : "",
+      Title: e.title,
+      Category: e.category,
+      Amount: e.amount,
+      Notes: e.notes || "",
+    }));
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Expenses");
+    XLSX.writeFile(wb, "expenses.xlsx");
+  }
+
+  async function exportPDF() {
+    const { jsPDF } = await import("jspdf");
+    const { default: autoTable } = await import("jspdf-autotable");
+    const doc = new jsPDF();
+    doc.setFontSize(14);
+    doc.text("Expenses Report", 14, 16);
+    autoTable(doc, {
+      startY: 22,
+      head: [["Date", "Title", "Category", "Amount", "Notes"]],
+      body: filteredExpenses.map((e) => [
+        e.expense_date ? new Date(e.expense_date).toLocaleDateString() : "—",
+        e.title,
+        e.category,
+        Number(e.amount).toLocaleString(),
+        e.notes || "—",
+      ]),
+      styles: { fontSize: 8 },
+      headStyles: { fillColor: [19, 114, 230] },
+    });
+    doc.save("expenses.pdf");
+  }
 
   async function loadAll(soft = false) {
     try {
@@ -290,10 +378,29 @@ export default function ExpenseManagementPage() {
             <p className="text-[10px] text-slate-500">
               Showing <span className="font-semibold text-slate-700">{filteredExpenses.length.toLocaleString()}</span> of <span className="font-semibold text-slate-700">{total.toLocaleString()}</span> {t("expenses.records")}
             </p>
-            {(search || catFilter) && (
-              <button onClick={() => { setSearch(""); setCatFilter(""); setPage(1); }} className="flex items-center gap-1 text-[10px] text-slate-400 hover:text-slate-600 transition"><X size={10} /> Clear</button>
-            )}
+            <div className="flex items-center gap-1.5">
+              {(search || catFilter) && (
+                <button onClick={() => { setSearch(""); setCatFilter(""); setPage(1); }} className="flex items-center gap-1 text-[10px] text-slate-400 hover:text-slate-600 transition mr-1"><X size={10} /> Clear</button>
+              )}
+              <button onClick={downloadTemplate} title="Download import template"
+                className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium border border-violet-200 text-violet-600 bg-white hover:bg-violet-50 transition">
+                <Download size={10} /> Template
+              </button>
+              <button onClick={() => fileInputRef.current?.click()} title="Import from CSV/Excel"
+                className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium border border-violet-200 text-violet-600 bg-white hover:bg-violet-50 transition">
+                <Upload size={10} /> Import
+              </button>
+              <button onClick={exportExcel} title="Export to Excel"
+                className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium border border-green-200 text-green-600 bg-white hover:bg-green-50 transition">
+                <FileSpreadsheet size={10} /> Excel
+              </button>
+              <button onClick={exportPDF} title="Export to PDF"
+                className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium border border-red-200 text-red-600 bg-white hover:bg-red-50 transition">
+                <FileText size={10} /> PDF
+              </button>
+            </div>
           </div>
+          <input ref={fileInputRef} type="file" accept=".csv,.xlsx,.xls" className="hidden" onChange={handleImport} />
 
           {hasDateFilter && (
             <div className="flex items-center gap-2 px-4 py-1.5 border-b border-slate-100 text-xs bg-[#EBF2FD]" style={{ color: "#1372e6" }}>
