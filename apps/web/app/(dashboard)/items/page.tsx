@@ -6,13 +6,19 @@ import { itemRequest } from "@/lib/product-api";
 import { partnerRequest } from "@/lib/supplier-api";
 import { useDebounce } from "@/lib/hooks";
 import { useLanguage } from "@/lib/language-context";
+import { useAuth } from "@/lib/auth-context";
 import PageSkeleton from "@/app/components/dashboard/PageSkeleton";
 import Pagination from "@/app/components/ui/Pagination";
 import {
   Package, AlertCircle, Search, Filter, Plus, Trash2, Pencil, X,
   Boxes, DollarSign, TrendingUp, TrendingDown, ShoppingBag, RefreshCw, BarChart3, ChevronDown,
   FileSpreadsheet, FileText, Upload, Download, CheckCircle, XCircle,
+  ImagePlus, Store, Globe, Eye,
 } from "lucide-react";
+import {
+  getProductMeta, setProductMeta, deleteProductMeta, compressImage,
+  upsertCatalogEntry, removeCatalogEntry, type ProductMeta,
+} from "@/lib/product-meta";
 
 interface Product {
   id: string;
@@ -34,10 +40,13 @@ const EMPTY_FORM = {
   name: "", description: "", cost_price: "", selling_price: "", quantity: "", supplier_id: "",
 };
 
+const MAX_IMAGES = 5;
+
 const PAGE_SIZES = [25, 50, 100, 250];
 
 export default function ItemManagementPage() {
   const { t } = useLanguage();
+  const { user } = useAuth();
   const [products, setProducts] = useState<Product[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(true);
@@ -56,6 +65,15 @@ export default function ItemManagementPage() {
   const [deletingId, setDeletingId] = useState("");
   const [form, setForm] = useState(EMPTY_FORM);
 
+  // product images & marketplace meta (stored in localStorage, separate from API payload)
+  const [formImages, setFormImages]     = useState<string[]>([]);
+  const [formListed, setFormListed]     = useState(false);
+  const [formCategory, setFormCategory] = useState("");
+  const [imageUploading, setImageUploading] = useState(false);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  // local cache: productId → meta (loaded once on mount)
+  const [productMeta, setProductMetaCache] = useState<Record<string, ProductMeta>>({});
+
   const [importLoading, setImportLoading] = useState(false);
   const [importResults, setImportResults] = useState<{
     success: number;
@@ -66,6 +84,14 @@ export default function ItemManagementPage() {
   const debouncedSearch = useDebounce(search, 350);
 
   useEffect(() => { loadData(); }, []);
+
+  // keep local meta cache in sync whenever products list changes
+  useEffect(() => {
+    if (products.length === 0) return;
+    const cache: Record<string, ProductMeta> = {};
+    products.forEach((p) => { cache[p.id] = getProductMeta(p.id); });
+    setProductMetaCache(cache);
+  }, [products]);
 
   async function loadData(soft = false) {
     try {
@@ -87,7 +113,9 @@ export default function ItemManagementPage() {
   }
 
   function openCreateModal() {
-    setForm(EMPTY_FORM); setEditingId(null); setModalMode("create"); setShowModal(true);
+    setForm(EMPTY_FORM); setEditingId(null); setModalMode("create");
+    setFormImages([]); setFormListed(false); setFormCategory("");
+    setShowModal(true);
   }
 
   function openEditModal(p: Product) {
@@ -96,14 +124,27 @@ export default function ItemManagementPage() {
       cost_price: String(p.cost_price), selling_price: String(p.selling_price),
       quantity: String(p.quantity), supplier_id: p.supplier_id || "",
     });
+    const meta = getProductMeta(p.id);
+    setFormImages(meta.images);
+    setFormListed(meta.listed);
+    setFormCategory((meta as ProductMeta & { category?: string }).category ?? "");
     setEditingId(p.id); setModalMode("edit"); setShowModal(true);
   }
 
-  function closeModal() { setShowModal(false); setForm(EMPTY_FORM); setEditingId(null); }
+  function closeModal() {
+    setShowModal(false); setForm(EMPTY_FORM); setEditingId(null);
+    setFormImages([]); setFormListed(false); setFormCategory("");
+  }
 
   async function submitForm() {
     if (!form.name.trim() || !form.cost_price || !form.selling_price || !form.quantity) {
       alert("Name, cost price, selling price and quantity are required."); return;
+    }
+    if (formListed && formImages.length < 3) {
+      alert("You need at least 3 product images to share on Marketplace."); return;
+    }
+    if (formListed && !formCategory) {
+      alert("Please select a category to share this product on Marketplace."); return;
     }
     const payload = {
       name: form.name.trim(), description: form.description.trim() || null,
@@ -114,8 +155,17 @@ export default function ItemManagementPage() {
       setSubmitting(true);
       if (modalMode === "edit" && editingId) {
         await itemRequest(`/products/${editingId}`, { method: "PUT", body: JSON.stringify(payload) });
+        setProductMeta(editingId, { images: formImages, listed: formListed, category: formCategory });
+        setProductMetaCache((prev) => ({ ...prev, [editingId]: { images: formImages, listed: formListed, category: formCategory } }));
+        syncCatalog(editingId, payload, formImages, formListed, formCategory);
       } else {
-        await itemRequest("/products", { method: "POST", body: JSON.stringify(payload) });
+        const res = await itemRequest("/products", { method: "POST", body: JSON.stringify(payload) });
+        const newId: string | undefined = res?.data?.id;
+        if (newId) {
+          setProductMeta(newId, { images: formImages, listed: formListed, category: formCategory });
+          setProductMetaCache((prev) => ({ ...prev, [newId]: { images: formImages, listed: formListed, category: formCategory } }));
+          syncCatalog(newId, payload, formImages, formListed, formCategory);
+        }
       }
       closeModal(); await loadData(true);
     } catch (err) {
@@ -128,6 +178,9 @@ export default function ItemManagementPage() {
     try {
       setDeletingId(id);
       await itemRequest(`/products/${id}`, { method: "DELETE" });
+      deleteProductMeta(id);
+      removeCatalogEntry(id);
+      setProductMetaCache((prev) => { const n = { ...prev }; delete n[id]; return n; });
       await loadData(true);
     } catch (err) { console.error(err); alert("Failed to delete item."); }
     finally { setDeletingId(""); }
@@ -320,6 +373,47 @@ export default function ItemManagementPage() {
       setImportLoading(false);
       if (importInputRef.current) importInputRef.current.value = "";
     }
+  }
+
+  function syncCatalog(
+    productId: string,
+    payload: { name: string; description?: string | null; cost_price: number; selling_price: number; quantity: number },
+    images: string[],
+    listed: boolean,
+    category: string,
+  ) {
+    if (!user) return;
+    if (listed) {
+      upsertCatalogEntry({
+        productId,
+        shopId: user.shop_id ?? user.id ?? productId,
+        shopName: user.name ?? "My Shop",
+        shopLogoUrl: undefined,
+        shopPhone: undefined,
+        name: payload.name,
+        description: payload.description ?? undefined,
+        category: category || undefined,
+        sellingPrice: payload.selling_price,
+        costPrice: payload.cost_price,
+        quantity: payload.quantity,
+        images,
+        listedAt: new Date().toISOString(),
+      });
+    } else {
+      removeCatalogEntry(productId);
+    }
+  }
+
+  async function handleImageFiles(files: FileList | null) {
+    if (!files || files.length === 0) return;
+    setImageUploading(true);
+    try {
+      const remaining = MAX_IMAGES - formImages.length;
+      const toProcess = Array.from(files).slice(0, remaining);
+      const compressed = await Promise.all(toProcess.map((f) => compressImage(f)));
+      setFormImages((prev) => [...prev, ...compressed]);
+    } catch { /* ignore individual failures */ }
+    finally { setImageUploading(false); }
   }
 
   const inputCls =
@@ -597,10 +691,38 @@ export default function ItemManagementPage() {
 
                       {/* Product */}
                       <td className="px-3 py-1.5">
-                        <p className="font-semibold text-slate-800 text-xs leading-tight">{p.name}</p>
-                        {p.description && (
-                          <p className="text-[10px] text-slate-400 max-w-[160px] truncate">{p.description}</p>
-                        )}
+                        <div className="flex items-center gap-2">
+                          {/* thumbnail */}
+                          {productMeta[p.id]?.images?.[0] ? (
+                            <img
+                              src={productMeta[p.id].images[0]}
+                              alt={p.name}
+                              className="w-8 h-8 rounded-lg object-cover border border-slate-200 flex-shrink-0"
+                            />
+                          ) : (
+                            <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center flex-shrink-0">
+                              <Package size={12} className="text-slate-300" />
+                            </div>
+                          )}
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <p className="font-semibold text-slate-800 text-xs leading-tight">{p.name}</p>
+                              {productMeta[p.id]?.listed && (
+                                <span className="inline-flex items-center gap-0.5 text-[8px] font-bold text-[#1372e6] bg-[#EBF2FD] border border-[#A8C8F8] px-1 py-0.5 rounded-full leading-none">
+                                  <Globe size={7} /> Listed
+                                </span>
+                              )}
+                              {productMeta[p.id]?.images?.length > 0 && (
+                                <span className="inline-flex items-center gap-0.5 text-[8px] font-semibold text-slate-500 bg-slate-100 px-1 py-0.5 rounded-full leading-none">
+                                  <Eye size={7} /> {productMeta[p.id].images.length}
+                                </span>
+                              )}
+                            </div>
+                            {p.description && (
+                              <p className="text-[10px] text-slate-400 max-w-[160px] truncate">{p.description}</p>
+                            )}
+                          </div>
+                        </div>
                       </td>
 
                       {/* Supplier */}
@@ -737,7 +859,7 @@ export default function ItemManagementPage() {
         {/* MODAL */}
         {showModal && (
           <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-2xl w-full max-w-xl shadow-2xl max-h-[90vh] flex flex-col">
+            <div className="bg-white rounded-2xl w-full max-w-2xl shadow-2xl max-h-[92vh] flex flex-col">
               <div className="flex justify-between items-center px-4 sm:px-6 py-4 border-b border-slate-100 shrink-0">
                 <div>
                   <h2 className="text-base font-semibold text-slate-800">{modalMode === "edit" ? t("items.edit_title") : t("items.add_title")}</h2>
@@ -779,6 +901,146 @@ export default function ItemManagementPage() {
                     <option value="">{t("items.no_supplier")}</option>
                     {suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
                   </select>
+                </div>
+
+                {/* ── PRODUCT IMAGES ─────────────────────────────────────── */}
+                <div className="md:col-span-2">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-xs font-medium text-gray-600">
+                      Product Images <span className="text-slate-400">(min 2, max {MAX_IMAGES})</span>
+                    </label>
+                    {formImages.length > 0 && (
+                      <span className="text-[10px] text-slate-400">{formImages.length}/{MAX_IMAGES} uploaded</span>
+                    )}
+                  </div>
+
+                  {/* image preview grid + upload slot */}
+                  <div className="flex flex-wrap gap-2">
+                    {formImages.map((src, i) => (
+                      <div key={i} className="relative w-20 h-20 rounded-xl overflow-hidden border-2 border-slate-200 group flex-shrink-0">
+                        <img src={src} alt={`Photo ${i + 1}`} className="w-full h-full object-cover" />
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
+                          <button
+                            type="button"
+                            onClick={() => setFormImages((prev) => prev.filter((_, idx) => idx !== i))}
+                            className="opacity-0 group-hover:opacity-100 w-6 h-6 bg-red-500 rounded-full flex items-center justify-center text-white transition-opacity"
+                          >
+                            <X size={12} />
+                          </button>
+                        </div>
+                        <span className="absolute bottom-1 left-1 text-[8px] font-bold bg-black/50 text-white px-1 py-0.5 rounded">
+                          {i === 0 ? "Cover" : `#${i + 1}`}
+                        </span>
+                      </div>
+                    ))}
+
+                    {/* Add more slot */}
+                    {formImages.length < MAX_IMAGES && (
+                      <button
+                        type="button"
+                        onClick={() => imageInputRef.current?.click()}
+                        disabled={imageUploading}
+                        className="w-20 h-20 rounded-xl border-2 border-dashed border-slate-300 hover:border-[#1372e6] flex flex-col items-center justify-center gap-1 text-slate-400 hover:text-[#1372e6] transition flex-shrink-0 disabled:opacity-50"
+                      >
+                        {imageUploading ? (
+                          <RefreshCw size={16} className="animate-spin" />
+                        ) : (
+                          <>
+                            <ImagePlus size={18} />
+                            <span className="text-[9px] font-semibold">Add Photo</span>
+                          </>
+                        )}
+                      </button>
+                    )}
+                  </div>
+
+                  <input
+                    ref={imageInputRef}
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    className="hidden"
+                    onChange={(e) => handleImageFiles(e.target.files)}
+                    onClick={(e) => { (e.target as HTMLInputElement).value = ""; }}
+                  />
+
+                  {formImages.length < 3 && (
+                    <p className="text-[10px] text-amber-600 mt-1.5 flex items-center gap-1">
+                      <AlertCircle size={10} />
+                      Upload at least 3 product photos for marketplace visibility
+                    </p>
+                  )}
+                </div>
+
+                {/* ── MARKETPLACE SHARE ──────────────────────────────────── */}
+                <div className="md:col-span-2">
+                  <div
+                    className={`rounded-xl border p-3.5 flex items-center justify-between gap-4 transition-colors cursor-pointer select-none ${
+                      formListed
+                        ? "border-[#1372e6] bg-[#EBF2FD]"
+                        : "border-slate-200 bg-slate-50 hover:bg-slate-100"
+                    }`}
+                    onClick={() => setFormListed((v) => !v)}
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors ${formListed ? "bg-[#1372e6] text-white" : "bg-white text-slate-400 border border-slate-200"}`}>
+                        <Store size={16} />
+                      </div>
+                      <div>
+                        <p className={`text-sm font-bold leading-tight ${formListed ? "text-[#1372e6]" : "text-slate-700"}`}>
+                          Share on Marketplace
+                        </p>
+                        <p className={`text-[10px] mt-0.5 leading-snug ${formListed ? "text-[#1372e6]/70" : "text-slate-400"}`}>
+                          {formListed
+                            ? "This product will appear in your public marketplace store"
+                            : "Other shops will see this product when they visit your store"}
+                        </p>
+                      </div>
+                    </div>
+                    {/* Toggle switch */}
+                    <div className={`w-11 h-6 rounded-full transition-colors relative flex-shrink-0 ${formListed ? "bg-[#1372e6]" : "bg-slate-300"}`}>
+                      <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${formListed ? "translate-x-5" : "translate-x-0.5"}`} />
+                    </div>
+                  </div>
+                  {formListed && formImages.length < 3 && (
+                    <p className="text-[10px] text-red-600 mt-1.5 flex items-center gap-1">
+                      <AlertCircle size={10} />
+                      At least 3 images are required to share on Marketplace
+                    </p>
+                  )}
+
+                  {/* Category — required when listed */}
+                  {formListed && (
+                    <div className="mt-2.5">
+                      <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                        Product Category <span className="text-red-500">*</span>
+                        <span className="text-slate-400 font-normal ml-1">(required for marketplace)</span>
+                      </label>
+                      <select
+                        value={formCategory}
+                        onChange={(e) => setFormCategory(e.target.value)}
+                        className={`w-full border rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1372e6]/30 focus:border-[#1372e6] transition ${
+                          formListed && !formCategory ? "border-red-400 bg-red-50" : "border-slate-200 bg-white"
+                        }`}
+                      >
+                        <option value="">-- Select a category --</option>
+                        <option value="food">Food &amp; Drinks</option>
+                        <option value="electronics">Electronics</option>
+                        <option value="fashion">Fashion &amp; Apparel</option>
+                        <option value="wholesale">Wholesale &amp; Bulk</option>
+                        <option value="agriculture">Agriculture</option>
+                        <option value="health">Health &amp; Beauty</option>
+                        <option value="furniture">Furniture &amp; Decor</option>
+                        <option value="services">Services</option>
+                        <option value="other">Other</option>
+                      </select>
+                      {formListed && !formCategory && (
+                        <p className="text-[10px] text-red-600 mt-1 flex items-center gap-1">
+                          <AlertCircle size={10} /> Select a category to enable marketplace listing
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
               <div className="flex justify-end gap-2.5 px-4 sm:px-6 py-4 border-t border-slate-100 shrink-0">

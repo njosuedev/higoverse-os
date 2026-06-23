@@ -19,7 +19,7 @@ import {
   Package, Truck, BarChart3, ShoppingCart, Users, Settings,
   RefreshCw, AlertTriangle, TrendingUp, TrendingDown, Globe,
   CheckCircle, FileText, Plus,
-  Activity, Receipt, Wallet, DollarSign, MapPin, Phone,
+  Activity, Receipt, Wallet, DollarSign, MapPin, Phone, Store,
 } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -100,7 +100,8 @@ export default function DashboardPage() {
     { title: t("nav.expenses"),          description: t("dash.expenses_desc"),         icon: Wallet,       href: "/expenses",  color: "orange" },
     { title: t("nav.reports"),          description: t("dash.reports_desc"),          icon: BarChart3,    href: "/reports",   color: "violet" },
     { title: t("nav.proforma"),         description: t("dash.proforma_desc"),         icon: FileText,     href: "/proforma",  color: "pink" },
-    { title: t("nav.settings"),         description: t("dash.settings_desc"),         icon: Settings,     href: "/settings",  color: "slate" },
+    { title: t("nav.settings"),         description: t("dash.settings_desc"),         icon: Settings,     href: "/settings",    color: "slate" },
+    { title: t("nav.marketplace"),      description: t("marketplace.dash_desc"),       icon: Store,        href: "/marketplace", color: "blue" },
   ];
 
   const [stats, setStats]             = useState<Stats>({ products: 0, partners: 0, sales: 0, revenue: 0, lowStock: 0, outOfStock: 0 });

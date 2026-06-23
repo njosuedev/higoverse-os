@@ -11,7 +11,7 @@ import { settingsRequest } from "@/lib/settings-api";
 import {
   Home, Package, Truck, ShoppingCart, BarChart3,
   Users, FileText, ChevronDown, ShieldCheck, Receipt,
-  Sparkles, Settings, LogOut, Moon, Sun, Globe, Wifi,
+  Sparkles, Settings, LogOut, Moon, Sun, Globe, Wifi, Store,
 } from "lucide-react";
 
 function useDarkMode() {
@@ -73,6 +73,7 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
     { key: "nav.proforma",  href: "/proforma",   icon: FileText },
     { key: "nav.expenses",  href: "/expenses",   icon: Receipt },
     { key: "nav.reports",   href: "/reports",    icon: BarChart3 },
+    { key: "nav.marketplace", href: "/marketplace", icon: Store },
     { key: "nav.advisor",   href: "/advisor",    icon: Sparkles },
     ...(user?.role === "admin"
       ? [{ key: "nav.admin", href: "/admin", icon: ShieldCheck }]

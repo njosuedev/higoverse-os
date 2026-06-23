@@ -1,14 +1,13 @@
 import { getToken, handleUnauthorized } from "@/lib/auth";
 
-const PURCHASE_API = process.env.NEXT_PUBLIC_API_PURCHASES || "https://higoverse-purchases.vercel.app";
-
 export async function purchaseRequest(endpoint: string, options: RequestInit = {}) {
   const token = getToken();
   const headers = new Headers(options.headers);
   headers.set("Content-Type", "application/json");
   if (token) headers.set("Authorization", `Bearer ${token}`);
 
-  const res = await fetch(`${PURCHASE_API}${endpoint}`, { ...options, headers });
+  // Route through Next.js rewrite proxy to avoid browser CORS restrictions
+  const res = await fetch(`/api/purchases${endpoint}`, { ...options, headers });
 
   if (res.status === 401) {
     handleUnauthorized();

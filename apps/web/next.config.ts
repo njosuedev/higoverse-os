@@ -17,6 +17,10 @@ const nextConfig: NextConfig = {
         source: "/api/expenses/:path*",
         destination: `${process.env.NEXT_PUBLIC_API_EXPENSES || "http://localhost:8005"}/:path*`,
       },
+      {
+        source: "/api/purchases/:path*",
+        destination: `${process.env.NEXT_PUBLIC_API_PURCHASES || "https://higoverse-purchases.vercel.app"}/:path*`,
+      },
     ];
   },
 };
