@@ -932,11 +932,47 @@ export default function ItemManagementPage() {
                   </select>
                 </div>
 
+                {/* ── CATEGORY ───────────────────────────────────────────── */}
+                <div className="md:col-span-2">
+                  <label className="block text-xs font-medium text-gray-600 mb-1">
+                    Category
+                    {formListed
+                      ? <span className="text-red-400 ml-1">*</span>
+                      : <span className="text-slate-400 ml-1">(optional)</span>}
+                  </label>
+                  <select
+                    value={formCategory}
+                    onChange={(e) => setFormCategory(e.target.value)}
+                    className={`w-full border rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1372e6]/30 focus:border-[#1372e6] transition ${
+                      formListed && !formCategory ? "border-red-400 bg-red-50" : "border-slate-200 bg-white"
+                    }`}
+                  >
+                    <option value="">-- Select a category --</option>
+                    <option value="food">Food &amp; Drinks</option>
+                    <option value="electronics">Electronics</option>
+                    <option value="fashion">Fashion &amp; Apparel</option>
+                    <option value="wholesale">Wholesale &amp; Bulk</option>
+                    <option value="agriculture">Agriculture</option>
+                    <option value="health">Health &amp; Beauty</option>
+                    <option value="furniture">Furniture &amp; Decor</option>
+                    <option value="services">Services</option>
+                    <option value="other">Other</option>
+                  </select>
+                  {formListed && !formCategory && (
+                    <p className="text-[10px] text-red-600 mt-1 flex items-center gap-1">
+                      <AlertCircle size={10} /> Category is required to share on Marketplace
+                    </p>
+                  )}
+                </div>
+
                 {/* ── PRODUCT IMAGES ─────────────────────────────────────── */}
                 <div className="md:col-span-2">
                   <div className="flex items-center justify-between mb-1.5">
                     <label className="text-xs font-medium text-gray-600">
-                      Product Images <span className="text-slate-400">(min 2, max {MAX_IMAGES})</span>
+                      Product Images
+                      {formListed
+                        ? <><span className="text-red-400 ml-1">*</span><span className="text-slate-400 ml-1">(min 3 for marketplace)</span></>
+                        : <span className="text-slate-400 ml-1">(optional, max {MAX_IMAGES})</span>}
                     </label>
                     {formImages.length > 0 && (
                       <span className="text-[10px] text-slate-400">{formImages.length}/{MAX_IMAGES} uploaded</span>
@@ -993,10 +1029,16 @@ export default function ItemManagementPage() {
                     onClick={(e) => { (e.target as HTMLInputElement).value = ""; }}
                   />
 
-                  {formImages.length < 3 && (
-                    <p className="text-[10px] text-amber-600 mt-1.5 flex items-center gap-1">
+                  {formListed && formImages.length < 3 && (
+                    <p className="text-[10px] text-red-600 mt-1.5 flex items-center gap-1">
                       <AlertCircle size={10} />
-                      Upload at least 3 product photos for marketplace visibility
+                      Upload at least 3 photos to share on Marketplace
+                    </p>
+                  )}
+                  {!formListed && formImages.length === 0 && (
+                    <p className="text-[10px] text-slate-400 mt-1.5 flex items-center gap-1">
+                      <ImagePlus size={10} />
+                      Add photos if you plan to list this product on the Marketplace later
                     </p>
                   )}
                 </div>
@@ -1021,8 +1063,8 @@ export default function ItemManagementPage() {
                         </p>
                         <p className={`text-[10px] mt-0.5 leading-snug ${formListed ? "text-[#1372e6]/70" : "text-slate-400"}`}>
                           {formListed
-                            ? "This product will appear in your public marketplace store"
-                            : "Other shops will see this product when they visit your store"}
+                            ? "This product will be visible to all shops on the marketplace"
+                            : "Make this product visible to other shops on the marketplace"}
                         </p>
                       </div>
                     </div>
@@ -1031,45 +1073,6 @@ export default function ItemManagementPage() {
                       <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${formListed ? "translate-x-5" : "translate-x-0.5"}`} />
                     </div>
                   </div>
-                  {formListed && formImages.length < 3 && (
-                    <p className="text-[10px] text-red-600 mt-1.5 flex items-center gap-1">
-                      <AlertCircle size={10} />
-                      At least 3 images are required to share on Marketplace
-                    </p>
-                  )}
-
-                  {/* Category — required when listed */}
-                  {formListed && (
-                    <div className="mt-2.5">
-                      <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                        Product Category <span className="text-red-500">*</span>
-                        <span className="text-slate-400 font-normal ml-1">(required for marketplace)</span>
-                      </label>
-                      <select
-                        value={formCategory}
-                        onChange={(e) => setFormCategory(e.target.value)}
-                        className={`w-full border rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1372e6]/30 focus:border-[#1372e6] transition ${
-                          formListed && !formCategory ? "border-red-400 bg-red-50" : "border-slate-200 bg-white"
-                        }`}
-                      >
-                        <option value="">-- Select a category --</option>
-                        <option value="food">Food &amp; Drinks</option>
-                        <option value="electronics">Electronics</option>
-                        <option value="fashion">Fashion &amp; Apparel</option>
-                        <option value="wholesale">Wholesale &amp; Bulk</option>
-                        <option value="agriculture">Agriculture</option>
-                        <option value="health">Health &amp; Beauty</option>
-                        <option value="furniture">Furniture &amp; Decor</option>
-                        <option value="services">Services</option>
-                        <option value="other">Other</option>
-                      </select>
-                      {formListed && !formCategory && (
-                        <p className="text-[10px] text-red-600 mt-1 flex items-center gap-1">
-                          <AlertCircle size={10} /> Select a category to enable marketplace listing
-                        </p>
-                      )}
-                    </div>
-                  )}
                 </div>
               </div>
               <div className="flex justify-end gap-2.5 px-4 sm:px-6 py-4 border-t border-slate-100 shrink-0">
