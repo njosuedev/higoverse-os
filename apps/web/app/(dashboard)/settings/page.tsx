@@ -5,6 +5,9 @@ import { settingsRequest } from "@/lib/settings-api";
 import { getMyShop, updateMyShop } from "@/lib/shop-api";
 import { changePassword } from "@/lib/auth-api";
 import { useLanguage } from "@/lib/language-context";
+import { useAuth } from "@/lib/auth-context";
+import { useShop } from "@/lib/shop-context";
+import { getEffectiveRole } from "@/lib/auth";
 import { type Lang } from "@/lib/i18n";
 import PageSkeleton from "@/app/components/dashboard/PageSkeleton";
 import {
@@ -64,6 +67,10 @@ type SectionStatus = "idle" | "saving" | "saved" | "error";
 
 export default function SettingsPage() {
   const { t, setLang } = useLanguage();
+  const { user } = useAuth();
+  const { shop } = useShop();
+  const role = getEffectiveRole(user ?? null, shop?.is_active === true);
+  const isCustomer = role === "CUSTOMER";
 
   // Form state
   const [shopForm, setShopForm]   = useState<ShopForm>(SHOP_DEFAULTS);
@@ -281,8 +288,42 @@ export default function SettingsPage() {
           </div>
         </div>
 
-        {/* ── SHOP PROFILE ──────────────────────── */}
-        <Section
+        {/* ── MY ACCOUNT (CUSTOMER only) ────────── */}
+        {isCustomer && (
+          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+            <div className="flex items-center gap-2.5 px-5 py-4 border-b border-slate-100">
+              <div className="w-7 h-7 rounded-lg bg-blue-50 flex items-center justify-center">
+                <ShieldCheck size={14} className="text-blue-500" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-slate-700">My Account</p>
+                <p className="text-[11px] text-slate-400">Your Higoverse account information</p>
+              </div>
+            </div>
+            <div className="px-5 py-4 space-y-3">
+              {user?.name && (
+                <div className="flex items-center justify-between py-2 border-b border-slate-50">
+                  <span className="text-xs font-medium text-slate-500">Name</span>
+                  <span className="text-sm font-semibold text-slate-800">{user.name}</span>
+                </div>
+              )}
+              <div className="flex items-center justify-between py-2 border-b border-slate-50">
+                <span className="text-xs font-medium text-slate-500">Email</span>
+                <span className="text-sm text-slate-700">{user?.email}</span>
+              </div>
+              <div className="flex items-center justify-between py-2">
+                <span className="text-xs font-medium text-slate-500">Account Type</span>
+                <span className="inline-flex items-center gap-1.5 text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200 px-2.5 py-1 rounded-full">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500 inline-block" />
+                  Customer
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── SHOP PROFILE (SHOP OWNER / ADMIN only) ─── */}
+        {!isCustomer && <Section
           icon={<Store size={15} />}
           title={t("settings.shop_info")}
           dirty={shopDirty || logoDirty}
@@ -393,10 +434,10 @@ export default function SettingsPage() {
               />
             </Field>
           </div>
-        </Section>
+        </Section>}
 
-        {/* ── FINANCIAL / OPERATIONAL ───────────── */}
-        <Section
+        {/* ── FINANCIAL / OPERATIONAL (SHOP OWNER / ADMIN only) ─── */}
+        {!isCustomer && <Section
           icon={<DollarSign size={15} />}
           title={t("settings.financial")}
           dirty={opsDirty}
@@ -446,7 +487,7 @@ export default function SettingsPage() {
               <p className="text-[10px] text-slate-400 mt-1">Applied on proforma invoices</p>
             </Field>
           </div>
-        </Section>
+        </Section>}
 
         {/* ── LANGUAGE ─────────────────────────── */}
         <Section

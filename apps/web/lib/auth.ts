@@ -1,9 +1,19 @@
 export interface User {
   id: string;
   email: string;
-  shop_id: string;
+  shop_id?: string;
   role?: string;
   name?: string;
+}
+
+export type AppRole = "CUSTOMER" | "SHOP_OWNER" | "ADMIN";
+
+/** Derive the effective app role from user + shop activation state. */
+export function getEffectiveRole(user: User | null, shopIsActive: boolean): AppRole {
+  if (!user) return "CUSTOMER";
+  if (user.role === "admin") return "ADMIN";
+  if (shopIsActive) return "SHOP_OWNER";
+  return "CUSTOMER";
 }
 
 const TOKEN_KEY = "token";

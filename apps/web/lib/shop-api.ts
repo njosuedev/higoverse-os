@@ -15,6 +15,8 @@ async function authShopRequest(endpoint: string, options: RequestInit = {}) {
     handleUnauthorized();
     throw new Error("Session expired. Please log in again.");
   }
+  // 404 = user has no shop yet (admin accounts, pure customers) — not an error
+  if (res.status === 404) return null;
   if (!res.ok) {
     const text = await res.text().catch(() => "");
     throw new Error(`Shop API error: ${res.status} ${text}`);

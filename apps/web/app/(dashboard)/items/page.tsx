@@ -20,7 +20,7 @@ import {
 import {
   getProductMeta, setProductMeta, deleteProductMeta, compressImage,
   upsertCatalogEntry, removeCatalogEntry, type ProductMeta,
-  type ShopCatalogEntry, encodeShopDescription, catFromText,
+  type ShopCatalogEntry, encodeDescriptionWithCatalog, catFromText,
 } from "@/lib/product-meta";
 
 interface Product {
@@ -206,7 +206,7 @@ export default function ItemManagementPage() {
           at: new Date().toISOString(),
         });
       }
-      await updateMyShop({ description: encodeShopDescription(shop?.description, entries) });
+      await updateMyShop({ description: encodeDescriptionWithCatalog(shop?.description, entries) });
     } catch { /* best-effort — silent */ }
   }
 

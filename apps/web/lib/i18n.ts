@@ -21,6 +21,8 @@ const dict: Record<Lang, Record<string, string>> = {
     "nav.proforma": "Proforma",
     "nav.admin": "Admin",
     "nav.advisor": "AI Advisor",
+    "nav.notifications": "Notifications",
+    "nav.messages": "Messages",
 
     // AI advisor
     "advisor.welcome": "Your AI Business Advisor",

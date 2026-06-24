@@ -46,6 +46,9 @@ export default function RegisterPage() {
   const [touched, setTouch]   = useState<Partial<Record<keyof FormData, boolean>>>({});
   const [emailTaken, setEmailTaken] = useState(false);
 
+  const [phoneTaken, setPhoneTaken] = useState(false);
+  const [nameTaken,  setNameTaken]  = useState(false);
+
   const [verifyEmail, setVerifyEmail]       = useState("");
   const [otp, setOtp]                       = useState("");
   const [verifyLoading, setVerifyLoading]   = useState(false);
@@ -67,6 +70,8 @@ export default function RegisterPage() {
     setForm(p => ({ ...p, [k]: v }));
     setTouch(p => ({ ...p, [k]: true }));
     if (k === "email") { setEmailTaken(false); setError(null); }
+    if (k === "phone") { setPhoneTaken(false); setError(null); }
+    if (k === "name")  { setNameTaken(false);  setError(null); }
   };
 
   /* ── Validation ── */
@@ -86,7 +91,7 @@ export default function RegisterPage() {
   /* ── Submit ── */
   const handleSubmit = async () => {
     if (!formOk) return;
-    setError(null); setEmailTaken(false); setLoading(true);
+    setError(null); setEmailTaken(false); setPhoneTaken(false); setNameTaken(false); setLoading(true);
     try {
       const AUTH_URL = process.env.NEXT_PUBLIC_AUTH_API || "https://higoverse-auth.vercel.app";
       const payload = {
@@ -103,7 +108,6 @@ export default function RegisterPage() {
           body: JSON.stringify(payload),
         });
       } catch {
-        // Only network-level failures (no connection, DNS, CORS) reach here
         setError("Connection problem. Please check your internet and try again.");
         setLoading(false);
         return;
@@ -114,7 +118,21 @@ export default function RegisterPage() {
         let raw = "";
         try { raw = JSON.parse(text)?.detail || ""; } catch { raw = text || ""; }
         const lower = raw.toLowerCase();
-        if (lower.includes("already exists") || lower.includes("already registered") || res.status === 409 || res.status === 400 && lower.includes("email")) {
+
+        // Email conflict
+        if (lower.includes("email") && (lower.includes("already") || lower.includes("exists") || lower.includes("registered")) || (res.status === 409 && !lower.includes("phone") && !lower.includes("name"))) {
+          setEmailTaken(true); return;
+        }
+        // Phone conflict
+        if (lower.includes("phone") && (lower.includes("already") || lower.includes("exists") || lower.includes("registered") || lower.includes("taken") || lower.includes("use"))) {
+          setPhoneTaken(true); return;
+        }
+        // Shop name / full name conflict
+        if ((lower.includes("name") || lower.includes("shop")) && (lower.includes("already") || lower.includes("exists") || lower.includes("taken"))) {
+          setNameTaken(true); return;
+        }
+        // Generic already-exists (no field specified)
+        if (lower.includes("already exists") || lower.includes("already registered") || res.status === 409) {
           setEmailTaken(true); return;
         }
         if (lower.includes("verification email") || lower.includes("failed to send")) {
@@ -408,7 +426,30 @@ export default function RegisterPage() {
                 </div>
               )}
 
-              {error && !emailTaken && (
+              {phoneTaken && (
+                <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 space-y-1">
+                  <p className="text-sm font-semibold text-amber-800 flex items-center gap-1.5">
+                    <AlertCircle size={14} className="text-amber-500" /> Phone number already registered
+                  </p>
+                  <p className="text-xs text-amber-700 leading-relaxed">
+                    This phone number is linked to an existing account. Please use a different number or{" "}
+                    <Link href="/login" className="font-semibold underline hover:text-amber-900">sign in</Link>.
+                  </p>
+                </div>
+              )}
+
+              {nameTaken && (
+                <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 space-y-1">
+                  <p className="text-sm font-semibold text-amber-800 flex items-center gap-1.5">
+                    <AlertCircle size={14} className="text-amber-500" /> Name already taken
+                  </p>
+                  <p className="text-xs text-amber-700 leading-relaxed">
+                    An account with this name already exists. Please use a different name.
+                  </p>
+                </div>
+              )}
+
+              {error && !emailTaken && !phoneTaken && !nameTaken && (
                 <div className="mt-4 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-600">
                   <AlertCircle size={14} className="shrink-0 mt-0.5" /> {error}
                 </div>

@@ -5,10 +5,10 @@ import { useAuth } from "@/lib/auth-context";
 import { useRouter } from "next/navigation";
 import {
   getAdminStats, getAdminShops, getAdminUsers,
-  toggleShop, deleteShop, toggleUser, updateUserRole, deleteUser,
+  toggleShop, deleteShop, toggleUser, updateUserRole, deleteUser, rejectApplication,
   type AdminStats, type AdminShop, type AdminUser,
 } from "@/lib/admin-api";
-import { decodeShopHumanInfo } from "@/lib/product-meta";
+import { decodeShopHumanInfo, parseShopAddress } from "@/lib/product-meta";
 import {
   PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis,
   Tooltip, ResponsiveContainer,
@@ -59,35 +59,31 @@ function joinedThisWeek(s: string | null) {
 }
 
 // ── Parse shop application fields ─────────────────────────────────────────────
-// address stored as: "TIN:123456789|Kigali, Gasabo"  or just "Kigali, Gasabo"
-// description stored as: "Retail|We sell electronics"  or just plain text
 function parseApplication(shop: AdminShop) {
-  let tin = "";
-  let district = shop.address ?? "";
-  if (shop.address?.startsWith("TIN:")) {
-    const parts = shop.address.slice(4).split("|");
-    tin = parts[0] ?? "";
-    district = parts.slice(1).join("|") ?? "";
-  }
-  const { type: bizType = "", desc: bizDesc = "" } = decodeShopHumanInfo(shop.description);
-  return { tin, district, bizType, bizDesc };
+  const addr = parseShopAddress(shop.address);
+  const { type: bizType = "", desc: bizDesc = "", ownerName = "", email: bizEmail = "", status } = decodeShopHumanInfo(shop.description);
+  const location = [addr.province, addr.district, addr.sector].filter(Boolean).join(" › ");
+  return { tin: addr.tin, district: addr.district, province: addr.province, sector: addr.sector, streetAddr: addr.addr, location, bizType, bizDesc, ownerName, bizEmail, status };
 }
 
-// ── Is this a submitted application? (pending shops with data filled in)
+// ── Is this a submitted (pending) application? Excludes already-rejected ones.
 function isApplication(shop: AdminShop) {
-  return !shop.is_active && (
+  if (shop.is_active) return false;
+  const { status } = decodeShopHumanInfo(shop.description);
+  if (status === "REJECTED") return false;
+  return (
     (shop.address && shop.address.length > 0) ||
     (shop.phone && shop.phone.length > 0) ||
-    (shop.description && shop.description.length > 0)
+    (shop.description && shop.description.length > 0 && shop.description !== "{}")
   );
 }
 
 // ── Donut chart ───────────────────────────────────────────────────────────────
 function DonutChart({ data, total, label }: { data: { name: string; value: number; fill: string }[]; total: number; label: string }) {
   return (
-    <div className="relative w-40 h-40 shrink-0">
-      <ResponsiveContainer width="100%" height="100%">
-        <PieChart>
+    <div className="relative shrink-0" style={{ width: 160, height: 160 }}>
+      <ResponsiveContainer width={160} height={160} debounce={50}>
+        <PieChart width={160} height={160}>
           <Pie data={data} cx="50%" cy="50%" innerRadius={46} outerRadius={64}
             dataKey="value" paddingAngle={2} startAngle={90} endAngle={-270}>
             {data.map((d, i) => <Cell key={i} fill={d.fill} />)}
@@ -104,10 +100,17 @@ function DonutChart({ data, total, label }: { data: { name: string; value: numbe
 
 // ── Confirm dialog ────────────────────────────────────────────────────────────
 interface ConfirmState {
-  type: "delete-shop" | "delete-user" | "reject-application";
+  type: "delete-shop" | "delete-user";
   id: string;
   label: string;
-  extra?: string;
+  extra?: string;     // display label (shop name or linked shop name)
+  shopId?: string;    // shop to co-delete when removing a user
+}
+
+interface RejectModalState {
+  shopId: string;
+  shopName: string;
+  description?: string;
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -124,6 +127,8 @@ export default function AdminPage() {
   const [actionId, setActionId]           = useState<string | null>(null);
   const [error, setError]                 = useState<string | null>(null);
   const [confirm, setConfirm]             = useState<ConfirmState | null>(null);
+  const [rejectModal, setRejectModal]     = useState<RejectModalState | null>(null);
+  const [rejectReason, setRejectReason]   = useState("");
   const [roleEdit, setRoleEdit]           = useState<{ id: string; role: string } | null>(null);
   const [shopSearch, setShopSearch]       = useState("");
   const [shopFilter, setShopFilter]       = useState<"all" | "active" | "inactive">("all");
@@ -178,8 +183,14 @@ export default function AdminPage() {
     return map;
   }, [users]);
 
-  const applications = useMemo(() => shops.filter(isApplication), [shops]);
-  const activeShops  = useMemo(() => shops.filter((s) => s.is_active), [shops]);
+  // Cross-reference: hide shops whose owner user was soft-deleted (role="_deleted_" → filtered from users)
+  const visibleShops = useMemo(() => {
+    const userEmails = new Set(users.map((u) => u.email));
+    return shops.filter((s) => s.owner_email === null || userEmails.has(s.owner_email));
+  }, [shops, users]);
+
+  const applications = useMemo(() => visibleShops.filter(isApplication), [visibleShops]);
+  const activeShops  = useMemo(() => visibleShops.filter((s) => s.is_active), [visibleShops]);
 
   const onlineNow   = activeShops.filter((s) => isOnline(s.last_seen_at)).length;
   const onlineToday = activeShops.filter((s) => wasActiveToday(s.last_seen_at)).length;
@@ -235,47 +246,59 @@ export default function AdminPage() {
 
   const handleDeleteShop = async (id: string) => {
     setActionId(id);
+    setError(null);
     try {
-      // Step 1 — delete every user that belongs to this shop.
-      // This scrambles their email first so the address becomes immediately reusable.
+      // Delete every user that belongs to this shop
       const members = shopUsers[id] ?? [];
-      const deletedUserIds = new Set<string>();
       for (const member of members) {
-        try { await deleteUser(member.id); deletedUserIds.add(member.id); } catch { /* keep going */ }
+        try { await deleteUser(member.id); } catch { /* continue deleting others */ }
       }
 
-      // Step 2 — also delete the shop owner if they aren't already in the members list.
-      // (Can happen when the backend didn't link shop_id on the user record yet.)
+      // Also delete the shop owner if not already in members list
       const targetShop = shops.find((s) => s.id === id);
       if (targetShop?.owner_email) {
+        const memberIds = new Set(members.map((m) => m.id));
         const ownerUser = users.find(
-          (u) => u.email === targetShop.owner_email && !deletedUserIds.has(u.id)
+          (u) => u.email === targetShop.owner_email && !memberIds.has(u.id)
         );
         if (ownerUser) {
-          try { await deleteUser(ownerUser.id); deletedUserIds.add(ownerUser.id); } catch { /* keep going */ }
+          try { await deleteUser(ownerUser.id); } catch { /* continue */ }
         }
       }
 
-      // Step 3 — now delete the shop itself.
+      // Delete the shop itself
       await deleteShop(id);
-
-      // Update local state
-      setShops((p) => p.filter((s) => s.id !== id));
-      setUsers((p) => p.filter((u) => !deletedUserIds.has(u.id)));
       if (expandedShop === id) setExpandedShop(null);
-    } catch (e: unknown) { setError(e instanceof Error ? e.message : "Delete failed"); }
-    finally { setActionId(null); setConfirm(null); }
+
+      // Reload from backend so UI reflects true server state
+      await loadAll(true);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Failed to delete shop. Please try again.");
+      await loadAll(true);
+    } finally {
+      setActionId(null);
+      setConfirm(null);
+    }
   };
 
-  const handleDeleteUser = async (id: string) => {
+  const handleDeleteUser = async (id: string, shopId?: string) => {
     setActionId(id);
+    setError(null);
     try {
+      // Scramble the user email first — this is the guaranteed step that permanently
+      // hides the user AND their shop from all admin lists (shop filtered by owner_email).
       await deleteUser(id);
-    } catch { /* deleteUser already swallows errors internally */ }
-    // Always remove from local state — even if the backend DELETE endpoint
-    // is unavailable, the email has been scrambled so the account is dead.
-    setUsers((p) => p.filter((u) => u.id !== id));
-    setActionId(null); setConfirm(null);
+      // Also attempt to hard-delete the shop (best effort — no throw if it fails)
+      if (shopId) await deleteShop(shopId);
+      // Reload from backend — scrambled records are now filtered out
+      await loadAll(true);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Failed to delete account. Please try again.");
+      await loadAll(true);
+    } finally {
+      setActionId(null);
+      setConfirm(null);
+    }
   };
 
   const handleToggleUser = async (id: string) => {
@@ -296,13 +319,23 @@ export default function AdminPage() {
     finally { setActionId(null); }
   };
 
+  const handleRejectApplication = async () => {
+    if (!rejectModal) return;
+    setActionId(rejectModal.shopId);
+    try {
+      const updated = await rejectApplication(rejectModal.shopId, rejectReason || "Application did not meet requirements", rejectModal.description);
+      setShops((p) => p.map((s) => s.id === rejectModal.shopId ? { ...s, description: updated.description } : s));
+    } catch (e: unknown) { setError(e instanceof Error ? e.message : "Failed to reject"); }
+    finally { setActionId(null); setRejectModal(null); setRejectReason(""); }
+  };
+
   // Confirm dialog execution
   const execConfirm = async () => {
     if (!confirm) return;
-    if (confirm.type === "delete-shop" || confirm.type === "reject-application") {
+    if (confirm.type === "delete-shop") {
       await handleDeleteShop(confirm.id);
     } else if (confirm.type === "delete-user") {
-      await handleDeleteUser(confirm.id);
+      await handleDeleteUser(confirm.id, confirm.shopId);
     }
   };
 
@@ -616,7 +649,7 @@ export default function AdminPage() {
             ) : (
               <div className="space-y-3">
                 {filteredApplications.map((shop) => {
-                  const { tin, district, bizType, bizDesc } = parseApplication(shop);
+                  const { tin, location, bizType, bizDesc, ownerName, bizEmail, streetAddr } = parseApplication(shop);
                   const busy = actionId === shop.id;
                   const ownerUser = users.find((u) => u.shop_id === shop.id || u.email === shop.owner_email);
                   return (
@@ -659,21 +692,21 @@ export default function AdminPage() {
                                   {busy ? "Approving…" : <><BadgeCheck size={14} /> Approve Shop</>}
                                 </button>
                                 <button
-                                  onClick={() => setConfirm({ type: "reject-application", id: shop.id, label: shop.name ?? "this application", extra: shop.owner_email ?? undefined })}
+                                  onClick={() => { setRejectReason(""); setRejectModal({ shopId: shop.id, shopName: shop.name ?? "this application", description: shop.description }); }}
                                   disabled={busy}
                                   className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold border border-red-200 text-red-500 hover:bg-red-50 transition disabled:opacity-40">
-                                  <ShieldX size={13} /> Reject & Delete
+                                  <ShieldX size={13} /> Reject
                                 </button>
                               </div>
                             </div>
 
                             {/* Application fields */}
-                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4">
+                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mt-4">
                               <div className="bg-gray-50 rounded-lg p-3 border border-gray-100">
                                 <p className="text-[9px] uppercase tracking-wider text-gray-400 font-semibold flex items-center gap-1 mb-1">
                                   <CreditCard size={9} /> TIN / Tax ID
                                 </p>
-                                <p className="text-sm font-bold text-gray-900">{tin || <span className="text-gray-300 font-normal">Not provided</span>}</p>
+                                <p className="text-sm font-bold text-gray-900 font-mono">{tin || <span className="text-gray-300 font-normal font-sans">Not provided</span>}</p>
                               </div>
                               <div className="bg-gray-50 rounded-lg p-3 border border-gray-100">
                                 <p className="text-[9px] uppercase tracking-wider text-gray-400 font-semibold flex items-center gap-1 mb-1">
@@ -683,15 +716,32 @@ export default function AdminPage() {
                               </div>
                               <div className="bg-gray-50 rounded-lg p-3 border border-gray-100">
                                 <p className="text-[9px] uppercase tracking-wider text-gray-400 font-semibold flex items-center gap-1 mb-1">
-                                  <MapPin size={9} /> District / Location
-                                </p>
-                                <p className="text-sm font-bold text-gray-900">{district || <span className="text-gray-300 font-normal">—</span>}</p>
-                              </div>
-                              <div className="bg-gray-50 rounded-lg p-3 border border-gray-100">
-                                <p className="text-[9px] uppercase tracking-wider text-gray-400 font-semibold flex items-center gap-1 mb-1">
                                   <Phone size={9} /> Phone
                                 </p>
                                 <p className="text-sm font-bold text-gray-900">{shop.phone || <span className="text-gray-300 font-normal">—</span>}</p>
+                              </div>
+                              {ownerName && (
+                                <div className="bg-gray-50 rounded-lg p-3 border border-gray-100">
+                                  <p className="text-[9px] uppercase tracking-wider text-gray-400 font-semibold flex items-center gap-1 mb-1">
+                                    <Users size={9} /> Owner Name
+                                  </p>
+                                  <p className="text-sm font-bold text-gray-900">{ownerName}</p>
+                                </div>
+                              )}
+                              {bizEmail && (
+                                <div className="bg-gray-50 rounded-lg p-3 border border-gray-100">
+                                  <p className="text-[9px] uppercase tracking-wider text-gray-400 font-semibold flex items-center gap-1 mb-1">
+                                    <Mail size={9} /> Business Email
+                                  </p>
+                                  <p className="text-xs font-bold text-gray-900 truncate">{bizEmail}</p>
+                                </div>
+                              )}
+                              <div className="bg-gray-50 rounded-lg p-3 border border-gray-100">
+                                <p className="text-[9px] uppercase tracking-wider text-gray-400 font-semibold flex items-center gap-1 mb-1">
+                                  <MapPin size={9} /> Location
+                                </p>
+                                <p className="text-xs font-bold text-gray-900">{location || <span className="text-gray-300 font-normal">—</span>}</p>
+                                {streetAddr && <p className="text-[10px] text-gray-500 mt-0.5">{streetAddr}</p>}
                               </div>
                             </div>
 
@@ -1028,9 +1078,9 @@ export default function AdminPage() {
                               <UserCog size={12} />
                             </button>
                             <button
-                              onClick={() => setConfirm({ type: "delete-user", id: u.id, label: u.email, extra: u.shop_name ?? undefined })}
+                              onClick={() => setConfirm({ type: "delete-user", id: u.id, label: u.email, extra: u.shop_name ?? undefined, shopId: u.shop_id ?? undefined })}
                               disabled={busy}
-                              title="Permanently delete this user and all their data"
+                              title="Permanently delete this user and their shop"
                               className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg bg-red-50 text-red-500 hover:bg-red-500 hover:text-white font-medium border border-red-200 hover:border-red-500 transition disabled:opacity-40">
                               <UserX size={11} /> Delete
                             </button>
@@ -1048,6 +1098,50 @@ export default function AdminPage() {
         )}
       </main>
 
+      {/* ── REJECT APPLICATION MODAL ──────────────────────────────────────────── */}
+      {rejectModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
+            <div className="flex items-center gap-3 px-5 pt-5 pb-4 border-b border-gray-100">
+              <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center shrink-0">
+                <ShieldX size={18} className="text-red-600" />
+              </div>
+              <div>
+                <h3 className="font-bold text-gray-900 text-sm">Reject Application</h3>
+                <p className="text-xs text-gray-400 mt-0.5">&ldquo;{rejectModal.shopName}&rdquo;</p>
+              </div>
+            </div>
+            <div className="px-5 py-4 space-y-3">
+              <p className="text-xs text-gray-500">
+                The applicant will stay registered as a <strong>Customer</strong> and can edit their application and resubmit. Your reason will be shown to them.
+              </p>
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1.5">Rejection reason <span className="text-gray-400 font-normal">(recommended)</span></label>
+                <textarea
+                  value={rejectReason}
+                  onChange={(e) => setRejectReason(e.target.value)}
+                  rows={3}
+                  placeholder="e.g. TIN number could not be verified. Please double-check and resubmit."
+                  className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm resize-none outline-none focus:border-red-300 font-inherit"
+                  style={{ fontFamily: "inherit" }}
+                />
+              </div>
+            </div>
+            <div className="flex gap-2.5 px-5 pb-5">
+              <button onClick={() => setRejectModal(null)}
+                className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition">
+                Cancel
+              </button>
+              <button onClick={handleRejectApplication} disabled={!!actionId}
+                className="flex-1 py-2.5 rounded-xl text-sm font-bold text-white flex items-center justify-center gap-2 transition disabled:opacity-50"
+                style={{ background: "#dc2626" }}>
+                {actionId ? "Rejecting…" : <><ShieldX size={13} /> Send Rejection</>}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── CONFIRM DIALOG ────────────────────────────────────────────────────── */}
       {confirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
@@ -1061,7 +1155,6 @@ export default function AdminPage() {
                 <h3 className="font-bold text-gray-900 text-sm">
                   {confirm.type === "delete-shop" && "Delete Shop Permanently"}
                   {confirm.type === "delete-user" && "Delete User Permanently"}
-                  {confirm.type === "reject-application" && "Reject & Delete Application"}
                 </h3>
                 <p className="text-xs text-gray-400 mt-0.5">This action cannot be undone.</p>
               </div>
@@ -1079,19 +1172,17 @@ export default function AdminPage() {
                     {confirm.extra && <p>• Owner: <strong>{confirm.extra}</strong></p>}
                   </>
                 )}
-                {confirm.type === "reject-application" && (
-                  <>
-                    <p>• The applicant&apos;s user account will be <strong>permanently deleted</strong> and the email freed.</p>
-                    <p>• The shop application and all submitted data will be removed from the server.</p>
-                    <p>• The applicant can register a new account and re-apply.</p>
-                    {confirm.extra && <p>• Applicant: <strong>{confirm.extra}</strong></p>}
-                  </>
-                )}
                 {confirm.type === "delete-user" && (
                   <>
-                    <p>• The email address will be scrambled first, making it available for re-registration immediately.</p>
-                    <p>• The user account will then be permanently deleted from the server.</p>
-                    {confirm.extra && <p>• Linked shop: <strong>{confirm.extra}</strong> (shop itself is not deleted).</p>}
+                    <p>• The user account will be <strong>permanently deleted</strong> from the server and database.</p>
+                    <p>• Their email will be freed immediately for re-registration.</p>
+                    {confirm.extra && confirm.shopId && (
+                      <p>• Their shop <strong>&ldquo;{confirm.extra}&rdquo;</strong> and all its data will also be <strong>permanently deleted</strong>.</p>
+                    )}
+                    {confirm.extra && !confirm.shopId && (
+                      <p>• Previously linked to shop: <strong>{confirm.extra}</strong>.</p>
+                    )}
+                    <p>• This cannot be undone.</p>
                   </>
                 )}
               </div>
@@ -1107,12 +1198,7 @@ export default function AdminPage() {
               <button onClick={execConfirm} disabled={!!actionId}
                 className="flex-1 py-2.5 rounded-xl text-sm font-bold text-white flex items-center justify-center gap-2 transition disabled:opacity-50"
                 style={{ background: "#dc2626" }}>
-                {actionId ? "Deleting…" : (
-                  <>
-                    <Trash2 size={13} />
-                    {confirm.type === "reject-application" ? "Reject & Delete" : "Yes, Delete Permanently"}
-                  </>
-                )}
+                {actionId ? "Deleting…" : <><Trash2 size={13} /> Yes, Delete Permanently</>}
               </button>
             </div>
           </div>

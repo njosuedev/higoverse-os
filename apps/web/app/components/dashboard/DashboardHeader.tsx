@@ -2,16 +2,20 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { useLanguage } from "@/lib/language-context";
 import { useAuth } from "@/lib/auth-context";
 import { useShop } from "@/lib/shop-context";
 import { LANGUAGES } from "@/lib/i18n";
 import { settingsRequest } from "@/lib/settings-api";
+import { getEffectiveRole } from "@/lib/auth";
+import { getUnreadCount } from "@/lib/messages-api";
+import { getUnreadNotifCount } from "@/lib/notifications-api";
 import {
   Home, Package, Truck, ShoppingCart, BarChart3,
   Users, FileText, ChevronDown, ShieldCheck, Receipt,
-  Sparkles, Settings, LogOut, Moon, Sun, Globe, Wifi, Store,
+  Sparkles, Settings, LogOut, Moon, Sun, Globe, Store,
+  Bell, MessageSquare,
 } from "lucide-react";
 
 function useDarkMode() {
@@ -32,6 +36,31 @@ function useDarkMode() {
   return { dark, toggle };
 }
 
+const CUSTOMER_MENUS = [
+  { key: "nav.marketplace",   href: "/marketplace",   icon: Store          },
+  { key: "nav.notifications", href: "/notifications", icon: Bell           },
+  { key: "nav.messages",      href: "/messages",      icon: MessageSquare  },
+  { key: "nav.settings",      href: "/settings",      icon: Settings       },
+];
+
+const OWNER_MENUS = [
+  { key: "nav.home",       href: "/",          icon: Home         },
+  { key: "nav.marketplace",href: "/marketplace",icon: Store        },
+  { key: "nav.advisor",    href: "/advisor",    icon: Sparkles     },
+  { key: "nav.items",      href: "/items",      icon: Package      },
+  { key: "nav.partners",   href: "/partners",   icon: Users        },
+  { key: "nav.purchases",  href: "/purchases",  icon: Truck        },
+  { key: "nav.sales",      href: "/sales",      icon: ShoppingCart },
+  { key: "nav.proforma",   href: "/proforma",   icon: FileText     },
+  { key: "nav.expenses",   href: "/expenses",   icon: Receipt      },
+  { key: "nav.reports",    href: "/reports",    icon: BarChart3    },
+];
+
+const ADMIN_MENUS = [
+  ...OWNER_MENUS,
+  { key: "nav.admin", href: "/admin", icon: ShieldCheck },
+];
+
 export default function DashboardHeader({ loading = false }: { loading?: boolean }) {
   const pathname   = usePathname();
   const router     = useRouter();
@@ -40,8 +69,22 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
   const { shop } = useShop();
   const { dark, toggle: toggleDark } = useDarkMode();
 
-  const [menuOpen, setMenuOpen] = useState(false);
+  const [menuOpen, setMenuOpen]         = useState(false);
+  const [unreadMsgs, setUnreadMsgs]     = useState(0);
+  const [unreadNotifs, setUnreadNotifs] = useState(0);
   const menuRef = useRef<HTMLDivElement>(null);
+
+  const refreshBadges = useCallback(async () => {
+    try { setUnreadMsgs(await getUnreadCount()); } catch { /* silent */ }
+    try { setUnreadNotifs(await getUnreadNotifCount()); } catch { /* silent */ }
+  }, []);
+
+  useEffect(() => {
+    if (!user) return;
+    refreshBadges();
+    const t = setInterval(refreshBadges, 30_000);
+    return () => clearInterval(t);
+  }, [user, refreshBadges]);
 
   useEffect(() => {
     function onOutside(e: MouseEvent) {
@@ -63,26 +106,14 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
   }
 
   const currentLang = LANGUAGES.find((l) => l.code === lang) ?? LANGUAGES[0];
+  void currentLang;
 
-  const isVerified = shop?.is_active === true || user?.role === "admin";
+  const role = getEffectiveRole(user ?? null, shop?.is_active === true);
+  const isAdmin     = role === "ADMIN";
+  const isShopOwner = role === "SHOP_OWNER";
+  const isCustomer  = role === "CUSTOMER";
 
-  const menus = [
-    // Always visible to every logged-in user
-    { key: "nav.marketplace", href: "/marketplace", icon: Store,        verified: false },
-    // Advisor and all shop management only visible when shop is verified or admin
-    { key: "nav.advisor",     href: "/advisor",     icon: Sparkles,     verified: true },
-    { key: "nav.home",        href: "/",            icon: Home,         verified: true },
-    { key: "nav.items",       href: "/items",       icon: Package,      verified: true },
-    { key: "nav.partners",    href: "/partners",    icon: Users,        verified: true },
-    { key: "nav.purchases",   href: "/purchases",   icon: Truck,        verified: true },
-    { key: "nav.sales",       href: "/sales",       icon: ShoppingCart, verified: true },
-    { key: "nav.proforma",    href: "/proforma",    icon: FileText,     verified: true },
-    { key: "nav.expenses",    href: "/expenses",    icon: Receipt,      verified: true },
-    { key: "nav.reports",     href: "/reports",     icon: BarChart3,    verified: true },
-    ...(user?.role === "admin"
-      ? [{ key: "nav.admin", href: "/admin", icon: ShieldCheck, verified: false }]
-      : []),
-  ].filter((m) => !m.verified || isVerified);
+  const menus = isAdmin ? ADMIN_MENUS : isShopOwner ? OWNER_MENUS : CUSTOMER_MENUS;
 
   return (
     <>
@@ -106,26 +137,41 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
         {/* ── CENTER: Nav tabs ── */}
         <nav className="flex items-stretch overflow-x-auto scrollbar-hide">
           {loading
-            ? Array.from({ length: 6 }).map((_, i) => (
+            ? Array.from({ length: 4 }).map((_, i) => (
                 <div key={i} className="w-16 mx-1 my-auto h-8 bg-slate-100 animate-pulse rounded-lg flex-shrink-0" />
               ))
             : menus.map((menu) => {
                 const Icon = menu.icon;
-                const active = menu.href === "/" ? pathname === "/" : menu.href === "/marketplace" ? pathname === "/marketplace" || pathname.startsWith("/marketplace/") : pathname.startsWith(menu.href);
-                const isAdmin   = menu.href === "/admin";
-                const isAdvisor = menu.href === "/advisor";
-                const indicatorColor = isAdmin ? "bg-red-500" : "bg-[#1372e6]";
-                const activeText     = isAdmin ? "text-red-600" : "text-[#1372e6]";
+                const active = menu.href === "/"
+                  ? pathname === "/"
+                  : menu.href === "/marketplace"
+                  ? pathname === "/marketplace" || pathname.startsWith("/marketplace/")
+                  : pathname.startsWith(menu.href);
+                const isAdminItem  = menu.href === "/admin";
+                const isAdvisor    = menu.href === "/advisor";
+                const indicatorColor = isAdminItem ? "bg-red-500" : "bg-[#1372e6]";
+                const activeText     = isAdminItem ? "text-red-600" : "text-[#1372e6]";
                 const idleText       = isAdvisor
                   ? "text-[#1372e6] hover:bg-slate-50"
                   : "text-slate-600 hover:text-slate-900 hover:bg-slate-50";
+
+                const badge =
+                  menu.href === "/notifications" ? unreadNotifs :
+                  menu.href === "/messages"      ? unreadMsgs  : 0;
 
                 return (
                   <Link key={menu.href} href={menu.href}
                     className={`relative flex flex-col items-center justify-center gap-0.5 px-3 lg:px-4
                       flex-shrink-0 min-w-[56px] transition-colors
                       ${active ? activeText : idleText}`}>
-                    <Icon size={20} strokeWidth={active ? 2.5 : 1.8} />
+                    <span className="relative">
+                      <Icon size={20} strokeWidth={active ? 2.5 : 1.8} />
+                      {badge > 0 && (
+                        <span className="absolute -top-1 -right-1.5 min-w-[14px] h-[14px] px-0.5 rounded-full bg-red-500 text-white text-[9px] font-black flex items-center justify-center leading-none">
+                          {badge > 99 ? "99+" : badge}
+                        </span>
+                      )}
+                    </span>
                     <span className="text-[10px] font-semibold hidden sm:block leading-none">{t(menu.key)}</span>
                     {active && (
                       <span className={`absolute bottom-0 left-1.5 right-1.5 h-[3px] rounded-t-full ${indicatorColor}`} />
@@ -135,23 +181,30 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
               })}
         </nav>
 
-        {/* ── RIGHT: Open a Shop + settings menu ── */}
+        {/* ── RIGHT: CTA + settings menu ── */}
         <div className="flex items-center justify-end gap-2 px-4">
 
-          {/* "Open a Shop" — only for non-verified, non-admin accounts */}
-          {!loading && !isVerified && user?.role !== "admin" && (
+          {/* "Create Shop" — only for CUSTOMER accounts */}
+          {!loading && isCustomer && (
             <Link
               href="/marketplace?apply=1"
               className="hidden sm:flex items-center gap-1.5 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition hover:opacity-90 shrink-0"
               style={{ background: "#ff6a00", whiteSpace: "nowrap" }}
             >
-              <Store size={12} /> Open a Shop
+              <Store size={12} /> Create Shop
             </Link>
+          )}
+
+          {/* Role badge for customers */}
+          {!loading && isCustomer && (
+            <span className="hidden md:flex items-center gap-1 text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-full shrink-0">
+              Customer
+            </span>
           )}
 
           <div ref={menuRef} className="relative">
 
-            {/* Trigger: shop avatar or gear */}
+            {/* Trigger */}
             <button
               onClick={() => setMenuOpen((o) => !o)}
               className={`flex items-center gap-2 px-2 py-1.5 rounded-xl transition
@@ -164,7 +217,7 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
                   className="w-8 h-8 rounded-full object-cover border border-slate-200" />
               ) : (
                 <div className="w-8 h-8 rounded-full bg-[#1372e6] flex items-center justify-center text-white text-xs font-bold">
-                  {shop?.name?.[0]?.toUpperCase() ?? "H"}
+                  {user?.name?.[0]?.toUpperCase() ?? shop?.name?.[0]?.toUpperCase() ?? "H"}
                 </div>
               )}
               <ChevronDown size={14} className={`text-slate-500 transition-transform hidden sm:block ${menuOpen ? "rotate-180" : ""}`} />
@@ -174,10 +227,9 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
             {menuOpen && (
               <div className="absolute right-0 top-full mt-2 w-[300px] bg-white border border-slate-200 rounded-2xl shadow-2xl z-50 overflow-hidden">
 
-                {/* ── Profile header — gradient ── */}
+                {/* ── Profile header ── */}
                 <div className="bg-gradient-to-br from-[#1372e6] to-[#0a4fb5] px-4 pt-5 pb-5">
                   <div className="flex items-center gap-3.5">
-                    {/* Avatar */}
                     <div className="relative shrink-0">
                       {shop?.logo_url ? (
                         <img src={shop.logo_url} alt={shop.name}
@@ -187,26 +239,29 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
                           {(user?.name?.[0] ?? shop?.name?.[0] ?? "H").toUpperCase()}
                         </div>
                       )}
-                      {/* Online dot */}
                       <span className="absolute -bottom-1 -right-1 w-[14px] h-[14px] bg-green-400 border-2 border-[#1372e6] rounded-full" />
                     </div>
 
-                    {/* Info */}
                     <div className="min-w-0 flex-1">
                       <p className="font-bold text-white text-[13px] truncate leading-snug">
                         {user?.name ?? shop?.name ?? "User"}
                       </p>
                       <p className="text-white/60 text-[11px] truncate mt-0.5">{user?.email ?? ""}</p>
                       <div className="mt-2">
-                        {shop?.is_active ? (
+                        {isAdmin ? (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-red-500/20 text-red-200 border border-red-400/30 px-2 py-0.5 rounded-full">
+                            <span className="w-1.5 h-1.5 rounded-full bg-red-300 inline-block" />
+                            Admin
+                          </span>
+                        ) : isShopOwner ? (
                           <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-green-500/20 text-green-200 border border-green-400/30 px-2 py-0.5 rounded-full">
                             <span className="w-1.5 h-1.5 rounded-full bg-green-300 inline-block" />
-                            Verified shop
+                            Shop Owner
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1 text-[10px] font-semibold bg-white/10 text-white/75 border border-white/20 px-2 py-0.5 rounded-full">
+                          <span className="inline-flex items-center gap-1 text-[10px] font-semibold bg-amber-500/20 text-amber-200 border border-amber-400/30 px-2 py-0.5 rounded-full">
                             <span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block" />
-                            Pending verification
+                            Customer
                           </span>
                         )}
                       </div>
@@ -216,6 +271,21 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
 
                 {/* ── Options ── */}
                 <div className="p-2">
+
+                  {/* Create Shop — customer shortcut */}
+                  {isCustomer && (
+                    <Link href="/marketplace?apply=1" onClick={() => setMenuOpen(false)}
+                      className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-orange-50 transition group mb-1">
+                      <div className="w-8 h-8 rounded-lg bg-orange-50 group-hover:bg-orange-100 flex items-center justify-center transition"
+                        style={{ color: "#ff6a00" }}>
+                        <Store size={15} />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-slate-700">Create a Shop</p>
+                        <p className="text-[10px] text-slate-400 leading-snug">Apply for shop dashboard access</p>
+                      </div>
+                    </Link>
+                  )}
 
                   {/* Dark mode */}
                   <button
@@ -256,15 +326,19 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
                     </div>
                   </div>
 
-                  {/* Settings */}
+                  {/* Settings — accessible to everyone */}
                   <Link href="/settings" onClick={() => setMenuOpen(false)}
                     className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-slate-50 transition group">
                     <div className="w-8 h-8 rounded-lg bg-slate-100 group-hover:bg-slate-200 flex items-center justify-center text-slate-500 transition">
                       <Settings size={15} />
                     </div>
                     <div className="min-w-0">
-                      <p className="text-sm font-medium text-slate-700">Settings</p>
-                      <p className="text-[10px] text-slate-400 leading-snug">Shop, profile &amp; preferences</p>
+                      <p className="text-sm font-medium text-slate-700">
+                        {isCustomer ? "Account & Profile" : "Settings"}
+                      </p>
+                      <p className="text-[10px] text-slate-400 leading-snug">
+                        {isCustomer ? "Password and account preferences" : "Shop, profile & preferences"}
+                      </p>
                     </div>
                     <ChevronDown size={13} className="ml-auto -rotate-90 text-slate-300 group-hover:text-slate-400 transition shrink-0" />
                   </Link>

@@ -232,13 +232,13 @@ export default function LoginPage() {
             <>
               <div className="mb-7">
                 <h2 className="text-2xl font-bold text-gray-900">Welcome back</h2>
-                <p className="text-sm text-gray-500 mt-1">Sign in to your workspace</p>
+                <p className="text-sm text-gray-500 mt-1">Sign in to your Higoverse account</p>
               </div>
 
               {justRegistered && (
                 <div className="mb-4 flex items-center gap-2 rounded-lg bg-green-50 border border-green-200 px-3 py-2.5 text-sm text-green-700">
                   <CheckCircle2 size={14} className="shrink-0" />
-                  Workspace created — sign in to continue.
+                  Account created — sign in to continue.
                 </div>
               )}
               {error && (

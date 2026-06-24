@@ -182,8 +182,8 @@ export function catFromText(name: string, desc?: string | null): string {
   return "other";
 }
 
-// Encodes catalog into shop description field preserving existing type/desc text
-export function encodeShopDescription(
+// Encodes catalog into shop description field preserving existing type/desc/owner/etc. fields
+export function encodeDescriptionWithCatalog(
   existingDescription: string | undefined | null,
   catalog: ShopCatalogEntry[],
 ): string {
@@ -225,12 +225,20 @@ export function decodeShopCatalog(
 // Extracts the human-readable business type and description from a shop's description field
 export function decodeShopHumanInfo(
   description: string | undefined | null,
-): { type?: string; desc?: string } {
+): { type?: string; desc?: string; ownerName?: string; email?: string; bannerUrl?: string; status?: string; rejectionReason?: string } {
   if (!description) return {};
   try {
     const parsed = JSON.parse(description);
     if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-      return { type: parsed._t, desc: parsed._d };
+      return {
+        type: parsed._t,
+        desc: parsed._d,
+        ownerName: parsed._owner,
+        email: parsed._email,
+        bannerUrl: parsed._banner,
+        status: parsed._s,
+        rejectionReason: parsed._r,
+      };
     }
   } catch { /* old format */ }
   if (description.includes("|")) {
@@ -238,6 +246,85 @@ export function decodeShopHumanInfo(
     return { type: description.slice(0, idx), desc: description.slice(idx + 1) };
   }
   return { desc: description };
+}
+
+/** Build a shop description JSON string from application fields. */
+export function encodeShopDescription(data: {
+  type?: string;
+  desc?: string;
+  ownerName?: string;
+  email?: string;
+  bannerUrl?: string;
+  catalog?: ShopCatalogEntry[];
+}): string {
+  const obj: Record<string, unknown> = {};
+  if (data.type) obj._t = data.type;
+  if (data.desc) obj._d = data.desc;
+  if (data.ownerName) obj._owner = data.ownerName;
+  if (data.email) obj._email = data.email;
+  if (data.bannerUrl) obj._banner = data.bannerUrl;
+  if (data.catalog?.length) obj._c = data.catalog;
+  return JSON.stringify(obj);
+}
+
+/** Add rejection status to an existing description JSON string. */
+export function addRejectionToDescription(description: string | undefined | null, reason: string): string {
+  let obj: Record<string, unknown> = {};
+  try { if (description) obj = JSON.parse(description) as Record<string, unknown>; } catch { /* ignore */ }
+  obj._s = "REJECTED";
+  obj._r = reason;
+  return JSON.stringify(obj);
+}
+
+/** Parse the address field: "TIN:xxx|Province:yyy|District:zzz|Sector:aaa|Addr:bbb" */
+export function parseShopAddress(address: string | undefined | null): {
+  tin: string; province: string; district: string; sector: string; addr: string;
+} {
+  const result = { tin: "", province: "", district: "", sector: "", addr: "" };
+  if (!address) return result;
+  if (!address.startsWith("TIN:")) {
+    result.district = address;
+    return result;
+  }
+  const parts = address.slice(4).split("|");
+  result.tin = parts[0] ?? "";
+  for (const part of parts.slice(1)) {
+    const colonIdx = part.indexOf(":");
+    if (colonIdx === -1) { result.district = result.district || part; continue; }
+    const k = part.slice(0, colonIdx);
+    const v = part.slice(colonIdx + 1);
+    if (k === "Province") result.province = v;
+    else if (k === "District") result.district = v;
+    else if (k === "Sector") result.sector = v;
+    else if (k === "Addr") result.addr = v;
+  }
+  return result;
+}
+
+/** Build the address field from application components. */
+export function encodeShopAddress(data: {
+  tin: string; province?: string; district: string; sector?: string; addr?: string;
+}): string {
+  let address = `TIN:${data.tin}`;
+  if (data.province) address += `|Province:${data.province}`;
+  if (data.district) address += `|District:${data.district}`;
+  if (data.sector) address += `|Sector:${data.sector}`;
+  if (data.addr) address += `|Addr:${data.addr}`;
+  return address;
+}
+
+/** Determine application status from shop fields. */
+export function getApplicationStatus(
+  description: string | undefined | null,
+  address: string | undefined | null,
+  isActive: boolean,
+): "NONE" | "PENDING" | "REJECTED" | "ACTIVE" {
+  if (isActive) return "ACTIVE";
+  const info = decodeShopHumanInfo(description);
+  if (info.status === "REJECTED") return "REJECTED";
+  if (address?.startsWith("TIN:")) return "PENDING";
+  if ((description && description !== "{}") || address) return "PENDING";
+  return "NONE";
 }
 
 // ── image compression ──────────────────────────────────────────────────────

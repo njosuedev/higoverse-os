@@ -6,7 +6,12 @@ import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
 import { useShop } from "@/lib/shop-context";
 import { listShops, updateMyShop, type Shop } from "@/lib/shop-api";
-import { getCatalog, upsertCatalogEntry, getProductMeta, compressImage, decodeShopCatalog, type MarketplaceEntry } from "@/lib/product-meta";
+import {
+  getCatalog, upsertCatalogEntry, getProductMeta, compressImage, decodeShopCatalog,
+  encodeShopDescription, encodeShopAddress, parseShopAddress, decodeShopHumanInfo,
+  getApplicationStatus,
+  type MarketplaceEntry,
+} from "@/lib/product-meta";
 import { itemRequest } from "@/lib/product-api";
 import { partnerRequest } from "@/lib/supplier-api";
 import { purchaseRequest } from "@/lib/purchase-api";
@@ -109,7 +114,10 @@ export default function MarketplacePage() {
   // Shop application form state
   const [showShopForm, setShowShopForm] = useState(false);
   const [shopApplied, setShopApplied] = useState(false);
-  const [shopForm, setShopForm] = useState({ shop_name: "", tin: "", business_type: "", district: "", phone: "", description: "", logo_url: "" });
+  const [shopForm, setShopForm] = useState({
+    shop_name: "", tin: "", business_type: "", owner_name: "", phone: "", email: "",
+    province: "", district: "", sector: "", address: "", description: "", logo_url: "", banner_url: "",
+  });
   const [shopFormLoading, setShopFormLoading] = useState(false);
   const [shopFormError, setShopFormError] = useState("");
 
@@ -122,25 +130,43 @@ export default function MarketplacePage() {
     if (localStorage.getItem("mp_shop_applied") === "1") setShopApplied(true);
   }, []);
 
-  // Auto-open shop application form when navigating from the header "Open a Shop" button
+  // Auto-open shop application form from CTA links (?apply=1)
+  // For rejected applications, bypass the shopApplied localStorage flag so resubmission always works
   useEffect(() => {
-    if (searchParams.get("apply") === "1" && !shopApplied && shop?.is_active !== true) {
+    if (searchParams.get("apply") !== "1") return;
+    if (shop?.is_active === true) return;
+    const status = getApplicationStatus(shop?.description, shop?.address, !!shop?.is_active);
+    const isRejected = status === "REJECTED";
+    if (!shopApplied || isRejected) {
+      if (isRejected) localStorage.removeItem("mp_shop_applied");
       setShowShopForm(true);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams, shop?.is_active]);
+  }, [searchParams, shop?.is_active, shop?.description, shop?.address]);
 
-  // Pre-fill the form when shop data loads
+  // Pre-fill the form when shop data loads (supports rejection re-edit)
   useEffect(() => {
     if (!shop) return;
+    const descInfo = decodeShopHumanInfo(shop.description);
+    const addrInfo = parseShopAddress(shop.address);
     setShopForm((f) => ({
       ...f,
-      shop_name: f.shop_name || shop.name || "",
-      phone:     f.phone     || shop.phone || "",
-      logo_url:  f.logo_url  || shop.logo_url || "",
+      shop_name:     f.shop_name     || shop.name          || "",
+      phone:         f.phone         || shop.phone         || "",
+      logo_url:      f.logo_url      || shop.logo_url      || "",
+      business_type: f.business_type || descInfo.type      || "",
+      description:   f.description   || descInfo.desc      || "",
+      owner_name:    f.owner_name    || descInfo.ownerName  || "",
+      email:         f.email         || descInfo.email      || "",
+      banner_url:    f.banner_url    || descInfo.bannerUrl  || "",
+      tin:           f.tin           || addrInfo.tin        || "",
+      province:      f.province      || addrInfo.province   || "",
+      district:      f.district      || addrInfo.district   || "",
+      sector:        f.sector        || addrInfo.sector     || "",
+      address:       f.address       || addrInfo.addr       || "",
     }));
-    // Detect already-applied: backend will have address set if they previously filled the form
-    if (shop.address) setShopApplied(true);
+    // Detect already-applied: backend will have TIN address if they previously filled the form
+    if (shop.address?.startsWith("TIN:")) setShopApplied(true);
   }, [shop?.id]);
 
   function dismissBanner() {
@@ -155,15 +181,35 @@ export default function MarketplacePage() {
     if (!shopForm.business_type)      { setShopFormError("Select a business type.");  return; }
     if (!shopForm.district)           { setShopFormError("Select your district.");     return; }
     if (!shopForm.phone.trim())       { setShopFormError("Phone number is required."); return; }
+
+    // Uniqueness checks against all known shops (excluding current user's own shop)
+    const normalName  = shopForm.shop_name.trim().toLowerCase();
+    const normalPhone = shopForm.phone.replace(/\s/g, "");
+    if (shops.some((s) => s.id !== shop?.id && (s.name ?? "").trim().toLowerCase() === normalName)) {
+      setShopFormError("A shop with this name already exists. Please choose a unique shop name.");
+      return;
+    }
+    if (shops.some((s) => s.id !== shop?.id && (s.phone ?? "").replace(/\s/g, "") === normalPhone)) {
+      setShopFormError("This phone number is already registered to another shop. Please use a different number.");
+      return;
+    }
+
     setShopFormLoading(true);
     try {
-      // address: "TIN:123456789|Kigali, Gasabo" — parsed by admin panel
-      const tin = shopForm.tin.trim();
-      const address = `TIN:${tin}|${shopForm.district}, Rwanda`;
-      // description: "Retail|Your description text" — parsed by admin panel
-      const description = shopForm.description.trim()
-        ? `${shopForm.business_type}|${shopForm.description.trim()}`
-        : shopForm.business_type;
+      const address = encodeShopAddress({
+        tin:      shopForm.tin.trim(),
+        province: shopForm.province,
+        district: shopForm.district,
+        sector:   shopForm.sector,
+        addr:     shopForm.address.trim(),
+      });
+      const description = encodeShopDescription({
+        type:      shopForm.business_type,
+        desc:      shopForm.description.trim(),
+        ownerName: shopForm.owner_name.trim(),
+        email:     shopForm.email.trim(),
+        bannerUrl: shopForm.banner_url || undefined,
+      });
       await updateMyShop({
         name:        shopForm.shop_name.trim(),
         phone:       shopForm.phone.trim(),
@@ -181,7 +227,9 @@ export default function MarketplacePage() {
     }
   }
 
-  const shopIsActive = shop?.is_active === true;
+  const shopIsActive  = shop?.is_active === true;
+  const appStatus     = getApplicationStatus(shop?.description, shop?.address, shopIsActive);
+  const rejectionInfo = decodeShopHumanInfo(shop?.description);
 
   const [detailEntry, setDetailEntry] = useState<MarketplaceEntry | null>(null);
   const [detailImg, setDetailImg]     = useState(0);
@@ -673,8 +721,37 @@ export default function MarketplacePage() {
 
       {/* ── SHOP STATUS BANNER ───────────────────────────────────────────── */}
 
+      {/* State 0: Application REJECTED — show reason and resubmit CTA */}
+      {appStatus === "REJECTED" && user?.role !== "admin" && (
+        <div style={{ background: "linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%)", borderBottom: "2px solid #ef4444" }}>
+          <div style={{ maxWidth: 1400, margin: "0 auto", padding: "14px 16px", display: "flex", alignItems: "flex-start", gap: 14 }}>
+            <div style={{ width: 44, height: 44, borderRadius: "50%", background: "#ef4444", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 2 }}>
+              <span style={{ fontSize: 22, color: "#fff", fontWeight: 900 }}>✕</span>
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <p style={{ fontSize: 15, fontWeight: 800, color: "#991b1b", margin: "0 0 4px" }}>Your shop application was rejected</p>
+              {rejectionInfo.rejectionReason && (
+                <div style={{ background: "#fff", border: "1px solid #fca5a5", borderRadius: 8, padding: "8px 12px", marginBottom: 10, maxWidth: 540 }}>
+                  <p style={{ fontSize: 11, fontWeight: 700, color: "#7f1d1d", margin: "0 0 2px" }}>Reason from admin:</p>
+                  <p style={{ fontSize: 12, color: "#991b1b", margin: 0 }}>{rejectionInfo.rejectionReason}</p>
+                </div>
+              )}
+              <p style={{ fontSize: 12, color: "#7f1d1d", margin: "0 0 12px", lineHeight: 1.5 }}>
+                Review the feedback, update your shop details, and resubmit for another review.
+              </p>
+              <button
+                onClick={() => { setShowShopForm(true); }}
+                style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "9px 20px", background: "#ef4444", color: "#fff", border: "none", fontSize: 13, fontWeight: 700, borderRadius: 6, cursor: "pointer" }}
+              >
+                Edit &amp; Resubmit Application
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* State 1: No application yet — always visible, non-dismissible */}
-      {!shopIsActive && !shopApplied && user?.role !== "admin" && (
+      {appStatus === "NONE" && user?.role !== "admin" && (
         <div style={{ background: "linear-gradient(135deg, #fff7ed 0%, #fff3e0 100%)", borderBottom: "2px solid #ff6a00" }}>
           <div style={{ maxWidth: 1400, margin: "0 auto", padding: "14px 16px", display: "flex", alignItems: "flex-start", gap: 14 }}>
             <div style={{ width: 44, height: 44, borderRadius: "50%", background: "#ff6a00", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 2 }}>
@@ -709,7 +786,7 @@ export default function MarketplacePage() {
       )}
 
       {/* State 2: Application submitted — pending admin review */}
-      {!shopIsActive && shopApplied && (
+      {appStatus === "PENDING" && (
         <div style={{ background: "#fffbeb", borderBottom: "2px solid #f59e0b" }}>
           <div style={{ maxWidth: 1400, margin: "0 auto", padding: "12px 16px", display: "flex", alignItems: "center", gap: 12 }}>
             <Clock size={18} style={{ color: "#d97706", flexShrink: 0 }} />
@@ -1385,7 +1462,7 @@ export default function MarketplacePage() {
                       productName: msgEntry.name,
                       shopId: msgEntry.shopId,
                       shopName: msgEntry.shopName,
-                      buyerShopId: user.shop_id,
+                      buyerShopId: user.shop_id ?? "",
                       buyerName: user.name ?? user.email ?? "Buyer",
                       text: msgText.trim(),
                       timestamp: new Date().toISOString(),
@@ -1407,7 +1484,7 @@ export default function MarketplacePage() {
                     productName: msgEntry.name,
                     shopId: msgEntry.shopId,
                     shopName: msgEntry.shopName,
-                    buyerShopId: user.shop_id,
+                    buyerShopId: user.shop_id ?? "",
                     buyerName: user.name ?? user.email ?? "Buyer",
                     text: msgText.trim(),
                     timestamp: new Date().toISOString(),
@@ -1468,14 +1545,16 @@ export default function MarketplacePage() {
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}
           onClick={(e) => { if (e.target === e.currentTarget) setShowShopForm(false); }}
         >
-          <div style={{ background: "#fff", borderRadius: 12, width: "100%", maxWidth: 520, maxHeight: "90vh", overflowY: "auto", boxShadow: "0 20px 60px rgba(0,0,0,0.25)" }}>
+          <div style={{ background: "#fff", borderRadius: 12, width: "100%", maxWidth: 560, maxHeight: "92vh", overflowY: "auto", boxShadow: "0 20px 60px rgba(0,0,0,0.25)" }}>
             {/* Header */}
-            <div style={{ padding: "20px 24px 16px", borderBottom: "1px solid #f0f0f0", display: "flex", alignItems: "center", gap: 12 }}>
+            <div style={{ padding: "20px 24px 16px", borderBottom: "1px solid #f0f0f0", display: "flex", alignItems: "center", gap: 12, position: "sticky", top: 0, background: "#fff", zIndex: 1 }}>
               <div style={{ width: 40, height: 40, borderRadius: 10, background: "#ff6a00", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                 <Store size={20} style={{ color: "#fff" }} />
               </div>
               <div style={{ flex: 1 }}>
-                <p style={{ fontSize: 16, fontWeight: 800, color: "#111", margin: 0 }}>Shop Application</p>
+                <p style={{ fontSize: 16, fontWeight: 800, color: "#111", margin: 0 }}>
+                  {appStatus === "REJECTED" ? "Edit & Resubmit Application" : "Shop Application"}
+                </p>
                 <p style={{ fontSize: 11, color: "#888", margin: 0 }}>Fill in your shop details for Higoverse admin review</p>
               </div>
               <button onClick={() => setShowShopForm(false)} style={{ border: "none", background: "#f5f5f5", cursor: "pointer", color: "#666", width: 30, height: 30, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -1491,16 +1570,27 @@ export default function MarketplacePage() {
                 </div>
               )}
 
+              {/* Rejection notice */}
+              {appStatus === "REJECTED" && rejectionInfo.rejectionReason && (
+                <div style={{ background: "#fef2f2", border: "1px solid #fca5a5", borderRadius: 8, padding: "10px 14px", marginBottom: 16 }}>
+                  <p style={{ fontSize: 11, fontWeight: 700, color: "#7f1d1d", margin: "0 0 4px" }}>Previous rejection reason:</p>
+                  <p style={{ fontSize: 12, color: "#991b1b", margin: 0 }}>{rejectionInfo.rejectionReason}</p>
+                </div>
+              )}
+
               {/* Admin review notice */}
               <div style={{ background: "#fffbe6", border: "1px solid #ffe58f", borderRadius: 8, padding: "10px 14px", marginBottom: 16, fontSize: 12, color: "#7c5e00", display: "flex", gap: 10, alignItems: "flex-start" }}>
                 <Clock size={14} style={{ flexShrink: 0, marginTop: 1 }} />
-                <span>Your application will be reviewed by the Higoverse admin. Once verified, you&apos;ll receive shop dashboard access. Make sure your TIN is correct — we verify it.</span>
+                <span>Your application will be reviewed by the Higoverse admin. Once verified, you&apos;ll receive shop dashboard access. Make sure your TIN is correct — we verify it with RRA.</span>
               </div>
+
+              {/* ─ Section: Shop Information ─ */}
+              <p style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: 1, margin: "0 0 12px" }}>Shop Information</p>
 
               {/* Shop name */}
               <div style={{ marginBottom: 14 }}>
                 <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 6 }}>
-                  Shop name <span style={{ color: "#ef4444" }}>*</span>
+                  Shop Name <span style={{ color: "#ef4444" }}>*</span>
                 </label>
                 <div style={{ position: "relative" }}>
                   <Store size={14} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "#9ca3af" }} />
@@ -1510,6 +1600,34 @@ export default function MarketplacePage() {
                     placeholder="e.g. Kigali Electronics Shop"
                     style={{ width: "100%", padding: "10px 12px 10px 34px", border: "1.5px solid #e5e7eb", borderRadius: 8, fontSize: 13, outline: "none", boxSizing: "border-box" }}
                   />
+                </div>
+              </div>
+
+              {/* Business type */}
+              <div style={{ marginBottom: 14 }}>
+                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 6 }}>
+                  Business Type <span style={{ color: "#ef4444" }}>*</span>
+                </label>
+                <div style={{ position: "relative" }}>
+                  <Building2 size={14} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "#9ca3af" }} />
+                  <select
+                    value={shopForm.business_type}
+                    onChange={(e) => setShopForm((f) => ({ ...f, business_type: e.target.value }))}
+                    style={{ width: "100%", padding: "10px 34px 10px 34px", border: "1.5px solid #e5e7eb", borderRadius: 8, fontSize: 13, outline: "none", boxSizing: "border-box", appearance: "none", background: "#fff", color: shopForm.business_type ? "#111" : "#9ca3af" }}
+                  >
+                    <option value="">Select business type</option>
+                    <option value="Retail Shop">Retail Shop</option>
+                    <option value="Wholesale / Distribution">Wholesale / Distribution</option>
+                    <option value="Restaurant / Food">Restaurant / Food</option>
+                    <option value="Electronics">Electronics</option>
+                    <option value="Fashion & Apparel">Fashion &amp; Apparel</option>
+                    <option value="Agriculture & Farming">Agriculture &amp; Farming</option>
+                    <option value="Health & Pharmacy">Health &amp; Pharmacy</option>
+                    <option value="Furniture & Home">Furniture &amp; Home</option>
+                    <option value="Services">Services</option>
+                    <option value="Other">Other</option>
+                  </select>
+                  <ChevronDown size={14} style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", color: "#9ca3af", pointerEvents: "none" }} />
                 </div>
               </div>
 
@@ -1532,122 +1650,195 @@ export default function MarketplacePage() {
                 <p style={{ fontSize: 10, color: "#9ca3af", marginTop: 4 }}>Your Rwanda Revenue Authority (RRA) tax number. Admin verifies this before approval.</p>
               </div>
 
-              {/* Business type */}
-              <div style={{ marginBottom: 14 }}>
-                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 6 }}>
-                  Business type <span style={{ color: "#ef4444" }}>*</span>
-                </label>
-                <div style={{ position: "relative" }}>
-                  <Building2 size={14} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "#9ca3af" }} />
-                  <select
-                    value={shopForm.business_type}
-                    onChange={(e) => setShopForm((f) => ({ ...f, business_type: e.target.value }))}
-                    style={{ width: "100%", padding: "10px 34px 10px 34px", border: "1.5px solid #e5e7eb", borderRadius: 8, fontSize: 13, outline: "none", boxSizing: "border-box", appearance: "none", background: "#fff", color: shopForm.business_type ? "#111" : "#9ca3af" }}
-                  >
-                    <option value="">Select business type</option>
-                    <option value="Retail Shop">Retail Shop</option>
-                    <option value="Wholesale / Distribution">Wholesale / Distribution</option>
-                    <option value="Restaurant / Food">Restaurant / Food</option>
-                    <option value="Electronics">Electronics</option>
-                    <option value="Fashion & Apparel">Fashion & Apparel</option>
-                    <option value="Agriculture & Farming">Agriculture & Farming</option>
-                    <option value="Health & Pharmacy">Health & Pharmacy</option>
-                    <option value="Furniture & Home">Furniture & Home</option>
-                    <option value="Services">Services</option>
-                    <option value="Other">Other</option>
-                  </select>
-                  <ChevronDown size={14} style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", color: "#9ca3af", pointerEvents: "none" }} />
-                </div>
-              </div>
+              {/* ─ Section: Owner Information ─ */}
+              <p style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: 1, margin: "16px 0 12px" }}>Owner Information</p>
 
-              {/* District */}
-              <div style={{ marginBottom: 14 }}>
-                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 6 }}>
-                  District <span style={{ color: "#ef4444" }}>*</span>
-                </label>
-                <div style={{ position: "relative" }}>
-                  <MapPin size={14} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "#9ca3af" }} />
-                  <select
-                    value={shopForm.district}
-                    onChange={(e) => setShopForm((f) => ({ ...f, district: e.target.value }))}
-                    style={{ width: "100%", padding: "10px 34px 10px 34px", border: "1.5px solid #e5e7eb", borderRadius: 8, fontSize: 13, outline: "none", boxSizing: "border-box", appearance: "none", background: "#fff", color: shopForm.district ? "#111" : "#9ca3af" }}
-                  >
-                    <option value="">Select your district</option>
-                    {["Nyarugenge","Gasabo","Kicukiro","Bugesera","Gatsibo","Kayonza","Kirehe","Ngoma","Nyagatare","Rwamagana","Burera","Gakenke","Gicumbi","Musanze","Rulindo","Gisagara","Huye","Kamonyi","Muhanga","Nyamagabe","Nyamasheke","Nyanza","Ruhango","Karongi","Ngororero","Nyabihu","Nyamasheke","Rubavu","Rusizi","Rutsiro","Nyabihu"].map((d) => (
-                      <option key={d} value={d}>{d}</option>
-                    ))}
-                  </select>
-                  <ChevronDown size={14} style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", color: "#9ca3af", pointerEvents: "none" }} />
+              {/* 2-column: Owner name + Phone */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
+                <div>
+                  <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 6 }}>Owner Name</label>
+                  <input
+                    value={shopForm.owner_name}
+                    onChange={(e) => setShopForm((f) => ({ ...f, owner_name: e.target.value }))}
+                    placeholder="Full name"
+                    style={{ width: "100%", padding: "10px 12px", border: "1.5px solid #e5e7eb", borderRadius: 8, fontSize: 13, outline: "none", boxSizing: "border-box" }}
+                  />
                 </div>
-              </div>
-
-              {/* Phone */}
-              <div style={{ marginBottom: 14 }}>
-                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 6 }}>
-                  Phone number <span style={{ color: "#ef4444" }}>*</span>
-                </label>
-                <div style={{ position: "relative" }}>
-                  <Phone size={14} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "#9ca3af" }} />
+                <div>
+                  <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 6 }}>
+                    Phone Number <span style={{ color: "#ef4444" }}>*</span>
+                  </label>
                   <input
                     value={shopForm.phone}
                     onChange={(e) => setShopForm((f) => ({ ...f, phone: e.target.value }))}
                     placeholder="+250 7XX XXX XXX"
                     type="tel"
+                    style={{ width: "100%", padding: "10px 12px", border: "1.5px solid #e5e7eb", borderRadius: 8, fontSize: 13, outline: "none", boxSizing: "border-box" }}
+                  />
+                </div>
+              </div>
+
+              {/* Email */}
+              <div style={{ marginBottom: 14 }}>
+                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 6 }}>Business Email</label>
+                <div style={{ position: "relative" }}>
+                  <Mail size={14} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "#9ca3af" }} />
+                  <input
+                    value={shopForm.email}
+                    onChange={(e) => setShopForm((f) => ({ ...f, email: e.target.value }))}
+                    placeholder="shop@example.com"
+                    type="email"
                     style={{ width: "100%", padding: "10px 12px 10px 34px", border: "1.5px solid #e5e7eb", borderRadius: 8, fontSize: 13, outline: "none", boxSizing: "border-box" }}
                   />
                 </div>
               </div>
 
-              {/* Description */}
-              <div style={{ marginBottom: 14 }}>
-                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 6 }}>
-                  About your shop <span style={{ color: "#9ca3af", fontWeight: 400 }}>(optional)</span>
-                </label>
-                <div style={{ position: "relative" }}>
-                  <FileText size={14} style={{ position: "absolute", left: 12, top: 12, color: "#9ca3af" }} />
-                  <textarea
-                    value={shopForm.description}
-                    onChange={(e) => setShopForm((f) => ({ ...f, description: e.target.value }))}
-                    placeholder="Briefly describe your products, services, or what makes your shop unique..."
-                    rows={3}
-                    style={{ width: "100%", padding: "10px 12px 10px 34px", border: "1.5px solid #e5e7eb", borderRadius: 8, fontSize: 13, outline: "none", resize: "vertical", boxSizing: "border-box", fontFamily: "inherit" }}
+              {/* ─ Section: Location ─ */}
+              <p style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: 1, margin: "16px 0 12px" }}>Location</p>
+
+              {/* 2-column: Province + District */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
+                <div>
+                  <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 6 }}>Province</label>
+                  <div style={{ position: "relative" }}>
+                    <select
+                      value={shopForm.province}
+                      onChange={(e) => setShopForm((f) => ({ ...f, province: e.target.value, district: "" }))}
+                      style={{ width: "100%", padding: "10px 28px 10px 12px", border: "1.5px solid #e5e7eb", borderRadius: 8, fontSize: 13, outline: "none", appearance: "none", background: "#fff", color: shopForm.province ? "#111" : "#9ca3af", boxSizing: "border-box" }}
+                    >
+                      <option value="">Select province</option>
+                      <option value="Kigali City">Kigali City</option>
+                      <option value="Northern Province">Northern Province</option>
+                      <option value="Southern Province">Southern Province</option>
+                      <option value="Eastern Province">Eastern Province</option>
+                      <option value="Western Province">Western Province</option>
+                    </select>
+                    <ChevronDown size={13} style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", color: "#9ca3af", pointerEvents: "none" }} />
+                  </div>
+                </div>
+                <div>
+                  <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 6 }}>
+                    District <span style={{ color: "#ef4444" }}>*</span>
+                  </label>
+                  <div style={{ position: "relative" }}>
+                    <select
+                      value={shopForm.district}
+                      onChange={(e) => setShopForm((f) => ({ ...f, district: e.target.value }))}
+                      style={{ width: "100%", padding: "10px 28px 10px 12px", border: "1.5px solid #e5e7eb", borderRadius: 8, fontSize: 13, outline: "none", appearance: "none", background: "#fff", color: shopForm.district ? "#111" : "#9ca3af", boxSizing: "border-box" }}
+                    >
+                      <option value="">Select district</option>
+                      {shopForm.province === "Kigali City" && <>
+                        <option>Gasabo</option><option>Kicukiro</option><option>Nyarugenge</option>
+                      </>}
+                      {shopForm.province === "Northern Province" && <>
+                        <option>Burera</option><option>Gakenke</option><option>Gicumbi</option><option>Musanze</option><option>Rulindo</option>
+                      </>}
+                      {shopForm.province === "Southern Province" && <>
+                        <option>Gisagara</option><option>Huye</option><option>Kamonyi</option><option>Muhanga</option><option>Nyamagabe</option><option>Nyanza</option><option>Nyaruguru</option><option>Ruhango</option>
+                      </>}
+                      {shopForm.province === "Eastern Province" && <>
+                        <option>Bugesera</option><option>Gatsibo</option><option>Kayonza</option><option>Kirehe</option><option>Ngoma</option><option>Nyagatare</option><option>Rwamagana</option>
+                      </>}
+                      {shopForm.province === "Western Province" && <>
+                        <option>Karongi</option><option>Ngororero</option><option>Nyabihu</option><option>Nyamasheke</option><option>Rubavu</option><option>Rusizi</option><option>Rutsiro</option>
+                      </>}
+                      {!shopForm.province && ["Nyarugenge","Gasabo","Kicukiro","Bugesera","Gatsibo","Kayonza","Kirehe","Ngoma","Nyagatare","Rwamagana","Burera","Gakenke","Gicumbi","Musanze","Rulindo","Gisagara","Huye","Kamonyi","Muhanga","Nyamagabe","Nyanza","Ruhango","Karongi","Ngororero","Nyabihu","Nyamasheke","Rubavu","Rusizi","Rutsiro"].map((d) => (
+                        <option key={d} value={d}>{d}</option>
+                      ))}
+                    </select>
+                    <ChevronDown size={13} style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", color: "#9ca3af", pointerEvents: "none" }} />
+                  </div>
+                </div>
+              </div>
+
+              {/* 2-column: Sector + Business Address */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
+                <div>
+                  <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 6 }}>Sector</label>
+                  <input
+                    value={shopForm.sector}
+                    onChange={(e) => setShopForm((f) => ({ ...f, sector: e.target.value }))}
+                    placeholder="e.g. Kimironko"
+                    style={{ width: "100%", padding: "10px 12px", border: "1.5px solid #e5e7eb", borderRadius: 8, fontSize: 13, outline: "none", boxSizing: "border-box" }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 6 }}>Street / Building</label>
+                  <input
+                    value={shopForm.address}
+                    onChange={(e) => setShopForm((f) => ({ ...f, address: e.target.value }))}
+                    placeholder="e.g. KG 123 St"
+                    style={{ width: "100%", padding: "10px 12px", border: "1.5px solid #e5e7eb", borderRadius: 8, fontSize: 13, outline: "none", boxSizing: "border-box" }}
                   />
                 </div>
               </div>
 
-              {/* Logo upload */}
-              <div style={{ marginBottom: 20 }}>
+              {/* ─ Section: Shop Profile ─ */}
+              <p style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: 1, margin: "16px 0 12px" }}>Shop Profile</p>
+
+              {/* Description */}
+              <div style={{ marginBottom: 14 }}>
                 <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 6 }}>
-                  Shop logo <span style={{ color: "#9ca3af", fontWeight: 400 }}>(optional)</span>
+                  About Your Shop
                 </label>
-                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                  {shopForm.logo_url ? (
-                    <img src={shopForm.logo_url} alt="Logo" style={{ width: 56, height: 56, objectFit: "cover", borderRadius: 10, border: "1px solid #e5e7eb" }} />
-                  ) : (
-                    <div style={{ width: 56, height: 56, borderRadius: 10, border: "2px dashed #d1d5db", display: "flex", alignItems: "center", justifyContent: "center", background: "#f9fafb" }}>
-                      <ImagePlus size={20} style={{ color: "#9ca3af" }} />
-                    </div>
-                  )}
-                  <label style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 14px", border: "1.5px solid #e5e7eb", borderRadius: 8, fontSize: 12, fontWeight: 600, color: "#374151", cursor: "pointer", background: "#fff" }}>
-                    <ImagePlus size={13} /> {shopForm.logo_url ? "Change logo" : "Upload logo"}
-                    <input
-                      type="file"
-                      accept="image/*"
-                      style={{ display: "none" }}
-                      onChange={async (e) => {
-                        const file = e.target.files?.[0];
-                        if (!file) return;
-                        const compressed = await compressImage(file, 400);
-                        setShopForm((f) => ({ ...f, logo_url: compressed }));
-                        e.target.value = "";
-                      }}
-                    />
-                  </label>
-                  {shopForm.logo_url && (
-                    <button onClick={() => setShopForm((f) => ({ ...f, logo_url: "" }))} style={{ border: "none", background: "none", cursor: "pointer", color: "#9ca3af", fontSize: 11 }}>Remove</button>
-                  )}
+                <textarea
+                  value={shopForm.description}
+                  onChange={(e) => setShopForm((f) => ({ ...f, description: e.target.value }))}
+                  placeholder="Briefly describe your products, services, or what makes your shop unique..."
+                  rows={3}
+                  style={{ width: "100%", padding: "10px 12px", border: "1.5px solid #e5e7eb", borderRadius: 8, fontSize: 13, outline: "none", resize: "vertical", boxSizing: "border-box", fontFamily: "inherit" }}
+                />
+              </div>
+
+              {/* Logo + Banner upload */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 20 }}>
+                {/* Logo */}
+                <div>
+                  <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 6 }}>Shop Logo</label>
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
+                    {shopForm.logo_url ? (
+                      <img src={shopForm.logo_url} alt="Logo" style={{ width: 64, height: 64, objectFit: "cover", borderRadius: 10, border: "1px solid #e5e7eb" }} />
+                    ) : (
+                      <div style={{ width: 64, height: 64, borderRadius: 10, border: "2px dashed #d1d5db", display: "flex", alignItems: "center", justifyContent: "center", background: "#f9fafb" }}>
+                        <ImagePlus size={22} style={{ color: "#9ca3af" }} />
+                      </div>
+                    )}
+                    <label style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "5px 12px", border: "1.5px solid #e5e7eb", borderRadius: 7, fontSize: 11, fontWeight: 600, color: "#374151", cursor: "pointer", background: "#fff" }}>
+                      <ImagePlus size={12} /> {shopForm.logo_url ? "Change" : "Upload"}
+                      <input type="file" accept="image/*" style={{ display: "none" }}
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0]; if (!file) return;
+                          const c = await compressImage(file, 400);
+                          setShopForm((f) => ({ ...f, logo_url: c })); e.target.value = "";
+                        }} />
+                    </label>
+                    {shopForm.logo_url && <button onClick={() => setShopForm((f) => ({ ...f, logo_url: "" }))} style={{ border: "none", background: "none", cursor: "pointer", color: "#9ca3af", fontSize: 11 }}>Remove</button>}
+                  </div>
                 </div>
-                <p style={{ fontSize: 11, color: "#9ca3af", margin: "6px 0 0" }}>JPG, PNG or GIF · max 2MB</p>
+
+                {/* Banner */}
+                <div>
+                  <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 6 }}>Shop Banner</label>
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
+                    {shopForm.banner_url ? (
+                      <img src={shopForm.banner_url} alt="Banner" style={{ width: "100%", height: 64, objectFit: "cover", borderRadius: 10, border: "1px solid #e5e7eb" }} />
+                    ) : (
+                      <div style={{ width: "100%", height: 64, borderRadius: 10, border: "2px dashed #d1d5db", display: "flex", alignItems: "center", justifyContent: "center", background: "#f9fafb" }}>
+                        <ImagePlus size={22} style={{ color: "#9ca3af" }} />
+                      </div>
+                    )}
+                    <label style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "5px 12px", border: "1.5px solid #e5e7eb", borderRadius: 7, fontSize: 11, fontWeight: 600, color: "#374151", cursor: "pointer", background: "#fff" }}>
+                      <ImagePlus size={12} /> {shopForm.banner_url ? "Change" : "Upload"}
+                      <input type="file" accept="image/*" style={{ display: "none" }}
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0]; if (!file) return;
+                          const c = await compressImage(file, 1200, 0.7);
+                          setShopForm((f) => ({ ...f, banner_url: c })); e.target.value = "";
+                        }} />
+                    </label>
+                    {shopForm.banner_url && <button onClick={() => setShopForm((f) => ({ ...f, banner_url: "" }))} style={{ border: "none", background: "none", cursor: "pointer", color: "#9ca3af", fontSize: 11 }}>Remove</button>}
+                  </div>
+                </div>
               </div>
 
               {/* Submit */}
@@ -1656,10 +1847,12 @@ export default function MarketplacePage() {
                 disabled={shopFormLoading}
                 style={{ width: "100%", padding: "12px 0", background: shopFormLoading ? "#fed7aa" : "#ff6a00", color: "#fff", border: "none", borderRadius: 8, fontSize: 14, fontWeight: 700, cursor: shopFormLoading ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
               >
-                {shopFormLoading ? <><Loader2 size={15} style={{ animation: "spin 0.8s linear infinite" }} /> Submitting...</> : <><CheckCircle2 size={15} /> Submit Application</>}
+                {shopFormLoading
+                  ? <><Loader2 size={15} style={{ animation: "spin 0.8s linear infinite" }} /> Submitting...</>
+                  : <><CheckCircle2 size={15} /> {appStatus === "REJECTED" ? "Resubmit Application" : "Submit Application"}</>}
               </button>
               <p style={{ fontSize: 11, color: "#9ca3af", textAlign: "center", marginTop: 10 }}>
-                Higoverse admin will review your application and contact you within 1–2 business days.
+                Higoverse admin will review your application and respond within 1–2 business days.
               </p>
             </div>
           </div>

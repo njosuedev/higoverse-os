@@ -68,7 +68,13 @@ export async function getAdminStats(): Promise<AdminStats> {
 
 export async function getAdminShops(): Promise<AdminShop[]> {
   const res = await adminRequest("/api/v1/admin/shops");
-  return res?.data ?? [];
+  const all: AdminShop[] = res?.data ?? [];
+  // Hide shops whose owner email was scrambled (user deleted) or whose own email was scrambled
+  return all.filter(
+    (s) =>
+      !s.owner_email?.startsWith("_deleted_") &&
+      !s.email?.startsWith("_deleted_"),
+  );
 }
 
 export async function toggleShop(shopId: string): Promise<AdminShop> {
@@ -77,11 +83,6 @@ export async function toggleShop(shopId: string): Promise<AdminShop> {
 }
 
 export async function deleteShop(shopId: string): Promise<void> {
-  // Scramble shop email first (frees the address if backend soft-deletes)
-  await adminRequest(`/api/v1/admin/shops/${shopId}`, {
-    method: "PATCH",
-    body: JSON.stringify({ email: `_deleted_${Date.now()}_${shopId.slice(0, 8)}@removed.invalid` }),
-  }).catch(() => {});
   await adminRequest(`/api/v1/admin/shops/${shopId}`, { method: "DELETE" });
 }
 
@@ -104,17 +105,7 @@ export async function updateUserRole(userId: string, role: string): Promise<Admi
 }
 
 export async function deleteUser(userId: string): Promise<void> {
-  // Step 1: scramble the email — this is the critical part.
-  // Even if the backend only soft-deletes, the scrambled address frees the
-  // original email for re-registration immediately.
-  await adminRequest(`/api/v1/admin/users/${userId}`, {
-    method: "PATCH",
-    body: JSON.stringify({ email: `_deleted_${Date.now()}_${userId.slice(0, 8)}@removed.invalid` }),
-  }).catch(() => {});
-
-  // Step 2: hard delete — silently skip if the endpoint isn't available.
-  // The scrambled email is enough: the account can never be signed into or recovered.
-  await adminRequest(`/api/v1/admin/users/${userId}`, { method: "DELETE" }).catch(() => {});
+  await adminRequest(`/api/v1/admin/users/${userId}`, { method: "DELETE" });
 }
 
 export async function clearUserEmail(userId: string): Promise<void> {
@@ -122,4 +113,22 @@ export async function clearUserEmail(userId: string): Promise<void> {
     method: "PATCH",
     body: JSON.stringify({ email: `_deleted_${Date.now()}_${userId.slice(0, 8)}@removed.invalid` }),
   });
+}
+
+/**
+ * Reject a shop application with a reason.
+ * Marks the shop's description with rejection status — does NOT delete the user.
+ * The applicant remains a CUSTOMER and can resubmit.
+ */
+export async function rejectApplication(shopId: string, reason: string, currentDescription?: string): Promise<AdminShop> {
+  let obj: Record<string, unknown> = {};
+  try { if (currentDescription) obj = JSON.parse(currentDescription) as Record<string, unknown>; } catch { /* ignore */ }
+  obj._s = "REJECTED";
+  obj._r = reason || "Application did not meet requirements";
+  const newDesc = JSON.stringify(obj);
+  const res = await adminRequest(`/api/v1/admin/shops/${shopId}`, {
+    method: "PATCH",
+    body: JSON.stringify({ description: newDesc }),
+  });
+  return res?.data ?? ({ id: shopId, description: newDesc } as AdminShop);
 }
