@@ -229,9 +229,37 @@ export default function MarketplacePage() {
       }
       serverCatalogRef.current = serverEntries;
 
-      // 2. Merge server catalog with localStorage catalog (local has images and takes priority)
+      // 1.75. Fetch /marketplace from product DB — primary source with real images (cross-shop)
+      const dbEntries: MarketplaceEntry[] = [];
+      if (user) {
+        try {
+          const mkRes = await itemRequest("/products/marketplace?limit=500");
+          const mkItems: Array<{
+            id: string; shop_id: string; name: string; description?: string;
+            category?: string; images?: string; selling_price: number;
+            cost_price: number; quantity: number;
+          }> = mkRes?.data?.items ?? [];
+          for (const item of mkItems) {
+            const itemShop = allShops.find((s) => s.id === item.shop_id);
+            const rawImgs = item.images;
+            const imgs: string[] = rawImgs ? (() => { try { return JSON.parse(rawImgs) as string[]; } catch { return []; } })() : [];
+            dbEntries.push({
+              productId: item.id, shopId: item.shop_id,
+              shopName: itemShop?.name ?? "Unknown Shop",
+              shopLogoUrl: itemShop?.logo_url, shopPhone: itemShop?.phone,
+              name: item.name, description: item.description, category: item.category,
+              sellingPrice: item.selling_price, costPrice: item.cost_price,
+              quantity: item.quantity, images: imgs,
+              listedAt: new Date().toISOString(),
+            });
+          }
+        } catch { /* product service unavailable — fall through to localStorage */ }
+      }
+
+      // 2. Merge: server catalog (no images) < localStorage < DB endpoint (highest priority, has images)
       const merged = new Map<string, MarketplaceEntry>(serverEntries.map((e) => [e.productId, e]));
       for (const e of getCatalog()) merged.set(e.productId, e);
+      for (const e of dbEntries) merged.set(e.productId, e);
       setCatalog([...merged.values()]);
       setLoading(false);
 
@@ -316,8 +344,37 @@ export default function MarketplacePage() {
           }
         }
         serverCatalogRef.current = pollServerEntries;
+
+        // Fetch fresh /marketplace from product DB (has images)
+        const pollDbEntries: MarketplaceEntry[] = [];
+        if (user) {
+          try {
+            const mkRes = await itemRequest("/products/marketplace?limit=500");
+            const mkItems: Array<{
+              id: string; shop_id: string; name: string; description?: string;
+              category?: string; images?: string; selling_price: number;
+              cost_price: number; quantity: number;
+            }> = mkRes?.data?.items ?? [];
+            for (const item of mkItems) {
+              const s = allShops.find((sh) => sh.id === item.shop_id);
+              const rawImgs = item.images;
+              const imgs: string[] = rawImgs ? (() => { try { return JSON.parse(rawImgs) as string[]; } catch { return []; } })() : [];
+              pollDbEntries.push({
+                productId: item.id, shopId: item.shop_id,
+                shopName: s?.name ?? "Unknown Shop",
+                shopLogoUrl: s?.logo_url, shopPhone: s?.phone,
+                name: item.name, description: item.description, category: item.category,
+                sellingPrice: item.selling_price, costPrice: item.cost_price,
+                quantity: item.quantity, images: imgs,
+                listedAt: new Date().toISOString(),
+              });
+            }
+          } catch { /* skip */ }
+        }
+
         const pollMerged = new Map<string, MarketplaceEntry>(pollServerEntries.map((e) => [e.productId, e]));
         for (const e of getCatalog()) pollMerged.set(e.productId, e);
+        for (const e of pollDbEntries) pollMerged.set(e.productId, e);
         setCatalog([...pollMerged.values()]);
 
         // Re-sync current user's products

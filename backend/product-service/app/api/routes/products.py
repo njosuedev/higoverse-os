@@ -129,7 +129,9 @@ def get_products(
             "cost_price": float(p.cost_price),
             "selling_price": float(p.selling_price),
             "quantity": p.quantity,
-
+            "category": p.category,
+            "images": p.images,
+            "listed": p.listed,
             "profit_status": "profit" if profit >= 0 else "loss",
             "profit_money": float(profit),
             "profit_percent": percent
@@ -174,6 +176,9 @@ def create_product(
             selling_price=selling_price,
             quantity=payload.quantity,
             barcode=payload.barcode,
+            category=payload.category,
+            images=payload.images,
+            listed=payload.listed,
         )
 
         db.add(product)
@@ -208,6 +213,48 @@ def create_product(
 
 
 # -----------------------------
+# GET MARKETPLACE (cross-shop, all listed products)
+# Must be registered BEFORE /{product_id} to avoid "marketplace" matching as an ID
+# -----------------------------
+@router.get("/marketplace")
+def get_marketplace(
+    db: Session = Depends(get_db),
+    user: dict = Depends(get_current_user),
+    page: int = 1,
+    limit: int = 100,
+):
+    offset = (page - 1) * limit
+    query = db.query(Product).filter(Product.listed == True)  # noqa: E712
+    total = query.count()
+    products = query.order_by(Product.created_at.desc()).offset(offset).limit(limit).all()
+
+    items = []
+    for p in products:
+        items.append({
+            "id": p.id,
+            "shop_id": p.shop_id,
+            "name": p.name,
+            "description": p.description,
+            "category": p.category,
+            "images": p.images,
+            "selling_price": float(p.selling_price),
+            "cost_price": float(p.cost_price),
+            "quantity": p.quantity,
+            "listed": p.listed,
+        })
+
+    return {
+        "success": True,
+        "data": {
+            "items": items,
+            "total": total,
+            "page": page,
+            "limit": limit,
+        }
+    }
+
+
+# -----------------------------
 # GET SINGLE PRODUCT
 # -----------------------------
 @router.get("/{product_id}")
@@ -230,6 +277,9 @@ def get_product(
             "name": product.name,
             "supplier_id": product.supplier_id,
             "description": product.description,
+            "category": product.category,
+            "images": product.images,
+            "listed": product.listed,
             "cost_price": float(product.cost_price),
             "selling_price": float(product.selling_price),
             "quantity": product.quantity,

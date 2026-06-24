@@ -4,7 +4,8 @@ from sqlalchemy import (
     Integer,
     Numeric,
     DateTime,
-    Text
+    Text,
+    Boolean,
 )
 from sqlalchemy.sql import func
 
@@ -89,6 +90,27 @@ class Product(Base):
         Integer,
         nullable=False,
         default=0
+    )
+
+    # =====================================
+    # MARKETPLACE
+    # =====================================
+
+    category = Column(
+        String(100),
+        nullable=True
+    )
+
+    images = Column(
+        Text,
+        nullable=True
+    )
+
+    listed = Column(
+        Boolean,
+        nullable=False,
+        default=False,
+        server_default='false'
     )
 
     # =====================================

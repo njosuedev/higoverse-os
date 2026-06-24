@@ -19,6 +19,10 @@ class ProductCreate(BaseModel):
 
     supplier_id: str | None = None
 
+    category: str | None = Field(None, max_length=100)
+    images: str | None = None  # JSON-encoded list of base64 strings
+    listed: bool = False
+
 
 # =====================================
 # UPDATE PRODUCT
@@ -36,6 +40,10 @@ class ProductUpdate(BaseModel):
     barcode: str | None = Field(None, max_length=255)
 
     supplier_id: str | None = None
+
+    category: str | None = Field(None, max_length=100)
+    images: str | None = None
+    listed: bool | None = None
 
 
 # =====================================
@@ -62,6 +70,10 @@ class ProductResponse(BaseModel):
 
     barcode: str | None = None
 
+    category: str | None = None
+    images: str | None = None
+    listed: bool = False
+
 
 # =====================================
 # OPTIONAL: PRODUCT LIST ITEM
@@ -80,3 +92,7 @@ class ProductListItem(BaseModel):
 
     profit_money: float
     profit_percent: float
+
+    category: str | None = None
+    images: str | None = None
+    listed: bool = False

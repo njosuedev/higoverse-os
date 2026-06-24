@@ -34,6 +34,9 @@ interface Product {
   profit_status?: "profit" | "loss";
   profit_money?: number;
   created_at?: string;
+  category?: string;
+  images?: string;    // JSON-encoded string[] saved in DB
+  listed?: boolean;
 }
 
 interface Supplier { id: string; name: string; phone?: string; address?: string; }
@@ -129,9 +132,12 @@ export default function ItemManagementPage() {
       quantity: String(p.quantity), supplier_id: p.supplier_id || "",
     });
     const meta = getProductMeta(p.id);
-    setFormImages(meta.images);
-    setFormListed(meta.listed);
-    setFormCategory((meta as ProductMeta & { category?: string }).category ?? "");
+    // Prefer DB data; fall back to localStorage meta
+    const rawDbImgs = p.images;
+    const dbImages: string[] = rawDbImgs ? (() => { try { return JSON.parse(rawDbImgs) as string[]; } catch { return []; } })() : [];
+    setFormImages(dbImages.length > 0 ? dbImages : meta.images);
+    setFormListed(p.listed !== undefined ? p.listed : meta.listed);
+    setFormCategory(p.category || (meta as ProductMeta & { category?: string }).category || "");
     setEditingId(p.id); setModalMode("edit"); setShowModal(true);
   }
 
@@ -154,6 +160,9 @@ export default function ItemManagementPage() {
       name: form.name.trim(), description: form.description.trim() || null,
       cost_price: Number(form.cost_price), selling_price: Number(form.selling_price),
       quantity: Number(form.quantity), supplier_id: form.supplier_id || null,
+      category: formCategory || null,
+      images: formImages.length > 0 ? JSON.stringify(formImages) : null,
+      listed: formListed,
     };
     try {
       setSubmitting(true);
@@ -721,31 +730,37 @@ export default function ItemManagementPage() {
                       {/* Product */}
                       <td className="px-3 py-1.5">
                         <div className="flex items-center gap-2">
-                          {/* thumbnail */}
-                          {productMeta[p.id]?.images?.[0] ? (
-                            <img
-                              src={productMeta[p.id].images[0]}
-                              alt={p.name}
-                              className="w-8 h-8 rounded-lg object-cover border border-slate-200 flex-shrink-0"
-                            />
-                          ) : (
-                            <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center flex-shrink-0">
-                              <Package size={12} className="text-slate-300" />
-                            </div>
-                          )}
+                          {/* thumbnail — prefer DB images, fall back to localStorage */}
+                          {(() => {
+                            const rawImgs = p.images;
+                            const dbImgs: string[] = rawImgs ? (() => { try { return JSON.parse(rawImgs) as string[]; } catch { return []; } })() : [];
+                            const img0 = dbImgs[0] || productMeta[p.id]?.images?.[0];
+                            return img0 ? (
+                              <img src={img0} alt={p.name} className="w-8 h-8 rounded-lg object-cover border border-slate-200 flex-shrink-0" />
+                            ) : (
+                              <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center flex-shrink-0">
+                                <Package size={12} className="text-slate-300" />
+                              </div>
+                            );
+                          })()}
                           <div className="min-w-0">
                             <div className="flex items-center gap-1.5 flex-wrap">
                               <p className="font-semibold text-slate-800 text-xs leading-tight">{p.name}</p>
-                              {productMeta[p.id]?.listed && (
+                              {(p.listed || productMeta[p.id]?.listed) && (
                                 <span className="inline-flex items-center gap-0.5 text-[8px] font-bold text-[#1372e6] bg-[#EBF2FD] border border-[#A8C8F8] px-1 py-0.5 rounded-full leading-none">
                                   <Globe size={7} /> Listed
                                 </span>
                               )}
-                              {productMeta[p.id]?.images?.length > 0 && (
-                                <span className="inline-flex items-center gap-0.5 text-[8px] font-semibold text-slate-500 bg-slate-100 px-1 py-0.5 rounded-full leading-none">
-                                  <Eye size={7} /> {productMeta[p.id].images.length}
-                                </span>
-                              )}
+                              {(() => {
+                                const rawImgs2 = p.images;
+                                const dbCnt = rawImgs2 ? (() => { try { return (JSON.parse(rawImgs2) as string[]).length; } catch { return 0; } })() : 0;
+                                const cnt = dbCnt || productMeta[p.id]?.images?.length || 0;
+                                return cnt > 0 ? (
+                                  <span className="inline-flex items-center gap-0.5 text-[8px] font-semibold text-slate-500 bg-slate-100 px-1 py-0.5 rounded-full leading-none">
+                                    <Eye size={7} /> {cnt}
+                                  </span>
+                                ) : null;
+                              })()}
                             </div>
                             {p.description && (
                               <p className="text-[10px] text-slate-400 max-w-[160px] truncate">{p.description}</p>
