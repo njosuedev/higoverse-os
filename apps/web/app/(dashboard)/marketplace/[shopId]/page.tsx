@@ -14,7 +14,7 @@ import {
   Package, ShoppingCart, Plus, Minus, X, Loader2,
   CheckCircle, Star, CalendarDays, ExternalLink,
   Store, UserPlus, Trash2, ShoppingBag, ChevronRight,
-  TrendingUp, Info, Globe, Eye, Send,
+  TrendingUp, Info, Globe, Eye, Send, Search,
 } from "lucide-react";
 import {
   getProductMeta, setProductMeta, upsertCatalogEntry, removeCatalogEntry,
@@ -456,44 +456,74 @@ export default function ShopStorePage() {
           <div className="space-y-4">
             {isMine ? (
               <>
-                {/* Own shop: show real product catalog */}
-                <div className="flex items-center justify-between gap-3">
-                  <div className="relative flex-1 max-w-xs">
-                    <Package size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                    <input
-                      type="text"
-                      value={prodSearch}
-                      onChange={(e) => setProdSearch(e.target.value)}
-                      placeholder="Search your products..."
-                      className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-xl text-xs text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1372e6]/30 focus:border-[#1372e6] bg-white transition"
-                    />
+                {/* Own shop: search bar — marketplace style */}
+                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+                  <div style={{ flex: 1, display: "flex", border: "2px solid #ff6a00", borderRadius: 6, overflow: "hidden", boxShadow: "0 1px 4px rgba(255,106,0,0.1)" }}>
+                    <div style={{ flex: 1, position: "relative", display: "flex", alignItems: "center" }}>
+                      <Search size={13} style={{ position: "absolute", left: 10, color: prodSearch ? "#ff6a00" : "#bbb", transition: "color 0.15s" }} />
+                      <input
+                        type="text"
+                        value={prodSearch}
+                        onChange={(e) => setProdSearch(e.target.value)}
+                        onKeyDown={(e) => e.key === "Escape" && setProdSearch("")}
+                        placeholder="Search your products..."
+                        style={{ width: "100%", border: "none", padding: "9px 32px 9px 30px", fontSize: 13, outline: "none", background: "#fff" }}
+                      />
+                      {prodSearch && (
+                        <button onClick={() => setProdSearch("")}
+                          style={{ position: "absolute", right: 8, border: "none", background: "none", cursor: "pointer", color: "#bbb", padding: 2, display: "flex" }}>
+                          <X size={13} />
+                        </button>
+                      )}
+                    </div>
                   </div>
-                  <Link
-                    href="/items"
-                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-white transition hover:opacity-90"
-                    style={{ backgroundColor: "#1372e6" }}
-                  >
+                  <Link href="/items"
+                    style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "9px 16px", background: "#ff6a00", color: "#fff", textDecoration: "none", fontSize: 12, fontWeight: 700, borderRadius: 6, flexShrink: 0, whiteSpace: "nowrap" }}>
                     <Plus size={12} /> Add Items
                   </Link>
                 </div>
 
+                {/* Result count bar */}
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8, padding: "5px 10px", background: "#fff", border: "1px solid #f0f0f0", borderRadius: 6 }}>
+                  <span style={{ fontSize: 12, color: "#666", display: "flex", alignItems: "center", gap: 6 }}>
+                    <strong style={{ color: "#111" }}>{filteredProducts.length}</strong>
+                    <span style={{ color: "#888" }}>
+                      {prodSearch ? <> results for <em style={{ color: "#ff6a00", fontStyle: "normal", fontWeight: 700 }}>&ldquo;{prodSearch}&rdquo;</em></> : " products in your catalog"}
+                    </span>
+                    {prodSearch && (
+                      <button onClick={() => setProdSearch("")}
+                        style={{ fontSize: 10, color: "#ff6a00", border: "1px solid #fed7aa", background: "transparent", borderRadius: 4, padding: "1px 6px", cursor: "pointer", fontWeight: 600 }}>
+                        Clear
+                      </button>
+                    )}
+                  </span>
+                  <span style={{ fontSize: 10, color: "#52c41a", fontWeight: 600 }}>
+                    {Object.values(prodMeta).filter(m => m.listed).length} listed on marketplace
+                  </span>
+                </div>
+
                 {prodLoading ? (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(175px, 1fr))", gap: 8 }}>
                     {Array.from({ length: 8 }).map((_, i) => (
-                      <div key={i} className="h-44 bg-white rounded-2xl border border-slate-100 animate-pulse" />
+                      <div key={i} style={{ background: "#fff", border: "1px solid #e8e8e8", height: 280 }} className="animate-pulse" />
                     ))}
                   </div>
                 ) : filteredProducts.length === 0 ? (
-                  <div className="bg-white border border-slate-200 rounded-2xl p-10 text-center">
-                    <Package size={32} className="text-slate-200 mx-auto mb-3" />
-                    <p className="text-slate-500 font-semibold text-sm">No products yet</p>
-                    <p className="text-slate-400 text-xs mt-1">Add items to your inventory to list them here.</p>
-                    <Link href="/items" className="mt-3 inline-flex items-center gap-1.5 text-xs font-bold text-[#1372e6] hover:underline">
+                  <div style={{ background: "#fff", border: "1px solid #e8e8e8", padding: "48px 24px", textAlign: "center" }}>
+                    <Package size={36} style={{ color: "#e0e0e0", margin: "0 auto 12px" }} />
+                    <p style={{ fontSize: 14, fontWeight: 700, color: "#555", margin: "0 0 4px" }}>
+                      {prodSearch ? "No products match your search" : "No products yet"}
+                    </p>
+                    <p style={{ fontSize: 12, color: "#aaa", margin: "0 0 16px" }}>
+                      {prodSearch ? "Try a different keyword" : "Add items to your inventory to list them here."}
+                    </p>
+                    <Link href="/items"
+                      style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "8px 16px", background: "#ff6a00", color: "#fff", textDecoration: "none", fontSize: 12, fontWeight: 700, borderRadius: 6 }}>
                       Go to Items <ChevronRight size={12} />
                     </Link>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(175px, 1fr))", gap: 8 }}>
                     {filteredProducts.map((product) => (
                       <OwnProductCard
                         key={product.id}
@@ -525,53 +555,68 @@ export default function ShopStorePage() {
                         }}
                       />
                     ))}
+                    {/* Dashed "add" tile */}
+                    <Link href="/items"
+                      style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8, border: "1px dashed #d9d9d9", textDecoration: "none", background: "#fafafa", minHeight: 280, color: "#bbb" }}>
+                      <div style={{ width: 40, height: 40, borderRadius: "50%", border: "2px dashed #d9d9d9", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                        <Plus size={18} style={{ color: "#ccc" }} />
+                      </div>
+                      <span style={{ fontSize: 11, textAlign: "center", lineHeight: 1.5, color: "#aaa" }}>Add more<br />products</span>
+                    </Link>
                   </div>
                 )}
 
-                <div className="flex items-center gap-2 p-3 bg-[#EBF2FD] rounded-xl border border-[#A8C8F8] text-xs text-[#1372e6]">
-                  <Info size={13} />
+                <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", background: "#EBF2FD", border: "1px solid #A8C8F8", borderRadius: 8, marginTop: 8, fontSize: 12, color: "#1372e6" }}>
+                  <Info size={13} style={{ flexShrink: 0 }} />
                   <span>This is your shop&apos;s product catalog as other businesses see it on the marketplace.</span>
                 </div>
               </>
             ) : (
               <>
-                {/* Listed products from this shop */}
+                {/* Listed products from this shop — marketplace card style */}
                 {listedProducts.length > 0 && (
-                  <div className="space-y-3">
-                    <h2 className="font-bold text-slate-900 text-sm flex items-center gap-2">
-                      <Package size={14} className="text-[#1372e6]" />
-                      Available Products
-                      <span className="text-xs bg-[#EBF2FD] text-[#1372e6] font-semibold px-2 py-0.5 rounded-full">{listedProducts.length}</span>
-                    </h2>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                  <div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: "#333", display: "flex", alignItems: "center", gap: 6 }}>
+                        <Package size={14} style={{ color: "#ff6a00" }} />
+                        Products from {shop.name}
+                      </span>
+                      <span style={{ background: "#fff5f0", color: "#ff6a00", border: "1px solid #ffbb96", fontSize: 10, fontWeight: 700, padding: "1px 8px" }}>
+                        {listedProducts.length} listed
+                      </span>
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(175px, 1fr))", gap: 8 }}>
                       {listedProducts.map((entry) => (
-                        <div key={entry.productId} className="bg-white border border-slate-200 overflow-hidden group">
-                          <div className="relative aspect-square overflow-hidden bg-slate-50">
+                        <div key={entry.productId}
+                          style={{ background: "#fff", border: "1px solid #e8e8e8", overflow: "hidden", display: "flex", flexDirection: "column", transition: "box-shadow 0.15s" }}
+                          onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.boxShadow = "0 4px 16px rgba(0,0,0,0.1)"; }}
+                          onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.boxShadow = "none"; }}>
+                          <div style={{ position: "relative", aspectRatio: "1", overflow: "hidden", background: "#f7f7f7" }}>
                             {entry.images[0]
-                              ? <img src={entry.images[0]} alt={entry.name} className="w-full h-full object-cover" />
-                              : <div className="w-full h-full flex items-center justify-center"><Package size={28} className="text-slate-300" /></div>}
+                              ? <img src={entry.images[0]} alt={entry.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                              : <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}><Package size={28} style={{ color: "#d9d9d9" }} /></div>}
                             {entry.quantity === 0 && (
-                              <div className="absolute inset-0 bg-white/70 flex items-center justify-center">
-                                <span className="text-xs font-bold text-red-500 border border-red-300 px-2 py-0.5 bg-white">Out of Stock</span>
+                              <div style={{ position: "absolute", inset: 0, background: "rgba(255,255,255,0.7)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                <span style={{ fontSize: 9, fontWeight: 700, color: "#f5222d", border: "1px solid #ffa39e", padding: "2px 8px", background: "#fff" }}>Out of Stock</span>
                               </div>
                             )}
                             {entry.images.length > 1 && (
-                              <span className="absolute bottom-1 right-1 text-[8px] bg-black/40 text-white px-1.5 py-0.5">+{entry.images.length - 1}</span>
+                              <span style={{ position: "absolute", bottom: 5, right: 5, background: "rgba(0,0,0,0.45)", color: "#fff", fontSize: 9, padding: "2px 5px" }}>
+                                +{entry.images.length - 1}
+                              </span>
                             )}
                           </div>
-                          <div className="p-2.5">
-                            <p className="text-xs font-medium text-slate-800 line-clamp-2 leading-tight mb-1">{entry.name}</p>
-                            <p className="text-sm font-black" style={{ color: "#ff6a00" }}>{fmtCurrency(entry.sellingPrice)}</p>
-                            <p className="text-[9px] text-slate-400 mt-0.5">
-                              {entry.quantity > 0 ? `${entry.quantity} in stock` : "Out of stock"} · Min. 1 pc
+                          <div style={{ padding: "8px 10px 10px" }}>
+                            <p style={{ fontSize: 12, fontWeight: 600, color: "#222", lineHeight: 1.4, margin: "0 0 4px", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" as const, overflow: "hidden" }}>{entry.name}</p>
+                            <p style={{ fontSize: 15, fontWeight: 900, color: "#ff6a00", margin: "0 0 2px" }}>{fmtCurrency(entry.sellingPrice)}</p>
+                            <p style={{ fontSize: 10, color: entry.quantity > 0 ? "#52c41a" : "#f5222d", margin: "0 0 8px", fontWeight: 600 }}>
+                              {entry.quantity > 0 ? `${entry.quantity} in stock` : "Out of stock"}
                             </p>
                             <button
                               onClick={() => addToCart({ id: entry.productId, name: entry.name, description: entry.description, cost_price: entry.sellingPrice, selling_price: entry.sellingPrice, quantity: entry.quantity })}
                               disabled={entry.quantity === 0}
-                              className="mt-2 w-full py-1.5 text-[10px] font-bold text-white disabled:opacity-40 flex items-center justify-center gap-1"
-                              style={{ background: "#1372e6" }}
-                            >
-                              <ShoppingCart size={10} /> Add to Cart
+                              style={{ width: "100%", padding: "7px 0", background: entry.quantity === 0 ? "#f5f5f5" : "#ff6a00", color: entry.quantity === 0 ? "#ccc" : "#fff", border: "none", cursor: entry.quantity === 0 ? "not-allowed" : "pointer", fontSize: 11, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}>
+                              <ShoppingCart size={11} /> Add to Cart
                             </button>
                           </div>
                         </div>
@@ -1129,78 +1174,83 @@ function OwnProductCard({
   meta: ProductMeta;
   onToggleListed: () => void;
 }) {
-  const stockColor = product.quantity === 0 ? "text-red-600 bg-red-50" : product.quantity <= 10 ? "text-amber-600 bg-amber-50" : "text-green-600 bg-green-50";
-  const stockLabel = product.quantity === 0 ? "Out of Stock" : product.quantity <= 10 ? `Low (${product.quantity})` : `In Stock (${product.quantity})`;
+  const stockLabel = product.quantity === 0 ? "Out of Stock" : `In Stock (${product.quantity})`;
+  const stockColor = product.quantity === 0 ? "#f5222d" : product.quantity <= 10 ? "#fa8c16" : "#52c41a";
   const coverImg   = meta.images?.[0];
 
   return (
-    <div className={`bg-white rounded-2xl overflow-hidden hover:shadow-md transition group flex flex-col border ${meta.listed ? "border-[#1372e6]/30 ring-1 ring-[#1372e6]/10" : "border-slate-200"}`}>
-      {/* Product image */}
-      <div className="h-28 relative overflow-hidden bg-slate-50 border-b border-slate-100">
+    <div style={{ background: "#fff", border: meta.listed ? "1px solid #ff6a00" : "1px solid #e8e8e8", overflow: "hidden", display: "flex", flexDirection: "column", transition: "box-shadow 0.15s" }}
+      onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.boxShadow = "0 4px 16px rgba(0,0,0,0.1)"; }}
+      onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.boxShadow = "none"; }}>
+
+      {/* Image area */}
+      <div style={{ position: "relative", aspectRatio: "1", overflow: "hidden", background: "#f7f7f7" }}>
         {coverImg ? (
-          <>
-            <img src={coverImg} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
-            {meta.images.length > 1 && (
-              <span className="absolute bottom-1.5 right-1.5 flex items-center gap-0.5 text-[8px] font-bold bg-black/50 text-white px-1.5 py-0.5 rounded-full">
-                <Eye size={8} /> {meta.images.length}
-              </span>
-            )}
-          </>
+          <img src={coverImg} alt={product.name} style={{ width: "100%", height: "100%", objectFit: "cover", transition: "transform 0.3s" }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLImageElement).style.transform = "scale(1.05)"; }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLImageElement).style.transform = "scale(1)"; }} />
         ) : (
-          <div className="w-full h-full flex flex-col items-center justify-center gap-1 text-slate-300 group-hover:text-[#1372e6]/40 transition">
-            <Package size={24} />
-            <span className="text-[8px] font-semibold">No photo</span>
+          <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4 }}>
+            <Package size={28} style={{ color: "#d9d9d9" }} />
+            <span style={{ fontSize: 9, color: "#ccc", fontWeight: 600 }}>No photo</span>
           </div>
         )}
-        {/* Listed badge overlay */}
         {meta.listed && (
-          <span className="absolute top-1.5 left-1.5 flex items-center gap-0.5 text-[8px] font-black bg-[#1372e6] text-white px-1.5 py-0.5 rounded-full shadow">
+          <span style={{ position: "absolute", top: 6, left: 6, background: "#ff6a00", color: "#fff", fontSize: 9, fontWeight: 800, padding: "2px 7px", display: "flex", alignItems: "center", gap: 3 }}>
             <Globe size={8} /> Listed
           </span>
         )}
+        {meta.images.length > 1 && (
+          <span style={{ position: "absolute", bottom: 5, right: 5, background: "rgba(0,0,0,0.45)", color: "#fff", fontSize: 9, padding: "2px 5px" }}>
+            +{meta.images.length - 1}
+          </span>
+        )}
+        {product.quantity === 0 && (
+          <div style={{ position: "absolute", inset: 0, background: "rgba(255,255,255,0.7)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <span style={{ fontSize: 10, fontWeight: 700, color: "#f5222d", border: "1px solid #ffa39e", padding: "2px 8px", background: "#fff" }}>Out of Stock</span>
+          </div>
+        )}
       </div>
 
-      {/* Thumbnails row (if multiple images) */}
+      {/* Thumbnails row */}
       {meta.images.length > 1 && (
-        <div className="flex gap-1 px-2 pt-2">
+        <div style={{ display: "flex", gap: 3, padding: "5px 8px 0" }}>
           {meta.images.slice(0, 4).map((src, i) => (
-            <img key={i} src={src} alt="" className="w-7 h-7 rounded-md object-cover border border-slate-200 flex-shrink-0" />
+            <img key={i} src={src} alt="" style={{ width: 24, height: 24, objectFit: "cover", border: "1px solid #e8e8e8", flexShrink: 0 }} />
           ))}
           {meta.images.length > 4 && (
-            <div className="w-7 h-7 rounded-md bg-slate-100 flex items-center justify-center text-[8px] font-bold text-slate-500">
+            <div style={{ width: 24, height: 24, background: "#f5f5f5", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 8, fontWeight: 700, color: "#888" }}>
               +{meta.images.length - 4}
             </div>
           )}
         </div>
       )}
 
-      <div className="p-3 flex flex-col flex-1">
-        <p className="text-xs font-bold text-slate-900 leading-tight line-clamp-2" title={product.name}>{product.name}</p>
-        {product.description && (
-          <p className="text-[9px] text-slate-400 mt-0.5 line-clamp-1">{product.description}</p>
-        )}
-        <p className="text-sm font-black mt-1.5" style={{ color: "#1372e6" }}>
-          {new Intl.NumberFormat("en-RW", { style: "currency", currency: "RWF", maximumFractionDigits: 0 }).format(product.selling_price)}
+      {/* Info */}
+      <div style={{ padding: "8px 10px 10px", flex: 1, display: "flex", flexDirection: "column" }}>
+        <p style={{ fontSize: 12, fontWeight: 600, color: "#222", lineHeight: 1.4, margin: "0 0 2px", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" as const, overflow: "hidden" }}>
+          {product.name}
         </p>
-        <span className={`mt-1 inline-flex items-center text-[9px] font-bold px-1.5 py-0.5 rounded-full w-fit ${stockColor}`}>
-          {stockLabel}
-        </span>
+        <p style={{ fontSize: 15, fontWeight: 900, color: "#ff6a00", margin: "4px 0 2px" }}>
+          {fmtCurrency(product.selling_price)}
+        </p>
+        <p style={{ fontSize: 10, color: stockColor, fontWeight: 600, margin: "0 0 6px" }}>{stockLabel}</p>
 
         {/* Marketplace toggle */}
         <button
           onClick={onToggleListed}
-          className={`mt-2.5 w-full flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-xl border text-[10px] font-semibold transition ${
-            meta.listed
-              ? "border-[#1372e6]/30 bg-[#EBF2FD] text-[#1372e6]"
-              : "border-slate-200 bg-slate-50 text-slate-500 hover:border-slate-300"
-          }`}
-        >
-          <span className="flex items-center gap-1">
+          style={{
+            marginTop: "auto", width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between",
+            padding: "6px 10px", border: meta.listed ? "1px solid #ff6a00" : "1px solid #d9d9d9",
+            background: meta.listed ? "#fff5f0" : "#fafafa", cursor: "pointer", fontSize: 10, fontWeight: 700,
+            color: meta.listed ? "#ff6a00" : "#888", transition: "all 0.15s",
+          }}>
+          <span style={{ display: "flex", alignItems: "center", gap: 5 }}>
             <Globe size={9} />
             {meta.listed ? "On Marketplace" : "Not Listed"}
           </span>
-          <div className={`w-7 h-3.5 rounded-full transition-colors relative ${meta.listed ? "bg-[#1372e6]" : "bg-slate-300"}`}>
-            <span className={`absolute top-0.5 w-2.5 h-2.5 bg-white rounded-full shadow transition-transform ${meta.listed ? "translate-x-3.5" : "translate-x-0.5"}`} />
+          <div style={{ width: 26, height: 13, borderRadius: 7, background: meta.listed ? "#ff6a00" : "#d9d9d9", position: "relative", transition: "background 0.15s" }}>
+            <span style={{ position: "absolute", top: 2, width: 9, height: 9, background: "#fff", borderRadius: "50%", transition: "left 0.15s", left: meta.listed ? 14 : 2 }} />
           </div>
         </button>
       </div>

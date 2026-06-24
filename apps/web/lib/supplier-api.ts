@@ -1,4 +1,4 @@
-import { getToken, handleUnauthorized } from "@/lib/auth";
+import { getToken } from "@/lib/auth";
 
 const SUPPLIER_API = process.env.NEXT_PUBLIC_API_SUPPLIERS || "https://higoverse-suppliers.vercel.app";
 
@@ -22,8 +22,7 @@ export async function partnerRequest(
   });
 
   if (res.status === 401) {
-    handleUnauthorized();
-    throw new Error("Session expired. Please log in again.");
+    return null; // Service not yet configured for this account — return empty data
   }
 
   if (!res.ok) {

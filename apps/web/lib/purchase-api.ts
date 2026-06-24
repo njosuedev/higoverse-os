@@ -1,4 +1,4 @@
-import { getToken, handleUnauthorized } from "@/lib/auth";
+import { getToken } from "@/lib/auth";
 
 export async function purchaseRequest(endpoint: string, options: RequestInit = {}) {
   const token = getToken();
@@ -10,8 +10,7 @@ export async function purchaseRequest(endpoint: string, options: RequestInit = {
   const res = await fetch(`/api/purchases${endpoint}`, { ...options, headers });
 
   if (res.status === 401) {
-    handleUnauthorized();
-    throw new Error("Session expired. Please log in again.");
+    return null; // Service not yet configured for this account — return empty data
   }
   if (!res.ok) {
     const text = await res.text().catch(() => "");

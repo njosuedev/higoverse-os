@@ -1,16 +1,22 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
-import { listShops, type Shop } from "@/lib/shop-api";
-import { getCatalog, type MarketplaceEntry } from "@/lib/product-meta";
+import { useShop } from "@/lib/shop-context";
+import { listShops, updateMyShop, type Shop } from "@/lib/shop-api";
+import { getCatalog, upsertCatalogEntry, getProductMeta, compressImage, type MarketplaceEntry } from "@/lib/product-meta";
+import { itemRequest } from "@/lib/product-api";
 import { partnerRequest } from "@/lib/supplier-api";
 import { purchaseRequest } from "@/lib/purchase-api";
 import {
   Search, X, ShoppingCart, Plus, Minus, Loader2,
   CheckCircle, Phone, Package, ChevronRight, Star,
-  MapPin, MessageSquare, Send, Clock, Store, Mail,
+  MapPin, MessageSquare, Send, Store, Mail,
+  Rocket, ArrowRight, LayoutDashboard, CheckCircle2,
+  Wifi, Building2, FileText, ImagePlus, ChevronDown,
+  Clock, BadgeCheck,
 } from "lucide-react";
 import {
   sendMessage, getMyMessages, replyToMessage,
@@ -82,6 +88,8 @@ interface OrderModal { entry: MarketplaceEntry; shop: Shop | undefined; qty: num
 
 export default function MarketplacePage() {
   const { user }  = useAuth();
+  const { shop }  = useShop();
+  const searchParams = useSearchParams();
   const [shops, setShops]       = useState<Shop[]>([]);
   const [catalog, setCatalog]   = useState<MarketplaceEntry[]>([]);
   const [loading, setLoading]   = useState(true);
@@ -92,8 +100,87 @@ export default function MarketplacePage() {
   const [now, setNow]           = useState(new Date());
   const [page, setPage]         = useState(1);            // how many PAGE_SIZE batches shown
   const [loadingMore, setLoadingMore] = useState(false);
+  const [bannerDismissed, setBannerDismissed] = useState(false);
+  const [apiSynced, setApiSynced] = useState(false);
+  const [onlineShopsCount, setOnlineShopsCount] = useState(0);
+  const [sort, setSort] = useState<"newest"|"price_asc"|"price_desc"|"name_az"|"stock">("newest");
+  const [liveConnected, setLiveConnected] = useState(false);
+
+  // Shop application form state
+  const [showShopForm, setShowShopForm] = useState(false);
+  const [shopApplied, setShopApplied] = useState(false);
+  const [shopForm, setShopForm] = useState({ shop_name: "", tin: "", business_type: "", district: "", phone: "", description: "", logo_url: "" });
+  const [shopFormLoading, setShopFormLoading] = useState(false);
+  const [shopFormError, setShopFormError] = useState("");
+
   const sentinelRef = useRef<HTMLDivElement>(null);
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (localStorage.getItem("mp_shop_banner_dismissed") === "1") setBannerDismissed(true);
+    if (localStorage.getItem("mp_shop_applied") === "1") setShopApplied(true);
+  }, []);
+
+  // Auto-open shop application form when navigating from the header "Open a Shop" button
+  useEffect(() => {
+    if (searchParams.get("apply") === "1" && !shopApplied && shop?.is_active !== true) {
+      setShowShopForm(true);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, shop?.is_active]);
+
+  // Pre-fill the form when shop data loads
+  useEffect(() => {
+    if (!shop) return;
+    setShopForm((f) => ({
+      ...f,
+      shop_name: f.shop_name || shop.name || "",
+      phone:     f.phone     || shop.phone || "",
+      logo_url:  f.logo_url  || shop.logo_url || "",
+    }));
+    // Detect already-applied: backend will have address set if they previously filled the form
+    if (shop.address) setShopApplied(true);
+  }, [shop?.id]);
+
+  function dismissBanner() {
+    setBannerDismissed(true);
+    localStorage.setItem("mp_shop_banner_dismissed", "1");
+  }
+
+  async function submitShopApplication() {
+    setShopFormError("");
+    if (!shopForm.shop_name.trim())   { setShopFormError("Shop name is required."); return; }
+    if (!shopForm.tin.trim())         { setShopFormError("TIN / Tax ID is required. Admin will verify it."); return; }
+    if (!shopForm.business_type)      { setShopFormError("Select a business type.");  return; }
+    if (!shopForm.district)           { setShopFormError("Select your district.");     return; }
+    if (!shopForm.phone.trim())       { setShopFormError("Phone number is required."); return; }
+    setShopFormLoading(true);
+    try {
+      // address: "TIN:123456789|Kigali, Gasabo" — parsed by admin panel
+      const tin = shopForm.tin.trim();
+      const address = `TIN:${tin}|${shopForm.district}, Rwanda`;
+      // description: "Retail|Your description text" — parsed by admin panel
+      const description = shopForm.description.trim()
+        ? `${shopForm.business_type}|${shopForm.description.trim()}`
+        : shopForm.business_type;
+      await updateMyShop({
+        name:        shopForm.shop_name.trim(),
+        phone:       shopForm.phone.trim(),
+        address,
+        description,
+        logo_url:    shopForm.logo_url || undefined,
+      });
+      setShopApplied(true);
+      localStorage.setItem("mp_shop_applied", "1");
+      setShowShopForm(false);
+    } catch {
+      setShopFormError("Failed to submit application. Please try again.");
+    } finally {
+      setShopFormLoading(false);
+    }
+  }
+
+  const shopIsActive = shop?.is_active === true;
 
   const [detailEntry, setDetailEntry] = useState<MarketplaceEntry | null>(null);
   const [detailImg, setDetailImg]     = useState(0);
@@ -110,15 +197,126 @@ export default function MarketplacePage() {
 
   // ── data load ────────────────────────────────────────────────────────────
   useEffect(() => {
-    listShops({ limit: 200 }).then((r) => setShops(r.items ?? [])).catch(() => {});
-    setCatalog(getCatalog().filter((e) => e.images.length >= 3));
-    setLoading(false);
+    const load = async () => {
+      // 1. Load shops from live auth API — source of truth for all registered shops
+      try {
+        const shopsRes = await listShops({ limit: 500 });
+        const allShops = shopsRes.items ?? [];
+        setShops(allShops);
+        const now = new Date();
+        const onlineNow = allShops.filter((s) => {
+          if (!s.last_seen_at) return false;
+          const d = new Date(s.last_seen_at.endsWith("Z") ? s.last_seen_at : s.last_seen_at + "Z");
+          return (now.getTime() - d.getTime()) / 1000 < 300;
+        });
+        setOnlineShopsCount(onlineNow.length);
+      } catch { /* shops stay empty */ }
+
+      // 2. Seed catalog from localStorage immediately (fast, no wait)
+      setCatalog(getCatalog().filter((e) => e.images.length >= 3));
+      setLoading(false);
+
+      // 3. Auto-sync the logged-in user's marketplace-listed products from real API
+      if (user?.shop_id && shop) {
+        try {
+          const res = await itemRequest("/products?page=1&limit=500");
+          const products: Array<{
+            id: string; name: string; description?: string;
+            selling_price: number; cost_price?: number; quantity: number;
+          }> = res?.data?.items ?? res?.data ?? [];
+
+          let synced = 0;
+          for (const p of products) {
+            const meta = getProductMeta(p.id);
+            if (!meta.listed || meta.images.length < 1) continue;
+            const resolvedCategory = meta.category || (p as { category?: string }).category || catOf(p.name, p.description);
+            upsertCatalogEntry({
+              productId:    p.id,
+              shopId:       user.shop_id,
+              shopName:     shop.name,
+              shopLogoUrl:  shop.logo_url,
+              shopPhone:    shop.phone,
+              name:         p.name,
+              description:  p.description,
+              category:     resolvedCategory,
+              sellingPrice: p.selling_price,
+              costPrice:    p.cost_price ?? p.selling_price,
+              quantity:     p.quantity,
+              images:       meta.images,
+              listedAt:     meta.listed ? (getCatalog().find(e => e.productId === p.id)?.listedAt ?? new Date().toISOString()) : new Date().toISOString(),
+            });
+            synced++;
+          }
+          if (synced > 0) setCatalog(getCatalog().filter((e) => e.images.length >= 3));
+          setApiSynced(true);
+          setLiveConnected(true);
+        } catch {
+          setApiSynced(false);
+        }
+      }
+    };
+
+    load();
     if (user?.shop_id) setMyMessages(getMyMessages(user.shop_id));
     const tick = setInterval(() => setNow(new Date()), 15_000);
     return () => clearInterval(tick);
-  }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.shop_id, shop?.id]);
 
-  // ── debounced search ─────────────────────────────────────────────────────
+  // ── WebSocket-style live polling (10 s interval) ─────────────────────────
+  useEffect(() => {
+    let retries = 0;
+
+    async function poll() {
+      try {
+        // Refresh online shops list
+        const shopsRes = await listShops({ limit: 500 });
+        const allShops = shopsRes.items ?? [];
+        setShops(allShops);
+        const nowTs = new Date();
+        setOnlineShopsCount(allShops.filter((s) => {
+          if (!s.last_seen_at) return false;
+          const d = new Date(s.last_seen_at.endsWith("Z") ? s.last_seen_at : s.last_seen_at + "Z");
+          return (nowTs.getTime() - d.getTime()) / 1000 < 300;
+        }).length);
+
+        // Re-sync current user's products
+        if (user?.shop_id && shop) {
+          const res = await itemRequest("/products?page=1&limit=500");
+          const products: Array<{ id: string; name: string; description?: string; category?: string; selling_price: number; cost_price?: number; quantity: number; }> = res?.data?.items ?? res?.data ?? [];
+          let changed = false;
+          for (const p of products) {
+            const meta = getProductMeta(p.id);
+            if (!meta.listed || meta.images.length < 1) continue;
+            const resolvedCategory = meta.category || p.category || catOf(p.name, p.description);
+            upsertCatalogEntry({
+              productId: p.id, shopId: user.shop_id, shopName: shop.name,
+              shopLogoUrl: shop.logo_url, shopPhone: shop.phone,
+              name: p.name, description: p.description, category: resolvedCategory,
+              sellingPrice: p.selling_price, costPrice: p.cost_price ?? p.selling_price,
+              quantity: p.quantity, images: meta.images,
+              listedAt: getCatalog().find(e => e.productId === p.id)?.listedAt ?? new Date().toISOString(),
+            });
+            changed = true;
+          }
+          if (changed) setCatalog(getCatalog().filter((e) => e.images.length >= 3));
+        }
+
+        setLiveConnected(true);
+        retries = 0;
+      } catch {
+        retries++;
+        if (retries >= 3) setLiveConnected(false);
+      }
+    }
+
+    // Start polling after initial load delay
+    const interval = setInterval(poll, 10_000);
+    return () => clearInterval(interval);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.shop_id, shop?.id]);
+
+  // ── instant search (80 ms debounce feels immediate) ───────────────────────
   useEffect(() => {
     if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
     if (rawSearch !== search) setSearching(true);
@@ -126,7 +324,7 @@ export default function MarketplacePage() {
       setSearch(rawSearch);
       setSearching(false);
       setPage(1);
-    }, 350);
+    }, 80);
     return () => { if (searchTimerRef.current) clearTimeout(searchTimerRef.current); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rawSearch]);
@@ -140,19 +338,40 @@ export default function MarketplacePage() {
     return m;
   }, [shops]);
 
-  // ── filtered full list ───────────────────────────────────────────────────
+  // ── category counts (from stored category field) ────────────────────────
+  const catCounts = useMemo(() => {
+    const m: Record<string, number> = { all: catalog.length };
+    catalog.forEach((e) => {
+      const c = e.category || catOf(e.name, e.description);
+      m[c] = (m[c] ?? 0) + 1;
+    });
+    return m;
+  }, [catalog]);
+
+  // ── filtered + sorted list ───────────────────────────────────────────────
   const allFiltered = useMemo(() => {
     const q = search.toLowerCase().trim();
-    return catalog.filter((e) => {
-      if (cat !== "all" && catOf(e.name, e.description) !== cat) return false;
+    const filtered = catalog.filter((e) => {
+      const ecat = e.category || catOf(e.name, e.description);
+      if (cat !== "all" && ecat !== cat) return false;
       if (!q) return true;
       return (
         e.name.toLowerCase().includes(q) ||
         e.shopName.toLowerCase().includes(q) ||
-        (e.description ?? "").toLowerCase().includes(q)
+        (e.description ?? "").toLowerCase().includes(q) ||
+        (e.category ?? "").toLowerCase().includes(q)
       );
     });
-  }, [catalog, search, cat]);
+    return [...filtered].sort((a, b) => {
+      switch (sort) {
+        case "price_asc":  return a.sellingPrice - b.sellingPrice;
+        case "price_desc": return b.sellingPrice - a.sellingPrice;
+        case "name_az":    return a.name.localeCompare(b.name);
+        case "stock":      return b.quantity - a.quantity;
+        default:           return new Date(b.listedAt).getTime() - new Date(a.listedAt).getTime();
+      }
+    });
+  }, [catalog, search, cat, sort]);
 
   // ── paginated slice ──────────────────────────────────────────────────────
   const visible = useMemo(() => allFiltered.slice(0, page * PAGE_SIZE), [allFiltered, page]);
@@ -239,72 +458,188 @@ export default function MarketplacePage() {
     <div style={{ background: "#f4f4f4", minHeight: "100vh", fontFamily: "Arial, sans-serif" }}>
 
       {/* ── SEARCH BAR ───────────────────────────────────────────────────── */}
-      <div style={{ background: "#fff", borderBottom: "1px solid #e5e5e5", position: "sticky", top: 0, zIndex: 40, boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}>
-        <div style={{ maxWidth: 1400, margin: "0 auto", padding: "10px 16px", display: "flex", alignItems: "center", gap: 12 }}>
+      <div style={{ background: "#fff", borderBottom: "1px solid #e5e5e5", position: "sticky", top: 0, zIndex: 40, boxShadow: "0 2px 8px rgba(0,0,0,0.07)" }}>
+        <div style={{ maxWidth: 1400, margin: "0 auto", padding: "10px 16px", display: "flex", alignItems: "center", gap: 10 }}>
 
           {/* Search input */}
-          <div style={{ flex: 1, display: "flex", border: "2px solid #ff6a00", overflow: "hidden" }}>
+          <div style={{ flex: 1, display: "flex", border: "2px solid #ff6a00", borderRadius: 6, overflow: "hidden", boxShadow: "0 1px 4px rgba(255,106,0,0.1)" }}>
             <select
               value={cat}
-              onChange={(e) => setCat(e.target.value)}
+              onChange={(e) => { setCat(e.target.value); setPage(1); }}
               className="mp-cat-select"
-              style={{ border: "none", borderRight: "1px solid #ddd", background: "#f5f5f5", padding: "0 10px", fontSize: 11, color: "#555", cursor: "pointer", outline: "none", flexShrink: 0 }}
+              style={{ border: "none", borderRight: "1px solid #e8e8e8", background: "#f8f8f8", padding: "0 10px", fontSize: 11, color: "#444", cursor: "pointer", outline: "none", flexShrink: 0, fontWeight: 500 }}
             >
-              {ALL_CATS.map((c) => <option key={c.key} value={c.key}>{c.label}</option>)}
+              {ALL_CATS.map((c) => (
+                <option key={c.key} value={c.key}>
+                  {c.label}{catCounts[c.key] ? ` (${catCounts[c.key]})` : ""}
+                </option>
+              ))}
             </select>
             <div style={{ flex: 1, position: "relative", display: "flex", alignItems: "center" }}>
-              <Search size={13} style={{ position: "absolute", left: 10, color: searching ? "#ff6a00" : "#bbb", transition: "color 0.2s", flexShrink: 0 }} />
+              {searching
+                ? <Loader2 size={13} style={{ position: "absolute", left: 10, color: "#ff6a00", animation: "spin 0.7s linear infinite", flexShrink: 0 }} />
+                : <Search size={13} style={{ position: "absolute", left: 10, color: rawSearch ? "#ff6a00" : "#bbb", transition: "color 0.15s", flexShrink: 0 }} />}
               <input
                 type="text"
                 value={rawSearch}
                 onChange={(e) => setRawSearch(e.target.value)}
                 onKeyDown={(e) => e.key === "Escape" && setRawSearch("")}
-                placeholder="Search products, suppliers, categories..."
-                style={{ width: "100%", border: "none", padding: "9px 32px 9px 32px", fontSize: 13, outline: "none", background: "#fff" }}
+                placeholder="Search products, shops, categories..."
+                style={{ width: "100%", border: "none", padding: "9px 34px 9px 32px", fontSize: 13, outline: "none", background: "#fff" }}
               />
               {rawSearch && (
-                <button
-                  onClick={() => { setRawSearch(""); }}
-                  style={{ position: "absolute", right: 8, border: "none", background: "none", cursor: "pointer", color: "#aaa", padding: 2, display: "flex" }}
-                >
+                <button onClick={() => setRawSearch("")}
+                  style={{ position: "absolute", right: 8, border: "none", background: "none", cursor: "pointer", color: "#bbb", padding: 2, display: "flex", borderRadius: "50%" }}>
                   <X size={13} />
                 </button>
               )}
             </div>
-            <button style={{ background: "#ff6a00", color: "#fff", border: "none", padding: "0 22px", fontSize: 13, fontWeight: 700, cursor: "pointer", flexShrink: 0, letterSpacing: 0.3 }}>
+            <button
+              onClick={() => setSearch(rawSearch)}
+              style={{ background: "#ff6a00", color: "#fff", border: "none", padding: "0 20px", fontSize: 13, fontWeight: 700, cursor: "pointer", flexShrink: 0, letterSpacing: 0.3 }}>
               Search
             </button>
           </div>
 
-          {/* Stats */}
+          {/* Sort dropdown */}
+          <div style={{ position: "relative", flexShrink: 0 }}>
+            <select
+              value={sort}
+              onChange={(e) => setSort(e.target.value as typeof sort)}
+              style={{ appearance: "none", border: "1.5px solid #e8e8e8", borderRadius: 6, background: "#fff", padding: "7px 28px 7px 10px", fontSize: 11, color: "#444", cursor: "pointer", outline: "none", fontWeight: 500 }}
+            >
+              <option value="newest">Newest first</option>
+              <option value="price_asc">Price: low → high</option>
+              <option value="price_desc">Price: high → low</option>
+              <option value="name_az">Name: A → Z</option>
+              <option value="stock">Most in stock</option>
+            </select>
+            <ChevronDown size={11} style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", color: "#999", pointerEvents: "none" }} />
+          </div>
+
+          {/* Live status + stats */}
           <div className="mp-stats" style={{ flexShrink: 0, textAlign: "right" }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: "#333" }}>{catalog.length} Products</div>
-            <div style={{ fontSize: 10, color: "#999" }}>{shops.length} shops</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 5, justifyContent: "flex-end", marginBottom: 2 }}>
+              <span style={{ fontSize: 12, fontWeight: 700, color: "#333" }}>{catalog.length}</span>
+              <span style={{ fontSize: 11, color: "#888" }}>products</span>
+              <span style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 9, background: liveConnected ? "#f6ffed" : "#fafafa", border: `1px solid ${liveConnected ? "#b7eb8f" : "#e8e8e8"}`, color: liveConnected ? "#52c41a" : "#bbb", padding: "1px 6px", borderRadius: 10, fontWeight: 700 }}>
+                <span style={{ width: 5, height: 5, borderRadius: "50%", background: liveConnected ? "#52c41a" : "#ccc", display: "inline-block", animation: liveConnected ? "pulse 2s infinite" : "none" }} />
+                {liveConnected ? "Live" : "Syncing"}
+              </span>
+            </div>
+            <div style={{ fontSize: 10, color: "#bbb" }}>
+              {shops.length} shops
+              {onlineShopsCount > 0 && <span style={{ color: "#52c41a", fontWeight: 600 }}> · {onlineShopsCount} online</span>}
+            </div>
           </div>
         </div>
 
-        {/* Category nav strip */}
+        {/* Category nav strip with counts */}
         <div style={{ borderTop: "1px solid #f0f0f0" }}>
           <div style={{ maxWidth: 1400, margin: "0 auto", padding: "0 16px", display: "flex", overflowX: "auto" }} className="mp-subnav">
-            {ALL_CATS.map((c) => (
-              <button
-                key={c.key}
-                onClick={() => setCat(c.key)}
-                style={{
-                  border: "none", background: "transparent", padding: "7px 14px",
-                  fontSize: 12, cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0,
-                  color: cat === c.key ? "#ff6a00" : "#555",
-                  fontWeight: cat === c.key ? 700 : 400,
-                  borderBottom: cat === c.key ? "2px solid #ff6a00" : "2px solid transparent",
-                  transition: "color 0.15s",
-                }}
-              >
-                {c.label}
-              </button>
-            ))}
+            {ALL_CATS.map((c) => {
+              const count = catCounts[c.key] ?? 0;
+              const active = cat === c.key;
+              return (
+                <button
+                  key={c.key}
+                  onClick={() => { setCat(c.key); setPage(1); }}
+                  style={{
+                    border: "none", background: "transparent", padding: "7px 12px",
+                    fontSize: 12, cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0,
+                    color: active ? "#ff6a00" : "#555",
+                    fontWeight: active ? 700 : 400,
+                    borderBottom: active ? "2px solid #ff6a00" : "2px solid transparent",
+                    transition: "color 0.15s",
+                    display: "flex", alignItems: "center", gap: 4,
+                  }}
+                >
+                  {c.label}
+                  {count > 0 && (
+                    <span style={{
+                      fontSize: 9, fontWeight: 700, padding: "1px 5px", borderRadius: 8,
+                      background: active ? "#ff6a00" : "#f0f0f0",
+                      color: active ? "#fff" : "#888",
+                      minWidth: 16, textAlign: "center",
+                    }}>{count}</span>
+                  )}
+                </button>
+              );
+            })}
           </div>
         </div>
       </div>
+
+      {/* ── SHOP STATUS BANNER ───────────────────────────────────────────── */}
+
+      {/* State 1: No application yet — always visible, non-dismissible */}
+      {!shopIsActive && !shopApplied && user?.role !== "admin" && (
+        <div style={{ background: "linear-gradient(135deg, #fff7ed 0%, #fff3e0 100%)", borderBottom: "2px solid #ff6a00" }}>
+          <div style={{ maxWidth: 1400, margin: "0 auto", padding: "14px 16px", display: "flex", alignItems: "flex-start", gap: 14 }}>
+            <div style={{ width: 44, height: 44, borderRadius: "50%", background: "#ff6a00", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 2 }}>
+              <Rocket size={20} style={{ color: "#fff" }} />
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <p style={{ fontSize: 15, fontWeight: 800, color: "#c2410c", margin: "0 0 4px" }}>Want to sell on Higoverse?</p>
+              <p style={{ fontSize: 12, color: "#78350f", margin: "0 0 12px", lineHeight: 1.5 }}>
+                Fill in your shop details — including your TIN — and submit for Higoverse admin review. Once approved, your full shop dashboard appears and your products go live on the marketplace.
+              </p>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 14 }}>
+                {[
+                  { n: 1, label: "Fill shop application" },
+                  { n: 2, label: "Admin review & TIN verify" },
+                  { n: 3, label: "Access dashboard & sell" },
+                ].map((step) => (
+                  <div key={step.n} style={{ display: "flex", alignItems: "center", gap: 5, background: "#fff", border: "1px solid #fed7aa", borderRadius: 20, padding: "4px 10px" }}>
+                    <span style={{ width: 16, height: 16, borderRadius: "50%", background: "#ff6a00", color: "#fff", fontSize: 9, fontWeight: 900, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{step.n}</span>
+                    <span style={{ fontSize: 11, fontWeight: 600, color: "#7c2d12" }}>{step.label}</span>
+                  </div>
+                ))}
+              </div>
+              <button
+                onClick={() => setShowShopForm(true)}
+                style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "9px 20px", background: "#ff6a00", color: "#fff", border: "none", fontSize: 13, fontWeight: 700, borderRadius: 6, cursor: "pointer", boxShadow: "0 2px 8px rgba(255,106,0,0.3)" }}
+              >
+                <Store size={14} /> Create my shop <ArrowRight size={12} />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* State 2: Application submitted — pending admin review */}
+      {!shopIsActive && shopApplied && (
+        <div style={{ background: "#fffbeb", borderBottom: "2px solid #f59e0b" }}>
+          <div style={{ maxWidth: 1400, margin: "0 auto", padding: "12px 16px", display: "flex", alignItems: "center", gap: 12 }}>
+            <Clock size={18} style={{ color: "#d97706", flexShrink: 0 }} />
+            <div style={{ flex: 1 }}>
+              <p style={{ fontSize: 13, fontWeight: 700, color: "#92400e", margin: "0 0 2px" }}>Application submitted — pending admin review</p>
+              <p style={{ fontSize: 11, color: "#b45309", margin: 0 }}>Higoverse admin will review your shop details and notify you once approved. This usually takes 1–2 business days.</p>
+            </div>
+            <button onClick={dismissBanner} style={{ border: "none", background: "none", cursor: "pointer", color: "#d97706", padding: 4, display: "flex" }}>
+              <X size={13} />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* State 3: Shop verified — quick access */}
+      {!bannerDismissed && shopIsActive && (
+        <div style={{ background: "#f0fdf4", borderBottom: "1px solid #86efac" }}>
+          <div style={{ maxWidth: 1400, margin: "0 auto", padding: "10px 16px", display: "flex", alignItems: "center", gap: 10 }}>
+            <BadgeCheck size={16} style={{ color: "#16a34a", flexShrink: 0 }} />
+            <p style={{ fontSize: 12, color: "#15803d", margin: 0, fontWeight: 600, flex: 1 }}>
+              <strong>{shop?.name}</strong> is verified and active on the marketplace.
+            </p>
+            <Link href="/" style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "5px 12px", background: "#16a34a", color: "#fff", textDecoration: "none", fontSize: 11, fontWeight: 700, borderRadius: 6 }}>
+              <LayoutDashboard size={12} /> Shop Dashboard
+            </Link>
+            <button onClick={dismissBanner} style={{ border: "none", background: "none", cursor: "pointer", color: "#16a34a", padding: 4, display: "flex" }}>
+              <X size={13} />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* ── BODY ─────────────────────────────────────────────────────────── */}
       <div className="mp-body" style={{ maxWidth: 1400, margin: "0 auto", padding: "10px 16px", display: "flex", gap: 10, alignItems: "flex-start" }}>
@@ -312,28 +647,37 @@ export default function MarketplacePage() {
         {/* ── SIDEBAR ────────────────────────────────────────────────────── */}
         <aside className="mp-sidebar" style={{ width: 168, flexShrink: 0 }}>
           <div style={{ background: "#fff", border: "1px solid #e8e8e8", marginBottom: 8 }}>
-            <div style={{ padding: "10px 12px 6px", borderBottom: "1px solid #f0f0f0" }}>
-              <span style={{ fontSize: 12, fontWeight: 700, color: "#333" }}>Product Category</span>
+            <div style={{ padding: "10px 12px 6px", borderBottom: "1px solid #f0f0f0", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <span style={{ fontSize: 12, fontWeight: 700, color: "#333" }}>Categories</span>
+              <span style={{ fontSize: 10, color: "#bbb" }}>{catalog.length} total</span>
             </div>
-            {ALL_CATS.map((c) => (
-              <button
-                key={c.key}
-                onClick={() => setCat(c.key)}
-                style={{
-                  display: "flex", alignItems: "center", justifyContent: "space-between",
-                  width: "100%", border: "none",
-                  background: cat === c.key ? "#fff5f0" : "transparent",
-                  padding: "7px 12px", fontSize: 12, cursor: "pointer", textAlign: "left",
-                  color: cat === c.key ? "#ff6a00" : "#555",
-                  fontWeight: cat === c.key ? 700 : 400,
-                  borderLeft: cat === c.key ? "3px solid #ff6a00" : "3px solid transparent",
-                  transition: "background 0.15s",
-                }}
-              >
-                <span>{c.label}</span>
-                {cat === c.key && <ChevronRight size={11} style={{ color: "#ff6a00" }} />}
-              </button>
-            ))}
+            {ALL_CATS.map((c) => {
+              const count = catCounts[c.key] ?? 0;
+              const active = cat === c.key;
+              return (
+                <button
+                  key={c.key}
+                  onClick={() => { setCat(c.key); setPage(1); }}
+                  style={{
+                    display: "flex", alignItems: "center", justifyContent: "space-between",
+                    width: "100%", border: "none",
+                    background: active ? "#fff5f0" : "transparent",
+                    padding: "6px 12px", fontSize: 12, cursor: "pointer", textAlign: "left",
+                    color: active ? "#ff6a00" : count === 0 ? "#ccc" : "#555",
+                    fontWeight: active ? 700 : 400,
+                    borderLeft: active ? "3px solid #ff6a00" : "3px solid transparent",
+                    transition: "background 0.12s",
+                  }}
+                >
+                  <span>{c.label}</span>
+                  <span style={{
+                    fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius: 8,
+                    background: active ? "#ff6a00" : count > 0 ? "#f0f0f0" : "transparent",
+                    color: active ? "#fff" : "#999", minWidth: 18, textAlign: "center",
+                  }}>{count > 0 ? count : ""}</span>
+                </button>
+              );
+            })}
           </div>
 
           <div style={{ background: "#fff", border: "1px solid #e8e8e8" }}>
@@ -407,20 +751,44 @@ export default function MarketplacePage() {
           )}
 
           {/* Result bar */}
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8, padding: "6px 10px", background: "#fff", border: "1px solid #f0f0f0", borderRadius: 6 }}>
             <span style={{ fontSize: 12, color: "#666", display: "flex", alignItems: "center", gap: 6 }}>
               {searching ? (
-                <><Loader2 size={11} style={{ color: "#ff6a00", animation: "spin 0.8s linear infinite" }} /> Searching...</>
+                <><Loader2 size={11} style={{ color: "#ff6a00", animation: "spin 0.7s linear infinite" }} />
+                  <span style={{ color: "#ff6a00", fontWeight: 600 }}>Searching...</span></>
               ) : (
-                <><strong style={{ color: "#333" }}>{allFiltered.length}</strong>
-                  {search ? <> results for &ldquo;{search}&rdquo;</> : " products available"}
-                  {allFiltered.length !== visible.length && <span style={{ color: "#999" }}> · showing {visible.length}</span>}
+                <>
+                  <strong style={{ color: "#111", fontSize: 13 }}>{allFiltered.length}</strong>
+                  <span style={{ color: "#888" }}>
+                    {search
+                      ? <> results for <em style={{ color: "#ff6a00", fontStyle: "normal", fontWeight: 700 }}>&ldquo;{search}&rdquo;</em></>
+                      : cat !== "all"
+                        ? <> in <strong style={{ color: "#333" }}>{ALL_CATS.find(c => c.key === cat)?.label}</strong></>
+                        : " products available"}
+                  </span>
+                  {allFiltered.length !== visible.length && (
+                    <span style={{ color: "#bbb", fontSize: 11 }}>· showing {visible.length}</span>
+                  )}
+                  {(search || cat !== "all") && (
+                    <button onClick={() => { setRawSearch(""); setCat("all"); }}
+                      style={{ fontSize: 10, color: "#ff6a00", border: "1px solid #fed7aa", background: "transparent", borderRadius: 4, padding: "1px 6px", cursor: "pointer", fontWeight: 600 }}>
+                      Clear
+                    </button>
+                  )}
                 </>
               )}
             </span>
-            <Link href="/items" style={{ fontSize: 11, color: "#1677ff", textDecoration: "none" }}>
-              + List your products
-            </Link>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <span style={{ fontSize: 10, display: "flex", alignItems: "center", gap: 3, color: liveConnected ? "#52c41a" : "#bbb" }}>
+                <span style={{ width: 6, height: 6, borderRadius: "50%", background: liveConnected ? "#52c41a" : "#ddd", display: "inline-block", animation: liveConnected ? "pulse 2s infinite" : "none" }} />
+                {liveConnected ? "Live sync" : "Offline"}
+              </span>
+              {shopIsActive && (
+                <Link href="/items" style={{ fontSize: 11, color: "#1677ff", textDecoration: "none", fontWeight: 600 }}>
+                  + List product
+                </Link>
+              )}
+            </div>
           </div>
 
           {/* Grid */}
@@ -973,6 +1341,7 @@ export default function MarketplacePage() {
         }
 
         @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
 
         @media (max-width: 767px) {
           .mp-sidebar   { display: none !important; }
@@ -992,6 +1361,209 @@ export default function MarketplacePage() {
           .mp-grid { grid-template-columns: repeat(auto-fill, minmax(175px, 1fr)) !important; }
         }
       `}</style>
+
+      {/* ── SHOP APPLICATION MODAL ───────────────────────────────────────── */}
+      {showShopForm && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}
+          onClick={(e) => { if (e.target === e.currentTarget) setShowShopForm(false); }}
+        >
+          <div style={{ background: "#fff", borderRadius: 12, width: "100%", maxWidth: 520, maxHeight: "90vh", overflowY: "auto", boxShadow: "0 20px 60px rgba(0,0,0,0.25)" }}>
+            {/* Header */}
+            <div style={{ padding: "20px 24px 16px", borderBottom: "1px solid #f0f0f0", display: "flex", alignItems: "center", gap: 12 }}>
+              <div style={{ width: 40, height: 40, borderRadius: 10, background: "#ff6a00", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                <Store size={20} style={{ color: "#fff" }} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <p style={{ fontSize: 16, fontWeight: 800, color: "#111", margin: 0 }}>Shop Application</p>
+                <p style={{ fontSize: 11, color: "#888", margin: 0 }}>Fill in your shop details for Higoverse admin review</p>
+              </div>
+              <button onClick={() => setShowShopForm(false)} style={{ border: "none", background: "#f5f5f5", cursor: "pointer", color: "#666", width: 30, height: 30, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <X size={14} />
+              </button>
+            </div>
+
+            {/* Form */}
+            <div style={{ padding: "20px 24px" }}>
+              {shopFormError && (
+                <div style={{ background: "#fff1f2", border: "1px solid #fecdd3", borderRadius: 8, padding: "10px 14px", marginBottom: 16, fontSize: 12, color: "#be123c", display: "flex", alignItems: "center", gap: 8 }}>
+                  <X size={13} /> {shopFormError}
+                </div>
+              )}
+
+              {/* Admin review notice */}
+              <div style={{ background: "#fffbe6", border: "1px solid #ffe58f", borderRadius: 8, padding: "10px 14px", marginBottom: 16, fontSize: 12, color: "#7c5e00", display: "flex", gap: 10, alignItems: "flex-start" }}>
+                <Clock size={14} style={{ flexShrink: 0, marginTop: 1 }} />
+                <span>Your application will be reviewed by the Higoverse admin. Once verified, you&apos;ll receive shop dashboard access. Make sure your TIN is correct — we verify it.</span>
+              </div>
+
+              {/* Shop name */}
+              <div style={{ marginBottom: 14 }}>
+                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 6 }}>
+                  Shop name <span style={{ color: "#ef4444" }}>*</span>
+                </label>
+                <div style={{ position: "relative" }}>
+                  <Store size={14} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "#9ca3af" }} />
+                  <input
+                    value={shopForm.shop_name}
+                    onChange={(e) => setShopForm((f) => ({ ...f, shop_name: e.target.value }))}
+                    placeholder="e.g. Kigali Electronics Shop"
+                    style={{ width: "100%", padding: "10px 12px 10px 34px", border: "1.5px solid #e5e7eb", borderRadius: 8, fontSize: 13, outline: "none", boxSizing: "border-box" }}
+                  />
+                </div>
+              </div>
+
+              {/* TIN */}
+              <div style={{ marginBottom: 14 }}>
+                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 6 }}>
+                  TIN / Tax Identification Number <span style={{ color: "#ef4444" }}>*</span>
+                </label>
+                <div style={{ position: "relative" }}>
+                  <FileText size={14} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "#9ca3af" }} />
+                  <input
+                    value={shopForm.tin}
+                    onChange={(e) => setShopForm((f) => ({ ...f, tin: e.target.value.replace(/\D/g, "").slice(0, 15) }))}
+                    placeholder="e.g. 123456789"
+                    type="text"
+                    inputMode="numeric"
+                    style={{ width: "100%", padding: "10px 12px 10px 34px", border: shopForm.tin ? "1.5px solid #ff6a00" : "1.5px solid #e5e7eb", borderRadius: 8, fontSize: 13, outline: "none", boxSizing: "border-box", fontFamily: "monospace", letterSpacing: 1 }}
+                  />
+                </div>
+                <p style={{ fontSize: 10, color: "#9ca3af", marginTop: 4 }}>Your Rwanda Revenue Authority (RRA) tax number. Admin verifies this before approval.</p>
+              </div>
+
+              {/* Business type */}
+              <div style={{ marginBottom: 14 }}>
+                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 6 }}>
+                  Business type <span style={{ color: "#ef4444" }}>*</span>
+                </label>
+                <div style={{ position: "relative" }}>
+                  <Building2 size={14} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "#9ca3af" }} />
+                  <select
+                    value={shopForm.business_type}
+                    onChange={(e) => setShopForm((f) => ({ ...f, business_type: e.target.value }))}
+                    style={{ width: "100%", padding: "10px 34px 10px 34px", border: "1.5px solid #e5e7eb", borderRadius: 8, fontSize: 13, outline: "none", boxSizing: "border-box", appearance: "none", background: "#fff", color: shopForm.business_type ? "#111" : "#9ca3af" }}
+                  >
+                    <option value="">Select business type</option>
+                    <option value="Retail Shop">Retail Shop</option>
+                    <option value="Wholesale / Distribution">Wholesale / Distribution</option>
+                    <option value="Restaurant / Food">Restaurant / Food</option>
+                    <option value="Electronics">Electronics</option>
+                    <option value="Fashion & Apparel">Fashion & Apparel</option>
+                    <option value="Agriculture & Farming">Agriculture & Farming</option>
+                    <option value="Health & Pharmacy">Health & Pharmacy</option>
+                    <option value="Furniture & Home">Furniture & Home</option>
+                    <option value="Services">Services</option>
+                    <option value="Other">Other</option>
+                  </select>
+                  <ChevronDown size={14} style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", color: "#9ca3af", pointerEvents: "none" }} />
+                </div>
+              </div>
+
+              {/* District */}
+              <div style={{ marginBottom: 14 }}>
+                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 6 }}>
+                  District <span style={{ color: "#ef4444" }}>*</span>
+                </label>
+                <div style={{ position: "relative" }}>
+                  <MapPin size={14} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "#9ca3af" }} />
+                  <select
+                    value={shopForm.district}
+                    onChange={(e) => setShopForm((f) => ({ ...f, district: e.target.value }))}
+                    style={{ width: "100%", padding: "10px 34px 10px 34px", border: "1.5px solid #e5e7eb", borderRadius: 8, fontSize: 13, outline: "none", boxSizing: "border-box", appearance: "none", background: "#fff", color: shopForm.district ? "#111" : "#9ca3af" }}
+                  >
+                    <option value="">Select your district</option>
+                    {["Nyarugenge","Gasabo","Kicukiro","Bugesera","Gatsibo","Kayonza","Kirehe","Ngoma","Nyagatare","Rwamagana","Burera","Gakenke","Gicumbi","Musanze","Rulindo","Gisagara","Huye","Kamonyi","Muhanga","Nyamagabe","Nyamasheke","Nyanza","Ruhango","Karongi","Ngororero","Nyabihu","Nyamasheke","Rubavu","Rusizi","Rutsiro","Nyabihu"].map((d) => (
+                      <option key={d} value={d}>{d}</option>
+                    ))}
+                  </select>
+                  <ChevronDown size={14} style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", color: "#9ca3af", pointerEvents: "none" }} />
+                </div>
+              </div>
+
+              {/* Phone */}
+              <div style={{ marginBottom: 14 }}>
+                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 6 }}>
+                  Phone number <span style={{ color: "#ef4444" }}>*</span>
+                </label>
+                <div style={{ position: "relative" }}>
+                  <Phone size={14} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "#9ca3af" }} />
+                  <input
+                    value={shopForm.phone}
+                    onChange={(e) => setShopForm((f) => ({ ...f, phone: e.target.value }))}
+                    placeholder="+250 7XX XXX XXX"
+                    type="tel"
+                    style={{ width: "100%", padding: "10px 12px 10px 34px", border: "1.5px solid #e5e7eb", borderRadius: 8, fontSize: 13, outline: "none", boxSizing: "border-box" }}
+                  />
+                </div>
+              </div>
+
+              {/* Description */}
+              <div style={{ marginBottom: 14 }}>
+                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 6 }}>
+                  About your shop <span style={{ color: "#9ca3af", fontWeight: 400 }}>(optional)</span>
+                </label>
+                <div style={{ position: "relative" }}>
+                  <FileText size={14} style={{ position: "absolute", left: 12, top: 12, color: "#9ca3af" }} />
+                  <textarea
+                    value={shopForm.description}
+                    onChange={(e) => setShopForm((f) => ({ ...f, description: e.target.value }))}
+                    placeholder="Briefly describe your products, services, or what makes your shop unique..."
+                    rows={3}
+                    style={{ width: "100%", padding: "10px 12px 10px 34px", border: "1.5px solid #e5e7eb", borderRadius: 8, fontSize: 13, outline: "none", resize: "vertical", boxSizing: "border-box", fontFamily: "inherit" }}
+                  />
+                </div>
+              </div>
+
+              {/* Logo upload */}
+              <div style={{ marginBottom: 20 }}>
+                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 6 }}>
+                  Shop logo <span style={{ color: "#9ca3af", fontWeight: 400 }}>(optional)</span>
+                </label>
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  {shopForm.logo_url ? (
+                    <img src={shopForm.logo_url} alt="Logo" style={{ width: 56, height: 56, objectFit: "cover", borderRadius: 10, border: "1px solid #e5e7eb" }} />
+                  ) : (
+                    <div style={{ width: 56, height: 56, borderRadius: 10, border: "2px dashed #d1d5db", display: "flex", alignItems: "center", justifyContent: "center", background: "#f9fafb" }}>
+                      <ImagePlus size={20} style={{ color: "#9ca3af" }} />
+                    </div>
+                  )}
+                  <label style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 14px", border: "1.5px solid #e5e7eb", borderRadius: 8, fontSize: 12, fontWeight: 600, color: "#374151", cursor: "pointer", background: "#fff" }}>
+                    <ImagePlus size={13} /> {shopForm.logo_url ? "Change logo" : "Upload logo"}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      style={{ display: "none" }}
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        const compressed = await compressImage(file, 400);
+                        setShopForm((f) => ({ ...f, logo_url: compressed }));
+                        e.target.value = "";
+                      }}
+                    />
+                  </label>
+                  {shopForm.logo_url && (
+                    <button onClick={() => setShopForm((f) => ({ ...f, logo_url: "" }))} style={{ border: "none", background: "none", cursor: "pointer", color: "#9ca3af", fontSize: 11 }}>Remove</button>
+                  )}
+                </div>
+                <p style={{ fontSize: 11, color: "#9ca3af", margin: "6px 0 0" }}>JPG, PNG or GIF · max 2MB</p>
+              </div>
+
+              {/* Submit */}
+              <button
+                onClick={submitShopApplication}
+                disabled={shopFormLoading}
+                style={{ width: "100%", padding: "12px 0", background: shopFormLoading ? "#fed7aa" : "#ff6a00", color: "#fff", border: "none", borderRadius: 8, fontSize: 14, fontWeight: 700, cursor: shopFormLoading ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
+              >
+                {shopFormLoading ? <><Loader2 size={15} style={{ animation: "spin 0.8s linear infinite" }} /> Submitting...</> : <><CheckCircle2 size={15} /> Submit Application</>}
+              </button>
+              <p style={{ fontSize: 11, color: "#9ca3af", textAlign: "center", marginTop: 10 }}>
+                Higoverse admin will review your application and contact you within 1–2 business days.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

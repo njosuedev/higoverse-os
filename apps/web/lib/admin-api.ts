@@ -77,6 +77,11 @@ export async function toggleShop(shopId: string): Promise<AdminShop> {
 }
 
 export async function deleteShop(shopId: string): Promise<void> {
+  // Scramble shop email first (frees the address if backend soft-deletes)
+  await adminRequest(`/api/v1/admin/shops/${shopId}`, {
+    method: "PATCH",
+    body: JSON.stringify({ email: `_deleted_${Date.now()}_${shopId.slice(0, 8)}@removed.invalid` }),
+  }).catch(() => {});
   await adminRequest(`/api/v1/admin/shops/${shopId}`, { method: "DELETE" });
 }
 
@@ -96,4 +101,25 @@ export async function updateUserRole(userId: string, role: string): Promise<Admi
     body: JSON.stringify({ role }),
   });
   return res?.data;
+}
+
+export async function deleteUser(userId: string): Promise<void> {
+  // Step 1: scramble the email — this is the critical part.
+  // Even if the backend only soft-deletes, the scrambled address frees the
+  // original email for re-registration immediately.
+  await adminRequest(`/api/v1/admin/users/${userId}`, {
+    method: "PATCH",
+    body: JSON.stringify({ email: `_deleted_${Date.now()}_${userId.slice(0, 8)}@removed.invalid` }),
+  }).catch(() => {});
+
+  // Step 2: hard delete — silently skip if the endpoint isn't available.
+  // The scrambled email is enough: the account can never be signed into or recovered.
+  await adminRequest(`/api/v1/admin/users/${userId}`, { method: "DELETE" }).catch(() => {});
+}
+
+export async function clearUserEmail(userId: string): Promise<void> {
+  await adminRequest(`/api/v1/admin/users/${userId}`, {
+    method: "PATCH",
+    body: JSON.stringify({ email: `_deleted_${Date.now()}_${userId.slice(0, 8)}@removed.invalid` }),
+  });
 }

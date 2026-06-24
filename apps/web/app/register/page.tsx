@@ -5,52 +5,19 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import {
-  Building2, Mail, Phone, Lock, Eye, EyeOff,
-  MapPin, FileText, ChevronRight, ChevronLeft, ChevronDown,
-  CheckCircle2, AlertCircle, Loader2, RefreshCw,
-  Store, ShieldCheck, Boxes, BarChart3, ImagePlus, X,
+  Mail, Phone, Lock, Eye, EyeOff,
+  ChevronRight, CheckCircle2, AlertCircle, Loader2, RefreshCw,
+  ShieldCheck, User, Globe, TrendingUp, ShoppingBag,
 } from "lucide-react";
 
 /* ── Types ── */
 interface FormData {
-  shop_name:     string;
-  business_type: string;
-  address:       string;
-  description:   string;
-  email:         string;
-  phone:         string;
-  password:      string;
-  confirm:       string;
+  name:    string;
+  email:   string;
+  phone:   string;
+  password: string;
+  confirm: string;
 }
-
-/* ── Image compressor ── */
-function compressImage(file: File, maxPx = 256, quality = 0.85): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onerror = reject;
-    reader.onload = (e) => {
-      const img = new window.Image();
-      img.onerror = reject;
-      img.onload = () => {
-        const scale = Math.min(1, maxPx / Math.max(img.width, img.height));
-        const w = Math.round(img.width * scale);
-        const h = Math.round(img.height * scale);
-        const canvas = document.createElement("canvas");
-        canvas.width = w; canvas.height = h;
-        canvas.getContext("2d")!.drawImage(img, 0, 0, w, h);
-        resolve(canvas.toDataURL("image/jpeg", quality));
-      };
-      img.src = e.target!.result as string;
-    };
-    reader.readAsDataURL(file);
-  });
-}
-
-const BUSINESS_TYPES = [
-  "Retail Store", "Food & Beverage", "Electronics",
-  "Pharmacy / Health", "Fashion & Clothing", "Hardware & Tools",
-  "Wholesale", "Other",
-];
 
 const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const phoneRe = /^07\d{8}$/;
@@ -67,32 +34,27 @@ function passwordStrength(p: string) {
   return             { label: "Strong", color: "bg-green-500",  text: "text-green-600",  width: "100%" };
 }
 
-/* ── Shared input class (matches login page) ── */
 const field = "w-full h-12 rounded-lg bg-gray-100 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:bg-white focus:ring-2 focus:ring-blue-500 transition";
 const fieldIcon = "pl-10 pr-4";
 
-/* ── Page ── */
 export default function RegisterPage() {
   const router = useRouter();
-  const [step, setStep]       = useState<1 | 2 | 3>(1);
+  const [step, setStep]       = useState<1 | 2>(1);
   const [showPw, setShowPw]   = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState<string | null>(null);
   const [touched, setTouch]   = useState<Partial<Record<keyof FormData, boolean>>>({});
   const [emailTaken, setEmailTaken] = useState(false);
 
-  const [verifyEmail, setVerifyEmail]     = useState("");
-  const [otp, setOtp]                     = useState("");
-  const [verifyLoading, setVerifyLoading] = useState(false);
-  const [verifyError, setVerifyError]     = useState<string | null>(null);
-  const [resendTimer, setResendTimer]     = useState(0);
-
-  const [logoUrl, setLogoUrl]         = useState<string>("");
-  const [logoLoading, setLogoLoading] = useState(false);
+  const [verifyEmail, setVerifyEmail]       = useState("");
+  const [otp, setOtp]                       = useState("");
+  const [verifyLoading, setVerifyLoading]   = useState(false);
+  const [verifyError, setVerifyError]       = useState<string | null>(null);
+  const [resendTimer, setResendTimer]       = useState(0);
+  const [resendingVerify, setResendingVerify] = useState(false);
 
   const [form, setForm] = useState<FormData>({
-    shop_name: "", business_type: "", address: "", description: "",
-    email: "", phone: "", password: "", confirm: "",
+    name: "", email: "", phone: "", password: "", confirm: "",
   });
 
   useEffect(() => {
@@ -107,69 +69,64 @@ export default function RegisterPage() {
     if (k === "email") { setEmailTaken(false); setError(null); }
   };
 
-  const handleLogoFile = async (file: File) => {
-    if (!file.type.startsWith("image/")) return;
-    setLogoLoading(true);
-    try { setLogoUrl(await compressImage(file)); }
-    finally { setLogoLoading(false); }
-  };
-
   /* ── Validation ── */
   const v = {
-    shop_name:     form.shop_name.trim().length >= 2,
-    business_type: form.business_type !== "",
-    address:       form.address !== "",
-    description:   true,
-    email:         emailRe.test(form.email),
-    phone:         phoneRe.test(form.phone.replace(/\s/g, "")),
-    password:      form.password.length >= 6,
-    confirm:       form.confirm === form.password && form.confirm.length > 0,
+    name:     form.name.trim().length >= 2,
+    email:    emailRe.test(form.email),
+    phone:    phoneRe.test(form.phone.replace(/\s/g, "")),
+    password: form.password.length >= 6,
+    confirm:  form.confirm === form.password && form.confirm.length > 0,
   };
-  const step1Ok = v.shop_name && v.business_type && v.address;
-  const step2Ok = v.email && v.phone && v.password && v.confirm;
-  const pw      = passwordStrength(form.password);
+  const formOk = v.name && v.email && v.phone && v.password && v.confirm;
+  const pw     = passwordStrength(form.password);
+
+  const ring = (valid: boolean, t: boolean) =>
+    t ? (valid ? "ring-2 ring-blue-500 bg-white" : "ring-2 ring-red-400 bg-white") : "";
 
   /* ── Submit ── */
   const handleSubmit = async () => {
-    if (!step2Ok) return;
+    if (!formOk) return;
     setError(null); setEmailTaken(false); setLoading(true);
     try {
       const AUTH_URL = process.env.NEXT_PUBLIC_AUTH_API || "https://higoverse-auth.vercel.app";
-      const descParts = [
-        form.business_type !== "Other" ? form.business_type : "",
-        form.description.trim(),
-      ].filter(Boolean).join(" — ");
-      const payload: Record<string, string> = {
-        shop_name: form.shop_name.trim(),
+      const payload = {
+        shop_name: form.name.trim(),
         email:     form.email.trim(),
         phone:     form.phone.replace(/\s/g, ""),
         password:  form.password,
       };
-      if (form.address.trim()) payload.address     = form.address.trim();
-      if (descParts)           payload.description = descParts;
-      if (logoUrl)             payload.logo_url    = logoUrl;
 
-      const res  = await fetch(`${AUTH_URL}/api/v1/auth/register`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
+      let res: Response;
+      try {
+        res = await fetch(`${AUTH_URL}/api/v1/auth/register`, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+      } catch {
+        // Only network-level failures (no connection, DNS, CORS) reach here
+        setError("Connection problem. Please check your internet and try again.");
+        setLoading(false);
+        return;
+      }
+
       const text = await res.text();
       if (!res.ok) {
         let raw = "";
         try { raw = JSON.parse(text)?.detail || ""; } catch { raw = text || ""; }
         const lower = raw.toLowerCase();
-        if (lower.includes("already exists") || lower.includes("already registered")) { setEmailTaken(true); return; }
+        if (lower.includes("already exists") || lower.includes("already registered") || res.status === 409 || res.status === 400 && lower.includes("email")) {
+          setEmailTaken(true); return;
+        }
         if (lower.includes("verification email") || lower.includes("failed to send")) {
           setVerifyEmail(form.email.trim()); setOtp("");
           setVerifyError("We had trouble sending the verification email. Tap \"Resend code\" below.");
-          setResendTimer(0); setStep(3); return;
+          setResendTimer(0); setStep(2); return;
         }
-        setError(raw || "Registration failed. Please try again."); return;
+        setError(raw || `Registration failed (${res.status}). Please try again.`); return;
       }
       setVerifyEmail(form.email.trim()); setOtp(""); setVerifyError(null);
-      setResendTimer(60); setStep(3);
-    } catch { setError("Connection problem. Please check your internet and try again."); }
-    finally  { setLoading(false); }
+      setResendTimer(60); setStep(2);
+    } finally { setLoading(false); }
   };
 
   /* ── Verify email ── */
@@ -194,6 +151,34 @@ export default function RegisterPage() {
     } finally { setVerifyLoading(false); }
   };
 
+  /* ── Try to recover an unverified (abandoned) account ── */
+  const handleCompleteVerification = async () => {
+    setResendingVerify(true);
+    try {
+      const AUTH_URL = process.env.NEXT_PUBLIC_AUTH_API || "https://higoverse-auth.vercel.app";
+      const res = await fetch(`${AUTH_URL}/api/v1/auth/resend-verification`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: form.email.trim() }),
+      });
+      if (res.ok) {
+        // Account exists but is unverified — move to verification step
+        setVerifyEmail(form.email.trim());
+        setOtp(""); setVerifyError(null); setResendTimer(60); setStep(2);
+      } else {
+        const data = await res.json().catch(() => ({}));
+        const detail = (data?.detail ?? "").toLowerCase();
+        if (detail.includes("already verified") || detail.includes("active")) {
+          setError("This account is already verified. Please sign in instead.");
+        } else {
+          setError("Could not resend code. The account may have been deleted. Try a different email or contact admin.");
+        }
+        setEmailTaken(false);
+      }
+    } catch {
+      setError("Network error. Please check your connection.");
+    } finally { setResendingVerify(false); }
+  };
+
   /* ── Resend ── */
   const handleResend = async () => {
     setVerifyError(null); setVerifyLoading(true);
@@ -207,10 +192,6 @@ export default function RegisterPage() {
     } catch { setVerifyError("Network error. Please try again."); }
     finally  { setVerifyLoading(false); }
   };
-
-  /* ── Input ring helper ── */
-  const ring = (valid: boolean, t: boolean) =>
-    t ? (valid ? "ring-2 ring-blue-500 bg-white" : "ring-2 ring-red-400 bg-white") : "";
 
   return (
     <div className="min-h-screen flex flex-col lg:flex-row">
@@ -226,21 +207,21 @@ export default function RegisterPage() {
 
         {/* Headline + features */}
         <div>
-          <p className="text-xs font-semibold text-blue-500 uppercase tracking-widest mb-4">Business OS</p>
+          <p className="text-xs font-semibold text-blue-500 uppercase tracking-widest mb-4">Rwanda&apos;s Business Platform</p>
           <h1 className="text-4xl font-bold text-slate-900 leading-tight mb-5">
-            Open your digital<br />shop today,<br />
+            Create your<br />personal account,<br />
             <span className="text-blue-600">it&apos;s free.</span>
           </h1>
           <p className="text-slate-500 text-sm leading-relaxed max-w-sm mb-10">
-            Get a full-featured business workspace in under a minute — inventory, sales, analytics and more.
+            Join Higoverse with a personal account. Browse the marketplace, discover products from shops across Rwanda, and apply to open your own shop when you&apos;re ready.
           </p>
 
           <div className="grid grid-cols-2 gap-3 max-w-sm mb-10">
             {[
-              { icon: <Boxes size={15} />,      label: "Inventory",  sub: "Real-time stock" },
-              { icon: <BarChart3 size={15} />,  label: "Analytics",  sub: "Live reports" },
-              { icon: <Store size={15} />,       label: "Sales",      sub: "Fast checkout" },
-              { icon: <ShieldCheck size={15} />, label: "Secure",     sub: "Cloud storage" },
+              { icon: <Globe size={15} />,       label: "Marketplace",  sub: "Browse products" },
+              { icon: <TrendingUp size={15} />,   label: "Analytics",    sub: "Live reports" },
+              { icon: <ShoppingBag size={15} />,  label: "Shop Tools",   sub: "Run your business" },
+              { icon: <ShieldCheck size={15} />,  label: "Secure",       sub: "Cloud storage" },
             ].map((f) => (
               <div key={f.label} className="flex items-center gap-3 bg-white rounded-xl p-3 shadow-sm border border-blue-100">
                 <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center text-blue-600 shrink-0">
@@ -257,9 +238,8 @@ export default function RegisterPage() {
           {/* Step progress */}
           <div className="space-y-2 max-w-sm">
             {[
-              { n: 1, title: "Shop details",    sub: "Name, type & location" },
-              { n: 2, title: "Your account",    sub: "Email, phone & password" },
-              { n: 3, title: "Verify email",    sub: "Enter the code we send you" },
+              { n: 1, title: "Create account",  sub: "Name, email, phone & password" },
+              { n: 2, title: "Verify email",    sub: "Enter the code we send you" },
             ].map((s) => (
               <div key={s.n}
                 className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all ${
@@ -299,161 +279,47 @@ export default function RegisterPage() {
           {/* Progress bar */}
           <div className="mb-7">
             <div className="flex justify-between text-xs text-gray-400 mb-2">
-              <span>Step {step} of 3</span>
-              <span>{step === 1 ? "Shop details" : step === 2 ? "Account setup" : "Email verification"}</span>
+              <span>Step {step} of 2</span>
+              <span>{step === 1 ? "Create account" : "Email verification"}</span>
             </div>
             <div className="h-1 bg-gray-100 rounded-full overflow-hidden">
               <div className="h-full bg-blue-600 rounded-full transition-all duration-500"
-                style={{ width: step === 1 ? "33%" : step === 2 ? "66%" : "100%" }} />
+                style={{ width: step === 1 ? "50%" : "100%" }} />
             </div>
           </div>
 
-          {/* ── STEP 1 ── */}
+          {/* ── STEP 1: Account details ── */}
           {step === 1 && (
             <>
               <div className="mb-6">
-                <h2 className="text-2xl font-bold text-gray-900">Shop details</h2>
-                <p className="text-sm text-gray-500 mt-1">Tell us about your business</p>
+                <h2 className="text-2xl font-bold text-gray-900">Create your account</h2>
+                <p className="text-sm text-gray-500 mt-1">Join thousands of businesses on Higoverse</p>
               </div>
 
               <div className="space-y-4">
-                {/* Shop name */}
+                {/* Name */}
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1.5">Shop name <span className="text-red-400">*</span></label>
+                  <label className="block text-xs font-medium text-gray-600 mb-1.5">
+                    Full name <span className="text-red-400">*</span>
+                  </label>
                   <div className="relative">
-                    <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4 pointer-events-none" />
-                    <input value={form.shop_name} onChange={e => set("shop_name", e.target.value)}
-                      placeholder="e.g. Kigali Electronics"
-                      className={`${field} ${fieldIcon} ${ring(v.shop_name, !!touched.shop_name)}`} />
+                    <User className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4 pointer-events-none" />
+                    <input value={form.name} onChange={e => set("name", e.target.value)}
+                      placeholder="e.g. John Doe"
+                      className={`${field} ${fieldIcon} ${ring(v.name, !!touched.name)}`} />
                   </div>
-                  {touched.shop_name && !v.shop_name && (
+                  {touched.name && !v.name && (
                     <p className="mt-1 text-xs text-red-500 flex items-center gap-1"><AlertCircle size={11} /> Minimum 2 characters</p>
                   )}
                 </div>
 
-                {/* Business type */}
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1.5">Business type <span className="text-red-400">*</span></label>
-                  <div className="relative">
-                    <Store className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4 pointer-events-none" />
-                    <select value={form.business_type} onChange={e => set("business_type", e.target.value)}
-                      className={`${field} ${fieldIcon} pr-8 appearance-none ${ring(v.business_type, !!touched.business_type)} ${!form.business_type ? "text-gray-400" : "text-gray-900"}`}>
-                      <option value="">Select type…</option>
-                      {BUSINESS_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-                    </select>
-                    <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4 pointer-events-none" />
-                  </div>
-                  {touched.business_type && !v.business_type && (
-                    <p className="mt-1 text-xs text-red-500 flex items-center gap-1"><AlertCircle size={11} /> Please select a type</p>
-                  )}
-                </div>
-
-                {/* Address */}
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1.5">District <span className="text-red-400">*</span></label>
-                  <div className="relative">
-                    <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4 pointer-events-none" />
-                    <select value={form.address} onChange={e => set("address", e.target.value)}
-                      className={`${field} ${fieldIcon} pr-8 appearance-none ${ring(v.address, !!touched.address)} ${!form.address ? "text-gray-400" : "text-gray-900"}`}>
-                      <option value="" disabled>Select district…</option>
-                      <optgroup label="── Kigali City ──">
-                        {["Gasabo","Kicukiro","Nyarugenge"].map(d => <option key={d} value={`${d}, Kigali`}>{d}</option>)}
-                      </optgroup>
-                      <optgroup label="── Eastern Province ──">
-                        {["Bugesera","Gatsibo","Kayonza","Kirehe","Ngoma","Nyagatare","Rwamagana"].map(d => <option key={d} value={`${d}, Eastern Province`}>{d}</option>)}
-                      </optgroup>
-                      <optgroup label="── Western Province ──">
-                        {["Karongi","Ngororero","Nyabihu","Nyamasheke","Rubavu","Rusizi","Rutsiro"].map(d => <option key={d} value={`${d}, Western Province`}>{d}</option>)}
-                      </optgroup>
-                      <optgroup label="── Northern Province ──">
-                        {["Burera","Gakenke","Gicumbi","Musanze","Rulindo"].map(d => <option key={d} value={`${d}, Northern Province`}>{d}</option>)}
-                      </optgroup>
-                      <optgroup label="── Southern Province ──">
-                        {["Gisagara","Huye","Kamonyi","Muhanga","Nyamagabe","Nyanza","Nyaruguru","Ruhango"].map(d => <option key={d} value={`${d}, Southern Province`}>{d}</option>)}
-                      </optgroup>
-                    </select>
-                    <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4 pointer-events-none" />
-                  </div>
-                  {touched.address && !v.address && (
-                    <p className="mt-1 text-xs text-red-500 flex items-center gap-1"><AlertCircle size={11} /> Please select a district</p>
-                  )}
-                </div>
-
-                {/* Description */}
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1.5">About your shop <span className="text-gray-400">(optional)</span></label>
-                  <div className="relative">
-                    <FileText className="absolute left-3 top-3.5 text-gray-400 w-4 h-4 pointer-events-none" />
-                    <textarea value={form.description} onChange={e => set("description", e.target.value)}
-                      placeholder="Brief description of what you sell…" rows={3}
-                      className="w-full rounded-lg bg-gray-100 pl-10 pr-4 pt-3 pb-3 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:bg-white focus:ring-2 focus:ring-blue-500 resize-none transition" />
-                  </div>
-                </div>
-
-                {/* Logo */}
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1.5">Shop logo <span className="text-gray-400">(optional)</span></label>
-                  <div className="flex items-center gap-3">
-                    {logoUrl ? (
-                      <div className="relative w-14 h-14 shrink-0">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={logoUrl} alt="logo" className="w-14 h-14 rounded-xl object-cover border border-gray-200" />
-                        <button type="button" onClick={() => setLogoUrl("")}
-                          className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center">
-                          <X size={11} />
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="w-14 h-14 rounded-xl bg-gray-100 border-2 border-dashed border-gray-300 flex items-center justify-center text-gray-300 shrink-0">
-                        {logoLoading ? <Loader2 size={18} className="animate-spin text-blue-400" /> : <ImagePlus size={18} />}
-                      </div>
-                    )}
-                    <label className="flex-1 cursor-pointer">
-                      <div className="h-10 rounded-lg bg-gray-100 hover:bg-gray-200 transition flex items-center justify-center gap-2 text-sm text-gray-500 font-medium">
-                        <ImagePlus size={14} /> {logoUrl ? "Change logo" : "Upload logo"}
-                      </div>
-                      <input type="file" accept="image/*" className="hidden"
-                        onChange={e => { const f = e.target.files?.[0]; if (f) handleLogoFile(f); }} />
-                    </label>
-                  </div>
-                </div>
-              </div>
-
-              <button onClick={() => { setTouch({ shop_name: true, business_type: true, address: true }); if (step1Ok) setStep(2); }}
-                className="mt-6 w-full h-12 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold flex items-center justify-center gap-2 transition">
-                Continue <ChevronRight size={16} />
-              </button>
-            </>
-          )}
-
-          {/* ── STEP 2 ── */}
-          {step === 2 && (
-            <>
-              <div className="mb-5">
-                <h2 className="text-2xl font-bold text-gray-900">Your account</h2>
-                <p className="text-sm text-gray-500 mt-1">Set up your login credentials</p>
-              </div>
-
-              {/* Shop summary */}
-              <div className="flex items-center gap-2.5 bg-blue-50 border border-blue-100 rounded-xl px-3 py-2.5 mb-5">
-                <div className="w-7 h-7 rounded-lg bg-blue-100 flex items-center justify-center shrink-0">
-                  <Store size={14} className="text-blue-600" />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold text-gray-800 truncate">{form.shop_name}</p>
-                  <p className="text-xs text-gray-500 truncate">{form.business_type}{form.address ? ` · ${form.address}` : ""}</p>
-                </div>
-                <button onClick={() => setStep(1)} className="ml-auto text-xs text-blue-600 hover:underline shrink-0">Edit</button>
-              </div>
-
-              <div className="space-y-4">
                 {/* Email */}
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1.5">Email <span className="text-red-400">*</span></label>
                   <div className="relative">
                     <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4 pointer-events-none" />
                     <input type="email" value={form.email} onChange={e => set("email", e.target.value)}
-                      placeholder="admin@yourshop.com" autoComplete="email"
+                      placeholder="you@example.com" autoComplete="email"
                       className={`${field} ${fieldIcon} ${ring(v.email, !!touched.email)}`} />
                   </div>
                   {touched.email && !v.email && (
@@ -517,14 +383,28 @@ export default function RegisterPage() {
 
               {/* Email taken */}
               {emailTaken && (
-                <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
+                <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 space-y-3">
                   <p className="text-sm font-semibold text-amber-800 flex items-center gap-1.5">
-                    <AlertCircle size={14} className="text-amber-500" /> Email already registered
+                    <AlertCircle size={14} className="text-amber-500" /> This email is already registered
                   </p>
-                  <p className="text-xs text-amber-700 mt-1">
-                    <Link href="/login" className="font-semibold underline hover:text-amber-900">Sign in instead</Link>
-                    {" "}or use a different email.
+                  <p className="text-xs text-amber-700 leading-relaxed">
+                    An account with this email exists. It may be unverified — if you started registration before but didn&apos;t complete the email verification, you can finish it now.
                   </p>
+                  <div className="flex flex-col gap-2">
+                    <button
+                      onClick={handleCompleteVerification}
+                      disabled={resendingVerify}
+                      className="w-full py-2 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold flex items-center justify-center gap-2 transition disabled:opacity-50">
+                      {resendingVerify
+                        ? <><Loader2 size={12} className="animate-spin" /> Checking…</>
+                        : <><RefreshCw size={12} /> Complete email verification</>}
+                    </button>
+                    <p className="text-xs text-amber-700 text-center">
+                      or{" "}
+                      <Link href="/login" className="font-semibold underline hover:text-amber-900">sign in</Link>
+                      {" "}if you already verified · or use a different email
+                    </p>
+                  </div>
                 </div>
               )}
 
@@ -534,23 +414,34 @@ export default function RegisterPage() {
                 </div>
               )}
 
-              <div className="flex gap-3 mt-5">
-                <button onClick={() => setStep(1)}
-                  className="h-12 px-5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 text-sm font-medium flex items-center gap-1.5 transition">
-                  <ChevronLeft size={15} /> Back
-                </button>
-                <button onClick={handleSubmit} disabled={!step2Ok || loading}
-                  className="flex-1 h-12 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-50 transition">
-                  {loading ? <><Loader2 size={15} className="animate-spin" /> Creating…</> : "Create workspace"}
-                </button>
+              <button
+                onClick={() => {
+                  setTouch({ name: true, email: true, phone: true, password: true, confirm: true });
+                  if (formOk) handleSubmit();
+                }}
+                disabled={loading}
+                className="mt-6 w-full h-12 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-50 transition">
+                {loading
+                  ? <><Loader2 size={15} className="animate-spin" /> Creating account…</>
+                  : <>Create account <ChevronRight size={16} /></>}
+              </button>
+
+              <div className="mt-4 p-3 bg-blue-50 rounded-xl border border-blue-100">
+                <div className="flex items-center gap-2">
+                  <ShoppingBag size={14} className="text-blue-600 shrink-0" />
+                  <p className="text-xs text-blue-700 font-medium">Want to sell on Higoverse?</p>
+                </div>
+                <p className="text-xs text-blue-600 mt-1 ml-5">
+                  After creating your account, visit the marketplace and apply to open your shop. Higoverse admin will review and approve your application.
+                </p>
               </div>
 
               <p className="text-center text-xs text-gray-400 mt-4">By registering you agree to our Terms of Service</p>
             </>
           )}
 
-          {/* ── STEP 3: Verify ── */}
-          {step === 3 && (
+          {/* ── STEP 2: Verify ── */}
+          {step === 2 && (
             <>
               <div className="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center mb-5">
                 <Mail size={22} className="text-blue-600" />

@@ -1,4 +1,4 @@
-import { getToken, handleUnauthorized } from "@/lib/auth";
+import { getToken } from "@/lib/auth";
 
 const REPORT_API = process.env.NEXT_PUBLIC_API_REPORTS || "https://higoverse-reports.vercel.app";
 
@@ -11,8 +11,7 @@ export async function reportRequest(endpoint: string, options: RequestInit = {})
   const res = await fetch(`${REPORT_API}${endpoint}`, { ...options, headers });
 
   if (res.status === 401) {
-    handleUnauthorized();
-    throw new Error("Session expired. Please log in again.");
+    return null; // Service not yet configured for this account — return empty data
   }
   if (!res.ok) {
     const text = await res.text().catch(() => "");

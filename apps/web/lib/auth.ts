@@ -32,7 +32,6 @@ export function getUser(): User | null {
   }
 }
 
-// Simple check — token + user must exist; no expiry decoding (avoids false negatives)
 export function isAuthenticated(): boolean {
   if (typeof window === "undefined") return false;
   return !!(getToken() && getUser());
@@ -54,12 +53,17 @@ export function clearAuth() {
   sessionStorage.clear();
 }
 
-/** Full logout: clears storage and hard-navigates to /login (used by 401 API handlers). */
+/** Full logout: clears storage and hard-navigates to /login. */
 export function logout() {
   clearAuth();
   if (typeof window !== "undefined") window.location.replace("/login");
 }
 
+/**
+ * Called by the AUTH SERVICE only when the token is genuinely invalid/expired.
+ * Forces logout and redirect to login.
+ */
 export function handleUnauthorized() {
   logout();
 }
+

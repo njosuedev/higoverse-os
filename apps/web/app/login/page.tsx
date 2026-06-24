@@ -34,7 +34,7 @@ export default function LoginPage() {
   const [fpError,     setFpError]     = useState("");
   const [resendTimer, setResendTimer] = useState(0);
 
-  useEffect(() => { if (ready && user) router.replace("/"); }, [ready, user, router]);
+  useEffect(() => { if (ready && user) router.replace("/marketplace"); }, [ready, user, router]);
   useEffect(() => {
     if (resendTimer <= 0) return;
     const t = setTimeout(() => setResendTimer((s) => s - 1), 1000);
@@ -55,24 +55,79 @@ export default function LoginPage() {
       });
       const data = await res.json();
       if (!res.ok) return setError(data?.detail || "Incorrect email or password.");
-      login(data); router.replace("/");
+      login(data); router.replace("/marketplace");
     } catch { setError("Network error. Please try again."); }
     finally  { setLoading(false); }
   }, [email, password, login, router]);
 
   const handleSendOtp = async (e: React.FormEvent) => {
     e.preventDefault(); setFpError("");
-    if (!fpEmail.trim() || !fpEmail.includes("@")) return setFpError("Enter a valid email address.");
+    const email = fpEmail.trim();
+    if (!email || !email.includes("@")) return setFpError("Enter a valid email address.");
+
+    // Reject scrambled/deleted emails immediately — these end in @removed.invalid
+    if (email.endsWith("@removed.invalid") || email.startsWith("_deleted_")) {
+      return setFpError("This email address belongs to a deleted account. Please register a new account.");
+    }
+
     setFpLoading(true);
     try {
-      const res  = await fetch(`${AUTH_URL}/api/v1/auth/forgot-password`, {
+      // First: verify the email actually exists in the system by calling a lightweight
+      // check endpoint. We use resend-verification as a probe — if it says "already
+      // verified" the account exists; if "user not found" / 404 it doesn't.
+      let emailExists = false;
+      try {
+        const probe = await fetch(`${AUTH_URL}/api/v1/auth/resend-verification`, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email }),
+        });
+        const probeData = await probe.json().catch(() => ({}));
+        const detail = (probeData?.detail ?? "").toLowerCase();
+        // Account exists (active/verified accounts return "already verified" / 200 / similar)
+        emailExists = probe.ok || detail.includes("already verified") || detail.includes("active") || detail.includes("verified");
+        // Account might exist but unverified
+        if (probe.ok) {
+          // Account is unverified — they should verify, not reset password
+          setFpError("This account has not been verified yet. Please complete email verification first.");
+          return;
+        }
+        // If probe says user not found
+        if (detail.includes("not found") || detail.includes("no user") || detail.includes("does not exist") || probe.status === 404) {
+          setFpError("No account found with this email address. Please register first.");
+          return;
+        }
+        // If "already verified" — account exists and is active, proceed
+        if (detail.includes("already verified") || detail.includes("active")) {
+          emailExists = true;
+        }
+      } catch {
+        // probe failed due to network — skip the pre-check and let forgot-password handle it
+        emailExists = true;
+      }
+
+      if (!emailExists) {
+        setFpError("No account found with this email address. Please register first.");
+        return;
+      }
+
+      // Now send the actual OTP
+      const res = await fetch(`${AUTH_URL}/api/v1/auth/forgot-password`, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: fpEmail }),
+        body: JSON.stringify({ email }),
       });
-      const data = await res.json();
-      if (!res.ok) return setFpError(data?.detail || "Failed to send code.");
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const detail = (data?.detail ?? "").toLowerCase();
+        if (detail.includes("not found") || detail.includes("no user") || detail.includes("does not exist")) {
+          return setFpError("No account found with this email address. Please register first.");
+        }
+        if (detail.includes("deleted") || detail.includes("inactive") || detail.includes("disabled")) {
+          return setFpError("This account has been deactivated. Contact the Higoverse admin.");
+        }
+        return setFpError(data?.detail || "Failed to send reset code. Please try again.");
+      }
       setStep("otp"); setResendTimer(60);
-    } catch { setFpError("Network error. Please try again."); }
+    } catch { setFpError("Network error. Please check your connection and try again."); }
     finally  { setFpLoading(false); }
   };
 
