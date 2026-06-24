@@ -152,6 +152,94 @@ export function unreadCountForShop(shopId: string): number {
   return Object.values(readMessages()).filter((m) => m.shopId === shopId && !m.readByShop).length;
 }
 
+// ── cross-device catalog via shop description field ────────────────────────
+// Compact entry stored server-side (no images — keeps payload small)
+export interface ShopCatalogEntry {
+  pid: string;   // product ID
+  n: string;     // name
+  d?: string;    // description (truncated)
+  cat: string;   // category
+  price: number; // selling price
+  qty: number;   // quantity in stock
+  at: string;    // ISO timestamp when listed
+}
+
+const _CAT_KW: Record<string, string[]> = {
+  food:        ["food","drink","restaurant","café","cafe","bakery","juice","grocery","market","farm","rice","sugar","milk","flour","meat","fish","vegetable","beverage"],
+  electronics: ["tech","electronic","phone","computer","digital","mobile","gadget","battery","cable","printer","camera","laptop","tv"],
+  fashion:     ["fashion","cloth","wear","beauty","salon","boutique","tailoring","shoes","bag","jewelry","accessory","shirt","dress"],
+  wholesale:   ["wholesale","bulk","distribution","import","export","supplier","trade","stock","manufacturing","supply"],
+  agriculture: ["agri","farm","seed","fertilizer","crop","harvest","livestock","animal","poultry","garden"],
+  health:      ["health","pharma","medicine","medical","clinic","cosmetic","skincare","wellness","pharmacy"],
+  furniture:   ["furniture","wood","chair","table","sofa","bed","cabinet","decor","home","office"],
+  services:    ["service","repair","print","photo","logistics","transport","consulting","delivery","cleaning"],
+};
+
+export function catFromText(name: string, desc?: string | null): string {
+  const text = `${name} ${desc ?? ""}`.toLowerCase();
+  for (const [cat, kws] of Object.entries(_CAT_KW))
+    if (kws.some((kw) => text.includes(kw))) return cat;
+  return "other";
+}
+
+// Encodes catalog into shop description field preserving existing type/desc text
+export function encodeShopDescription(
+  existingDescription: string | undefined | null,
+  catalog: ShopCatalogEntry[],
+): string {
+  let base: { _t?: string; _d?: string; _c?: ShopCatalogEntry[] } = {};
+  if (existingDescription) {
+    try {
+      const parsed = JSON.parse(existingDescription);
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        base = { _t: parsed._t, _d: parsed._d };
+      }
+    } catch {
+      if (existingDescription.includes("|")) {
+        const idx = existingDescription.indexOf("|");
+        base._t = existingDescription.slice(0, idx);
+        base._d = existingDescription.slice(idx + 1);
+      } else {
+        base._d = existingDescription;
+      }
+    }
+  }
+  base._c = catalog;
+  return JSON.stringify(base);
+}
+
+// Reads catalog entries from a shop's description field
+export function decodeShopCatalog(
+  description: string | undefined | null,
+): ShopCatalogEntry[] {
+  if (!description) return [];
+  try {
+    const parsed = JSON.parse(description);
+    if (parsed && typeof parsed === "object" && Array.isArray(parsed._c)) {
+      return parsed._c as ShopCatalogEntry[];
+    }
+  } catch { /* old "Type|Desc" format — no catalog */ }
+  return [];
+}
+
+// Extracts the human-readable business type and description from a shop's description field
+export function decodeShopHumanInfo(
+  description: string | undefined | null,
+): { type?: string; desc?: string } {
+  if (!description) return {};
+  try {
+    const parsed = JSON.parse(description);
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      return { type: parsed._t, desc: parsed._d };
+    }
+  } catch { /* old format */ }
+  if (description.includes("|")) {
+    const idx = description.indexOf("|");
+    return { type: description.slice(0, idx), desc: description.slice(idx + 1) };
+  }
+  return { desc: description };
+}
+
 // ── image compression ──────────────────────────────────────────────────────
 export async function compressImage(
   file: File,

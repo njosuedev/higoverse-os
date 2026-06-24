@@ -8,6 +8,7 @@ import {
   toggleShop, deleteShop, toggleUser, updateUserRole, deleteUser,
   type AdminStats, type AdminShop, type AdminUser,
 } from "@/lib/admin-api";
+import { decodeShopHumanInfo } from "@/lib/product-meta";
 import {
   PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis,
   Tooltip, ResponsiveContainer,
@@ -68,13 +69,7 @@ function parseApplication(shop: AdminShop) {
     tin = parts[0] ?? "";
     district = parts.slice(1).join("|") ?? "";
   }
-  let bizType = "";
-  let bizDesc = shop.description ?? "";
-  if (shop.description?.includes("|")) {
-    const parts = shop.description.split("|");
-    bizType = parts[0] ?? "";
-    bizDesc = parts.slice(1).join("|");
-  }
+  const { type: bizType = "", desc: bizDesc = "" } = decodeShopHumanInfo(shop.description);
   return { tin, district, bizType, bizDesc };
 }
 
@@ -870,9 +865,7 @@ export default function AdminPage() {
                                     <span className="text-gray-700 font-medium break-all">{d.value}</span>
                                   </div>
                                 ))}
-                                {shop.description && (
-                                  <p className="text-xs text-gray-400 italic border-t border-gray-100 pt-2 mt-1">{shop.description}</p>
-                                )}
+                                {(() => { const { desc } = decodeShopHumanInfo(shop.description); return desc ? <p className="text-xs text-gray-400 italic border-t border-gray-100 pt-2 mt-1">{desc}</p> : null; })()}
                               </div>
                             </div>
 

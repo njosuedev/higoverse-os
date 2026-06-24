@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
 import { useShop } from "@/lib/shop-context";
 import { listShops, updateMyShop, type Shop } from "@/lib/shop-api";
-import { getCatalog, upsertCatalogEntry, getProductMeta, compressImage, type MarketplaceEntry } from "@/lib/product-meta";
+import { getCatalog, upsertCatalogEntry, getProductMeta, compressImage, decodeShopCatalog, type MarketplaceEntry } from "@/lib/product-meta";
 import { itemRequest } from "@/lib/product-api";
 import { partnerRequest } from "@/lib/supplier-api";
 import { purchaseRequest } from "@/lib/purchase-api";
@@ -115,6 +115,7 @@ export default function MarketplacePage() {
 
   const sentinelRef = useRef<HTMLDivElement>(null);
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const serverCatalogRef = useRef<MarketplaceEntry[]>([]);
 
   useEffect(() => {
     if (localStorage.getItem("mp_shop_banner_dismissed") === "1") setBannerDismissed(true);
@@ -199,9 +200,10 @@ export default function MarketplacePage() {
   useEffect(() => {
     const load = async () => {
       // 1. Load shops from live auth API — source of truth for all registered shops
+      let allShops: typeof shops = [];
       try {
         const shopsRes = await listShops({ limit: 500 });
-        const allShops = shopsRes.items ?? [];
+        allShops = shopsRes.items ?? [];
         setShops(allShops);
         const now = new Date();
         const onlineNow = allShops.filter((s) => {
@@ -212,8 +214,25 @@ export default function MarketplacePage() {
         setOnlineShopsCount(onlineNow.length);
       } catch { /* shops stay empty */ }
 
-      // 2. Seed catalog from localStorage immediately (fast, no wait)
-      setCatalog(getCatalog().filter((e) => e.images.length >= 3));
+      // 1.5. Build server catalog from each shop's description field
+      const serverEntries: MarketplaceEntry[] = [];
+      for (const s of allShops) {
+        for (const e of decodeShopCatalog(s.description)) {
+          serverEntries.push({
+            productId: e.pid, shopId: s.id, shopName: s.name,
+            shopLogoUrl: s.logo_url, shopPhone: s.phone,
+            name: e.n, description: e.d, category: e.cat,
+            sellingPrice: e.price, costPrice: e.price,
+            quantity: e.qty, images: [], listedAt: e.at,
+          });
+        }
+      }
+      serverCatalogRef.current = serverEntries;
+
+      // 2. Merge server catalog with localStorage catalog (local has images and takes priority)
+      const merged = new Map<string, MarketplaceEntry>(serverEntries.map((e) => [e.productId, e]));
+      for (const e of getCatalog()) merged.set(e.productId, e);
+      setCatalog([...merged.values()]);
       setLoading(false);
 
       // 3. Auto-sync the logged-in user's marketplace-listed products from real API
@@ -247,7 +266,11 @@ export default function MarketplacePage() {
             });
             synced++;
           }
-          if (synced > 0) setCatalog(getCatalog().filter((e) => e.images.length >= 3));
+          if (synced > 0) {
+            const m2 = new Map<string, MarketplaceEntry>(serverCatalogRef.current.map((e) => [e.productId, e]));
+            for (const e of getCatalog()) m2.set(e.productId, e);
+            setCatalog([...m2.values()]);
+          }
           setApiSynced(true);
           setLiveConnected(true);
         } catch {
@@ -279,6 +302,23 @@ export default function MarketplacePage() {
           const d = new Date(s.last_seen_at.endsWith("Z") ? s.last_seen_at : s.last_seen_at + "Z");
           return (nowTs.getTime() - d.getTime()) / 1000 < 300;
         }).length);
+        // Rebuild server catalog from refreshed shop descriptions
+        const pollServerEntries: MarketplaceEntry[] = [];
+        for (const s of allShops) {
+          for (const e of decodeShopCatalog(s.description)) {
+            pollServerEntries.push({
+              productId: e.pid, shopId: s.id, shopName: s.name,
+              shopLogoUrl: s.logo_url, shopPhone: s.phone,
+              name: e.n, description: e.d, category: e.cat,
+              sellingPrice: e.price, costPrice: e.price,
+              quantity: e.qty, images: [], listedAt: e.at,
+            });
+          }
+        }
+        serverCatalogRef.current = pollServerEntries;
+        const pollMerged = new Map<string, MarketplaceEntry>(pollServerEntries.map((e) => [e.productId, e]));
+        for (const e of getCatalog()) pollMerged.set(e.productId, e);
+        setCatalog([...pollMerged.values()]);
 
         // Re-sync current user's products
         if (user?.shop_id && shop) {
@@ -299,7 +339,11 @@ export default function MarketplacePage() {
             });
             changed = true;
           }
-          if (changed) setCatalog(getCatalog().filter((e) => e.images.length >= 3));
+          if (changed) {
+            const pm = new Map<string, MarketplaceEntry>(serverCatalogRef.current.map((e) => [e.productId, e]));
+            for (const e of getCatalog()) pm.set(e.productId, e);
+            setCatalog([...pm.values()]);
+          }
         }
 
         setLiveConnected(true);

@@ -19,6 +19,7 @@ import {
 import {
   getProductMeta, setProductMeta, upsertCatalogEntry, removeCatalogEntry,
   getCatalog, getMessagesForShop, replyToMessage, markMessageRead, unreadCountForShop,
+  decodeShopCatalog, decodeShopHumanInfo,
   type ProductMeta, type MarketplaceEntry, type ShopMessage,
 } from "@/lib/product-meta";
 
@@ -110,8 +111,18 @@ export default function ShopStorePage() {
   // Load catalog products for this shop (visible to all visitors)
   useEffect(() => {
     if (!shop) return;
-    const entries = getCatalog().filter((e) => e.shopId === shop.id && e.images.length >= 3);
-    setListedProducts(entries);
+    // Server catalog from shop description (cross-device)
+    const serverEntries: MarketplaceEntry[] = decodeShopCatalog(shop.description).map((e) => ({
+      productId: e.pid, shopId: shop.id, shopName: shop.name,
+      shopLogoUrl: shop.logo_url, shopPhone: shop.phone,
+      name: e.n, description: e.d, category: e.cat,
+      sellingPrice: e.price, costPrice: e.price,
+      quantity: e.qty, images: [], listedAt: e.at,
+    }));
+    // Overlay with localStorage entries which carry product images
+    const merged = new Map<string, MarketplaceEntry>(serverEntries.map((e) => [e.productId, e]));
+    for (const e of getCatalog().filter((le) => le.shopId === shop.id)) merged.set(e.productId, e);
+    setListedProducts([...merged.values()]);
   }, [shop]);
 
   // Load messages for shopkeeper
@@ -384,7 +395,7 @@ export default function ShopStorePage() {
                     )}
                     {joinedDate && <span style={{ fontSize: 11, color: "#999", display: "flex", alignItems: "center", gap: 3 }}><CalendarDays size={10} /> Since {joinedDate}</span>}
                   </div>
-                  {shop.description && <p style={{ fontSize: 11, color: "#777", margin: "4px 0 0", maxWidth: 500 }}>{shop.description}</p>}
+                  {(() => { const { desc } = decodeShopHumanInfo(shop.description); return desc ? <p style={{ fontSize: 11, color: "#777", margin: "4px 0 0", maxWidth: 500 }}>{desc}</p> : null; })()}
                 </div>
 
                 {/* Actions */}
@@ -692,11 +703,11 @@ export default function ShopStorePage() {
               <h2 className="font-bold text-slate-900 text-sm mb-3 flex items-center gap-2">
                 <Store size={14} className="text-[#1372e6]" /> About {shop.name}
               </h2>
-              {shop.description ? (
-                <p className="text-sm text-slate-600 leading-relaxed">{shop.description}</p>
+              {(() => { const { desc } = decodeShopHumanInfo(shop.description); return desc ? (
+                <p className="text-sm text-slate-600 leading-relaxed">{desc}</p>
               ) : (
                 <p className="text-sm text-slate-400 italic">No description provided by this shop.</p>
-              )}
+              ); })()}
 
               <div className="mt-4 grid grid-cols-2 gap-3">
                 {joinedDate && (

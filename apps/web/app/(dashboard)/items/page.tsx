@@ -7,6 +7,8 @@ import { partnerRequest } from "@/lib/supplier-api";
 import { useDebounce } from "@/lib/hooks";
 import { useLanguage } from "@/lib/language-context";
 import { useAuth } from "@/lib/auth-context";
+import { useShop } from "@/lib/shop-context";
+import { updateMyShop } from "@/lib/shop-api";
 import PageSkeleton from "@/app/components/dashboard/PageSkeleton";
 import Pagination from "@/app/components/ui/Pagination";
 import {
@@ -18,6 +20,7 @@ import {
 import {
   getProductMeta, setProductMeta, deleteProductMeta, compressImage,
   upsertCatalogEntry, removeCatalogEntry, type ProductMeta,
+  type ShopCatalogEntry, encodeShopDescription, catFromText,
 } from "@/lib/product-meta";
 
 interface Product {
@@ -47,6 +50,7 @@ const PAGE_SIZES = [25, 50, 100, 250];
 export default function ItemManagementPage() {
   const { t } = useLanguage();
   const { user } = useAuth();
+  const { shop } = useShop();
   const [products, setProducts] = useState<Product[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(true);
@@ -168,9 +172,33 @@ export default function ItemManagementPage() {
         }
       }
       closeModal(); await loadData(true);
+      syncServerCatalog(); // fire-and-forget: sync server catalog
     } catch (err) {
       console.error(err); alert(`Failed to ${modalMode === "edit" ? "update" : "add"} item.`);
     } finally { setSubmitting(false); }
+  }
+
+  async function syncServerCatalog() {
+    if (!user?.shop_id) return;
+    try {
+      const res = await itemRequest("/products?limit=1000");
+      const all: Array<{ id: string; name: string; description?: string; selling_price: number; quantity: number }> = res?.data?.items ?? res?.data ?? [];
+      const entries: ShopCatalogEntry[] = [];
+      for (const p of all) {
+        const meta = getProductMeta(p.id);
+        if (!meta.listed) continue;
+        entries.push({
+          pid: p.id,
+          n: p.name,
+          d: p.description ? p.description.slice(0, 200) : undefined,
+          cat: (meta as ProductMeta & { category?: string }).category || catFromText(p.name, p.description),
+          price: p.selling_price,
+          qty: p.quantity,
+          at: new Date().toISOString(),
+        });
+      }
+      await updateMyShop({ description: encodeShopDescription(shop?.description, entries) });
+    } catch { /* best-effort — silent */ }
   }
 
   async function deleteProduct(id: string) {
@@ -182,6 +210,7 @@ export default function ItemManagementPage() {
       removeCatalogEntry(id);
       setProductMetaCache((prev) => { const n = { ...prev }; delete n[id]; return n; });
       await loadData(true);
+      syncServerCatalog(); // fire-and-forget: sync server catalog
     } catch (err) { console.error(err); alert("Failed to delete item."); }
     finally { setDeletingId(""); }
   }
