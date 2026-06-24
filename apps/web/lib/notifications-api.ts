@@ -1,8 +1,8 @@
 import { getToken, handleUnauthorized } from "@/lib/auth";
 
-const NOTIF_API =
-  process.env.NEXT_PUBLIC_NOTIFICATION_API ||
-  "https://higoverse-notifications.vercel.app";
+const NOTIF_API = (
+  process.env.NEXT_PUBLIC_NOTIFICATION_API || "https://higoverse-notifications.onrender.com"
+).replace(/\/$/, "");
 
 async function notifRequest(endpoint: string, options: RequestInit = {}) {
   const token = getToken();

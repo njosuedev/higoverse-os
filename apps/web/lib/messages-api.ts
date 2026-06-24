@@ -1,7 +1,8 @@
 import { getToken, handleUnauthorized } from "@/lib/auth";
 
-const MSG_API =
-  process.env.NEXT_PUBLIC_MESSAGE_API || "https://higoverse-messages.vercel.app";
+const MSG_API = (
+  process.env.NEXT_PUBLIC_MESSAGE_API || "https://higoverse-messages.onrender.com"
+).replace(/\/$/, "");
 
 async function msgRequest(endpoint: string, options: RequestInit = {}) {
   const token = getToken();
