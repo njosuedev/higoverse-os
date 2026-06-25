@@ -327,6 +327,60 @@ export function getApplicationStatus(
   return "NONE";
 }
 
+// ── shop follow system ────────────────────────────────────────────────────────
+const FOLLOW_KEY = "hgv_shop_follows_v1";
+const FOLLOWER_COUNT_KEY = "hgv_follower_counts_v1";
+
+export interface FollowEntry {
+  shopId: string;
+  shopName: string;
+  followedAt: string;
+}
+
+function readFollows(): Record<string, FollowEntry> {
+  if (typeof window === "undefined") return {};
+  try { return JSON.parse(localStorage.getItem(FOLLOW_KEY) ?? "{}"); }
+  catch { return {}; }
+}
+
+function readFollowerCounts(): Record<string, number> {
+  if (typeof window === "undefined") return {};
+  try { return JSON.parse(localStorage.getItem(FOLLOWER_COUNT_KEY) ?? "{}"); }
+  catch { return {}; }
+}
+
+export function followShop(shopId: string, shopName: string): void {
+  const follows = readFollows();
+  if (follows[shopId]) return;
+  follows[shopId] = { shopId, shopName, followedAt: new Date().toISOString() };
+  try { localStorage.setItem(FOLLOW_KEY, JSON.stringify(follows)); } catch { /* quota */ }
+  const counts = readFollowerCounts();
+  counts[shopId] = (counts[shopId] ?? 0) + 1;
+  try { localStorage.setItem(FOLLOWER_COUNT_KEY, JSON.stringify(counts)); } catch { /* quota */ }
+}
+
+export function unfollowShop(shopId: string): void {
+  const follows = readFollows();
+  if (!follows[shopId]) return;
+  delete follows[shopId];
+  try { localStorage.setItem(FOLLOW_KEY, JSON.stringify(follows)); } catch { /* quota */ }
+  const counts = readFollowerCounts();
+  if (counts[shopId]) counts[shopId] = Math.max(0, counts[shopId] - 1);
+  try { localStorage.setItem(FOLLOWER_COUNT_KEY, JSON.stringify(counts)); } catch { /* quota */ }
+}
+
+export function isFollowingShop(shopId: string): boolean {
+  return !!readFollows()[shopId];
+}
+
+export function getFollowedShops(): FollowEntry[] {
+  return Object.values(readFollows());
+}
+
+export function getShopFollowerCount(shopId: string): number {
+  return readFollowerCounts()[shopId] ?? 0;
+}
+
 // ── image compression ──────────────────────────────────────────────────────
 export async function compressImage(
   file: File,

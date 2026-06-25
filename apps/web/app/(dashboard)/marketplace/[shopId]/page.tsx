@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
@@ -14,14 +14,37 @@ import {
   Package, ShoppingCart, Plus, Minus, X, Loader2,
   CheckCircle, Star, CalendarDays, ExternalLink,
   Store, UserPlus, Trash2, ShoppingBag, ChevronRight,
-  TrendingUp, Info, Globe, Eye, Send, Search,
+  TrendingUp, Info, Globe, Eye, Send, Search, Heart, MessageSquare,
 } from "lucide-react";
 import {
   getProductMeta, setProductMeta, upsertCatalogEntry, removeCatalogEntry,
-  getCatalog, getMessagesForShop, replyToMessage, markMessageRead, unreadCountForShop,
+  getCatalog,
+  getMessagesForShop, replyToMessage, markMessageRead, unreadCountForShop,
+  sendMessage, getMyMessages,
+  followShop, unfollowShop, isFollowingShop, getShopFollowerCount,
   decodeShopCatalog, decodeShopHumanInfo,
   type ProductMeta, type MarketplaceEntry, type ShopMessage,
 } from "@/lib/product-meta";
+
+/** Two-tone chime via Web Audio — plays when a shop reply arrives. */
+function playChime() {
+  try {
+    const Ctx = window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    const ctx = new Ctx();
+    [[880, 0], [1046.5, 0.18]].forEach(([freq, when]) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.type = "sine"; osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0, ctx.currentTime + when);
+      gain.gain.linearRampToValueAtTime(0.22, ctx.currentTime + when + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + when + 0.7);
+      osc.start(ctx.currentTime + when);
+      osc.stop(ctx.currentTime + when + 0.7);
+    });
+    setTimeout(() => ctx.close(), 2000);
+  } catch { /* AudioContext unavailable */ }
+}
 
 function parseUTC(ts: string | null | undefined): Date {
   if (!ts) return new Date(0);
@@ -85,17 +108,32 @@ export default function ShopStorePage() {
   // Listed products for visitors (other shops browsing)
   const [listedProducts, setListedProducts] = useState<MarketplaceEntry[]>([]);
 
-  // Messages (shopkeeper inbox)
-  const [messages, setMessages]   = useState<ShopMessage[]>([]);
-  const [unreadCount, setUnreadCount] = useState(0);
-  const [openMsgId, setOpenMsgId] = useState<string | null>(null);
-  const [replyText, setReplyText] = useState("");
+  // Messages — shopkeeper inbox (localStorage + BroadcastChannel)
+  const [messages, setMessages]       = useState<ShopMessage[]>([]);
+  const [openMsgId, setOpenMsgId]     = useState<string | null>(null);
+  const [replyText, setReplyText]     = useState("");
+  const shopScrollRef = useRef<HTMLDivElement>(null);
+  const totalUnread = messages.filter((m) => !m.readByShop).length;
+
+  // BroadcastChannel — instant same-device cross-tab delivery
+  const bcRef = useRef<BroadcastChannel | null>(null);
 
   // Checkout / order placement
   const [showCheckout, setShowCheckout] = useState(false);
   const [checkoutNotes, setCheckoutNotes] = useState("");
   const [placingOrder, setPlacingOrder]   = useState(false);
   const [orderSuccess, setOrderSuccess]   = useState(false);
+
+  // Follow
+  const [following, setFollowing]         = useState(false);
+  const [followerCount, setFollowerCount] = useState(0);
+
+  // Customer chat (per-product, localStorage + BroadcastChannel)
+  const [chatProduct, setChatProduct]         = useState<MarketplaceEntry | null>(null);
+  const [customerMsgText, setCustomerMsgText] = useState("");
+  const [customerMessages, setCustomerMessages] = useState<ShopMessage[]>([]);
+  const prevReplyTotal = useRef(0);
+  const chatScrollRef  = useRef<HTMLDivElement>(null);
 
   const isMine = shop?.id === user?.shop_id;
 
@@ -107,6 +145,53 @@ export default function ShopStorePage() {
       setLoading(false);
     }).catch(() => { setNotFound(true); setLoading(false); });
   }, [shopId]);
+
+  useEffect(() => {
+    if (!shopId) return;
+    setFollowing(isFollowingShop(shopId));
+    setFollowerCount(getShopFollowerCount(shopId));
+  }, [shopId]);
+
+  // Open BroadcastChannel once
+  useEffect(() => {
+    try { bcRef.current = new BroadcastChannel("hgv_chat_v1"); } catch { /* Safari private */ }
+    return () => { bcRef.current?.close(); bcRef.current = null; };
+  }, []);
+
+  // Load messages when chat product changes
+  useEffect(() => {
+    if (!chatProduct || isMine || !user) return;
+    const all = getMyMessages(user.shop_id ?? "").filter((m) => m.shopId === chatProduct.shopId);
+    setCustomerMessages(all);
+    prevReplyTotal.current = all.reduce((s, m) => s + m.replies.length, 0);
+  }, [chatProduct, isMine, user]);
+
+  // Customer: poll localStorage every 1.5 s + BroadcastChannel instant refresh
+  useEffect(() => {
+    if (!shop || isMine || !user) return;
+
+    const refresh = () => {
+      const fresh = getMyMessages(user.shop_id ?? "").filter((m) => m.shopId === shop.id);
+      const total = fresh.reduce((s, m) => s + m.replies.length, 0);
+      if (total > prevReplyTotal.current) playChime();
+      prevReplyTotal.current = total;
+      setCustomerMessages(fresh);
+    };
+
+    const bc = bcRef.current;
+    const onMsg = (e: MessageEvent) => {
+      if (e.data?.type === "reply" && e.data.shopId === shop.id) refresh();
+    };
+    bc?.addEventListener("message", onMsg);
+
+    const iv = setInterval(refresh, 1500);
+    return () => { clearInterval(iv); bc?.removeEventListener("message", onMsg); };
+  }, [shop, isMine, user]);
+
+  // Auto-scroll chat to bottom
+  useEffect(() => {
+    chatScrollRef.current?.scrollTo({ top: chatScrollRef.current.scrollHeight, behavior: "smooth" });
+  }, [customerMessages]);
 
   // Load catalog products for this shop (visible to all visitors)
   useEffect(() => {
@@ -123,15 +208,57 @@ export default function ShopStorePage() {
     const merged = new Map<string, MarketplaceEntry>(serverEntries.map((e) => [e.productId, e]));
     for (const e of getCatalog().filter((le) => le.shopId === shop.id)) merged.set(e.productId, e);
     setListedProducts([...merged.values()]);
+
+    // Also fetch from product DB — primary source with real images
+    itemRequest("/products/marketplace?limit=500")
+      .then((res) => {
+        const mkItems: Array<{
+          id: string; shop_id: string; name: string; description?: string;
+          category?: string; images?: string; selling_price: number;
+          cost_price: number; quantity: number;
+        }> = res?.data?.items ?? [];
+        let changed = false;
+        for (const item of mkItems) {
+          if (item.shop_id !== shop.id) continue;
+          const imgs: string[] = item.images
+            ? (() => { try { return JSON.parse(item.images) as string[]; } catch { return []; } })()
+            : [];
+          merged.set(item.id, {
+            productId: item.id, shopId: shop.id, shopName: shop.name,
+            shopLogoUrl: shop.logo_url ?? undefined, shopPhone: shop.phone ?? undefined,
+            name: item.name, description: item.description, category: item.category,
+            sellingPrice: item.selling_price, costPrice: item.cost_price,
+            quantity: item.quantity, images: imgs,
+            listedAt: new Date().toISOString(),
+          });
+          changed = true;
+        }
+        if (changed) setListedProducts([...merged.values()]);
+      })
+      .catch(() => {});
   }, [shop]);
 
-  // Load messages for shopkeeper
+  // Shop inbox: poll localStorage every 1.5 s + BroadcastChannel instant refresh
   useEffect(() => {
     if (!shop || !isMine) return;
-    const msgs = getMessagesForShop(shop.id);
-    setMessages(msgs);
-    setUnreadCount(unreadCountForShop(shop.id));
+
+    const refresh = () => setMessages(getMessagesForShop(shop.id));
+    refresh();
+
+    const bc = bcRef.current;
+    const onMsg = (e: MessageEvent) => {
+      if (e.data?.type === "msg" && e.data.shopId === shop.id) refresh();
+    };
+    bc?.addEventListener("message", onMsg);
+
+    const iv = setInterval(refresh, 1500);
+    return () => { clearInterval(iv); bc?.removeEventListener("message", onMsg); };
   }, [shop, isMine]);
+
+  // Auto-scroll shop chat panel
+  useEffect(() => {
+    shopScrollRef.current?.scrollTo({ top: shopScrollRef.current.scrollHeight, behavior: "smooth" });
+  }, [openMsgId, messages]);
 
   // Load own shop's products when viewing own store
   useEffect(() => {
@@ -399,13 +526,50 @@ export default function ShopStorePage() {
                 </div>
 
                 {/* Actions */}
-                <div style={{ display: "flex", gap: 8, flexShrink: 0, alignItems: "center" }}>
+                <div style={{ display: "flex", gap: 8, flexShrink: 0, alignItems: "center", flexWrap: "wrap" }}>
                   {!isMine && (
-                    <button
-                      onClick={() => !partnerAdded && setShowPartnerModal(true)}
-                      style={{ display: "flex", alignItems: "center", gap: 5, padding: "7px 14px", border: partnerAdded ? "1px solid #b7eb8f" : "1px solid #d9d9d9", background: partnerAdded ? "#f6ffed" : "#fff", color: partnerAdded ? "#52c41a" : "#555", fontSize: 12, fontWeight: 600, cursor: partnerAdded ? "default" : "pointer" }}>
-                      {partnerAdded ? <><CheckCircle size={12} /> Partner Added</> : <><UserPlus size={12} /> Add Partner</>}
-                    </button>
+                    <>
+                      {/* Follow / Connect button */}
+                      <button
+                        onClick={() => {
+                          if (following) {
+                            unfollowShop(shop.id);
+                            setFollowing(false);
+                            setFollowerCount((n) => Math.max(0, n - 1));
+                          } else {
+                            followShop(shop.id, shop.name);
+                            setFollowing(true);
+                            setFollowerCount((n) => n + 1);
+                          }
+                        }}
+                        style={{ display: "flex", alignItems: "center", gap: 5, padding: "7px 14px", border: following ? "1px solid #f5222d" : "1px solid #d9d9d9", background: following ? "#fff5f5" : "#fff", color: following ? "#f5222d" : "#555", fontSize: 12, fontWeight: 600, cursor: "pointer", transition: "all 0.15s" }}>
+                        <Heart size={12} style={{ fill: following ? "#f5222d" : "none" }} />
+                        {following ? "Following" : "Follow Shop"}
+                      </button>
+
+                      {/* Message button — only if following */}
+                      {following && (
+                        <button
+                          onClick={() => {
+                            setChatProduct({
+                              productId: "shop-general-inquiry", shopId: shop.id, shopName: shop.name,
+                              shopLogoUrl: shop.logo_url ?? undefined, shopPhone: shop.phone ?? undefined,
+                              name: "General Inquiry", sellingPrice: 0, costPrice: 0,
+                              quantity: 1, images: [], listedAt: new Date().toISOString(),
+                            });
+                            setCustomerMsgText("");
+                          }}
+                          style={{ display: "flex", alignItems: "center", gap: 5, padding: "7px 14px", border: "1px solid #1677ff", background: "#fff", color: "#1677ff", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
+                          <MessageSquare size={12} /> Message Store
+                        </button>
+                      )}
+
+                      <button
+                        onClick={() => !partnerAdded && setShowPartnerModal(true)}
+                        style={{ display: "flex", alignItems: "center", gap: 5, padding: "7px 14px", border: partnerAdded ? "1px solid #b7eb8f" : "1px solid #d9d9d9", background: partnerAdded ? "#f6ffed" : "#fff", color: partnerAdded ? "#52c41a" : "#555", fontSize: 12, fontWeight: 600, cursor: partnerAdded ? "default" : "pointer" }}>
+                        {partnerAdded ? <><CheckCircle size={12} /> Partner Added</> : <><UserPlus size={12} /> Add Partner</>}
+                      </button>
+                    </>
                   )}
                   {isMine && (
                     <Link href="/settings" style={{ display: "flex", alignItems: "center", gap: 5, padding: "7px 14px", border: "1px solid #d9d9d9", color: "#555", fontSize: 12, fontWeight: 600, textDecoration: "none", background: "#fff" }}>
@@ -420,12 +584,15 @@ export default function ShopStorePage() {
           {/* Stats bar */}
           <div style={{ display: "flex", gap: 0, borderTop: "1px solid #f0f0f0", paddingTop: 8, paddingBottom: 4 }}>
             {[
-              { label: "Products Listed", value: listedCount },
-              { label: "Status", value: pres.online ? "Online" : "Offline" },
-              { label: "Response", value: "Fast" },
+              { label: "Products Listed", value: String(listedCount), color: "#333" },
+              { label: "Status", value: pres.online ? "Online" : "Offline", color: pres.online ? "#52c41a" : "#333" },
+              { label: "Followers", value: String(followerCount), color: followerCount > 0 ? "#f5222d" : "#333" },
             ].map((s, i) => (
-              <div key={i} style={{ paddingRight: 20, marginRight: 20, borderRight: i < 2 ? "1px solid #e8e8e8" : "none" }}>
-                <p style={{ fontSize: 14, fontWeight: 700, color: i === 1 && pres.online ? "#52c41a" : "#333", margin: 0 }}>{s.value}</p>
+              <div key={i} style={{ paddingRight: 20, marginRight: 20, borderRight: i < 2 ? "1px solid #e8e8e8" : "none", display: "flex", flexDirection: "column" }}>
+                <p style={{ fontSize: 14, fontWeight: 700, color: s.color, margin: 0, display: "flex", alignItems: "center", gap: 4 }}>
+                  {i === 2 && followerCount > 0 && <Heart size={11} style={{ fill: "#f5222d", color: "#f5222d" }} />}
+                  {s.value}
+                </p>
                 <p style={{ fontSize: 10, color: "#999", margin: "1px 0 0" }}>{s.label}</p>
               </div>
             ))}
@@ -449,9 +616,9 @@ export default function ShopStorePage() {
               }}
             >
               {t === "products" ? "Products" : t === "about" ? "About" : t === "contact" ? "Contact" : "Messages"}
-              {t === "messages" && unreadCount > 0 && (
+              {t === "messages" && totalUnread > 0 && (
                 <span style={{ position: "absolute", top: 6, right: 4, minWidth: 16, height: 16, borderRadius: 8, background: "#f5222d", color: "#fff", fontSize: 8, fontWeight: 900, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 3px" }}>
-                  {unreadCount}
+                  {totalUnread}
                 </span>
               )}
             </button>
@@ -595,13 +762,20 @@ export default function ShopStorePage() {
                       <span style={{ background: "#fff5f0", color: "#ff6a00", border: "1px solid #ffbb96", fontSize: 10, fontWeight: 700, padding: "1px 8px" }}>
                         {listedProducts.length} listed
                       </span>
+                      {!following && (
+                        <span style={{ fontSize: 10, color: "#999", marginLeft: "auto" }}>
+                          Follow shop to chat about products
+                        </span>
+                      )}
                     </div>
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(175px, 1fr))", gap: 8 }}>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(185px, 1fr))", gap: 8 }}>
                       {listedProducts.map((entry) => (
                         <div key={entry.productId}
-                          style={{ background: "#fff", border: "1px solid #e8e8e8", overflow: "hidden", display: "flex", flexDirection: "column", transition: "box-shadow 0.15s" }}
+                          style={{ background: "#fff", border: chatProduct?.productId === entry.productId ? "1px solid #ff6a00" : "1px solid #e8e8e8", overflow: "hidden", display: "flex", flexDirection: "column", transition: "box-shadow 0.15s" }}
                           onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.boxShadow = "0 4px 16px rgba(0,0,0,0.1)"; }}
                           onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.boxShadow = "none"; }}>
+
+                          {/* Image */}
                           <div style={{ position: "relative", aspectRatio: "1", overflow: "hidden", background: "#f7f7f7" }}>
                             {entry.images[0]
                               ? <img src={entry.images[0]} alt={entry.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
@@ -616,19 +790,63 @@ export default function ShopStorePage() {
                                 +{entry.images.length - 1}
                               </span>
                             )}
+                            {/* Thumbnail strip */}
+                            {entry.images.length > 1 && (
+                              <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, display: "flex", gap: 2, padding: "4px", background: "rgba(0,0,0,0.3)" }}>
+                                {entry.images.slice(0, 4).map((src, i) => (
+                                  <img key={i} src={src} alt="" style={{ width: 20, height: 20, objectFit: "cover", border: i === 0 ? "1px solid #ff6a00" : "1px solid rgba(255,255,255,0.4)", flexShrink: 0 }} />
+                                ))}
+                                {entry.images.length > 4 && (
+                                  <div style={{ width: 20, height: 20, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 7, color: "#fff", fontWeight: 700 }}>
+                                    +{entry.images.length - 4}
+                                  </div>
+                                )}
+                              </div>
+                            )}
                           </div>
-                          <div style={{ padding: "8px 10px 10px" }}>
-                            <p style={{ fontSize: 12, fontWeight: 600, color: "#222", lineHeight: 1.4, margin: "0 0 4px", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" as const, overflow: "hidden" }}>{entry.name}</p>
-                            <p style={{ fontSize: 15, fontWeight: 900, color: "#ff6a00", margin: "0 0 2px" }}>{fmtCurrency(entry.sellingPrice)}</p>
+
+                          {/* Info */}
+                          <div style={{ padding: "8px 10px 10px", flex: 1, display: "flex", flexDirection: "column" }}>
+                            <p style={{ fontSize: 12, fontWeight: 600, color: "#222", lineHeight: 1.4, margin: "0 0 2px", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" as const, overflow: "hidden" }}>{entry.name}</p>
+                            {entry.description && (
+                              <p style={{ fontSize: 10, color: "#888", margin: "0 0 4px", lineHeight: 1.4, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" as const, overflow: "hidden" }}>{entry.description}</p>
+                            )}
+                            <p style={{ fontSize: 16, fontWeight: 900, color: "#ff6a00", margin: "0 0 2px" }}>{fmtCurrency(entry.sellingPrice)}</p>
                             <p style={{ fontSize: 10, color: entry.quantity > 0 ? "#52c41a" : "#f5222d", margin: "0 0 8px", fontWeight: 600 }}>
                               {entry.quantity > 0 ? `${entry.quantity} in stock` : "Out of stock"}
                             </p>
-                            <button
-                              onClick={() => addToCart({ id: entry.productId, name: entry.name, description: entry.description, cost_price: entry.sellingPrice, selling_price: entry.sellingPrice, quantity: entry.quantity })}
-                              disabled={entry.quantity === 0}
-                              style={{ width: "100%", padding: "7px 0", background: entry.quantity === 0 ? "#f5f5f5" : "#ff6a00", color: entry.quantity === 0 ? "#ccc" : "#fff", border: "none", cursor: entry.quantity === 0 ? "not-allowed" : "pointer", fontSize: 11, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}>
-                              <ShoppingCart size={11} /> Add to Cart
-                            </button>
+
+                            {/* Action buttons */}
+                            <div style={{ display: "flex", gap: 5, marginTop: "auto" }}>
+                              <button
+                                onClick={() => addToCart({ id: entry.productId, name: entry.name, description: entry.description, cost_price: entry.sellingPrice, selling_price: entry.sellingPrice, quantity: entry.quantity })}
+                                disabled={entry.quantity === 0}
+                                style={{ flex: 1, padding: "6px 0", background: entry.quantity === 0 ? "#f5f5f5" : "#ff6a00", color: entry.quantity === 0 ? "#ccc" : "#fff", border: "none", cursor: entry.quantity === 0 ? "not-allowed" : "pointer", fontSize: 10, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", gap: 4 }}>
+                                <ShoppingCart size={10} /> Order
+                              </button>
+                              {/* Chat button — gated behind follow */}
+                              {following ? (
+                                <button
+                                  onClick={() => {
+                                    setChatProduct(entry);
+                                    setCustomerMsgText("");
+                                  }}
+                                  style={{ padding: "6px 8px", background: chatProduct?.productId === entry.productId ? "#1677ff" : "#fff", color: chatProduct?.productId === entry.productId ? "#fff" : "#1677ff", border: "1px solid #1677ff", cursor: "pointer", fontSize: 10, fontWeight: 700, display: "flex", alignItems: "center", gap: 3, flexShrink: 0 }}>
+                                  <MessageSquare size={10} /> Chat
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={() => {
+                                    followShop(shop.id, shop.name);
+                                    setFollowing(true);
+                                    setFollowerCount((n) => n + 1);
+                                  }}
+                                  title="Follow this shop to chat"
+                                  style={{ padding: "6px 8px", background: "#fff5f5", color: "#f5222d", border: "1px solid #ffa39e", cursor: "pointer", fontSize: 10, fontWeight: 700, display: "flex", alignItems: "center", gap: 3, flexShrink: 0 }}>
+                                  <Heart size={10} /> Follow
+                                </button>
+                              )}
+                            </div>
                           </div>
                         </div>
                       ))}
@@ -797,26 +1015,30 @@ export default function ShopStorePage() {
           </div>
         )}
 
-        {/* ── MESSAGES TAB — Alibaba chat style ───────────────────────────── */}
+        {/* ── MESSAGES TAB — localStorage + BroadcastChannel real-time ───────── */}
         {tab === "messages" && isMine && (
           <div style={{ display: "flex", gap: 10, height: "calc(100vh - 260px)", minHeight: 480 }}>
 
             {/* Conversation list */}
             <div style={{ width: 280, flexShrink: 0, background: "#fff", border: "1px solid #e8e8e8", display: "flex", flexDirection: "column" }}>
-              <div style={{ padding: "10px 12px", borderBottom: "1px solid #f0f0f0", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                <span style={{ fontSize: 13, fontWeight: 700, color: "#333" }}>
-                  Messages {unreadCount > 0 && <span style={{ background: "#f5222d", color: "#fff", fontSize: 9, padding: "1px 5px", fontWeight: 900 }}>{unreadCount}</span>}
+              <div style={{ padding: "10px 14px", borderBottom: "1px solid #f0f0f0", display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{ fontSize: 13, fontWeight: 700, color: "#333", flex: 1 }}>
+                  Inbox {totalUnread > 0 && (
+                    <span style={{ marginLeft: 5, background: "#f5222d", color: "#fff", fontSize: 9, padding: "1px 6px", fontWeight: 900, borderRadius: 20 }}>
+                      {totalUnread}
+                    </span>
+                  )}
                 </span>
-                <button onClick={() => { setMessages(getMessagesForShop(shop.id)); setUnreadCount(unreadCountForShop(shop.id)); }}
-                  style={{ border: "none", background: "none", cursor: "pointer", fontSize: 10, color: "#1677ff" }}>
-                  Refresh
-                </button>
+                <span style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 9, color: "#52c41a", fontWeight: 700 }}>
+                  <span style={{ width: 6, height: 6, background: "#52c41a", borderRadius: "50%", display: "inline-block", animation: "pulse 2s infinite" }} />
+                  Live
+                </span>
               </div>
               <div style={{ flex: 1, overflowY: "auto" }}>
                 {messages.length === 0 ? (
                   <div style={{ padding: 24, textAlign: "center" }}>
                     <Package size={28} style={{ color: "#e0e0e0", margin: "0 auto 8px" }} />
-                    <p style={{ fontSize: 11, color: "#aaa", lineHeight: 1.5 }}>No messages yet. When customers contact you, conversations appear here.</p>
+                    <p style={{ fontSize: 11, color: "#aaa", lineHeight: 1.5 }}>No messages yet. When customers message you, conversations appear here.</p>
                   </div>
                 ) : messages.map((msg) => (
                   <button key={msg.id}
@@ -825,7 +1047,6 @@ export default function ShopStorePage() {
                       if (!msg.readByShop) {
                         markMessageRead(msg.id);
                         setMessages((prev) => prev.map((m) => m.id === msg.id ? { ...m, readByShop: true } : m));
-                        setUnreadCount((n) => Math.max(0, n - 1));
                       }
                     }}
                     style={{ width: "100%", display: "flex", gap: 10, padding: "10px 12px", border: "none", background: openMsgId === msg.id ? "#fff5f0" : "transparent", borderLeft: openMsgId === msg.id ? "3px solid #ff6a00" : "3px solid transparent", borderBottom: "1px solid #f8f8f8", cursor: "pointer", textAlign: "left" }}>
@@ -834,15 +1055,17 @@ export default function ShopStorePage() {
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                        <p style={{ fontSize: 12, fontWeight: 700, color: "#333", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{msg.buyerName}</p>
-                        <p style={{ fontSize: 9, color: "#bbb", margin: 0, flexShrink: 0 }}>{new Date(msg.timestamp).toLocaleDateString([], { month: "short", day: "numeric" })}</p>
+                        <p style={{ fontSize: 12, fontWeight: !msg.readByShop ? 800 : 600, color: "#333", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{msg.buyerName}</p>
+                        <p style={{ fontSize: 9, color: "#bbb", margin: 0, flexShrink: 0 }}>{new Date(msg.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</p>
                       </div>
                       <p style={{ fontSize: 10, color: "#999", margin: "1px 0 0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                         Re: <strong style={{ color: "#555" }}>{msg.productName}</strong>
                       </p>
-                      <p style={{ fontSize: 10, color: "#aaa", margin: "1px 0 0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{msg.text}</p>
+                      <p style={{ fontSize: 10, color: !msg.readByShop ? "#ff6a00" : "#aaa", margin: "1px 0 0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: !msg.readByShop ? 700 : 400 }}>
+                        {msg.replies.length > 0 ? `${msg.replies.length} replies` : msg.text}
+                      </p>
                     </div>
-                    {!msg.readByShop && <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#ff6a00", flexShrink: 0, marginTop: 4 }} />}
+                    {!msg.readByShop && <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#ff6a00", flexShrink: 0, marginTop: 6 }} />}
                   </button>
                 ))}
               </div>
@@ -854,12 +1077,12 @@ export default function ShopStorePage() {
               if (!msg) return null;
               return (
                 <div style={{ flex: 1, background: "#fff", border: "1px solid #e8e8e8", display: "flex", flexDirection: "column", overflow: "hidden" }}>
-                  {/* Chat header */}
-                  <div style={{ padding: "10px 16px", borderBottom: "1px solid #f0f0f0", display: "flex", alignItems: "center", gap: 10, background: "#fafafa" }}>
+                  {/* Header */}
+                  <div style={{ padding: "10px 16px", borderBottom: "1px solid #f0f0f0", display: "flex", alignItems: "center", gap: 10, background: "#fafafa", flexShrink: 0 }}>
                     <div style={{ width: 32, height: 32, borderRadius: "50%", background: "#ff6a00", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 12, fontWeight: 900, flexShrink: 0 }}>
                       {msg.buyerName[0]?.toUpperCase()}
                     </div>
-                    <div>
+                    <div style={{ flex: 1 }}>
                       <p style={{ fontSize: 13, fontWeight: 700, color: "#333", margin: 0 }}>{msg.buyerName}</p>
                       <p style={{ fontSize: 10, color: "#999", margin: 0, display: "flex", alignItems: "center", gap: 4 }}>
                         <Package size={9} style={{ color: "#ff6a00" }} /> About: <strong style={{ color: "#555" }}>{msg.productName}</strong>
@@ -867,78 +1090,79 @@ export default function ShopStorePage() {
                     </div>
                   </div>
 
-                  {/* Messages */}
-                  <div style={{ flex: 1, overflowY: "auto", padding: "16px 16px 8px", display: "flex", flexDirection: "column", gap: 10, background: "#f9f9f9" }}>
-                    {/* Customer's original message */}
+                  {/* Thread */}
+                  <div ref={shopScrollRef} style={{ flex: 1, overflowY: "auto", padding: "16px", display: "flex", flexDirection: "column", gap: 10, background: "#f9f9f9" }}>
+                    {/* Customer's first message */}
                     <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
                       <div style={{ width: 28, height: 28, borderRadius: "50%", background: "#e8e8e8", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: "#555", flexShrink: 0 }}>
                         {msg.buyerName[0]?.toUpperCase()}
                       </div>
                       <div>
                         <p style={{ fontSize: 9, color: "#bbb", margin: "0 0 3px" }}>{msg.buyerName}</p>
-                        <div style={{ background: "#fff", border: "1px solid #e8e8e8", padding: "8px 12px", fontSize: 12, color: "#333", lineHeight: 1.6, maxWidth: 360, boxShadow: "0 1px 2px rgba(0,0,0,0.04)" }}>
+                        <div style={{ background: "#fff", border: "1px solid #e8e8e8", padding: "8px 12px", fontSize: 12, color: "#333", lineHeight: 1.6, maxWidth: 360, borderRadius: "12px 12px 12px 0", boxShadow: "0 1px 2px rgba(0,0,0,0.04)" }}>
                           {msg.text}
                         </div>
                         <p style={{ fontSize: 9, color: "#bbb", margin: "3px 0 0" }}>{new Date(msg.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</p>
                       </div>
                     </div>
 
-                    {/* Replies */}
-                    {msg.replies.map((r) => (
-                      <div key={r.id} style={{ display: "flex", justifyContent: r.fromShop ? "flex-end" : "flex-start", gap: 8, alignItems: "flex-end" }}>
-                        {!r.fromShop && (
-                          <div style={{ width: 28, height: 28, borderRadius: "50%", background: "#e8e8e8", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: "#555", flexShrink: 0 }}>
-                            {msg.buyerName[0]?.toUpperCase()}
+                    {/* Replies (flat, alternating) */}
+                    {msg.replies.map((r) => {
+                      const isShop = r.fromShop;
+                      return (
+                        <div key={r.id} style={{ display: "flex", justifyContent: isShop ? "flex-end" : "flex-start", gap: 8, alignItems: "flex-end" }}>
+                          {!isShop && (
+                            <div style={{ width: 28, height: 28, borderRadius: "50%", background: "#e8e8e8", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: "#555", flexShrink: 0 }}>
+                              {msg.buyerName[0]?.toUpperCase()}
+                            </div>
+                          )}
+                          <div>
+                            {!isShop && <p style={{ fontSize: 9, color: "#bbb", margin: "0 0 3px" }}>{msg.buyerName}</p>}
+                            <div style={{ padding: "8px 12px", fontSize: 12, lineHeight: 1.6, maxWidth: 360, background: isShop ? "#ff6a00" : "#fff", color: isShop ? "#fff" : "#333", border: isShop ? "none" : "1px solid #e8e8e8", borderRadius: isShop ? "12px 12px 0 12px" : "12px 12px 12px 0", boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}>
+                              {r.text}
+                            </div>
+                            <p style={{ fontSize: 9, color: "#bbb", margin: "3px 0 0", textAlign: isShop ? "right" : "left" }}>
+                              {new Date(r.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                            </p>
                           </div>
-                        )}
-                        <div>
-                          {!r.fromShop && <p style={{ fontSize: 9, color: "#bbb", margin: "0 0 3px" }}>{msg.buyerName}</p>}
-                          <div style={{
-                            padding: "8px 12px", fontSize: 12, lineHeight: 1.6, maxWidth: 360,
-                            background: r.fromShop ? "#ff6a00" : "#fff",
-                            color: r.fromShop ? "#fff" : "#333",
-                            border: r.fromShop ? "none" : "1px solid #e8e8e8",
-                            boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
-                          }}>
-                            {r.text}
-                          </div>
-                          <p style={{ fontSize: 9, color: "#bbb", margin: "3px 0 0", textAlign: r.fromShop ? "right" : "left" }}>
-                            {new Date(r.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                          </p>
+                          {isShop && (
+                            <div style={{ width: 28, height: 28, borderRadius: "50%", overflow: "hidden", background: "#ff6a00", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                              {shop.logo_url ? <img src={shop.logo_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <span style={{ fontSize: 11, fontWeight: 900, color: "#fff" }}>{initial}</span>}
+                            </div>
+                          )}
                         </div>
-                        {r.fromShop && (
-                          <div style={{ width: 28, height: 28, borderRadius: "50%", overflow: "hidden", background: "#ff6a00", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                            {shop.logo_url ? <img src={shop.logo_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <span style={{ fontSize: 11, fontWeight: 900, color: "#fff" }}>{initial}</span>}
-                          </div>
-                        )}
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
 
                   {/* Reply input */}
-                  <div style={{ borderTop: "1px solid #e8e8e8", padding: "10px 12px", background: "#fff", display: "flex", gap: 8, alignItems: "flex-end" }}>
+                  <div style={{ borderTop: "1px solid #e8e8e8", padding: "10px 12px", background: "#fff", display: "flex", gap: 8, alignItems: "center", flexShrink: 0 }}>
                     <input
                       value={replyText}
                       onChange={(e) => setReplyText(e.target.value)}
                       onKeyDown={(e) => {
                         if (e.key === "Enter" && !e.shiftKey && replyText.trim()) {
+                          e.preventDefault();
                           replyToMessage(msg.id, replyText.trim(), true);
                           setReplyText("");
                           setMessages(getMessagesForShop(shop.id));
+                          // Notify customer tab instantly
+                          bcRef.current?.postMessage({ type: "reply", shopId: shop.id });
                         }
                       }}
-                      placeholder={`Reply to ${msg.buyerName}...`}
-                      style={{ flex: 1, border: "1px solid #e8e8e8", padding: "8px 12px", fontSize: 12, outline: "none", resize: "none", fontFamily: "Arial, sans-serif" }}
+                      placeholder={`Reply to ${msg.buyerName}…`}
+                      style={{ flex: 1, border: "1.5px solid #e8e8e8", padding: "8px 12px", fontSize: 12, outline: "none", borderRadius: 8 }}
                     />
                     <button
+                      disabled={!replyText.trim()}
                       onClick={() => {
                         if (!replyText.trim()) return;
                         replyToMessage(msg.id, replyText.trim(), true);
                         setReplyText("");
                         setMessages(getMessagesForShop(shop.id));
+                        bcRef.current?.postMessage({ type: "reply", shopId: shop.id });
                       }}
-                      disabled={!replyText.trim()}
-                      style={{ padding: "8px 16px", background: replyText.trim() ? "#ff6a00" : "#f5f5f5", color: replyText.trim() ? "#fff" : "#ccc", border: "none", cursor: replyText.trim() ? "pointer" : "not-allowed", fontSize: 12, fontWeight: 700, display: "flex", alignItems: "center", gap: 5, flexShrink: 0 }}>
+                      style={{ padding: "8px 16px", background: replyText.trim() ? "#ff6a00" : "#f5f5f5", color: replyText.trim() ? "#fff" : "#ccc", border: "none", cursor: replyText.trim() ? "pointer" : "not-allowed", fontSize: 12, fontWeight: 700, display: "flex", alignItems: "center", gap: 5, flexShrink: 0, borderRadius: 8 }}>
                       <Send size={13} /> Send
                     </button>
                   </div>
@@ -947,7 +1171,7 @@ export default function ShopStorePage() {
             })() : (
               <div style={{ flex: 1, background: "#fff", border: "1px solid #e8e8e8", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8 }}>
                 <Package size={40} style={{ color: "#e0e0e0" }} />
-                <p style={{ fontSize: 13, color: "#bbb" }}>Select a conversation to start chatting</p>
+                <p style={{ fontSize: 13, color: "#bbb" }}>Select a conversation to reply</p>
               </div>
             )}
           </div>
@@ -1170,6 +1394,167 @@ export default function ShopStorePage() {
           </div>
         </div>
       )}
+
+      {/* ── CUSTOMER CHAT PANEL — localStorage + BroadcastChannel ─────────── */}
+      {chatProduct && !isMine && user && (() => {
+        const isGeneral = chatProduct.productId === "shop-general-inquiry";
+        const buyerInitial = (user.name ?? user.email ?? "B")[0]?.toUpperCase();
+        const thread = customerMessages.filter(
+          (m) => (isGeneral || m.productId === chatProduct.productId) && m.shopId === shop.id
+        );
+        const quickReplies = isGeneral
+          ? ["Hello! I'm interested", "What are your hours?", "Do you deliver?", "Can we discuss pricing?"]
+          : [`Is this still available?`, "Min. order quantity?", "Any discount?", "Do you deliver?"];
+
+        const handleSend = () => {
+          const text = customerMsgText.trim();
+          if (!text) return;
+          setCustomerMsgText("");
+          // Save to localStorage and add to state in one step — zero duplication
+          const saved = sendMessage({
+            productId: chatProduct.productId,
+            productName: chatProduct.name,
+            shopId: shop.id, shopName: shop.name,
+            buyerShopId: user.shop_id ?? "",
+            buyerName: user.name ?? user.email ?? "Customer",
+            text,
+            timestamp: new Date().toISOString(),
+          });
+          setCustomerMessages((prev) => [...prev, saved]);
+          // Notify the shop tab instantly
+          bcRef.current?.postMessage({ type: "msg", shopId: shop.id });
+        };
+
+        return (
+          <div style={{ position: "fixed", bottom: 0, right: 24, width: 390, height: 530, background: "#fff", boxShadow: "0 -6px 32px rgba(0,0,0,0.18)", zIndex: 60, display: "flex", flexDirection: "column", border: "1px solid #e8e8e8", fontFamily: "Arial, sans-serif" }}>
+
+            {/* Header */}
+            <div style={{ background: "#ff6a00", padding: "10px 14px", display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
+              <div style={{ width: 34, height: 34, borderRadius: "50%", overflow: "hidden", background: "rgba(255,255,255,0.25)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                {shop.logo_url
+                  ? <img src={shop.logo_url} alt={shop.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                  : <span style={{ fontSize: 14, fontWeight: 900, color: "#fff" }}>{initial}</span>}
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={{ fontSize: 13, fontWeight: 700, color: "#fff", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{shop.name}</p>
+                <p style={{ fontSize: 10, color: "rgba(255,255,255,0.85)", margin: 0, display: "flex", alignItems: "center", gap: 4 }}>
+                  <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#a5f3a5", display: "inline-block", animation: "pulse 2s infinite" }} />
+                  Live · replies play sound
+                </p>
+              </div>
+              <button onClick={() => setChatProduct(null)}
+                style={{ border: "none", background: "rgba(255,255,255,0.2)", cursor: "pointer", color: "#fff", width: 26, height: 26, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, flexShrink: 0 }}>
+                ✕
+              </button>
+            </div>
+
+            {/* Product context bar */}
+            {!isGeneral && (
+              <div style={{ display: "flex", gap: 10, padding: "8px 12px", background: "#fff5f0", borderBottom: "1px solid #ffe0c0", flexShrink: 0 }}>
+                <div style={{ width: 44, height: 44, flexShrink: 0, border: "1px solid #ffd6b3", overflow: "hidden", background: "#f5f5f5", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  {chatProduct.images[0]
+                    ? <img src={chatProduct.images[0]} alt={chatProduct.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                    : <Package size={16} style={{ color: "#ccc" }} />}
+                </div>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <p style={{ fontSize: 11, fontWeight: 700, color: "#333", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{chatProduct.name}</p>
+                  <p style={{ fontSize: 14, fontWeight: 900, color: "#ff6a00", margin: "2px 0 0" }}>{fmtCurrency(chatProduct.sellingPrice)}</p>
+                </div>
+                {chatProduct.images.length > 1 && (
+                  <div style={{ display: "flex", gap: 2, alignItems: "center", flexShrink: 0 }}>
+                    {chatProduct.images.slice(1, 4).map((src, i) => (
+                      <img key={i} src={src} alt="" style={{ width: 30, height: 30, objectFit: "cover", border: "1px solid #e8e8e8" }} />
+                    ))}
+                    {chatProduct.images.length > 4 && (
+                      <span style={{ width: 30, height: 30, background: "rgba(0,0,0,0.35)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 8, color: "#fff", fontWeight: 700 }}>
+                        +{chatProduct.images.length - 4}
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Messages */}
+            <div ref={chatScrollRef} style={{ flex: 1, overflowY: "auto", padding: "12px", display: "flex", flexDirection: "column", gap: 10, background: "#f9f9f9" }}>
+              {thread.length === 0 && (
+                <div style={{ textAlign: "center", paddingTop: 16 }}>
+                  <p style={{ fontSize: 11, color: "#bbb", marginBottom: 8 }}>
+                    {isGeneral ? `Ask ${shop.name} anything` : `Ask about ${chatProduct.name}`}
+                  </p>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 4, justifyContent: "center" }}>
+                    {quickReplies.map((q) => (
+                      <button key={q} onClick={() => setCustomerMsgText(q)}
+                        style={{ fontSize: 10, padding: "4px 8px", border: "1px solid #ffb899", background: customerMsgText === q ? "#fff5f0" : "#fff", color: "#ff6a00", cursor: "pointer", borderRadius: 20 }}>
+                        {q}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Flat thread: first message + all replies interleaved */}
+              {thread.map((m) => (
+                <div key={m.id} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {/* Customer's sent message */}
+                  <div style={{ display: "flex", justifyContent: "flex-end", gap: 7, alignItems: "flex-end" }}>
+                    <div>
+                      <div style={{ padding: "8px 12px", fontSize: 12, lineHeight: 1.55, maxWidth: 250, background: "#ff6a00", color: "#fff", borderRadius: "12px 12px 0 12px", boxShadow: "0 1px 4px rgba(0,0,0,0.07)" }}>
+                        {m.text}
+                      </div>
+                      <p style={{ fontSize: 9, color: "#bbb", margin: "3px 0 0", textAlign: "right", display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 3 }}>
+                        {new Date(m.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                        <CheckCircle size={8} style={{ color: "#52c41a" }} />
+                      </p>
+                    </div>
+                    <div style={{ width: 28, height: 28, borderRadius: "50%", background: "#ff6a00", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 900, color: "#fff" }}>
+                      {buyerInitial}
+                    </div>
+                  </div>
+
+                  {/* Shop replies */}
+                  {m.replies.map((r) => (
+                    <div key={r.id} style={{ display: "flex", justifyContent: r.fromShop ? "flex-start" : "flex-end", gap: 7, alignItems: "flex-end" }}>
+                      {r.fromShop && (
+                        <div style={{ width: 28, height: 28, borderRadius: "50%", overflow: "hidden", background: "#ff6a00", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                          {shop.logo_url ? <img src={shop.logo_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <span style={{ fontSize: 10, fontWeight: 900, color: "#fff" }}>{initial}</span>}
+                        </div>
+                      )}
+                      <div>
+                        {r.fromShop && <p style={{ fontSize: 9, color: "#bbb", margin: "0 0 3px" }}>{shop.name}</p>}
+                        <div style={{ padding: "8px 12px", fontSize: 12, lineHeight: 1.55, maxWidth: 250, background: r.fromShop ? "#fff" : "#ff6a00", color: r.fromShop ? "#333" : "#fff", border: r.fromShop ? "1px solid #e8e8e8" : "none", borderRadius: r.fromShop ? "12px 12px 12px 0" : "12px 12px 0 12px", boxShadow: "0 1px 4px rgba(0,0,0,0.07)" }}>
+                          {r.text}
+                        </div>
+                        <p style={{ fontSize: 9, color: "#bbb", margin: "3px 0 0", textAlign: r.fromShop ? "left" : "right" }}>
+                          {new Date(r.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+
+            {/* Input */}
+            <div style={{ borderTop: "1px solid #e8e8e8", padding: "10px 12px", background: "#fff", display: "flex", gap: 8, alignItems: "flex-end", flexShrink: 0 }}>
+              <textarea
+                value={customerMsgText}
+                onChange={(e) => setCustomerMsgText(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
+                placeholder={`Message ${shop.name}…`}
+                rows={2}
+                style={{ flex: 1, border: "1.5px solid #e8e8e8", padding: "8px 10px", fontSize: 12, outline: "none", resize: "none", fontFamily: "Arial, sans-serif", borderRadius: 8 }}
+              />
+              <button
+                disabled={!customerMsgText.trim()}
+                onClick={handleSend}
+                style={{ width: 40, height: 40, border: "none", background: customerMsgText.trim() ? "#ff6a00" : "#f5f5f5", color: customerMsgText.trim() ? "#fff" : "#ccc", cursor: customerMsgText.trim() ? "pointer" : "not-allowed", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, borderRadius: 8, transition: "background 0.15s" }}>
+                <Send size={15} />
+              </button>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

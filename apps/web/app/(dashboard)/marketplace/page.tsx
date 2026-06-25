@@ -21,10 +21,11 @@ import {
   MapPin, MessageSquare, Send, Store, Mail,
   Rocket, ArrowRight, LayoutDashboard, CheckCircle2,
   Wifi, Building2, FileText, ImagePlus, ChevronDown,
-  Clock, BadgeCheck,
+  Clock, BadgeCheck, Heart, Users,
 } from "lucide-react";
 import {
   sendMessage, getMyMessages, replyToMessage,
+  followShop, unfollowShop, isFollowingShop, getFollowedShops, getShopFollowerCount,
   type ShopMessage,
 } from "@/lib/product-meta";
 
@@ -244,6 +245,9 @@ export default function MarketplacePage() {
   const [msgSent, setMsgSent]         = useState(false);
   const [myMessages, setMyMessages]   = useState<ShopMessage[]>([]);
 
+  // follow
+  const [followedShopIds, setFollowedShopIds] = useState<Set<string>>(new Set());
+
   // ── data load ────────────────────────────────────────────────────────────
   useEffect(() => {
     const load = async () => {
@@ -357,6 +361,7 @@ export default function MarketplacePage() {
 
     load();
     if (user?.shop_id) setMyMessages(getMyMessages(user.shop_id));
+    setFollowedShopIds(new Set(getFollowedShops().map((f) => f.shopId)));
     const tick = setInterval(() => setNow(new Date()), 15_000);
     return () => clearInterval(tick);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -601,6 +606,17 @@ export default function MarketplacePage() {
     setOrderModal({ entry, shop: shopMap[entry.shopId], qty: 1 });
     setOrderDone(false); setOrderError("");
   }, [shopMap]);
+
+  function toggleFollow(shopId: string, shopName: string, e?: React.MouseEvent) {
+    e?.preventDefault(); e?.stopPropagation();
+    if (followedShopIds.has(shopId)) {
+      unfollowShop(shopId);
+      setFollowedShopIds((prev) => { const next = new Set(prev); next.delete(shopId); return next; });
+    } else {
+      followShop(shopId, shopName);
+      setFollowedShopIds((prev) => new Set([...prev, shopId]));
+    }
+  }
 
   // ── render ───────────────────────────────────────────────────────────────
   return (
@@ -903,26 +919,38 @@ export default function MarketplacePage() {
           {featuredSuppliers.length > 0 && !search && cat === "all" && (
             <div style={{ display: "grid", gridTemplateColumns: `repeat(${Math.min(featuredSuppliers.length, 4)}, 1fr)`, gap: 8, marginBottom: 10 }}>
               {featuredSuppliers.map((s) => {
-                const initial = (s.name || "?")[0].toUpperCase();
-                const online  = isOnline(s.last_seen_at, now);
-                const listed  = listedPerShop[s.id] ?? 0;
+                const initial    = (s.name || "?")[0].toUpperCase();
+                const online     = isOnline(s.last_seen_at, now);
+                const listed     = listedPerShop[s.id] ?? 0;
+                const isFollowed = followedShopIds.has(s.id);
+                const isMine     = s.id === user?.shop_id;
                 return (
-                  <Link key={s.id} href={`/marketplace/${s.id}`}
-                    style={{ background: "#fff", border: "1px solid #e8e8e8", textDecoration: "none", display: "flex", alignItems: "center", gap: 10, padding: "10px 14px" }}>
-                    <div style={{ width: 36, height: 36, borderRadius: "50%", overflow: "hidden", background: "#ff6a00", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                      {s.logo_url
-                        ? <img src={s.logo_url} alt={s.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                        : <span style={{ fontSize: 14, fontWeight: 900, color: "#fff" }}>{initial}</span>}
-                    </div>
-                    <div style={{ minWidth: 0 }}>
-                      <p style={{ fontSize: 12, fontWeight: 700, color: "#333", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.name}</p>
-                      <p style={{ fontSize: 10, color: "#999", margin: "2px 0 0" }}>
-                        {listed} product{listed !== 1 ? "s" : ""}
-                        {online && <span style={{ color: "#52c41a", marginLeft: 6 }}>● Online</span>}
-                      </p>
-                      <p style={{ fontSize: 10, color: "#ff6a00", margin: "2px 0 0", fontWeight: 600 }}>View Store →</p>
-                    </div>
-                  </Link>
+                  <div key={s.id} style={{ position: "relative", background: "#fff", border: `1px solid ${isFollowed ? "#ffb3b3" : "#e8e8e8"}`, display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", transition: "border-color 0.15s" }}>
+                    {!isMine && (
+                      <button
+                        onClick={(e) => toggleFollow(s.id, s.name ?? "", e)}
+                        style={{ position: "absolute", top: 6, right: 6, border: "none", background: "none", cursor: "pointer", padding: 2 }}>
+                        <Heart size={13} style={{ color: isFollowed ? "#f5222d" : "#d9d9d9", fill: isFollowed ? "#f5222d" : "none", transition: "all 0.15s" }} />
+                      </button>
+                    )}
+                    <Link href={`/marketplace/${s.id}`} style={{ display: "contents", textDecoration: "none" }}>
+                      <div style={{ width: 36, height: 36, borderRadius: "50%", overflow: "hidden", background: "#ff6a00", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                        {s.logo_url
+                          ? <img src={s.logo_url} alt={s.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                          : <span style={{ fontSize: 14, fontWeight: 900, color: "#fff" }}>{initial}</span>}
+                      </div>
+                      <div style={{ minWidth: 0 }}>
+                        <p style={{ fontSize: 12, fontWeight: 700, color: "#333", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.name}</p>
+                        <p style={{ fontSize: 10, color: "#999", margin: "2px 0 0" }}>
+                          {listed} product{listed !== 1 ? "s" : ""}
+                          {online && <span style={{ color: "#52c41a", marginLeft: 6 }}>● Online</span>}
+                        </p>
+                        <p style={{ fontSize: 10, color: isFollowed ? "#f5222d" : "#ff6a00", margin: "2px 0 0", fontWeight: 600 }}>
+                          {isFollowed ? "❤ Following" : "View Store →"}
+                        </p>
+                      </div>
+                    </Link>
+                  </div>
                 );
               })}
             </div>
@@ -1028,30 +1056,52 @@ export default function MarketplacePage() {
               </div>
               <div className="mp-grid" style={{ display: "grid", gap: 8 }}>
                 {filteredShops.map((s) => {
-                  const online  = isOnline(s.last_seen_at, now);
-                  const isMine  = s.id === user?.shop_id;
-                  const initial = (s.name || "?")[0].toUpperCase();
-                  const listed  = listedPerShop[s.id] ?? 0;
+                  const online      = isOnline(s.last_seen_at, now);
+                  const isMine      = s.id === user?.shop_id;
+                  const initial     = (s.name || "?")[0].toUpperCase();
+                  const listed      = listedPerShop[s.id] ?? 0;
+                  const isFollowed  = followedShopIds.has(s.id);
+                  const followerCnt = getShopFollowerCount(s.id);
                   return (
-                    <Link key={s.id} href={`/marketplace/${s.id}`}
-                      style={{ background: "#fff", border: `1px solid ${isMine ? "#ffbb96" : "#e8e8e8"}`, textDecoration: "none", display: "flex", flexDirection: "column", alignItems: "center", padding: "16px 12px", gap: 6 }}>
-                      <div style={{ width: 44, height: 44, borderRadius: "50%", overflow: "hidden", background: "#ff6a00", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                        {s.logo_url
-                          ? <img src={s.logo_url} alt={s.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                          : <span style={{ fontSize: 16, fontWeight: 900, color: "#fff" }}>{initial}</span>}
-                      </div>
-                      <p style={{ fontSize: 12, fontWeight: 600, color: "#333", margin: 0, textAlign: "center", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", width: "100%" }}>
-                        {highlight(s.name ?? "", search)}
-                      </p>
-                      {listed > 0 && <p style={{ fontSize: 10, color: "#ff6a00", margin: 0 }}>{listed} products</p>}
-                      {s.address && <p style={{ fontSize: 10, color: "#999", margin: 0, textAlign: "center", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", width: "100%" }}>{s.address}</p>}
-                      <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                        <span style={{ width: 6, height: 6, borderRadius: "50%", background: online ? "#52c41a" : "#d9d9d9" }} />
-                        <span style={{ fontSize: 10, color: online ? "#52c41a" : "#999" }}>{online ? "Online" : "Offline"}</span>
-                        {isMine && <span style={{ fontSize: 9, background: "#fff5f0", color: "#ff6a00", padding: "1px 5px", fontWeight: 700, marginLeft: 4 }}>You</span>}
-                      </div>
-                      <span style={{ fontSize: 11, color: "#1677ff" }}>View Store</span>
-                    </Link>
+                    <div key={s.id} style={{ position: "relative", background: "#fff", border: `1px solid ${isMine ? "#ffbb96" : isFollowed ? "#ff6a00" : "#e8e8e8"}`, display: "flex", flexDirection: "column", alignItems: "center", padding: "16px 12px", gap: 6, transition: "border-color 0.15s" }}>
+                      {/* Follow / like heart button */}
+                      {!isMine && (
+                        <button
+                          onClick={(e) => toggleFollow(s.id, s.name ?? "", e)}
+                          title={isFollowed ? "Unfollow shop" : "Follow shop"}
+                          style={{ position: "absolute", top: 8, right: 8, border: "none", background: "none", cursor: "pointer", padding: 3, display: "flex", alignItems: "center", justifyContent: "center" }}
+                        >
+                          <Heart size={15} style={{ color: isFollowed ? "#f5222d" : "#d9d9d9", fill: isFollowed ? "#f5222d" : "none", transition: "all 0.15s" }} />
+                        </button>
+                      )}
+
+                      <Link href={`/marketplace/${s.id}`} style={{ display: "contents", textDecoration: "none" }}>
+                        <div style={{ width: 44, height: 44, borderRadius: "50%", overflow: "hidden", background: "#ff6a00", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                          {s.logo_url
+                            ? <img src={s.logo_url} alt={s.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                            : <span style={{ fontSize: 16, fontWeight: 900, color: "#fff" }}>{initial}</span>}
+                        </div>
+                        <p style={{ fontSize: 12, fontWeight: 600, color: "#333", margin: 0, textAlign: "center", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", width: "100%" }}>
+                          {highlight(s.name ?? "", search)}
+                        </p>
+                        {listed > 0 && <p style={{ fontSize: 10, color: "#ff6a00", margin: 0 }}>{listed} products</p>}
+                        {s.address && <p style={{ fontSize: 10, color: "#999", margin: 0, textAlign: "center", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", width: "100%" }}>{s.address}</p>}
+                        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                          <span style={{ width: 6, height: 6, borderRadius: "50%", background: online ? "#52c41a" : "#d9d9d9" }} />
+                          <span style={{ fontSize: 10, color: online ? "#52c41a" : "#999" }}>{online ? "Online" : "Offline"}</span>
+                          {isMine && <span style={{ fontSize: 9, background: "#fff5f0", color: "#ff6a00", padding: "1px 5px", fontWeight: 700, marginLeft: 4 }}>You</span>}
+                        </div>
+                        {followerCnt > 0 && (
+                          <div style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 9, color: "#f5222d" }}>
+                            <Heart size={8} style={{ fill: "#f5222d" }} />
+                            <span>{followerCnt} {followerCnt === 1 ? "follower" : "followers"}</span>
+                          </div>
+                        )}
+                        <span style={{ fontSize: 11, color: isFollowed ? "#ff6a00" : "#1677ff", fontWeight: isFollowed ? 700 : 400 }}>
+                          {isFollowed ? "✓ Connected" : "View Store"}
+                        </span>
+                      </Link>
+                    </div>
                   );
                 })}
               </div>
@@ -1232,11 +1282,19 @@ export default function MarketplacePage() {
                     <Store size={13} /> View Store
                   </Link>
                   {!isMine && (
-                    <button
-                      onClick={() => { setMsgEntry(detailEntry); setMsgText(""); setMsgSent(false); }}
-                      style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 5, padding: "9px", border: "1px solid #1677ff", background: "#fff", color: "#1677ff", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
-                      <MessageSquare size={13} /> Text Seller
-                    </button>
+                    followedShopIds.has(detailEntry.shopId) ? (
+                      <button
+                        onClick={() => { setMsgEntry(detailEntry); setMsgText(""); setMsgSent(false); }}
+                        style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 5, padding: "9px", border: "1px solid #1677ff", background: "#fff", color: "#1677ff", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
+                        <MessageSquare size={13} /> Text Seller
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => toggleFollow(detailEntry.shopId, detailEntry.shopName)}
+                        style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 5, padding: "9px", border: "1px solid #f5222d", background: "#fff5f0", color: "#f5222d", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
+                        <Heart size={13} /> Follow to Message
+                      </button>
+                    )
                   )}
                   <button
                     onClick={() => { setDetailEntry(null); openOrder(detailEntry); }}
