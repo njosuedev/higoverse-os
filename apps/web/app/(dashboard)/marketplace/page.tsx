@@ -308,20 +308,12 @@ export default function MarketplacePage() {
         } catch { /* product service unavailable — fall through to localStorage */ }
       }
 
-      // 2. Merge: API is authoritative when available (only returns listed products).
-      //    Fall back to localStorage + server catalog when API is unavailable.
-      let merged: Map<string, MarketplaceEntry>;
-      if (dbEntries.length > 0) {
-        // API returned results — use as source of truth; overlay local images for quality
-        const localByPid = new Map(getCatalog().map((e) => [e.productId, e]));
-        merged = new Map(dbEntries.map((e) => {
-          const local = localByPid.get(e.productId);
-          return [e.productId, { ...e, images: (local?.images?.length ?? 0) > 0 ? local!.images : e.images }];
-        }));
-      } else {
-        // API unavailable — fall back to shop-description catalog + localStorage
-        merged = new Map<string, MarketplaceEntry>(serverEntries.map((e) => [e.productId, e]));
-        for (const e of getCatalog()) merged.set(e.productId, e);
+      // 2. Merge: server catalog (fallback, no images) < localStorage (has images) < API (authoritative metadata + images)
+      const merged = new Map<string, MarketplaceEntry>(serverEntries.map((e) => [e.productId, e]));
+      for (const e of getCatalog()) merged.set(e.productId, e);
+      for (const e of dbEntries) {
+        const local = merged.get(e.productId);
+        merged.set(e.productId, { ...e, images: (local?.images?.length ?? 0) > 0 ? local!.images : e.images });
       }
       setCatalog([...merged.values()]);
       setLoading(false);
@@ -338,7 +330,7 @@ export default function MarketplacePage() {
           let synced = 0;
           for (const p of products) {
             const meta = getProductMeta(p.id);
-            if (!meta.listed || meta.images.length < 1) continue;
+            if (!meta.listed) continue;
             const resolvedCategory = meta.category || (p as { category?: string }).category || catOf(p.name, p.description);
             upsertCatalogEntry({
               productId:    p.id,
@@ -436,17 +428,12 @@ export default function MarketplacePage() {
           } catch { /* skip */ }
         }
 
-        // API is authoritative when available; fall back to shop catalog + localStorage
-        let pollMerged: Map<string, MarketplaceEntry>;
-        if (pollDbEntries.length > 0) {
-          const localByPid = new Map(getCatalog().map((e) => [e.productId, e]));
-          pollMerged = new Map(pollDbEntries.map((e) => {
-            const local = localByPid.get(e.productId);
-            return [e.productId, { ...e, images: (local?.images?.length ?? 0) > 0 ? local!.images : e.images }];
-          }));
-        } else {
-          pollMerged = new Map<string, MarketplaceEntry>(pollServerEntries.map((e) => [e.productId, e]));
-          for (const e of getCatalog()) pollMerged.set(e.productId, e);
+        // Merge: server catalog < localStorage < API (inclusive, with image overlay)
+        const pollMerged = new Map<string, MarketplaceEntry>(pollServerEntries.map((e) => [e.productId, e]));
+        for (const e of getCatalog()) pollMerged.set(e.productId, e);
+        for (const e of pollDbEntries) {
+          const local = pollMerged.get(e.productId);
+          pollMerged.set(e.productId, { ...e, images: (local?.images?.length ?? 0) > 0 ? local!.images : e.images });
         }
         setCatalog([...pollMerged.values()]);
 
@@ -457,7 +444,7 @@ export default function MarketplacePage() {
           let changed = false;
           for (const p of products) {
             const meta = getProductMeta(p.id);
-            if (!meta.listed || meta.images.length < 1) continue;
+            if (!meta.listed) continue;
             const resolvedCategory = meta.category || p.category || catOf(p.name, p.description);
             upsertCatalogEntry({
               productId: p.id, shopId: user.shop_id, shopName: shop.name,
@@ -472,6 +459,10 @@ export default function MarketplacePage() {
           if (changed) {
             const pm = new Map<string, MarketplaceEntry>(serverCatalogRef.current.map((e) => [e.productId, e]));
             for (const e of getCatalog()) pm.set(e.productId, e);
+            for (const e of pollDbEntries) {
+              const local = pm.get(e.productId);
+              pm.set(e.productId, { ...e, images: (local?.images?.length ?? 0) > 0 ? local!.images : e.images });
+            }
             setCatalog([...pm.values()]);
           }
         }
@@ -976,6 +967,27 @@ export default function MarketplacePage() {
             </div>
           )}
 
+          {/* ── Marketplace stats + result bar ────────────────────────────────── */}
+          {!search && cat === "all" && !loading && (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, marginBottom: 8 }}>
+              {[
+                { label: "Products listed", value: catalog.length, icon: <Package size={14} style={{ color: "#ff6a00" }} />, color: "#ff6a00" },
+                { label: "Active shops", value: Object.keys(listedPerShop).length, icon: <Store size={14} style={{ color: "#1372e6" }} />, color: "#1372e6" },
+                { label: "Shops online now", value: onlineShopsCount, icon: <Wifi size={14} style={{ color: "#52c41a" }} />, color: "#52c41a" },
+              ].map((s, i) => (
+                <div key={i} style={{ background: "#fff", border: "1px solid #e8e8e8", padding: "10px 14px", display: "flex", alignItems: "center", gap: 10 }}>
+                  <div style={{ width: 32, height: 32, borderRadius: 8, background: `${s.color}15`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                    {s.icon}
+                  </div>
+                  <div>
+                    <p style={{ fontSize: 18, fontWeight: 800, color: "#222", margin: 0, lineHeight: 1 }}>{s.value}</p>
+                    <p style={{ fontSize: 10, color: "#999", margin: "2px 0 0" }}>{s.label}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
           {/* Result bar */}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8, padding: "6px 10px", background: "#fff", border: "1px solid #f0f0f0", borderRadius: 6 }}>
             <span style={{ fontSize: 12, color: "#666", display: "flex", alignItems: "center", gap: 6 }}>
@@ -990,7 +1002,7 @@ export default function MarketplacePage() {
                       ? <> results for <em style={{ color: "#ff6a00", fontStyle: "normal", fontWeight: 700 }}>&ldquo;{search}&rdquo;</em></>
                       : cat !== "all"
                         ? <> in <strong style={{ color: "#333" }}>{ALL_CATS.find(c => c.key === cat)?.label}</strong></>
-                        : " products available"}
+                        : " products listed on marketplace"}
                   </span>
                   {allFiltered.length !== visible.length && (
                     <span style={{ color: "#bbb", fontSize: 11 }}>· showing {visible.length}</span>
@@ -998,7 +1010,7 @@ export default function MarketplacePage() {
                   {(search || cat !== "all") && (
                     <button onClick={() => { setRawSearch(""); setCat("all"); }}
                       style={{ fontSize: 10, color: "#ff6a00", border: "1px solid #fed7aa", background: "transparent", borderRadius: 4, padding: "1px 6px", cursor: "pointer", fontWeight: 600 }}>
-                      Clear
+                      Clear filters
                     </button>
                   )}
                 </>
@@ -1007,11 +1019,11 @@ export default function MarketplacePage() {
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <span style={{ fontSize: 10, display: "flex", alignItems: "center", gap: 3, color: liveConnected ? "#52c41a" : "#bbb" }}>
                 <span style={{ width: 6, height: 6, borderRadius: "50%", background: liveConnected ? "#52c41a" : "#ddd", display: "inline-block", animation: liveConnected ? "pulse 2s infinite" : "none" }} />
-                {liveConnected ? "Live sync" : "Offline"}
+                {liveConnected ? "Live" : "Syncing"}
               </span>
               {shopIsActive && (
-                <Link href="/items" style={{ fontSize: 11, color: "#1677ff", textDecoration: "none", fontWeight: 600 }}>
-                  + List product
+                <Link href="/items" style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: "#ff6a00", textDecoration: "none", fontWeight: 700, padding: "4px 10px", border: "1px solid #ffb38a", borderRadius: 4 }}>
+                  <Plus size={10} /> List a product
                 </Link>
               )}
             </div>
@@ -2031,91 +2043,118 @@ function ProductCard({ entry, shop, isMine, online, searchQ, onDetail, onOrder }
   onDetail: () => void;
   onOrder: (e: React.MouseEvent) => void;
 }) {
-  const [hovered, setHovered] = useState(false);
-  const cover = entry.images[0];
+  const cover    = entry.images[0];
+  const inStock  = entry.quantity > 0;
+  const category = entry.category || catOf(entry.name, entry.description);
+  const initial  = (entry.shopName[0] ?? "?").toUpperCase();
+  const stockColor = entry.quantity > 10 ? "#52c41a" : entry.quantity > 0 ? "#fa8c16" : "#f5222d";
 
   return (
     <div
       onClick={onDetail}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      style={{ background: "#fff", border: "1px solid #e8e8e8", cursor: "pointer", display: "flex", flexDirection: "column", position: "relative" }}
+      onMouseEnter={(e) => {
+        (e.currentTarget as HTMLDivElement).style.boxShadow = "0 4px 16px rgba(0,0,0,0.1)";
+        (e.currentTarget as HTMLDivElement).style.borderColor = "#ffb38a";
+      }}
+      onMouseLeave={(e) => {
+        (e.currentTarget as HTMLDivElement).style.boxShadow = "none";
+        (e.currentTarget as HTMLDivElement).style.borderColor = "#e8e8e8";
+      }}
+      style={{ background: "#fff", border: "1px solid #e8e8e8", cursor: "pointer", display: "flex", flexDirection: "column", position: "relative", transition: "box-shadow 0.15s, border-color 0.15s" }}
     >
-      {/* Image */}
-      <div style={{ aspectRatio: "1", overflow: "hidden", background: "#f5f5f5", position: "relative" }}>
+      {/* Image — square */}
+      <div style={{ position: "relative", aspectRatio: "1", overflow: "hidden", background: "#f5f5f5", flexShrink: 0 }}>
         {cover
           ? <img src={cover} alt={entry.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-          : (
-            <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6 }}>
+          : <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6 }}>
               <Package size={32} style={{ color: "#ddd" }} />
               <span style={{ fontSize: 9, color: "#ccc" }}>No image</span>
-            </div>
-          )}
+            </div>}
+
+        {/* Multi-image count */}
         {entry.images.length > 1 && (
-          <span style={{ position: "absolute", bottom: 4, right: 4, fontSize: 9, background: "rgba(0,0,0,0.38)", color: "#fff", padding: "1px 5px" }}>
+          <span style={{ position: "absolute", top: 4, right: 4, fontSize: 9, background: "rgba(0,0,0,0.38)", color: "#fff", padding: "1px 5px" }}>
             +{entry.images.length - 1}
           </span>
         )}
-        {entry.quantity === 0 && (
+
+        {/* Out of stock overlay */}
+        {!inStock && (
           <div style={{ position: "absolute", inset: 0, background: "rgba(255,255,255,0.72)", display: "flex", alignItems: "center", justifyContent: "center" }}>
             <span style={{ fontSize: 10, fontWeight: 700, color: "#f5222d", border: "1px solid #f5222d", padding: "2px 8px", background: "#fff" }}>Out of Stock</span>
           </div>
         )}
+
+        {/* "YOURS" badge */}
         {isMine && (
           <span style={{ position: "absolute", top: 4, left: 4, fontSize: 8, background: "#ff6a00", color: "#fff", padding: "1px 5px", fontWeight: 700 }}>YOURS</span>
         )}
-        {/* Verified badge */}
-        <div style={{ position: "absolute", top: 4, right: 4, display: "flex", alignItems: "center", gap: 2, background: "rgba(255,255,255,0.92)", padding: "1px 4px", border: "1px solid #ffe7ba" }}>
-          <Star size={7} style={{ color: "#fa8c16", fill: "#fa8c16" }} />
-          <span style={{ fontSize: 7, color: "#fa8c16", fontWeight: 700 }}>Verified</span>
-        </div>
+
+        {/* Category badge — bottom-left */}
+        <span style={{ position: "absolute", bottom: 0, left: 0, right: 0, fontSize: 9, background: "rgba(0,0,0,0.52)", color: "#fff", padding: "3px 7px", textTransform: "capitalize", fontWeight: 600, letterSpacing: 0.3 }}>
+          {category}
+        </span>
       </div>
 
-      {/* Info */}
-      <div style={{ padding: "8px 10px 0", flex: 1, display: "flex", flexDirection: "column" }}>
-        <p style={{ fontSize: 12, color: "#333", margin: "0 0 5px", lineHeight: 1.4, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" as const, overflow: "hidden" }}>
+      {/* Content */}
+      <div style={{ padding: "8px 10px 0", flex: 1, display: "flex", flexDirection: "column", gap: 2 }}>
+        {/* Name — 2-line clamp, fixed min-height for alignment */}
+        <p style={{ fontSize: 12, fontWeight: 600, color: "#222", margin: 0, lineHeight: 1.45, minHeight: 35,
+          display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" as const, overflow: "hidden" }}>
           {highlight(entry.name, searchQ)}
         </p>
-        <p style={{ fontSize: 15, fontWeight: 700, color: "#ff6a00", margin: "0 0 2px", lineHeight: 1 }}>
+
+        {/* Description — 1-line clamp */}
+        {entry.description && (
+          <p style={{ fontSize: 10, color: "#aaa", margin: 0, lineHeight: 1.4,
+            display: "-webkit-box", WebkitLineClamp: 1, WebkitBoxOrient: "vertical" as const, overflow: "hidden" }}>
+            {entry.description}
+          </p>
+        )}
+
+        {/* Price */}
+        <p style={{ fontSize: 15, fontWeight: 700, color: "#ff6a00", margin: "3px 0 0", lineHeight: 1 }}>
           {fmtPrice(entry.sellingPrice)}
         </p>
-        <p style={{ fontSize: 10, color: "#999", margin: "0 0 6px" }}>
-          Min. order: 1 piece &nbsp;·&nbsp; {entry.quantity > 0 ? `${entry.quantity} in stock` : "Out of stock"}
+
+        {/* Stock */}
+        <p style={{ fontSize: 10, fontWeight: 600, margin: 0, color: stockColor }}>
+          {inStock ? `${entry.quantity} in stock` : "Out of stock"}
         </p>
 
-        {/* Supplier row */}
-        <div style={{ display: "flex", alignItems: "center", gap: 5, paddingTop: 6, borderTop: "1px solid #f5f5f5" }}>
-          <div style={{ width: 14, height: 14, borderRadius: "50%", overflow: "hidden", background: "#ff6a00", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+        {/* Shop row */}
+        <div style={{ display: "flex", alignItems: "center", gap: 5, paddingTop: 6, marginTop: "auto", borderTop: "1px solid #f5f5f5" }}>
+          <div style={{ width: 16, height: 16, borderRadius: "50%", overflow: "hidden", background: "#ff6a00",
+            display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
             {shop?.logo_url
               ? <img src={shop.logo_url} alt={entry.shopName} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-              : <span style={{ fontSize: 7, fontWeight: 900, color: "#fff" }}>{entry.shopName[0]?.toUpperCase()}</span>}
+              : <span style={{ fontSize: 7, fontWeight: 900, color: "#fff" }}>{initial}</span>}
           </div>
           <p style={{ fontSize: 10, color: "#777", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>
             {highlight(entry.shopName, searchQ)}
           </p>
-          {online && <span style={{ fontSize: 8, color: "#52c41a", flexShrink: 0 }}>● Live</span>}
+          {online && <span style={{ fontSize: 8, color: "#52c41a", flexShrink: 0, fontWeight: 700 }}>● Live</span>}
         </div>
-
-        {/* Order button — always rendered, opacity controls visibility to prevent layout shift */}
-        <button
-          onClick={onOrder}
-          disabled={entry.quantity === 0}
-          style={{
-            marginTop: 8, marginBottom: 8, padding: "6px",
-            background: entry.quantity === 0 ? "#f5f5f5" : "#ff6a00",
-            color: entry.quantity === 0 ? "#ccc" : "#fff",
-            border: "none",
-            cursor: entry.quantity === 0 ? "not-allowed" : "pointer",
-            fontSize: 11, fontWeight: 700,
-            display: "flex", alignItems: "center", justifyContent: "center", gap: 4, width: "100%",
-            opacity: hovered ? 1 : 0,
-            // height preserved so card doesn't shift
-            pointerEvents: hovered ? "auto" : "none",
-          }}
-        >
-          <ShoppingCart size={11} /> Start Order
-        </button>
       </div>
+
+      {/* Order button — ALWAYS VISIBLE, never hidden on hover */}
+      <button
+        onClick={onOrder}
+        disabled={!inStock}
+        style={{
+          margin: "8px 10px 10px",
+          padding: "7px",
+          background: inStock ? "#ff6a00" : "#f5f5f5",
+          color: inStock ? "#fff" : "#ccc",
+          border: "none",
+          cursor: inStock ? "pointer" : "not-allowed",
+          fontSize: 11, fontWeight: 700,
+          display: "flex", alignItems: "center", justifyContent: "center", gap: 4,
+          flexShrink: 0,
+        }}
+      >
+        <ShoppingCart size={11} /> {inStock ? "Start Order" : "Unavailable"}
+      </button>
     </div>
   );
 }
