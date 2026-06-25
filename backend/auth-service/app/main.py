@@ -12,19 +12,26 @@ from app.models.shop import Shop
 from app.models.password_reset import PasswordReset  # noqa: F401 — registers table
 from app.models import user, role, refresh_token  # noqa: F401 — keeps all mapper classes in registry
 
+_ALLOWED_ORIGINS = {
+    "https://higoverse-os.vercel.app",
+    "http://localhost:3000",
+}
+
 app = FastAPI(title="Higoverse Auth Service", redirect_slashes=False)
 
 
 @app.exception_handler(Exception)
 async def unhandled_exception_handler(request: Request, exc: Exception):
-    return JSONResponse(status_code=500, content={"detail": str(exc)})
+    origin = request.headers.get("origin", "")
+    extra = {}
+    if origin in _ALLOWED_ORIGINS:
+        extra["Access-Control-Allow-Origin"] = origin
+        extra["Access-Control-Allow-Credentials"] = "true"
+    return JSONResponse(status_code=500, content={"detail": str(exc)}, headers=extra)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "https://higoverse-os.vercel.app",
-        "http://localhost:3000",
-    ],
+    allow_origins=list(_ALLOWED_ORIGINS),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
