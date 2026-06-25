@@ -1,6 +1,14 @@
 from pydantic import BaseModel, EmailStr
 
-# REGISTER SHOP + OWNER
+
+# REGISTER — creates a customer account (no shop)
+class RegisterRequest(BaseModel):
+    name:     str
+    email:    EmailStr
+    password: str
+
+
+# LEGACY — kept for internal/admin use only
 class RegisterShopRequest(BaseModel):
     shop_name:   str
     email:       EmailStr

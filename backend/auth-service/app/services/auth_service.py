@@ -9,6 +9,26 @@ from app.core.security import hash_password, verify_password, create_access_toke
 
 
 # ----------------------------
+# REGISTER CUSTOMER (default)
+# ----------------------------
+def register_customer(db: Session, data) -> None:
+    existing = db.query(User).filter(User.email == data.email).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="User with this email already exists")
+
+    user = User(
+        name=data.name.strip(),
+        email=data.email,
+        password_hash=hash_password(data.password),
+        role="customer",
+        shop_id=None,
+        is_active=False,
+    )
+    db.add(user)
+    db.commit()
+
+
+# ----------------------------
 # REGISTER SHOP + OWNER USER
 # ----------------------------
 def register_shop(db: Session, shop_db: Session, data):
@@ -99,10 +119,11 @@ def login_user(db: Session, email: str, password: str):
 
     # 3. CREATE JWT TOKEN
     token = create_access_token({
-        "sub": str(user.id),
-        "shop_id": str(user.shop_id),
-        "email": user.email,
-        "role": user.role
+        "sub":     str(user.id),
+        "shop_id": str(user.shop_id) if user.shop_id else None,
+        "email":   user.email,
+        "role":    user.role,
+        "name":    user.name,
     })
 
     # 4. RESPONSE
@@ -110,9 +131,10 @@ def login_user(db: Session, email: str, password: str):
         "access_token": token,
         "token_type": "bearer",
         "user": {
-            "id": str(user.id),
-            "email": user.email,
-            "shop_id": str(user.shop_id),
-            "role": user.role,
-        }
+            "id":      str(user.id),
+            "email":   user.email,
+            "shop_id": str(user.shop_id) if user.shop_id else None,
+            "role":    user.role,
+            "name":    user.name,
+        },
     }

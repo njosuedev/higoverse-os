@@ -15,6 +15,7 @@ class User(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
 
+    name  = Column(String(255), nullable=True)
     email = Column(String(255), unique=True, nullable=False)
     password_hash = Column(String, nullable=False)
 
@@ -22,17 +23,13 @@ class User(Base):
 
     shop_id = Column(UUID(as_uuid=True), ForeignKey("shops.id"), nullable=True)
 
-    # ----------------------------
-    # ROLE SYSTEM (KEEP BOTH)
-    # ----------------------------
-
     role_id = Column(UUID(as_uuid=True), ForeignKey("roles.id"), nullable=True)
 
-    # SIMPLE FALLBACK ROLE (used in JWT + fast checks)
-    role = Column(String(50), default="owner")
+    # "customer" → browsing only | "owner" → shop approved | "admin" → platform admin
+    role = Column(String(50), default="customer")
 
     created_at = Column(DateTime(timezone=True), default=_utcnow)
 
     # relationships
-    shop = relationship("Shop")
+    shop     = relationship("Shop")
     role_rel = relationship("Role", foreign_keys=[role_id])

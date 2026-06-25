@@ -98,7 +98,8 @@ def admin_list_shops(
         if not sid:
             continue
         user_counts[sid] = user_counts.get(sid, 0) + 1
-        if u.role in ("owner", "admin") and sid not in owner_emails:
+        # Show owner/customer applicant email so admin can identify who applied
+        if u.role in ("owner", "admin", "customer") and sid not in owner_emails:
             owner_emails[sid] = u.email
 
     return {
@@ -108,6 +109,41 @@ def admin_list_shops(
             for s in shops
         ],
     }
+
+
+# ── Update shop fields (admin — used for rejection notes) ──
+@router.patch("/shops/{shop_id}")
+def admin_patch_shop(
+    shop_id: str,
+    payload: dict,
+    shop_db: Session = Depends(get_shop_db),
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin),
+):
+    shop = shop_db.query(Shop).filter(Shop.id == shop_id).first()
+    if not shop:
+        raise HTTPException(status_code=404, detail="Shop not found")
+
+    allowed = {"name", "phone", "address", "description", "logo_url", "is_active"}
+    for field, value in payload.items():
+        if field in allowed:
+            setattr(shop, field, value)
+    shop.updated_at = datetime.now(timezone.utc)
+    shop_db.commit()
+    shop_db.refresh(shop)
+
+    # Mirror changes in auth_db
+    auth_shop = db.query(Shop).filter(Shop.id == shop_id).first()
+    if auth_shop:
+        for field, value in payload.items():
+            if field in allowed:
+                setattr(auth_shop, field, value)
+        auth_shop.updated_at = shop.updated_at
+        db.commit()
+
+    users = db.query(User).filter(User.shop_id == shop.id).all()
+    owner = next((u for u in users if u.role in ("owner", "admin", "customer")), None)
+    return {"success": True, "data": _fmt_shop(shop, owner.email if owner else None, len(users))}
 
 
 # ── Toggle shop active/inactive ───────────────────────────
@@ -121,12 +157,29 @@ def admin_toggle_shop(
     shop = shop_db.query(Shop).filter(Shop.id == shop_id).first()
     if not shop:
         raise HTTPException(status_code=404, detail="Shop not found")
-    shop.is_active = not shop.is_active
+
+    activating = not shop.is_active
+    shop.is_active = activating
     shop.updated_at = datetime.now(timezone.utc)
     shop_db.commit()
     shop_db.refresh(shop)
 
+    # Mirror is_active on auth_db copy so FK-linked queries stay consistent
+    auth_shop = db.query(Shop).filter(Shop.id == shop_id).first()
+    if auth_shop:
+        auth_shop.is_active = activating
+        auth_shop.updated_at = shop.updated_at
+
     users = db.query(User).filter(User.shop_id == shop.id).all()
+
+    if activating:
+        # Promote any customer-role users attached to this shop to owner
+        for u in users:
+            if u.role == "customer":
+                u.role = "owner"
+
+    db.commit()
+
     user_count = len(users)
     owner = next((u for u in users if u.role in ("owner", "admin")), None)
     return {"success": True, "data": _fmt_shop(shop, owner.email if owner else None, user_count)}
@@ -174,6 +227,43 @@ def admin_list_users(
         "success": True,
         "data": [_fmt_user(u, shops.get(str(u.shop_id))) for u in users],
     }
+
+
+# ── Update user fields (admin — e.g. scramble email) ─────
+@router.patch("/users/{user_id}")
+def admin_patch_user(
+    user_id: str,
+    payload: dict,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(require_admin),
+):
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    allowed = {"email", "name", "is_active"}
+    for field, value in payload.items():
+        if field in allowed:
+            setattr(user, field, value)
+    db.commit()
+    db.refresh(user)
+    return {"success": True, "data": _fmt_user(user)}
+
+
+# ── Hard delete a user ────────────────────────────────────
+@router.delete("/users/{user_id}")
+def admin_delete_user(
+    user_id: str,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(require_admin),
+):
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    if str(user.id) == str(current_admin.id):
+        raise HTTPException(status_code=400, detail="Cannot delete your own account")
+    db.delete(user)
+    db.commit()
+    return {"success": True, "message": "User deleted"}
 
 
 # ── Toggle user active/inactive ───────────────────────────

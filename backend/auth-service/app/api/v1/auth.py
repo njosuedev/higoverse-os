@@ -15,10 +15,10 @@ from app.db.deps import get_db, get_shop_db
 from app.models.password_reset import PasswordReset
 from app.models.user import User
 from app.schemas.auth import (
-    RegisterShopRequest, LoginRequest, ChangePasswordRequest,
+    RegisterRequest, RegisterShopRequest, LoginRequest, ChangePasswordRequest,
     ForgotPasswordRequest, ResetPasswordRequest, VerifyRegistrationRequest,
 )
-from app.services.auth_service import register_shop, login_user
+from app.services.auth_service import register_customer, register_shop, login_user
 
 
 def _send_otp_email(to_email: str, otp: str) -> None:
@@ -124,15 +124,14 @@ router = APIRouter()
 
 
 # ----------------------------
-# REGISTER SHOP + OWNER
+# REGISTER CUSTOMER
 # ----------------------------
 @router.post("/register")
 def register(
-    data: RegisterShopRequest,
+    data: RegisterRequest,
     db: Session = Depends(get_db),
-    shop_db: Session = Depends(get_shop_db),
 ):
-    register_shop(db, shop_db, data)
+    register_customer(db, data)
 
     # Invalidate any previous unused OTPs for this email
     db.query(PasswordReset).filter(

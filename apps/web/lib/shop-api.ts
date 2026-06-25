@@ -129,6 +129,18 @@ export async function sendOffline(): Promise<void> {
   }
 }
 
+/**
+ * Customer submits a new shop application (first time) or resubmits after rejection.
+ * On first call the backend creates the shop and links it to the user.
+ */
+export async function createShopApplication(payload: ShopUpdatePayload): Promise<Shop | null> {
+  const res = await authShopRequest("/api/v1/shop-application", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+  return res?.data ?? null;
+}
+
 /** Get any shop by ID */
 export async function getShopById(shopId: string): Promise<Shop | null> {
   const res = await authShopRequest(`/api/v1/shops`);

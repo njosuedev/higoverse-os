@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
 import { useShop } from "@/lib/shop-context";
-import { listShops, updateMyShop, type Shop } from "@/lib/shop-api";
+import { listShops, updateMyShop, createShopApplication, type Shop } from "@/lib/shop-api";
 import {
   getCatalog, upsertCatalogEntry, getProductMeta, compressImage, decodeShopCatalog,
   encodeShopDescription, encodeShopAddress, parseShopAddress, decodeShopHumanInfo,
@@ -211,13 +211,22 @@ export default function MarketplacePage() {
         email:     shopForm.email.trim(),
         bannerUrl: shopForm.banner_url || undefined,
       });
-      await updateMyShop({
+      const shopPayload = {
         name:        shopForm.shop_name.trim(),
         phone:       shopForm.phone.trim(),
         address,
         description,
         logo_url:    shopForm.logo_url || undefined,
-      });
+      };
+
+      // Customers with no shop yet → create via dedicated endpoint
+      // Customers resubmitting (shop exists but inactive/rejected) → update existing shop
+      if (!shop) {
+        await createShopApplication(shopPayload);
+      } else {
+        await updateMyShop(shopPayload);
+      }
+
       setShopApplied(true);
       localStorage.setItem("mp_shop_applied", "1");
       setShowShopForm(false);

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import {
-  Mail, Phone, Lock, Eye, EyeOff,
+  Mail, Lock, Eye, EyeOff,
   ChevronRight, CheckCircle2, AlertCircle, Loader2, RefreshCw,
   ShieldCheck, User, Globe, TrendingUp, ShoppingBag,
 } from "lucide-react";
@@ -14,13 +14,11 @@ import {
 interface FormData {
   name:    string;
   email:   string;
-  phone:   string;
   password: string;
   confirm: string;
 }
 
 const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const phoneRe = /^07\d{8}$/;
 
 function passwordStrength(p: string) {
   let s = 0;
@@ -45,8 +43,6 @@ export default function RegisterPage() {
   const [error, setError]     = useState<string | null>(null);
   const [touched, setTouch]   = useState<Partial<Record<keyof FormData, boolean>>>({});
   const [emailTaken, setEmailTaken] = useState(false);
-
-  const [phoneTaken, setPhoneTaken] = useState(false);
   const [nameTaken,  setNameTaken]  = useState(false);
 
   const [verifyEmail, setVerifyEmail]       = useState("");
@@ -57,7 +53,7 @@ export default function RegisterPage() {
   const [resendingVerify, setResendingVerify] = useState(false);
 
   const [form, setForm] = useState<FormData>({
-    name: "", email: "", phone: "", password: "", confirm: "",
+    name: "", email: "", password: "", confirm: "",
   });
 
   useEffect(() => {
@@ -70,7 +66,6 @@ export default function RegisterPage() {
     setForm(p => ({ ...p, [k]: v }));
     setTouch(p => ({ ...p, [k]: true }));
     if (k === "email") { setEmailTaken(false); setError(null); }
-    if (k === "phone") { setPhoneTaken(false); setError(null); }
     if (k === "name")  { setNameTaken(false);  setError(null); }
   };
 
@@ -78,11 +73,10 @@ export default function RegisterPage() {
   const v = {
     name:     form.name.trim().length >= 2,
     email:    emailRe.test(form.email),
-    phone:    phoneRe.test(form.phone.replace(/\s/g, "")),
     password: form.password.length >= 6,
     confirm:  form.confirm === form.password && form.confirm.length > 0,
   };
-  const formOk = v.name && v.email && v.phone && v.password && v.confirm;
+  const formOk = v.name && v.email && v.password && v.confirm;
   const pw     = passwordStrength(form.password);
 
   const ring = (valid: boolean, t: boolean) =>
@@ -91,14 +85,13 @@ export default function RegisterPage() {
   /* ── Submit ── */
   const handleSubmit = async () => {
     if (!formOk) return;
-    setError(null); setEmailTaken(false); setPhoneTaken(false); setNameTaken(false); setLoading(true);
+    setError(null); setEmailTaken(false); setNameTaken(false); setLoading(true);
     try {
       const AUTH_URL = process.env.NEXT_PUBLIC_AUTH_API || "https://higoverse-auth.vercel.app";
       const payload = {
-        shop_name: form.name.trim(),
-        email:     form.email.trim(),
-        phone:     form.phone.replace(/\s/g, ""),
-        password:  form.password,
+        name:     form.name.trim(),
+        email:    form.email.trim(),
+        password: form.password,
       };
 
       let res: Response;
@@ -120,20 +113,12 @@ export default function RegisterPage() {
         const lower = raw.toLowerCase();
 
         // Email conflict
-        if (lower.includes("email") && (lower.includes("already") || lower.includes("exists") || lower.includes("registered")) || (res.status === 409 && !lower.includes("phone") && !lower.includes("name"))) {
+        if (lower.includes("email") && (lower.includes("already") || lower.includes("exists") || lower.includes("registered")) || (res.status === 409)) {
           setEmailTaken(true); return;
         }
-        // Phone conflict
-        if (lower.includes("phone") && (lower.includes("already") || lower.includes("exists") || lower.includes("registered") || lower.includes("taken") || lower.includes("use"))) {
-          setPhoneTaken(true); return;
-        }
-        // Shop name / full name conflict
-        if ((lower.includes("name") || lower.includes("shop")) && (lower.includes("already") || lower.includes("exists") || lower.includes("taken"))) {
+        // Name conflict
+        if (lower.includes("name") && (lower.includes("already") || lower.includes("exists") || lower.includes("taken"))) {
           setNameTaken(true); return;
-        }
-        // Generic already-exists (no field specified)
-        if (lower.includes("already exists") || lower.includes("already registered") || res.status === 409) {
-          setEmailTaken(true); return;
         }
         if (lower.includes("verification email") || lower.includes("failed to send")) {
           setVerifyEmail(form.email.trim()); setOtp("");
@@ -345,20 +330,6 @@ export default function RegisterPage() {
                   )}
                 </div>
 
-                {/* Phone */}
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1.5">Phone <span className="text-red-400">*</span></label>
-                  <div className="relative">
-                    <Phone className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4 pointer-events-none" />
-                    <input type="tel" value={form.phone} onChange={e => set("phone", e.target.value)}
-                      placeholder="07XXXXXXXX" autoComplete="tel"
-                      className={`${field} ${fieldIcon} ${ring(v.phone, !!touched.phone)}`} />
-                  </div>
-                  {touched.phone && !v.phone && (
-                    <p className="mt-1 text-xs text-red-500 flex items-center gap-1"><AlertCircle size={11} /> Must be 07XXXXXXXX (10 digits)</p>
-                  )}
-                </div>
-
                 {/* Password */}
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1.5">Password <span className="text-red-400">*</span></label>
@@ -426,18 +397,6 @@ export default function RegisterPage() {
                 </div>
               )}
 
-              {phoneTaken && (
-                <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 space-y-1">
-                  <p className="text-sm font-semibold text-amber-800 flex items-center gap-1.5">
-                    <AlertCircle size={14} className="text-amber-500" /> Phone number already registered
-                  </p>
-                  <p className="text-xs text-amber-700 leading-relaxed">
-                    This phone number is linked to an existing account. Please use a different number or{" "}
-                    <Link href="/login" className="font-semibold underline hover:text-amber-900">sign in</Link>.
-                  </p>
-                </div>
-              )}
-
               {nameTaken && (
                 <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 space-y-1">
                   <p className="text-sm font-semibold text-amber-800 flex items-center gap-1.5">
@@ -449,7 +408,7 @@ export default function RegisterPage() {
                 </div>
               )}
 
-              {error && !emailTaken && !phoneTaken && !nameTaken && (
+              {error && !emailTaken && !nameTaken && (
                 <div className="mt-4 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-600">
                   <AlertCircle size={14} className="shrink-0 mt-0.5" /> {error}
                 </div>
@@ -457,7 +416,7 @@ export default function RegisterPage() {
 
               <button
                 onClick={() => {
-                  setTouch({ name: true, email: true, phone: true, password: true, confirm: true });
+                  setTouch({ name: true, email: true, password: true, confirm: true });
                   if (formOk) handleSubmit();
                 }}
                 disabled={loading}
