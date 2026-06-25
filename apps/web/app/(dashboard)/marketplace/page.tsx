@@ -1151,206 +1151,249 @@ export default function MarketplacePage() {
         </main>
       </div>
 
-      {/* ── DETAIL MODAL ──────────────────────────────────────────────────── */}
+      {/* ── DETAIL MODAL — Alibaba-style full product page ────────────────── */}
       {detailEntry && (() => {
-        const dShop = shopMap[detailEntry.shopId];
-        const dOnline = dShop ? isOnline(dShop.last_seen_at, now) : false;
-        const isMine = detailEntry.shopId === user?.shop_id;
+        const dShop      = shopMap[detailEntry.shopId];
+        const dOnline    = dShop ? isOnline(dShop.last_seen_at, now) : false;
+        const isMine     = detailEntry.shopId === user?.shop_id;
         const listedCount = listedPerShop[detailEntry.shopId] ?? 0;
-        return (
-          <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
-            <div style={{ background: "#fff", width: "100%", maxWidth: 580, maxHeight: "92vh", display: "flex", flexDirection: "column", overflow: "hidden", boxShadow: "0 8px 40px rgba(0,0,0,0.18)" }}>
+        const inStock    = detailEntry.quantity > 0;
+        const category   = detailEntry.category || catOf(detailEntry.name, detailEntry.description);
+        const cleanAddr  = (dShop?.address ?? "").replace(/^TIN:[^|]+\|/, "").trim();
+        const related    = catalog
+          .filter((e) => e.shopId === detailEntry.shopId && e.productId !== detailEntry.productId)
+          .slice(0, 6);
 
-              {/* Header */}
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", borderBottom: "1px solid #f0f0f0" }}>
-                <span style={{ fontSize: 14, fontWeight: 700, color: "#333", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, paddingRight: 12 }}>{detailEntry.name}</span>
-                <button onClick={() => setDetailEntry(null)} style={{ border: "none", background: "#f5f5f5", cursor: "pointer", padding: "4px 10px", fontSize: 14, color: "#666" }}>✕</button>
+        return (
+          <div
+            onClick={(e) => { if (e.target === e.currentTarget) setDetailEntry(null); }}
+            style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 50, overflowY: "auto", padding: "20px 12px 40px" }}
+          >
+            <div style={{ maxWidth: 980, margin: "0 auto", fontFamily: "Arial, sans-serif" }}>
+
+              {/* Breadcrumb bar */}
+              <div style={{ background: "#fff", padding: "9px 16px", marginBottom: 8, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, color: "#999", flexWrap: "wrap" }}>
+                  <span style={{ cursor: "pointer", color: "#1677ff" }} onClick={() => setDetailEntry(null)}>Marketplace</span>
+                  <ChevronRight size={12} />
+                  <span style={{ textTransform: "capitalize", cursor: "pointer", color: "#1677ff" }}
+                    onClick={() => { setCat(category); setDetailEntry(null); }}>{category}</span>
+                  <ChevronRight size={12} />
+                  <span style={{ color: "#333" }}>{detailEntry.name.slice(0, 50)}{detailEntry.name.length > 50 ? "…" : ""}</span>
+                </div>
+                <button onClick={() => setDetailEntry(null)}
+                  style={{ border: "1px solid #e8e8e8", background: "#fff", cursor: "pointer", padding: "5px 14px", fontSize: 12, color: "#555", display: "flex", alignItems: "center", gap: 5, flexShrink: 0 }}>
+                  <X size={12} /> Close
+                </button>
               </div>
 
-              <div style={{ overflowY: "auto", flex: 1 }}>
-                {/* Main image */}
-                <div style={{ height: 260, background: "#f5f5f5", display: "flex", alignItems: "center", justifyContent: "center", position: "relative" }}>
-                  {detailEntry.images[detailImg]
-                    ? <img src={detailEntry.images[detailImg]} alt={detailEntry.name} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
-                    : <Package size={56} style={{ color: "#ddd" }} />}
-                  {detailEntry.quantity === 0 && (
-                    <div style={{ position: "absolute", inset: 0, background: "rgba(255,255,255,0.6)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                      <span style={{ fontSize: 13, fontWeight: 700, color: "#f5222d", border: "1px solid #f5222d", padding: "4px 12px", background: "#fff" }}>Out of Stock</span>
+              {/* ── Top section: image + info ── */}
+              <div style={{ background: "#fff", display: "flex", gap: 0, marginBottom: 8 }}>
+
+                {/* LEFT — image gallery */}
+                <div style={{ width: 400, flexShrink: 0, padding: 20, borderRight: "1px solid #f0f0f0" }}>
+                  {/* Main image */}
+                  <div style={{ width: "100%", aspectRatio: "1", background: "#f7f7f7", border: "1px solid #eee", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", position: "relative", marginBottom: 10 }}>
+                    {detailEntry.images[detailImg]
+                      ? <img src={detailEntry.images[detailImg]} alt={detailEntry.name} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+                      : <Package size={72} style={{ color: "#ddd" }} />}
+                    {!inStock && (
+                      <div style={{ position: "absolute", inset: 0, background: "rgba(255,255,255,0.78)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: "#f5222d", border: "1.5px solid #f5222d", padding: "4px 16px", background: "#fff" }}>Out of Stock</span>
+                      </div>
+                    )}
+                    {isMine && (
+                      <span style={{ position: "absolute", top: 8, left: 8, fontSize: 10, background: "#ff6a00", color: "#fff", padding: "2px 8px", fontWeight: 700 }}>YOURS</span>
+                    )}
+                  </div>
+                  {/* Thumbnails */}
+                  {detailEntry.images.length > 1 && (
+                    <div style={{ display: "flex", gap: 6, overflowX: "auto" }}>
+                      {detailEntry.images.map((src, i) => (
+                        <button key={i} onClick={() => setDetailImg(i)}
+                          style={{ flexShrink: 0, width: 60, height: 60, border: i === detailImg ? "2px solid #ff6a00" : "1.5px solid #e8e8e8", background: "none", cursor: "pointer", padding: 0, overflow: "hidden" }}>
+                          <img src={src} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                        </button>
+                      ))}
                     </div>
                   )}
                 </div>
 
-                {/* Thumbnails */}
-                {detailEntry.images.length > 1 && (
-                  <div style={{ display: "flex", gap: 6, padding: "8px 16px", borderBottom: "1px solid #f0f0f0", overflowX: "auto" }}>
-                    {detailEntry.images.map((src, i) => (
-                      <button key={i} onClick={() => setDetailImg(i)}
-                        style={{ flexShrink: 0, width: 48, height: 48, border: i === detailImg ? "2px solid #ff6a00" : "1px solid #e8e8e8", background: "none", cursor: "pointer", padding: 0, overflow: "hidden" }}>
-                        <img src={src} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                      </button>
-                    ))}
-                  </div>
-                )}
+                {/* RIGHT — product details */}
+                <div style={{ flex: 1, minWidth: 0, padding: "20px 20px 20px 24px", display: "flex", flexDirection: "column", gap: 14 }}>
 
-                <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 12 }}>
-                  {/* Price */}
+                  {/* Title */}
+                  <h1 style={{ fontSize: 17, fontWeight: 600, color: "#1a1a1a", margin: 0, lineHeight: 1.55 }}>
+                    {detailEntry.name}
+                  </h1>
+
+                  {/* Stars + status */}
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <div style={{ display: "flex", gap: 2 }}>
+                      {[1,2,3,4].map((i) => <Star key={i} size={13} style={{ color: "#fa8c16", fill: "#fa8c16" }} />)}
+                      <Star size={13} style={{ color: "#d9d9d9", fill: "#d9d9d9" }} />
+                    </div>
+                    <span style={{ fontSize: 12, color: "#888" }}>Verified Supplier</span>
+                    {dOnline && (
+                      <span style={{ fontSize: 10, color: "#52c41a", background: "#f6ffed", border: "1px solid #b7eb8f", padding: "1px 8px", borderRadius: 10, fontWeight: 700 }}>● Online now</span>
+                    )}
+                  </div>
+
+                  {/* Price block */}
+                  <div style={{ background: "#fff9f5", border: "1px solid #fde8d5", padding: "14px 16px" }}>
+                    <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
+                      <span style={{ fontSize: 30, fontWeight: 800, color: "#ff6a00", lineHeight: 1 }}>
+                        {fmtPrice(detailEntry.sellingPrice)}
+                      </span>
+                      <span style={{ fontSize: 13, color: "#bbb" }}>/ unit</span>
+                    </div>
+                    <p style={{ fontSize: 12, color: "#999", margin: "6px 0 0" }}>
+                      Min. order: 1 unit &nbsp;·&nbsp; Price may vary with quantity
+                    </p>
+                  </div>
+
+                  {/* Key attributes table */}
                   <div>
-                    <p style={{ fontSize: 24, fontWeight: 700, color: "#ff6a00", margin: "0 0 2px" }}>{fmtPrice(detailEntry.sellingPrice)}</p>
-                    <p style={{ fontSize: 11, color: "#999", margin: 0 }}>Price per unit · Min. order: 1 piece</p>
+                    <p style={{ fontSize: 11, fontWeight: 700, color: "#888", textTransform: "uppercase", letterSpacing: 1, margin: "0 0 8px" }}>Product Details</p>
+                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                      <tbody>
+                        {([
+                          ["Category",     category],
+                          cleanAddr && ["Location", cleanAddr],
+                          ["Availability", inStock ? `In Stock` : "Out of Stock"],
+                          ["Min. Order",   "1 unit"],
+                          ["Supply",       `${listedCount} product${listedCount !== 1 ? "s" : ""} from this supplier`],
+                        ] as (string[] | false)[]).filter(Boolean).map((row, i) => {
+                          const [k, v] = row as string[];
+                          return (
+                            <tr key={i} style={{ borderTop: "1px solid #f0f0f0" }}>
+                              <td style={{ padding: "7px 0", color: "#aaa", width: 120, verticalAlign: "top", fontWeight: 400 }}>{k}</td>
+                              <td style={{ padding: "7px 0", color: k === "Availability" ? (inStock ? "#52c41a" : "#f5222d") : "#333", fontWeight: 500, textTransform: "capitalize" }}>{v}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
                   </div>
 
                   {/* Description */}
                   {detailEntry.description && (
-                    <p style={{ fontSize: 12, color: "#555", margin: 0, lineHeight: 1.7, background: "#fafafa", padding: "8px 10px", border: "1px solid #f0f0f0" }}>
-                      {detailEntry.description}
-                    </p>
+                    <div>
+                      <p style={{ fontSize: 11, fontWeight: 700, color: "#888", textTransform: "uppercase", letterSpacing: 1, margin: "0 0 8px" }}>Description</p>
+                      <p style={{ fontSize: 13, color: "#555", margin: 0, lineHeight: 1.8, background: "#fafafa", padding: "12px 14px", border: "1px solid #f0f0f0" }}>
+                        {detailEntry.description}
+                      </p>
+                    </div>
                   )}
 
-                  {/* Stats grid */}
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6 }}>
-                    <div style={{ padding: "8px 10px", background: "#f9f9f9", border: "1px solid #f0f0f0", textAlign: "center" }}>
-                      <p style={{ fontSize: 9, color: "#999", margin: "0 0 3px", textTransform: "uppercase", letterSpacing: 0.5 }}>Stock</p>
-                      <p style={{ fontSize: 13, fontWeight: 700, margin: 0, color: detailEntry.quantity === 0 ? "#f5222d" : detailEntry.quantity <= 10 ? "#fa8c16" : "#52c41a" }}>
-                        {detailEntry.quantity === 0 ? "None" : detailEntry.quantity}
-                      </p>
-                      {detailEntry.quantity > 0 && <p style={{ fontSize: 9, color: "#aaa", margin: 0 }}>units</p>}
-                    </div>
-                    <div style={{ padding: "8px 10px", background: "#f9f9f9", border: "1px solid #f0f0f0", textAlign: "center" }}>
-                      <p style={{ fontSize: 9, color: "#999", margin: "0 0 3px", textTransform: "uppercase", letterSpacing: 0.5 }}>Products</p>
-                      <p style={{ fontSize: 13, fontWeight: 700, color: "#333", margin: 0 }}>{listedCount}</p>
-                      <p style={{ fontSize: 9, color: "#aaa", margin: 0 }}>listed</p>
-                    </div>
-                    <div style={{ padding: "8px 10px", background: "#f9f9f9", border: "1px solid #f0f0f0", textAlign: "center" }}>
-                      <p style={{ fontSize: 9, color: "#999", margin: "0 0 3px", textTransform: "uppercase", letterSpacing: 0.5 }}>Status</p>
-                      <p style={{ fontSize: 11, fontWeight: 700, margin: 0, color: dOnline ? "#52c41a" : "#aaa" }}>{dOnline ? "● Online" : "○ Offline"}</p>
-                    </div>
+                  {/* Spacer */}
+                  <div style={{ flex: 1 }} />
+
+                  {/* Action buttons */}
+                  <div style={{ display: "flex", gap: 10 }}>
+                    {!isMine && (
+                      followedShopIds.has(detailEntry.shopId) ? (
+                        <button
+                          onClick={() => { setMsgEntry(detailEntry); setMsgText(""); setMsgSent(false); setDetailEntry(null); }}
+                          style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "11px", border: "1.5px solid #ff6a00", background: "#fff", color: "#ff6a00", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+                          <MessageSquare size={15} /> Contact Supplier
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => toggleFollow(detailEntry.shopId, detailEntry.shopName)}
+                          style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "11px", border: "1.5px solid #ff6a00", background: "#fff", color: "#ff6a00", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+                          <Heart size={15} /> Follow Supplier
+                        </button>
+                      )
+                    )}
+                    <button
+                      onClick={() => { setDetailEntry(null); openOrder(detailEntry); }}
+                      disabled={!inStock}
+                      style={{ flex: 2, display: "flex", alignItems: "center", justifyContent: "center", gap: 7, padding: "12px", border: "none", background: inStock ? "#ff6a00" : "#f0f0f0", color: inStock ? "#fff" : "#bbb", fontSize: 14, fontWeight: 700, cursor: inStock ? "pointer" : "not-allowed" }}>
+                      <ShoppingCart size={16} /> {inStock ? "Start Order" : "Out of Stock"}
+                    </button>
                   </div>
 
-                  {/* Seller card */}
-                  <div style={{ border: "1px solid #e8e8e8", padding: "10px 12px", display: "flex", gap: 10, alignItems: "flex-start" }}>
-                    <div style={{ width: 40, height: 40, borderRadius: "50%", overflow: "hidden", background: "#ff6a00", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                      {dShop?.logo_url
-                        ? <img src={dShop.logo_url} alt={detailEntry.shopName} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                        : <span style={{ fontSize: 15, fontWeight: 900, color: "#fff" }}>{detailEntry.shopName[0]?.toUpperCase()}</span>}
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                        <p style={{ fontSize: 13, fontWeight: 700, color: "#333", margin: 0 }}>{detailEntry.shopName}</p>
-                        {isMine && <span style={{ fontSize: 9, background: "#fff5f0", color: "#ff6a00", padding: "1px 6px", fontWeight: 700 }}>Your Shop</span>}
-                        <span style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 9 }}>
-                          <Star size={9} style={{ color: "#fa8c16", fill: "#fa8c16" }} />
-                          <Star size={9} style={{ color: "#fa8c16", fill: "#fa8c16" }} />
-                          <Star size={9} style={{ color: "#fa8c16", fill: "#fa8c16" }} />
-                          <Star size={9} style={{ color: "#fa8c16", fill: "#fa8c16" }} />
-                          <Star size={9} style={{ color: "#e8e8e8", fill: "#e8e8e8" }} />
-                          <span style={{ fontSize: 9, color: "#999", marginLeft: 2 }}>Verified Supplier</span>
-                        </span>
-                      </div>
-                      {/* Location */}
-                      {dShop?.address && (
-                        <a
-                          href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(dShop.address)}`}
-                          target="_blank" rel="noreferrer"
-                          style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: "#1677ff", textDecoration: "none", marginTop: 4 }}
-                        >
-                          <MapPin size={11} style={{ color: "#ff6a00", flexShrink: 0 }} />
-                          {dShop.address}
-                        </a>
-                      )}
-                      {/* Phone */}
-                      {detailEntry.shopPhone && (
-                        <a href={`tel:${detailEntry.shopPhone}`} style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: "#333", textDecoration: "none", marginTop: 3 }}>
-                          <Phone size={10} style={{ color: "#52c41a", flexShrink: 0 }} />
-                          {detailEntry.shopPhone}
-                        </a>
-                      )}
-                      {/* Email */}
-                      {dShop?.email && (
-                        <a href={`mailto:${dShop.email}`} style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: "#333", textDecoration: "none", marginTop: 3 }}>
-                          <Mail size={10} style={{ color: "#1677ff", flexShrink: 0 }} />
-                          {dShop.email}
-                        </a>
-                      )}
-                    </div>
-                  </div>
+                  {/* Call link */}
+                  {detailEntry.shopPhone && (
+                    <a href={`tel:${detailEntry.shopPhone}`}
+                      style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "8px", background: "#f6ffed", border: "1px solid #b7eb8f", color: "#389e0d", fontSize: 12, fontWeight: 600, textDecoration: "none" }}>
+                      <Phone size={13} /> Call {detailEntry.shopName} directly — {detailEntry.shopPhone}
+                    </a>
+                  )}
+                </div>
+              </div>
 
-                  {/* Thread: existing replies for this product from me */}
-                  {(() => {
-                    const thread = myMessages.filter((m) => m.productId === detailEntry.productId);
-                    if (thread.length === 0) return null;
-                    return (
-                      <div style={{ border: "1px solid #e8e8e8", background: "#fafafa" }}>
-                        <p style={{ fontSize: 10, fontWeight: 700, color: "#999", padding: "6px 10px", margin: 0, borderBottom: "1px solid #f0f0f0", textTransform: "uppercase", letterSpacing: 0.5 }}>Your Conversation</p>
-                        <div style={{ maxHeight: 180, overflowY: "auto", padding: "8px 10px", display: "flex", flexDirection: "column", gap: 6 }}>
-                          {thread.map((m) => (
-                            <div key={m.id}>
-                              <div style={{ display: "flex", justifyContent: "flex-end" }}>
-                                <div style={{ background: "#ff6a00", color: "#fff", padding: "5px 10px", fontSize: 11, maxWidth: "80%", lineHeight: 1.5 }}>
-                                  {m.text}
-                                  <p style={{ fontSize: 9, color: "rgba(255,255,255,0.7)", margin: "2px 0 0", textAlign: "right" }}>
-                                    {new Date(m.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                                  </p>
-                                </div>
-                              </div>
-                              {m.replies.map((r) => (
-                                <div key={r.id} style={{ display: "flex", justifyContent: r.fromShop ? "flex-start" : "flex-end", marginTop: 4 }}>
-                                  <div style={{ background: r.fromShop ? "#fff" : "#ff6a00", color: r.fromShop ? "#333" : "#fff", border: r.fromShop ? "1px solid #e8e8e8" : "none", padding: "5px 10px", fontSize: 11, maxWidth: "80%", lineHeight: 1.5 }}>
-                                    {r.fromShop && <p style={{ fontSize: 9, color: "#999", margin: "0 0 2px", fontWeight: 700 }}>{detailEntry.shopName}</p>}
-                                    {r.text}
-                                  </div>
-                                </div>
-                              ))}
-                              {/* Reply to conversation */}
-                              {m.replies.length > 0 && (
-                                <ReplyBox messageId={m.id} fromShop={false} onSent={() => {
-                                  if (user?.shop_id) setMyMessages(getMyMessages(user.shop_id));
-                                }} />
-                              )}
-                            </div>
-                          ))}
+              {/* ── Supplier card ── */}
+              <div style={{ background: "#fff", padding: "16px 20px", marginBottom: 8, display: "flex", alignItems: "center", gap: 14 }}>
+                <div style={{ width: 52, height: 52, borderRadius: "50%", overflow: "hidden", background: "#ff6a00", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  {dShop?.logo_url
+                    ? <img src={dShop.logo_url} alt={detailEntry.shopName} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                    : <span style={{ fontSize: 20, fontWeight: 900, color: "#fff" }}>{detailEntry.shopName[0]?.toUpperCase()}</span>}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                    <span style={{ fontSize: 15, fontWeight: 700, color: "#222" }}>{detailEntry.shopName}</span>
+                    {isMine && <span style={{ fontSize: 10, background: "#fff5f0", color: "#ff6a00", padding: "2px 8px", fontWeight: 700 }}>Your Shop</span>}
+                    <span style={{ fontSize: 11, color: "#888", display: "flex", alignItems: "center", gap: 3 }}>
+                      {[1,2,3,4].map((i) => <Star key={i} size={10} style={{ color: "#fa8c16", fill: "#fa8c16" }} />)}
+                      <Star size={10} style={{ color: "#d9d9d9", fill: "#d9d9d9" }} />
+                      Verified Supplier
+                    </span>
+                  </div>
+                  <div style={{ display: "flex", gap: 16, marginTop: 4, flexWrap: "wrap" }}>
+                    {cleanAddr && (
+                      <span style={{ fontSize: 12, color: "#888", display: "flex", alignItems: "center", gap: 4 }}>
+                        <MapPin size={12} style={{ color: "#ff6a00", flexShrink: 0 }} />{cleanAddr}
+                      </span>
+                    )}
+                    {detailEntry.shopPhone && (
+                      <a href={`tel:${detailEntry.shopPhone}`} style={{ fontSize: 12, color: "#333", display: "flex", alignItems: "center", gap: 4, textDecoration: "none" }}>
+                        <Phone size={12} style={{ color: "#52c41a" }} />{detailEntry.shopPhone}
+                      </a>
+                    )}
+                    {dShop?.email && (
+                      <a href={`mailto:${dShop.email}`} style={{ fontSize: 12, color: "#333", display: "flex", alignItems: "center", gap: 4, textDecoration: "none" }}>
+                        <Mail size={12} style={{ color: "#1677ff" }} />{dShop.email}
+                      </a>
+                    )}
+                  </div>
+                </div>
+                <Link href={`/marketplace/${detailEntry.shopId}`} onClick={() => setDetailEntry(null)}
+                  style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: 5, padding: "9px 18px", border: "1.5px solid #e8e8e8", color: "#555", fontSize: 12, fontWeight: 600, textDecoration: "none" }}>
+                  <Store size={13} /> View Store
+                </Link>
+              </div>
+
+              {/* ── Other recommendations ── */}
+              {related.length > 0 && (
+                <div style={{ background: "#fff", padding: "16px 20px" }}>
+                  <p style={{ fontSize: 14, fontWeight: 700, color: "#222", margin: "0 0 14px", paddingBottom: 10, borderBottom: "1px solid #f0f0f0" }}>
+                    Other products from {detailEntry.shopName}
+                  </p>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: 10 }}>
+                    {related.map((rel) => (
+                      <div key={rel.productId}
+                        onClick={() => { setDetailEntry(rel); setDetailImg(0); }}
+                        onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.borderColor = "#ffb38a"; (e.currentTarget as HTMLDivElement).style.boxShadow = "0 2px 10px rgba(0,0,0,0.08)"; }}
+                        onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.borderColor = "#e8e8e8"; (e.currentTarget as HTMLDivElement).style.boxShadow = "none"; }}
+                        style={{ border: "1px solid #e8e8e8", cursor: "pointer", background: "#fff", transition: "border-color 0.15s, box-shadow 0.15s" }}
+                      >
+                        <div style={{ aspectRatio: "1", background: "#f7f7f7", overflow: "hidden" }}>
+                          {rel.images[0]
+                            ? <img src={rel.images[0]} alt={rel.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                            : <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}><Package size={28} style={{ color: "#ddd" }} /></div>}
+                        </div>
+                        <div style={{ padding: "8px 10px" }}>
+                          <p style={{ fontSize: 12, color: "#333", margin: "0 0 4px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: 500 }}>{rel.name}</p>
+                          <p style={{ fontSize: 13, fontWeight: 700, color: "#ff6a00", margin: 0 }}>{fmtPrice(rel.sellingPrice)}</p>
+                          <p style={{ fontSize: 10, color: "#aaa", margin: "2px 0 0" }}>Min. 1 unit</p>
                         </div>
                       </div>
-                    );
-                  })()}
+                    ))}
+                  </div>
                 </div>
-              </div>
-
-              {/* Footer actions */}
-              <div style={{ borderTop: "1px solid #f0f0f0", padding: "10px 16px", display: "flex", flexDirection: "column", gap: 8 }}>
-                <div style={{ display: "flex", gap: 8 }}>
-                  <Link href={`/marketplace/${detailEntry.shopId}`} onClick={() => setDetailEntry(null)}
-                    style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 5, padding: "9px", border: "1px solid #d9d9d9", color: "#555", fontSize: 12, fontWeight: 600, textDecoration: "none" }}>
-                    <Store size={13} /> View Store
-                  </Link>
-                  {!isMine && (
-                    followedShopIds.has(detailEntry.shopId) ? (
-                      <button
-                        onClick={() => { setMsgEntry(detailEntry); setMsgText(""); setMsgSent(false); }}
-                        style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 5, padding: "9px", border: "1px solid #1677ff", background: "#fff", color: "#1677ff", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
-                        <MessageSquare size={13} /> Text Seller
-                      </button>
-                    ) : (
-                      <button
-                        onClick={() => toggleFollow(detailEntry.shopId, detailEntry.shopName)}
-                        style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 5, padding: "9px", border: "1px solid #f5222d", background: "#fff5f0", color: "#f5222d", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
-                        <Heart size={13} /> Follow to Message
-                      </button>
-                    )
-                  )}
-                  <button
-                    onClick={() => { setDetailEntry(null); openOrder(detailEntry); }}
-                    disabled={detailEntry.quantity === 0}
-                    style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 5, padding: "9px", border: "none", background: "#ff6a00", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", opacity: detailEntry.quantity === 0 ? 0.4 : 1 }}>
-                    <ShoppingCart size={13} /> Start Order
-                  </button>
-                </div>
-                {detailEntry.shopPhone && (
-                  <a href={`tel:${detailEntry.shopPhone}`}
-                    style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "7px", background: "#f6ffed", border: "1px solid #b7eb8f", color: "#52c41a", fontSize: 12, fontWeight: 600, textDecoration: "none" }}>
-                    <Phone size={13} /> Call {detailEntry.shopName} directly
-                  </a>
-                )}
-              </div>
+              )}
             </div>
           </div>
         );
@@ -2052,117 +2095,126 @@ function ProductCard({ entry, shop, isMine, online, searchQ, onDetail, onOrder }
   onDetail: () => void;
   onOrder: (e: React.MouseEvent) => void;
 }) {
-  const cover    = entry.images[0];
-  const inStock  = entry.quantity > 0;
-  const category = entry.category || catOf(entry.name, entry.description);
-  const initial  = (entry.shopName[0] ?? "?").toUpperCase();
-  const stockColor = entry.quantity > 10 ? "#52c41a" : entry.quantity > 0 ? "#fa8c16" : "#f5222d";
+  const cover   = entry.images[0];
+  const inStock = entry.quantity > 0;
+  const initial = (entry.shopName[0] ?? "?").toUpperCase();
 
   return (
     <div
       onClick={onDetail}
       onMouseEnter={(e) => {
-        (e.currentTarget as HTMLDivElement).style.boxShadow = "0 4px 16px rgba(0,0,0,0.1)";
-        (e.currentTarget as HTMLDivElement).style.borderColor = "#ffb38a";
+        (e.currentTarget as HTMLDivElement).style.boxShadow = "0 6px 20px rgba(0,0,0,0.11)";
+        (e.currentTarget as HTMLDivElement).style.borderColor = "#ffd8b8";
       }}
       onMouseLeave={(e) => {
-        (e.currentTarget as HTMLDivElement).style.boxShadow = "none";
+        (e.currentTarget as HTMLDivElement).style.boxShadow = "0 1px 4px rgba(0,0,0,0.06)";
         (e.currentTarget as HTMLDivElement).style.borderColor = "#e8e8e8";
       }}
-      style={{ background: "#fff", border: "1px solid #e8e8e8", cursor: "pointer", display: "flex", flexDirection: "column", position: "relative", transition: "box-shadow 0.15s, border-color 0.15s" }}
+      style={{
+        background: "#fff", border: "1px solid #e8e8e8", cursor: "pointer",
+        display: "flex", flexDirection: "column", position: "relative",
+        transition: "box-shadow 0.18s, border-color 0.18s",
+        boxShadow: "0 1px 4px rgba(0,0,0,0.06)", borderRadius: 3,
+        overflow: "hidden",
+      }}
     >
-      {/* Image — square */}
-      <div style={{ position: "relative", aspectRatio: "1", overflow: "hidden", background: "#f5f5f5", flexShrink: 0 }}>
+      {/* Image */}
+      <div style={{ position: "relative", aspectRatio: "1", overflow: "hidden", background: "#f7f7f7", flexShrink: 0 }}>
         {cover
           ? <img src={cover} alt={entry.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
           : <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6 }}>
-              <Package size={32} style={{ color: "#ddd" }} />
-              <span style={{ fontSize: 9, color: "#ccc" }}>No image</span>
+              <Package size={36} style={{ color: "#ddd" }} />
+              <span style={{ fontSize: 10, color: "#ccc" }}>No image</span>
             </div>}
 
-        {/* Multi-image count */}
+        {/* Multi-image pill */}
         {entry.images.length > 1 && (
-          <span style={{ position: "absolute", top: 4, right: 4, fontSize: 9, background: "rgba(0,0,0,0.38)", color: "#fff", padding: "1px 5px" }}>
+          <span style={{ position: "absolute", top: 6, right: 6, fontSize: 9, background: "rgba(0,0,0,0.42)", color: "#fff", padding: "2px 6px", borderRadius: 10, fontWeight: 600 }}>
             +{entry.images.length - 1}
           </span>
         )}
 
-        {/* Out of stock overlay */}
+        {/* Out-of-stock overlay */}
         {!inStock && (
-          <div style={{ position: "absolute", inset: 0, background: "rgba(255,255,255,0.72)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <span style={{ fontSize: 10, fontWeight: 700, color: "#f5222d", border: "1px solid #f5222d", padding: "2px 8px", background: "#fff" }}>Out of Stock</span>
+          <div style={{ position: "absolute", inset: 0, background: "rgba(255,255,255,0.78)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: "#f5222d", border: "1.5px solid #f5222d", padding: "3px 10px", background: "#fff", borderRadius: 2 }}>Out of Stock</span>
           </div>
         )}
 
         {/* "YOURS" badge */}
         {isMine && (
-          <span style={{ position: "absolute", top: 4, left: 4, fontSize: 8, background: "#ff6a00", color: "#fff", padding: "1px 5px", fontWeight: 700 }}>YOURS</span>
+          <span style={{ position: "absolute", top: 6, left: 6, fontSize: 9, background: "#ff6a00", color: "#fff", padding: "2px 7px", fontWeight: 700, borderRadius: 2 }}>YOURS</span>
         )}
-
-        {/* Category badge — bottom-left */}
-        <span style={{ position: "absolute", bottom: 0, left: 0, right: 0, fontSize: 9, background: "rgba(0,0,0,0.52)", color: "#fff", padding: "3px 7px", textTransform: "capitalize", fontWeight: 600, letterSpacing: 0.3 }}>
-          {category}
-        </span>
       </div>
 
       {/* Content */}
-      <div style={{ padding: "8px 10px 0", flex: 1, display: "flex", flexDirection: "column", gap: 2 }}>
-        {/* Name — 2-line clamp, fixed min-height for alignment */}
-        <p style={{ fontSize: 12, fontWeight: 600, color: "#222", margin: 0, lineHeight: 1.45, minHeight: 35,
-          display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" as const, overflow: "hidden" }}>
+      <div style={{ padding: "10px 10px 0", flex: 1, display: "flex", flexDirection: "column" }}>
+
+        {/* Product name — 2-line clamp */}
+        <p style={{
+          fontSize: 13, fontWeight: 500, color: "#222", margin: "0 0 6px", lineHeight: 1.5, minHeight: 39,
+          display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" as const, overflow: "hidden",
+        }}>
           {highlight(entry.name, searchQ)}
         </p>
 
-        {/* Description — 1-line clamp */}
-        {entry.description && (
-          <p style={{ fontSize: 10, color: "#aaa", margin: 0, lineHeight: 1.4,
-            display: "-webkit-box", WebkitLineClamp: 1, WebkitBoxOrient: "vertical" as const, overflow: "hidden" }}>
-            {entry.description}
-          </p>
-        )}
-
         {/* Price */}
-        <p style={{ fontSize: 15, fontWeight: 700, color: "#ff6a00", margin: "3px 0 0", lineHeight: 1 }}>
+        <p style={{ fontSize: 17, fontWeight: 800, color: "#ff6a00", margin: "0 0 3px", lineHeight: 1 }}>
           {fmtPrice(entry.sellingPrice)}
         </p>
 
-        {/* Stock */}
-        <p style={{ fontSize: 10, fontWeight: 600, margin: 0, color: stockColor }}>
-          {inStock ? `${entry.quantity} in stock` : "Out of stock"}
-        </p>
+        {/* Min order — Alibaba-style */}
+        <p style={{ fontSize: 11, color: "#aaa", margin: "0 0 10px" }}>Min. order: 1 unit</p>
 
-        {/* Shop row */}
-        <div style={{ display: "flex", alignItems: "center", gap: 5, paddingTop: 6, marginTop: "auto", borderTop: "1px solid #f5f5f5" }}>
-          <div style={{ width: 16, height: 16, borderRadius: "50%", overflow: "hidden", background: "#ff6a00",
-            display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+        {/* Divider */}
+        <div style={{ borderTop: "1px solid #f0f0f0", marginTop: "auto" }} />
+
+        {/* Supplier row */}
+        <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 0 8px" }}>
+          <div style={{
+            width: 20, height: 20, borderRadius: "50%", overflow: "hidden", background: "#ff6a00",
+            display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+          }}>
             {shop?.logo_url
               ? <img src={shop.logo_url} alt={entry.shopName} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-              : <span style={{ fontSize: 7, fontWeight: 900, color: "#fff" }}>{initial}</span>}
+              : <span style={{ fontSize: 8, fontWeight: 900, color: "#fff" }}>{initial}</span>}
           </div>
-          <p style={{ fontSize: 10, color: "#777", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>
-            {highlight(entry.shopName, searchQ)}
-          </p>
-          {online && <span style={{ fontSize: 8, color: "#52c41a", flexShrink: 0, fontWeight: 700 }}>● Live</span>}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <p style={{ fontSize: 11, color: "#555", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: 500 }}>
+              {highlight(entry.shopName, searchQ)}
+            </p>
+            {shop?.address && (
+              <p style={{ fontSize: 10, color: "#bbb", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: 2 }}>
+                <MapPin size={8} style={{ flexShrink: 0 }} />
+                {shop.address.split(",")[0].replace(/^TIN:[^|]+\|/, "").trim()}
+              </p>
+            )}
+          </div>
+          {online && (
+            <span style={{ fontSize: 9, color: "#52c41a", flexShrink: 0, fontWeight: 700, background: "#f6ffed", border: "1px solid #b7eb8f", padding: "1px 6px", borderRadius: 10 }}>
+              ● Live
+            </span>
+          )}
         </div>
       </div>
 
-      {/* Order button — ALWAYS VISIBLE, never hidden on hover */}
+      {/* CTA button */}
       <button
         onClick={onOrder}
         disabled={!inStock}
         style={{
-          margin: "8px 10px 10px",
-          padding: "7px",
+          margin: "0 10px 10px",
+          padding: "8px 0",
           background: inStock ? "#ff6a00" : "#f5f5f5",
-          color: inStock ? "#fff" : "#ccc",
+          color: inStock ? "#fff" : "#bbb",
           border: "none",
           cursor: inStock ? "pointer" : "not-allowed",
-          fontSize: 11, fontWeight: 700,
-          display: "flex", alignItems: "center", justifyContent: "center", gap: 4,
-          flexShrink: 0,
+          fontSize: 12, fontWeight: 700, letterSpacing: 0.3,
+          display: "flex", alignItems: "center", justifyContent: "center", gap: 5,
+          flexShrink: 0, borderRadius: 2,
         }}
       >
-        <ShoppingCart size={11} /> {inStock ? "Start Order" : "Unavailable"}
+        <ShoppingCart size={12} /> {inStock ? "Start Order" : "Unavailable"}
       </button>
     </div>
   );

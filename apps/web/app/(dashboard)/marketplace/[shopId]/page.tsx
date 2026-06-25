@@ -803,78 +803,109 @@ export default function ShopStorePage() {
                         </span>
                       )}
                     </div>
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(185px, 1fr))", gap: 8 }}>
-                      {listedProducts.map((entry) => (
-                        <div key={entry.productId}
-                          style={{ background: "#fff", border: chatProduct?.productId === entry.productId ? "1px solid #ff6a00" : "1px solid #e8e8e8", overflow: "hidden", display: "flex", flexDirection: "column", transition: "box-shadow 0.15s" }}
-                          onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.boxShadow = "0 4px 16px rgba(0,0,0,0.1)"; }}
-                          onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.boxShadow = "none"; }}>
-
-                          {/* Image */}
-                          <div style={{ position: "relative", aspectRatio: "1", overflow: "hidden", background: "#f7f7f7" }}>
-                            {entry.images[0]
-                              ? <img src={entry.images[0]} alt={entry.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                              : <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4 }}>
-                                  <Package size={28} style={{ color: "#d9d9d9" }} />
-                                  <span style={{ fontSize: 9, color: "#ccc", fontWeight: 600 }}>No photo</span>
-                                </div>}
-                            {entry.quantity === 0 && (
-                              <div style={{ position: "absolute", inset: 0, background: "rgba(255,255,255,0.7)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                                <span style={{ fontSize: 9, fontWeight: 700, color: "#f5222d", border: "1px solid #ffa39e", padding: "2px 8px", background: "#fff" }}>Out of Stock</span>
-                              </div>
-                            )}
-                            {entry.images.length > 1 && (
-                              <span style={{ position: "absolute", bottom: 4, right: 4, background: "rgba(0,0,0,0.38)", color: "#fff", fontSize: 9, padding: "1px 5px" }}>
-                                +{entry.images.length - 1}
-                              </span>
-                            )}
-                          </div>
-
-                          {/* Info */}
-                          <div style={{ padding: "8px 10px 10px", flex: 1, display: "flex", flexDirection: "column" }}>
-                            <p style={{ fontSize: 12, fontWeight: 600, color: "#222", lineHeight: 1.4, margin: "0 0 2px", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" as const, overflow: "hidden" }}>{entry.name}</p>
-                            {entry.description && (
-                              <p style={{ fontSize: 10, color: "#888", margin: "0 0 4px", lineHeight: 1.4, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" as const, overflow: "hidden" }}>{entry.description}</p>
-                            )}
-                            <p style={{ fontSize: 16, fontWeight: 900, color: "#ff6a00", margin: "0 0 2px" }}>{fmtCurrency(entry.sellingPrice)}</p>
-                            <p style={{ fontSize: 10, color: entry.quantity > 0 ? "#52c41a" : "#f5222d", margin: "0 0 8px", fontWeight: 600 }}>
-                              {entry.quantity > 0 ? `${entry.quantity} in stock` : "Out of stock"}
-                            </p>
-
-                            {/* Action buttons */}
-                            <div style={{ display: "flex", gap: 5, marginTop: "auto" }}>
-                              <button
-                                onClick={() => addToCart({ id: entry.productId, name: entry.name, description: entry.description, cost_price: entry.sellingPrice, selling_price: entry.sellingPrice, quantity: entry.quantity })}
-                                disabled={entry.quantity === 0}
-                                style={{ flex: 1, padding: "6px 0", background: entry.quantity === 0 ? "#f5f5f5" : "#ff6a00", color: entry.quantity === 0 ? "#ccc" : "#fff", border: "none", cursor: entry.quantity === 0 ? "not-allowed" : "pointer", fontSize: 10, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", gap: 4 }}>
-                                <ShoppingCart size={10} /> Order
-                              </button>
-                              {/* Chat button — gated behind follow */}
-                              {following ? (
-                                <button
-                                  onClick={() => {
-                                    setChatProduct(entry);
-                                    setCustomerMsgText("");
-                                  }}
-                                  style={{ padding: "6px 8px", background: chatProduct?.productId === entry.productId ? "#1677ff" : "#fff", color: chatProduct?.productId === entry.productId ? "#fff" : "#1677ff", border: "1px solid #1677ff", cursor: "pointer", fontSize: 10, fontWeight: 700, display: "flex", alignItems: "center", gap: 3, flexShrink: 0 }}>
-                                  <MessageSquare size={10} /> Chat
-                                </button>
-                              ) : (
-                                <button
-                                  onClick={() => {
-                                    followShop(shop.id, shop.name);
-                                    setFollowing(true);
-                                    setFollowerCount((n) => n + 1);
-                                  }}
-                                  title="Follow this shop to chat"
-                                  style={{ padding: "6px 8px", background: "#fff5f5", color: "#f5222d", border: "1px solid #ffa39e", cursor: "pointer", fontSize: 10, fontWeight: 700, display: "flex", alignItems: "center", gap: 3, flexShrink: 0 }}>
-                                  <Heart size={10} /> Follow
-                                </button>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(185px, 1fr))", gap: 10 }}>
+                      {listedProducts.map((entry) => {
+                        const inStock  = entry.quantity > 0;
+                        const isActive = chatProduct?.productId === entry.productId;
+                        return (
+                          <div key={entry.productId}
+                            style={{
+                              background: "#fff",
+                              border: `1px solid ${isActive ? "#ff6a00" : "#e8e8e8"}`,
+                              display: "flex", flexDirection: "column",
+                              boxShadow: "0 1px 4px rgba(0,0,0,0.05)",
+                              borderRadius: 3, overflow: "hidden",
+                              transition: "box-shadow 0.15s, border-color 0.15s",
+                            }}
+                            onMouseEnter={(e) => {
+                              (e.currentTarget as HTMLDivElement).style.boxShadow = "0 6px 20px rgba(0,0,0,0.11)";
+                              if (!isActive) (e.currentTarget as HTMLDivElement).style.borderColor = "#ffd8b8";
+                            }}
+                            onMouseLeave={(e) => {
+                              (e.currentTarget as HTMLDivElement).style.boxShadow = "0 1px 4px rgba(0,0,0,0.05)";
+                              if (!isActive) (e.currentTarget as HTMLDivElement).style.borderColor = "#e8e8e8";
+                            }}
+                          >
+                            {/* Image */}
+                            <div style={{ position: "relative", aspectRatio: "1", overflow: "hidden", background: "#f7f7f7", flexShrink: 0 }}>
+                              {entry.images[0]
+                                ? <img src={entry.images[0]} alt={entry.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                                : <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4 }}>
+                                    <Package size={32} style={{ color: "#d9d9d9" }} />
+                                    <span style={{ fontSize: 9, color: "#ccc" }}>No photo</span>
+                                  </div>}
+                              {!inStock && (
+                                <div style={{ position: "absolute", inset: 0, background: "rgba(255,255,255,0.78)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                  <span style={{ fontSize: 10, fontWeight: 700, color: "#f5222d", border: "1.5px solid #f5222d", padding: "2px 10px", background: "#fff" }}>Out of Stock</span>
+                                </div>
+                              )}
+                              {entry.images.length > 1 && (
+                                <span style={{ position: "absolute", top: 6, right: 6, background: "rgba(0,0,0,0.42)", color: "#fff", fontSize: 9, padding: "2px 6px", borderRadius: 10, fontWeight: 600 }}>
+                                  +{entry.images.length - 1}
+                                </span>
                               )}
                             </div>
+
+                            {/* Info */}
+                            <div style={{ padding: "10px 10px 0", flex: 1, display: "flex", flexDirection: "column" }}>
+                              <p style={{
+                                fontSize: 13, fontWeight: 500, color: "#222", margin: "0 0 6px", lineHeight: 1.5, minHeight: 39,
+                                display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" as const, overflow: "hidden",
+                              }}>{entry.name}</p>
+
+                              <p style={{ fontSize: 17, fontWeight: 800, color: "#ff6a00", margin: "0 0 3px", lineHeight: 1 }}>
+                                {fmtCurrency(entry.sellingPrice)}
+                              </p>
+                              <p style={{ fontSize: 11, color: "#aaa", margin: "0 0 10px" }}>Min. order: 1 unit</p>
+
+                              <div style={{ borderTop: "1px solid #f0f0f0", marginTop: "auto" }} />
+
+                              <div style={{ display: "flex", gap: 6, padding: "8px 0 10px" }}>
+                                <button
+                                  onClick={() => addToCart({ id: entry.productId, name: entry.name, description: entry.description, cost_price: entry.sellingPrice, selling_price: entry.sellingPrice, quantity: entry.quantity })}
+                                  disabled={!inStock}
+                                  style={{
+                                    flex: 2, padding: "8px 0",
+                                    background: inStock ? "#ff6a00" : "#f5f5f5",
+                                    color: inStock ? "#fff" : "#ccc",
+                                    border: "none", cursor: inStock ? "pointer" : "not-allowed",
+                                    fontSize: 11, fontWeight: 700, borderRadius: 2,
+                                    display: "flex", alignItems: "center", justifyContent: "center", gap: 4,
+                                  }}>
+                                  <ShoppingCart size={11} /> {inStock ? "Start Order" : "Unavailable"}
+                                </button>
+                                {following ? (
+                                  <button
+                                    onClick={() => { setChatProduct(entry); setCustomerMsgText(""); }}
+                                    style={{
+                                      flex: 1, padding: "8px 0",
+                                      background: isActive ? "#1677ff" : "#fff",
+                                      color: isActive ? "#fff" : "#1677ff",
+                                      border: "1.5px solid #1677ff", cursor: "pointer",
+                                      fontSize: 11, fontWeight: 700, borderRadius: 2,
+                                      display: "flex", alignItems: "center", justifyContent: "center",
+                                    }}>
+                                    <MessageSquare size={12} />
+                                  </button>
+                                ) : (
+                                  <button
+                                    onClick={() => { followShop(shop.id, shop.name); setFollowing(true); setFollowerCount((n) => n + 1); }}
+                                    title="Follow to contact supplier"
+                                    style={{
+                                      flex: 1, padding: "8px 0",
+                                      background: "#fff5f5", color: "#f5222d",
+                                      border: "1.5px solid #ffa39e", cursor: "pointer",
+                                      fontSize: 11, fontWeight: 700, borderRadius: 2,
+                                      display: "flex", alignItems: "center", justifyContent: "center",
+                                    }}>
+                                    <Heart size={12} />
+                                  </button>
+                                )}
+                              </div>
+                            </div>
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
                 )}
