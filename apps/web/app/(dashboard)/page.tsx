@@ -780,7 +780,7 @@ export default function DashboardPage() {
                         </p>
                       )}
 
-                      <div className={`mt-1.5 flex items-center justify-center gap-1 text-[9px] font-medium ${
+                      <div className={`mt-1 flex items-center justify-center gap-1 text-[9px] font-medium ${
                         isMine ? "text-[#1372e6]" : presence.online ? "text-green-600" : "text-slate-400"
                       }`}>
                         <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
@@ -788,6 +788,14 @@ export default function DashboardPage() {
                         } ${(presence.online || isMine) ? "animate-pulse" : ""}`} />
                         {isMine ? t("dash.you_online") : presenceLabel}
                       </div>
+
+                      <Link
+                        href={`/marketplace/${shop.id}`}
+                        className="mt-2 inline-flex items-center gap-1 text-[9px] font-bold text-[#1372e6] bg-[#EBF2FD] hover:bg-[#D5E8FB] px-2.5 py-1 rounded-full transition"
+                      >
+                        <Store size={8} strokeWidth={2.5} />
+                        Visit Store
+                      </Link>
                     </div>
                   </div>
                 );

@@ -52,16 +52,16 @@ const CUSTOMER_MENUS = [
 ];
 
 const OWNER_MENUS = [
-  { key: "nav.home",       href: "/",          icon: Home         },
-  { key: "nav.marketplace",href: "/marketplace",icon: Store        },
-  { key: "nav.advisor",    href: "/advisor",    icon: Sparkles     },
-  { key: "nav.items",      href: "/items",      icon: Package      },
-  { key: "nav.partners",   href: "/partners",   icon: Users        },
-  { key: "nav.purchases",  href: "/purchases",  icon: Truck        },
-  { key: "nav.sales",      href: "/sales",      icon: ShoppingCart },
-  { key: "nav.proforma",   href: "/proforma",   icon: FileText     },
-  { key: "nav.expenses",   href: "/expenses",   icon: Receipt      },
-  { key: "nav.reports",    href: "/reports",    icon: BarChart3    },
+  { key: "nav.home",       href: "/",           icon: Home         },
+  { key: "nav.items",      href: "/items",       icon: Package      },
+  { key: "nav.partners",   href: "/partners",    icon: Users        },
+  { key: "nav.purchases",  href: "/purchases",   icon: Truck        },
+  { key: "nav.sales",      href: "/sales",       icon: ShoppingCart },
+  { key: "nav.expenses",   href: "/expenses",    icon: Receipt      },
+  { key: "nav.reports",    href: "/reports",     icon: BarChart3    },
+  { key: "nav.proforma",   href: "/proforma",    icon: FileText     },
+  { key: "nav.advisor",    href: "/advisor",     icon: Sparkles     },
+  { key: "nav.marketplace",href: "/marketplace", icon: Store        },
 ];
 
 const ADMIN_MENUS = [
