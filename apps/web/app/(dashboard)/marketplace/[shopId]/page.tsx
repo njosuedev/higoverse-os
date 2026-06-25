@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { useLanguage } from "@/lib/language-context";
-import { listShops, type Shop } from "@/lib/shop-api";
+import { listShops, updateMyShop, type Shop } from "@/lib/shop-api";
 import { itemRequest } from "@/lib/product-api";
 import { partnerRequest } from "@/lib/supplier-api";
 import { purchaseRequest } from "@/lib/purchase-api";
@@ -22,7 +22,7 @@ import {
   getMessagesForShop, replyToMessage, markMessageRead, unreadCountForShop,
   sendMessage, getMyMessages,
   followShop, unfollowShop, isFollowingShop, getShopFollowerCount,
-  decodeShopCatalog, decodeShopHumanInfo,
+  decodeShopCatalog, decodeShopHumanInfo, encodeDescriptionWithCatalog, catFromText,
   type ProductMeta, type MarketplaceEntry, type ShopMessage,
 } from "@/lib/product-meta";
 
@@ -209,7 +209,7 @@ export default function ShopStorePage() {
     for (const e of getCatalog().filter((le) => le.shopId === shop.id)) merged.set(e.productId, e);
     setListedProducts([...merged.values()]);
 
-    // Also fetch from product DB — primary source with real images
+    // Also fetch from product DB — authoritative source (only returns listed products)
     itemRequest("/products/marketplace?limit=500")
       .then((res) => {
         const mkItems: Array<{
@@ -217,23 +217,31 @@ export default function ShopStorePage() {
           category?: string; images?: string; selling_price: number;
           cost_price: number; quantity: number;
         }> = res?.data?.items ?? [];
-        let changed = false;
+
+        // Build a local-images index for best-quality image merging
+        const localByPid = new Map(
+          getCatalog().filter((le) => le.shopId === shop.id).map((le) => [le.productId, le])
+        );
+
+        // API is authoritative: rebuild for this shop from API results only
+        merged.clear();
         for (const item of mkItems) {
           if (item.shop_id !== shop.id) continue;
-          const imgs: string[] = item.images
+          const serverImgs: string[] = item.images
             ? (() => { try { return JSON.parse(item.images) as string[]; } catch { return []; } })()
             : [];
+          const localImgs = localByPid.get(item.id)?.images ?? [];
           merged.set(item.id, {
             productId: item.id, shopId: shop.id, shopName: shop.name,
             shopLogoUrl: shop.logo_url ?? undefined, shopPhone: shop.phone ?? undefined,
             name: item.name, description: item.description, category: item.category,
             sellingPrice: item.selling_price, costPrice: item.cost_price,
-            quantity: item.quantity, images: imgs,
+            quantity: item.quantity,
+            images: localImgs.length > 0 ? localImgs : serverImgs,
             listedAt: new Date().toISOString(),
           });
-          changed = true;
         }
-        if (changed) setListedProducts([...merged.values()]);
+        setListedProducts([...merged.values()]);
       })
       .catch(() => {});
   }, [shop]);
@@ -705,7 +713,40 @@ export default function ShopStorePage() {
                           const current = prodMeta[product.id] ?? { images: [], listed: false };
                           const updated = { ...current, listed: !current.listed };
                           setProductMeta(product.id, updated);
-                          setProdMeta((prev) => ({ ...prev, [product.id]: updated }));
+                          setProdMeta((prev) => {
+                            const next = { ...prev, [product.id]: updated };
+
+                            // Rebuild server description catalog from all currently-listed products
+                            const catalogEntries = products
+                              .filter((p) => {
+                                const m = next[p.id] ?? { images: [], listed: false };
+                                return m.listed && m.images.length > 0;
+                              })
+                              .map((p) => {
+                                const m = next[p.id];
+                                return {
+                                  pid: p.id, n: p.name,
+                                  d: p.description?.slice(0, 200),
+                                  cat: m.category || catFromText(p.name, p.description),
+                                  price: p.selling_price, qty: p.quantity,
+                                  at: new Date().toISOString(),
+                                };
+                              });
+
+                            // Fire-and-forget: sync listed flag and images to product API
+                            itemRequest(`/products/${product.id}`, {
+                              method: "PATCH",
+                              body: JSON.stringify({ listed: updated.listed, images: JSON.stringify(updated.images) }),
+                            }).catch(() => {});
+
+                            // Fire-and-forget: update shop description catalog server-side
+                            updateMyShop({
+                              description: encodeDescriptionWithCatalog(shop.description, catalogEntries),
+                            }).catch(() => {});
+
+                            return next;
+                          });
+
                           if (updated.listed) {
                             upsertCatalogEntry({
                               productId: product.id,
@@ -773,29 +814,19 @@ export default function ShopStorePage() {
                           <div style={{ position: "relative", aspectRatio: "1", overflow: "hidden", background: "#f7f7f7" }}>
                             {entry.images[0]
                               ? <img src={entry.images[0]} alt={entry.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                              : <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}><Package size={28} style={{ color: "#d9d9d9" }} /></div>}
+                              : <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4 }}>
+                                  <Package size={28} style={{ color: "#d9d9d9" }} />
+                                  <span style={{ fontSize: 9, color: "#ccc", fontWeight: 600 }}>No photo</span>
+                                </div>}
                             {entry.quantity === 0 && (
                               <div style={{ position: "absolute", inset: 0, background: "rgba(255,255,255,0.7)", display: "flex", alignItems: "center", justifyContent: "center" }}>
                                 <span style={{ fontSize: 9, fontWeight: 700, color: "#f5222d", border: "1px solid #ffa39e", padding: "2px 8px", background: "#fff" }}>Out of Stock</span>
                               </div>
                             )}
                             {entry.images.length > 1 && (
-                              <span style={{ position: "absolute", bottom: 5, right: 5, background: "rgba(0,0,0,0.45)", color: "#fff", fontSize: 9, padding: "2px 5px" }}>
+                              <span style={{ position: "absolute", bottom: 4, right: 4, background: "rgba(0,0,0,0.38)", color: "#fff", fontSize: 9, padding: "1px 5px" }}>
                                 +{entry.images.length - 1}
                               </span>
-                            )}
-                            {/* Thumbnail strip */}
-                            {entry.images.length > 1 && (
-                              <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, display: "flex", gap: 2, padding: "4px", background: "rgba(0,0,0,0.3)" }}>
-                                {entry.images.slice(0, 4).map((src, i) => (
-                                  <img key={i} src={src} alt="" style={{ width: 20, height: 20, objectFit: "cover", border: i === 0 ? "1px solid #ff6a00" : "1px solid rgba(255,255,255,0.4)", flexShrink: 0 }} />
-                                ))}
-                                {entry.images.length > 4 && (
-                                  <div style={{ width: 20, height: 20, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 7, color: "#fff", fontWeight: 700 }}>
-                                    +{entry.images.length - 4}
-                                  </div>
-                                )}
-                              </div>
                             )}
                           </div>
 
@@ -848,61 +879,6 @@ export default function ShopStorePage() {
                   </div>
                 )}
 
-                {/* Order request form */}
-                <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
-                  <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
-                    <div>
-                      <h2 className="font-bold text-slate-900 text-sm flex items-center gap-2">
-                        <ShoppingBag size={14} className="text-[#1372e6]" />
-                        Order from {shop.name}
-                      </h2>
-                      <p className="text-xs text-slate-400 mt-0.5">Request products and create a purchase order in your system</p>
-                    </div>
-                    {cartItemCount > 0 && (
-                      <button
-                        onClick={() => setShowCart(true)}
-                        className="relative flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-white transition hover:opacity-90 shadow"
-                        style={{ backgroundColor: "#1372e6" }}
-                      >
-                        <ShoppingCart size={13} />
-                        Basket ({cartItemCount})
-                        <span className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-red-500 rounded-full text-[8px] font-black text-white flex items-center justify-center">
-                          {cartItemCount}
-                        </span>
-                      </button>
-                    )}
-                  </div>
-
-                  <OrderRequestForm
-                    shopName={shop.name}
-                    cart={cart}
-                    onAdd={addToCart}
-                    onRemove={removeFromCart}
-                    onChangeQty={changeQty}
-                    onCheckout={() => {
-                      if (!partnerAdded) { setShowPartnerModal(true); return; }
-                      setShowCheckout(true);
-                    }}
-                    cartTotal={cartTotal}
-                    partnerAdded={partnerAdded}
-                  />
-                </div>
-
-                {!partnerAdded && (
-                  <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-start gap-3">
-                    <Info size={15} className="text-amber-600 flex-shrink-0 mt-0.5" />
-                    <div>
-                      <p className="text-xs font-bold text-amber-800">Add this shop as a partner first</p>
-                      <p className="text-xs text-amber-700 mt-0.5">To place orders, add {shop.name} as a supplier partner so purchases are properly linked.</p>
-                      <button
-                        onClick={() => setShowPartnerModal(true)}
-                        className="mt-2 flex items-center gap-1.5 text-xs font-bold text-white bg-amber-500 hover:bg-amber-600 px-3 py-1.5 rounded-lg transition"
-                      >
-                        <UserPlus size={11} /> Add as Supplier Partner
-                      </button>
-                    </div>
-                  </div>
-                )}
               </>
             )}
           </div>
@@ -1648,132 +1624,3 @@ function OwnProductCard({
   );
 }
 
-interface OrderRequestFormProps {
-  shopName: string;
-  cart: CartItem[];
-  onAdd: (product: Product) => void;
-  onRemove: (id: string) => void;
-  onChangeQty: (id: string, delta: number) => void;
-  onCheckout: () => void;
-  cartTotal: number;
-  partnerAdded: boolean;
-}
-
-function OrderRequestForm({ shopName, cart, onAdd, onChangeQty, onCheckout, cartTotal, partnerAdded }: OrderRequestFormProps) {
-  const [items, setItems] = useState<{ name: string; qty: string; price: string }[]>([
-    { name: "", qty: "1", price: "" },
-  ]);
-
-  function addLine() { setItems((prev) => [...prev, { name: "", qty: "1", price: "" }]); }
-  function removeLine(i: number) { setItems((prev) => prev.filter((_, idx) => idx !== i)); }
-  function update(i: number, field: "name" | "qty" | "price", val: string) {
-    setItems((prev) => prev.map((row, idx) => idx === i ? { ...row, [field]: val } : row));
-  }
-
-  function addToBasket(i: number) {
-    const row = items[i];
-    if (!row.name.trim() || !row.price) return;
-    const syntheticProduct: Product = {
-      id: `req-${Date.now()}-${i}`,
-      name: row.name.trim(),
-      cost_price: Number(row.price),
-      selling_price: Number(row.price),
-      quantity: Number(row.qty) || 1,
-    };
-    onAdd(syntheticProduct);
-    setItems((prev) => prev.map((r, idx) => idx === i ? { name: "", qty: "1", price: "" } : r));
-  }
-
-  const cartItemCount = cart.reduce((s, c) => s + c.qty, 0);
-
-  return (
-    <div className="p-4 space-y-4">
-      {/* Request form */}
-      <div className="space-y-2">
-        <p className="text-xs font-semibold text-slate-700">Add items to request from {shopName}:</p>
-        {items.map((row, i) => (
-          <div key={i} className="flex gap-2 items-center">
-            <input
-              type="text"
-              value={row.name}
-              onChange={(e) => update(i, "name", e.target.value)}
-              placeholder="Product name"
-              className="flex-1 border border-slate-200 rounded-lg px-2.5 py-2 text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1372e6]/30 focus:border-[#1372e6] transition"
-            />
-            <input
-              type="number"
-              value={row.qty}
-              onChange={(e) => update(i, "qty", e.target.value)}
-              min="1"
-              className="w-14 border border-slate-200 rounded-lg px-2 py-2 text-xs text-slate-800 text-center focus:outline-none focus:ring-2 focus:ring-[#1372e6]/30 focus:border-[#1372e6] transition"
-              placeholder="Qty"
-            />
-            <input
-              type="number"
-              value={row.price}
-              onChange={(e) => update(i, "price", e.target.value)}
-              min="0"
-              className="w-20 border border-slate-200 rounded-lg px-2 py-2 text-xs text-slate-800 text-center focus:outline-none focus:ring-2 focus:ring-[#1372e6]/30 focus:border-[#1372e6] transition"
-              placeholder="Price"
-            />
-            <button
-              onClick={() => addToBasket(i)}
-              disabled={!row.name.trim() || !row.price}
-              className="w-8 h-8 rounded-lg flex items-center justify-center text-white flex-shrink-0 disabled:opacity-40 transition"
-              style={{ backgroundColor: "#1372e6" }}
-              title="Add to basket"
-            >
-              <Plus size={13} />
-            </button>
-            {items.length > 1 && (
-              <button onClick={() => removeLine(i)} className="w-8 h-8 rounded-lg hover:bg-red-50 flex items-center justify-center text-slate-300 hover:text-red-500 flex-shrink-0 transition">
-                <X size={13} />
-              </button>
-            )}
-          </div>
-        ))}
-        <button onClick={addLine} className="flex items-center gap-1.5 text-[11px] font-semibold text-[#1372e6] hover:underline">
-          <Plus size={11} /> Add another item
-        </button>
-      </div>
-
-      {/* Basket preview */}
-      {cart.length > 0 && (
-        <div className="border border-slate-200 rounded-xl overflow-hidden">
-          <div className="px-3 py-2 bg-slate-50 flex items-center justify-between">
-            <p className="text-[10px] font-bold text-slate-600 uppercase tracking-wide">Basket ({cartItemCount} items)</p>
-            <p className="text-[10px] font-black text-slate-800">{fmtCurrency(cartTotal)}</p>
-          </div>
-          <div className="divide-y divide-slate-50">
-            {cart.map((item) => (
-              <div key={item.product.id} className="flex items-center gap-2 px-3 py-2">
-                <p className="flex-1 text-xs font-semibold text-slate-700 truncate">{item.product.name}</p>
-                <div className="flex items-center gap-1">
-                  <button onClick={() => onChangeQty(item.product.id, -1)} className="w-5 h-5 rounded border border-slate-200 flex items-center justify-center hover:bg-slate-50 transition">
-                    <Minus size={8} />
-                  </button>
-                  <span className="text-xs font-bold w-5 text-center">{item.qty}</span>
-                  <button onClick={() => onChangeQty(item.product.id, 1)} className="w-5 h-5 rounded border border-slate-200 flex items-center justify-center hover:bg-slate-50 transition">
-                    <Plus size={8} />
-                  </button>
-                </div>
-                <p className="text-xs font-bold text-slate-700 w-16 text-right">{fmtCurrency(item.product.selling_price * item.qty)}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {cart.length > 0 && (
-        <button
-          onClick={onCheckout}
-          className="w-full py-3 rounded-xl text-sm font-bold text-white flex items-center justify-center gap-2 transition hover:opacity-90 shadow"
-          style={{ backgroundColor: "#1372e6" }}
-        >
-          <ShoppingCart size={14} />
-          {partnerAdded ? `Place Order · ${fmtCurrency(cartTotal)}` : "Add as Partner to Order"}
-        </button>
-      )}
-    </div>
-  );
-}

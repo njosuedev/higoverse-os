@@ -308,10 +308,21 @@ export default function MarketplacePage() {
         } catch { /* product service unavailable — fall through to localStorage */ }
       }
 
-      // 2. Merge: server catalog (no images) < localStorage < DB endpoint (highest priority, has images)
-      const merged = new Map<string, MarketplaceEntry>(serverEntries.map((e) => [e.productId, e]));
-      for (const e of getCatalog()) merged.set(e.productId, e);
-      for (const e of dbEntries) merged.set(e.productId, e);
+      // 2. Merge: API is authoritative when available (only returns listed products).
+      //    Fall back to localStorage + server catalog when API is unavailable.
+      let merged: Map<string, MarketplaceEntry>;
+      if (dbEntries.length > 0) {
+        // API returned results — use as source of truth; overlay local images for quality
+        const localByPid = new Map(getCatalog().map((e) => [e.productId, e]));
+        merged = new Map(dbEntries.map((e) => {
+          const local = localByPid.get(e.productId);
+          return [e.productId, { ...e, images: (local?.images?.length ?? 0) > 0 ? local!.images : e.images }];
+        }));
+      } else {
+        // API unavailable — fall back to shop-description catalog + localStorage
+        merged = new Map<string, MarketplaceEntry>(serverEntries.map((e) => [e.productId, e]));
+        for (const e of getCatalog()) merged.set(e.productId, e);
+      }
       setCatalog([...merged.values()]);
       setLoading(false);
 
@@ -425,9 +436,18 @@ export default function MarketplacePage() {
           } catch { /* skip */ }
         }
 
-        const pollMerged = new Map<string, MarketplaceEntry>(pollServerEntries.map((e) => [e.productId, e]));
-        for (const e of getCatalog()) pollMerged.set(e.productId, e);
-        for (const e of pollDbEntries) pollMerged.set(e.productId, e);
+        // API is authoritative when available; fall back to shop catalog + localStorage
+        let pollMerged: Map<string, MarketplaceEntry>;
+        if (pollDbEntries.length > 0) {
+          const localByPid = new Map(getCatalog().map((e) => [e.productId, e]));
+          pollMerged = new Map(pollDbEntries.map((e) => {
+            const local = localByPid.get(e.productId);
+            return [e.productId, { ...e, images: (local?.images?.length ?? 0) > 0 ? local!.images : e.images }];
+          }));
+        } else {
+          pollMerged = new Map<string, MarketplaceEntry>(pollServerEntries.map((e) => [e.productId, e]));
+          for (const e of getCatalog()) pollMerged.set(e.productId, e);
+        }
         setCatalog([...pollMerged.values()]);
 
         // Re-sync current user's products
