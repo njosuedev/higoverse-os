@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { expenseRequest } from "@/lib/expense-api";
+import { expenseRequest, expenseUploadProof } from "@/lib/expense-api";
 import { useLanguage } from "@/lib/language-context";
 import PageSkeleton from "@/app/components/dashboard/PageSkeleton";
 import Pagination from "@/app/components/ui/Pagination";
@@ -9,7 +9,7 @@ import DateRangeFilter from "@/app/components/ui/DateRangeFilter";
 import {
   Receipt, RefreshCw, Plus, Trash2, X, Search, Filter,
   Calendar, TrendingDown, DollarSign, BarChart3, Tag, AlertCircle, ChevronDown,
-  Download, Upload, FileSpreadsheet, FileText,
+  Download, Upload, FileSpreadsheet, FileText, Paperclip, Eye, ImageIcon, FileIcon,
 } from "lucide-react";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -28,6 +28,7 @@ interface Expense {
   notes?: string;
   expense_date: string;
   created_at: string;
+  has_proof?: boolean;
 }
 
 interface CategoryStat { category: Category; total: number; count: number; }
@@ -83,7 +84,12 @@ export default function ExpenseManagementPage() {
   const [deletingId, setDeletingId]   = useState("");
   const [form, setForm]               = useState(EMPTY_FORM);
 
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [proofFile, setProofFile]         = useState<File | null>(null);
+  const [proofPreview, setProofPreview]   = useState<string | null>(null);
+  const [viewingProof, setViewingProof]   = useState<string | null>(null);
+
+  const fileInputRef    = useRef<HTMLInputElement>(null);
+  const proofInputRef   = useRef<HTMLInputElement>(null);
 
   useEffect(() => { loadAll(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -218,7 +224,31 @@ export default function ExpenseManagementPage() {
 
   function openModal() {
     setForm({ ...EMPTY_FORM, expense_date: toDateStr(new Date()) });
+    setProofFile(null);
+    setProofPreview(null);
     setShowModal(true);
+  }
+
+  function handleProofSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setProofFile(file);
+    if (file.type.startsWith("image/")) {
+      const reader = new FileReader();
+      reader.onload = (ev) => setProofPreview(ev.target?.result as string);
+      reader.readAsDataURL(file);
+    } else {
+      setProofPreview("pdf");
+    }
+  }
+
+  async function openProofViewer(expenseId: string) {
+    try {
+      const res = await expenseRequest(`/expenses/${expenseId}/proof`);
+      const data = res?.data?.proof_data;
+      if (data) setViewingProof(data);
+      else alert("No proof found for this expense.");
+    } catch { alert("Could not load proof."); }
   }
 
   async function submitForm() {
@@ -228,7 +258,7 @@ export default function ExpenseManagementPage() {
 
     try {
       setSubmitting(true);
-      await expenseRequest("/expenses", {
+      const res = await expenseRequest("/expenses", {
         method: "POST",
         body: JSON.stringify({
           title: form.title.trim(),
@@ -238,8 +268,15 @@ export default function ExpenseManagementPage() {
           expense_date: form.expense_date + "T00:00:00",
         }),
       });
+
+      if (proofFile && res?.data?.id) {
+        await expenseUploadProof(res.data.id, proofFile);
+      }
+
       setShowModal(false);
       setForm(EMPTY_FORM);
+      setProofFile(null);
+      setProofPreview(null);
       await loadAll(true);
     } catch (err: unknown) {
       alert(err instanceof Error ? err.message : "Error");
@@ -424,6 +461,7 @@ export default function ExpenseManagementPage() {
                     t("expenses.col_category"),
                     t("expenses.col_amount"),
                     t("expenses.col_notes"),
+                    "Proof",
                     "",
                   ].map((h) => (
                     <th key={h} className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-500 whitespace-nowrap">{h}</th>
@@ -458,6 +496,16 @@ export default function ExpenseManagementPage() {
                       </td>
                       <td className="px-3 py-1.5 text-slate-500 text-[10px] max-w-[200px] truncate">
                         {e.notes || <span className="text-slate-300 italic">—</span>}
+                      </td>
+                      <td className="px-3 py-1.5">
+                        {e.has_proof ? (
+                          <button onClick={() => openProofViewer(e.id)} title="View proof"
+                            className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-50 hover:bg-emerald-100 text-emerald-600 transition text-[10px] font-medium">
+                            <Paperclip size={9} /> View
+                          </button>
+                        ) : (
+                          <span className="text-slate-300 text-[10px] italic">—</span>
+                        )}
                       </td>
                       <td className="px-3 py-1.5">
                         <button onClick={() => deleteExpense(e.id)} disabled={deletingId === e.id}
@@ -521,13 +569,43 @@ export default function ExpenseManagementPage() {
           </div>
         )}
 
+        {/* ── PROOF VIEWER ────────────────────────────────────── */}
+        {viewingProof && (
+          <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+            onClick={() => setViewingProof(null)}>
+            <div className="relative bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] flex flex-col overflow-hidden"
+              onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center justify-between px-5 py-3 border-b border-slate-100 shrink-0">
+                <div className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+                  <Paperclip size={14} className="text-emerald-500" /> Expense Proof
+                </div>
+                <div className="flex items-center gap-2">
+                  <a href={viewingProof} download="expense-proof"
+                    className="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-medium text-slate-600 hover:bg-slate-50 transition">
+                    <Download size={11} /> Download
+                  </a>
+                  <button onClick={() => setViewingProof(null)}
+                    className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 transition"><X size={16} /></button>
+                </div>
+              </div>
+              <div className="flex-1 overflow-auto p-4 flex items-center justify-center bg-slate-50">
+                {viewingProof.startsWith("data:application/pdf") ? (
+                  <iframe src={viewingProof} className="w-full h-[70vh] rounded border border-slate-200" title="Proof document" />
+                ) : (
+                  <img src={viewingProof} alt="Expense proof" className="max-w-full max-h-[70vh] object-contain rounded shadow" />
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* ── MODAL ───────────────────────────────────────────── */}
         {showModal && (
           <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl max-h-[90vh] flex flex-col">
               <div className="flex justify-between items-center px-6 py-4 border-b border-slate-100 shrink-0">
                 <h2 className="text-base font-semibold text-slate-800">{t("expenses.add_title")}</h2>
-                <button onClick={() => { setShowModal(false); setForm(EMPTY_FORM); }}
+                <button onClick={() => { setShowModal(false); setForm(EMPTY_FORM); setProofFile(null); setProofPreview(null); }}
                   className="p-2 rounded-lg hover:bg-slate-100 text-slate-400 transition"><X size={17} /></button>
               </div>
 
@@ -575,6 +653,37 @@ export default function ExpenseManagementPage() {
                     value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
                 </div>
 
+                {/* ── Proof upload ── */}
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1 flex items-center gap-1">
+                    <Paperclip size={11} /> Proof <span className="text-slate-400 font-normal">(image or PDF, max 5 MB)</span>
+                  </label>
+                  <input ref={proofInputRef} type="file" accept="image/*,application/pdf" className="hidden"
+                    onChange={handleProofSelect} />
+                  {proofPreview ? (
+                    <div className="relative rounded-lg border border-slate-200 overflow-hidden bg-slate-50">
+                      {proofPreview === "pdf" ? (
+                        <div className="flex items-center gap-2 px-3 py-2.5">
+                          <FileIcon size={20} className="text-red-400 shrink-0" />
+                          <span className="text-xs text-slate-700 truncate">{proofFile?.name}</span>
+                        </div>
+                      ) : (
+                        <img src={proofPreview} alt="proof preview"
+                          className="w-full max-h-32 object-contain p-1" />
+                      )}
+                      <button onClick={() => { setProofFile(null); setProofPreview(null); if (proofInputRef.current) proofInputRef.current.value = ""; }}
+                        className="absolute top-1 right-1 w-5 h-5 rounded-full bg-white/90 border border-slate-200 flex items-center justify-center text-slate-400 hover:text-red-500 transition">
+                        <X size={10} />
+                      </button>
+                    </div>
+                  ) : (
+                    <button type="button" onClick={() => proofInputRef.current?.click()}
+                      className="w-full border border-dashed border-slate-300 hover:border-[#1372e6] rounded-lg px-3 py-3 flex items-center justify-center gap-2 text-xs text-slate-400 hover:text-[#1372e6] transition-colors">
+                      <ImageIcon size={14} /> Click to attach receipt / document
+                    </button>
+                  )}
+                </div>
+
                 {form.amount && Number(form.amount) > 0 && (
                   <div className="rounded-lg px-3 py-2 text-xs bg-[#EBF2FD]" style={{ color: "#1372e6" }}>
                     {t("expenses.recording")}: <span className="font-bold">{Number(form.amount).toLocaleString()}</span>
@@ -584,12 +693,13 @@ export default function ExpenseManagementPage() {
               </div>
 
               <div className="flex justify-end gap-2.5 px-6 py-4 border-t border-slate-100 shrink-0">
-                <button onClick={() => { setShowModal(false); setForm(EMPTY_FORM); }}
+                <button onClick={() => { setShowModal(false); setForm(EMPTY_FORM); setProofFile(null); setProofPreview(null); }}
                   className="px-4 py-2 rounded-lg border border-slate-200 text-slate-600 text-sm font-medium hover:bg-slate-50 transition">
                   {t("common.cancel")}
                 </button>
                 <button onClick={submitForm} disabled={submitting}
-                  className="px-5 py-2 rounded-lg text-white text-sm font-semibold transition disabled:opacity-60 hover:opacity-90" style={{ background: "#1372e6" }}>
+                  className="px-5 py-2 rounded-lg text-white text-sm font-semibold transition disabled:opacity-60 hover:opacity-90 flex items-center gap-1.5" style={{ background: "#1372e6" }}>
+                  {proofFile && !submitting && <Paperclip size={12} />}
                   {submitting ? t("common.saving") : t("expenses.add")}
                 </button>
               </div>

@@ -1,5 +1,6 @@
+import base64
 from datetime import datetime, timedelta, timezone
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -22,8 +23,8 @@ def _get_or_404(db: Session, expense_id: str, shop_id: str) -> Expense:
     return e
 
 
-def _fmt(e: Expense) -> dict:
-    return {
+def _fmt(e: Expense, include_proof: bool = False) -> dict:
+    result = {
         "id":           e.id,
         "shop_id":      e.shop_id,
         "created_by":   e.created_by,
@@ -33,7 +34,11 @@ def _fmt(e: Expense) -> dict:
         "notes":        e.notes,
         "expense_date": e.expense_date.isoformat() if e.expense_date else None,
         "created_at":   e.created_at.isoformat() if e.created_at else None,
+        "has_proof":    bool(e.proof_data),
     }
+    if include_proof:
+        result["proof_data"] = e.proof_data
+    return result
 
 
 # ─────────────────────────────────────────
@@ -203,6 +208,68 @@ def create_expense(
 
 
 # ─────────────────────────────────────────
+# UPLOAD PROOF
+# ─────────────────────────────────────────
+
+_ALLOWED_TYPES = {
+    "image/jpeg", "image/png", "image/gif", "image/webp",
+    "application/pdf",
+}
+_MAX_BYTES = 5 * 1024 * 1024  # 5 MB
+
+
+@router.post("/{expense_id}/proof")
+async def upload_proof(
+    expense_id: str,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    if file.content_type not in _ALLOWED_TYPES:
+        raise HTTPException(400, "Only JPEG, PNG, GIF, WebP images and PDF documents are accepted")
+
+    content = await file.read()
+    if len(content) > _MAX_BYTES:
+        raise HTTPException(400, "File exceeds 5 MB limit")
+
+    expense = _get_or_404(db, expense_id, user["shop_id"])
+    expense.proof_data = f"data:{file.content_type};base64,{base64.b64encode(content).decode()}"
+    db.commit()
+
+    return {"success": True, "message": "Proof uploaded"}
+
+
+# ─────────────────────────────────────────
+# GET PROOF
+# ─────────────────────────────────────────
+
+@router.get("/{expense_id}/proof")
+def get_proof(
+    expense_id: str,
+    db: Session = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    expense = _get_or_404(db, expense_id, user["shop_id"])
+    return {"success": True, "data": {"proof_data": expense.proof_data}}
+
+
+# ─────────────────────────────────────────
+# DELETE PROOF
+# ─────────────────────────────────────────
+
+@router.delete("/{expense_id}/proof")
+def delete_proof(
+    expense_id: str,
+    db: Session = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    expense = _get_or_404(db, expense_id, user["shop_id"])
+    expense.proof_data = None
+    db.commit()
+    return {"success": True, "message": "Proof removed"}
+
+
+# ─────────────────────────────────────────
 # GET SINGLE EXPENSE
 # ─────────────────────────────────────────
 
@@ -212,7 +279,7 @@ def get_expense(
     db: Session = Depends(get_db),
     user: dict = Depends(get_current_user),
 ):
-    return {"success": True, "data": _fmt(_get_or_404(db, expense_id, user["shop_id"]))}
+    return {"success": True, "data": _fmt(_get_or_404(db, expense_id, user["shop_id"]), include_proof=True)}
 
 
 # ─────────────────────────────────────────
