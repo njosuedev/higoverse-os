@@ -3,13 +3,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { expenseRequest, expenseUploadProof } from "@/lib/expense-api";
 import { useLanguage } from "@/lib/language-context";
-import PageSkeleton from "@/app/components/dashboard/PageSkeleton";
 import Pagination from "@/app/components/ui/Pagination";
 import DateRangeFilter from "@/app/components/ui/DateRangeFilter";
 import {
   Receipt, RefreshCw, Plus, Trash2, X, Search, Filter,
-  Calendar, TrendingDown, DollarSign, BarChart3, Tag, AlertCircle, ChevronDown,
-  Download, Upload, FileSpreadsheet, FileText, Paperclip, Eye, ImageIcon, FileIcon,
+  Calendar, BarChart3, AlertCircle, ChevronDown,
+  Download, Upload, FileSpreadsheet, FileText, Paperclip, ImageIcon, FileIcon,
 } from "lucide-react";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -32,6 +31,8 @@ interface Expense {
 }
 
 interface CategoryStat { category: Category; total: number; count: number; }
+interface ProofEntry   { name: string; type: string; preview: string; file: File; }
+interface ProofFile    { name: string; type: string; data: string; }
 
 const ALL_CATEGORIES: Category[] = [
   "rent", "utilities", "salaries", "supplies",
@@ -84,9 +85,9 @@ export default function ExpenseManagementPage() {
   const [deletingId, setDeletingId]   = useState("");
   const [form, setForm]               = useState(EMPTY_FORM);
 
-  const [proofFile, setProofFile]         = useState<File | null>(null);
-  const [proofPreview, setProofPreview]   = useState<string | null>(null);
-  const [viewingProof, setViewingProof]   = useState<string | null>(null);
+  const [proofEntries, setProofEntries]   = useState<ProofEntry[]>([]);
+  const [viewingProofs, setViewingProofs] = useState<ProofFile[]>([]);
+  const [viewerIndex, setViewerIndex]     = useState(0);
 
   const fileInputRef    = useRef<HTMLInputElement>(null);
   const proofInputRef   = useRef<HTMLInputElement>(null);
@@ -224,29 +225,38 @@ export default function ExpenseManagementPage() {
 
   function openModal() {
     setForm({ ...EMPTY_FORM, expense_date: toDateStr(new Date()) });
-    setProofFile(null);
-    setProofPreview(null);
+    setProofEntries([]);
     setShowModal(true);
   }
 
   function handleProofSelect(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setProofFile(file);
-    if (file.type.startsWith("image/")) {
-      const reader = new FileReader();
-      reader.onload = (ev) => setProofPreview(ev.target?.result as string);
-      reader.readAsDataURL(file);
-    } else {
-      setProofPreview("pdf");
-    }
+    const picked = Array.from(e.target.files || []);
+    if (!picked.length) return;
+    const remaining = 5 - proofEntries.length;
+    const toAdd = picked.slice(0, remaining);
+    toAdd.forEach((file) => {
+      if (file.type.startsWith("image/")) {
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          setProofEntries((prev) => [...prev, { name: file.name, type: file.type, preview: ev.target?.result as string, file }]);
+        };
+        reader.readAsDataURL(file);
+      } else {
+        setProofEntries((prev) => [...prev, { name: file.name, type: file.type, preview: "pdf", file }]);
+      }
+    });
+    if (proofInputRef.current) proofInputRef.current.value = "";
+  }
+
+  function removeProofEntry(idx: number) {
+    setProofEntries((prev) => prev.filter((_, i) => i !== idx));
   }
 
   async function openProofViewer(expenseId: string) {
     try {
       const res = await expenseRequest(`/expenses/${expenseId}/proof`);
-      const data = res?.data?.proof_data;
-      if (data) setViewingProof(data);
+      const files: ProofFile[] = res?.data?.files || [];
+      if (files.length) { setViewingProofs(files); setViewerIndex(0); }
       else alert("No proof found for this expense.");
     } catch { alert("Could not load proof."); }
   }
@@ -269,14 +279,13 @@ export default function ExpenseManagementPage() {
         }),
       });
 
-      if (proofFile && res?.data?.id) {
-        await expenseUploadProof(res.data.id, proofFile);
+      if (proofEntries.length > 0 && res?.data?.id) {
+        await expenseUploadProof(res.data.id, proofEntries.map((e) => e.file));
       }
 
       setShowModal(false);
       setForm(EMPTY_FORM);
-      setProofFile(null);
-      setProofPreview(null);
+      setProofEntries([]);
       await loadAll(true);
     } catch (err: unknown) {
       alert(err instanceof Error ? err.message : "Error");
@@ -307,9 +316,9 @@ export default function ExpenseManagementPage() {
   const topCategory = byCategory[0];
   const hasDateFilter = dateFrom || dateTo;
 
-  const inputCls = "border border-slate-200 text-gray-800 placeholder:text-gray-400 rounded-lg px-3 py-2 w-full text-sm focus:outline-none focus:ring-2 focus:ring-[#1372e6]/30 focus:border-[#1372e6] transition";
+  const inputCls = "border border-slate-200 text-gray-800 placeholder:text-gray-400 rounded-lg px-2.5 py-1.5 w-full text-xs focus:outline-none focus:ring-2 focus:ring-[#1372e6]/30 focus:border-[#1372e6] transition";
 
-  if (loading) return <PageSkeleton cards={4} rows={6} cols={5} />;
+  if (loading) return <ExpenseSkeleton />;
 
   return (
     <div className="min-h-screen">
@@ -464,7 +473,7 @@ export default function ExpenseManagementPage() {
                     "Proof",
                     "",
                   ].map((h) => (
-                    <th key={h} className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-500 whitespace-nowrap">{h}</th>
+                    <th key={h} className="px-2.5 py-1.5 text-left text-[9px] font-semibold uppercase tracking-wider text-slate-500 whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -474,43 +483,43 @@ export default function ExpenseManagementPage() {
                   const colors = CATEGORY_COLORS[e.category] || CATEGORY_COLORS.other;
                   return (
                     <tr key={e.id} className="hover:bg-slate-50/60 transition-colors">
-                      <td className="px-3 py-1.5 whitespace-nowrap">
+                      <td className="px-2.5 py-1 whitespace-nowrap">
                         {d ? (
                           <div>
-                            <p className="text-xs font-medium text-slate-700">{toDateStr(d)}</p>
-                            <p className="text-[10px] text-slate-400">{d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</p>
+                            <p className="text-[10px] font-medium text-slate-700 leading-tight">{toDateStr(d)}</p>
+                            <p className="text-[9px] text-slate-400 leading-tight">{d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</p>
                           </div>
-                        ) : <span className="text-slate-300 text-xs">—</span>}
+                        ) : <span className="text-slate-300 text-[10px]">—</span>}
                       </td>
-                      <td className="px-3 py-1.5">
-                        <p className="font-semibold text-slate-800 text-xs leading-tight">{e.title}</p>
-                        <p className="text-[10px] text-slate-400 font-mono">{e.id.slice(0, 8)}</p>
+                      <td className="px-2.5 py-1">
+                        <p className="font-semibold text-slate-800 text-[11px] leading-tight">{e.title}</p>
+                        <p className="text-[9px] text-slate-400 font-mono leading-tight">{e.id.slice(0, 8)}</p>
                       </td>
-                      <td className="px-3 py-1.5">
-                        <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${colors.badge}`}>
+                      <td className="px-2.5 py-1">
+                        <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-semibold ${colors.badge}`}>
                           {t(`expenses.cat.${e.category}`)}
                         </span>
                       </td>
-                      <td className="px-3 py-1.5 font-bold tabular-nums text-xs" style={{ color: "#1372e6" }}>
+                      <td className="px-2.5 py-1 font-bold tabular-nums text-[11px]" style={{ color: "#1372e6" }}>
                         {Number(e.amount).toLocaleString()}
                       </td>
-                      <td className="px-3 py-1.5 text-slate-500 text-[10px] max-w-[200px] truncate">
+                      <td className="px-2.5 py-1 text-slate-500 text-[9px] max-w-[180px] truncate">
                         {e.notes || <span className="text-slate-300 italic">—</span>}
                       </td>
-                      <td className="px-3 py-1.5">
+                      <td className="px-2.5 py-1">
                         {e.has_proof ? (
                           <button onClick={() => openProofViewer(e.id)} title="View proof"
-                            className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-50 hover:bg-emerald-100 text-emerald-600 transition text-[10px] font-medium">
-                            <Paperclip size={9} /> View
+                            className="flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-emerald-50 hover:bg-emerald-100 text-emerald-600 transition text-[9px] font-medium">
+                            <Paperclip size={8} /> View
                           </button>
                         ) : (
-                          <span className="text-slate-300 text-[10px] italic">—</span>
+                          <span className="text-slate-300 text-[9px] italic">—</span>
                         )}
                       </td>
-                      <td className="px-3 py-1.5">
+                      <td className="px-2.5 py-1">
                         <button onClick={() => deleteExpense(e.id)} disabled={deletingId === e.id}
-                          className="p-1 rounded bg-red-50 hover:bg-red-100 text-red-500 transition disabled:opacity-40">
-                          <Trash2 size={11} />
+                          className="p-0.5 rounded bg-red-50 hover:bg-red-100 text-red-500 transition disabled:opacity-40">
+                          <Trash2 size={10} />
                         </button>
                       </td>
                     </tr>
@@ -521,15 +530,15 @@ export default function ExpenseManagementPage() {
           </div>
 
           {filteredExpenses.length === 0 && (
-            <div className="flex flex-col items-center justify-center py-12 text-slate-400">
-              <div className="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center mb-4">
-                <AlertCircle size={28} className="opacity-40" />
+            <div className="flex flex-col items-center justify-center py-8 text-slate-400">
+              <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center mb-3">
+                <AlertCircle size={20} className="opacity-40" />
               </div>
-              <p className="font-semibold text-slate-500 text-sm">{t("expenses.no_expenses")}</p>
+              <p className="font-semibold text-slate-500 text-xs">{t("expenses.no_expenses")}</p>
               {!search && !catFilter && (
                 <button onClick={openModal}
-                  className="mt-4 flex items-center gap-1.5 text-white text-sm font-semibold px-4 py-2 rounded-lg transition hover:opacity-90" style={{ background: "#1372e6" }}>
-                  <Plus size={14} /> {t("expenses.add")}
+                  className="mt-3 flex items-center gap-1.5 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition hover:opacity-90" style={{ background: "#1372e6" }}>
+                  <Plus size={11} /> {t("expenses.add")}
                 </button>
               )}
             </div>
@@ -541,25 +550,25 @@ export default function ExpenseManagementPage() {
 
         {/* ── BY-CATEGORY BREAKDOWN ───────────────────────────── */}
         {byCategory.length > 0 && (
-          <div className="mt-3 bg-white rounded-xl border border-slate-200 p-3">
-            <h2 className="text-sm font-semibold text-slate-700 mb-2 flex items-center gap-2">
-              <BarChart3 size={15} style={{ color: "#1372e6" }} />
+          <div className="mt-2 bg-white rounded-xl border border-slate-200 px-3 py-2">
+            <h2 className="text-[11px] font-semibold text-slate-700 mb-1.5 flex items-center gap-1.5">
+              <BarChart3 size={12} style={{ color: "#1372e6" }} />
               {t("expenses.breakdown_title")}
             </h2>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+            <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-9 gap-1.5">
               {byCategory.map((row) => {
                 const colors = CATEGORY_COLORS[row.category] || CATEGORY_COLORS.other;
                 const grandTotal = byCategory.reduce((s, r) => s + r.total, 0);
                 const pct = grandTotal > 0 ? Math.round((row.total / grandTotal) * 100) : 0;
                 return (
-                  <div key={row.category} className={`rounded-xl p-2.5 ${colors.bg}`}>
-                    <p className={`text-[10px] font-semibold uppercase tracking-wide ${colors.text}`}>{t(`expenses.cat.${row.category}`)}</p>
-                    <p className={`text-sm font-bold mt-1 ${colors.text}`}>{row.total.toLocaleString()}</p>
-                    <div className="flex items-center justify-between mt-1">
-                      <p className="text-[10px] text-slate-400">{row.count} {t("expenses.records")}</p>
-                      <p className={`text-[10px] font-bold ${colors.text}`}>{pct}%</p>
+                  <div key={row.category} className={`rounded-lg px-2 py-1.5 ${colors.bg}`}>
+                    <p className={`text-[8px] font-semibold uppercase tracking-wide ${colors.text} truncate`}>{t(`expenses.cat.${row.category}`)}</p>
+                    <p className={`text-[11px] font-bold mt-0.5 ${colors.text} tabular-nums`}>{row.total.toLocaleString()}</p>
+                    <div className="flex items-center justify-between mt-0.5">
+                      <p className="text-[8px] text-slate-400">{row.count}</p>
+                      <p className={`text-[8px] font-bold ${colors.text}`}>{pct}%</p>
                     </div>
-                    <div className="mt-1.5 h-1 bg-black/10 rounded-full overflow-hidden">
+                    <div className="mt-1 h-0.5 bg-black/10 rounded-full overflow-hidden">
                       <div className={`h-full rounded-full ${colors.text.replace("text-", "bg-")}`} style={{ width: `${pct}%` }} />
                     </div>
                   </div>
@@ -570,57 +579,86 @@ export default function ExpenseManagementPage() {
         )}
 
         {/* ── PROOF VIEWER ────────────────────────────────────── */}
-        {viewingProof && (
-          <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4"
-            onClick={() => setViewingProof(null)}>
-            <div className="relative bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] flex flex-col overflow-hidden"
-              onClick={(e) => e.stopPropagation()}>
-              <div className="flex items-center justify-between px-5 py-3 border-b border-slate-100 shrink-0">
-                <div className="flex items-center gap-2 text-sm font-semibold text-slate-700">
-                  <Paperclip size={14} className="text-emerald-500" /> Expense Proof
+        {viewingProofs.length > 0 && (() => {
+          const current = viewingProofs[viewerIndex];
+          return (
+            <div className="fixed inset-0 bg-black/75 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+              onClick={() => setViewingProofs([])}>
+              <div className="relative bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[92vh] flex flex-col overflow-hidden"
+                onClick={(e) => e.stopPropagation()}>
+
+                {/* header */}
+                <div className="flex items-center justify-between px-5 py-3 border-b border-slate-100 shrink-0">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+                    <Paperclip size={14} className="text-emerald-500" />
+                    Expense Proof
+                    {viewingProofs.length > 1 && (
+                      <span className="text-xs font-normal text-slate-400 ml-1">
+                        {viewerIndex + 1} / {viewingProofs.length}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <a href={current.data} download={current.name}
+                      className="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-medium text-slate-600 hover:bg-slate-50 transition">
+                      <Download size={11} /> Download
+                    </a>
+                    <button onClick={() => setViewingProofs([])}
+                      className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 transition"><X size={16} /></button>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <a href={viewingProof} download="expense-proof"
-                    className="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-medium text-slate-600 hover:bg-slate-50 transition">
-                    <Download size={11} /> Download
-                  </a>
-                  <button onClick={() => setViewingProof(null)}
-                    className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 transition"><X size={16} /></button>
+
+                {/* main viewer */}
+                <div className="flex-1 overflow-auto p-4 flex items-center justify-center bg-slate-50 min-h-0">
+                  {current.type === "application/pdf" ? (
+                    <iframe src={current.data} className="w-full h-[60vh] rounded border border-slate-200" title={current.name} />
+                  ) : (
+                    <img src={current.data} alt={current.name} className="max-w-full max-h-[60vh] object-contain rounded shadow" />
+                  )}
                 </div>
-              </div>
-              <div className="flex-1 overflow-auto p-4 flex items-center justify-center bg-slate-50">
-                {viewingProof.startsWith("data:application/pdf") ? (
-                  <iframe src={viewingProof} className="w-full h-[70vh] rounded border border-slate-200" title="Proof document" />
-                ) : (
-                  <img src={viewingProof} alt="Expense proof" className="max-w-full max-h-[70vh] object-contain rounded shadow" />
+
+                {/* thumbnail strip (only when >1 file) */}
+                {viewingProofs.length > 1 && (
+                  <div className="flex gap-2 px-4 py-3 border-t border-slate-100 overflow-x-auto shrink-0 bg-slate-50/60">
+                    {viewingProofs.map((f, i) => (
+                      <button key={i} onClick={() => setViewerIndex(i)}
+                        className={`shrink-0 w-14 h-14 rounded-lg border-2 overflow-hidden flex items-center justify-center transition ${i === viewerIndex ? "border-[#1372e6] shadow" : "border-slate-200 hover:border-slate-400"}`}>
+                        {f.type === "application/pdf" ? (
+                          <FileIcon size={20} className="text-red-400" />
+                        ) : (
+                          <img src={f.data} alt={f.name} className="w-full h-full object-cover" />
+                        )}
+                      </button>
+                    ))}
+                  </div>
                 )}
               </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* ── MODAL ───────────────────────────────────────────── */}
         {showModal && (
-          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl max-h-[90vh] flex flex-col">
-              <div className="flex justify-between items-center px-6 py-4 border-b border-slate-100 shrink-0">
-                <h2 className="text-base font-semibold text-slate-800">{t("expenses.add_title")}</h2>
-                <button onClick={() => { setShowModal(false); setForm(EMPTY_FORM); setProofFile(null); setProofPreview(null); }}
-                  className="p-2 rounded-lg hover:bg-slate-100 text-slate-400 transition"><X size={17} /></button>
+          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-3">
+            <div className="bg-white rounded-xl w-full max-w-md shadow-2xl max-h-[92vh] flex flex-col">
+              <div className="flex justify-between items-center px-4 py-3 border-b border-slate-100 shrink-0">
+                <h2 className="text-sm font-semibold text-slate-800">{t("expenses.add_title")}</h2>
+                <button onClick={() => { setShowModal(false); setForm(EMPTY_FORM); setProofEntries([]); }}
+                  className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 transition"><X size={14} /></button>
               </div>
 
-              <div className="px-6 py-5 grid gap-4 overflow-y-auto flex-1">
+              <div className="px-4 py-3 grid gap-3 overflow-y-auto flex-1">
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">
+                  <label className="block text-[11px] font-medium text-gray-600 mb-0.5">
                     {t("expenses.title_field")} <span className="text-red-400">*</span>
                   </label>
                   <input className={inputCls} placeholder="e.g. Monthly rent, Electricity bill"
                     value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">
+                    <label className="block text-[11px] font-medium text-gray-600 mb-0.5">
                       {t("expenses.category")} <span className="text-red-400">*</span>
                     </label>
                     <select className={inputCls} value={form.category}
@@ -631,7 +669,7 @@ export default function ExpenseManagementPage() {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">
+                    <label className="block text-[11px] font-medium text-gray-600 mb-0.5">
                       {t("expenses.amount")} <span className="text-red-400">*</span>
                     </label>
                     <input type="number" min="0" step="0.01" className={inputCls} placeholder="0"
@@ -640,7 +678,7 @@ export default function ExpenseManagementPage() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">
+                  <label className="block text-[11px] font-medium text-gray-600 mb-0.5">
                     {t("expenses.expense_date")} <span className="text-red-400">*</span>
                   </label>
                   <input type="date" className={inputCls}
@@ -648,64 +686,191 @@ export default function ExpenseManagementPage() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">{t("common.notes")}</label>
+                  <label className="block text-[11px] font-medium text-gray-600 mb-0.5">{t("common.notes")}</label>
                   <textarea rows={2} className={`${inputCls} resize-none`} placeholder="Optional notes..."
                     value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
                 </div>
 
-                {/* ── Proof upload ── */}
+                {/* ── Proof upload (up to 5 files) ── */}
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1 flex items-center gap-1">
-                    <Paperclip size={11} /> Proof <span className="text-slate-400 font-normal">(image or PDF, max 5 MB)</span>
+                  <label className="block text-[11px] font-medium text-gray-600 mb-0.5 flex items-center gap-1">
+                    <Paperclip size={10} /> Proof
+                    <span className="text-slate-400 font-normal ml-1 text-[10px]">up to 5 · image or PDF · max 5 MB</span>
                   </label>
-                  <input ref={proofInputRef} type="file" accept="image/*,application/pdf" className="hidden"
-                    onChange={handleProofSelect} />
-                  {proofPreview ? (
-                    <div className="relative rounded-lg border border-slate-200 overflow-hidden bg-slate-50">
-                      {proofPreview === "pdf" ? (
-                        <div className="flex items-center gap-2 px-3 py-2.5">
-                          <FileIcon size={20} className="text-red-400 shrink-0" />
-                          <span className="text-xs text-slate-700 truncate">{proofFile?.name}</span>
+                  <input ref={proofInputRef} type="file" accept="image/*,application/pdf"
+                    multiple className="hidden" onChange={handleProofSelect} />
+
+                  {proofEntries.length > 0 && (
+                    <div className="grid grid-cols-4 gap-1.5 mb-1.5">
+                      {proofEntries.map((entry, idx) => (
+                        <div key={idx} className="relative rounded-lg border border-slate-200 bg-slate-50 overflow-hidden">
+                          {entry.preview === "pdf" ? (
+                            <div className="flex flex-col items-center justify-center gap-0.5 py-2 px-1">
+                              <FileIcon size={18} className="text-red-400" />
+                              <span className="text-[8px] text-slate-500 truncate w-full text-center px-1">{entry.name}</span>
+                            </div>
+                          ) : (
+                            <img src={entry.preview} alt={entry.name} className="w-full h-14 object-cover" />
+                          )}
+                          <button onClick={() => removeProofEntry(idx)}
+                            className="absolute top-0.5 right-0.5 w-3.5 h-3.5 rounded-full bg-white/90 border border-slate-200 flex items-center justify-center text-slate-400 hover:text-red-500 transition">
+                            <X size={7} />
+                          </button>
                         </div>
-                      ) : (
-                        <img src={proofPreview} alt="proof preview"
-                          className="w-full max-h-32 object-contain p-1" />
-                      )}
-                      <button onClick={() => { setProofFile(null); setProofPreview(null); if (proofInputRef.current) proofInputRef.current.value = ""; }}
-                        className="absolute top-1 right-1 w-5 h-5 rounded-full bg-white/90 border border-slate-200 flex items-center justify-center text-slate-400 hover:text-red-500 transition">
-                        <X size={10} />
-                      </button>
+                      ))}
                     </div>
-                  ) : (
+                  )}
+
+                  {proofEntries.length < 5 && (
                     <button type="button" onClick={() => proofInputRef.current?.click()}
-                      className="w-full border border-dashed border-slate-300 hover:border-[#1372e6] rounded-lg px-3 py-3 flex items-center justify-center gap-2 text-xs text-slate-400 hover:text-[#1372e6] transition-colors">
-                      <ImageIcon size={14} /> Click to attach receipt / document
+                      className="w-full border border-dashed border-slate-300 hover:border-[#1372e6] rounded-lg px-3 py-2 flex items-center justify-center gap-1.5 text-[11px] text-slate-400 hover:text-[#1372e6] transition-colors">
+                      <ImageIcon size={11} />
+                      {proofEntries.length === 0 ? "Attach receipts / documents" : `Add more (${5 - proofEntries.length} left)`}
                     </button>
                   )}
                 </div>
 
                 {form.amount && Number(form.amount) > 0 && (
-                  <div className="rounded-lg px-3 py-2 text-xs bg-[#EBF2FD]" style={{ color: "#1372e6" }}>
+                  <div className="rounded-lg px-2.5 py-1.5 text-[11px] bg-[#EBF2FD]" style={{ color: "#1372e6" }}>
                     {t("expenses.recording")}: <span className="font-bold">{Number(form.amount).toLocaleString()}</span>
                     {" "}{t("expenses.under")} <span className="font-bold">{t(`expenses.cat.${form.category}`)}</span>
                   </div>
                 )}
               </div>
 
-              <div className="flex justify-end gap-2.5 px-6 py-4 border-t border-slate-100 shrink-0">
-                <button onClick={() => { setShowModal(false); setForm(EMPTY_FORM); setProofFile(null); setProofPreview(null); }}
-                  className="px-4 py-2 rounded-lg border border-slate-200 text-slate-600 text-sm font-medium hover:bg-slate-50 transition">
+              <div className="flex justify-end gap-2 px-4 py-3 border-t border-slate-100 shrink-0">
+                <button onClick={() => { setShowModal(false); setForm(EMPTY_FORM); setProofEntries([]); }}
+                  className="px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 text-xs font-medium hover:bg-slate-50 transition">
                   {t("common.cancel")}
                 </button>
                 <button onClick={submitForm} disabled={submitting}
-                  className="px-5 py-2 rounded-lg text-white text-sm font-semibold transition disabled:opacity-60 hover:opacity-90 flex items-center gap-1.5" style={{ background: "#1372e6" }}>
-                  {proofFile && !submitting && <Paperclip size={12} />}
+                  className="px-4 py-1.5 rounded-lg text-white text-xs font-semibold transition disabled:opacity-60 hover:opacity-90 flex items-center gap-1.5" style={{ background: "#1372e6" }}>
+                  {proofEntries.length > 0 && !submitting && <Paperclip size={10} />}
                   {submitting ? t("common.saving") : t("expenses.add")}
                 </button>
               </div>
             </div>
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Skeleton ─────────────────────────────────────────────────────────────────
+
+function ExpenseSkeleton() {
+  return (
+    <div className="min-h-screen">
+      <style>{`
+        @keyframes exp-sh {
+          0%   { background-position: -600px 0; }
+          100% { background-position:  600px 0; }
+        }
+        .exp-sh {
+          background: linear-gradient(90deg, #f0f0f0 25%, #e4e4e4 50%, #f0f0f0 75%);
+          background-size: 600px 100%;
+          animation: exp-sh 1.4s infinite linear;
+        }
+        .exp-sh-blue {
+          background: linear-gradient(90deg, rgba(255,255,255,0.10) 25%, rgba(255,255,255,0.20) 50%, rgba(255,255,255,0.10) 75%);
+          background-size: 600px 100%;
+          animation: exp-sh 1.4s infinite linear;
+        }
+      `}</style>
+
+      <div className="max-w-7xl mx-auto px-3 sm:px-5 py-3 sm:py-4">
+
+        {/* Banner */}
+        <div className="rounded-2xl mb-2 overflow-hidden px-4 pt-3 pb-3"
+          style={{ background: "linear-gradient(135deg, #1372e6 0%, #1168d6 50%, #0a47a0 100%)" }}>
+          <div className="flex items-center gap-2.5 mb-2">
+            <div className="exp-sh-blue w-8 h-8 rounded-xl shrink-0" />
+            <div className="flex-1 space-y-1">
+              <div className="exp-sh-blue h-2 w-12 rounded" />
+              <div className="exp-sh-blue h-3 w-28 rounded" />
+            </div>
+            <div className="exp-sh-blue h-6 w-6 rounded-lg shrink-0" />
+            <div className="exp-sh-blue h-7 w-20 rounded-lg shrink-0" />
+          </div>
+          <div className="exp-sh-blue h-7 rounded-xl mb-1.5" />
+          <div className="exp-sh-blue h-6 rounded-xl" />
+        </div>
+
+        {/* Stat cards */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 mb-2">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="bg-white rounded-lg border border-slate-200 px-2.5 py-2">
+              <div className="flex items-center gap-1 mb-1.5">
+                <div className="exp-sh w-1.5 h-1.5 rounded-full shrink-0" />
+                <div className="exp-sh h-1.5 w-16 rounded" />
+              </div>
+              <div className="exp-sh h-4 w-14 rounded mb-1" />
+              <div className="exp-sh h-1.5 w-10 rounded" />
+            </div>
+          ))}
+        </div>
+
+        {/* Table card */}
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+
+          {/* Toolbar */}
+          <div className="flex items-center justify-between px-3 py-1.5 border-b border-slate-100 bg-slate-50/60">
+            <div className="exp-sh h-2 w-24 rounded" />
+            <div className="flex items-center gap-1.5">
+              {[56, 44, 48, 40].map((w, i) => (
+                <div key={i} className="exp-sh h-5 rounded" style={{ width: w }} />
+              ))}
+            </div>
+          </div>
+
+          {/* Table head */}
+          <div className="grid gap-3 px-2.5 py-1.5 border-b border-slate-200 bg-slate-50"
+            style={{ gridTemplateColumns: "80px 1fr 80px 70px 120px 50px 30px" }}>
+            {[...Array(7)].map((_, i) => (
+              <div key={i} className="exp-sh h-1.5 rounded" />
+            ))}
+          </div>
+
+          {/* Table rows */}
+          {[...Array(9)].map((_, i) => (
+            <div key={i} className="grid gap-3 px-2.5 py-1 border-b border-slate-50 items-center"
+              style={{ gridTemplateColumns: "80px 1fr 80px 70px 120px 50px 30px" }}>
+              <div className="space-y-0.5">
+                <div className="exp-sh h-2 w-16 rounded" />
+                <div className="exp-sh h-1.5 w-10 rounded" />
+              </div>
+              <div className="space-y-0.5">
+                <div className="exp-sh h-2.5 rounded" />
+                <div className="exp-sh h-1.5 w-3/4 rounded" />
+              </div>
+              <div className="exp-sh h-4 w-14 rounded-full" />
+              <div className="exp-sh h-2.5 w-12 rounded" />
+              <div className="exp-sh h-2 rounded" />
+              <div className="exp-sh h-4 w-9 rounded" />
+              <div className="exp-sh h-5 w-5 rounded" />
+            </div>
+          ))}
+
+          {/* Pagination row */}
+          <div className="flex items-center justify-between px-3 py-2 border-t border-slate-100">
+            <div className="exp-sh h-2 w-20 rounded" />
+            <div className="flex gap-1">
+              {[...Array(4)].map((_, i) => <div key={i} className="exp-sh h-6 w-7 rounded" />)}
+            </div>
+          </div>
+        </div>
+
+        {/* Breakdown strip */}
+        <div className="mt-2 bg-white rounded-xl border border-slate-200 px-3 py-2">
+          <div className="exp-sh h-2.5 w-32 rounded mb-2" />
+          <div className="grid grid-cols-5 gap-1.5">
+            {[...Array(5)].map((_, i) => (
+              <div key={i} className="exp-sh h-14 rounded-lg" />
+            ))}
+          </div>
+        </div>
+
       </div>
     </div>
   );

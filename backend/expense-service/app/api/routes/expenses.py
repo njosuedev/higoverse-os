@@ -1,5 +1,7 @@
 import base64
+import json
 from datetime import datetime, timedelta, timezone
+from typing import List
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -215,28 +217,38 @@ _ALLOWED_TYPES = {
     "image/jpeg", "image/png", "image/gif", "image/webp",
     "application/pdf",
 }
-_MAX_BYTES = 5 * 1024 * 1024  # 5 MB
+_MAX_BYTES     = 5 * 1024 * 1024  # 5 MB per file
+_MAX_FILES     = 5
 
 
 @router.post("/{expense_id}/proof")
 async def upload_proof(
     expense_id: str,
-    file: UploadFile = File(...),
+    files: List[UploadFile] = File(...),
     db: Session = Depends(get_db),
     user: dict = Depends(get_current_user),
 ):
-    if file.content_type not in _ALLOWED_TYPES:
-        raise HTTPException(400, "Only JPEG, PNG, GIF, WebP images and PDF documents are accepted")
+    if len(files) > _MAX_FILES:
+        raise HTTPException(400, f"Maximum {_MAX_FILES} files allowed")
 
-    content = await file.read()
-    if len(content) > _MAX_BYTES:
-        raise HTTPException(400, "File exceeds 5 MB limit")
+    entries = []
+    for f in files:
+        if f.content_type not in _ALLOWED_TYPES:
+            raise HTTPException(400, f"'{f.filename}': only JPEG, PNG, GIF, WebP and PDF accepted")
+        content = await f.read()
+        if len(content) > _MAX_BYTES:
+            raise HTTPException(400, f"'{f.filename}' exceeds the 5 MB per-file limit")
+        entries.append({
+            "name": f.filename,
+            "type": f.content_type,
+            "data": f"data:{f.content_type};base64,{base64.b64encode(content).decode()}",
+        })
 
     expense = _get_or_404(db, expense_id, user["shop_id"])
-    expense.proof_data = f"data:{file.content_type};base64,{base64.b64encode(content).decode()}"
+    expense.proof_data = json.dumps(entries)
     db.commit()
 
-    return {"success": True, "message": "Proof uploaded"}
+    return {"success": True, "message": f"{len(entries)} proof file(s) uploaded"}
 
 
 # ─────────────────────────────────────────
@@ -250,7 +262,8 @@ def get_proof(
     user: dict = Depends(get_current_user),
 ):
     expense = _get_or_404(db, expense_id, user["shop_id"])
-    return {"success": True, "data": {"proof_data": expense.proof_data}}
+    files = json.loads(expense.proof_data) if expense.proof_data else []
+    return {"success": True, "data": {"files": files}}
 
 
 # ─────────────────────────────────────────

@@ -23,10 +23,10 @@ export async function expenseRequest(endpoint: string, options: RequestInit = {}
   try { return JSON.parse(text); } catch { return null; }
 }
 
-export async function expenseUploadProof(expenseId: string, file: File) {
+export async function expenseUploadProof(expenseId: string, files: File[]) {
   const token = getToken();
   const formData = new FormData();
-  formData.append("file", file);
+  for (const file of files) formData.append("files", file);
 
   const headers: Record<string, string> = {};
   if (token) headers["Authorization"] = `Bearer ${token}`;
