@@ -12,7 +12,7 @@ import { purchaseRequest } from "@/lib/purchase-api";
 import {
   ArrowLeft, Phone, Mail, MapPin, Wifi, WifiOff,
   Package, ShoppingCart, Plus, Minus, X, Loader2,
-  CheckCircle, Star, CalendarDays, ExternalLink,
+  CheckCircle, CalendarDays, ExternalLink,
   Store, UserPlus, Trash2, ShoppingBag, ChevronRight,
   TrendingUp, Info, Globe, Eye, Send, Search, Heart, MessageSquare,
 } from "lucide-react";
@@ -465,7 +465,6 @@ export default function ShopStorePage() {
     ? parseUTC(shop.created_at).toLocaleDateString([], { year: "numeric", month: "long" })
     : null;
 
-  const listedCount = listedProducts.length;
 
   return (
     <div style={{ minHeight: "100vh", background: "#f4f4f4", fontFamily: "Arial, sans-serif" }}>
@@ -505,10 +504,6 @@ export default function ShopStorePage() {
                   <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                     <h1 style={{ fontSize: 18, fontWeight: 700, color: "#333", margin: 0 }}>{shop.name}</h1>
                     {isMine && <span style={{ fontSize: 9, background: "#fff5f0", color: "#ff6a00", border: "1px solid #ffbb96", padding: "1px 6px", fontWeight: 700 }}>YOUR SHOP</span>}
-                    <span style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 10 }}>
-                      {[1,2,3,4].map((i) => <Star key={i} size={10} style={{ color: "#fa8c16", fill: "#fa8c16" }} />)}
-                      <Star size={10} style={{ color: "#e8e8e8", fill: "#e8e8e8" }} />
-                    </span>
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 4, flexWrap: "wrap" }}>
                     <span style={{ fontSize: 11, color: pres.online ? "#52c41a" : "#999", display: "flex", alignItems: "center", gap: 3 }}>
@@ -584,13 +579,12 @@ export default function ShopStorePage() {
           {/* Stats bar */}
           <div style={{ display: "flex", gap: 0, borderTop: "1px solid #f0f0f0", paddingTop: 8, paddingBottom: 4 }}>
             {[
-              { label: "Products Listed", value: String(listedCount), color: "#333" },
               { label: "Status", value: pres.online ? "Online" : "Offline", color: pres.online ? "#52c41a" : "#333" },
               { label: "Followers", value: String(followerCount), color: followerCount > 0 ? "#f5222d" : "#333" },
             ].map((s, i) => (
-              <div key={i} style={{ paddingRight: 20, marginRight: 20, borderRight: i < 2 ? "1px solid #e8e8e8" : "none", display: "flex", flexDirection: "column" }}>
+              <div key={i} style={{ paddingRight: 20, marginRight: 20, borderRight: i < 1 ? "1px solid #e8e8e8" : "none", display: "flex", flexDirection: "column" }}>
                 <p style={{ fontSize: 14, fontWeight: 700, color: s.color, margin: 0, display: "flex", alignItems: "center", gap: 4 }}>
-                  {i === 2 && followerCount > 0 && <Heart size={11} style={{ fill: "#f5222d", color: "#f5222d" }} />}
+                  {i === 1 && followerCount > 0 && <Heart size={11} style={{ fill: "#f5222d", color: "#f5222d" }} />}
                   {s.value}
                 </p>
                 <p style={{ fontSize: 10, color: "#999", margin: "1px 0 0" }}>{s.label}</p>
