@@ -305,6 +305,11 @@ const dict: Record<Lang, Record<string, string>> = {
     "dash.net_profit": "Net Profit",
     "dash.profitable": "Profitable ✓",
     "dash.at_loss": "At a loss",
+    "dash.stock_health": "Stock Health",
+    "dash.profit_margin": "Net Margin",
+    "dash.shops_live": "Shops Live",
+    "dash.healthy": "Healthy",
+    "common.active": "active",
 
     // nav
     "nav.expenses": "Expenses",
@@ -663,6 +668,11 @@ const dict: Record<Lang, Record<string, string>> = {
     "dash.net_profit": "Inyungu Nyayo",
     "dash.profitable": "Bikunze ✓",
     "dash.at_loss": "Igiciro kirenze",
+    "dash.stock_health": "Imiterere y'Ibicuruzwa",
+    "dash.profit_margin": "Inyungu Nyayo",
+    "dash.shops_live": "Amaduka Akora",
+    "dash.healthy": "Byuzuye",
+    "common.active": "akora",
 
     "nav.expenses": "Amafaranga Yaguriyemo",
 
@@ -984,6 +994,11 @@ const dict: Record<Lang, Record<string, string>> = {
     "dash.net_profit": "Bénéfice Net",
     "dash.profitable": "Rentable ✓",
     "dash.at_loss": "En perte",
+    "dash.stock_health": "Santé du Stock",
+    "dash.profit_margin": "Marge Nette",
+    "dash.shops_live": "Boutiques en ligne",
+    "dash.healthy": "En bonne santé",
+    "common.active": "actif",
 
     "nav.expenses": "Dépenses",
 
@@ -1305,6 +1320,11 @@ const dict: Record<Lang, Record<string, string>> = {
     "dash.net_profit": "Faida Halisi",
     "dash.profitable": "Inafaidika ✓",
     "dash.at_loss": "Hasara",
+    "dash.stock_health": "Hali ya Bidhaa",
+    "dash.profit_margin": "Faida Halisi",
+    "dash.shops_live": "Maduka Yanayofanya Kazi",
+    "dash.healthy": "Nzuri",
+    "common.active": "inafanya kazi",
 
     "nav.expenses": "Matumizi",
 

@@ -29,6 +29,11 @@ class Expense(Base):
     amount       = Column(Numeric(12, 2), nullable=False)
     notes        = Column(Text, nullable=True)
 
-    expense_date = Column(DateTime(timezone=True), nullable=False)
-    created_at   = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    proof_data   = Column(Text, nullable=True)
+    expense_date     = Column(DateTime(timezone=True), nullable=False)
+    created_at       = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    proof_data       = Column(Text, nullable=True)
+
+    payment_method   = Column(String, nullable=True)   # "mtn" | "bank"
+    bank_name        = Column(String, nullable=True)   # e.g. "BK Bank"
+    bank_account     = Column(String, nullable=True)   # account number / reference
+    receiver_phone   = Column(String, nullable=True)   # phone of money recipient

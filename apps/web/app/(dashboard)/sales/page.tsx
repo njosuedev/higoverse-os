@@ -7,7 +7,6 @@ import { saleRequest } from "@/lib/sale-api";
 import { settingsRequest } from "@/lib/settings-api";
 import { useDebounce } from "@/lib/hooks";
 import { useLanguage } from "@/lib/language-context";
-import PageSkeleton from "@/app/components/dashboard/PageSkeleton";
 import Pagination from "@/app/components/ui/Pagination";
 import DateRangeFilter from "@/app/components/ui/DateRangeFilter";
 import {
@@ -72,6 +71,8 @@ export default function SaleManagementPage() {
   const [dateFrom, setDateFrom] = useState(() => toDateStr(new Date()));
   const [dateTo, setDateTo] = useState(() => toDateStr(new Date()));
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [countdown, setCountdown] = useState(30);
+  const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
@@ -117,8 +118,9 @@ export default function SaleManagementPage() {
   useEffect(() => { loadDataRef.current = loadData; });
 
   useEffect(() => {
-    const timer = setInterval(() => loadDataRef.current(true), 30_000);
-    return () => clearInterval(timer);
+    countdownRef.current = setInterval(() => setCountdown((c) => (c <= 1 ? 30 : c - 1)), 1000);
+    const timer = setInterval(() => { loadDataRef.current(true); setCountdown(30); }, 30_000);
+    return () => { clearInterval(timer); if (countdownRef.current) clearInterval(countdownRef.current); };
   }, []);
 
   const debouncedSearch = useDebounce(search, 350);
@@ -572,7 +574,7 @@ ${paymentHtml}
 
   const pendingDebts = debts.filter((d) => !d.is_paid);
 
-  if (loading) return <PageSkeleton cards={5} rows={7} cols={7} />;
+  if (loading) return <SalesSkeleton />;
 
   return (
     <div className="min-h-screen">
@@ -614,10 +616,11 @@ ${paymentHtml}
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
               <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-green-400" />
             </span>
-            <p className="text-[10px] text-blue-100/70">
+            <p className="text-[10px] text-blue-100/70 flex-1">
               Live · <span className="font-semibold text-white/80">{salesTotal.toLocaleString()} sales</span>
               {lastUpdated && <span className="ml-1 text-blue-200/50">· Updated {lastUpdated.toLocaleTimeString()}</span>}
             </p>
+            <span className="text-[10px] text-blue-200/50">↻ {countdown}s</span>
           </div>
 
           {/* Row 3: search + filter + date range */}
@@ -674,7 +677,7 @@ ${paymentHtml}
                 <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${card.dot}`} />
                 <p className="text-[9px] font-semibold text-slate-400 uppercase tracking-wider leading-none truncate">{card.label}</p>
               </div>
-              <p className={`text-sm font-bold leading-none tabular-nums ${card.color}`}>{card.value}</p>
+              <p className={`text-xl font-bold leading-none tabular-nums ${card.color}`}>{card.value}</p>
             </div>
           ))}
         </div>
@@ -1397,6 +1400,53 @@ ${paymentHtml}
           </div>
         )}
 
+      </div>
+    </div>
+  );
+}
+
+function SalesSkeleton() {
+  return (
+    <div className="min-h-screen">
+      <style>{`@keyframes sal-sh{0%{background-position:-200% 0}100%{background-position:200% 0}}.sal-sh{background:linear-gradient(90deg,#f1f5f9 25%,#e2e8f0 50%,#f1f5f9 75%);background-size:200% 100%;animation:sal-sh 1.4s infinite;border-radius:5px}.sal-sh-w{background:linear-gradient(90deg,rgba(255,255,255,.1) 25%,rgba(255,255,255,.22) 50%,rgba(255,255,255,.1) 75%);background-size:200% 100%;animation:sal-sh 1.4s infinite;border-radius:5px}`}</style>
+      <div className="max-w-7xl mx-auto px-3 sm:px-5 py-3 sm:py-4">
+        <div className="relative rounded-2xl mb-2 overflow-hidden" style={{background:"linear-gradient(135deg,#1372e6 0%,#1168d6 50%,#0a47a0 100%)"}}>
+          <div className="relative flex items-center gap-3 px-4 pt-3 pb-2">
+            <div className="w-8 h-8 rounded-xl sal-sh-w shrink-0" />
+            <div><div className="sal-sh-w h-2 w-10 mb-1 rounded" /><div className="sal-sh-w h-4 w-28 rounded" /></div>
+            <div className="ml-auto flex gap-1.5"><div className="sal-sh-w w-7 h-7 rounded-lg" /><div className="sal-sh-w h-7 w-24 rounded-lg" /></div>
+          </div>
+          <div className="px-4 pb-2 flex gap-1.5"><div className="sal-sh-w h-2 w-4 rounded-full" /><div className="sal-sh-w h-2 w-40 rounded" /></div>
+          <div className="px-4 pb-3 space-y-2">
+            <div className="flex gap-2"><div className="sal-sh-w flex-1 h-9 rounded-xl" /><div className="sal-sh-w h-9 w-28 rounded-xl" /></div>
+            <div className="sal-sh-w h-9 w-full rounded-xl" />
+          </div>
+        </div>
+        <div className="grid grid-cols-3 sm:grid-cols-5 gap-1.5 mb-2">
+          {Array.from({length:5}).map((_,i)=>(
+            <div key={i} className="bg-white rounded-lg border border-slate-200 px-2.5 py-2">
+              <div className="sal-sh h-2 w-14 mb-2 rounded" /><div className="sal-sh h-6 w-12 rounded" />
+            </div>
+          ))}
+        </div>
+        <div className="sal-sh h-9 rounded-xl mb-2" />
+        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden mb-6">
+          <div className="px-3 py-1.5 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
+            <div className="sal-sh h-2.5 w-28 rounded" />
+            <div className="flex gap-1.5">{[56,52,50,46].map((w,i)=><div key={i} className="sal-sh h-5 rounded" style={{width:w}} />)}</div>
+          </div>
+          <div className="flex gap-2 px-3 py-2 bg-slate-50 border-b border-slate-200">
+            {[80,100,80,60,40,55,64,80,64,40].map((w,i)=><div key={i} className="sal-sh h-2 rounded" style={{width:w}} />)}
+          </div>
+          {Array.from({length:8}).map((_,i)=>(
+            <div key={i} className="flex items-center gap-2 border-b border-slate-50 border-l-2 border-l-slate-200" style={{padding:"6px 12px"}}>
+              <div><div className="sal-sh h-2.5 w-16 rounded mb-1" /><div className="sal-sh h-2 w-10 rounded" /></div>
+              <div><div className="sal-sh h-2.5 w-24 rounded mb-1" /><div className="sal-sh h-2 w-16 rounded" /></div>
+              {[60,52,40,36,52,60,52,28].map((w,j)=><div key={j} className="sal-sh h-2.5 rounded shrink-0" style={{width:w}} />)}
+            </div>
+          ))}
+        </div>
+        <div className="sal-sh h-32 rounded-xl" />
       </div>
     </div>
   );

@@ -6,7 +6,6 @@ import { partnerRequest } from "@/lib/supplier-api";
 import { itemRequest } from "@/lib/product-api";
 import { useDebounce } from "@/lib/hooks";
 import { useLanguage } from "@/lib/language-context";
-import PageSkeleton from "@/app/components/dashboard/PageSkeleton";
 import Pagination from "@/app/components/ui/Pagination";
 import {
   Users, Search, Filter, Plus, Trash2, Pencil, X,
@@ -54,6 +53,10 @@ export default function PartnerManagementPage() {
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [countdown, setCountdown] = useState(30);
+  const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const refreshRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const loadDataRef = useRef<(soft?: boolean) => Promise<void>>(async () => {});
 
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
@@ -70,6 +73,23 @@ export default function PartnerManagementPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { loadData(); }, []);
+  useEffect(() => { loadDataRef.current = loadData; });
+  useEffect(() => {
+    countdownRef.current = setInterval(() => setCountdown((c) => (c <= 1 ? 30 : c - 1)), 1000);
+    refreshRef.current = setInterval(() => { loadDataRef.current(true); setCountdown(30); }, 30_000);
+    return () => {
+      if (countdownRef.current) clearInterval(countdownRef.current);
+      if (refreshRef.current) clearInterval(refreshRef.current);
+    };
+  }, []);
+
+  function manualRefresh() {
+    loadData(true); setCountdown(30);
+    if (countdownRef.current) clearInterval(countdownRef.current);
+    if (refreshRef.current) clearInterval(refreshRef.current);
+    countdownRef.current = setInterval(() => setCountdown((c) => (c <= 1 ? 30 : c - 1)), 1000);
+    refreshRef.current = setInterval(() => { loadDataRef.current(true); setCountdown(30); }, 30_000);
+  }
 
   async function downloadTemplate() {
     const XLSX = await import("xlsx");
@@ -256,7 +276,7 @@ export default function PartnerManagementPage() {
 
   const previewType = form.tin.trim() ? "supplier" : form.phone.trim() ? "customer" : null;
 
-  if (loading) return <PageSkeleton cards={5} rows={6} cols={7} />;
+  if (loading) return <PartnersSkeleton />;
 
   return (
     <div className="min-h-screen">
@@ -281,7 +301,7 @@ export default function PartnerManagementPage() {
               </div>
             </div>
             <div className="flex items-center gap-1.5 shrink-0">
-              <button onClick={() => loadData(true)} disabled={refreshing} title="Refresh"
+              <button onClick={manualRefresh} disabled={refreshing} title="Refresh"
                 className="w-7 h-7 rounded-lg bg-white/10 hover:bg-white/20 border border-white/15 flex items-center justify-center text-white transition-all disabled:opacity-40">
                 <RefreshCw size={12} className={refreshing ? "animate-spin" : ""} />
               </button>
@@ -298,10 +318,11 @@ export default function PartnerManagementPage() {
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
               <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-green-400" />
             </span>
-            <p className="text-[10px] text-blue-100/70">
+            <p className="text-[10px] text-blue-100/70 flex-1">
               Live · <span className="font-semibold text-white/80">{partners.length.toLocaleString()} partners</span>
               {lastUpdated && <span className="ml-1 text-blue-200/50">· Updated {lastUpdated.toLocaleTimeString()}</span>}
             </p>
+            <span className="text-[10px] text-blue-200/50">↻ {countdown}s</span>
           </div>
 
           {/* Row 3: search + filter */}
@@ -343,7 +364,7 @@ export default function PartnerManagementPage() {
                 <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${card.dot}`} />
                 <p className="text-[9px] font-semibold text-slate-400 uppercase tracking-wider leading-none truncate">{card.label}</p>
               </div>
-              <p className={`text-sm font-bold leading-none tabular-nums ${card.color}`}>{card.value}</p>
+              <p className={`text-xl font-bold leading-none tabular-nums ${card.color}`}>{card.value}</p>
             </div>
           ))}
         </div>
@@ -519,6 +540,48 @@ export default function PartnerManagementPage() {
             </div>
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+function PartnersSkeleton() {
+  return (
+    <div className="min-h-screen">
+      <style>{`@keyframes ptr-sh{0%{background-position:-200% 0}100%{background-position:200% 0}}.ptr-sh{background:linear-gradient(90deg,#f1f5f9 25%,#e2e8f0 50%,#f1f5f9 75%);background-size:200% 100%;animation:ptr-sh 1.4s infinite;border-radius:5px}.ptr-sh-w{background:linear-gradient(90deg,rgba(255,255,255,.1) 25%,rgba(255,255,255,.22) 50%,rgba(255,255,255,.1) 75%);background-size:200% 100%;animation:ptr-sh 1.4s infinite;border-radius:5px}`}</style>
+      <div className="max-w-7xl mx-auto px-3 sm:px-5 py-3 sm:py-4">
+        <div className="relative rounded-2xl mb-2 overflow-hidden" style={{background:"linear-gradient(135deg,#1372e6 0%,#1168d6 50%,#0a47a0 100%)"}}>
+          <div className="relative flex items-center gap-3 px-4 pt-3 pb-2">
+            <div className="w-8 h-8 rounded-xl ptr-sh-w shrink-0" />
+            <div><div className="ptr-sh-w h-2 w-14 mb-1 rounded" /><div className="ptr-sh-w h-4 w-32 rounded" /></div>
+            <div className="ml-auto flex gap-1.5"><div className="ptr-sh-w w-7 h-7 rounded-lg" /><div className="ptr-sh-w h-7 w-24 rounded-lg" /></div>
+          </div>
+          <div className="px-4 pb-2 flex gap-1.5"><div className="ptr-sh-w h-2 w-4 rounded-full" /><div className="ptr-sh-w h-2 w-40 rounded" /></div>
+          <div className="px-4 pb-3 flex gap-2"><div className="ptr-sh-w flex-1 h-9 rounded-xl" /><div className="ptr-sh-w h-9 w-28 rounded-xl" /></div>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5 mb-2">
+          {Array.from({length:5}).map((_,i)=>(
+            <div key={i} className="bg-white rounded-lg border border-slate-200 px-2.5 py-2">
+              <div className="ptr-sh h-2 w-16 mb-2 rounded" /><div className="ptr-sh h-6 w-8 rounded" />
+            </div>
+          ))}
+        </div>
+        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+          <div className="px-3 py-1.5 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
+            <div className="ptr-sh h-2.5 w-28 rounded" />
+            <div className="flex gap-1.5">{[56,52,50,46,46].map((w,i)=><div key={i} className="ptr-sh h-5 rounded" style={{width:w}} />)}</div>
+          </div>
+          <div className="flex gap-3 px-3 py-2 bg-slate-50 border-b border-slate-200">
+            {[120,70,70,60,80,80,40].map((w,i)=><div key={i} className="ptr-sh h-2 rounded" style={{width:w}} />)}
+          </div>
+          {Array.from({length:7}).map((_,i)=>(
+            <div key={i} className="flex items-center gap-3 px-3 border-b border-slate-50" style={{padding:"6px 12px"}}>
+              <div className="flex-1 min-w-0"><div className="ptr-sh h-2.5 w-28 rounded mb-1" /><div className="ptr-sh h-2 w-16 rounded" /></div>
+              <div className="ptr-sh h-5 w-16 rounded-full" />
+              {[60,56,64,72,64,28].map((w,j)=><div key={j} className="ptr-sh h-2.5 rounded shrink-0" style={{width:w}} />)}
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );

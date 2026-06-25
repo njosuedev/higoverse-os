@@ -7,6 +7,8 @@ import { useShop } from "@/lib/shop-context";
 import { sendChat, type ChatMessage } from "@/lib/advisor-api";
 import { playAIResponse } from "@/lib/sound";
 import { Bot, Send, X, Sparkles, User, AlertCircle } from "lucide-react";
+import { useAuth } from "@/lib/auth-context";
+import { getEffectiveRole } from "@/lib/auth";
 
 function TypingDots() {
   return (
@@ -68,7 +70,8 @@ function Bubble({ msg, shopLogo, shopName, displayContent, isStreaming }: {
 export default function AIFloatingWidget() {
   const pathname  = usePathname();
   const { lang }  = useLanguage();
-  const { shop }  = useShop();
+  const { shop, loading: shopLoading } = useShop();
+  const { user, ready } = useAuth();
 
   const [open,     setOpen]     = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -108,8 +111,14 @@ export default function AIFloatingWidget() {
     return () => { if (streamRef.current) clearInterval(streamRef.current); };
   }, []);
 
-  // Don't render on the full advisor page — all hooks are already called above
+  // All hooks called above — now safe to conditionally return.
+  // Hide while role is still resolving, and permanently for customers.
+  const role        = (ready && !shopLoading) ? getEffectiveRole(user ?? null, shop?.is_active === true) : null;
+  const isShopUser  = role === "SHOP_OWNER" || role === "ADMIN";
+
   if (pathname === "/advisor") return null;
+  if (!ready || shopLoading) return null;   // avoid flash
+  if (!isShopUser) return null;             // customers never see this
 
   async function send(text?: string) {
     const msg = (text ?? input).trim();

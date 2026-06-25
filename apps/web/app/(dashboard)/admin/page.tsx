@@ -19,15 +19,39 @@ import {
   UserCog, Search, Mail, Phone, MapPin, Eye, EyeOff,
   CheckCircle, XCircle, ClipboardList, BadgeCheck,
   Building2, CreditCard, Clock, UserX, ShieldX,
+  Receipt, Pencil, X, ChevronLeft,
 } from "lucide-react";
+import { expenseRequest } from "@/lib/expense-api";
 
-type Tab = "overview" | "applications" | "shops" | "users";
+type Tab = "overview" | "applications" | "shops" | "users" | "expenses";
 type ShopSort = "newest" | "lastActive" | "name" | "users";
 
 const LI_BLUE  = "#1372e6";
 const LI_LIGHT = "#5B9DF3";
 const LI_GRAY  = "#C9CDD2";
 const POLL_INTERVAL = 30;
+
+const EXP_CATEGORIES = [
+  "rent","utilities","salaries","supplies",
+  "maintenance","marketing","transport","taxes","other",
+] as const;
+const BANK_NAMES = ["Equity Bank","BK Bank","GT Bank","Access Bank","I&M Bank"];
+
+interface AdminExpense {
+  id: string; shop_id: string; title: string; category: string;
+  amount: number; notes?: string; expense_date: string; created_at: string;
+  has_proof?: boolean; payment_method?: string;
+  bank_name?: string; bank_account?: string; receiver_phone?: string;
+}
+interface EditExpForm {
+  title: string; category: string; amount: string; notes: string;
+  expense_date: string; payment_method: string;
+  bank_name: string; bank_account: string; receiver_phone: string;
+}
+const EMPTY_EDIT: EditExpForm = {
+  title: "", category: "other", amount: "", notes: "", expense_date: "",
+  payment_method: "", bank_name: "", bank_account: "", receiver_phone: "",
+};
 
 // ── UTC helpers ───────────────────────────────────────────────────────────────
 function parseUTC(ts: string | null | undefined): Date {
@@ -138,6 +162,18 @@ export default function AdminPage() {
   const [expandedShop, setExpandedShop]   = useState<string | null>(null);
   const [appSearch, setAppSearch]         = useState("");
   const [lastUpdated, setLastUpdated]     = useState<Date | null>(null);
+
+  // Expenses tab state
+  const [expShopId, setExpShopId]           = useState<string | null>(null);
+  const [expShopName, setExpShopName]       = useState("");
+  const [expShopSearch, setExpShopSearch]   = useState("");
+  const [expenseRows, setExpenseRows]       = useState<AdminExpense[]>([]);
+  const [expTotal, setExpTotal]             = useState(0);
+  const [expPage, setExpPage]               = useState(1);
+  const [expLoading, setExpLoading]         = useState(false);
+  const [editingExp, setEditingExp]         = useState<AdminExpense | null>(null);
+  const [editForm, setEditForm]             = useState<EditExpForm>(EMPTY_EDIT);
+  const [editSaving, setEditSaving]         = useState(false);
   const [countdown, setCountdown]         = useState(POLL_INTERVAL);
   const [ticker, setTicker]               = useState(0);
   const countdownRef                      = useRef(POLL_INTERVAL);
@@ -329,6 +365,66 @@ export default function AdminPage() {
     finally { setActionId(null); setRejectModal(null); setRejectReason(""); }
   };
 
+  // ── Admin expense helpers ─────────────────────────────────────────────────
+  const loadShopExpenses = useCallback(async (shopId: string, page = 1) => {
+    setExpLoading(true);
+    try {
+      const res = await expenseRequest(`/expenses/admin/list?shop_id=${shopId}&page=${page}&limit=50`);
+      setExpenseRows(res?.data?.items || []);
+      setExpTotal(res?.data?.total || 0);
+      setExpPage(page);
+    } catch { /* ignore */ }
+    finally { setExpLoading(false); }
+  }, []);
+
+  const selectExpShop = (shop: AdminShop) => {
+    setExpShopId(shop.id);
+    setExpShopName(shop.name ?? shop.id);
+    setExpenseRows([]);
+    setExpTotal(0);
+    setExpPage(1);
+    loadShopExpenses(shop.id, 1);
+  };
+
+  const openEditExp = (e: AdminExpense) => {
+    const d = e.expense_date ? new Date(e.expense_date) : new Date();
+    const dateStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+    setEditForm({
+      title: e.title, category: e.category, amount: String(e.amount),
+      notes: e.notes || "", expense_date: dateStr,
+      payment_method: e.payment_method || "",
+      bank_name: e.bank_name || "", bank_account: e.bank_account || "",
+      receiver_phone: e.receiver_phone || "",
+    });
+    setEditingExp(e);
+  };
+
+  const saveEditExp = async () => {
+    if (!editingExp) return;
+    setEditSaving(true);
+    try {
+      const res = await expenseRequest(`/expenses/admin/${editingExp.id}`, {
+        method: "PUT",
+        body: JSON.stringify({
+          title: editForm.title.trim(),
+          category: editForm.category,
+          amount: Number(editForm.amount),
+          notes: editForm.notes.trim() || undefined,
+          expense_date: editForm.expense_date + "T00:00:00",
+          payment_method: editForm.payment_method || undefined,
+          bank_name: editForm.payment_method === "bank" ? editForm.bank_name || undefined : undefined,
+          bank_account: editForm.payment_method === "bank" ? editForm.bank_account || undefined : undefined,
+          receiver_phone: editForm.receiver_phone || undefined,
+        }),
+      });
+      if (res?.data) {
+        setExpenseRows((prev) => prev.map((r) => r.id === editingExp.id ? res.data : r));
+      }
+      setEditingExp(null);
+    } catch { /* ignore */ }
+    finally { setEditSaving(false); }
+  };
+
   // Confirm dialog execution
   const execConfirm = async () => {
     if (!confirm) return;
@@ -377,6 +473,7 @@ export default function AdminPage() {
     { key: "applications",  label: "Applications", count: applications.length, urgent: applications.length > 0 },
     { key: "shops",         label: "Active Shops",  count: activeShops.length },
     { key: "users",         label: "Users",         count: users.length },
+    { key: "expenses",      label: "Shop Expenses" },
   ];
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -1096,7 +1193,315 @@ export default function AdminPage() {
             )}
           </div>
         )}
+        {/* ══ SHOP EXPENSES ══════════════════════════════════════════════════ */}
+        {tab === "expenses" && (
+          <div className="space-y-3">
+
+            {/* Shop selector / back bar */}
+            {!expShopId ? (
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-100">
+                  <h2 className="font-semibold text-gray-800 text-sm flex items-center gap-2">
+                    <Receipt size={14} style={{ color: LI_BLUE }} />
+                    Select a Shop to View Expenses
+                  </h2>
+                  <div className="relative">
+                    <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                    <input value={expShopSearch} onChange={(e) => setExpShopSearch(e.target.value)}
+                      placeholder="Search shops…"
+                      className="pl-7 pr-3 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-100 w-44" />
+                  </div>
+                </div>
+                {loading ? (
+                  <div className="p-4 space-y-2">
+                    {Array.from({ length: 5 }).map((_, i) => (
+                      <div key={i} className="h-12 rounded-lg animate-pulse" style={{ background: "#F3F2EE" }} />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="divide-y divide-gray-50">
+                    {activeShops
+                      .filter((s) => !expShopSearch || s.name?.toLowerCase().includes(expShopSearch.toLowerCase()) || s.owner_email?.toLowerCase().includes(expShopSearch.toLowerCase()))
+                      .map((shop) => (
+                        <button key={shop.id} onClick={() => selectExpShop(shop)}
+                          className="w-full flex items-center gap-3 px-5 py-3 hover:bg-[#EBF2FD] transition-colors text-left group">
+                          <div className="w-9 h-9 rounded-full overflow-hidden flex items-center justify-center text-sm font-bold text-white shrink-0"
+                            style={{ background: shop.logo_url ? "transparent" : LI_BLUE }}>
+                            {shop.logo_url
+                              // eslint-disable-next-line @next/next/no-img-element
+                              ? <img src={shop.logo_url} alt={shop.name} className="w-9 h-9 object-cover" />
+                              : (shop.name ?? "?")[0].toUpperCase()}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-semibold text-gray-900 group-hover:text-[#1372e6] transition-colors">{shop.name}</p>
+                            {shop.owner_email && <p className="text-[11px] text-gray-400 truncate">{shop.owner_email}</p>}
+                          </div>
+                          <div className="flex items-center gap-4 text-xs text-gray-400 shrink-0">
+                            <span>{shop.user_count} users</span>
+                            {isOnline(shop.last_seen_at) && (
+                              <span className="flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full text-white" style={{ background: "#057642" }}>
+                                <span className="w-1 h-1 rounded-full bg-white animate-pulse" />LIVE
+                              </span>
+                            )}
+                            <Receipt size={13} style={{ color: LI_BLUE }} className="opacity-0 group-hover:opacity-100 transition-opacity" />
+                          </div>
+                        </button>
+                      ))}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <>
+                {/* Back + shop header */}
+                <div className="bg-white rounded-xl shadow-sm border border-gray-200 px-4 py-3 flex items-center gap-3">
+                  <button onClick={() => { setExpShopId(null); setExpenseRows([]); }}
+                    className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-800 font-medium transition border border-gray-200 rounded-lg px-2.5 py-1.5 hover:bg-gray-50 shrink-0">
+                    <ChevronLeft size={12} /> All Shops
+                  </button>
+                  <Receipt size={14} style={{ color: LI_BLUE }} className="shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-gray-900">{expShopName}</p>
+                    <p className="text-[11px] text-gray-400">{expTotal.toLocaleString()} expense{expTotal !== 1 ? "s" : ""} total</p>
+                  </div>
+                  <button onClick={() => loadShopExpenses(expShopId, expPage)} disabled={expLoading}
+                    className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 transition disabled:opacity-40 shrink-0">
+                    <RefreshCw size={11} className={expLoading ? "animate-spin" : ""} /> Refresh
+                  </button>
+                </div>
+
+                {/* Expenses table */}
+                <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                  {expLoading ? (
+                    <div className="p-4 space-y-2">
+                      {Array.from({ length: 8 }).map((_, i) => (
+                        <div key={i} className="h-10 rounded-lg animate-pulse" style={{ background: "#F3F2EE" }} />
+                      ))}
+                    </div>
+                  ) : expenseRows.length === 0 ? (
+                    <div className="py-16 text-center">
+                      <Receipt size={32} className="mx-auto mb-3 text-gray-200" />
+                      <p className="text-sm font-semibold text-gray-400">No expenses recorded</p>
+                      <p className="text-xs text-gray-300 mt-0.5">This shop has not added any expenses yet.</p>
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full">
+                        <thead>
+                          <tr className="bg-slate-50 border-b border-slate-100">
+                            {["Date","Title","Category","Amount","Payment","Bank Name","Account / Ref","Receiver Phone","Notes",""].map((h) => (
+                              <th key={h} className="px-3 py-2 text-left text-[9px] font-semibold uppercase tracking-wider text-slate-400 whitespace-nowrap">{h}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-50">
+                          {expenseRows.map((e) => {
+                            const d = e.expense_date ? new Date(e.expense_date) : null;
+                            return (
+                              <tr key={e.id} className="hover:bg-slate-50/60 transition-colors">
+                                {/* Date */}
+                                <td className="px-3 py-1.5 whitespace-nowrap">
+                                  {d ? (
+                                    <div>
+                                      <p className="text-xs font-medium text-slate-700">{d.toLocaleDateString()}</p>
+                                      <p className="text-[10px] text-slate-400">{d.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})}</p>
+                                    </div>
+                                  ) : <span className="text-slate-300 text-xs">—</span>}
+                                </td>
+                                {/* Title */}
+                                <td className="px-3 py-1.5">
+                                  <p className="text-xs font-semibold text-slate-800">{e.title}</p>
+                                  <p className="text-[10px] text-slate-400 font-mono">{e.id.slice(0,8)}</p>
+                                </td>
+                                {/* Category */}
+                                <td className="px-3 py-1.5">
+                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-blue-100 text-blue-700 capitalize">{e.category}</span>
+                                </td>
+                                {/* Amount */}
+                                <td className="px-3 py-1.5 text-xs font-bold tabular-nums" style={{ color: LI_BLUE }}>
+                                  {Number(e.amount).toLocaleString()}
+                                </td>
+                                {/* Payment Method */}
+                                <td className="px-3 py-1.5 whitespace-nowrap">
+                                  {e.payment_method === "mtn" && (
+                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-yellow-100 text-yellow-700">MTN MoMo</span>
+                                  )}
+                                  {e.payment_method === "bank" && (
+                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-blue-100 text-blue-700">Bank</span>
+                                  )}
+                                  {!e.payment_method && <span className="text-slate-300 text-[10px]">—</span>}
+                                </td>
+                                {/* Bank Name */}
+                                <td className="px-3 py-1.5 text-[10px] text-slate-600 whitespace-nowrap">
+                                  {e.bank_name || <span className="text-slate-300">—</span>}
+                                </td>
+                                {/* Account / Ref */}
+                                <td className="px-3 py-1.5 text-[10px] text-slate-600 font-mono whitespace-nowrap">
+                                  {e.bank_account || <span className="text-slate-300 font-sans">—</span>}
+                                </td>
+                                {/* Receiver Phone */}
+                                <td className="px-3 py-1.5 text-[10px] text-slate-600 whitespace-nowrap">
+                                  {e.receiver_phone || <span className="text-slate-300">—</span>}
+                                </td>
+                                {/* Notes */}
+                                <td className="px-3 py-1.5 text-[10px] text-slate-500 max-w-[140px] truncate">
+                                  {e.notes || <span className="text-slate-300 italic">—</span>}
+                                </td>
+                                {/* Edit */}
+                                <td className="px-3 py-1.5">
+                                  <button onClick={() => openEditExp(e)} title="Edit expense"
+                                    className="p-1.5 rounded-md hover:bg-[#EBF2FD] text-gray-300 hover:text-[#1372e6] transition">
+                                    <Pencil size={12} />
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+
+                  {/* Pagination */}
+                  {expTotal > 50 && (
+                    <div className="flex items-center justify-between px-4 py-2 border-t border-slate-100 bg-slate-50/50">
+                      <p className="text-[11px] text-slate-500">
+                        Page <span className="font-semibold">{expPage}</span> · {expTotal.toLocaleString()} total
+                      </p>
+                      <div className="flex gap-1">
+                        <button disabled={expPage <= 1 || expLoading} onClick={() => loadShopExpenses(expShopId, expPage - 1)}
+                          className="px-2.5 py-1 rounded-md text-[11px] border border-slate-200 text-slate-500 hover:bg-slate-100 disabled:opacity-30 transition">
+                          ← Prev
+                        </button>
+                        <button disabled={expPage * 50 >= expTotal || expLoading} onClick={() => loadShopExpenses(expShopId, expPage + 1)}
+                          className="px-2.5 py-1 rounded-md text-[11px] border border-slate-200 text-slate-500 hover:bg-slate-100 disabled:opacity-30 transition">
+                          Next →
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
       </main>
+
+      {/* ── EDIT EXPENSE MODAL (admin) ─────────────────────────────────────────── */}
+      {editingExp && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col max-h-[90vh]">
+            {/* Header */}
+            <div className="flex items-center justify-between px-4 py-2.5 border-b border-slate-100 shrink-0">
+              <div>
+                <p className="text-xs font-bold text-slate-800">Edit Expense</p>
+                <p className="text-[10px] text-slate-400">{expShopName} · {editingExp.id.slice(0,8)}</p>
+              </div>
+              <button onClick={() => setEditingExp(null)} className="p-1 rounded-md hover:bg-slate-100 text-slate-400 transition">
+                <X size={13} />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="px-4 py-3 grid gap-2 overflow-y-auto flex-1">
+              {/* Title */}
+              <div>
+                <label className="block text-[10px] font-medium text-gray-500 mb-0.5">Title <span className="text-red-400">*</span></label>
+                <input className="border border-slate-200 rounded-md px-2 py-1 w-full text-[11px] text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#1372e6]/30 focus:border-[#1372e6] transition"
+                  value={editForm.title} onChange={(e) => setEditForm({ ...editForm, title: e.target.value })} />
+              </div>
+
+              {/* Category + Amount */}
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[10px] font-medium text-gray-500 mb-0.5">Category</label>
+                  <select className="border border-slate-200 rounded-md px-2 py-1 w-full text-[11px] text-gray-800 focus:outline-none focus:ring-1 focus:ring-[#1372e6]/30 focus:border-[#1372e6] transition"
+                    value={editForm.category} onChange={(e) => setEditForm({ ...editForm, category: e.target.value })}>
+                    {EXP_CATEGORIES.map((c) => <option key={c} value={c} className="capitalize">{c}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-medium text-gray-500 mb-0.5">Amount <span className="text-red-400">*</span></label>
+                  <input type="number" min="0" className="border border-slate-200 rounded-md px-2 py-1 w-full text-[11px] text-gray-800 focus:outline-none focus:ring-1 focus:ring-[#1372e6]/30 focus:border-[#1372e6] transition"
+                    value={editForm.amount} onChange={(e) => setEditForm({ ...editForm, amount: e.target.value })} />
+                </div>
+              </div>
+
+              {/* Date + Notes */}
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[10px] font-medium text-gray-500 mb-0.5">Date</label>
+                  <input type="date" className="border border-slate-200 rounded-md px-2 py-1 w-full text-[11px] text-gray-800 focus:outline-none focus:ring-1 focus:ring-[#1372e6]/30 focus:border-[#1372e6] transition"
+                    value={editForm.expense_date} onChange={(e) => setEditForm({ ...editForm, expense_date: e.target.value })} />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-medium text-gray-500 mb-0.5">Notes</label>
+                  <input className="border border-slate-200 rounded-md px-2 py-1 w-full text-[11px] text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#1372e6]/30 focus:border-[#1372e6] transition"
+                    placeholder="Optional…" value={editForm.notes} onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })} />
+                </div>
+              </div>
+
+              {/* Payment method */}
+              <div className="border border-slate-100 rounded-lg p-2 bg-slate-50/50">
+                <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Payment Method</p>
+                <div className="flex gap-1.5 mb-1.5">
+                  {(["","mtn","bank"] as const).map((m) => (
+                    <button key={m} type="button"
+                      onClick={() => setEditForm({ ...editForm, payment_method: m, bank_name: "", bank_account: "", receiver_phone: "" })}
+                      className={`flex-1 py-1 rounded-md text-[10px] font-semibold border transition-all ${
+                        editForm.payment_method === m
+                          ? m === "mtn"  ? "bg-yellow-400 border-yellow-400 text-white"
+                          : m === "bank" ? "border-[#1372e6] text-white"
+                          : "bg-slate-200 border-slate-200 text-slate-700"
+                          : "bg-white border-slate-200 text-slate-400 hover:border-slate-300"
+                      }`}
+                      style={editForm.payment_method === m && m === "bank" ? { background: LI_BLUE } : {}}>
+                      {m === "" ? "None" : m === "mtn" ? "MTN MoMo" : "Bank"}
+                    </button>
+                  ))}
+                </div>
+                {editForm.payment_method === "bank" && (
+                  <div className="grid grid-cols-2 gap-1.5 mb-1.5">
+                    <div>
+                      <label className="block text-[10px] font-medium text-gray-500 mb-0.5">Bank Name</label>
+                      <select className="border border-slate-200 rounded-md px-2 py-1 w-full text-[11px] text-gray-800 focus:outline-none focus:ring-1 focus:ring-[#1372e6]/30 focus:border-[#1372e6] transition"
+                        value={editForm.bank_name} onChange={(e) => setEditForm({ ...editForm, bank_name: e.target.value })}>
+                        <option value="">Select bank…</option>
+                        {BANK_NAMES.map((b) => <option key={b} value={b}>{b}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-medium text-gray-500 mb-0.5">Account / Ref.</label>
+                      <input className="border border-slate-200 rounded-md px-2 py-1 w-full text-[11px] text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#1372e6]/30 focus:border-[#1372e6] transition"
+                        placeholder="Account no. or ref." value={editForm.bank_account} onChange={(e) => setEditForm({ ...editForm, bank_account: e.target.value })} />
+                    </div>
+                  </div>
+                )}
+                {editForm.payment_method !== "" && (
+                  <div>
+                    <label className="block text-[10px] font-medium text-gray-500 mb-0.5">Receiver Phone</label>
+                    <input className="border border-slate-200 rounded-md px-2 py-1 w-full text-[11px] text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#1372e6]/30 focus:border-[#1372e6] transition"
+                      placeholder="+250 7XX XXX XXX" value={editForm.receiver_phone} onChange={(e) => setEditForm({ ...editForm, receiver_phone: e.target.value })} />
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="flex justify-end gap-1.5 px-4 py-2.5 border-t border-slate-100 shrink-0">
+              <button onClick={() => setEditingExp(null)}
+                className="px-3 py-1 rounded-md border border-slate-200 text-[11px] font-medium text-slate-600 hover:bg-slate-50 transition">
+                Cancel
+              </button>
+              <button onClick={saveEditExp} disabled={editSaving || !editForm.title.trim() || !editForm.amount}
+                className="px-3 py-1 rounded-md text-[11px] font-semibold text-white transition disabled:opacity-60 hover:opacity-90"
+                style={{ background: LI_BLUE }}>
+                {editSaving ? "Saving…" : "Save Changes"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── REJECT APPLICATION MODAL ──────────────────────────────────────────── */}
       {rejectModal && (

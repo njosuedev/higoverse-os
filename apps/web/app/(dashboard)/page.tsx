@@ -11,7 +11,6 @@ import { reportRequest } from "@/lib/report-api";
 import { expenseRequest } from "@/lib/expense-api";
 import { purchaseRequest } from "@/lib/purchase-api";
 import { listShops, type Shop as ShopInfo } from "@/lib/shop-api";
-import LoadingSkeleton from "@/app/components/dashboard/LoadingSkeleton";
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer,
 } from "recharts";
@@ -209,7 +208,7 @@ export default function DashboardPage() {
     return result;
   }, [dailyData]);
 
-  if (!user || dataLoading) return <LoadingSkeleton />;
+  if (!user || dataLoading) return <HomeSkeleton />;
 
   const currentShop = shops.find((s) => s.id === user.shop_id);
   const onlineCount = shops.filter((s) => shopPresence(s.last_seen_at, now).online).length;
@@ -224,50 +223,50 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen">
-      <main className="max-w-7xl mx-auto px-3 sm:px-5 py-3 sm:py-4 space-y-4">
+      <main className="max-w-7xl mx-auto px-3 sm:px-5 py-2.5 sm:py-3 space-y-3">
 
         {/* ── HERO ────────────────────────────────────────────────────────────── */}
         <section className="relative overflow-hidden rounded-xl text-white shadow-md" style={{ backgroundColor: "#1372e6" }}>
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-white/10 via-transparent to-transparent pointer-events-none" />
 
-          <div className="relative z-10 flex flex-col md:flex-row md:items-center md:justify-between gap-3 px-4 py-3.5">
-            <div className="flex items-center gap-3">
+          <div className="relative z-10 flex flex-col md:flex-row md:items-center md:justify-between gap-2.5 px-3.5 py-2.5">
+            <div className="flex items-center gap-2.5">
               {currentShop?.logo_url && (
                 <img
                   src={currentShop.logo_url}
                   alt={currentShop.name}
-                  className="w-11 h-11 rounded-xl object-cover border-2 border-white/20 shadow shrink-0"
+                  className="w-9 h-9 rounded-xl object-cover border-2 border-white/20 shadow shrink-0"
                 />
               )}
               <div>
                 <p className="text-blue-200 text-[10px] font-medium uppercase tracking-widest">{t("dash.welcome")}</p>
-                <h1 className="text-xl md:text-2xl font-bold mt-0.5">{currentShop?.name || user.name || "My Shop"}</h1>
-                <p className="text-blue-200 text-xs mt-0.5">{user.name} · {user.role || "Owner"}</p>
+                <h1 className="text-base md:text-lg font-bold mt-0.5">{currentShop?.name || user.name || "My Shop"}</h1>
+                <p className="text-blue-200 text-[11px] mt-0.5">{user.name} · {user.role || "Owner"}</p>
               </div>
             </div>
 
-            <div className="flex items-center gap-3 flex-wrap">
-              <div className="bg-white/10 px-3 py-2 rounded-xl text-center">
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="bg-white/10 px-2.5 py-1.5 rounded-xl text-center">
                 <p className="text-blue-200 text-[9px] uppercase tracking-wider">{t("dash.sales_today")}</p>
-                <p className="text-lg font-bold">{stats.sales}</p>
+                <p className="text-sm font-bold">{stats.sales}</p>
               </div>
-              <div className="bg-white/10 px-3 py-2 rounded-xl text-center">
+              <div className="bg-white/10 px-2.5 py-1.5 rounded-xl text-center">
                 <p className="text-blue-200 text-[9px] uppercase tracking-wider">{t("dash.revenue_today")}</p>
-                <p className="text-lg font-bold text-green-300">
+                <p className="text-sm font-bold text-green-300">
                   {stats.revenue > 0 ? `RWF ${fmtShort(stats.revenue)}` : "—"}
                 </p>
               </div>
               {(stats.lowStock > 0 || stats.outOfStock > 0) && (
-                <div className="bg-red-500/20 border border-red-400/30 px-3 py-2 rounded-xl text-center">
+                <div className="bg-red-500/20 border border-red-400/30 px-2.5 py-1.5 rounded-xl text-center">
                   <p className="text-red-200 text-[9px] uppercase tracking-wider">{t("dash.needs_restock")}</p>
-                  <p className="text-lg font-bold text-red-200">{stats.lowStock + stats.outOfStock}</p>
+                  <p className="text-sm font-bold text-red-200">{stats.lowStock + stats.outOfStock}</p>
                 </div>
               )}
             </div>
 
-            <div className="flex items-center gap-2.5 shrink-0">
+            <div className="flex items-center gap-2 shrink-0">
               <div className="text-right">
-                <p className="text-xl font-mono font-bold tabular-nums">{fmtTime(now)}</p>
+                <p className="text-sm font-mono font-bold tabular-nums">{fmtTime(now)}</p>
                 <p className="text-blue-300 text-[10px]">{fmtDate(now)}</p>
               </div>
               <button
@@ -313,36 +312,36 @@ export default function DashboardPage() {
         </section>
 
         {/* ── TODAY'S SHOP STATUS ──────────────────────────────────────────────── */}
-        <section className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
-          <div className="flex items-center justify-between mb-3">
+        <section className="bg-white border border-slate-200 rounded-xl p-3 shadow-sm">
+          <div className="flex items-center justify-between mb-2">
             <h2 className="font-bold text-slate-900 text-sm flex items-center gap-2">
-              <DollarSign size={14} className="text-[#1372e6]" />
+              <DollarSign size={13} className="text-[#1372e6]" />
               {t("dash.shop_status_today") || "Today's Shop Status"}
             </h2>
-            <Link href="/reports" className="text-xs font-semibold text-white px-3 py-1 rounded-lg transition hover:opacity-90" style={{ backgroundColor: "#1372e6" }}>
+            <Link href="/reports" className="text-[11px] font-semibold text-white px-2.5 py-0.5 rounded-lg transition hover:opacity-90" style={{ backgroundColor: "#1372e6" }}>
               {t("dash.full_report")} →
             </Link>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-            <div className="p-2.5 bg-green-50 rounded-xl">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <div className="p-2 bg-green-50 rounded-xl">
               <p className="text-[9px] text-slate-400 uppercase tracking-wide font-medium">{t("dash.revenue_today") || "Revenue"}</p>
-              <p className="text-base font-bold text-green-700 mt-0.5">{stats.revenue > 0 ? fmtCurrency(stats.revenue) : "—"}</p>
+              <p className="text-sm font-bold text-green-700 mt-0.5">{stats.revenue > 0 ? fmtCurrency(stats.revenue) : "—"}</p>
               <p className="text-[10px] text-slate-400 mt-0.5">{stats.sales} {t("dash.sales_today") || "sales"}</p>
             </div>
-            <div className="p-2.5 bg-slate-100 rounded-xl">
+            <div className="p-2 bg-slate-100 rounded-xl">
               <p className="text-[9px] text-slate-400 uppercase tracking-wide font-medium">{t("nav.purchases") || "Purchases"}</p>
-              <p className="text-base font-bold text-slate-700 mt-0.5">{purchaseCostToday > 0 ? fmtCurrency(purchaseCostToday) : "—"}</p>
+              <p className="text-sm font-bold text-slate-700 mt-0.5">{purchaseCostToday > 0 ? fmtCurrency(purchaseCostToday) : "—"}</p>
               <p className="text-[10px] text-slate-400 mt-0.5">{t("dash.stock_cost") || "Stock cost"}</p>
             </div>
-            <div className="p-2.5 bg-orange-50 rounded-xl">
+            <div className="p-2 bg-orange-50 rounded-xl">
               <p className="text-[9px] text-slate-400 uppercase tracking-wide font-medium">{t("nav.expenses") || "Expenses"}</p>
-              <p className="text-base font-bold text-orange-700 mt-0.5">{expenseToday.total_expenses > 0 ? fmtCurrency(expenseToday.total_expenses) : "—"}</p>
+              <p className="text-sm font-bold text-orange-700 mt-0.5">{expenseToday.total_expenses > 0 ? fmtCurrency(expenseToday.total_expenses) : "—"}</p>
               <p className="text-[10px] text-slate-400 mt-0.5">{expenseToday.count} {t("expenses.records") || "records"}</p>
             </div>
-            <div className={`p-2.5 rounded-xl ${netProfit >= 0 ? "bg-[#EBF2FD]" : "bg-red-50"}`}>
+            <div className={`p-2 rounded-xl ${netProfit >= 0 ? "bg-[#EBF2FD]" : "bg-red-50"}`}>
               <p className="text-[9px] text-slate-400 uppercase tracking-wide font-medium">{t("dash.net_profit") || "Net Profit"}</p>
-              <p className={`text-base font-bold mt-0.5 ${netProfit >= 0 ? "text-[#1372e6]" : "text-red-600"}`}>
+              <p className={`text-sm font-bold mt-0.5 ${netProfit >= 0 ? "text-[#1372e6]" : "text-red-600"}`}>
                 {totalCosts > 0 || stats.revenue > 0 ? fmtCurrency(netProfit) : "—"}
               </p>
               <p className="text-[10px] text-slate-400 mt-0.5">
@@ -352,7 +351,7 @@ export default function DashboardPage() {
           </div>
 
           {stats.revenue > 0 && (
-            <div className="mt-3">
+            <div className="mt-2">
               <div className="flex h-2 rounded-full overflow-hidden gap-0.5">
                 {purchasePct > 0 && <div className="bg-slate-400 rounded-l-full" style={{ width: `${purchasePct}%` }} />}
                 {expensePct  > 0 && <div className="bg-amber-400"               style={{ width: `${expensePct}%` }} />}
@@ -376,9 +375,92 @@ export default function DashboardPage() {
           )}
         </section>
 
+        {/* ── BUSINESS PROGRESS ───────────────────────────────────────────────── */}
+        <section className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+          {/* Stock health */}
+          {(() => {
+            const total = stats.products;
+            const healthy = total - stats.lowStock - stats.outOfStock;
+            const healthPct = total > 0 ? Math.round((healthy / total) * 100) : 100;
+            const lowPct    = total > 0 ? Math.round((stats.lowStock   / total) * 100) : 0;
+            const outPct    = total > 0 ? Math.round((stats.outOfStock / total) * 100) : 0;
+            return (
+              <div className="bg-white border border-slate-200 rounded-xl p-3 shadow-sm">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500 flex items-center gap-1">
+                    <Package size={10} className="text-[#1372e6]" /> {t("dash.stock_health") || "Stock Health"}
+                  </p>
+                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+                    healthPct >= 80 ? "bg-green-50 text-green-700" : healthPct >= 50 ? "bg-amber-50 text-amber-700" : "bg-red-50 text-red-600"
+                  }`}>{healthPct}%</span>
+                </div>
+                <div className="flex h-2 rounded-full overflow-hidden gap-px mb-2">
+                  {healthy    > 0 && <div className="bg-green-500 rounded-l-full" style={{ width: `${healthPct}%` }} />}
+                  {stats.lowStock > 0 && <div className="bg-amber-400" style={{ width: `${lowPct}%` }} />}
+                  {stats.outOfStock > 0 && <div className="bg-red-500 rounded-r-full" style={{ width: `${outPct}%` }} />}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <span className="flex items-center gap-1 text-[9px] text-slate-500"><span className="w-2 h-1.5 rounded-sm bg-green-500 inline-block" /> {healthy} {t("dash.healthy") || "Healthy"}</span>
+                  {stats.lowStock   > 0 && <span className="flex items-center gap-1 text-[9px] text-slate-500"><span className="w-2 h-1.5 rounded-sm bg-amber-400 inline-block" /> {stats.lowStock} {t("items.low_stock")}</span>}
+                  {stats.outOfStock > 0 && <span className="flex items-center gap-1 text-[9px] text-slate-500"><span className="w-2 h-1.5 rounded-sm bg-red-500 inline-block" /> {stats.outOfStock} {t("items.out_stock")}</span>}
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* Net margin */}
+          {(() => {
+            const margin = stats.revenue > 0 ? Math.round((netProfit / stats.revenue) * 100) : 0;
+            const capped  = Math.min(100, Math.max(0, margin));
+            const isGood  = margin >= 20;
+            const color   = margin < 0 ? "#ef4444" : margin < 15 ? "#f59e0b" : "#22c55e";
+            return (
+              <div className="bg-white border border-slate-200 rounded-xl p-3 shadow-sm">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500 flex items-center gap-1">
+                    <TrendingUp size={10} className="text-[#1372e6]" /> {t("dash.profit_margin") || "Net Margin"}
+                  </p>
+                  <span className="text-[10px] font-bold" style={{ color }}>{margin}%</span>
+                </div>
+                <div className="relative h-2 bg-slate-100 rounded-full overflow-hidden mb-2">
+                  <div className="absolute inset-y-0 left-0 rounded-full transition-all duration-700" style={{ width: `${capped}%`, backgroundColor: color }} />
+                </div>
+                <div className="flex items-center justify-between text-[9px] text-slate-400">
+                  <span>{t("dash.revenue_today")}: {fmtCurrency(stats.revenue)}</span>
+                  <span className={isGood ? "text-green-600 font-semibold" : ""}>{isGood ? "✓ Healthy" : margin < 0 ? "⚠ Loss" : "Fair"}</span>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* Shops online */}
+          {(() => {
+            const pct = shops.length > 0 ? Math.round((onlineCount / shops.length) * 100) : 0;
+            return (
+              <div className="bg-white border border-slate-200 rounded-xl p-3 shadow-sm">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500 flex items-center gap-1">
+                    <Globe size={10} className="text-[#1372e6]" /> {t("dash.shops_live") || "Shops Live"}
+                  </p>
+                  <span className="flex items-center gap-1 text-[10px] font-bold text-green-700">
+                    <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />{onlineCount}/{shops.length}
+                  </span>
+                </div>
+                <div className="relative h-2 bg-slate-100 rounded-full overflow-hidden mb-2">
+                  <div className="absolute inset-y-0 left-0 rounded-full bg-green-500 transition-all duration-700" style={{ width: `${pct}%` }} />
+                </div>
+                <div className="flex items-center justify-between text-[9px] text-slate-400">
+                  <span>{onlineCount} {t("dash.online_now") || "online now"}</span>
+                  <span>{pct}% {t("common.active") || "active"}</span>
+                </div>
+              </div>
+            );
+          })()}
+        </section>
+
         {/* ── 7-DAY CHART + RECENT SALES ──────────────────────────────────────── */}
-        <div className="grid md:grid-cols-2 gap-4">
-          <section className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+        <div className="grid md:grid-cols-2 gap-2.5">
+          <section className="bg-white border border-slate-200 rounded-xl p-3 shadow-sm">
             <div className="flex items-center justify-between mb-1">
               <div>
                 <h2 className="font-bold text-slate-900 text-sm flex items-center gap-2">
@@ -391,12 +473,12 @@ export default function DashboardPage() {
                   {t("common.total")}: {fmtCurrency(chartData.reduce((s, d) => s + d.revenue, 0))}
                 </p>
               </div>
-              <Link href="/reports" className="text-xs font-semibold text-white px-3 py-1 rounded-lg transition hover:opacity-90" style={{ backgroundColor: "#1372e6" }}>
+              <Link href="/reports" className="text-[11px] font-semibold text-white px-2.5 py-0.5 rounded-lg transition hover:opacity-90" style={{ backgroundColor: "#1372e6" }}>
                 {t("dash.full_report")} →
               </Link>
             </div>
 
-            <ResponsiveContainer width="100%" height={110}>
+            <ResponsiveContainer width="100%" height={95}>
               <AreaChart data={chartData} margin={{ top: 6, right: 4, bottom: 0, left: -20 }}>
                 <defs>
                   <linearGradient id="revFill" x1="0" y1="0" x2="0" y2="1">
@@ -432,26 +514,26 @@ export default function DashboardPage() {
           </section>
 
           <section className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
-            <div className="flex items-center justify-between px-4 pt-4 pb-2.5">
+            <div className="flex items-center justify-between px-3 pt-3 pb-2">
               <h2 className="font-bold text-slate-900 text-sm flex items-center gap-2">
-                <Receipt size={14} className="text-[#1372e6]" />
+                <Receipt size={13} className="text-[#1372e6]" />
                 {t("dash.recent_sales")}
               </h2>
-              <Link href="/sales" className="text-xs font-semibold text-white px-3 py-1 rounded-lg transition hover:opacity-90" style={{ backgroundColor: "#1372e6" }}>
+              <Link href="/sales" className="text-[11px] font-semibold text-white px-2.5 py-0.5 rounded-lg transition hover:opacity-90" style={{ backgroundColor: "#1372e6" }}>
                 {t("dash.all_sales")} →
               </Link>
             </div>
 
             {recentSales.length === 0 ? (
-              <div className="px-4 pb-4 text-slate-400 text-xs flex items-center gap-2 py-5">
-                <ShoppingCart size={14} /> {t("dash.no_sales_today")}
+              <div className="px-3 pb-3 text-slate-400 text-xs flex items-center gap-2 py-4">
+                <ShoppingCart size={13} /> {t("dash.no_sales_today")}
               </div>
             ) : (
               <div className="divide-y divide-slate-50">
                 {recentSales.map((sale) => (
-                  <div key={sale.id} className="flex items-center gap-2.5 px-4 py-2.5 hover:bg-slate-50 transition-colors">
-                    <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 text-white" style={{ backgroundColor: "#1372e6" }}>
-                      <ShoppingCart size={12} strokeWidth={2.5} />
+                  <div key={sale.id} className="flex items-center gap-2 px-3 py-2 hover:bg-slate-50 transition-colors">
+                    <div className="w-6 h-6 rounded-lg flex items-center justify-center shrink-0 text-white" style={{ backgroundColor: "#1372e6" }}>
+                      <ShoppingCart size={11} strokeWidth={2.5} />
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-xs font-semibold text-slate-800 truncate">{sale.product_name || t("nav.sales")}</p>
@@ -471,22 +553,22 @@ export default function DashboardPage() {
               </div>
             )}
 
-            <div className="px-4 py-2.5 border-t border-slate-50">
+            <div className="px-3 py-2 border-t border-slate-50">
               <Link href="/sales"
-                className="w-full flex items-center justify-center gap-1.5 text-xs font-semibold text-white py-2 rounded-xl transition hover:opacity-90" style={{ background: "#1372e6" }}>
-                <Plus size={12} /> {t("dash.record_new_sale")}
+                className="w-full flex items-center justify-center gap-1.5 text-xs font-semibold text-white py-1.5 rounded-xl transition hover:opacity-90" style={{ background: "#1372e6" }}>
+                <Plus size={11} /> {t("dash.record_new_sale")}
               </Link>
             </div>
           </section>
         </div>
 
         {/* ── STOCK ALERTS + QUICK ACTIONS ────────────────────────────────────── */}
-        <div className="grid md:grid-cols-2 gap-4">
+        <div className="grid md:grid-cols-2 gap-2.5">
 
           <section className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
-            <div className="flex items-center justify-between px-4 pt-4 pb-2.5">
+            <div className="flex items-center justify-between px-3 pt-3 pb-2">
               <h2 className="font-bold text-slate-900 text-sm flex items-center gap-2">
-                <AlertTriangle size={14} className="text-orange-500" />
+                <AlertTriangle size={13} className="text-orange-500" />
                 {t("reports.stock_alerts")}
                 {stockAlerts.length > 0 && (
                   <span className="text-[10px] font-bold bg-red-100 text-red-600 px-1.5 py-0.5 rounded-full">
@@ -494,15 +576,15 @@ export default function DashboardPage() {
                   </span>
                 )}
               </h2>
-              <Link href="/items" className="text-xs font-semibold text-white px-3 py-1 rounded-lg transition hover:opacity-90" style={{ backgroundColor: "#1372e6" }}>
+              <Link href="/items" className="text-[11px] font-semibold text-white px-2.5 py-0.5 rounded-lg transition hover:opacity-90" style={{ backgroundColor: "#1372e6" }}>
                 {t("dash.view_all")} →
               </Link>
             </div>
 
             {stockAlerts.length === 0 ? (
-              <div className="px-4 pb-4 flex items-center gap-3 py-5">
-                <div className="w-8 h-8 rounded-xl bg-green-100 flex items-center justify-center">
-                  <CheckCircle size={15} className="text-green-600" />
+              <div className="px-3 pb-3 flex items-center gap-2.5 py-4">
+                <div className="w-7 h-7 rounded-xl bg-green-100 flex items-center justify-center">
+                  <CheckCircle size={13} className="text-green-600" />
                 </div>
                 <div>
                   <p className="font-semibold text-slate-700 text-xs">{t("dash.all_stock_healthy")}</p>
@@ -513,7 +595,7 @@ export default function DashboardPage() {
               <div className="divide-y divide-slate-50">
                 {stockAlerts.map((item) => (
                   <div key={item.id}
-                    className={`flex items-center gap-2.5 px-4 py-2.5 ${item.quantity === 0 ? "bg-red-50/40" : "bg-amber-50/30"}`}>
+                    className={`flex items-center gap-2 px-3 py-2 ${item.quantity === 0 ? "bg-red-50/40" : "bg-amber-50/30"}`}>
                     <div className={`w-2 h-2 rounded-full shrink-0 ${item.quantity === 0 ? "bg-red-500" : "bg-amber-500"}`} />
                     <div className="flex-1 min-w-0">
                       <p className="text-xs font-semibold text-slate-800 truncate">{item.name}</p>
@@ -524,7 +606,7 @@ export default function DashboardPage() {
                     </div>
                     <Link
                       href="/PurchaseManagement"
-                      className="flex items-center gap-1 text-[10px] font-semibold text-white bg-[#1372e6] hover:bg-[#0d5cc4] px-2 py-1 rounded-lg transition"
+                      className="flex items-center gap-1 text-[10px] font-semibold text-white bg-[#1372e6] hover:bg-[#0d5cc4] px-2 py-0.5 rounded-lg transition"
                     >
                       <Plus size={10} /> {t("reports.restock")}
                     </Link>
@@ -534,18 +616,18 @@ export default function DashboardPage() {
             )}
 
             {stockAlerts.length > 0 && (
-              <div className="px-4 py-2.5 border-t border-slate-50">
+              <div className="px-3 py-2 border-t border-slate-50">
                 <Link href="/PurchaseManagement"
-                  className="w-full flex items-center justify-center gap-1.5 text-xs font-semibold text-[#1372e6] bg-[#EBF2FD] hover:bg-[#D5E8FB] py-2 rounded-xl transition">
-                  <Truck size={12} /> {t("items.go_purchases")}
+                  className="w-full flex items-center justify-center gap-1.5 text-xs font-semibold text-[#1372e6] bg-[#EBF2FD] hover:bg-[#D5E8FB] py-1.5 rounded-xl transition">
+                  <Truck size={11} /> {t("items.go_purchases")}
                 </Link>
               </div>
             )}
           </section>
 
-          <section className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
-            <h2 className="font-bold text-slate-900 text-sm mb-3">{t("dash.quick_actions")}</h2>
-            <div className="grid grid-cols-2 gap-2.5">
+          <section className="bg-white border border-slate-200 rounded-xl p-3 shadow-sm">
+            <h2 className="font-bold text-slate-900 text-sm mb-2">{t("dash.quick_actions")}</h2>
+            <div className="grid grid-cols-2 gap-2">
               {[
                 { href: "/sales",              icon: Plus,      label: t("dash.new_sale"),     desc: t("dash.new_sale_desc") },
                 { href: "/PurchaseManagement", icon: Truck,     label: t("dash.new_purchase"), desc: t("dash.new_purchase_desc") },
@@ -553,11 +635,11 @@ export default function DashboardPage() {
                 { href: "/reports",            icon: BarChart3, label: t("dash.view_reports"), desc: t("dash.charts_analytics") },
               ].map((a) => (
                 <Link key={a.href} href={a.href}
-                  className="flex items-center gap-2.5 p-3 rounded-xl text-white shadow-sm"
+                  className="flex items-center gap-2 p-2.5 rounded-xl text-white shadow-sm"
                   style={{ backgroundColor: "#1372e6" }}
                 >
-                  <div className="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
-                    <a.icon size={14} strokeWidth={2.5} />
+                  <div className="w-7 h-7 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
+                    <a.icon size={13} strokeWidth={2.5} />
                   </div>
                   <div className="min-w-0">
                     <p className="text-xs font-bold leading-tight">{a.label}</p>
@@ -568,9 +650,9 @@ export default function DashboardPage() {
             </div>
 
             {stats.sales > 0 && (
-              <div className="mt-3 p-2.5 bg-slate-50 rounded-xl border border-slate-100 flex items-center gap-2.5">
-                <div className="w-7 h-7 rounded-xl bg-green-100 flex items-center justify-center">
-                  <TrendingUp size={13} className="text-green-600" />
+              <div className="mt-2 p-2 bg-slate-50 rounded-xl border border-slate-100 flex items-center gap-2">
+                <div className="w-6 h-6 rounded-xl bg-green-100 flex items-center justify-center">
+                  <TrendingUp size={12} className="text-green-600" />
                 </div>
                 <div>
                   <p className="text-xs font-semibold text-slate-700">
@@ -590,20 +672,19 @@ export default function DashboardPage() {
 
         {/* ── BUSINESS SERVICES ───────────────────────────────────────────────── */}
         <section>
-          <h2 className="font-bold text-slate-900 text-sm mb-3">{t("dash.services")}</h2>
-          <div className="grid grid-cols-4 sm:grid-cols-4 md:grid-cols-8 gap-2">
+          <h2 className="font-bold text-slate-900 text-sm mb-2">{t("dash.services")}</h2>
+          <div className="grid grid-cols-4 sm:grid-cols-4 md:grid-cols-8 gap-1.5">
             {SERVICES.map((svc) => {
               const Icon = svc.icon;
-              const c = SVC_COLORS[svc.color] ?? SVC_COLORS.slate;
               return (
                 <Link key={svc.href} href={svc.href}
-                  className="bg-white border border-slate-200 rounded-xl p-3 text-center block"
+                  className="bg-white border border-slate-200 rounded-xl p-2.5 text-center block"
                 >
-                  <div className="w-9 h-9 rounded-xl flex items-center justify-center mx-auto mb-2 text-white" style={{ backgroundColor: "#1372e6" }}>
-                    <Icon size={17} strokeWidth={2.5} />
+                  <div className="w-8 h-8 rounded-xl flex items-center justify-center mx-auto mb-1.5 text-white" style={{ backgroundColor: "#1372e6" }}>
+                    <Icon size={15} strokeWidth={2.5} />
                   </div>
                   <p className="text-[10px] font-bold text-slate-800 leading-tight">{svc.title}</p>
-                  <div className="mt-1.5 flex items-center justify-center gap-0.5 text-[9px] text-green-600">
+                  <div className="mt-1 flex items-center justify-center gap-0.5 text-[9px] text-green-600">
                     <CheckCircle size={8} /> {t("dash.open")}
                   </div>
                 </Link>
@@ -614,9 +695,9 @@ export default function DashboardPage() {
 
         {/* ── SHOPS ON HIGOVERSE — Social Media Cards ─────────────────────────── */}
         <section>
-          <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2">
-              <Globe size={14} className="text-[#1372e6]" />
+              <Globe size={13} className="text-[#1372e6]" />
               <h2 className="font-bold text-slate-900 text-sm">
                 {t("dash.shops_higoverse")}
                 <span className="ml-2 text-[10px] bg-[#EBF2FD] text-[#1372e6] font-semibold px-2 py-0.5 rounded-full align-middle">
@@ -638,7 +719,7 @@ export default function DashboardPage() {
               <p className="text-slate-400 text-xs">{t("common.no_data")}</p>
             </div>
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2">
               {shops.map((shop) => {
                 const isMine   = shop.id === user.shop_id;
                 const presence = shopPresence(shop.last_seen_at, now);
@@ -660,7 +741,7 @@ export default function DashboardPage() {
                     }`}>
 
                     {/* Cover band */}
-                    <div className="h-16 rounded-t-xl relative overflow-hidden" style={{ backgroundColor: "#1372e6" }}>
+                    <div className="h-12 rounded-t-xl relative overflow-hidden" style={{ backgroundColor: "#1372e6" }}>
                       {isMine && (
                         <span className="absolute top-1.5 right-1.5 text-[8px] font-black bg-white text-[#1372e6] px-1.5 py-0.5 rounded-full leading-none shadow">
                           YOU
@@ -675,12 +756,12 @@ export default function DashboardPage() {
                     </div>
 
                     {/* Circular avatar overlapping cover */}
-                    <div className="relative z-10 flex justify-center -mt-7">
-                      <div className="w-14 h-14 rounded-full border-4 border-white overflow-hidden bg-slate-100 flex items-center justify-center shadow-sm">
+                    <div className="relative z-10 flex justify-center -mt-5">
+                      <div className="w-10 h-10 rounded-full border-[3px] border-white overflow-hidden bg-slate-100 flex items-center justify-center shadow-sm">
                         {shop.logo_url ? (
                           <img src={shop.logo_url} alt={shop.name} className="w-full h-full object-cover" />
                         ) : (
-                          <span className="text-base font-black text-white w-full h-full flex items-center justify-center" style={{ backgroundColor: "#1372e6" }}>
+                          <span className="text-sm font-black text-white w-full h-full flex items-center justify-center" style={{ backgroundColor: "#1372e6" }}>
                             {initial}
                           </span>
                         )}
@@ -688,7 +769,7 @@ export default function DashboardPage() {
                     </div>
 
                     {/* Info */}
-                    <div className="px-3 pb-3 pt-1.5 text-center">
+                    <div className="px-2.5 pb-2.5 pt-1 text-center">
                       <p className="text-xs font-semibold text-slate-900 leading-tight truncate" title={shop.name}>
                         {shop.name}
                       </p>
@@ -773,6 +854,205 @@ export default function DashboardPage() {
   );
 }
 
+// ─── Home Skeleton ────────────────────────────────────────────────────────────
+function HomeSkeleton() {
+  return (
+    <>
+      <style>{`
+        @keyframes home-sh {
+          0%   { background-position: -700px 0; }
+          100% { background-position:  700px 0; }
+        }
+        .home-sh {
+          background: linear-gradient(90deg, #f0f0f0 25%, #e8e8e8 50%, #f0f0f0 75%);
+          background-size: 700px 100%;
+          animation: home-sh 1.4s infinite linear;
+          border-radius: 6px;
+        }
+        .home-sh-w { background: linear-gradient(90deg, rgba(255,255,255,0.15) 25%, rgba(255,255,255,0.25) 50%, rgba(255,255,255,0.15) 75%); background-size: 700px 100%; animation: home-sh 1.4s infinite linear; border-radius: 6px; }
+      `}</style>
+      <div className="min-h-screen">
+        <main className="max-w-7xl mx-auto px-3 sm:px-5 py-2.5 sm:py-3 space-y-3">
+
+          {/* Hero */}
+          <div className="rounded-xl overflow-hidden shadow-md" style={{ backgroundColor: "#1372e6" }}>
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 px-4 py-3.5">
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-xl home-sh-w shrink-0" />
+                <div className="space-y-1.5">
+                  <div className="home-sh-w" style={{ width: 60, height: 8 }} />
+                  <div className="home-sh-w" style={{ width: 140, height: 18 }} />
+                  <div className="home-sh-w" style={{ width: 90, height: 8 }} />
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                {[80, 90, 70].map((w, i) => (
+                  <div key={i} className="rounded-xl px-3 py-2 space-y-1" style={{ background: "rgba(255,255,255,0.1)", minWidth: 72 }}>
+                    <div className="home-sh-w" style={{ width: w, height: 7 }} />
+                    <div className="home-sh-w" style={{ width: 48, height: 16 }} />
+                  </div>
+                ))}
+              </div>
+              <div className="flex items-center gap-2.5">
+                <div className="space-y-1 text-right">
+                  <div className="home-sh-w ml-auto" style={{ width: 90, height: 18 }} />
+                  <div className="home-sh-w ml-auto" style={{ width: 130, height: 8 }} />
+                </div>
+                <div className="w-8 h-8 rounded-xl home-sh-w" />
+              </div>
+            </div>
+            <div className="border-t px-4 py-1.5" style={{ borderColor: "rgba(255,255,255,0.1)" }}>
+              <div className="home-sh-w" style={{ width: 160, height: 8 }} />
+            </div>
+          </div>
+
+          {/* KPI cards */}
+          <div className="grid grid-cols-3 xl:grid-cols-6 gap-2.5">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="bg-white border border-slate-100 rounded-xl p-3 shadow-sm relative overflow-hidden">
+                <div className="absolute left-0 top-0 bottom-0 w-1 rounded-l-xl home-sh" />
+                <div className="pl-2.5 space-y-2">
+                  <div className="flex justify-between items-center">
+                    <div className="home-sh" style={{ width: 50, height: 7 }} />
+                    <div className="w-7 h-7 rounded-lg home-sh" />
+                  </div>
+                  <div className="home-sh" style={{ width: 64, height: 18 }} />
+                  <div className="home-sh" style={{ width: 80, height: 7 }} />
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Today's status */}
+          <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+            <div className="flex justify-between items-center mb-3">
+              <div className="home-sh" style={{ width: 160, height: 11 }} />
+              <div className="home-sh rounded-lg" style={{ width: 80, height: 24 }} />
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+              {["bg-green-50", "bg-slate-100", "bg-orange-50", "bg-blue-50"].map((bg, i) => (
+                <div key={i} className={`p-2.5 ${bg} rounded-xl space-y-1.5`}>
+                  <div className="home-sh" style={{ width: 60, height: 7 }} />
+                  <div className="home-sh" style={{ width: 90, height: 16 }} />
+                  <div className="home-sh" style={{ width: 50, height: 7 }} />
+                </div>
+              ))}
+            </div>
+            <div className="mt-3 home-sh rounded-full" style={{ height: 8 }} />
+          </div>
+
+          {/* Progress bars */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-sm space-y-2.5">
+                <div className="flex justify-between">
+                  <div className="home-sh" style={{ width: 80, height: 8 }} />
+                  <div className="home-sh" style={{ width: 30, height: 8 }} />
+                </div>
+                <div className="home-sh rounded-full" style={{ height: 8 }} />
+                <div className="flex justify-between">
+                  <div className="home-sh" style={{ width: 70, height: 7 }} />
+                  <div className="home-sh" style={{ width: 40, height: 7 }} />
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Chart + Recent sales */}
+          <div className="grid md:grid-cols-2 gap-4">
+            <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+              <div className="flex justify-between items-center mb-4">
+                <div className="home-sh" style={{ width: 120, height: 11 }} />
+                <div className="home-sh rounded-lg" style={{ width: 70, height: 24 }} />
+              </div>
+              <div className="home-sh rounded-lg" style={{ height: 110 }} />
+            </div>
+            <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+              <div className="flex justify-between items-center px-4 pt-4 pb-2.5">
+                <div className="home-sh" style={{ width: 100, height: 11 }} />
+                <div className="home-sh rounded-lg" style={{ width: 70, height: 24 }} />
+              </div>
+              {Array.from({ length: 5 }).map((_, i) => (
+                <div key={i} className="flex items-center gap-2.5 px-4 py-2.5 border-t border-slate-50">
+                  <div className="w-7 h-7 rounded-lg home-sh shrink-0" />
+                  <div className="flex-1 space-y-1.5">
+                    <div className="home-sh" style={{ width: "70%", height: 9 }} />
+                    <div className="home-sh" style={{ width: "40%", height: 7 }} />
+                  </div>
+                  <div className="home-sh" style={{ width: 50, height: 9 }} />
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Stock alerts + Quick actions */}
+          <div className="grid md:grid-cols-2 gap-4">
+            <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+              <div className="flex justify-between items-center px-4 pt-4 pb-2.5">
+                <div className="home-sh" style={{ width: 110, height: 11 }} />
+                <div className="home-sh rounded-lg" style={{ width: 60, height: 24 }} />
+              </div>
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="flex items-center gap-2.5 px-4 py-2.5 border-t border-slate-50">
+                  <div className="w-2 h-2 rounded-full home-sh shrink-0" />
+                  <div className="flex-1 space-y-1.5">
+                    <div className="home-sh" style={{ width: "60%", height: 9 }} />
+                    <div className="home-sh" style={{ width: "45%", height: 7 }} />
+                  </div>
+                  <div className="home-sh rounded-lg" style={{ width: 60, height: 22 }} />
+                </div>
+              ))}
+            </div>
+            <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+              <div className="home-sh mb-3" style={{ width: 100, height: 11 }} />
+              <div className="grid grid-cols-2 gap-2.5">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className="home-sh rounded-xl" style={{ height: 64 }} />
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Services */}
+          <div>
+            <div className="home-sh mb-3" style={{ width: 90, height: 11 }} />
+            <div className="grid grid-cols-4 md:grid-cols-8 gap-2">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <div key={i} className="bg-white border border-slate-200 rounded-xl p-3 text-center space-y-2">
+                  <div className="w-9 h-9 rounded-xl home-sh mx-auto" />
+                  <div className="home-sh mx-auto" style={{ width: 48, height: 8 }} />
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Shop cards */}
+          <div>
+            <div className="flex justify-between mb-3">
+              <div className="home-sh" style={{ width: 160, height: 11 }} />
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+                  <div className="h-16 home-sh rounded-none" />
+                  <div className="flex justify-center -mt-7 relative z-10">
+                    <div className="w-14 h-14 rounded-full home-sh border-4 border-white" />
+                  </div>
+                  <div className="px-3 pb-3 pt-1.5 space-y-1.5 text-center">
+                    <div className="home-sh mx-auto" style={{ width: "70%", height: 9 }} />
+                    <div className="home-sh mx-auto" style={{ width: "50%", height: 7 }} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+        </main>
+      </div>
+    </>
+  );
+}
+
 // ─── KPI Card ─────────────────────────────────────────────────────────────────
 interface KpiCardProps {
   label: string; value: string; icon: React.ReactNode; color: string;
@@ -793,26 +1073,26 @@ const KPI_COLORS: Record<string, { icon: string; accent: string; bg: string }> =
 function KpiCard({ label, value, icon, color, href, sub, small, delta, warn, t }: KpiCardProps) {
   const c = KPI_COLORS[color] ?? KPI_COLORS.slate;
   return (
-    <Link href={href} className="relative bg-white border border-slate-100 rounded-xl p-3 block overflow-hidden shadow-sm">
+    <Link href={href} className="relative bg-white border border-slate-100 rounded-xl p-2.5 block overflow-hidden shadow-sm">
       {/* Left accent bar */}
       <div className={`absolute left-0 top-0 bottom-0 w-1 rounded-l-xl ${warn ? "bg-red-500" : c.accent}`} />
 
-      <div className="pl-2.5">
+      <div className="pl-2">
         {/* Top row: label + icon */}
-        <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center justify-between mb-1.5">
           <p className="text-[9px] text-slate-400 uppercase tracking-widest font-semibold">{label}</p>
-          <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 text-white" style={{ backgroundColor: "#1372e6" }}>
+          <div className="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0 text-white" style={{ backgroundColor: "#1372e6" }}>
             {icon}
           </div>
         </div>
 
         {/* Value */}
-        <p className={`font-extrabold text-slate-900 leading-tight truncate ${small ? "text-sm" : "text-lg"}`}>
+        <p className={`font-extrabold text-slate-900 leading-tight truncate ${small ? "text-xs" : "text-sm"}`}>
           {value}
         </p>
 
         {/* Delta badge or sub text */}
-        <div className="mt-1.5 h-4 flex items-center">
+        <div className="mt-1 h-4 flex items-center">
           {delta !== null && delta !== undefined ? (
             <span className={`inline-flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full ${
               delta >= 0 ? "bg-green-50 text-green-600" : "bg-red-50 text-red-500"

@@ -29,6 +29,7 @@ function fmtDate(s: string) {
 export default function ProformaPage() {
   const { t } = useLanguage();
 
+  const [loading, setLoading]   = useState(true);
   const [products, setProducts] = useState<Product[]>([]);
   const [shop, setShop] = useState<ShopInfo>({ name: "" });
   const [currency, setCurrency] = useState("RWF");
@@ -62,6 +63,7 @@ export default function ProformaPage() {
         const s = shopRes.value;
         setShop({ name: s.name || "", phone: s.phone, address: s.address, email: s.email, logo_url: s.logo_url });
       }
+      setLoading(false);
     });
   }, []);
 
@@ -262,6 +264,8 @@ export default function ProformaPage() {
     const w = window.open("", "_blank", "width=860,height=1000,toolbar=no,menubar=no,scrollbars=yes,resizable=yes");
     if (w) { w.document.open(); w.document.write(html); w.document.close(); }
   }
+
+  if (loading) return <ProformaSkeleton />;
 
   const inputCls = "border border-slate-200 text-gray-800 placeholder:text-gray-400 rounded-lg px-3 py-2 w-full text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition";
   const subtotal2 = lines.reduce((s, l) => s + l.qty * l.unit_price, 0);
@@ -537,5 +541,177 @@ export default function ProformaPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+// ─── Proforma Skeleton ────────────────────────────────────────────────────────
+function ProformaSkeleton() {
+  return (
+    <>
+      <style>{`
+        @keyframes pf-sh {
+          0%   { background-position: -700px 0; }
+          100% { background-position:  700px 0; }
+        }
+        .pf-sh {
+          background: linear-gradient(90deg, #f0f0f0 25%, #e8e8e8 50%, #f0f0f0 75%);
+          background-size: 700px 100%;
+          animation: pf-sh 1.4s infinite linear;
+          border-radius: 6px;
+        }
+        .pf-sh-w {
+          background: linear-gradient(90deg, rgba(255,255,255,0.15) 25%, rgba(255,255,255,0.28) 50%, rgba(255,255,255,0.15) 75%);
+          background-size: 700px 100%;
+          animation: pf-sh 1.4s infinite linear;
+          border-radius: 6px;
+        }
+      `}</style>
+      <div className="min-h-screen">
+        <div className="max-w-5xl mx-auto px-3 sm:px-5 py-3 sm:py-4">
+
+          {/* Header */}
+          <div className="rounded-2xl p-5 mb-6" style={{ background: "#1372e6" }}>
+            <div className="flex justify-between items-center">
+              <div className="flex items-center gap-2.5">
+                <div className="w-5 h-5 pf-sh-w rounded" />
+                <div className="space-y-1.5">
+                  <div className="pf-sh-w" style={{ width: 140, height: 12 }} />
+                  <div className="pf-sh-w" style={{ width: 220, height: 8 }} />
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="pf-sh-w rounded-lg" style={{ width: 36, height: 32 }} />
+                <div className="pf-sh-w rounded-lg" style={{ width: 90, height: 32 }} />
+                <div className="pf-sh-w rounded-lg" style={{ width: 120, height: 32 }} />
+              </div>
+            </div>
+          </div>
+
+          <div className="grid lg:grid-cols-[1fr_320px] gap-6">
+
+            {/* Main form */}
+            <div className="space-y-4">
+              {/* Invoice Details */}
+              <div className="bg-white rounded-xl border border-slate-200 p-5">
+                <div className="pf-sh mb-4" style={{ width: 110, height: 11 }} />
+                <div className="grid grid-cols-3 gap-4">
+                  {Array.from({ length: 3 }).map((_, i) => (
+                    <div key={i} className="space-y-1.5">
+                      <div className="pf-sh" style={{ width: 60, height: 8 }} />
+                      <div className="pf-sh rounded-lg" style={{ height: 36 }} />
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Customer Info */}
+              <div className="bg-white rounded-xl border border-slate-200 p-5">
+                <div className="pf-sh mb-4" style={{ width: 140, height: 11 }} />
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div className="md:col-span-2 space-y-1.5">
+                    <div className="pf-sh" style={{ width: 80, height: 8 }} />
+                    <div className="pf-sh rounded-lg" style={{ height: 36 }} />
+                  </div>
+                  {Array.from({ length: 2 }).map((_, i) => (
+                    <div key={i} className="space-y-1.5">
+                      <div className="pf-sh" style={{ width: 50, height: 8 }} />
+                      <div className="pf-sh rounded-lg" style={{ height: 36 }} />
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Line Items */}
+              <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+                <div className="bg-slate-50 border-b border-slate-200 px-5 py-3 flex justify-between items-center">
+                  <div className="pf-sh" style={{ width: 100, height: 11 }} />
+                  <div className="pf-sh rounded-lg" style={{ width: 80, height: 26 }} />
+                </div>
+                <div className="px-5 py-2.5 bg-slate-50 border-b border-slate-100">
+                  <div className="grid grid-cols-5 gap-2">
+                    {Array.from({ length: 5 }).map((_, i) => (
+                      <div key={i} className="pf-sh" style={{ height: 7 }} />
+                    ))}
+                  </div>
+                </div>
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <div key={i} className="px-5 py-3 border-b border-slate-100">
+                    <div className="grid grid-cols-5 gap-2 items-center">
+                      <div className="col-span-2 space-y-1.5">
+                        <div className="pf-sh rounded-lg" style={{ height: 34 }} />
+                        <div className="pf-sh rounded" style={{ height: 26 }} />
+                      </div>
+                      <div className="pf-sh rounded-lg" style={{ height: 34 }} />
+                      <div className="pf-sh rounded-lg" style={{ height: 34 }} />
+                      <div className="pf-sh" style={{ width: 40, height: 11 }} />
+                    </div>
+                  </div>
+                ))}
+                <div className="px-5 py-4 bg-slate-50 border-t border-slate-200 flex justify-end">
+                  <div className="w-60 space-y-2.5">
+                    {Array.from({ length: 2 }).map((_, i) => (
+                      <div key={i} className="flex justify-between">
+                        <div className="pf-sh" style={{ width: 60, height: 9 }} />
+                        <div className="pf-sh" style={{ width: 80, height: 9 }} />
+                      </div>
+                    ))}
+                    <div className="flex justify-between pt-2 border-t-2 border-blue-700">
+                      <div className="pf-sh" style={{ width: 70, height: 11 }} />
+                      <div className="pf-sh" style={{ width: 90, height: 14 }} />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Notes */}
+              <div className="bg-white rounded-xl border border-slate-200 p-5">
+                <div className="pf-sh mb-2" style={{ width: 160, height: 8 }} />
+                <div className="pf-sh rounded-lg" style={{ height: 70 }} />
+              </div>
+            </div>
+
+            {/* Sidebar */}
+            <div className="space-y-4">
+              <div className="bg-white rounded-xl border border-slate-200 p-4">
+                <div className="pf-sh mb-3" style={{ width: 70, height: 8 }} />
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-lg pf-sh shrink-0" />
+                  <div className="space-y-1.5 flex-1">
+                    <div className="pf-sh" style={{ width: "60%", height: 10 }} />
+                    <div className="pf-sh" style={{ width: "40%", height: 7 }} />
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-xl border border-slate-200 p-4">
+                <div className="pf-sh mb-3" style={{ width: 110, height: 8 }} />
+                <div className="space-y-2.5">
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <div key={i} className="flex justify-between">
+                      <div className="pf-sh" style={{ width: 60, height: 9 }} />
+                      <div className="pf-sh" style={{ width: 80, height: 9 }} />
+                    </div>
+                  ))}
+                  <div className="pf-sh rounded-lg mt-1" style={{ height: 44 }} />
+                </div>
+              </div>
+
+              <div className="pf-sh rounded-xl" style={{ height: 44 }} />
+              <div className="pf-sh rounded-xl" style={{ height: 38 }} />
+
+              <div className="bg-white rounded-xl border border-slate-200 p-4">
+                <div className="pf-sh mb-3" style={{ width: 100, height: 8 }} />
+                <div className="flex flex-wrap gap-2">
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <div key={i} className="pf-sh rounded-lg" style={{ width: 44, height: 28 }} />
+                  ))}
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </>
   );
 }

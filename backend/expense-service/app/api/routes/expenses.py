@@ -27,16 +27,20 @@ def _get_or_404(db: Session, expense_id: str, shop_id: str) -> Expense:
 
 def _fmt(e: Expense, include_proof: bool = False) -> dict:
     result = {
-        "id":           e.id,
-        "shop_id":      e.shop_id,
-        "created_by":   e.created_by,
-        "title":        e.title,
-        "category":     e.category,
-        "amount":       float(e.amount),
-        "notes":        e.notes,
-        "expense_date": e.expense_date.isoformat() if e.expense_date else None,
-        "created_at":   e.created_at.isoformat() if e.created_at else None,
-        "has_proof":    bool(e.proof_data),
+        "id":             e.id,
+        "shop_id":        e.shop_id,
+        "created_by":     e.created_by,
+        "title":          e.title,
+        "category":       e.category,
+        "amount":         float(e.amount),
+        "notes":          e.notes,
+        "expense_date":   e.expense_date.isoformat() if e.expense_date else None,
+        "created_at":     e.created_at.isoformat() if e.created_at else None,
+        "has_proof":      bool(e.proof_data),
+        "payment_method": e.payment_method,
+        "bank_name":      e.bank_name,
+        "bank_account":   e.bank_account,
+        "receiver_phone": e.receiver_phone,
     }
     if include_proof:
         result["proof_data"] = e.proof_data
@@ -201,6 +205,10 @@ def create_expense(
         amount=payload.amount,
         notes=payload.notes,
         expense_date=payload.expense_date,
+        payment_method=payload.payment_method,
+        bank_name=payload.bank_name,
+        bank_account=payload.bank_account,
+        receiver_phone=payload.receiver_phone,
     )
     db.add(expense)
     db.commit()
@@ -315,6 +323,56 @@ def update_expense(
     db.refresh(expense)
 
     return {"success": True, "message": "Expense updated", "data": _fmt(expense)}
+
+
+# ─────────────────────────────────────────
+# ADMIN — list any shop's expenses
+# ─────────────────────────────────────────
+
+@router.get("/admin/list")
+def admin_list_expenses(
+    shop_id: str,
+    page: int = 1,
+    limit: int = 50,
+    db: Session = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    q = (
+        db.query(Expense)
+        .filter(Expense.shop_id == shop_id)
+        .order_by(Expense.expense_date.desc())
+    )
+    total = q.count()
+    items = q.offset((page - 1) * limit).limit(limit).all()
+    return {
+        "success": True,
+        "data": {"items": [_fmt(e) for e in items], "total": total, "page": page, "limit": limit},
+    }
+
+
+# ─────────────────────────────────────────
+# ADMIN — update any expense
+# ─────────────────────────────────────────
+
+@router.put("/admin/{expense_id}")
+def admin_update_expense(
+    expense_id: str,
+    payload: ExpenseUpdate,
+    db: Session = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    expense = db.query(Expense).filter(Expense.id == expense_id).first()
+    if not expense:
+        raise HTTPException(status_code=404, detail="Expense not found")
+    for key, value in payload.model_dump(exclude_unset=True).items():
+        setattr(expense, key, value)
+    db.commit()
+    db.refresh(expense)
+    return {"success": True, "data": _fmt(expense)}
 
 
 # ─────────────────────────────────────────

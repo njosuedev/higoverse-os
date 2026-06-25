@@ -27,9 +27,14 @@ def on_startup():
         # Add proof_data column if it doesn't exist (safe idempotent migration)
         with engine.connect() as conn:
             from sqlalchemy import text
-            conn.execute(text(
-                "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS proof_data TEXT"
-            ))
+            for col_sql in [
+                "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS proof_data TEXT",
+                "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS payment_method TEXT",
+                "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS bank_name TEXT",
+                "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS bank_account TEXT",
+                "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS receiver_phone TEXT",
+            ]:
+                conn.execute(text(col_sql))
             conn.commit()
 
 

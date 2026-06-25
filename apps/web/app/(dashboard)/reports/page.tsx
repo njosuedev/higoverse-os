@@ -11,7 +11,6 @@ import { itemRequest } from "@/lib/product-api";
 import { purchaseRequest } from "@/lib/purchase-api";
 import { expenseRequest } from "@/lib/expense-api";
 import { useLanguage } from "@/lib/language-context";
-import PageSkeleton from "@/app/components/dashboard/PageSkeleton";
 import DateRangeFilter from "@/app/components/ui/DateRangeFilter";
 import {
   BarChart3, TrendingUp, DollarSign, Package,
@@ -301,7 +300,7 @@ export default function ReportsPage() {
     daily.slice(-7).reduce((s, d) => s + d.revenue, 0), [daily]);
 
   // ── Loading skeleton ────────────────────────────────────────────────────────
-  if (loading) return <PageSkeleton cards={8} showTable={false} showChart />;
+  if (loading) return <ReportsSkeleton />;
 
   return (
     <div className="min-h-screen">
@@ -840,7 +839,7 @@ function KpiCard({ label, value, detail, icon, color, pulse, badge }: {
         {icon}
       </div>
       <p className="text-[10px] text-slate-400 font-medium uppercase tracking-wide">{label}</p>
-      <p className={`text-sm font-bold mt-1 ${c.text} leading-none`}>{value}</p>
+      <p className={`text-xl font-bold mt-1 ${c.text} leading-none`}>{value}</p>
       <p className="text-[10px] text-slate-400 mt-1.5">{detail}</p>
       {badge && (
         <span className={`inline-block mt-2 text-[10px] font-bold px-2 py-0.5 rounded-full ${c.badge}`}>
@@ -885,6 +884,75 @@ function StatMini({ label, value, sub, color, icon }: {
       </div>
       <p className={`text-xs font-bold ${color}`}>{value}</p>
       <p className="text-[9px] text-slate-400 mt-0.5">{sub}</p>
+    </div>
+  );
+}
+
+function ReportsSkeleton() {
+  return (
+    <div className="min-h-screen">
+      <style>{`@keyframes rep-sh{0%{background-position:-200% 0}100%{background-position:200% 0}}.rep-sh{background:linear-gradient(90deg,#f1f5f9 25%,#e2e8f0 50%,#f1f5f9 75%);background-size:200% 100%;animation:rep-sh 1.4s infinite;border-radius:5px}.rep-sh-w{background:linear-gradient(90deg,rgba(255,255,255,.1) 25%,rgba(255,255,255,.22) 50%,rgba(255,255,255,.1) 75%);background-size:200% 100%;animation:rep-sh 1.4s infinite;border-radius:5px}`}</style>
+      <div className="max-w-7xl mx-auto px-3 sm:px-5 py-3 sm:py-4 space-y-3">
+        {/* Header */}
+        <div className="relative rounded-2xl overflow-hidden" style={{background:"linear-gradient(135deg,#1372e6 0%,#1168d6 50%,#0a47a0 100%)"}}>
+          <div className="relative flex items-center gap-3 px-4 pt-3 pb-2">
+            <div className="w-8 h-8 rounded-xl rep-sh-w shrink-0" />
+            <div><div className="rep-sh-w h-2 w-16 mb-1 rounded" /><div className="rep-sh-w h-4 w-28 rounded" /></div>
+            <div className="ml-auto flex items-center gap-1.5"><div className="rep-sh-w h-3 w-20 rounded" /><div className="rep-sh-w w-7 h-7 rounded-lg" /><div className="rep-sh-w h-7 w-24 rounded-lg" /></div>
+          </div>
+          <div className="px-4 pb-2 flex gap-1.5"><div className="rep-sh-w h-2 w-4 rounded-full" /><div className="rep-sh-w h-2 w-32 rounded" /></div>
+          <div className="px-4 pb-3"><div className="rep-sh-w h-9 w-full rounded-xl" /></div>
+        </div>
+        {/* KPI row 1 — 3 large cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5">
+          {Array.from({length:3}).map((_,i)=>(
+            <div key={i} className="bg-white rounded-xl border border-slate-200 p-3">
+              <div className="rep-sh w-7 h-7 rounded-lg mb-2" />
+              <div className="rep-sh h-2 w-20 mb-1.5 rounded" />
+              <div className="rep-sh h-5 w-24 mb-1.5 rounded" />
+              <div className="rep-sh h-2 w-full rounded" />
+            </div>
+          ))}
+        </div>
+        {/* KPI row 2 — 6 cards */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-1.5">
+          {Array.from({length:6}).map((_,i)=>(
+            <div key={i} className="bg-white rounded-xl border border-slate-200 p-3">
+              <div className="rep-sh w-7 h-7 rounded-lg mb-2" />
+              <div className="rep-sh h-2 w-16 mb-1.5 rounded" />
+              <div className="rep-sh h-5 w-20 mb-1.5 rounded" />
+              <div className="rep-sh h-2 w-full rounded" />
+            </div>
+          ))}
+        </div>
+        {/* Chart area */}
+        <div className="bg-white rounded-xl border border-slate-200 p-2.5">
+          <div className="rep-sh h-3 w-48 mb-1 rounded" />
+          <div className="rep-sh h-2 w-64 mb-3 rounded" />
+          <div className="rep-sh h-44 w-full rounded-lg" />
+        </div>
+        {/* Two-col: pie + bars */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+          {[0,1].map(i=>(
+            <div key={i} className="bg-white rounded-xl border border-slate-200 p-3">
+              <div className="rep-sh h-3 w-36 mb-1 rounded" />
+              <div className="rep-sh h-2 w-48 mb-3 rounded" />
+              <div className="rep-sh h-36 w-full rounded-lg" />
+            </div>
+          ))}
+        </div>
+        {/* Stock alerts table */}
+        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+          <div className="px-4 py-2 border-b border-slate-100 flex justify-between items-center">
+            <div className="rep-sh h-3 w-40 rounded" /><div className="rep-sh h-6 w-24 rounded-lg" />
+          </div>
+          {Array.from({length:5}).map((_,i)=>(
+            <div key={i} className="flex items-center gap-3 px-3 border-b border-slate-50" style={{padding:"6px 12px"}}>
+              {[120,40,60,70,48,52].map((w,j)=><div key={j} className="rep-sh h-2.5 rounded shrink-0" style={{width:w}} />)}
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }

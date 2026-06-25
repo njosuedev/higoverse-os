@@ -9,7 +9,6 @@ import { useLanguage } from "@/lib/language-context";
 import { useAuth } from "@/lib/auth-context";
 import { useShop } from "@/lib/shop-context";
 import { updateMyShop } from "@/lib/shop-api";
-import PageSkeleton from "@/app/components/dashboard/PageSkeleton";
 import Pagination from "@/app/components/ui/Pagination";
 import {
   Package, AlertCircle, Search, Filter, Plus, Trash2, Pencil, X,
@@ -61,6 +60,10 @@ export default function ItemManagementPage() {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [countdown, setCountdown] = useState(30);
+  const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const refreshRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const loadDataRef = useRef<(soft?: boolean) => Promise<void>>(async () => {});
 
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
@@ -91,6 +94,23 @@ export default function ItemManagementPage() {
   const debouncedSearch = useDebounce(search, 350);
 
   useEffect(() => { loadData(); }, []);
+  useEffect(() => { loadDataRef.current = loadData; });
+  useEffect(() => {
+    countdownRef.current = setInterval(() => setCountdown((c) => (c <= 1 ? 30 : c - 1)), 1000);
+    refreshRef.current = setInterval(() => { loadDataRef.current(true); setCountdown(30); }, 30_000);
+    return () => {
+      if (countdownRef.current) clearInterval(countdownRef.current);
+      if (refreshRef.current) clearInterval(refreshRef.current);
+    };
+  }, []);
+
+  function manualRefresh() {
+    loadData(true); setCountdown(30);
+    if (countdownRef.current) clearInterval(countdownRef.current);
+    if (refreshRef.current) clearInterval(refreshRef.current);
+    countdownRef.current = setInterval(() => setCountdown((c) => (c <= 1 ? 30 : c - 1)), 1000);
+    refreshRef.current = setInterval(() => { loadDataRef.current(true); setCountdown(30); }, 30_000);
+  }
 
   // keep local meta cache in sync whenever products list changes
   useEffect(() => {
@@ -457,7 +477,7 @@ export default function ItemManagementPage() {
   const inputCls =
     "border border-slate-200 text-gray-800 placeholder:text-gray-400 rounded-lg px-3 py-2 w-full text-sm focus:outline-none focus:ring-2 focus:ring-[#1372e6]/30 focus:border-[#1372e6] transition";
 
-  if (loading) return <PageSkeleton cards={6} rows={8} cols={6} />;
+  if (loading) return <ItemsSkeleton />;
 
   return (
     <div className="min-h-screen">
@@ -512,7 +532,7 @@ export default function ItemManagementPage() {
             {/* Actions */}
             <div className="flex items-center gap-1.5 shrink-0">
               <button
-                onClick={() => loadData(true)}
+                onClick={manualRefresh}
                 disabled={refreshing}
                 title="Refresh"
                 className="w-7 h-7 rounded-lg bg-white/10 hover:bg-white/20 border border-white/15 flex items-center justify-center text-white transition-all disabled:opacity-40"
@@ -534,10 +554,11 @@ export default function ItemManagementPage() {
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
               <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-green-400" />
             </span>
-            <p className="text-[10px] text-blue-100/70">
+            <p className="text-[10px] text-blue-100/70 flex-1">
               Live · <span className="font-semibold text-white/80">{products.length.toLocaleString()} items</span>
               {lastUpdated && <span className="ml-1 text-blue-200/50">· Updated {lastUpdated.toLocaleTimeString()}</span>}
             </p>
+            <span className="text-[10px] text-blue-200/50">↻ {countdown}s</span>
           </div>
 
           {/* ── Row 3: search + filter ── */}
@@ -613,7 +634,7 @@ export default function ItemManagementPage() {
                 <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${card.dot}`} />
                 <p className="text-[9px] font-semibold text-slate-400 uppercase tracking-wider leading-none truncate">{card.label}</p>
               </div>
-              <p className={`text-sm font-bold leading-none tabular-nums ${card.color}`}>{card.value}</p>
+              <p className={`text-xl font-bold leading-none tabular-nums ${card.color}`}>{card.value}</p>
             </div>
           ))}
         </div>
@@ -1173,6 +1194,55 @@ export default function ItemManagementPage() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function ItemsSkeleton() {
+  return (
+    <div className="min-h-screen">
+      <style>{`@keyframes itm-sh{0%{background-position:-200% 0}100%{background-position:200% 0}}.itm-sh{background:linear-gradient(90deg,#f1f5f9 25%,#e2e8f0 50%,#f1f5f9 75%);background-size:200% 100%;animation:itm-sh 1.4s infinite;border-radius:5px}.itm-sh-w{background:linear-gradient(90deg,rgba(255,255,255,.1) 25%,rgba(255,255,255,.22) 50%,rgba(255,255,255,.1) 75%);background-size:200% 100%;animation:itm-sh 1.4s infinite;border-radius:5px}`}</style>
+      <div className="max-w-7xl mx-auto px-3 sm:px-5 py-3 sm:py-4">
+        <div className="relative rounded-2xl mb-2 overflow-hidden" style={{background:"linear-gradient(135deg,#1372e6 0%,#1168d6 50%,#0a47a0 100%)"}}>
+          <div className="relative flex items-center gap-3 px-4 pt-3 pb-2">
+            <div className="w-8 h-8 rounded-xl itm-sh-w shrink-0" />
+            <div><div className="itm-sh-w h-2 w-14 mb-1 rounded" /><div className="itm-sh-w h-4 w-28 rounded" /></div>
+            <div className="hidden md:flex items-center gap-2 ml-auto">
+              {[68,68,68].map((_,i)=><div key={i} className="itm-sh-w rounded-xl" style={{width:68,height:44}} />)}
+            </div>
+            <div className="ml-auto md:ml-0 flex gap-1.5"><div className="itm-sh-w w-7 h-7 rounded-lg" /><div className="itm-sh-w h-7 w-20 rounded-lg" /></div>
+          </div>
+          <div className="px-4 pb-2 flex gap-1.5"><div className="itm-sh-w h-2 w-4 rounded-full" /><div className="itm-sh-w h-2 w-40 rounded" /></div>
+          <div className="px-4 pb-3 flex gap-2"><div className="itm-sh-w flex-1 h-9 rounded-xl" /><div className="itm-sh-w h-9 w-28 rounded-xl" /></div>
+        </div>
+        <div className="itm-sh h-7 rounded-lg mb-2" />
+        <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5 mb-2">
+          {Array.from({length:6}).map((_,i)=>(
+            <div key={i} className="bg-white rounded-lg border border-slate-200 px-2.5 py-2">
+              <div className="itm-sh h-2 w-14 mb-2 rounded" /><div className="itm-sh h-6 w-10 rounded" />
+            </div>
+          ))}
+        </div>
+        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+          <div className="px-3 py-1.5 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
+            <div className="itm-sh h-2.5 w-28 rounded" />
+            <div className="flex gap-1.5">{[56,52,50,46].map((w,i)=><div key={i} className="itm-sh h-5 rounded" style={{width:w}} />)}</div>
+          </div>
+          <div className="flex gap-2 px-3 py-2 bg-slate-50 border-b border-slate-200">
+            {[16,100,70,55,65,50,44,64,72,72,64,44].map((w,i)=><div key={i} className="itm-sh h-2 rounded" style={{width:w}} />)}
+          </div>
+          {Array.from({length:8}).map((_,i)=>(
+            <div key={i} className="flex items-center gap-2 px-3 border-b border-slate-50" style={{padding:"6px 12px"}}>
+              <div className="itm-sh h-2 w-4 rounded" />
+              <div className="flex items-center gap-2 w-28 shrink-0">
+                <div className="itm-sh w-8 h-8 rounded-lg shrink-0" />
+                <div><div className="itm-sh h-2.5 w-16 rounded mb-1" /><div className="itm-sh h-2 w-10 rounded" /></div>
+              </div>
+              {[52,40,44,48,40,52,60,52,52,50,48].map((w,j)=><div key={j} className="itm-sh h-2.5 rounded shrink-0" style={{width:w}} />)}
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
