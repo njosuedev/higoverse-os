@@ -59,6 +59,7 @@ app.include_router(
 _MIGRATIONS = [
     "ALTER TABLE shops ADD COLUMN IF NOT EXISTS last_seen_at TIMESTAMP",
     "ALTER TABLE shops ADD COLUMN IF NOT EXISTS logo_url TEXT",
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS name VARCHAR(255)",
 ]
 
 @app.on_event("startup")
