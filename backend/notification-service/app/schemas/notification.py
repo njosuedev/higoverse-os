@@ -1,13 +1,6 @@
+﻿from datetime import datetime
+from typing import Any, Dict, Optional
 from pydantic import BaseModel
-from typing import Optional, Any
-
-
-class NotificationCreate(BaseModel):
-    user_id: str
-    type:    str
-    title:   str
-    body:    Optional[str] = None
-    data:    Optional[dict[str, Any]] = None
 
 
 class NotificationOut(BaseModel):
@@ -15,10 +8,17 @@ class NotificationOut(BaseModel):
     user_id:    str
     type:       str
     title:      str
-    body:       Optional[str]
-    data:       Optional[dict]
+    body:       Optional[str] = None
+    data:       Dict[str, Any] = {}
     is_read:    bool
     created_at: str
 
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}
+
+
+class CreateNotificationPayload(BaseModel):
+    user_id: str
+    type:    str = "system"
+    title:   str
+    body:    Optional[str] = None
+    data:    Dict[str, Any] = {}

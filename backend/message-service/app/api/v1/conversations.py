@@ -59,9 +59,9 @@ def _push_notification(user_id: str, notif_type: str, title: str, body: str, dat
         return
     try:
         httpx.post(
-            f"{settings.NOTIFICATION_SERVICE_URL}/api/v1/notifications",
+            f"{settings.NOTIFICATION_SERVICE_URL}/api/v1/internal/notify",
             json={"user_id": user_id, "type": notif_type, "title": title, "body": body, "data": data},
-            headers={"X-Internal-Key": settings.INTERNAL_API_KEY},
+            headers={"X-Service-Key": settings.SERVICE_KEY},
             timeout=3,
         )
     except Exception:

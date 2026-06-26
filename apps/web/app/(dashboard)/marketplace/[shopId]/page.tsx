@@ -25,6 +25,7 @@ import {
   decodeShopCatalog, decodeShopHumanInfo, encodeDescriptionWithCatalog, catFromText,
   type ProductMeta, type MarketplaceEntry, type ShopMessage,
 } from "@/lib/product-meta";
+import { createOrGetConversation } from "@/lib/messages-api";
 
 /** Two-tone chime via Web Audio — plays when a shop reply arrives. */
 function playChime() {
@@ -134,6 +135,7 @@ export default function ShopStorePage() {
   const [customerMessages, setCustomerMessages] = useState<ShopMessage[]>([]);
   const prevReplyTotal = useRef(0);
   const chatScrollRef  = useRef<HTMLDivElement>(null);
+  const [contactingProductId, setContactingProductId] = useState<string | null>(null);
 
   const isMine = shop?.id === user?.shop_id;
 
@@ -553,14 +555,15 @@ export default function ShopStorePage() {
                       {/* Message button — only if following */}
                       {following && (
                         <button
-                          onClick={() => {
-                            setChatProduct({
-                              productId: "shop-general-inquiry", shopId: shop.id, shopName: shop.name,
-                              shopLogoUrl: shop.logo_url ?? undefined, shopPhone: shop.phone ?? undefined,
-                              name: "General Inquiry", sellingPrice: 0, costPrice: 0,
-                              quantity: 1, images: [], listedAt: new Date().toISOString(),
-                            });
-                            setCustomerMsgText("");
+                          onClick={async () => {
+                            try {
+                              const conv = await createOrGetConversation({
+                                shop_id:       shop.id,
+                                shop_name:     shop.name,
+                                customer_name: user?.name ?? user?.email,
+                              });
+                              router.push(`/messages?conv=${conv.id}`);
+                            } catch { /* silent */ }
                           }}
                           style={{ display: "flex", alignItems: "center", gap: 5, padding: "7px 14px", border: "1px solid #1677ff", background: "#fff", color: "#1677ff", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
                           <MessageSquare size={12} /> Message Store
@@ -876,14 +879,34 @@ export default function ShopStorePage() {
                                 </button>
                                 {following ? (
                                   <button
-                                    onClick={() => { setChatProduct(entry); setCustomerMsgText(""); }}
+                                    disabled={contactingProductId === entry.productId}
+                                    onClick={async () => {
+                                      if (!shop) return;
+                                      setContactingProductId(entry.productId);
+                                      try {
+                                        const conv = await createOrGetConversation({
+                                          shop_id:       shop.id,
+                                          shop_name:     shop.name,
+                                          customer_name: user?.name ?? user?.email,
+                                          product_id:    entry.productId,
+                                          product_name:  entry.name,
+                                          product_image: entry.images[0],
+                                          listed_price:  entry.sellingPrice,
+                                        });
+                                        router.push(`/messages?conv=${conv.id}`);
+                                      } catch {
+                                        setContactingProductId(null);
+                                      }
+                                    }}
                                     style={{
                                       flex: 1, padding: "8px 0",
-                                      background: isActive ? "#1677ff" : "#fff",
-                                      color: isActive ? "#fff" : "#1677ff",
-                                      border: "1.5px solid #1677ff", cursor: "pointer",
+                                      background: contactingProductId === entry.productId ? "#e6f4ff" : "#fff",
+                                      color: "#1677ff",
+                                      border: "1.5px solid #1677ff",
+                                      cursor: contactingProductId === entry.productId ? "not-allowed" : "pointer",
                                       fontSize: 11, fontWeight: 700, borderRadius: 2,
                                       display: "flex", alignItems: "center", justifyContent: "center",
+                                      opacity: contactingProductId === entry.productId ? 0.6 : 1,
                                     }}>
                                     <MessageSquare size={12} />
                                   </button>

@@ -1,8 +1,10 @@
-import uuid
+﻿import uuid
 from datetime import datetime, timezone
-from sqlalchemy import Column, String, DateTime, Boolean, Text
+
+from sqlalchemy import Boolean, Column, DateTime, String, Text
 from sqlalchemy.dialects.postgresql import UUID, JSONB
-from app.db.base import Base
+
+from app.db.database import Base
 
 
 def _utcnow():
@@ -14,12 +16,9 @@ class Notification(Base):
 
     id         = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id    = Column(String(255), nullable=False, index=True)
-
-    # new_message | offer_received | offer_accepted | offer_rejected | shop_approved | shop_rejected | system
-    type       = Column(String(100), nullable=False)
-    title      = Column(String(255), nullable=False)
-    body       = Column(Text)
-    data       = Column(JSONB, default=dict)
-
-    is_read    = Column(Boolean, default=False, nullable=False)
+    type       = Column(String(50),  nullable=False, default="system")
+    title      = Column(String(500), nullable=False)
+    body       = Column(Text, nullable=True)
+    data       = Column(JSONB, nullable=True, default=dict)
+    is_read    = Column(Boolean, default=False)
     created_at = Column(DateTime(timezone=True), default=_utcnow)

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
 import { useShop } from "@/lib/shop-context";
@@ -28,6 +28,7 @@ import {
   followShop, unfollowShop, isFollowingShop, getFollowedShops, getShopFollowerCount,
   type ShopMessage,
 } from "@/lib/product-meta";
+import { createOrGetConversation } from "@/lib/messages-api";
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 function parseUTC(ts: string | null | undefined): Date {
@@ -96,6 +97,7 @@ export default function MarketplacePage() {
   const { user }  = useAuth();
   const { shop }  = useShop();
   const searchParams = useSearchParams();
+  const router = useRouter();
   const [shops, setShops]       = useState<Shop[]>([]);
   const [catalog, setCatalog]   = useState<MarketplaceEntry[]>([]);
   const [loading, setLoading]   = useState(true);
@@ -253,6 +255,7 @@ export default function MarketplacePage() {
   const [msgText, setMsgText]         = useState("");
   const [msgSent, setMsgSent]         = useState(false);
   const [myMessages, setMyMessages]   = useState<ShopMessage[]>([]);
+  const [contactingProductId, setContactingProductId] = useState<string | null>(null);
 
   // follow
   const [followedShopIds, setFollowedShopIds] = useState<Set<string>>(new Set());
@@ -1307,9 +1310,27 @@ export default function MarketplacePage() {
                     {!isMine && (
                       followedShopIds.has(detailEntry.shopId) ? (
                         <button
-                          onClick={() => { setMsgEntry(detailEntry); setMsgText(""); setMsgSent(false); setDetailEntry(null); }}
-                          style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "11px", border: "1.5px solid #ff6a00", background: "#fff", color: "#ff6a00", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
-                          <MessageSquare size={15} /> Contact Supplier
+                          disabled={contactingProductId === detailEntry.productId}
+                          onClick={async () => {
+                            setContactingProductId(detailEntry.productId);
+                            try {
+                              const conv = await createOrGetConversation({
+                                shop_id:       detailEntry.shopId,
+                                shop_name:     detailEntry.shopName,
+                                customer_name: user?.name ?? user?.email,
+                                product_id:    detailEntry.productId,
+                                product_name:  detailEntry.name,
+                                product_image: detailEntry.images[0],
+                                listed_price:  detailEntry.sellingPrice,
+                              });
+                              setDetailEntry(null);
+                              router.push(`/messages?conv=${conv.id}`);
+                            } catch {
+                              setContactingProductId(null);
+                            }
+                          }}
+                          style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "11px", border: "1.5px solid #ff6a00", background: "#fff", color: "#ff6a00", fontSize: 13, fontWeight: 700, cursor: contactingProductId === detailEntry.productId ? "not-allowed" : "pointer", opacity: contactingProductId === detailEntry.productId ? 0.6 : 1 }}>
+                          {contactingProductId === detailEntry.productId ? <Loader2 size={15} className="animate-spin" /> : <MessageSquare size={15} />} Contact Supplier
                         </button>
                       ) : (
                         <button

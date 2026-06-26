@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   MessageSquare,
   Send,
@@ -27,6 +28,35 @@ import { formatDistanceToNow } from "date-fns";
 
 const BRAND = "#ff6a00";
 const POLL_MS = 3000;
+
+function playMessageSound() {
+  try {
+    const AudioCtx =
+      window.AudioContext ??
+      (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    const ctx = new AudioCtx();
+    // Facebook-style two-note ping: D5 → G5
+    (
+      [
+        [587.3, 0,    0.13],
+        [783.9, 0.09, 0.18],
+      ] as const
+    ).forEach(([freq, when, dur]) => {
+      const osc  = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.type = "sine";
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0, ctx.currentTime + when);
+      gain.gain.linearRampToValueAtTime(0.18, ctx.currentTime + when + 0.012);
+      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + when + dur);
+      osc.start(ctx.currentTime + when);
+      osc.stop(ctx.currentTime + when + dur);
+    });
+    setTimeout(() => ctx.close(), 1000);
+  } catch { /* AudioContext unavailable */ }
+}
 
 function timeAgo(iso: string | null) {
   if (!iso) return "";
@@ -147,6 +177,9 @@ export default function MessagesPage() {
   const myId    = me?.id ?? "";
   const myShopId = me?.shop_id ?? "";
 
+  const searchParams = useSearchParams();
+  const convParam    = searchParams.get("conv");
+
   const [convs, setConvs]         = useState<Conversation[]>([]);
   const [active, setActive]       = useState<Conversation | null>(null);
   const [messages, setMessages]   = useState<Message[]>([]);
@@ -158,9 +191,12 @@ export default function MessagesPage() {
   const [error, setError]         = useState<string | null>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  const bottomRef    = useRef<HTMLDivElement>(null);
-  const pollRef      = useRef<NodeJS.Timeout | null>(null);
-  const lastMsgTime  = useRef<string | null>(null);
+  const bottomRef       = useRef<HTMLDivElement>(null);
+  const pollRef         = useRef<NodeJS.Timeout | null>(null);
+  const lastMsgTime     = useRef<string | null>(null);
+  const prevMsgCount    = useRef(0);
+  const myIdRef         = useRef(myId);
+  useEffect(() => { myIdRef.current = myId; }, [myId]);
 
   // ── Load conversations ─────────────────────────────────────────────────────
   const loadConvs = useCallback(async () => {
@@ -179,6 +215,18 @@ export default function MessagesPage() {
     const t = setInterval(loadConvs, 10_000);
     return () => clearInterval(t);
   }, [loadConvs]);
+
+  // Auto-open a conversation when redirected from marketplace with ?conv=<id>
+  const autoOpenedRef = useRef(false);
+  useEffect(() => {
+    if (autoOpenedRef.current || !convParam || convs.length === 0) return;
+    const found = convs.find((c) => c.id === convParam);
+    if (found) {
+      setActive(found);
+      setMobileOpen(true);
+      autoOpenedRef.current = true;
+    }
+  }, [convParam, convs]);
 
   // ── Load messages for active conversation ─────────────────────────────────
   const loadMessages = useCallback(async (conv: Conversation, after?: string) => {
@@ -203,6 +251,7 @@ export default function MessagesPage() {
   useEffect(() => {
     if (!active) return;
     lastMsgTime.current = null;
+    prevMsgCount.current = 0;
     setMessages([]);
     loadMessages(active);
 
@@ -219,6 +268,16 @@ export default function MessagesPage() {
   // Scroll to bottom on new messages
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  // Play sound when a new incoming message arrives (not on initial load)
+  useEffect(() => {
+    const prev = prevMsgCount.current;
+    prevMsgCount.current = messages.length;
+    if (prev === 0 || messages.length <= prev) return;
+    const newMsgs = messages.slice(prev);
+    const hasIncoming = newMsgs.some((m) => m.sender_id !== myIdRef.current);
+    if (hasIncoming) playMessageSound();
   }, [messages]);
 
   // ── Send ───────────────────────────────────────────────────────────────────
