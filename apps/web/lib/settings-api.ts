@@ -8,7 +8,13 @@ export async function settingsRequest(endpoint: string, options: RequestInit = {
   headers.set("Content-Type", "application/json");
   if (token) headers.set("Authorization", `Bearer ${token}`);
 
-  const res = await fetch(`${SETTINGS_API}${endpoint}`, { ...options, headers });
+  let res: Response;
+  try {
+    res = await fetch(`${SETTINGS_API}${endpoint}`, { ...options, headers });
+  } catch {
+    // Network error or CORS block (e.g. localhost dev vs. production service)
+    return null;
+  }
 
   if (res.status === 401) {
     return null; // Service not yet configured for this account — return empty data

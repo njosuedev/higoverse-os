@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { settingsRequest } from "@/lib/settings-api";
-import { getMyShop, updateMyShop } from "@/lib/shop-api";
+import { updateMyShop } from "@/lib/shop-api";
 import { changePassword } from "@/lib/auth-api";
 import { useLanguage } from "@/lib/language-context";
 import { useAuth } from "@/lib/auth-context";
@@ -68,7 +68,7 @@ type SectionStatus = "idle" | "saving" | "saved" | "error";
 export default function SettingsPage() {
   const { t, setLang } = useLanguage();
   const { user } = useAuth();
-  const { shop } = useShop();
+  const { shop, loading: shopLoading } = useShop();
   const role = getEffectiveRole(user ?? null, shop?.is_active === true);
   const isCustomer = role === "CUSTOMER";
 
@@ -110,18 +110,17 @@ export default function SettingsPage() {
 
   const anyDirty = shopDirty || opsDirty || logoDirty;
 
-  useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // Wait for shop context to be ready before loading settings (avoids redundant getMyShop call)
+  useEffect(() => {
+    if (!shopLoading) load();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shopLoading]);
 
   async function load() {
     try {
       setLoading(true);
-      const [settRes, shopRes] = await Promise.allSettled([
-        settingsRequest("/settings/"),
-        getMyShop(),
-      ]);
-
-      const s    = settRes.status === "fulfilled" ? settRes.value?.data : null;
-      const shop = shopRes.status === "fulfilled" ? shopRes.value : null;
+      const settRes = await settingsRequest("/settings/");
+      const s = settRes?.data ?? null;
 
       const newShop: ShopForm = {
         shop_name:   shop?.name        || s?.shop_name || "",

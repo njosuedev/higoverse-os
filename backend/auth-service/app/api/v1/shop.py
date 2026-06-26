@@ -104,8 +104,8 @@ def submit_shop_application(
 ):
     """
     Customer submits a new shop application (or resubmits after rejection).
-    - First submission: creates an inactive shop in both DBs and links it to the user.
-    - Resubmission: updates the existing inactive shop.
+    - First submission: creates an inactive shop in shop_db and links its ID to the user in auth_db.
+    - Resubmission: updates the existing inactive shop in shop_db only.
     """
     if current_user.role not in ("customer", "owner"):
         raise HTTPException(status_code=403, detail="Not allowed")
@@ -113,7 +113,7 @@ def submit_shop_application(
     now = datetime.now(timezone.utc)
 
     if current_user.shop_id:
-        # Resubmission — update the existing (inactive) shop
+        # Resubmission — update the existing (inactive) shop in shop_db only
         shop = shop_db.query(Shop).filter(Shop.id == current_user.shop_id).first()
         if not shop:
             raise HTTPException(status_code=404, detail="Shop not found")
@@ -124,25 +124,16 @@ def submit_shop_application(
             setattr(shop, field, value)
         shop.updated_at = now
         shop_db.commit()
-
-        # Mirror update in auth_db
-        auth_shop = auth_db.query(Shop).filter(Shop.id == current_user.shop_id).first()
-        if auth_shop:
-            for field, value in payload.model_dump(exclude_unset=True).items():
-                setattr(auth_shop, field, value)
-            auth_shop.updated_at = now
-            auth_db.commit()
-
         shop_db.refresh(shop)
         return {"success": True, "message": "Application updated", "data": _fmt(shop)}
 
-    # First submission — create inactive shop in both DBs
+    # First submission — create inactive shop in shop_db only
     if not payload.name:
         raise HTTPException(status_code=422, detail="Shop name is required")
 
     shop_id = uuid.uuid4()
 
-    shop_in_shopdb = Shop(
+    new_shop = Shop(
         id=shop_id,
         name=payload.name,
         email=current_user.email,
@@ -152,25 +143,12 @@ def submit_shop_application(
         logo_url=payload.logo_url,
         is_active=False,
     )
-    shop_db.add(shop_in_shopdb)
-
-    shop_in_authdb = Shop(
-        id=shop_id,
-        name=payload.name,
-        email=current_user.email,
-        phone=payload.phone,
-        address=payload.address,
-        description=payload.description,
-        logo_url=payload.logo_url,
-        is_active=False,
-    )
-    auth_db.add(shop_in_authdb)
-
-    # Link shop to user
-    current_user.shop_id = shop_id
-
+    shop_db.add(new_shop)
     shop_db.commit()
-    auth_db.commit()
-    shop_db.refresh(shop_in_shopdb)
+    shop_db.refresh(new_shop)
 
-    return {"success": True, "message": "Application submitted", "data": _fmt(shop_in_shopdb)}
+    # Link shop_id to user in auth_db (plain UUID — no FK insert needed)
+    current_user.shop_id = shop_id
+    auth_db.commit()
+
+    return {"success": True, "message": "Application submitted", "data": _fmt(new_shop)}

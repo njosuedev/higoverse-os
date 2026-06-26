@@ -264,7 +264,7 @@ export default function MarketplacePage() {
       let allShops: typeof shops = [];
       try {
         const shopsRes = await listShops({ limit: 500 });
-        allShops = shopsRes.items ?? [];
+        allShops = (shopsRes.items ?? []).filter((s) => s.is_active);
         setShops(allShops);
         const now = new Date();
         const onlineNow = allShops.filter((s) => {
@@ -302,12 +302,13 @@ export default function MarketplacePage() {
           }> = mkRes?.data?.items ?? [];
           for (const item of mkItems) {
             const itemShop = allShops.find((s) => s.id === item.shop_id);
+            if (!itemShop) continue; // skip products from disabled or unknown shops
             const rawImgs = item.images;
             const imgs: string[] = rawImgs ? (() => { try { return JSON.parse(rawImgs) as string[]; } catch { return []; } })() : [];
             dbEntries.push({
               productId: item.id, shopId: item.shop_id,
-              shopName: itemShop?.name ?? "Unknown Shop",
-              shopLogoUrl: itemShop?.logo_url, shopPhone: itemShop?.phone,
+              shopName: itemShop.name,
+              shopLogoUrl: itemShop.logo_url, shopPhone: itemShop.phone,
               name: item.name, description: item.description, category: item.category,
               sellingPrice: item.selling_price, costPrice: item.cost_price,
               quantity: item.quantity, images: imgs,
@@ -318,11 +319,14 @@ export default function MarketplacePage() {
       }
 
       // 2. Merge: server catalog (fallback, no images) < localStorage (has images) < API (authoritative metadata + images)
+      const activeShopIds = new Set(allShops.map((s) => s.id));
       const merged = new Map<string, MarketplaceEntry>(serverEntries.map((e) => [e.productId, e]));
-      for (const e of getCatalog()) merged.set(e.productId, e);
+      for (const e of getCatalog()) {
+        if (activeShopIds.has(e.shopId)) merged.set(e.productId, e);
+      }
       for (const e of dbEntries) {
         const local = merged.get(e.productId);
-        merged.set(e.productId, { ...e, images: (local?.images?.length ?? 0) > 0 ? local!.images : e.images });
+        merged.set(e.productId, { ...e, images: (local?.images?.length ?? 0) > 0 ? local!.images : e.images, listedAt: local?.listedAt ?? e.listedAt });
       }
       setCatalog([...merged.values()]);
       setLoading(false);
@@ -359,8 +363,11 @@ export default function MarketplacePage() {
             synced++;
           }
           if (synced > 0) {
+            const activeIds = new Set(allShops.map((s) => s.id));
             const m2 = new Map<string, MarketplaceEntry>(serverCatalogRef.current.map((e) => [e.productId, e]));
-            for (const e of getCatalog()) m2.set(e.productId, e);
+            for (const e of getCatalog()) {
+              if (activeIds.has(e.shopId)) m2.set(e.productId, e);
+            }
             setCatalog([...m2.values()]);
           }
           setApiSynced(true);
@@ -387,7 +394,7 @@ export default function MarketplacePage() {
       try {
         // Refresh online shops list
         const shopsRes = await listShops({ limit: 500 });
-        const allShops = shopsRes.items ?? [];
+        const allShops = (shopsRes.items ?? []).filter((s) => s.is_active);
         setShops(allShops);
         const nowTs = new Date();
         setOnlineShopsCount(allShops.filter((s) => {
@@ -422,12 +429,13 @@ export default function MarketplacePage() {
             }> = mkRes?.data?.items ?? [];
             for (const item of mkItems) {
               const s = allShops.find((sh) => sh.id === item.shop_id);
+              if (!s) continue; // skip products from disabled or unknown shops
               const rawImgs = item.images;
               const imgs: string[] = rawImgs ? (() => { try { return JSON.parse(rawImgs) as string[]; } catch { return []; } })() : [];
               pollDbEntries.push({
                 productId: item.id, shopId: item.shop_id,
-                shopName: s?.name ?? "Unknown Shop",
-                shopLogoUrl: s?.logo_url, shopPhone: s?.phone,
+                shopName: s.name,
+                shopLogoUrl: s.logo_url, shopPhone: s.phone,
                 name: item.name, description: item.description, category: item.category,
                 sellingPrice: item.selling_price, costPrice: item.cost_price,
                 quantity: item.quantity, images: imgs,
@@ -438,11 +446,14 @@ export default function MarketplacePage() {
         }
 
         // Merge: server catalog < localStorage < API (inclusive, with image overlay)
+        const pollActiveShopIds = new Set(allShops.map((s) => s.id));
         const pollMerged = new Map<string, MarketplaceEntry>(pollServerEntries.map((e) => [e.productId, e]));
-        for (const e of getCatalog()) pollMerged.set(e.productId, e);
+        for (const e of getCatalog()) {
+          if (pollActiveShopIds.has(e.shopId)) pollMerged.set(e.productId, e);
+        }
         for (const e of pollDbEntries) {
           const local = pollMerged.get(e.productId);
-          pollMerged.set(e.productId, { ...e, images: (local?.images?.length ?? 0) > 0 ? local!.images : e.images });
+          pollMerged.set(e.productId, { ...e, images: (local?.images?.length ?? 0) > 0 ? local!.images : e.images, listedAt: local?.listedAt ?? e.listedAt });
         }
         setCatalog([...pollMerged.values()]);
 
@@ -467,10 +478,12 @@ export default function MarketplacePage() {
           }
           if (changed) {
             const pm = new Map<string, MarketplaceEntry>(serverCatalogRef.current.map((e) => [e.productId, e]));
-            for (const e of getCatalog()) pm.set(e.productId, e);
+            for (const e of getCatalog()) {
+              if (pollActiveShopIds.has(e.shopId)) pm.set(e.productId, e);
+            }
             for (const e of pollDbEntries) {
               const local = pm.get(e.productId);
-              pm.set(e.productId, { ...e, images: (local?.images?.length ?? 0) > 0 ? local!.images : e.images });
+              pm.set(e.productId, { ...e, images: (local?.images?.length ?? 0) > 0 ? local!.images : e.images, listedAt: local?.listedAt ?? e.listedAt });
             }
             setCatalog([...pm.values()]);
           }
@@ -2085,6 +2098,9 @@ function EmptyState({ hasItems, onClear }: { hasItems: boolean; onClear: () => v
   );
 }
 
+// Module-level cache so image error state survives card remounts during poll updates
+const _failedImgUrls = new Set<string>();
+
 // ── Product card ──────────────────────────────────────────────────────────────
 function ProductCard({ entry, shop, isMine, online, searchQ, onDetail, onOrder }: {
   entry: MarketplaceEntry;
@@ -2095,7 +2111,8 @@ function ProductCard({ entry, shop, isMine, online, searchQ, onDetail, onOrder }
   onDetail: () => void;
   onOrder: (e: React.MouseEvent) => void;
 }) {
-  const cover   = entry.images[0];
+  const [, _forceImg] = useState(0);
+  const cover   = entry.images.find((u) => !_failedImgUrls.has(u));
   const inStock = entry.quantity > 0;
   const initial = (entry.shopName[0] ?? "?").toUpperCase();
 
@@ -2121,7 +2138,14 @@ function ProductCard({ entry, shop, isMine, online, searchQ, onDetail, onOrder }
       {/* Image */}
       <div style={{ position: "relative", aspectRatio: "1", overflow: "hidden", background: "#f7f7f7", flexShrink: 0 }}>
         {cover
-          ? <img src={cover} alt={entry.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+          ? <img
+              src={cover}
+              alt={entry.name}
+              loading="lazy"
+              decoding="async"
+              onError={() => { _failedImgUrls.add(cover); _forceImg((n) => n + 1); }}
+              style={{ width: "100%", height: "100%", objectFit: "cover" }}
+            />
           : <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6 }}>
               <Package size={36} style={{ color: "#ddd" }} />
               <span style={{ fontSize: 10, color: "#ccc" }}>No image</span>
@@ -2175,8 +2199,11 @@ function ProductCard({ entry, shop, isMine, online, searchQ, onDetail, onOrder }
             width: 20, height: 20, borderRadius: "50%", overflow: "hidden", background: "#ff6a00",
             display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
           }}>
-            {shop?.logo_url
-              ? <img src={shop.logo_url} alt={entry.shopName} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+            {shop?.logo_url && !_failedImgUrls.has(shop.logo_url)
+              ? <img src={shop.logo_url} alt={entry.shopName}
+                  loading="lazy" decoding="async"
+                  onError={() => { _failedImgUrls.add(shop!.logo_url!); _forceImg((n) => n + 1); }}
+                  style={{ width: "100%", height: "100%", objectFit: "cover" }} />
               : <span style={{ fontSize: 8, fontWeight: 900, color: "#fff" }}>{initial}</span>}
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>

@@ -21,7 +21,8 @@ class User(Base):
 
     is_active = Column(Boolean, default=True)
 
-    shop_id = Column(UUID(as_uuid=True), ForeignKey("shops.id"), nullable=True)
+    # Plain UUID — no FK constraint. Shop data lives in shop_db, not auth_db.
+    shop_id = Column(UUID(as_uuid=True), nullable=True)
 
     role_id = Column(UUID(as_uuid=True), ForeignKey("roles.id"), nullable=True)
 
@@ -31,5 +32,4 @@ class User(Base):
     created_at = Column(DateTime(timezone=True), default=_utcnow)
 
     # relationships
-    shop     = relationship("Shop")
     role_rel = relationship("Role", foreign_keys=[role_id])
