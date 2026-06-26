@@ -1,13 +1,17 @@
 import uuid
+import logging
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import SQLAlchemyError
 
 from app.core.auth_bearer import get_current_user
 from app.db.deps import get_db, get_shop_db
 from app.models.shop import Shop
 from app.schemas.shop import ShopUpdate
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -112,43 +116,67 @@ def submit_shop_application(
 
     now = datetime.now(timezone.utc)
 
-    if current_user.shop_id:
-        # Resubmission — update the existing (inactive) shop in shop_db only
-        shop = shop_db.query(Shop).filter(Shop.id == current_user.shop_id).first()
-        if not shop:
-            raise HTTPException(status_code=404, detail="Shop not found")
-        if shop.is_active:
-            raise HTTPException(status_code=400, detail="Your shop is already active")
+    try:
+        if current_user.shop_id:
+            # Resubmission — update the existing (inactive) shop in shop_db only
+            shop = shop_db.query(Shop).filter(Shop.id == current_user.shop_id).first()
+            if not shop:
+                # shop_id linked but shop not found in shop_db — clear stale link and fall through
+                current_user.shop_id = None
+                auth_db.commit()
+            elif shop.is_active:
+                raise HTTPException(status_code=400, detail="Your shop is already active")
+            else:
+                for field, value in payload.model_dump(exclude_unset=True).items():
+                    setattr(shop, field, value)
+                shop.updated_at = now
+                shop_db.commit()
+                shop_db.refresh(shop)
+                return {"success": True, "message": "Application updated", "data": _fmt(shop)}
 
-        for field, value in payload.model_dump(exclude_unset=True).items():
-            setattr(shop, field, value)
-        shop.updated_at = now
-        shop_db.commit()
-        shop_db.refresh(shop)
-        return {"success": True, "message": "Application updated", "data": _fmt(shop)}
+        # First submission (or recovery after stale link cleared above)
+        if not payload.name:
+            raise HTTPException(status_code=422, detail="Shop name is required")
 
-    # First submission — create inactive shop in shop_db only
-    if not payload.name:
-        raise HTTPException(status_code=422, detail="Shop name is required")
+        # Recover orphaned shop: previous attempt may have created a shop in shop_db
+        # but failed to link it, leaving an unlinked record with the user's email.
+        shop = shop_db.query(Shop).filter(Shop.email == current_user.email).first()
+        if shop:
+            # Orphaned shop found — update it with the new submission data
+            for field, value in payload.model_dump(exclude_unset=True).items():
+                setattr(shop, field, value)
+            shop.updated_at = now
+            shop_db.commit()
+            shop_db.refresh(shop)
+        else:
+            # Truly fresh submission
+            shop = Shop(
+                id=uuid.uuid4(),
+                name=payload.name,
+                email=current_user.email,
+                phone=payload.phone,
+                address=payload.address,
+                description=payload.description,
+                logo_url=payload.logo_url,
+                is_active=False,
+            )
+            shop_db.add(shop)
+            shop_db.commit()
+            shop_db.refresh(shop)
 
-    shop_id = uuid.uuid4()
+        # Link shop to user in auth_db
+        current_user.shop_id = shop.id
+        auth_db.commit()
 
-    new_shop = Shop(
-        id=shop_id,
-        name=payload.name,
-        email=current_user.email,
-        phone=payload.phone,
-        address=payload.address,
-        description=payload.description,
-        logo_url=payload.logo_url,
-        is_active=False,
-    )
-    shop_db.add(new_shop)
-    shop_db.commit()
-    shop_db.refresh(new_shop)
+        return {"success": True, "message": "Application submitted", "data": _fmt(shop)}
 
-    # Link shop_id to user in auth_db (plain UUID — no FK insert needed)
-    current_user.shop_id = shop_id
-    auth_db.commit()
-
-    return {"success": True, "message": "Application submitted", "data": _fmt(new_shop)}
+    except HTTPException:
+        raise
+    except SQLAlchemyError as e:
+        shop_db.rollback()
+        auth_db.rollback()
+        logger.error("shop-application db error: %s", e)
+        raise HTTPException(status_code=500, detail="Database error — please try again")
+    except Exception as e:
+        logger.error("shop-application unexpected error: %s", e)
+        raise HTTPException(status_code=500, detail="Unexpected error — please try again")
