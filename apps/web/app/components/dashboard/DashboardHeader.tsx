@@ -48,7 +48,6 @@ const CUSTOMER_MENUS = [
   { key: "nav.marketplace",   href: "/marketplace",   icon: Store          },
   { key: "nav.notifications", href: "/notifications", icon: Bell           },
   { key: "nav.messages",      href: "/messages",      icon: MessageSquare  },
-  { key: "nav.settings",      href: "/settings",      icon: Settings       },
 ];
 
 const OWNER_MENUS = [
