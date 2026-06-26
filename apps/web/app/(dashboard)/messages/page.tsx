@@ -10,7 +10,6 @@ import {
   X,
   ChevronLeft,
   Package,
-  DollarSign,
   Loader2,
   ShoppingBag,
 } from "lucide-react";
@@ -19,7 +18,7 @@ import {
   listMessages,
   sendMessage,
   respondToOffer,
-  closeConversation,
+  openMessageStream,
   Conversation,
   Message,
 } from "@/lib/messages-api";
@@ -27,7 +26,8 @@ import { getUser } from "@/lib/auth";
 import { formatDistanceToNow } from "date-fns";
 
 const BRAND = "#ff6a00";
-const POLL_MS = 3000;
+// Catch-up poll interval — SSE delivers instantly; this just catches any missed events
+const CATCHUP_MS = 30_000;
 
 function playMessageSound() {
   try {
@@ -35,7 +35,6 @@ function playMessageSound() {
       window.AudioContext ??
       (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
     const ctx = new AudioCtx();
-    // Facebook-style two-note ping: D5 → G5
     (
       [
         [587.3, 0,    0.13],
@@ -69,7 +68,9 @@ function timeAgo(iso: string | null) {
 
 function priceStr(n: number | null | undefined) {
   if (n == null) return "";
-  return `$${Number(n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  return new Intl.NumberFormat("en-RW", {
+    style: "currency", currency: "RWF", maximumFractionDigits: 0,
+  }).format(Number(n));
 }
 
 // ── Message bubble ────────────────────────────────────────────────────────────
@@ -134,7 +135,6 @@ function Bubble({
                 <p className="text-sm text-gray-600">{msg.content}</p>
               )}
             </div>
-            {/* Shop sees Accept/Reject buttons on incoming offers */}
             {isShop && !isMine && onAccept && onReject && (
               <div className="flex border-t border-blue-200">
                 <button
@@ -173,30 +173,33 @@ function Bubble({
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 export default function MessagesPage() {
-  const me      = getUser();
-  const myId    = me?.id ?? "";
+  const me       = getUser();
+  const myId     = me?.id ?? "";
   const myShopId = me?.shop_id ?? "";
 
   const searchParams = useSearchParams();
   const convParam    = searchParams.get("conv");
 
-  const [convs, setConvs]         = useState<Conversation[]>([]);
-  const [active, setActive]       = useState<Conversation | null>(null);
-  const [messages, setMessages]   = useState<Message[]>([]);
-  const [text, setText]           = useState("");
-  const [offerMode, setOfferMode] = useState(false);
-  const [offerAmt, setOfferAmt]   = useState("");
-  const [sending, setSending]     = useState(false);
-  const [loading, setLoading]     = useState(true);
-  const [error, setError]         = useState<string | null>(null);
+  const [convs, setConvs]           = useState<Conversation[]>([]);
+  const [active, setActive]         = useState<Conversation | null>(null);
+  const [messages, setMessages]     = useState<Message[]>([]);
+  const [text, setText]             = useState("");
+  const [offerMode, setOfferMode]   = useState(false);
+  const [offerAmt, setOfferAmt]     = useState("");
+  const [sending, setSending]       = useState(false);
+  const [loading, setLoading]       = useState(true);
+  const [error, setError]           = useState<string | null>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  const bottomRef       = useRef<HTMLDivElement>(null);
-  const pollRef         = useRef<NodeJS.Timeout | null>(null);
-  const lastMsgTime     = useRef<string | null>(null);
-  const prevMsgCount    = useRef(0);
-  const myIdRef         = useRef(myId);
+  const bottomRef    = useRef<HTMLDivElement>(null);
+  const lastMsgTime  = useRef<string | null>(null);
+  const prevMsgCount = useRef(0);
+  const myIdRef      = useRef(myId);
   useEffect(() => { myIdRef.current = myId; }, [myId]);
+
+  // Used by SSE handler to know current active conversation without stale closure
+  const activeRef = useRef<Conversation | null>(null);
+  useEffect(() => { activeRef.current = active; }, [active]);
 
   // ── Load conversations ─────────────────────────────────────────────────────
   const loadConvs = useCallback(async () => {
@@ -210,13 +213,14 @@ export default function MessagesPage() {
     }
   }, []);
 
+  // Catch-up poll for conversation list (unread counts, new convs)
   useEffect(() => {
     loadConvs();
-    const t = setInterval(loadConvs, 10_000);
+    const t = setInterval(loadConvs, CATCHUP_MS);
     return () => clearInterval(t);
   }, [loadConvs]);
 
-  // Auto-open a conversation when redirected from marketplace with ?conv=<id>
+  // Auto-open conversation when redirected from marketplace with ?conv=<id>
   const autoOpenedRef = useRef(false);
   useEffect(() => {
     if (autoOpenedRef.current || !convParam || convs.length === 0) return;
@@ -228,7 +232,7 @@ export default function MessagesPage() {
     }
   }, [convParam, convs]);
 
-  // ── Load messages for active conversation ─────────────────────────────────
+  // ── Load messages ──────────────────────────────────────────────────────────
   const loadMessages = useCallback(async (conv: Conversation, after?: string) => {
     try {
       const msgs = await listMessages(conv.id, after);
@@ -244,10 +248,11 @@ export default function MessagesPage() {
         setMessages([]);
       }
     } catch {
-      // silent poll failure
+      // silent
     }
   }, []);
 
+  // Load initial messages + catch-up poll when active conversation changes
   useEffect(() => {
     if (!active) return;
     lastMsgTime.current = null;
@@ -255,22 +260,49 @@ export default function MessagesPage() {
     setMessages([]);
     loadMessages(active);
 
-    if (pollRef.current) clearInterval(pollRef.current);
-    pollRef.current = setInterval(() => {
+    // Catch-up poll — SSE handles real-time; this catches any missed events
+    const t = setInterval(() => {
       loadMessages(active, lastMsgTime.current ?? undefined);
-    }, POLL_MS);
+    }, CATCHUP_MS);
 
-    return () => {
-      if (pollRef.current) clearInterval(pollRef.current);
-    };
+    return () => clearInterval(t);
   }, [active, loadMessages]);
+
+  // ── SSE — real-time message delivery ──────────────────────────────────────
+  useEffect(() => {
+    const ctrl = openMessageStream(
+      (evt) => {
+        if (evt.type === "ping" || evt.type === "connected") return;
+
+        if (evt.type === "new_message" && evt.message && evt.conversation_id) {
+          const msg = evt.message;
+
+          // Append to visible messages if this conversation is open
+          if (activeRef.current?.id === evt.conversation_id) {
+            setMessages((prev) => {
+              if (prev.some((m) => m.id === msg.id)) return prev;
+              return [...prev, msg];
+            });
+            if (msg.created_at) lastMsgTime.current = msg.created_at;
+          }
+
+          // Always refresh conversation list for unread counts
+          loadConvs();
+        }
+      },
+      () => {
+        // SSE unavailable — the 30s catch-up poll already handles recovery
+      },
+    );
+    return () => ctrl.abort();
+  }, [loadConvs]);
 
   // Scroll to bottom on new messages
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // Play sound when a new incoming message arrives (not on initial load)
+  // Play sound when new incoming messages arrive (not on initial load)
   useEffect(() => {
     const prev = prevMsgCount.current;
     prevMsgCount.current = messages.length;
@@ -518,7 +550,7 @@ export default function MessagesPage() {
               <div className="bg-white border-t border-gray-100 p-3 shrink-0">
                 {offerMode && (
                   <div className="flex items-center gap-2 mb-2 p-3 bg-orange-50 rounded-xl border border-orange-200">
-                    <DollarSign size={16} className="text-orange-500 shrink-0" />
+                    <span className="text-xs font-bold text-orange-500 shrink-0">FRW</span>
                     <input
                       type="number"
                       min="0"
@@ -556,7 +588,6 @@ export default function MessagesPage() {
                       className="flex-1 bg-transparent text-sm text-gray-800 outline-none resize-none max-h-[120px] placeholder:text-gray-400"
                     />
                   </div>
-                  {/* Only customers see Make Offer button */}
                   {myShopId !== active.shop_id && !offerMode && (
                     <button
                       onClick={() => setOfferMode(true)}

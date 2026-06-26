@@ -128,6 +128,7 @@ export default function ShopStorePage() {
   // Follow
   const [following, setFollowing]         = useState(false);
   const [followerCount, setFollowerCount] = useState(0);
+  const [orderConvId, setOrderConvId]     = useState<string | null>(null);
 
   // Customer chat (per-product, localStorage + BroadcastChannel)
   const [chatProduct, setChatProduct]         = useState<MarketplaceEntry | null>(null);
@@ -353,8 +354,11 @@ export default function ShopStorePage() {
   async function placeOrder() {
     if (cart.length === 0) return;
     setPlacingOrder(true);
+    // Capture cart snapshot before clearing
+    const cartSnapshot = [...cart];
+    const total = cartSnapshot.reduce((s, c) => s + c.product.selling_price * c.qty, 0);
     try {
-      for (const item of cart) {
+      for (const item of cartSnapshot) {
         await purchaseRequest("/purchases", {
           method: "POST",
           body: JSON.stringify({
@@ -369,6 +373,21 @@ export default function ShopStorePage() {
       }
       setOrderSuccess(true);
       setCart([]);
+
+      // Fire-and-forget: send order summary to shop via messages service
+      const lines = [`🛒 New order:`];
+      for (const item of cartSnapshot) {
+        lines.push(`• ${item.product.name} × ${item.qty} = ${fmtCurrency(item.product.selling_price * item.qty)}`);
+      }
+      lines.push(`Total: ${fmtCurrency(total)}`);
+      if (checkoutNotes) lines.push(`\nNote: ${checkoutNotes}`);
+      lines.push(`\nPlease confirm and arrange delivery.`);
+      createOrGetConversation({
+        shop_id:       shop.id,
+        shop_name:     shop.name,
+        customer_name: user?.name ?? user?.email,
+        first_message: lines.join("\n"),
+      }).then((conv) => setOrderConvId(conv.id)).catch(() => {});
     } catch (err: unknown) {
       alert(err instanceof Error ? err.message : "Failed to place order");
     } finally {
@@ -1376,7 +1395,7 @@ export default function ShopStorePage() {
 
               <div className="p-3 bg-[#EBF2FD] rounded-xl border border-[#A8C8F8] text-[10px] text-[#1372e6] flex items-start gap-2">
                 <Info size={12} className="flex-shrink-0 mt-0.5" />
-                <span>These items will be added as purchase records in your system. Contact {shop.name} separately to arrange delivery and payment.</span>
+                <span>Purchase records will be created and a message sent to {shop.name} automatically.</span>
               </div>
             </div>
 
@@ -1405,8 +1424,16 @@ export default function ShopStorePage() {
               <CheckCircle size={28} className="text-green-600" />
             </div>
             <h2 className="font-black text-slate-900 text-lg mb-1">Order Placed!</h2>
-            <p className="text-slate-500 text-xs mb-1">Your purchase records have been created.</p>
-            <p className="text-slate-400 text-xs mb-5">Contact <span className="font-semibold">{shop.name}</span> to arrange delivery and payment.</p>
+            <p className="text-slate-500 text-xs mb-1">Purchase records created · message sent to {shop.name}.</p>
+            <p className="text-slate-400 text-xs mb-4">The shop has been notified. Continue the conversation in Messages.</p>
+            <Link
+              href={`/messages${orderConvId ? `?conv=${orderConvId}` : ""}`}
+              onClick={() => setOrderSuccess(false)}
+              className="flex w-full items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-bold text-white mb-2.5 transition hover:opacity-90"
+              style={{ backgroundColor: "#ff6a00" }}
+            >
+              <MessageSquare size={14} /> View in Messages
+            </Link>
             <div className="flex gap-2.5">
               <button onClick={() => setOrderSuccess(false)} className="flex-1 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition">
                 Stay Here

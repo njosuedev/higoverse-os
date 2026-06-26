@@ -1,13 +1,17 @@
+import asyncio
+import json
 from datetime import datetime, timezone
 from typing import Optional
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import StreamingResponse
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.core.auth import get_current_user, TokenData
 from app.core.config import settings
+from app.core.events import publish_sync, subscribe, unsubscribe
 from app.db.session import get_db
 from app.models.conversation import Conversation
 from app.models.message import Message
@@ -68,6 +72,57 @@ def _push_notification(user_id: str, notif_type: str, title: str, body: str, dat
         pass  # never block the message send on notification failure
 
 
+def _sse_push(channel: str, conv: Conversation, msg: Message) -> None:
+    """Push a new_message SSE event to a recipient's live connections."""
+    publish_sync(channel, {
+        "type":            "new_message",
+        "conversation_id": str(conv.id),
+        "message":         _fmt_msg(msg),
+    })
+
+
+# ── SSE stream ────────────────────────────────────────────────────────────────
+
+@router.get("/stream")
+async def stream_events(
+    request: Request,
+    current_user: TokenData = Depends(get_current_user),
+):
+    """
+    Server-Sent Events endpoint. One persistent connection per browser tab.
+    Receives new_message events in real time — no polling needed.
+    """
+    uid = current_user.user_id
+    sid = current_user.shop_id
+    channels = [uid] + ([sid] if sid else [])
+    q = subscribe(channels)
+
+    async def generator():
+        try:
+            yield f"data: {json.dumps({'type': 'connected'})}\n\n"
+            while True:
+                if await request.is_disconnected():
+                    break
+                try:
+                    event = await asyncio.wait_for(q.get(), timeout=25)
+                    yield f"data: {json.dumps(event)}\n\n"
+                except asyncio.TimeoutError:
+                    # Keep-alive ping so proxies don't close idle connections
+                    yield f"data: {json.dumps({'type': 'ping'})}\n\n"
+        finally:
+            unsubscribe(channels, q)
+
+    return StreamingResponse(
+        generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control":    "no-cache",
+            "Connection":       "keep-alive",
+            "X-Accel-Buffering": "no",  # disable nginx buffering
+        },
+    )
+
+
 # ── Conversations ─────────────────────────────────────────────────────────────
 
 @router.get("/conversations")
@@ -80,7 +135,6 @@ def list_conversations(
 
     query = db.query(Conversation)
     if sid:
-        # Shop owner: see conversations where they are the shop
         query = query.filter(
             (Conversation.customer_id == uid) | (Conversation.shop_id == sid)
         )
@@ -91,7 +145,6 @@ def list_conversations(
 
     result = []
     for c in convs:
-        # Count unread messages for this user
         if uid == c.customer_id:
             unread = db.query(func.count(Message.id)).filter(
                 Message.conversation_id == c.id,
@@ -117,7 +170,6 @@ def create_or_get_conversation(
 ):
     uid = current_user.user_id
 
-    # Re-use existing open conversation for same customer+shop+product
     existing = db.query(Conversation).filter(
         Conversation.customer_id == uid,
         Conversation.shop_id == payload.shop_id,
@@ -127,7 +179,10 @@ def create_or_get_conversation(
 
     if existing:
         if payload.first_message:
-            _send_message_internal(db, existing, uid, "customer", payload.first_message, "text", None, payload.customer_name)
+            msg = _send_message_internal(db, existing, uid, "customer", payload.first_message, "text", None, payload.customer_name)
+            db.commit()
+            db.refresh(msg)
+            _sse_push(existing.shop_id, existing, msg)
         return {"success": True, "data": _fmt_conv(existing)}
 
     conv = Conversation(
@@ -143,11 +198,17 @@ def create_or_get_conversation(
     db.add(conv)
     db.flush()
 
+    msg = None
     if payload.first_message:
-        _send_message_internal(db, conv, uid, "customer", payload.first_message, "text", None, payload.customer_name)
+        msg = _send_message_internal(db, conv, uid, "customer", payload.first_message, "text", None, payload.customer_name)
 
     db.commit()
     db.refresh(conv)
+
+    if msg:
+        db.refresh(msg)
+        _sse_push(conv.shop_id, conv, msg)
+
     return {"success": True, "data": _fmt_conv(conv)}
 
 
@@ -183,7 +244,6 @@ def list_messages(
     current_user: TokenData = Depends(get_current_user),
 ):
     uid = current_user.user_id
-    sid = current_user.shop_id
     conv = _get_conv_or_403(conv_id, db, current_user)
 
     q = db.query(Message).filter(Message.conversation_id == conv.id)
@@ -196,7 +256,6 @@ def list_messages(
 
     msgs = q.order_by(Message.created_at.asc()).all()
 
-    # Mark incoming messages as read
     is_customer = uid == conv.customer_id
     incoming_type = "shop" if is_customer else "customer"
     db.query(Message).filter(
@@ -234,7 +293,6 @@ def send_message(
     db.commit()
     db.refresh(msg)
 
-    # Push notification to the other party
     if is_customer:
         recipient_id = conv.shop_id
         notif_title  = f"New message from {conv.customer_name or 'a customer'}"
@@ -243,13 +301,16 @@ def send_message(
         notif_title  = f"New message from {conv.shop_name or 'a shop'}"
 
     notif_type = "offer_received" if payload.message_type == "offer" else "new_message"
-    body_text  = payload.content if payload.message_type != "offer" else f"Offer: ${float(payload.offer_price or 0):.2f}"
+    body_text  = payload.content if payload.message_type != "offer" else f"Offer: FRW {int(payload.offer_price or 0):,}"
 
     _push_notification(recipient_id, notif_type, notif_title, body_text, {
         "conversation_id": str(conv.id),
         "product_name":    conv.product_name,
         "shop_name":       conv.shop_name,
     })
+
+    # SSE push — delivers to recipient instantly if they have the messages tab open
+    _sse_push(recipient_id, conv, msg)
 
     return {"success": True, "data": _fmt_msg(msg)}
 
@@ -269,7 +330,6 @@ def respond_to_offer(
     if conv.status != "open":
         raise HTTPException(status_code=400, detail="Conversation is closed")
 
-    # Only the shop can accept/reject an offer
     is_shop = sid and conv.shop_id == sid
     if not is_shop:
         raise HTTPException(status_code=403, detail="Only the shop can respond to offers")
@@ -283,16 +343,16 @@ def respond_to_offer(
         raise HTTPException(status_code=404, detail="Offer not found")
 
     if payload.action == "accept":
-        conv.status      = "accepted"
+        conv.status       = "accepted"
         conv.agreed_price = offer_msg.offer_price
-        msg_type         = "offer_accepted"
-        content          = f"Offer of ${float(offer_msg.offer_price or 0):.2f} accepted! The deal is confirmed."
-        notif_type       = "offer_accepted"
-        notif_title      = f"{conv.shop_name or 'Shop'} accepted your offer!"
+        msg_type          = "offer_accepted"
+        content           = f"Offer of FRW {int(offer_msg.offer_price or 0):,} accepted! The deal is confirmed."
+        notif_type        = "offer_accepted"
+        notif_title       = f"{conv.shop_name or 'Shop'} accepted your offer!"
     elif payload.action == "reject":
-        msg_type   = "offer_rejected"
-        content    = f"Offer of ${float(offer_msg.offer_price or 0):.2f} was declined."
-        notif_type = "offer_rejected"
+        msg_type    = "offer_rejected"
+        content     = f"Offer of FRW {int(offer_msg.offer_price or 0):,} was declined."
+        notif_type  = "offer_rejected"
         notif_title = f"{conv.shop_name or 'Shop'} declined your offer"
     else:
         raise HTTPException(status_code=400, detail="Action must be accept or reject")
@@ -308,6 +368,9 @@ def respond_to_offer(
         "agreed_price":    float(offer_msg.offer_price or 0),
     })
 
+    # Notify the customer via SSE — they see the offer response instantly
+    _sse_push(conv.customer_id, conv, sys_msg)
+
     return {"success": True, "data": _fmt_msg(sys_msg)}
 
 
@@ -319,7 +382,6 @@ def unread_count(
     uid = current_user.user_id
     sid = current_user.shop_id
 
-    # Messages sent TO this user that are unread
     customer_unread = db.query(func.count(Message.id)).join(
         Conversation, Message.conversation_id == Conversation.id
     ).filter(

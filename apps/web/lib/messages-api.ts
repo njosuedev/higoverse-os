@@ -1,6 +1,6 @@
 import { getToken, handleUnauthorized } from "@/lib/auth";
 
-const MSG_API = (
+export const MSG_API = (
   process.env.NEXT_PUBLIC_MESSAGE_API || "https://higoverse-messages.onrender.com"
 ).replace(/\/$/, "");
 
@@ -134,4 +134,60 @@ export async function closeConversation(convId: string): Promise<void> {
 export async function getUnreadCount(): Promise<number> {
   const res = await msgRequest("/api/v1/unread-count");
   return res?.data?.count ?? 0;
+}
+
+/**
+ * Open an SSE stream to receive real-time message events.
+ * Returns an AbortController — call ctrl.abort() to close the connection.
+ *
+ * onEvent is called for each parsed event payload.
+ * onFallback is called when SSE is unavailable (network error, server restart)
+ * so the caller can switch to polling.
+ */
+export function openMessageStream(
+  onEvent: (evt: { type: string; conversation_id?: string; message?: Message }) => void,
+  onFallback: () => void,
+): AbortController {
+  const ctrl = new AbortController();
+  const token = getToken();
+  if (!token) { onFallback(); return ctrl; }
+
+  (async () => {
+    try {
+      const resp = await fetch(`${MSG_API}/api/v1/stream`, {
+        headers: { Authorization: `Bearer ${token}` },
+        signal: ctrl.signal,
+      });
+      if (!resp.ok || !resp.body) { onFallback(); return; }
+
+      const reader = resp.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+
+        // SSE messages are separated by double newlines
+        const parts = buf.split("\n\n");
+        buf = parts.pop() ?? "";
+
+        for (const part of parts) {
+          const dataLine = part.split("\n").find((l) => l.startsWith("data: "));
+          if (!dataLine) continue;
+          try {
+            const evt = JSON.parse(dataLine.slice(6));
+            onEvent(evt);
+          } catch { /* malformed JSON — skip */ }
+        }
+      }
+      // Stream ended cleanly (server restart) — fall back to polling
+      if (!ctrl.signal.aborted) onFallback();
+    } catch (err) {
+      if ((err as { name?: string }).name !== "AbortError") onFallback();
+    }
+  })();
+
+  return ctrl;
 }

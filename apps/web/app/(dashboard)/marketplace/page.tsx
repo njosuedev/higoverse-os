@@ -249,6 +249,7 @@ export default function MarketplacePage() {
   const [ordering, setOrdering]       = useState(false);
   const [orderDone, setOrderDone]     = useState(false);
   const [orderError, setOrderError]   = useState("");
+  const [orderConvId, setOrderConvId] = useState<string | null>(null);
 
   // messaging
   const [msgEntry, setMsgEntry]       = useState<MarketplaceEntry | null>(null);
@@ -632,6 +633,27 @@ export default function MarketplacePage() {
         }),
       });
       setOrderDone(true);
+      // Fire-and-forget: send order message to shop via messages service
+      const entry = orderModal.entry;
+      const qty   = orderModal.qty;
+      const total = entry.sellingPrice * qty;
+      const orderContent = [
+        `🛒 New order:`,
+        `• ${entry.name} × ${qty} = ${fmtPrice(total)}`,
+        `Listed price: ${fmtPrice(entry.sellingPrice)} each`,
+        ``,
+        `Please confirm availability and arrange delivery.`,
+      ].join("\n");
+      createOrGetConversation({
+        shop_id:       entry.shopId,
+        shop_name:     entry.shopName,
+        customer_name: user?.name ?? user?.email,
+        product_id:    entry.productId,
+        product_name:  entry.name,
+        product_image: entry.images[0],
+        listed_price:  entry.sellingPrice,
+        first_message: orderContent,
+      }).then((conv) => setOrderConvId(conv.id)).catch(() => {});
     } catch (err: unknown) {
       setOrderError(err instanceof Error ? err.message : "Failed to place order");
     } finally { setOrdering(false); }
@@ -640,7 +662,7 @@ export default function MarketplacePage() {
   const openOrder = useCallback((entry: MarketplaceEntry, e?: React.MouseEvent) => {
     e?.stopPropagation();
     setOrderModal({ entry, shop: shopMap[entry.shopId], qty: 1 });
-    setOrderDone(false); setOrderError("");
+    setOrderDone(false); setOrderError(""); setOrderConvId(null);
   }, [shopMap]);
 
   function toggleFollow(shopId: string, shopName: string, e?: React.MouseEvent) {
@@ -1443,18 +1465,22 @@ export default function MarketplacePage() {
                   <CheckCircle size={28} style={{ color: "#52c41a" }} />
                 </div>
                 <p style={{ fontSize: 16, fontWeight: 700, color: "#333", margin: "0 0 6px" }}>Order Placed!</p>
-                <p style={{ fontSize: 12, color: "#999", margin: "0 0 6px" }}>Purchase record created in your system.</p>
-                <p style={{ fontSize: 12, color: "#555", margin: "0 0 20px" }}>Contact <strong>{orderModal.entry.shopName}</strong> to arrange delivery &amp; payment.</p>
-                {orderModal.entry.shopPhone && (
-                  <a href={`tel:${orderModal.entry.shopPhone}`} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 16px", background: "#f6ffed", border: "1px solid #b7eb8f", color: "#52c41a", textDecoration: "none", fontSize: 12, fontWeight: 700, marginBottom: 16 }}>
-                    <Phone size={12} /> Call {orderModal.entry.shopName}
-                  </a>
-                )}
+                <p style={{ fontSize: 12, color: "#999", margin: "0 0 6px" }}>Purchase record created · message sent to {orderModal.entry.shopName}.</p>
+                <p style={{ fontSize: 12, color: "#555", margin: "0 0 20px" }}>The shop has been notified. Continue the conversation in Messages.</p>
+                <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+                  <Link
+                    href={`/messages${orderConvId ? `?conv=${orderConvId}` : ""}`}
+                    onClick={() => setOrderModal(null)}
+                    style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "9px", background: "#ff6a00", color: "#fff", textDecoration: "none", fontSize: 12, fontWeight: 700 }}
+                  >
+                    <MessageSquare size={13} /> View in Messages
+                  </Link>
+                </div>
                 <div style={{ display: "flex", gap: 8 }}>
                   <button onClick={() => setOrderModal(null)} style={{ flex: 1, padding: "8px", border: "1px solid #d9d9d9", background: "#fff", cursor: "pointer", fontSize: 12, color: "#555" }}>
                     Continue Shopping
                   </button>
-                  <Link href="/purchases" onClick={() => setOrderModal(null)} style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: "8px", background: "#ff6a00", color: "#fff", textDecoration: "none", fontSize: 12, fontWeight: 700 }}>
+                  <Link href="/purchases" onClick={() => setOrderModal(null)} style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: "8px", background: "#f5f5f5", color: "#555", textDecoration: "none", fontSize: 12, fontWeight: 600 }}>
                     View Purchases
                   </Link>
                 </div>
@@ -1495,7 +1521,7 @@ export default function MarketplacePage() {
                     </div>
                   </div>
                   {orderError && <p style={{ fontSize: 11, color: "#f5222d", background: "#fff2f0", border: "1px solid #ffa39e", padding: "6px 10px", margin: 0 }}>{orderError}</p>}
-                  <p style={{ fontSize: 10, color: "#aaa", margin: 0, lineHeight: 1.5 }}>A purchase record will be created in your system. Contact the supplier to arrange delivery and payment.</p>
+                  <p style={{ fontSize: 10, color: "#aaa", margin: 0, lineHeight: 1.5 }}>A purchase record will be created and a message sent to the shop automatically.</p>
                 </div>
                 <div style={{ display: "flex", gap: 8, padding: "12px 16px", borderTop: "1px solid #f0f0f0" }}>
                   <button onClick={() => setOrderModal(null)} style={{ flex: 1, padding: "8px", border: "1px solid #d9d9d9", background: "#fff", cursor: "pointer", fontSize: 12, color: "#555" }}>Cancel</button>

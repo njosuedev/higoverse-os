@@ -1,8 +1,11 @@
+import asyncio
+
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.api.v1 import conversations
+from app.core.events import set_event_loop
 from app.db.session import engine
 from app.models import conversation, message  # noqa: F401 — register tables
 
@@ -29,7 +32,10 @@ app.include_router(conversations.router, prefix="/api/v1", tags=["Messages"])
 
 
 @app.on_event("startup")
-def on_startup():
+async def on_startup():
+    # Capture the running event loop so sync route handlers can publish SSE events
+    set_event_loop(asyncio.get_event_loop())
+
     if not engine:
         return
     try:
