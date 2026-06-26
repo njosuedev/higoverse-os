@@ -375,19 +375,21 @@ export default function ShopStorePage() {
       setCart([]);
 
       // Fire-and-forget: send order summary to shop via messages service
-      const lines = [`🛒 New order:`];
-      for (const item of cartSnapshot) {
-        lines.push(`• ${item.product.name} × ${item.qty} = ${fmtCurrency(item.product.selling_price * item.qty)}`);
+      if (shop) {
+        const lines = [`🛒 New order:`];
+        for (const item of cartSnapshot) {
+          lines.push(`• ${item.product.name} × ${item.qty} = ${fmtCurrency(item.product.selling_price * item.qty)}`);
+        }
+        lines.push(`Total: ${fmtCurrency(total)}`);
+        if (checkoutNotes) lines.push(`\nNote: ${checkoutNotes}`);
+        lines.push(`\nPlease confirm and arrange delivery.`);
+        createOrGetConversation({
+          shop_id:       shop.id,
+          shop_name:     shop.name,
+          customer_name: user?.name ?? user?.email,
+          first_message: lines.join("\n"),
+        }).then((conv) => setOrderConvId(conv.id)).catch(() => {});
       }
-      lines.push(`Total: ${fmtCurrency(total)}`);
-      if (checkoutNotes) lines.push(`\nNote: ${checkoutNotes}`);
-      lines.push(`\nPlease confirm and arrange delivery.`);
-      createOrGetConversation({
-        shop_id:       shop.id,
-        shop_name:     shop.name,
-        customer_name: user?.name ?? user?.email,
-        first_message: lines.join("\n"),
-      }).then((conv) => setOrderConvId(conv.id)).catch(() => {});
     } catch (err: unknown) {
       alert(err instanceof Error ? err.message : "Failed to place order");
     } finally {
