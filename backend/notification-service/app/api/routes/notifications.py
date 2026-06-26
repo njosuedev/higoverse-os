@@ -10,7 +10,7 @@ from app.core.events import publish_sync, subscribe, unsubscribe
 from app.core.security import get_current_user
 from app.db.database import get_db
 from app.models.notification import Notification
-from app.schemas.notification import CreateNotificationPayload
+from app.schemas.notification import CreateNotificationPayload, SelfNotificationPayload
 
 router = APIRouter(tags=["Notifications"])
 
@@ -98,6 +98,30 @@ def internal_notify(
 
 
 # ── User-facing endpoints ─────────────────────────────────────────────────────
+
+@router.post("/api/v1/notifications/self")
+def create_self_notification(
+    payload: SelfNotificationPayload,
+    db:      Session = Depends(get_db),
+    user:    dict    = Depends(get_current_user),
+):
+    """Create a notification for the authenticated user (no service key required)."""
+    notif = Notification(
+        user_id=str(user["user_id"]),
+        type="system",
+        title=payload.title,
+        body=payload.body,
+        data=payload.data,
+    )
+    db.add(notif)
+    db.commit()
+    db.refresh(notif)
+    publish_sync(str(user["user_id"]), {
+        "type":         "new_notification",
+        "notification": _to_dict(notif),
+    })
+    return {"success": True, "data": _to_dict(notif)}
+
 
 @router.get("/api/v1/notifications/unread-count")
 def unread_count(

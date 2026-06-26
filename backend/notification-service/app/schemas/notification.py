@@ -22,3 +22,9 @@ class CreateNotificationPayload(BaseModel):
     title:   str
     body:    Optional[str] = None
     data:    Dict[str, Any] = {}
+
+
+class SelfNotificationPayload(BaseModel):
+    title: str
+    body:  Optional[str] = None
+    data:  Dict[str, Any] = {}

@@ -67,6 +67,13 @@ export async function deleteAllNotifications(): Promise<void> {
   await notifRequest("/api/v1/notifications", { method: "DELETE" });
 }
 
+export async function createSelfNotification(title: string, body?: string): Promise<void> {
+  await notifRequest("/api/v1/notifications/self", {
+    method: "POST",
+    body: JSON.stringify({ title, body }),
+  });
+}
+
 /**
  * Open an SSE stream for real-time notification delivery.
  * onEvent is called for each pushed notification event.

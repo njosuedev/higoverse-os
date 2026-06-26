@@ -9,6 +9,7 @@ import {
   Check,
   X,
   Store,
+  Clock,
   Trash2,
   Loader2,
   RefreshCw,
@@ -19,6 +20,7 @@ import {
   markAllNotificationsRead,
   deleteNotification,
   deleteAllNotifications,
+  openNotifStream,
   Notification,
 } from "@/lib/notifications-api";
 import { formatDistanceToNow } from "date-fns";
@@ -32,7 +34,7 @@ const NOTIF_ICON: Record<string, React.ReactNode> = {
   offer_rejected: <X size={16} />,
   shop_approved:  <Store size={16} />,
   shop_rejected:  <X size={16} />,
-  system:         <Bell size={16} />,
+  system:         <Clock size={16} />,
 };
 
 const NOTIF_COLORS: Record<string, string> = {
@@ -42,7 +44,7 @@ const NOTIF_COLORS: Record<string, string> = {
   offer_rejected: "bg-red-100 text-red-600",
   shop_approved:  "bg-green-100 text-green-700",
   shop_rejected:  "bg-red-100 text-red-600",
-  system:         "bg-gray-100 text-gray-600",
+  system:         "bg-amber-100 text-amber-700",
 };
 
 function timeAgo(iso: string) {
@@ -71,11 +73,28 @@ export default function NotificationsPage() {
     }
   }, []);
 
+  // Initial load + 60s catch-up poll
   useEffect(() => {
     load();
-    const t = setInterval(load, 30_000);
+    const t = setInterval(load, 60_000);
     return () => clearInterval(t);
   }, [load]);
+
+  // SSE — prepend new notifications instantly without a full reload
+  useEffect(() => {
+    const ctrl = openNotifStream(
+      (evt) => {
+        if (evt.type === "new_notification" && evt.notification) {
+          setNotifs((prev) => {
+            if (prev.some((n) => n.id === evt.notification!.id)) return prev;
+            return [evt.notification!, ...prev];
+          });
+        }
+      },
+      () => { /* fallback poll already running */ },
+    );
+    return () => ctrl.abort();
+  }, []);
 
   const handleRead = async (id: string) => {
     setNotifs((prev) => prev.map((n) => (n.id === id ? { ...n, is_read: true } : n)));

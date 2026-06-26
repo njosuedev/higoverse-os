@@ -27,6 +27,7 @@ import {
   type ShopMessage,
 } from "@/lib/product-meta";
 import { createOrGetConversation } from "@/lib/messages-api";
+import { createSelfNotification } from "@/lib/notifications-api";
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 function parseUTC(ts: string | null | undefined): Date {
@@ -230,6 +231,11 @@ export default function MarketplacePage() {
       setShopApplied(true);
       localStorage.setItem("mp_shop_applied", "1");
       setShowShopForm(false);
+      // Notify the user in their notifications tab
+      createSelfNotification(
+        "Application submitted — pending admin review",
+        "Higoverse admin will review your shop details and notify you once approved. This usually takes 1–2 business days.",
+      ).catch(() => {});
     } catch {
       setShopFormError("Failed to submit application. Please try again.");
     } finally {
