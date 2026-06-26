@@ -1,7 +1,12 @@
-﻿from fastapi import APIRouter, Depends, Header, HTTPException, Query
+import asyncio
+import json
+
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
+from app.core.events import publish_sync, subscribe, unsubscribe
 from app.core.security import get_current_user
 from app.db.database import get_db
 from app.models.notification import Notification
@@ -23,7 +28,47 @@ def _to_dict(n: Notification) -> dict:
     }
 
 
-# Internal service-to-service endpoint
+# ── SSE stream ────────────────────────────────────────────────────────────────
+
+@router.get("/api/v1/notifications/stream")
+async def stream_notifications(
+    request: Request,
+    user: dict = Depends(get_current_user),
+):
+    """
+    Server-Sent Events — pushes new notifications to the client instantly.
+    One persistent connection per browser session. Zero polling needed.
+    """
+    uid = str(user["user_id"])
+    q = subscribe(uid)
+
+    async def generator():
+        try:
+            yield f"data: {json.dumps({'type': 'connected'})}\n\n"
+            while True:
+                if await request.is_disconnected():
+                    break
+                try:
+                    event = await asyncio.wait_for(q.get(), timeout=25)
+                    yield f"data: {json.dumps(event)}\n\n"
+                except asyncio.TimeoutError:
+                    yield f"data: {json.dumps({'type': 'ping'})}\n\n"
+        finally:
+            unsubscribe(uid, q)
+
+    return StreamingResponse(
+        generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control":     "no-cache",
+            "Connection":        "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+# ── Internal service-to-service endpoint ─────────────────────────────────────
+
 @router.post("/api/v1/internal/notify", include_in_schema=False)
 def internal_notify(
     payload:       CreateNotificationPayload,
@@ -42,10 +87,18 @@ def internal_notify(
     db.add(notif)
     db.commit()
     db.refresh(notif)
+
+    # Push instantly to any open SSE connections for this user
+    publish_sync(payload.user_id, {
+        "type":         "new_notification",
+        "notification": _to_dict(notif),
+    })
+
     return {"success": True, "data": _to_dict(notif)}
 
 
-# User-facing endpoints
+# ── User-facing endpoints ─────────────────────────────────────────────────────
+
 @router.get("/api/v1/notifications/unread-count")
 def unread_count(
     db:   Session = Depends(get_db),

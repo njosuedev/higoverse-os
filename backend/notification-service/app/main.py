@@ -1,8 +1,11 @@
-﻿from fastapi import FastAPI, Request
+import asyncio
+
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.api.routes.notifications import router as notif_router
+from app.core.events import set_event_loop
 from app.db.database import Base, engine
 
 app = FastAPI(title="Higoverse Notification Service", version="1.0.0")
@@ -22,7 +25,8 @@ app.include_router(notif_router)
 
 
 @app.on_event("startup")
-def on_startup():
+async def on_startup():
+    set_event_loop(asyncio.get_event_loop())
     if engine:
         Base.metadata.create_all(bind=engine)
 

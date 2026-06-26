@@ -9,8 +9,8 @@ import { useShop } from "@/lib/shop-context";
 import { LANGUAGES } from "@/lib/i18n";
 import { settingsRequest } from "@/lib/settings-api";
 import { getEffectiveRole } from "@/lib/auth";
-import { getUnreadCount } from "@/lib/messages-api";
-import { getUnreadNotifCount } from "@/lib/notifications-api";
+import { getUnreadCount, openMessageStream } from "@/lib/messages-api";
+import { getUnreadNotifCount, openNotifStream } from "@/lib/notifications-api";
 import {
   Home, Package, Truck, ShoppingCart, BarChart3,
   Users, FileText, ChevronDown, ShieldCheck, Receipt,
@@ -82,17 +82,85 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
   const [unreadNotifs, setUnreadNotifs] = useState(0);
   const menuRef = useRef<HTMLDivElement>(null);
 
+  // ── Sounds ─────────────────────────────────────────────────────────────────
+  function playNotifSound() {
+    try {
+      const Ctx = window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      const ctx = new Ctx();
+      // Single rising note for notifications
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.type = "sine"; osc.frequency.value = 880;
+      gain.gain.setValueAtTime(0, ctx.currentTime);
+      gain.gain.linearRampToValueAtTime(0.15, ctx.currentTime + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.3);
+      osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.3);
+      setTimeout(() => ctx.close(), 800);
+    } catch { /* AudioContext unavailable */ }
+  }
+
+  function playMsgSound() {
+    try {
+      const Ctx = window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      const ctx = new Ctx();
+      // Two-note ping for messages (same as chat page)
+      ([[ 587.3, 0, 0.13 ], [ 783.9, 0.09, 0.18 ]] as const).forEach(([freq, when, dur]) => {
+        const osc = ctx.createOscillator(); const gain = ctx.createGain();
+        osc.connect(gain); gain.connect(ctx.destination);
+        osc.type = "sine"; osc.frequency.value = freq;
+        gain.gain.setValueAtTime(0, ctx.currentTime + when);
+        gain.gain.linearRampToValueAtTime(0.15, ctx.currentTime + when + 0.012);
+        gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + when + dur);
+        osc.start(ctx.currentTime + when); osc.stop(ctx.currentTime + when + dur);
+      });
+      setTimeout(() => ctx.close(), 1000);
+    } catch { /* AudioContext unavailable */ }
+  }
+
+  // ── Load initial badge counts ───────────────────────────────────────────────
   const refreshBadges = useCallback(async () => {
     try { setUnreadMsgs(await getUnreadCount()); } catch { /* silent */ }
     try { setUnreadNotifs(await getUnreadNotifCount()); } catch { /* silent */ }
   }, []);
 
+  // Initial load + 60s catch-up poll (SSE handles real-time)
   useEffect(() => {
     if (!user) return;
     refreshBadges();
-    const t = setInterval(refreshBadges, 30_000);
+    const t = setInterval(refreshBadges, 60_000);
     return () => clearInterval(t);
   }, [user, refreshBadges]);
+
+  // ── Notification SSE — real-time bell badge + sound ────────────────────────
+  useEffect(() => {
+    if (!user) return;
+    const ctrl = openNotifStream(
+      (evt) => {
+        if (evt.type === "new_notification") {
+          setUnreadNotifs((n) => n + 1);
+          playNotifSound();
+        }
+      },
+      () => { /* SSE unavailable — 60s poll handles recovery */ },
+    );
+    return () => ctrl.abort();
+  }, [user]);
+
+  // ── Message SSE — real-time message badge + sound ──────────────────────────
+  useEffect(() => {
+    if (!user) return;
+    const ctrl = openMessageStream(
+      (evt) => {
+        if (evt.type === "new_message") {
+          setUnreadMsgs((n) => n + 1);
+          playMsgSound();
+        }
+      },
+      () => { /* SSE unavailable — 60s poll handles recovery */ },
+    );
+    return () => ctrl.abort();
+  }, [user]);
 
   useEffect(() => {
     function onOutside(e: MouseEvent) {
@@ -172,6 +240,10 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
 
                 return (
                   <Link key={menu.href} href={menu.href}
+                    onClick={() => {
+                      if (menu.href === "/notifications") setUnreadNotifs(0);
+                      if (menu.href === "/messages")      setUnreadMsgs(0);
+                    }}
                     className={`relative flex flex-col items-center justify-center gap-0.5 px-3 lg:px-4
                       flex-shrink-0 min-w-[56px] transition-colors
                       ${active ? activeText : idleText}`}>

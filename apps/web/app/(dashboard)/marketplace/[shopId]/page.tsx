@@ -8,13 +8,12 @@ import { useLanguage } from "@/lib/language-context";
 import { listShops, updateMyShop, type Shop } from "@/lib/shop-api";
 import { itemRequest } from "@/lib/product-api";
 import { partnerRequest } from "@/lib/supplier-api";
-import { purchaseRequest } from "@/lib/purchase-api";
 import {
   ArrowLeft, Phone, Mail, MapPin, Wifi, WifiOff,
   Package, ShoppingCart, Plus, Minus, X, Loader2,
   CheckCircle, CalendarDays, ExternalLink,
   Store, UserPlus, Trash2, ShoppingBag, ChevronRight,
-  TrendingUp, Info, Globe, Eye, Send, Search, Heart, MessageSquare,
+  Info, Globe, Eye, Send, Search, Heart, MessageSquare,
 } from "lucide-react";
 import {
   getProductMeta, setProductMeta, upsertCatalogEntry, removeCatalogEntry,
@@ -123,12 +122,10 @@ export default function ShopStorePage() {
   const [showCheckout, setShowCheckout] = useState(false);
   const [checkoutNotes, setCheckoutNotes] = useState("");
   const [placingOrder, setPlacingOrder]   = useState(false);
-  const [orderSuccess, setOrderSuccess]   = useState(false);
 
   // Follow
   const [following, setFollowing]         = useState(false);
   const [followerCount, setFollowerCount] = useState(0);
-  const [orderConvId, setOrderConvId]     = useState<string | null>(null);
 
   // Customer chat (per-product, localStorage + BroadcastChannel)
   const [chatProduct, setChatProduct]         = useState<MarketplaceEntry | null>(null);
@@ -352,46 +349,30 @@ export default function ShopStorePage() {
   }
 
   async function placeOrder() {
-    if (cart.length === 0) return;
+    if (cart.length === 0 || !shop) return;
     setPlacingOrder(true);
-    // Capture cart snapshot before clearing
     const cartSnapshot = [...cart];
     const total = cartSnapshot.reduce((s, c) => s + c.product.selling_price * c.qty, 0);
     try {
+      const lines = [`🛒 I'd like to order:`];
       for (const item of cartSnapshot) {
-        await purchaseRequest("/purchases", {
-          method: "POST",
-          body: JSON.stringify({
-            product_name: item.product.name,
-            quantity_added: item.qty,
-            cost_price: item.product.selling_price,
-            selling_price: item.product.selling_price,
-            supplier_id: partnerId ?? undefined,
-            notes: checkoutNotes || undefined,
-          }),
-        });
+        lines.push(`• ${item.product.name} × ${item.qty} = ${fmtCurrency(item.product.selling_price * item.qty)}`);
       }
-      setOrderSuccess(true);
+      lines.push(`Total: ${fmtCurrency(total)}`);
+      if (checkoutNotes) lines.push(`\nNote: ${checkoutNotes}`);
+      lines.push(`\nPlease confirm availability and arrange delivery.`);
+      const conv = await createOrGetConversation({
+        shop_id:       shop.id,
+        shop_name:     shop.name,
+        customer_name: user?.name ?? user?.email,
+        first_message: lines.join("\n"),
+      });
       setCart([]);
-
-      // Fire-and-forget: send order summary to shop via messages service
-      if (shop) {
-        const lines = [`🛒 New order:`];
-        for (const item of cartSnapshot) {
-          lines.push(`• ${item.product.name} × ${item.qty} = ${fmtCurrency(item.product.selling_price * item.qty)}`);
-        }
-        lines.push(`Total: ${fmtCurrency(total)}`);
-        if (checkoutNotes) lines.push(`\nNote: ${checkoutNotes}`);
-        lines.push(`\nPlease confirm and arrange delivery.`);
-        createOrGetConversation({
-          shop_id:       shop.id,
-          shop_name:     shop.name,
-          customer_name: user?.name ?? user?.email,
-          first_message: lines.join("\n"),
-        }).then((conv) => setOrderConvId(conv.id)).catch(() => {});
-      }
+      setShowCheckout(false);
+      setCheckoutNotes("");
+      router.push(`/messages?conv=${conv.id}`);
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : "Failed to place order");
+      alert(err instanceof Error ? err.message : "Failed to open chat");
     } finally {
       setPlacingOrder(false);
     }
@@ -1351,7 +1332,7 @@ export default function ShopStorePage() {
       )}
 
       {/* ── CHECKOUT MODAL ──────────────────────────────────────────────────── */}
-      {showCheckout && !orderSuccess && (
+      {showCheckout && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm max-h-[90vh] flex flex-col">
             <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
@@ -1397,7 +1378,7 @@ export default function ShopStorePage() {
 
               <div className="p-3 bg-[#EBF2FD] rounded-xl border border-[#A8C8F8] text-[10px] text-[#1372e6] flex items-start gap-2">
                 <Info size={12} className="flex-shrink-0 mt-0.5" />
-                <span>Purchase records will be created and a message sent to {shop.name} automatically.</span>
+                <span>This will open a chat with {shop.name}. Confirm availability, negotiate price, and arrange delivery through messages.</span>
               </div>
             </div>
 
@@ -1411,42 +1392,13 @@ export default function ShopStorePage() {
                 className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white flex items-center justify-center gap-2 transition disabled:opacity-60"
                 style={{ backgroundColor: "#1372e6" }}
               >
-                {placingOrder ? <><Loader2 size={13} className="animate-spin" /> Placing...</> : <><CheckCircle size={13} /> Place Order</>}
+                {placingOrder ? <><Loader2 size={13} className="animate-spin" /> Opening chat...</> : <><MessageSquare size={13} /> Chat to Order</>}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* ── ORDER SUCCESS ────────────────────────────────────────────────────── */}
-      {orderSuccess && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 text-center">
-            <div className="w-14 h-14 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-4">
-              <CheckCircle size={28} className="text-green-600" />
-            </div>
-            <h2 className="font-black text-slate-900 text-lg mb-1">Order Placed!</h2>
-            <p className="text-slate-500 text-xs mb-1">Purchase records created · message sent to {shop.name}.</p>
-            <p className="text-slate-400 text-xs mb-4">The shop has been notified. Continue the conversation in Messages.</p>
-            <Link
-              href={`/messages${orderConvId ? `?conv=${orderConvId}` : ""}`}
-              onClick={() => setOrderSuccess(false)}
-              className="flex w-full items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-bold text-white mb-2.5 transition hover:opacity-90"
-              style={{ backgroundColor: "#ff6a00" }}
-            >
-              <MessageSquare size={14} /> View in Messages
-            </Link>
-            <div className="flex gap-2.5">
-              <button onClick={() => setOrderSuccess(false)} className="flex-1 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition">
-                Stay Here
-              </button>
-              <Link href="/purchases" className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white flex items-center justify-center gap-1.5 transition hover:opacity-90" style={{ backgroundColor: "#1372e6" }}>
-                <TrendingUp size={13} /> View Purchases
-              </Link>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* ── CUSTOMER CHAT PANEL — localStorage + BroadcastChannel ─────────── */}
       {chatProduct && !isMine && user && (() => {

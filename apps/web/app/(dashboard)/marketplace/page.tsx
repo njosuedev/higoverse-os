@@ -13,8 +13,6 @@ import {
   type MarketplaceEntry,
 } from "@/lib/product-meta";
 import { itemRequest } from "@/lib/product-api";
-import { partnerRequest } from "@/lib/supplier-api";
-import { purchaseRequest } from "@/lib/purchase-api";
 import {
   Search, X, ShoppingCart, Plus, Minus, Loader2,
   CheckCircle, Phone, Package, ChevronRight, Star,
@@ -247,9 +245,7 @@ export default function MarketplacePage() {
   const [detailImg, setDetailImg]     = useState(0);
   const [orderModal, setOrderModal]   = useState<OrderModal | null>(null);
   const [ordering, setOrdering]       = useState(false);
-  const [orderDone, setOrderDone]     = useState(false);
   const [orderError, setOrderError]   = useState("");
-  const [orderConvId, setOrderConvId] = useState<string | null>(null);
 
   // messaging
   const [msgEntry, setMsgEntry]       = useState<MarketplaceEntry | null>(null);
@@ -608,43 +604,10 @@ export default function MarketplacePage() {
     if (!orderModal) return;
     setOrdering(true); setOrderError("");
     try {
-      let supplierId: string | undefined;
-      try {
-        const pRes = await partnerRequest("/suppliers");
-        const list: { id: string; name: string }[] = Array.isArray(pRes?.data) ? pRes.data : [];
-        const ex = list.find((p) => p.name.toLowerCase().trim() === orderModal.entry.shopName.toLowerCase().trim());
-        if (ex) { supplierId = ex.id; }
-        else {
-          const np = await partnerRequest("/suppliers", {
-            method: "POST",
-            body: JSON.stringify({ name: orderModal.entry.shopName, phone: orderModal.entry.shopPhone ?? "", email: "", address: "" }),
-          });
-          supplierId = np?.data?.id;
-        }
-      } catch { /* proceed without */ }
-      await purchaseRequest("/purchases", {
-        method: "POST",
-        body: JSON.stringify({
-          product_name: orderModal.entry.name,
-          quantity_added: orderModal.qty,
-          cost_price: orderModal.entry.sellingPrice,
-          selling_price: orderModal.entry.sellingPrice,
-          supplier_id: supplierId ?? undefined,
-        }),
-      });
-      setOrderDone(true);
-      // Fire-and-forget: send order message to shop via messages service
       const entry = orderModal.entry;
       const qty   = orderModal.qty;
       const total = entry.sellingPrice * qty;
-      const orderContent = [
-        `🛒 New order:`,
-        `• ${entry.name} × ${qty} = ${fmtPrice(total)}`,
-        `Listed price: ${fmtPrice(entry.sellingPrice)} each`,
-        ``,
-        `Please confirm availability and arrange delivery.`,
-      ].join("\n");
-      createOrGetConversation({
+      const conv = await createOrGetConversation({
         shop_id:       entry.shopId,
         shop_name:     entry.shopName,
         customer_name: user?.name ?? user?.email,
@@ -652,17 +615,25 @@ export default function MarketplacePage() {
         product_name:  entry.name,
         product_image: entry.images[0],
         listed_price:  entry.sellingPrice,
-        first_message: orderContent,
-      }).then((conv) => setOrderConvId(conv.id)).catch(() => {});
+        first_message: [
+          `🛒 I'd like to order:`,
+          `• ${entry.name} × ${qty} = ${fmtPrice(total)}`,
+          `Listed price: ${fmtPrice(entry.sellingPrice)} each`,
+          ``,
+          `Please confirm availability and arrange delivery.`,
+        ].join("\n"),
+      });
+      setOrderModal(null);
+      router.push(`/messages?conv=${conv.id}`);
     } catch (err: unknown) {
-      setOrderError(err instanceof Error ? err.message : "Failed to place order");
+      setOrderError(err instanceof Error ? err.message : "Failed to open chat");
     } finally { setOrdering(false); }
   }
 
   const openOrder = useCallback((entry: MarketplaceEntry, e?: React.MouseEvent) => {
     e?.stopPropagation();
     setOrderModal({ entry, shop: shopMap[entry.shopId], qty: 1 });
-    setOrderDone(false); setOrderError(""); setOrderConvId(null);
+    setOrderError("");
   }, [shopMap]);
 
   function toggleFollow(shopId: string, shopName: string, e?: React.MouseEvent) {
@@ -859,21 +830,6 @@ export default function MarketplacePage() {
         </div>
       )}
 
-      {/* State 2: Application submitted — pending admin review */}
-      {appStatus === "PENDING" && (
-        <div style={{ background: "#fffbeb", borderBottom: "2px solid #f59e0b" }}>
-          <div style={{ maxWidth: 1400, margin: "0 auto", padding: "12px 16px", display: "flex", alignItems: "center", gap: 12 }}>
-            <Clock size={18} style={{ color: "#d97706", flexShrink: 0 }} />
-            <div style={{ flex: 1 }}>
-              <p style={{ fontSize: 13, fontWeight: 700, color: "#92400e", margin: "0 0 2px" }}>Application submitted — pending admin review</p>
-              <p style={{ fontSize: 11, color: "#b45309", margin: 0 }}>Higoverse admin will review your shop details and notify you once approved. This usually takes 1–2 business days.</p>
-            </div>
-            <button onClick={dismissBanner} style={{ border: "none", background: "none", cursor: "pointer", color: "#d97706", padding: 4, display: "flex" }}>
-              <X size={13} />
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* State 3: Shop verified — quick access */}
       {!bannerDismissed && shopIsActive && (
@@ -1459,79 +1415,51 @@ export default function MarketplacePage() {
       {orderModal && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
           <div style={{ background: "#fff", width: "100%", maxWidth: 400 }}>
-            {orderDone ? (
-              <div style={{ padding: 40, textAlign: "center" }}>
-                <div style={{ width: 56, height: 56, borderRadius: "50%", background: "#f6ffed", border: "1px solid #b7eb8f", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
-                  <CheckCircle size={28} style={{ color: "#52c41a" }} />
-                </div>
-                <p style={{ fontSize: 16, fontWeight: 700, color: "#333", margin: "0 0 6px" }}>Order Placed!</p>
-                <p style={{ fontSize: 12, color: "#999", margin: "0 0 6px" }}>Purchase record created · message sent to {orderModal.entry.shopName}.</p>
-                <p style={{ fontSize: 12, color: "#555", margin: "0 0 20px" }}>The shop has been notified. Continue the conversation in Messages.</p>
-                <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
-                  <Link
-                    href={`/messages${orderConvId ? `?conv=${orderConvId}` : ""}`}
-                    onClick={() => setOrderModal(null)}
-                    style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "9px", background: "#ff6a00", color: "#fff", textDecoration: "none", fontSize: 12, fontWeight: 700 }}
-                  >
-                    <MessageSquare size={13} /> View in Messages
-                  </Link>
-                </div>
-                <div style={{ display: "flex", gap: 8 }}>
-                  <button onClick={() => setOrderModal(null)} style={{ flex: 1, padding: "8px", border: "1px solid #d9d9d9", background: "#fff", cursor: "pointer", fontSize: 12, color: "#555" }}>
-                    Continue Shopping
-                  </button>
-                  <Link href="/purchases" onClick={() => setOrderModal(null)} style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: "8px", background: "#f5f5f5", color: "#555", textDecoration: "none", fontSize: 12, fontWeight: 600 }}>
-                    View Purchases
-                  </Link>
-                </div>
+            <>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", borderBottom: "1px solid #f0f0f0" }}>
+                <span style={{ fontSize: 14, fontWeight: 700, color: "#333" }}>Start Order</span>
+                <button onClick={() => setOrderModal(null)} style={{ border: "none", background: "#f5f5f5", cursor: "pointer", padding: "4px 8px", fontSize: 12 }}>✕</button>
               </div>
-            ) : (
-              <>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", borderBottom: "1px solid #f0f0f0" }}>
-                  <span style={{ fontSize: 14, fontWeight: 700, color: "#333" }}>Start Order</span>
-                  <button onClick={() => setOrderModal(null)} style={{ border: "none", background: "#f5f5f5", cursor: "pointer", padding: "4px 8px", fontSize: 12 }}>✕</button>
+              <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 12 }}>
+                <div style={{ display: "flex", gap: 12, padding: "10px 12px", background: "#f9f9f9", border: "1px solid #f0f0f0" }}>
+                  {orderModal.entry.images[0]
+                    ? <img src={orderModal.entry.images[0]} alt={orderModal.entry.name} style={{ width: 56, height: 56, objectFit: "cover", border: "1px solid #e8e8e8", flexShrink: 0 }} />
+                    : <div style={{ width: 56, height: 56, background: "#f0f0f0", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Package size={20} style={{ color: "#ccc" }} /></div>}
+                  <div style={{ minWidth: 0 }}>
+                    <p style={{ fontSize: 12, fontWeight: 600, color: "#333", margin: "0 0 3px", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" as const, overflow: "hidden" }}>{orderModal.entry.name}</p>
+                    <p style={{ fontSize: 11, color: "#999", margin: "0 0 3px" }}>{orderModal.entry.shopName}</p>
+                    <p style={{ fontSize: 16, fontWeight: 700, color: "#ff6a00", margin: 0 }}>{fmtPrice(orderModal.entry.sellingPrice)}</p>
+                  </div>
                 </div>
-                <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 12 }}>
-                  <div style={{ display: "flex", gap: 12, padding: "10px 12px", background: "#f9f9f9", border: "1px solid #f0f0f0" }}>
-                    {orderModal.entry.images[0]
-                      ? <img src={orderModal.entry.images[0]} alt={orderModal.entry.name} style={{ width: 56, height: 56, objectFit: "cover", border: "1px solid #e8e8e8", flexShrink: 0 }} />
-                      : <div style={{ width: 56, height: 56, background: "#f0f0f0", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Package size={20} style={{ color: "#ccc" }} /></div>}
-                    <div style={{ minWidth: 0 }}>
-                      <p style={{ fontSize: 12, fontWeight: 600, color: "#333", margin: "0 0 3px", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" as const, overflow: "hidden" }}>{orderModal.entry.name}</p>
-                      <p style={{ fontSize: 11, color: "#999", margin: "0 0 3px" }}>{orderModal.entry.shopName}</p>
-                      <p style={{ fontSize: 16, fontWeight: 700, color: "#ff6a00", margin: 0 }}>{fmtPrice(orderModal.entry.sellingPrice)}</p>
+                <div>
+                  <p style={{ fontSize: 12, fontWeight: 600, color: "#333", margin: "0 0 8px" }}>Quantity</p>
+                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    <button onClick={() => setOrderModal((m) => m ? { ...m, qty: Math.max(1, m.qty - 1) } : null)}
+                      style={{ width: 32, height: 32, border: "1px solid #d9d9d9", background: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <Minus size={12} />
+                    </button>
+                    <span style={{ fontSize: 16, fontWeight: 700, color: "#333", width: 32, textAlign: "center" }}>{orderModal.qty}</span>
+                    <button onClick={() => setOrderModal((m) => m ? { ...m, qty: Math.min(m.entry.quantity || 9999, m.qty + 1) } : null)}
+                      style={{ width: 32, height: 32, border: "1px solid #d9d9d9", background: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <Plus size={12} />
+                    </button>
+                    <div style={{ marginLeft: "auto", textAlign: "right" }}>
+                      <p style={{ fontSize: 10, color: "#999", margin: 0 }}>Total</p>
+                      <p style={{ fontSize: 16, fontWeight: 700, color: "#ff6a00", margin: 0 }}>{fmtPrice(orderModal.entry.sellingPrice * orderModal.qty)}</p>
                     </div>
                   </div>
-                  <div>
-                    <p style={{ fontSize: 12, fontWeight: 600, color: "#333", margin: "0 0 8px" }}>Quantity</p>
-                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                      <button onClick={() => setOrderModal((m) => m ? { ...m, qty: Math.max(1, m.qty - 1) } : null)}
-                        style={{ width: 32, height: 32, border: "1px solid #d9d9d9", background: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                        <Minus size={12} />
-                      </button>
-                      <span style={{ fontSize: 16, fontWeight: 700, color: "#333", width: 32, textAlign: "center" }}>{orderModal.qty}</span>
-                      <button onClick={() => setOrderModal((m) => m ? { ...m, qty: Math.min(m.entry.quantity || 9999, m.qty + 1) } : null)}
-                        style={{ width: 32, height: 32, border: "1px solid #d9d9d9", background: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                        <Plus size={12} />
-                      </button>
-                      <div style={{ marginLeft: "auto", textAlign: "right" }}>
-                        <p style={{ fontSize: 10, color: "#999", margin: 0 }}>Total</p>
-                        <p style={{ fontSize: 16, fontWeight: 700, color: "#ff6a00", margin: 0 }}>{fmtPrice(orderModal.entry.sellingPrice * orderModal.qty)}</p>
-                      </div>
-                    </div>
-                  </div>
-                  {orderError && <p style={{ fontSize: 11, color: "#f5222d", background: "#fff2f0", border: "1px solid #ffa39e", padding: "6px 10px", margin: 0 }}>{orderError}</p>}
-                  <p style={{ fontSize: 10, color: "#aaa", margin: 0, lineHeight: 1.5 }}>A purchase record will be created and a message sent to the shop automatically.</p>
                 </div>
-                <div style={{ display: "flex", gap: 8, padding: "12px 16px", borderTop: "1px solid #f0f0f0" }}>
-                  <button onClick={() => setOrderModal(null)} style={{ flex: 1, padding: "8px", border: "1px solid #d9d9d9", background: "#fff", cursor: "pointer", fontSize: 12, color: "#555" }}>Cancel</button>
-                  <button onClick={placeOrder} disabled={ordering || orderModal.entry.quantity === 0}
-                    style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "8px", border: "none", background: "#ff6a00", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", opacity: orderModal.entry.quantity === 0 ? 0.4 : 1 }}>
-                    {ordering ? <><Loader2 size={12} className="animate-spin" /> Placing...</> : <><CheckCircle size={12} /> Confirm Order</>}
-                  </button>
-                </div>
-              </>
-            )}
+                {orderError && <p style={{ fontSize: 11, color: "#f5222d", background: "#fff2f0", border: "1px solid #ffa39e", padding: "6px 10px", margin: 0 }}>{orderError}</p>}
+                <p style={{ fontSize: 10, color: "#aaa", margin: 0, lineHeight: 1.5 }}>This will open a chat with the shop. Confirm availability, negotiate, and arrange delivery through messages.</p>
+              </div>
+              <div style={{ display: "flex", gap: 8, padding: "12px 16px", borderTop: "1px solid #f0f0f0" }}>
+                <button onClick={() => setOrderModal(null)} style={{ flex: 1, padding: "8px", border: "1px solid #d9d9d9", background: "#fff", cursor: "pointer", fontSize: 12, color: "#555" }}>Cancel</button>
+                <button onClick={placeOrder} disabled={ordering || orderModal.entry.quantity === 0}
+                  style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "8px", border: "none", background: "#ff6a00", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", opacity: orderModal.entry.quantity === 0 ? 0.4 : 1 }}>
+                  {ordering ? <><Loader2 size={12} className="animate-spin" /> Opening chat...</> : <><MessageSquare size={12} /> Chat to Order</>}
+                </button>
+              </div>
+            </>
           </div>
         </div>
       )}

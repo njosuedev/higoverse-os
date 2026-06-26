@@ -1,6 +1,6 @@
 import { getToken, handleUnauthorized } from "@/lib/auth";
 
-const NOTIF_API = (
+export const NOTIF_API = (
   process.env.NEXT_PUBLIC_NOTIFICATION_API || "https://higoverse-notifications.onrender.com"
 ).replace(/\/$/, "");
 
@@ -65,4 +65,55 @@ export async function deleteNotification(id: string): Promise<void> {
 
 export async function deleteAllNotifications(): Promise<void> {
   await notifRequest("/api/v1/notifications", { method: "DELETE" });
+}
+
+/**
+ * Open an SSE stream for real-time notification delivery.
+ * onEvent is called for each pushed notification event.
+ * onFallback is called when SSE is unavailable (caller can poll instead).
+ */
+export function openNotifStream(
+  onEvent: (evt: { type: string; notification?: Notification }) => void,
+  onFallback: () => void,
+): AbortController {
+  const ctrl = new AbortController();
+  const token = getToken();
+  if (!token) { onFallback(); return ctrl; }
+
+  (async () => {
+    try {
+      const resp = await fetch(`${NOTIF_API}/api/v1/notifications/stream`, {
+        headers: { Authorization: `Bearer ${token}` },
+        signal: ctrl.signal,
+      });
+      if (!resp.ok || !resp.body) { onFallback(); return; }
+
+      const reader = resp.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+
+        const parts = buf.split("\n\n");
+        buf = parts.pop() ?? "";
+
+        for (const part of parts) {
+          const dataLine = part.split("\n").find((l) => l.startsWith("data: "));
+          if (!dataLine) continue;
+          try {
+            const evt = JSON.parse(dataLine.slice(6));
+            onEvent(evt);
+          } catch { /* skip malformed */ }
+        }
+      }
+      if (!ctrl.signal.aborted) onFallback();
+    } catch (err) {
+      if ((err as { name?: string }).name !== "AbortError") onFallback();
+    }
+  })();
+
+  return ctrl;
 }
