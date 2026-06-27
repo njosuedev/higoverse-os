@@ -60,6 +60,17 @@ async def on_startup():
     except Exception:
         pass
 
+    # Widen product_image from VARCHAR(1000) → TEXT so long CDN/base64 URLs don't 500
+    try:
+        from sqlalchemy import text
+        with engine.begin() as conn:
+            conn.execute(text(
+                "ALTER TABLE conversations "
+                "ALTER COLUMN product_image TYPE TEXT"
+            ))
+    except Exception:
+        pass  # already TEXT, or table doesn't exist yet — both are fine
+
 
 @app.get("/")
 def root():

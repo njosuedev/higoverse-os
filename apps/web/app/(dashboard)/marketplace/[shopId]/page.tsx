@@ -938,7 +938,7 @@ export default function ShopStorePage() {
                                           customer_name: user?.name ?? user?.email,
                                           product_id:    entry.productId,
                                           product_name:  entry.name,
-                                          product_image: entry.images[0],
+                                          product_image: entry.images.find((u) => u.startsWith("http")),
                                           listed_price:  entry.sellingPrice,
                                         });
                                         router.push(`/messages?conv=${conv.id}`);
