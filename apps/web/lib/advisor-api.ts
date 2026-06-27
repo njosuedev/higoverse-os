@@ -51,14 +51,30 @@ export interface Conversation {
   updated_at: string;
 }
 
+/** Fire-and-forget ping to warm up the Render instance before the user types. */
+export async function pingAdvisor(): Promise<void> {
+  try {
+    const token = getToken();
+    const headers: Record<string, string> = {};
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+    await fetch(`${ADVISOR_API}/health`, { headers, signal: AbortSignal.timeout(8000) });
+  } catch { /* ignore — this is best-effort */ }
+}
+
 export async function sendChat(
   message: string,
   conversationId: string | null,
   language: string,
+  userName?: string,
 ): Promise<ChatResponse> {
   return advisorRequest("/advisor/chat", {
     method: "POST",
-    body: JSON.stringify({ message, conversation_id: conversationId, language }),
+    body: JSON.stringify({
+      message,
+      conversation_id: conversationId,
+      language,
+      ...(userName ? { user_name: userName } : {}),
+    }),
   });
 }
 

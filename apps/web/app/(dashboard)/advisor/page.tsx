@@ -3,10 +3,11 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useLanguage } from "@/lib/language-context";
 import { useShop } from "@/lib/shop-context";
+import { useAuth } from "@/lib/auth-context";
 import { playAIResponse } from "@/lib/sound";
 import { Store } from "lucide-react";
 import {
-  sendChat, getConversations, getMessages, deleteConversation,
+  sendChat, pingAdvisor, getConversations, getMessages, deleteConversation,
   type ChatMessage, type Conversation,
 } from "@/lib/advisor-api";
 import {
@@ -98,13 +99,29 @@ function TypingIndicator() {
   );
 }
 
+function getFirstName(fullName?: string | null): string {
+  if (!fullName) return "there";
+  const parts = fullName.trim().split(/\s+/);
+  return parts[parts.length - 1]; // last token = given name (e.g. "Josue" from "NIYOMWUNGERI Josue")
+}
+
+function getGreeting(): string {
+  const h = new Date().getHours();
+  if (h < 12) return "Good morning";
+  if (h < 17) return "Good afternoon";
+  return "Good evening";
+}
+
 export default function AdvisorPage() {
   const { t, lang } = useLanguage();
   const { shop }    = useShop();
+  const { user }    = useAuth();
+  const firstName   = getFirstName(user?.name);
 
   const [messages,      setMessages]      = useState<ChatMessage[]>([]);
   const [input,         setInput]         = useState("");
   const [loading,       setLoading]       = useState(false);
+  const [warmingUp,     setWarmingUp]     = useState(false);
   const [convId,        setConvId]        = useState<string | null>(null);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [error,         setError]         = useState<string | null>(null);
@@ -112,7 +129,8 @@ export default function AdvisorPage() {
   const [loadingConvs,  setLoadingConvs]  = useState(false);
   const [streamingId,   setStreamingId]   = useState<string | null>(null);
   const [streamingText, setStreamingText] = useState("");
-  const streamRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const streamRef    = useRef<ReturnType<typeof setInterval> | null>(null);
+  const warmupTimer  = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef  = useRef<HTMLTextAreaElement>(null);
@@ -122,7 +140,12 @@ export default function AdvisorPage() {
   }, []);
 
   useEffect(() => {
-    return () => { if (streamRef.current) clearInterval(streamRef.current); };
+    // Wake up the Render instance immediately so it's ready when the user types
+    pingAdvisor();
+    return () => {
+      if (streamRef.current) clearInterval(streamRef.current);
+      if (warmupTimer.current) clearTimeout(warmupTimer.current);
+    };
   }, []);
 
   async function loadConversations() {
@@ -155,6 +178,24 @@ export default function AdvisorPage() {
     setStreamingId(null);
   }
 
+  function getIdentityReply(msg: string): string | null {
+    const q = msg.toLowerCase();
+    const identityPatterns = [
+      /who (made|created|built|developed|designed|trained|programmed|coded|wrote|owns?|is behind) you/,
+      /who are you/,
+      /what are you/,
+      /your (name|creator|developer|maker|owner|origin)/,
+      /are you (gpt|chatgpt|claude|gemini|openai|anthropic|google|mistral|llama|copilot)/,
+      /which (company|team|organization|firm) (made|built|created|developed|owns?) you/,
+      /tell me about yourself/,
+      /introduce yourself/,
+    ];
+    if (identityPatterns.some((p) => p.test(q))) {
+      return `I'm the Higoverse AI Advisor, built by the **Higoverse team** to help business owners like you manage and grow their shops. 🚀\n\nI can analyze your real sales, inventory, expenses, and finances to give you accurate, actionable insights — anytime you need them.`;
+    }
+    return null;
+  }
+
   async function handleSend(text?: string) {
     const msg = (text ?? input).trim();
     if (!msg || loading) return;
@@ -167,11 +208,47 @@ export default function AdvisorPage() {
       language: lang, created_at: new Date().toISOString(),
     };
     setMessages((p) => [...p, optimistic]);
-    setLoading(true);
     scrollBottom();
 
+    // Handle identity questions locally — no API call needed
+    const identityReply = getIdentityReply(msg);
+    if (identityReply) {
+      const aiId = `local-${Date.now()}`;
+      const ai: ChatMessage = {
+        id: aiId, role: "assistant",
+        content: identityReply, language: lang,
+        created_at: new Date().toISOString(),
+      };
+      setMessages((p) => [...p, ai]);
+      playAIResponse();
+      const words = identityReply.split(" ");
+      let w = 0;
+      setStreamingId(aiId);
+      setStreamingText("");
+      if (streamRef.current) clearInterval(streamRef.current);
+      streamRef.current = setInterval(() => {
+        w += 2;
+        setStreamingText(words.slice(0, w).join(" "));
+        if (w >= words.length) {
+          clearInterval(streamRef.current!);
+          streamRef.current = null;
+          setStreamingId(null);
+        }
+      }, 18);
+      scrollBottom();
+      return;
+    }
+
+    setLoading(true);
+
+    // Show "warming up" hint if the service takes more than 4 seconds
+    warmupTimer.current = setTimeout(() => setWarmingUp(true), 4000);
+
     try {
-      const res = await sendChat(msg, convId, lang);
+      const res = await sendChat(msg, convId, lang, user?.name ?? undefined);
+      if (warmupTimer.current) { clearTimeout(warmupTimer.current); warmupTimer.current = null; }
+      setWarmingUp(false);
+
       const aiId = res.message_id || `ai-${Date.now()}`;
       const ai: ChatMessage = {
         id: aiId, role: "assistant",
@@ -182,22 +259,25 @@ export default function AdvisorPage() {
       setConvId(res.conversation_id);
       playAIResponse();
 
+      // Stream 2 words per tick at 18ms → fast but readable
       const words = res.reply.split(" ");
       let w = 0;
       setStreamingId(aiId);
       setStreamingText("");
       if (streamRef.current) clearInterval(streamRef.current);
       streamRef.current = setInterval(() => {
-        w++;
+        w += 2;
         setStreamingText(words.slice(0, w).join(" "));
         if (w >= words.length) {
           clearInterval(streamRef.current!);
           streamRef.current = null;
           setStreamingId(null);
         }
-      }, 55);
+      }, 18);
       scrollBottom();
     } catch (err: any) {
+      if (warmupTimer.current) { clearTimeout(warmupTimer.current); warmupTimer.current = null; }
+      setWarmingUp(false);
       setMessages((p) => p.filter((m) => m.id !== optimistic.id));
       setError(err?.message || "Failed to get a response. Please try again.");
     } finally {
@@ -308,8 +388,13 @@ export default function AdvisorPage() {
             <span className="text-sm font-semibold text-slate-900">Higoverse AI</span>
             <span className="flex items-center gap-1 text-[11px] text-slate-400">
               <span className={`w-1.5 h-1.5 rounded-full inline-block ${loading ? "bg-amber-400 animate-pulse" : "bg-green-500"}`} />
-              {loading ? "Thinking…" : "Online"}
+              {warmingUp ? "Warming up…" : loading ? "Thinking…" : "Online"}
             </span>
+            {warmingUp && (
+              <span className="text-[11px] text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full font-medium">
+                Starting up, hang tight {firstName}…
+              </span>
+            )}
           </div>
           {convId && (
             <button onClick={newChat}
@@ -328,8 +413,11 @@ export default function AdvisorPage() {
               <div className="w-14 h-14 rounded-2xl bg-[#1372e6] flex items-center justify-center mb-4 shadow-lg">
                 <Sparkles size={24} className="text-white" />
               </div>
-              <h2 className="text-xl font-bold text-slate-900 mb-1">{t("advisor.welcome")}</h2>
-              <p className="text-sm text-slate-500 mb-8 max-w-sm text-center leading-relaxed">
+              <h2 className="text-xl font-bold text-slate-900 mb-1">
+                {getGreeting()}, {firstName}! 👋
+              </h2>
+              <p className="text-sm text-slate-500 mb-1 font-medium">{t("advisor.welcome")}</p>
+              <p className="text-sm text-slate-400 mb-8 max-w-sm text-center leading-relaxed">
                 {t("advisor.welcome_sub")}
               </p>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 w-full max-w-lg">
@@ -347,7 +435,7 @@ export default function AdvisorPage() {
                 })}
               </div>
               <p className="text-[11px] text-slate-400 mt-6">
-                Or just say <span className="font-semibold text-[#1372e6]">"Hi"</span> to start 👋
+                Or just say <span className="font-semibold text-[#1372e6]">"Hi"</span> — I'm ready for you, {firstName} 🚀
               </p>
             </div>
 
