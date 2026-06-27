@@ -21,7 +21,7 @@ import {
   getMessagesForShop, replyToMessage, markMessageRead, unreadCountForShop,
   sendMessage, getMyMessages,
   followShop, unfollowShop, isFollowingShop, getShopFollowerCount,
-  decodeShopCatalog, decodeShopHumanInfo, encodeDescriptionWithCatalog, catFromText,
+  decodeShopCatalog, decodeShopHumanInfo, encodeDescriptionWithCatalog, catFromText, formatPublicAddress,
   type ProductMeta, type MarketplaceEntry, type ShopMessage,
 } from "@/lib/product-meta";
 import { createOrGetConversation } from "@/lib/messages-api";
@@ -521,10 +521,10 @@ export default function ShopStorePage() {
                     <span style={{ fontSize: 11, color: pres.online ? "#52c41a" : "#999", display: "flex", alignItems: "center", gap: 3 }}>
                       {pres.online ? <><Wifi size={10} /> Online now</> : <><WifiOff size={10} /> {pres.label}</>}
                     </span>
-                    {shop.address && (
-                      <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(shop.address)}`} target="_blank" rel="noreferrer"
+                    {formatPublicAddress(shop.address) && (
+                      <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(formatPublicAddress(shop.address))}`} target="_blank" rel="noreferrer"
                         style={{ fontSize: 11, color: "#1677ff", textDecoration: "none", display: "flex", alignItems: "center", gap: 3 }}>
-                        <MapPin size={10} style={{ color: "#ff6a00" }} /> {shop.address}
+                        <MapPin size={10} style={{ color: "#ff6a00" }} /> {formatPublicAddress(shop.address)}
                       </a>
                     )}
                     {joinedDate && <span style={{ fontSize: 11, color: "#999", display: "flex", alignItems: "center", gap: 3 }}><CalendarDays size={10} /> Since {joinedDate}</span>}
@@ -1005,35 +1005,21 @@ export default function ShopStorePage() {
                     </a>
                   </div>
                 )}
-                {shop.email && (
-                  <div className="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-50 transition">
-                    <div className="w-9 h-9 rounded-xl bg-[#EBF2FD] flex items-center justify-center flex-shrink-0">
-                      <Mail size={15} className="text-[#1372e6]" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[9px] text-slate-400 uppercase tracking-wide font-semibold">Email</p>
-                      <a href={`mailto:${shop.email}`} className="text-sm font-bold text-slate-800 hover:text-[#1372e6] transition truncate block">{shop.email}</a>
-                    </div>
-                    <a href={`mailto:${shop.email}`} className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-white transition hover:opacity-90 flex-shrink-0" style={{ backgroundColor: "#1372e6" }}>
-                      Email
-                    </a>
-                  </div>
-                )}
-                {shop.address && (
+                {formatPublicAddress(shop.address) && (
                   <div className="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-50 transition">
                     <div className="w-9 h-9 rounded-xl bg-[#EBF2FD] flex items-center justify-center flex-shrink-0">
                       <MapPin size={15} className="text-[#1372e6]" />
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-[9px] text-slate-400 uppercase tracking-wide font-semibold">Address</p>
-                      <p className="text-sm font-bold text-slate-800 break-words">{shop.address}</p>
+                      <p className="text-sm font-bold text-slate-800 break-words">{formatPublicAddress(shop.address)}</p>
                     </div>
-                    <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(shop.address)}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-[#1372e6] bg-[#EBF2FD] hover:bg-[#D5E8FB] transition flex-shrink-0">
+                    <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(formatPublicAddress(shop.address))}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-[#1372e6] bg-[#EBF2FD] hover:bg-[#D5E8FB] transition flex-shrink-0">
                       <ExternalLink size={10} /> Map
                     </a>
                   </div>
                 )}
-                {!shop.phone && !shop.email && !shop.address && (
+                {!shop.phone && !formatPublicAddress(shop.address) && (
                   <p className="text-sm text-slate-400 italic text-center py-4">No contact details available.</p>
                 )}
               </div>

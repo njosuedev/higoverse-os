@@ -8,6 +8,7 @@ import { settingsRequest } from "@/lib/settings-api";
 import { useDebounce } from "@/lib/hooks";
 import { useLanguage } from "@/lib/language-context";
 import { useShop } from "@/lib/shop-context";
+import { formatPublicAddress } from "@/lib/product-meta";
 import Pagination from "@/app/components/ui/Pagination";
 import DateRangeFilter from "@/app/components/ui/DateRangeFilter";
 import {
@@ -488,7 +489,7 @@ export default function SaleManagementPage() {
 <body>
 <div class="center" style="margin-bottom:10px">
   <div class="shop-name">${shop?.name || shopName}</div>
-  ${shop?.address ? `<div style="color:#666;font-size:10px;margin-top:2px">${shop.address}</div>` : ""}
+  ${formatPublicAddress(shop?.address) ? `<div style="color:#666;font-size:10px;margin-top:2px">${formatPublicAddress(shop?.address)}</div>` : ""}
   ${shop?.phone ? `<div style="color:#666;font-size:10px;margin-top:1px">${shop.phone}</div>` : ""}
   <div style="color:#666;font-size:10px;margin-top:2px;text-transform:uppercase;letter-spacing:1px">Sales Receipt</div>
 </div>
@@ -1323,7 +1324,7 @@ ${paymentHtml}
               <div className="px-6 py-5 font-mono text-sm bg-white max-h-96 overflow-y-auto">
                 <div className="text-center mb-4">
                   <p className="font-bold text-base text-slate-900 uppercase tracking-widest">{shop?.name || shopName}</p>
-                  {shop?.address && <p className="text-xs text-slate-500 mt-0.5">{shop.address}</p>}
+                  {formatPublicAddress(shop?.address) && <p className="text-xs text-slate-500 mt-0.5">{formatPublicAddress(shop?.address)}</p>}
                   {shop?.phone && <p className="text-xs text-slate-500 mt-0.5">{shop.phone}</p>}
                   <p className="text-xs text-slate-400 mt-0.5 uppercase tracking-wider">Sales Receipt</p>
                 </div>

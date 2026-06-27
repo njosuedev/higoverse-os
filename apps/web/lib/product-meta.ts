@@ -301,6 +301,14 @@ export function parseShopAddress(address: string | undefined | null): {
   return result;
 }
 
+/** Format raw shop address for public display — strips TIN and formats as "Sector, District, Province". */
+export function formatPublicAddress(address: string | undefined | null): string {
+  if (!address) return "";
+  const { province, district, sector, addr } = parseShopAddress(address);
+  const parts = [addr, sector, district, province].filter(Boolean);
+  return parts.join(", ");
+}
+
 /** Build the address field from application components. */
 export function encodeShopAddress(data: {
   tin: string; province?: string; district: string; sector?: string; addr?: string;

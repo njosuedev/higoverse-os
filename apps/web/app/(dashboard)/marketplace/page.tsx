@@ -9,7 +9,7 @@ import { listShops, updateMyShop, createShopApplication, type Shop } from "@/lib
 import {
   getCatalog, upsertCatalogEntry, getProductMeta, compressImage, decodeShopCatalog,
   encodeShopDescription, encodeShopAddress, parseShopAddress, decodeShopHumanInfo,
-  getApplicationStatus,
+  getApplicationStatus, formatPublicAddress,
   type MarketplaceEntry,
 } from "@/lib/product-meta";
 import { itemRequest } from "@/lib/product-api";
@@ -1126,7 +1126,7 @@ export default function MarketplacePage() {
                           {highlight(s.name ?? "", search)}
                         </p>
                         {listed > 0 && <p style={{ fontSize: 10, color: "#ff6a00", margin: 0 }}>{listed} products</p>}
-                        {s.address && <p style={{ fontSize: 10, color: "#999", margin: 0, textAlign: "center", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", width: "100%" }}>{s.address}</p>}
+                        {formatPublicAddress(s.address) && <p style={{ fontSize: 10, color: "#999", margin: 0, textAlign: "center", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", width: "100%" }}>{formatPublicAddress(s.address)}</p>}
                         <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
                           <span style={{ width: 6, height: 6, borderRadius: "50%", background: online ? "#52c41a" : "#d9d9d9" }} />
                           <span style={{ fontSize: 10, color: online ? "#52c41a" : "#999" }}>{online ? "Online" : "Offline"}</span>
@@ -2191,10 +2191,10 @@ function ProductCard({ entry, shop, isMine, online, searchQ, onDetail, onOrder }
             <p style={{ fontSize: 11, color: "#555", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: 500 }}>
               {highlight(entry.shopName, searchQ)}
             </p>
-            {shop?.address && (
+            {formatPublicAddress(shop?.address) && (
               <p style={{ fontSize: 10, color: "#bbb", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: 2 }}>
                 <MapPin size={8} style={{ flexShrink: 0 }} />
-                {shop.address.split(",")[0].replace(/^TIN:[^|]+\|/, "").trim()}
+                {formatPublicAddress(shop?.address)}
               </p>
             )}
           </div>
