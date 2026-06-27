@@ -119,7 +119,7 @@ export default function SettingsPage() {
     setAddrSearching(true);
     try {
       const r = await fetch(
-        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=6&addressdetails=1`,
+        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&countrycodes=rw&format=json&limit=6&addressdetails=1`,
         { headers: { "Accept-Language": "en", "User-Agent": "Higoverse/1.0" }, signal: ctrl.signal }
       );
       const d: NomResult[] = await r.json();
@@ -457,7 +457,7 @@ export default function SettingsPage() {
                       onChange={(e) => onAddrInput(e.target.value)}
                       onBlur={() => setTimeout(() => setAddrDropOpen(false), 150)}
                       onFocus={() => addrResults.length > 0 && setAddrDropOpen(true)}
-                      placeholder="Search your street, area or landmark…"
+                      placeholder="Search in Rwanda — street, sector, district…"
                       autoComplete="off"
                       className={`${inputCls} pl-8 pr-8 ${!shopForm.address ? "border-red-300 focus:border-red-400 focus:ring-red-500/20" : ""}`}
                     />

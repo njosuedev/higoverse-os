@@ -316,12 +316,40 @@ export function parseShopAddress(address: string | undefined | null): {
   return result;
 }
 
-/** Format raw shop address for public display — strips TIN and formats as "Sector, District, Province". */
+/** Strip GPS coords suffix — works on any format. */
+function stripCoords(address: string): string {
+  return address.replace(/\|Lat:[^|]*(\|Lng:[^|]*)?$/, "").replace(/\|Lng:[^|]*$/, "");
+}
+
+/** Format raw shop address for public display — strips TIN/coords, returns clean readable string. */
 export function formatPublicAddress(address: string | undefined | null): string {
   if (!address) return "";
   const { province, district, sector, addr } = parseShopAddress(address);
-  const parts = [addr, sector, district, province].filter(Boolean);
-  return parts.join(", ");
+  // TIN-encoded address: join known fields
+  if (province || sector || addr) {
+    return [addr, sector, district, province].filter(Boolean).join(", ");
+  }
+  // Plain-text address (Nominatim or manual): strip coords suffix and return as-is
+  return stripCoords(district || address);
+}
+
+/**
+ * Short address for headers/cards — at most 2 meaningful location parts.
+ * "Kigali International Airport, KK 83 Street, Kanombe, Kicukiro District, City of Kigali, Rwanda"
+ * → "Kanombe, Kicukiro District"
+ */
+export function formatShortAddress(address: string | undefined | null): string {
+  const full = formatPublicAddress(address);
+  if (!full) return "";
+  const parts = full.split(",").map(s => s.trim()).filter(Boolean);
+  if (parts.length <= 2) return full;
+  // Skip the most-specific part (index 0) and the country (last), take next 2
+  const country = ["Rwanda", "Uganda", "Kenya", "Tanzania", "Burundi", "DRC"];
+  const filtered = parts.filter(p => !country.includes(p));
+  if (filtered.length <= 2) return filtered.join(", ");
+  // Take 2 middle parts (neighbourhood / district level)
+  const mid = Math.max(1, Math.floor(filtered.length / 2) - 1);
+  return filtered.slice(mid, mid + 2).join(", ");
 }
 
 /** Build the address field from application components. */

@@ -9,7 +9,7 @@ import { listShops, updateMyShop, createShopApplication, type Shop } from "@/lib
 import {
   getCatalog, upsertCatalogEntry, getProductMeta, compressImage, decodeShopCatalog,
   encodeShopDescription, encodeShopAddress, parseShopAddress, decodeShopHumanInfo,
-  getApplicationStatus, formatPublicAddress,
+  getApplicationStatus, formatPublicAddress, formatShortAddress,
   type MarketplaceEntry,
 } from "@/lib/product-meta";
 import { itemRequest } from "@/lib/product-api";
@@ -27,7 +27,29 @@ import {
   type ShopMessage,
 } from "@/lib/product-meta";
 import { createOrGetConversation } from "@/lib/messages-api";
-import { createSelfNotification } from "@/lib/notifications-api";
+import { createSelfNotification, openNotifStream } from "@/lib/notifications-api";
+
+// ── marketplace cache (90 s TTL — instant paint for returning users) ─────────
+const MKT_CACHE_KEY = "hgv_mkt_v2";
+const MKT_CACHE_TTL = 90_000;
+
+interface MktCache { shops: Shop[]; catalog: MarketplaceEntry[]; ts: number }
+
+function readMktCache(): MktCache | null {
+  try {
+    const raw = localStorage.getItem(MKT_CACHE_KEY);
+    if (!raw) return null;
+    const c = JSON.parse(raw) as MktCache;
+    if (Date.now() - c.ts > MKT_CACHE_TTL) return null;
+    return c;
+  } catch { return null; }
+}
+
+function writeMktCache(shops: Shop[], catalog: MarketplaceEntry[]) {
+  try {
+    localStorage.setItem(MKT_CACHE_KEY, JSON.stringify({ shops, catalog, ts: Date.now() } satisfies MktCache));
+  } catch { /* storage quota exceeded */ }
+}
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 function parseUTC(ts: string | null | undefined): Date {
@@ -106,7 +128,7 @@ export default function MarketplacePage() {
   const [cat, setCat]           = useState("all");
   const [now, setNow]           = useState(new Date());
   const [page, setPage]         = useState(1);            // how many PAGE_SIZE batches shown
-  const [loadingMore, setLoadingMore] = useState(false);
+  const loadingMore = false; // no artificial delay — scroll triggers immediately
   const [bannerDismissed, setBannerDismissed] = useState(false);
   const [apiSynced, setApiSynced] = useState(false);
   const [onlineShopsCount, setOnlineShopsCount] = useState(0);
@@ -130,6 +152,14 @@ export default function MarketplacePage() {
   useEffect(() => {
     if (localStorage.getItem("mp_shop_banner_dismissed") === "1") setBannerDismissed(true);
     if (localStorage.getItem("mp_shop_applied") === "1") setShopApplied(true);
+    // Paint stale cache instantly so the page is never blank
+    const c = readMktCache();
+    if (c) {
+      setShops(c.shops);
+      setCatalog(c.catalog);
+      setOnlineShopsCount(c.shops.filter((s) => isOnline(s.last_seen_at, new Date())).length);
+      setLoading(false);
+    }
   }, []);
 
   // Auto-open shop application form from CTA links (?apply=1)
@@ -269,19 +299,14 @@ export default function MarketplacePage() {
       // 1. Load shops from live auth API — source of truth for all registered shops
       let allShops: typeof shops = [];
       try {
-        const shopsRes = await listShops({ limit: 500 });
+        const shopsRes = await listShops({ limit: 200 });
         allShops = (shopsRes.items ?? []).filter((s) => s.is_active);
         setShops(allShops);
-        const now = new Date();
-        const onlineNow = allShops.filter((s) => {
-          if (!s.last_seen_at) return false;
-          const d = new Date(s.last_seen_at.endsWith("Z") ? s.last_seen_at : s.last_seen_at + "Z");
-          return (now.getTime() - d.getTime()) / 1000 < 300;
-        });
-        setOnlineShopsCount(onlineNow.length);
+        const nowTs = new Date();
+        setOnlineShopsCount(allShops.filter((s) => isOnline(s.last_seen_at, nowTs)).length);
       } catch { /* shops stay empty */ }
 
-      // 1.5. Build server catalog from each shop's description field
+      // 1.5. Build server catalog from shop description fields (fast, no images)
       const serverEntries: MarketplaceEntry[] = [];
       for (const s of allShops) {
         for (const e of decodeShopCatalog(s.description)) {
@@ -296,11 +321,22 @@ export default function MarketplacePage() {
       }
       serverCatalogRef.current = serverEntries;
 
-      // 1.75. Fetch /marketplace from product DB — primary source with real images (cross-shop)
+      // ── PHASE 1: Paint local-cache images immediately (no API wait) ──────────
+      // Merge serverEntries < getCatalog() so anything already in localStorage
+      // (including base64 images from previous sessions) shows instantly.
+      const activeShopIds = new Set(allShops.map((s) => s.id));
+      const phase1 = new Map<string, MarketplaceEntry>(serverEntries.map((e) => [e.productId, e]));
+      for (const e of getCatalog()) {
+        if (activeShopIds.has(e.shopId)) phase1.set(e.productId, e);
+      }
+      setCatalog([...phase1.values()]);
+      setLoading(false); // show UI immediately with whatever images we have locally
+
+      // ── PHASE 2: Enrich with API images (arrives ~300-800 ms later) ──────────
       const dbEntries: MarketplaceEntry[] = [];
       if (user) {
         try {
-          const mkRes = await itemRequest("/products/marketplace?limit=500");
+          const mkRes = await itemRequest("/products/marketplace?limit=200");
           const mkItems: Array<{
             id: string; shop_id: string; name: string; description?: string;
             category?: string; images?: string; selling_price: number;
@@ -308,39 +344,40 @@ export default function MarketplacePage() {
           }> = mkRes?.data?.items ?? [];
           for (const item of mkItems) {
             const itemShop = allShops.find((s) => s.id === item.shop_id);
-            if (!itemShop) continue; // skip products from disabled or unknown shops
-            const rawImgs = item.images;
-            const imgs: string[] = rawImgs ? (() => { try { return JSON.parse(rawImgs) as string[]; } catch { return []; } })() : [];
+            if (!itemShop) continue;
+            const serverImgs: string[] = item.images
+              ? (() => { try { return JSON.parse(item.images) as string[]; } catch { return []; } })()
+              : [];
+            const localImgs = phase1.get(item.id)?.images ?? [];
             dbEntries.push({
               productId: item.id, shopId: item.shop_id,
               shopName: itemShop.name,
               shopLogoUrl: itemShop.logo_url, shopPhone: itemShop.phone,
               name: item.name, description: item.description, category: item.category,
               sellingPrice: item.selling_price, costPrice: item.cost_price,
-              quantity: item.quantity, images: imgs,
+              quantity: item.quantity,
+              // prefer local (base64, already rendered) → fallback to server URL
+              images: localImgs.length > 0 ? localImgs : serverImgs,
               listedAt: new Date().toISOString(),
             });
           }
-        } catch { /* product service unavailable — fall through to localStorage */ }
+        } catch { /* product service unavailable — phase1 result stands */ }
       }
 
-      // 2. Merge: server catalog (fallback, no images) < localStorage (has images) < API (authoritative metadata + images)
-      const activeShopIds = new Set(allShops.map((s) => s.id));
-      const merged = new Map<string, MarketplaceEntry>(serverEntries.map((e) => [e.productId, e]));
-      for (const e of getCatalog()) {
-        if (activeShopIds.has(e.shopId)) merged.set(e.productId, e);
-      }
+      // Re-merge with API data and update catalog
+      const merged = new Map(phase1);
       for (const e of dbEntries) {
-        const local = merged.get(e.productId);
-        merged.set(e.productId, { ...e, images: (local?.images?.length ?? 0) > 0 ? local!.images : e.images, listedAt: local?.listedAt ?? e.listedAt });
+        const existing = merged.get(e.productId);
+        merged.set(e.productId, { ...e, images: (existing?.images?.length ?? 0) > 0 ? existing!.images : e.images, listedAt: existing?.listedAt ?? e.listedAt });
       }
-      setCatalog([...merged.values()]);
-      setLoading(false);
+      const builtCatalog = [...merged.values()];
+      setCatalog(builtCatalog);
+      // Don't write cache here — wait until user-sync includes own-shop images
 
       // 3. Auto-sync the logged-in user's marketplace-listed products from real API
       if (user?.shop_id && shop) {
         try {
-          const res = await itemRequest("/products?page=1&limit=500");
+          const res = await itemRequest("/products?page=1&limit=100");
           const products: Array<{
             id: string; name: string; description?: string;
             selling_price: number; cost_price?: number; quantity: number;
@@ -368,14 +405,20 @@ export default function MarketplacePage() {
             });
             synced++;
           }
-          if (synced > 0) {
-            const activeIds = new Set(allShops.map((s) => s.id));
-            const m2 = new Map<string, MarketplaceEntry>(serverCatalogRef.current.map((e) => [e.productId, e]));
-            for (const e of getCatalog()) {
-              if (activeIds.has(e.shopId)) m2.set(e.productId, e);
+          // Always rebuild after sync so the catalog reflects own-shop changes.
+          // Start from builtCatalog (has Phase 2 API images) then overlay localStorage.
+          const activeIds = new Set(allShops.map((s) => s.id));
+          const m2 = new Map<string, MarketplaceEntry>(builtCatalog.map((e) => [e.productId, e]));
+          for (const e of getCatalog()) {
+            if (activeIds.has(e.shopId)) {
+              const existing = m2.get(e.productId);
+              // Keep existing images if the catalog entry has none (prefer non-empty)
+              m2.set(e.productId, { ...e, images: e.images.length > 0 ? e.images : (existing?.images ?? []) });
             }
-            setCatalog([...m2.values()]);
           }
+          const synced2 = [...m2.values()];
+          setCatalog(synced2);
+          writeMktCache(allShops, synced2); // write cache only here — always has images
           setApiSynced(true);
           setLiveConnected(true);
         } catch {
@@ -392,27 +435,24 @@ export default function MarketplacePage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.shop_id, shop?.id]);
 
-  // ── WebSocket-style live polling (10 s interval) ─────────────────────────
+  // ── Real-time: SSE-driven refresh + 60s fallback polling ────────────────────
   useEffect(() => {
     let retries = 0;
+    let pollTimer: ReturnType<typeof setTimeout> | null = null;
+    let sseCtrl: AbortController | null = null;
 
-    async function poll() {
+    // Lightweight refresh: shops + marketplace products, no user-sync (done on initial load)
+    async function refresh() {
       try {
-        // Refresh online shops list
-        const shopsRes = await listShops({ limit: 500 });
-        const allShops = (shopsRes.items ?? []).filter((s) => s.is_active);
-        setShops(allShops);
-        const nowTs = new Date();
-        setOnlineShopsCount(allShops.filter((s) => {
-          if (!s.last_seen_at) return false;
-          const d = new Date(s.last_seen_at.endsWith("Z") ? s.last_seen_at : s.last_seen_at + "Z");
-          return (nowTs.getTime() - d.getTime()) / 1000 < 300;
-        }).length);
-        // Rebuild server catalog from refreshed shop descriptions
-        const pollServerEntries: MarketplaceEntry[] = [];
-        for (const s of allShops) {
+        const shopsRes = await listShops({ limit: 200 });
+        const freshShops = (shopsRes.items ?? []).filter((s) => s.is_active);
+        setShops(freshShops);
+        setOnlineShopsCount(freshShops.filter((s) => isOnline(s.last_seen_at, new Date())).length);
+
+        const srvEntries: MarketplaceEntry[] = [];
+        for (const s of freshShops) {
           for (const e of decodeShopCatalog(s.description)) {
-            pollServerEntries.push({
+            srvEntries.push({
               productId: e.pid, shopId: s.id, shopName: s.name,
               shopLogoUrl: s.logo_url, shopPhone: s.phone,
               name: e.n, description: e.d, category: e.cat,
@@ -421,80 +461,46 @@ export default function MarketplacePage() {
             });
           }
         }
-        serverCatalogRef.current = pollServerEntries;
+        serverCatalogRef.current = srvEntries;
 
-        // Fetch fresh /marketplace from product DB (has images)
-        const pollDbEntries: MarketplaceEntry[] = [];
+        const dbEntries: MarketplaceEntry[] = [];
         if (user) {
           try {
-            const mkRes = await itemRequest("/products/marketplace?limit=500");
+            const mkRes = await itemRequest("/products/marketplace?limit=200");
             const mkItems: Array<{
               id: string; shop_id: string; name: string; description?: string;
               category?: string; images?: string; selling_price: number;
               cost_price: number; quantity: number;
             }> = mkRes?.data?.items ?? [];
+            const activeIds = new Set(freshShops.map((s) => s.id));
             for (const item of mkItems) {
-              const s = allShops.find((sh) => sh.id === item.shop_id);
-              if (!s) continue; // skip products from disabled or unknown shops
-              const rawImgs = item.images;
-              const imgs: string[] = rawImgs ? (() => { try { return JSON.parse(rawImgs) as string[]; } catch { return []; } })() : [];
-              pollDbEntries.push({
+              const s = freshShops.find((sh) => sh.id === item.shop_id);
+              if (!s) continue;
+              const imgs: string[] = item.images ? (() => { try { return JSON.parse(item.images!) as string[]; } catch { return []; } })() : [];
+              dbEntries.push({
                 productId: item.id, shopId: item.shop_id,
-                shopName: s.name,
-                shopLogoUrl: s.logo_url, shopPhone: s.phone,
+                shopName: s.name, shopLogoUrl: s.logo_url, shopPhone: s.phone,
                 name: item.name, description: item.description, category: item.category,
                 sellingPrice: item.selling_price, costPrice: item.cost_price,
-                quantity: item.quantity, images: imgs,
-                listedAt: new Date().toISOString(),
+                quantity: item.quantity, images: imgs, listedAt: new Date().toISOString(),
               });
+              void activeIds;
             }
-          } catch { /* skip */ }
+          } catch { /* product service temporarily unavailable */ }
         }
 
-        // Merge: server catalog < localStorage < API (inclusive, with image overlay)
-        const pollActiveShopIds = new Set(allShops.map((s) => s.id));
-        const pollMerged = new Map<string, MarketplaceEntry>(pollServerEntries.map((e) => [e.productId, e]));
+        const activeIds = new Set(freshShops.map((s) => s.id));
+        const merged = new Map<string, MarketplaceEntry>(srvEntries.map((e) => [e.productId, e]));
         for (const e of getCatalog()) {
-          if (pollActiveShopIds.has(e.shopId)) pollMerged.set(e.productId, e);
+          if (activeIds.has(e.shopId)) merged.set(e.productId, e);
         }
-        for (const e of pollDbEntries) {
-          const local = pollMerged.get(e.productId);
-          pollMerged.set(e.productId, { ...e, images: (local?.images?.length ?? 0) > 0 ? local!.images : e.images, listedAt: local?.listedAt ?? e.listedAt });
+        for (const e of dbEntries) {
+          const local = merged.get(e.productId);
+          merged.set(e.productId, { ...e, images: (local?.images?.length ?? 0) > 0 ? local!.images : e.images, listedAt: local?.listedAt ?? e.listedAt });
         }
-        setCatalog([...pollMerged.values()]);
-
-        // Re-sync current user's products
-        if (user?.shop_id && shop) {
-          const res = await itemRequest("/products?page=1&limit=500");
-          const products: Array<{ id: string; name: string; description?: string; category?: string; selling_price: number; cost_price?: number; quantity: number; }> = res?.data?.items ?? res?.data ?? [];
-          let changed = false;
-          for (const p of products) {
-            const meta = getProductMeta(p.id);
-            if (!meta.listed) continue;
-            const resolvedCategory = meta.category || p.category || catOf(p.name, p.description);
-            upsertCatalogEntry({
-              productId: p.id, shopId: user.shop_id, shopName: shop.name,
-              shopLogoUrl: shop.logo_url, shopPhone: shop.phone,
-              name: p.name, description: p.description, category: resolvedCategory,
-              sellingPrice: p.selling_price, costPrice: p.cost_price ?? p.selling_price,
-              quantity: p.quantity, images: meta.images,
-              listedAt: getCatalog().find(e => e.productId === p.id)?.listedAt ?? new Date().toISOString(),
-            });
-            changed = true;
-          }
-          if (changed) {
-            const pm = new Map<string, MarketplaceEntry>(serverCatalogRef.current.map((e) => [e.productId, e]));
-            for (const e of getCatalog()) {
-              if (pollActiveShopIds.has(e.shopId)) pm.set(e.productId, e);
-            }
-            for (const e of pollDbEntries) {
-              const local = pm.get(e.productId);
-              pm.set(e.productId, { ...e, images: (local?.images?.length ?? 0) > 0 ? local!.images : e.images, listedAt: local?.listedAt ?? e.listedAt });
-            }
-            setCatalog([...pm.values()]);
-          }
-        }
-
+        const refreshed = [...merged.values()];
+        setCatalog(refreshed);
+        writeMktCache(freshShops, refreshed);
         setLiveConnected(true);
         retries = 0;
       } catch {
@@ -503,9 +509,40 @@ export default function MarketplacePage() {
       }
     }
 
-    // Start polling after initial load delay
-    const interval = setInterval(poll, 10_000);
-    return () => clearInterval(interval);
+    // Schedule next fallback poll (60 s when SSE is healthy, 15 s when degraded)
+    function schedulePoll(delay = 60_000) {
+      if (pollTimer) clearTimeout(pollTimer);
+      pollTimer = setTimeout(async () => {
+        await refresh();
+        schedulePoll(sseCtrl && !sseCtrl.signal.aborted ? 60_000 : 15_000);
+      }, delay);
+    }
+
+    // Open SSE — any server-pushed event triggers an immediate lightweight refresh
+    function connectSSE() {
+      sseCtrl?.abort();
+      sseCtrl = openNotifStream(
+        async () => {
+          // Server pushed something — refresh marketplace immediately
+          await refresh();
+          schedulePoll(60_000);
+        },
+        () => {
+          // SSE unavailable — fall back to 15 s polling and try reconnecting after 30 s
+          setLiveConnected(false);
+          schedulePoll(15_000);
+          setTimeout(connectSSE, 30_000);
+        },
+      );
+    }
+
+    connectSSE();
+    schedulePoll(60_000); // also keep a heartbeat poll as belt-and-suspenders
+
+    return () => {
+      sseCtrl?.abort();
+      if (pollTimer) clearTimeout(pollTimer);
+    };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.shop_id, shop?.id]);
 
@@ -576,11 +613,10 @@ export default function MarketplacePage() {
     const obs = new IntersectionObserver(
       (entries) => {
         if (entries[0].isIntersecting && hasMore) {
-          setLoadingMore(true);
-          setTimeout(() => { setPage((p) => p + 1); setLoadingMore(false); }, 400);
+          setPage((p) => p + 1);
         }
       },
-      { rootMargin: "200px" },
+      { rootMargin: "400px" }, // pre-load next batch 400px before user reaches bottom
     );
     obs.observe(sentinelRef.current);
     return () => obs.disconnect();
@@ -1126,7 +1162,7 @@ export default function MarketplacePage() {
                           {highlight(s.name ?? "", search)}
                         </p>
                         {listed > 0 && <p style={{ fontSize: 10, color: "#ff6a00", margin: 0 }}>{listed} products</p>}
-                        {formatPublicAddress(s.address) && <p style={{ fontSize: 10, color: "#999", margin: 0, textAlign: "center", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", width: "100%" }}>{formatPublicAddress(s.address)}</p>}
+                        {formatShortAddress(s.address) && <p style={{ fontSize: 10, color: "#999", margin: 0, textAlign: "center", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", width: "100%" }}>{formatShortAddress(s.address)}</p>}
                         <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
                           <span style={{ width: 6, height: 6, borderRadius: "50%", background: online ? "#52c41a" : "#d9d9d9" }} />
                           <span style={{ fontSize: 10, color: online ? "#52c41a" : "#999" }}>{online ? "Online" : "Offline"}</span>
@@ -2127,9 +2163,9 @@ function ProductCard({ entry, shop, isMine, online, searchQ, onDetail, onOrder }
               onError={() => { _failedImgUrls.add(cover); _forceImg((n) => n + 1); }}
               style={{ width: "100%", height: "100%", objectFit: "cover" }}
             />
-          : <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6 }}>
-              <Package size={36} style={{ color: "#ddd" }} />
-              <span style={{ fontSize: 10, color: "#ccc" }}>No image</span>
+          : <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6, background: "linear-gradient(135deg,#f5f5f5 0%,#efefef 100%)" }}>
+              <Package size={30} style={{ color: "#d0d0d0" }} />
+              <span style={{ fontSize: 10, color: "#ccc", fontWeight: 500, letterSpacing: "0.02em" }}>No photo</span>
             </div>}
 
         {/* Multi-image pill */}
@@ -2191,10 +2227,10 @@ function ProductCard({ entry, shop, isMine, online, searchQ, onDetail, onOrder }
             <p style={{ fontSize: 11, color: "#555", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: 500 }}>
               {highlight(entry.shopName, searchQ)}
             </p>
-            {formatPublicAddress(shop?.address) && (
+            {formatShortAddress(shop?.address) && (
               <p style={{ fontSize: 10, color: "#bbb", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: 2 }}>
                 <MapPin size={8} style={{ flexShrink: 0 }} />
-                {formatPublicAddress(shop?.address)}
+                {formatShortAddress(shop?.address)}
               </p>
             )}
           </div>

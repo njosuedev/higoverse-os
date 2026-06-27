@@ -12,22 +12,37 @@ interface Props {
   onClose: () => void;
 }
 
-const RWANDA   = { lat: -1.9403, lng: 29.8739 };
-const ZOOM_RW  = 8;
+// Rwanda geographic constants
+const RWANDA        = { lat: -1.9403, lng: 29.8739 };
+const RWANDA_BOUNDS = [[-2.9, 28.7], [-1.0, 31.0]] as [[number, number], [number, number]];
+const ZOOM_RW  = 9;
+const ZOOM_MIN = 8;   // don't let user zoom out past country level
 const ZOOM_PIN = 17;
 const TILE_URL = "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png";
-const PIN_HTML = `<div style="width:38px;height:38px;border-radius:50% 50% 50% 0;background:#1372e6;border:3px solid #fff;box-shadow:0 3px 10px rgba(0,0,0,.4);transform:rotate(-45deg);display:flex;align-items:center;justify-content:center;"><div style="transform:rotate(45deg);font-size:16px;line-height:1;">📍</div></div>`;
+
+// SVG teardrop pin — same style as HigoMapView
+const PIN_HTML = `
+  <div style="filter:drop-shadow(0 3px 6px rgba(0,0,0,0.35));">
+    <svg viewBox="0 0 32 44" xmlns="http://www.w3.org/2000/svg" width="36" height="50">
+      <path d="M16 0C7.163 0 0 7.163 0 16c0 10.5 16 28 16 28S32 26.5 32 16C32 7.163 24.837 0 16 0z"
+            fill="#1372e6" stroke="#fff" stroke-width="2"/>
+      <circle cx="16" cy="16" r="6" fill="#fff"/>
+      <circle cx="16" cy="16" r="3.5" fill="#1372e6"/>
+    </svg>
+  </div>`;
 
 type NomResult = { display_name: string; lat: string; lon: string };
 
 export default function HigoMapPicker({ initialLat, initialLng, onConfirm, onClose }: Props) {
-  const mapRef     = useRef<HTMLDivElement>(null);
-  const leafMap    = useRef<import("leaflet").Map | null>(null);
-  const markerRef  = useRef<import("leaflet").Marker | null>(null);
+  const mapRef      = useRef<HTMLDivElement>(null);
+  const leafMap     = useRef<import("leaflet").Map | null>(null);
+  const markerRef   = useRef<import("leaflet").Marker | null>(null);
+  const circleRef   = useRef<import("leaflet").Circle | null>(null);
+  const watchIdRef  = useRef<number | null>(null);
   // Shared place-marker function exposed from the Leaflet closure
-  const placeAtRef = useRef<((lat: number, lng: number) => void) | null>(null);
-  const debounceT  = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const abortRef   = useRef<AbortController | null>(null);
+  const placeAtRef  = useRef<((lat: number, lng: number) => void) | null>(null);
+  const debounceT   = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const abortRef    = useRef<AbortController | null>(null);
 
   const hasPinInit = initialLat != null && initialLng != null;
 
@@ -37,6 +52,7 @@ export default function HigoMapPicker({ initialLat, initialLng, onConfirm, onClo
   const [searching,  setSearching]  = useState(false);
   const [geoLoading, setGeoLoading] = useState(false);
   const [geoError,   setGeoError]   = useState("");
+  const [geoAccuracy,setGeoAccuracy]= useState<number | null>(null); // metres
   const [pinSet,     setPinSet]     = useState(hasPinInit);
   const [results,    setResults]    = useState<NomResult[]>([]);
   const [noResults,  setNoResults]  = useState(false);
@@ -64,12 +80,15 @@ export default function HigoMapPicker({ initialLat, initialLng, onConfirm, onClo
       const map = L.map(mapRef.current, {
         zoomControl: true,
         attributionControl: false,
+        minZoom: ZOOM_MIN,
+        maxBounds: RWANDA_BOUNDS,
+        maxBoundsViscosity: 0.85,
       }).setView([start.lat, start.lng], hasPinInit ? ZOOM_PIN : ZOOM_RW);
 
       L.tileLayer(TILE_URL, { attribution: "", maxZoom: 20 }).addTo(map);
 
       const makeIcon = () =>
-        L.divIcon({ className: "", html: PIN_HTML, iconSize: [38, 38], iconAnchor: [19, 38], popupAnchor: [0, -42] });
+        L.divIcon({ className: "", html: PIN_HTML, iconSize: [36, 50], iconAnchor: [18, 50], popupAnchor: [0, -52] });
 
       let marker: import("leaflet").Marker | null = null;
 
@@ -102,6 +121,7 @@ export default function HigoMapPicker({ initialLat, initialLng, onConfirm, onClo
     return () => {
       gone = true;
       placeAtRef.current = null;
+      if (watchIdRef.current != null) navigator.geolocation?.clearWatch(watchIdRef.current);
       leafMap.current?.remove();
       leafMap.current = null;
     };
@@ -117,7 +137,7 @@ export default function HigoMapPicker({ initialLat, initialLng, onConfirm, onClo
     setSearching(true); setNoResults(false);
     try {
       const r = await fetch(
-        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=6&addressdetails=1`,
+        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&countrycodes=rw&format=json&limit=6&addressdetails=1`,
         { headers: { "Accept-Language": "en", "User-Agent": "Higoverse/1.0" }, signal: ctrl.signal }
       );
       const d: NomResult[] = await r.json();
@@ -149,41 +169,71 @@ export default function HigoMapPicker({ initialLat, initialLng, onConfirm, onClo
     placeAtRef.current?.(lat, lng);
   }
 
-  // ── GPS location — uses shared placeAt ───────────────────────────────────
+  // ── GPS location — watchPosition improves accuracy progressively ─────────
   function useMyLocation() {
-    setGeoError("");
+    setGeoError(""); setGeoAccuracy(null);
 
     if (!navigator.geolocation) {
       setGeoError("Location not supported by your browser.");
       return;
     }
-
-    // Check if we're on HTTP (non-localhost) — geolocation is blocked by browsers
     if (typeof window !== "undefined" &&
         window.location.protocol === "http:" &&
         window.location.hostname !== "localhost" &&
         window.location.hostname !== "127.0.0.1") {
-      setGeoError("Location requires a secure connection (HTTPS).");
+      setGeoError("Location requires a secure (HTTPS) connection.");
       return;
     }
 
+    // Stop any previous watch
+    if (watchIdRef.current != null) navigator.geolocation.clearWatch(watchIdRef.current);
+
     setGeoLoading(true);
 
-    navigator.geolocation.getCurrentPosition(
-      ({ coords: { latitude: lat, longitude: lng } }) => {
-        setGeoLoading(false);
-        setGeoError("");
-        // Fly the map there first, then place pin via shared function
-        leafMap.current?.flyTo([lat, lng], ZOOM_PIN, { duration: 1.0 });
+    // Auto-stop after 20 s
+    const stopTimer = setTimeout(() => {
+      if (watchIdRef.current != null) { navigator.geolocation.clearWatch(watchIdRef.current); watchIdRef.current = null; }
+      setGeoLoading(false);
+    }, 20000);
+
+    watchIdRef.current = navigator.geolocation.watchPosition(
+      async ({ coords: { latitude: lat, longitude: lng, accuracy } }) => {
+        setGeoAccuracy(Math.round(accuracy));
+
+        // Draw / update accuracy circle
+        const L = (await import("leaflet")).default;
+        if (circleRef.current) {
+          circleRef.current.setLatLng([lat, lng]);
+          circleRef.current.setRadius(accuracy);
+        } else if (leafMap.current) {
+          circleRef.current = L.circle([lat, lng], {
+            radius: accuracy,
+            color: "#1372e6", fillColor: "#1372e6",
+            fillOpacity: 0.08, weight: 1.5,
+          }).addTo(leafMap.current);
+        }
+
+        // Move map & pin
+        leafMap.current?.panTo([lat, lng], { animate: true });
         placeAtRef.current?.(lat, lng);
+
+        // Good enough — stop watching
+        if (accuracy <= 100) {
+          navigator.geolocation.clearWatch(watchIdRef.current!);
+          watchIdRef.current = null;
+          clearTimeout(stopTimer);
+          setGeoLoading(false);
+        }
       },
       (err) => {
+        clearTimeout(stopTimer);
         setGeoLoading(false);
-        if (err.code === 1)      setGeoError("Location access denied — allow location in your browser settings and try again.");
-        else if (err.code === 2) setGeoError("Location unavailable — try searching for your address instead.");
-        else                     setGeoError("Location timed out — try again or search manually.");
+        if (watchIdRef.current != null) { navigator.geolocation.clearWatch(watchIdRef.current); watchIdRef.current = null; }
+        if (err.code === 1) setGeoError("Location access denied — please allow location in your browser and try again.");
+        else if (err.code === 2) setGeoError("Location unavailable — search for your address instead.");
+        else setGeoError("Location timed out — try again or search for your address.");
       },
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+      { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
     );
   }
 
@@ -224,7 +274,7 @@ export default function HigoMapPicker({ initialLat, initialLng, onConfirm, onClo
                   value={search}
                   onChange={(e) => onSearchChange(e.target.value)}
                   onKeyDown={(e) => { if (e.key === "Escape") clearSearch(); }}
-                  placeholder="Type a street, area or landmark…"
+                  placeholder="Search in Rwanda — street, sector, district…"
                   autoComplete="off"
                   className="w-full pl-9 pr-8 py-2 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition"
                 />
@@ -250,11 +300,19 @@ export default function HigoMapPicker({ initialLat, initialLng, onConfirm, onClo
               </button>
             </div>
 
-            {/* Geolocation error */}
+            {/* Accuracy / error feedback */}
             {geoError && (
               <div className="mt-2 flex items-start gap-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
                 <AlertCircle size={13} className="shrink-0 mt-0.5" />
                 <span>{geoError}</span>
+              </div>
+            )}
+            {!geoError && geoAccuracy != null && (
+              <div className={`mt-2 flex items-center gap-2 text-xs rounded-lg px-3 py-1.5 ${geoAccuracy <= 100 ? "bg-emerald-50 border border-emerald-200 text-emerald-700" : "bg-amber-50 border border-amber-200 text-amber-700"}`}>
+                <Navigation size={11} className="shrink-0" />
+                {geoAccuracy <= 100
+                  ? `Good fix — accuracy ±${geoAccuracy} m`
+                  : `Coarse fix (±${geoAccuracy} m) — drag the pin to your exact location`}
               </div>
             )}
 

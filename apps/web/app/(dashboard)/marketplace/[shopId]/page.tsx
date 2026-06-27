@@ -1,8 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
+
+const HigoMapView = dynamic(() => import("@/app/components/ui/HigoMapView"), { ssr: false });
 import { useAuth } from "@/lib/auth-context";
 import { useLanguage } from "@/lib/language-context";
 import { listShops, updateMyShop, type Shop } from "@/lib/shop-api";
@@ -21,10 +24,11 @@ import {
   getMessagesForShop, replyToMessage, markMessageRead, unreadCountForShop,
   sendMessage, getMyMessages,
   followShop, unfollowShop, isFollowingShop, getShopFollowerCount,
-  decodeShopCatalog, decodeShopHumanInfo, encodeDescriptionWithCatalog, catFromText, formatPublicAddress, parseShopAddress,
+  decodeShopCatalog, decodeShopHumanInfo, encodeDescriptionWithCatalog, catFromText,
+  formatPublicAddress, formatShortAddress, parseShopAddress,
   type ProductMeta, type MarketplaceEntry, type ShopMessage,
 } from "@/lib/product-meta";
-import { createOrGetConversation } from "@/lib/messages-api";
+import { createOrGetConversation, openMessageStream } from "@/lib/messages-api";
 
 /** Two-tone chime via Web Audio — plays when a shop reply arrives. */
 function playChime() {
@@ -63,6 +67,17 @@ function shopPresence(lastSeenAt: string | null) {
 
 function fmtCurrency(n: number) {
   return new Intl.NumberFormat("en-RW", { style: "currency", currency: "RWF", maximumFractionDigits: 0 }).format(n);
+}
+
+// Read shop from the marketplace cache written by the marketplace page (avoids redundant API call)
+function shopFromMktCache(shopId: string): import("@/lib/shop-api").Shop | null {
+  try {
+    const raw = localStorage.getItem("hgv_mkt_v2");
+    if (!raw) return null;
+    const c = JSON.parse(raw) as { shops: import("@/lib/shop-api").Shop[]; ts: number };
+    if (Date.now() - c.ts > 120_000) return null; // honour 2-min freshness
+    return c.shops.find((s) => s.id === shopId) ?? null;
+  } catch { return null; }
 }
 
 interface Product {
@@ -138,12 +153,16 @@ export default function ShopStorePage() {
   const isMine = shop?.id === user?.shop_id;
 
   useEffect(() => {
+    // Fast path: serve from marketplace cache (written by marketplace page)
+    const cached = shopFromMktCache(shopId);
+    if (cached) { setShop(cached); setLoading(false); }
+
+    // Always validate / refresh from API in background
     listShops({ limit: 200 }).then((res) => {
       const found = res.items?.find((s) => s.id === shopId) ?? null;
-      setShop(found);
-      if (!found) setNotFound(true);
-      setLoading(false);
-    }).catch(() => { setNotFound(true); setLoading(false); });
+      if (found) { setShop(found); setLoading(false); }
+      else if (!cached) { setNotFound(true); setLoading(false); }
+    }).catch(() => { if (!cached) { setNotFound(true); setLoading(false); } });
   }, [shopId]);
 
   useEffect(() => {
@@ -166,7 +185,7 @@ export default function ShopStorePage() {
     prevReplyTotal.current = all.reduce((s, m) => s + m.replies.length, 0);
   }, [chatProduct, isMine, user]);
 
-  // Customer: poll localStorage every 1.5 s + BroadcastChannel instant refresh
+  // Customer: SSE-first real-time message delivery + BroadcastChannel + polling fallback
   useEffect(() => {
     if (!shop || isMine || !user) return;
 
@@ -178,14 +197,35 @@ export default function ShopStorePage() {
       setCustomerMessages(fresh);
     };
 
+    // BroadcastChannel for same-device tab cross-communication (instant)
     const bc = bcRef.current;
     const onMsg = (e: MessageEvent) => {
       if (e.data?.type === "reply" && e.data.shopId === shop.id) refresh();
     };
     bc?.addEventListener("message", onMsg);
 
-    const iv = setInterval(refresh, 1500);
-    return () => { clearInterval(iv); bc?.removeEventListener("message", onMsg); };
+    // SSE — server pushes reply events; fallback to 3s polling if unavailable
+    let pollIv: ReturnType<typeof setInterval> | null = null;
+    const sseCtrl = openMessageStream(
+      (evt) => {
+        // Any message event for this shop triggers a localStorage refresh
+        if (!evt.conversation_id && !evt.message) return;
+        refresh();
+      },
+      () => {
+        // SSE unavailable — fall back to 3 s polling (better than 1.5 s, still responsive)
+        if (!pollIv) pollIv = setInterval(refresh, 3000);
+      },
+    );
+
+    // Always do one immediate refresh on mount
+    refresh();
+
+    return () => {
+      sseCtrl.abort();
+      if (pollIv) clearInterval(pollIv);
+      bc?.removeEventListener("message", onMsg);
+    };
   }, [shop, isMine, user]);
 
   // Auto-scroll chat to bottom
@@ -210,7 +250,7 @@ export default function ShopStorePage() {
     setListedProducts([...merged.values()]);
 
     // Also fetch from product DB — authoritative source (only returns listed products)
-    itemRequest("/products/marketplace?limit=500")
+    itemRequest("/products/marketplace?limit=200")
       .then((res) => {
         const mkItems: Array<{
           id: string; shop_id: string; name: string; description?: string;
@@ -521,12 +561,18 @@ export default function ShopStorePage() {
                     <span style={{ fontSize: 11, color: pres.online ? "#52c41a" : "#999", display: "flex", alignItems: "center", gap: 3 }}>
                       {pres.online ? <><Wifi size={10} /> Online now</> : <><WifiOff size={10} /> {pres.label}</>}
                     </span>
-                    {formatPublicAddress(shop.address) && (
-                      <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(formatPublicAddress(shop.address))}`} target="_blank" rel="noreferrer"
-                        style={{ fontSize: 11, color: "#1677ff", textDecoration: "none", display: "flex", alignItems: "center", gap: 3 }}>
-                        <MapPin size={10} style={{ color: "#ff6a00" }} /> {formatPublicAddress(shop.address)}
-                      </a>
-                    )}
+                    {formatShortAddress(shop.address) && (() => {
+                      const { lat, lng } = parseShopAddress(shop.address);
+                      const href = lat != null && lng != null
+                        ? `https://www.google.com/maps?q=${lat},${lng}`
+                        : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(formatPublicAddress(shop.address))}`;
+                      return (
+                        <a href={href} target="_blank" rel="noreferrer"
+                          style={{ fontSize: 11, color: "#1677ff", textDecoration: "none", display: "flex", alignItems: "center", gap: 3 }}>
+                          <MapPin size={10} style={{ color: "#ff6a00" }} /> {formatShortAddress(shop.address)}
+                        </a>
+                      );
+                    })()}
                     {joinedDate && <span style={{ fontSize: 11, color: "#999", display: "flex", alignItems: "center", gap: 3 }}><CalendarDays size={10} /> Since {joinedDate}</span>}
                   </div>
                   {(() => { const { desc } = decodeShopHumanInfo(shop.description); return desc ? <p style={{ fontSize: 11, color: "#777", margin: "4px 0 0", maxWidth: 500 }}>{desc}</p> : null; })()}
@@ -1022,9 +1068,6 @@ export default function ShopStorePage() {
                             {hasPin ? "Exact Location" : "Address"}
                           </p>
                           <p className="text-sm font-bold text-slate-800 break-words">{formatPublicAddress(shop.address)}</p>
-                          {hasPin && (
-                            <p className="text-[10px] text-slate-400 font-mono">{lat!.toFixed(5)}, {lng!.toFixed(5)}</p>
-                          )}
                         </div>
                         <a href={mapsHref} target="_blank" rel="noopener noreferrer"
                           className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-[#1372e6] bg-[#EBF2FD] hover:bg-[#D5E8FB] transition flex-shrink-0">
@@ -1032,18 +1075,14 @@ export default function ShopStorePage() {
                         </a>
                       </div>
 
-                      {/* Embedded map — only shown when GPS pin exists */}
+                      {/* Higoverse embedded map — clean Leaflet, no OSM footer */}
                       {hasPin && (
-                        <div className="mx-3 mb-2 rounded-xl overflow-hidden border border-slate-200 shadow-sm" style={{ height: 220 }}>
-                          <iframe
-                            title="Business location"
-                            loading="lazy"
-                            style={{ width: "100%", height: "100%", border: 0 }}
-                            src={`https://www.openstreetmap.org/export/embed.html?bbox=${lng! - 0.002},${lat! - 0.002},${lng! + 0.002},${lat! + 0.002}&layer=mapnik&marker=${lat},${lng}`}
-                          />
-                          <div className="flex items-center justify-between px-3 py-1.5 bg-slate-50 border-t border-slate-100">
-                            <span className="text-[10px] text-slate-400 flex items-center gap-1">
-                              <MapPin size={9} className="text-[#1372e6]" /> Higoverse Location — powered by OpenStreetMap
+                        <div className="mx-3 mb-3 rounded-xl overflow-hidden border border-slate-200 shadow-sm">
+                          <HigoMapView lat={lat!} lng={lng!} height={220} zoom={17} />
+                          <div className="flex items-center justify-between px-3 py-2 bg-slate-50 border-t border-slate-100">
+                            <span className="text-[10px] text-slate-400 flex items-center gap-1.5">
+                              <MapPin size={9} className="text-[#1372e6]" />
+                              <span className="font-semibold text-slate-500">Higoverse Maps</span>
                             </span>
                             <a href={mapsHref} target="_blank" rel="noopener noreferrer"
                               className="text-[10px] font-bold text-[#1372e6] hover:underline flex items-center gap-1">
