@@ -1,13 +1,19 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useLanguage } from "@/lib/language-context";
 import { itemRequest } from "@/lib/product-api";
 import { settingsRequest } from "@/lib/settings-api";
 import { getMyShop } from "@/lib/shop-api";
+import { formatPublicAddress } from "@/lib/product-meta";
+import {
+  listProformas, createProforma, updateProforma, deleteProforma,
+  type Proforma, type ProformaLine, type ProformaStatus, type ProformaPayload,
+} from "@/lib/proforma-api";
 import {
   Plus, Trash2, Printer, X, FileText, RefreshCw, Building2, User,
-  Calendar, Hash, ChevronRight,
+  Calendar, Hash, ChevronRight, Save, Clock, CheckCircle2,
+  Send, AlertCircle, Search, Eye, Pencil, History,
 } from "lucide-react";
 
 interface LineItem { id: string; product_name: string; qty: number; unit_price: number; }
@@ -26,25 +32,56 @@ function fmtDate(s: string) {
   return d.toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" });
 }
 
+const STATUS_META: Record<ProformaStatus, { label: string; color: string; icon: React.ReactNode }> = {
+  draft:    { label: "Draft",    color: "bg-slate-100 text-slate-600 border-slate-200",   icon: <Pencil size={10} /> },
+  sent:     { label: "Sent",     color: "bg-blue-50 text-blue-600 border-blue-200",       icon: <Send size={10} /> },
+  accepted: { label: "Accepted", color: "bg-green-50 text-green-700 border-green-200",    icon: <CheckCircle2 size={10} /> },
+  expired:  { label: "Expired",  color: "bg-red-50 text-red-600 border-red-200",          icon: <AlertCircle size={10} /> },
+};
+
+function StatusBadge({ status }: { status: ProformaStatus }) {
+  const m = STATUS_META[status] ?? STATUS_META.draft;
+  return (
+    <span className={`inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full border ${m.color}`}>
+      {m.icon} {m.label}
+    </span>
+  );
+}
+
+type PageView = "editor" | "history";
+
 export default function ProformaPage() {
   const { t } = useLanguage();
 
-  const [loading, setLoading]   = useState(true);
-  const [products, setProducts] = useState<Product[]>([]);
-  const [shop, setShop] = useState<ShopInfo>({ name: "" });
-  const [currency, setCurrency] = useState("RWF");
-  const [taxRate, setTaxRate] = useState(0);
+  const [loading, setLoading]     = useState(true);
+  const [products, setProducts]   = useState<Product[]>([]);
+  const [shop, setShop]           = useState<ShopInfo>({ name: "" });
+  const [currency, setCurrency]   = useState("RWF");
+  const [taxRate, setTaxRate]     = useState(0);
 
-  const [invoiceNo, setInvoiceNo] = useState(genInvoiceNo);
-  const [date, setDate] = useState(toDateStr(new Date()));
-  const [validUntilDate, setValidUntilDate] = useState(addDays(30));
-  const [customer, setCustomer] = useState("");
-  const [customerPhone, setCustomerPhone] = useState("");
+  // Editor state
+  const [view, setView]           = useState<PageView>("editor");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [saving, setSaving]       = useState(false);
+  const [saveMsg, setSaveMsg]     = useState("");
+
+  const [invoiceNo, setInvoiceNo]             = useState(genInvoiceNo);
+  const [date, setDate]                       = useState(toDateStr(new Date()));
+  const [validUntilDate, setValidUntilDate]   = useState(addDays(30));
+  const [customer, setCustomer]               = useState("");
+  const [customerPhone, setCustomerPhone]     = useState("");
   const [customerAddress, setCustomerAddress] = useState("");
-  const [notes, setNotes] = useState("");
-  const [lines, setLines] = useState<LineItem[]>([
+  const [notes, setNotes]                     = useState("");
+  const [status, setStatus]                   = useState<ProformaStatus>("draft");
+  const [lines, setLines]                     = useState<LineItem[]>([
     { id: genId(), product_name: "", qty: 1, unit_price: 0 },
   ]);
+
+  // History state
+  const [proformas, setProformas]       = useState<Proforma[]>([]);
+  const [histSearch, setHistSearch]     = useState("");
+  const [histLoading, setHistLoading]   = useState(false);
+  const [deletingId, setDeletingId]     = useState<string | null>(null);
 
   useEffect(() => {
     Promise.allSettled([
@@ -67,6 +104,17 @@ export default function ProformaPage() {
     });
   }, []);
 
+  const loadHistory = useCallback(async () => {
+    setHistLoading(true);
+    try {
+      const res = await listProformas({ limit: 100 });
+      setProformas(res.items || []);
+    } catch { /* non-fatal */ }
+    finally { setHistLoading(false); }
+  }, []);
+
+  useEffect(() => { loadHistory(); }, [loadHistory]);
+
   function addLine() { setLines((p) => [...p, { id: genId(), product_name: "", qty: 1, unit_price: 0 }]); }
   function removeLine(id: string) { setLines((p) => p.filter((l) => l.id !== id)); }
   function setLineField<K extends keyof LineItem>(id: string, key: K, val: LineItem[K]) {
@@ -76,28 +124,104 @@ export default function ProformaPage() {
     const p = products.find((x) => x.id === productId);
     if (p) setLines((prev) => prev.map((l) => l.id === id ? { ...l, product_name: p.name, unit_price: p.selling_price } : l));
   }
+
   function clearAll() {
     setLines([{ id: genId(), product_name: "", qty: 1, unit_price: 0 }]);
     setCustomer(""); setCustomerPhone(""); setCustomerAddress(""); setNotes("");
     setInvoiceNo(genInvoiceNo()); setDate(toDateStr(new Date())); setValidUntilDate(addDays(30));
+    setStatus("draft"); setEditingId(null);
   }
 
-  const subtotal = lines.reduce((s, l) => s + l.qty * l.unit_price, 0);
-  const taxAmt = Math.round(subtotal * taxRate / 100);
+  function loadProforma(p: Proforma) {
+    setInvoiceNo(p.invoice_no);
+    setDate(p.date);
+    setValidUntilDate(p.valid_until);
+    setCustomer(p.customer);
+    setCustomerPhone(p.customer_phone);
+    setCustomerAddress(p.customer_address);
+    setNotes(p.notes);
+    setStatus(p.status);
+    setLines(p.lines.map((l) => ({ id: genId(), product_name: l.product_name, qty: l.qty, unit_price: l.unit_price })));
+    setEditingId(p.id);
+    setView("editor");
+  }
+
+  const subtotal   = lines.reduce((s, l) => s + l.qty * l.unit_price, 0);
+  const taxAmt     = Math.round(subtotal * taxRate / 100);
   const grandTotal = subtotal + taxAmt;
-  const hasLines = lines.some((l) => l.product_name.trim() && l.qty > 0 && l.unit_price > 0);
+  const hasLines   = lines.some((l) => l.product_name.trim() && l.qty > 0 && l.unit_price > 0);
+
+  function buildPayload(): ProformaPayload {
+    return {
+      invoice_no: invoiceNo,
+      date,
+      valid_until: validUntilDate,
+      customer,
+      customer_phone: customerPhone,
+      customer_address: customerAddress,
+      notes,
+      lines: lines
+        .filter((l) => l.product_name.trim())
+        .map(({ product_name, qty, unit_price }) => ({ product_name, qty, unit_price })),
+      subtotal,
+      tax_rate: taxRate,
+      tax_amount: taxAmt,
+      grand_total: grandTotal,
+      currency,
+      status,
+    };
+  }
+
+  async function saveProforma(andPrint = false) {
+    if (!hasLines) return;
+    setSaving(true);
+    setSaveMsg("");
+    try {
+      const payload = buildPayload();
+      let saved: Proforma | null;
+      if (editingId) {
+        saved = await updateProforma(editingId, payload);
+      } else {
+        saved = await createProforma(payload);
+        if (saved) setEditingId(saved.id);
+      }
+      if (saved) {
+        setSaveMsg("Saved");
+        await loadHistory();
+        if (andPrint) printPopup();
+        setTimeout(() => setSaveMsg(""), 3000);
+      }
+    } catch {
+      setSaveMsg("Save failed");
+      setTimeout(() => setSaveMsg(""), 3000);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDelete(id: string) {
+    if (!confirm("Delete this proforma?")) return;
+    setDeletingId(id);
+    try {
+      await deleteProforma(id);
+      if (editingId === id) clearAll();
+      await loadHistory();
+    } catch { /* non-fatal */ }
+    finally { setDeletingId(null); }
+  }
+
+  const publicAddr = formatPublicAddress(shop.address);
 
   function printPopup() {
-    const itemsHtml = lines
-      .filter((l) => l.product_name.trim())
-      .map((l, i) => `
-        <tr>
-          <td class="num">${i + 1}</td>
-          <td class="desc">${l.product_name}</td>
-          <td class="center">${l.qty}</td>
-          <td class="right">${l.unit_price.toLocaleString()}</td>
-          <td class="right total">${(l.qty * l.unit_price).toLocaleString()}</td>
-        </tr>`).join("");
+    const filteredLines = lines.filter((l) => l.product_name.trim());
+    const itemsHtml = filteredLines.map((l, i) => `
+      <tr>
+        <td class="num">${i + 1}</td>
+        <td class="desc">${l.product_name}</td>
+        <td class="center">${l.qty}</td>
+        <td class="right">${l.unit_price.toLocaleString()}</td>
+        <td class="right total">${(l.qty * l.unit_price).toLocaleString()}</td>
+      </tr>`).join("");
 
     const taxRow = taxRate > 0
       ? `<tr class="sub-row"><td colspan="4">Tax (${taxRate}%)</td><td class="right">${taxAmt.toLocaleString()}</td></tr>`
@@ -112,7 +236,6 @@ export default function ProformaPage() {
   *{margin:0;padding:0;box-sizing:border-box}
   body{font-family:'Segoe UI',Arial,sans-serif;background:#fff;color:#1a1a2e;font-size:13px;padding:0}
   .page{max-width:794px;margin:0 auto;padding:40px 48px;min-height:1123px;position:relative}
-  /* Header */
   .header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:40px;padding-bottom:28px;border-bottom:3px solid #2563eb}
   .logo-block{flex:1}
   .logo-name{font-size:22px;font-weight:800;color:#1e3a8a;letter-spacing:.5px;text-transform:uppercase}
@@ -123,13 +246,11 @@ export default function ProformaPage() {
   .meta-row{display:flex;justify-content:flex-end;align-items:center;gap:10px;margin-top:6px;font-size:12px}
   .meta-label{color:#94a3b8;font-weight:600;min-width:80px;text-align:right}
   .meta-val{color:#1e3a8a;font-weight:700;min-width:120px;text-align:right}
-  /* Bill section */
   .bill-section{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:32px}
   .bill-box{background:#f8fafc;border-radius:10px;padding:16px 20px;border:1px solid #e2e8f0}
   .bill-title{font-size:9px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:2px;margin-bottom:10px}
   .bill-name{font-size:15px;font-weight:700;color:#0f172a;margin-bottom:4px}
   .bill-detail{font-size:11px;color:#64748b;line-height:1.6}
-  /* Items table */
   table.items{width:100%;border-collapse:collapse;margin-bottom:24px}
   .items thead tr{background:#1e3a8a;color:#fff}
   .items thead th{padding:11px 14px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px}
@@ -148,38 +269,27 @@ export default function ProformaPage() {
   .items tfoot .grand-row{background:#1e3a8a}
   .items tfoot .grand-row td{padding:14px;color:#fff;font-weight:800;font-size:14px;text-align:right}
   .items tfoot .grand-row td:first-child{text-align:right;font-size:11px;text-transform:uppercase;letter-spacing:1.5px;font-weight:700;color:#bfdbfe}
-  /* Notes */
   .notes{background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:14px 18px;margin-bottom:28px;font-size:11px;color:#92400e;line-height:1.6}
   .notes-title{font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;color:#b45309}
-  /* Signatures */
   .sig-row{display:flex;justify-content:space-between;align-items:flex-end;border-top:1px solid #e2e8f0;padding-top:28px;margin-top:8px}
   .sig-box{width:200px;text-align:center}
   .sig-line{border-top:1.5px solid #cbd5e1;margin-bottom:6px;margin-top:40px}
   .sig-label{font-size:10px;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:.8px}
-  /* Footer */
   .footer{text-align:center;margin-top:40px;padding-top:16px;border-top:1px dashed #e2e8f0;font-size:10px;color:#94a3b8}
   .footer strong{color:#1e3a8a}
-  /* Watermark-style label */
   .watermark{position:absolute;top:50%;right:40px;transform:translateY(-50%) rotate(30deg);font-size:80px;font-weight:900;color:rgba(37,99,235,.04);text-transform:uppercase;letter-spacing:8px;pointer-events:none;user-select:none}
-  @media print{
-    html,body{width:210mm;height:297mm;margin:0}
-    .page{padding:20mm 22mm;min-height:0}
-    @page{size:A4 portrait;margin:0}
-  }
+  @media print{html,body{width:210mm;height:297mm;margin:0}.page{padding:20mm 22mm;min-height:0}@page{size:A4 portrait;margin:0}}
 </style>
 </head>
 <body>
 <div class="page">
   <div class="watermark">PROFORMA</div>
-
-  <!-- Header -->
   <div class="header">
     <div class="logo-block">
       ${shop.logo_url ? `<img src="${shop.logo_url}" alt="${shop.name}" style="width:64px;height:64px;object-fit:cover;border-radius:10px;margin-bottom:8px;display:block;" />` : ""}
       <div class="logo-name">${shop.name || "Your Business"}</div>
-      ${shop.address ? `<div class="logo-sub">${shop.address}</div>` : ""}
+      ${publicAddr ? `<div class="logo-sub">${publicAddr}</div>` : ""}
       ${shop.phone ? `<div class="logo-sub">Tel: ${shop.phone}</div>` : ""}
-      ${shop.email ? `<div class="logo-sub">${shop.email}</div>` : ""}
     </div>
     <div class="meta-block">
       <div class="invoice-label">Invoice</div>
@@ -189,24 +299,20 @@ export default function ProformaPage() {
       <div class="meta-row"><span class="meta-label">Valid Until</span><span class="meta-val">${fmtDate(validUntilDate)}</span></div>
     </div>
   </div>
-
-  <!-- Bill To / From -->
   <div class="bill-section">
     <div class="bill-box">
       <div class="bill-title">Bill To</div>
-      ${customer ? `<div class="bill-name">${customer}</div>` : `<div class="bill-detail" style="color:#cbd5e1;font-style:italic">Customer name not specified</div>`}
+      ${customer ? `<div class="bill-name">${customer}</div>` : `<div class="bill-detail" style="color:#cbd5e1;font-style:italic">Customer not specified</div>`}
       ${customerPhone ? `<div class="bill-detail">Phone: ${customerPhone}</div>` : ""}
       ${customerAddress ? `<div class="bill-detail">${customerAddress}</div>` : ""}
     </div>
     <div class="bill-box">
       <div class="bill-title">Issued By</div>
       <div class="bill-name">${shop.name || "Your Business"}</div>
-      ${shop.address ? `<div class="bill-detail">${shop.address}</div>` : ""}
+      ${publicAddr ? `<div class="bill-detail">${publicAddr}</div>` : ""}
       ${shop.phone ? `<div class="bill-detail">Tel: ${shop.phone}</div>` : ""}
     </div>
   </div>
-
-  <!-- Items -->
   <table class="items">
     <thead>
       <tr>
@@ -219,45 +325,26 @@ export default function ProformaPage() {
     </thead>
     <tbody>${itemsHtml}</tbody>
     <tfoot>
-      <tr class="sub-row">
-        <td colspan="4">Subtotal</td>
-        <td>${subtotal.toLocaleString()}</td>
-      </tr>
+      <tr class="sub-row"><td colspan="4">Subtotal</td><td>${subtotal.toLocaleString()}</td></tr>
       ${taxRow}
-      <tr class="grand-row">
-        <td colspan="4">Grand Total</td>
-        <td>${currency} ${grandTotal.toLocaleString()}</td>
-      </tr>
+      <tr class="grand-row"><td colspan="4">Grand Total</td><td>${currency} ${grandTotal.toLocaleString()}</td></tr>
     </tfoot>
   </table>
-
-  ${notes ? `<div class="notes"><div class="notes-title">Notes & Terms</div>${notes}</div>` : ""}
-
-  <!-- Signatures -->
+  ${notes ? `<div class="notes"><div class="notes-title">Notes &amp; Terms</div>${notes}</div>` : ""}
   <div class="sig-row">
-    <div class="sig-box">
-      <div class="sig-line"></div>
-      <div class="sig-label">Authorized Signature</div>
-    </div>
+    <div class="sig-box"><div class="sig-line"></div><div class="sig-label">Authorized Signature</div></div>
     <div style="text-align:right">
       <div style="font-size:11px;color:#94a3b8;text-transform:uppercase;letter-spacing:1px;font-weight:600">Amount Due</div>
       <div style="font-size:28px;font-weight:900;color:#1e3a8a">${grandTotal.toLocaleString()}</div>
       <div style="font-size:12px;color:#64748b;font-weight:600">${currency}</div>
     </div>
-    <div class="sig-box">
-      <div class="sig-line"></div>
-      <div class="sig-label">Received By</div>
-    </div>
+    <div class="sig-box"><div class="sig-line"></div><div class="sig-label">Received By</div></div>
   </div>
-
   <div class="footer">
     This is a proforma invoice — not a VAT invoice. &nbsp;·&nbsp; Valid until <strong>${fmtDate(validUntilDate)}</strong> &nbsp;·&nbsp; Powered by <strong>Higoverse</strong>
   </div>
 </div>
-<script>
-  window.onload = function() { setTimeout(function(){ window.print(); }, 500); };
-  window.onafterprint = function() { window.close(); };
-</script>
+<script>window.onload=function(){setTimeout(function(){window.print();},500);};window.onafterprint=function(){window.close();};</script>
 </body>
 </html>`;
 
@@ -268,9 +355,19 @@ export default function ProformaPage() {
   if (loading) return <ProformaSkeleton />;
 
   const inputCls = "border border-slate-200 text-gray-800 placeholder:text-gray-400 rounded-lg px-3 py-2 w-full text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition";
-  const subtotal2 = lines.reduce((s, l) => s + l.qty * l.unit_price, 0);
-  const taxAmt2 = Math.round(subtotal2 * taxRate / 100);
+  const subtotal2   = lines.reduce((s, l) => s + l.qty * l.unit_price, 0);
+  const taxAmt2     = Math.round(subtotal2 * taxRate / 100);
   const grandTotal2 = subtotal2 + taxAmt2;
+
+  const filteredHistory = proformas.filter((p) => {
+    if (!histSearch) return true;
+    const q = histSearch.toLowerCase();
+    return (
+      p.invoice_no.toLowerCase().includes(q) ||
+      p.customer.toLowerCase().includes(q) ||
+      p.status.toLowerCase().includes(q)
+    );
+  });
 
   return (
     <div className="min-h-screen">
@@ -278,298 +375,485 @@ export default function ProformaPage() {
 
         {/* PAGE HEADER */}
         <div className="text-white rounded-2xl p-5 mb-6" style={{ background: "#1372e6" }}>
-          <div className="flex justify-between items-center">
+          <div className="flex justify-between items-center flex-wrap gap-3">
             <div className="flex items-center gap-2.5">
               <FileText size={20} />
               <div>
                 <h1 className="text-base font-semibold">{t("proforma.title")}</h1>
-                <p className="text-blue-200 text-xs mt-0.5">Create professional proforma invoices for your customers</p>
+                <p className="text-blue-200 text-xs mt-0.5">
+                  {editingId ? `Editing ${invoiceNo}` : "Create and save proforma invoices"}
+                </p>
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <button onClick={clearAll} title="Clear all" className="p-2 rounded-lg bg-white/10 hover:bg-white/20 text-white transition"><RefreshCw size={14} /></button>
-              <button onClick={addLine}
-                className="bg-white text-blue-700 px-3.5 py-1.5 rounded-lg flex items-center gap-1.5 text-sm font-semibold hover:bg-blue-50 transition">
-                <Plus size={15} /> Add Line
-              </button>
-              <button onClick={printPopup} disabled={!hasLines}
-                className="bg-blue-800 hover:bg-blue-900 text-white px-3.5 py-1.5 rounded-lg flex items-center gap-1.5 text-sm font-semibold transition disabled:opacity-40">
-                <Printer size={15} /> Print / Save PDF
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <div className="grid lg:grid-cols-[1fr_320px] gap-6">
-
-          {/* MAIN INVOICE FORM */}
-          <div className="space-y-4">
-
-            {/* Invoice Meta */}
-            <div className="bg-white rounded-xl border border-slate-200 p-5">
-              <div className="flex items-center gap-2 mb-4">
-                <Hash size={15} className="text-blue-500" />
-                <h2 className="text-sm font-semibold text-slate-700">Invoice Details</h2>
-              </div>
-              <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1.5">Invoice #</label>
-                  <input className={inputCls} value={invoiceNo} onChange={(e) => setInvoiceNo(e.target.value)} />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1.5">
-                    <Calendar size={11} className="inline mr-1" />Issue Date
-                  </label>
-                  <input type="date" className={inputCls} value={date} onChange={(e) => setDate(e.target.value)} />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1.5">Valid Until</label>
-                  <input type="date" className={inputCls} value={validUntilDate} onChange={(e) => setValidUntilDate(e.target.value)} />
-                </div>
-              </div>
-            </div>
-
-            {/* Customer Info */}
-            <div className="bg-white rounded-xl border border-slate-200 p-5">
-              <div className="flex items-center gap-2 mb-4">
-                <User size={15} className="text-blue-500" />
-                <h2 className="text-sm font-semibold text-slate-700">Bill To (Customer)</h2>
-              </div>
-              <div className="grid md:grid-cols-2 gap-4">
-                <div className="md:col-span-2">
-                  <label className="block text-xs font-medium text-gray-500 mb-1.5">Customer / Company Name</label>
-                  <input className={inputCls} placeholder="e.g. INYANGE Industries Ltd" value={customer} onChange={(e) => setCustomer(e.target.value)} />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1.5">Phone</label>
-                  <input className={inputCls} placeholder="07XXXXXXXX" value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1.5">Address / Location</label>
-                  <input className={inputCls} placeholder="e.g. Kigali, Rwanda" value={customerAddress} onChange={(e) => setCustomerAddress(e.target.value)} />
-                </div>
-              </div>
-            </div>
-
-            {/* Line Items */}
-            <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-              <div className="bg-slate-50 border-b border-slate-200 px-5 py-3 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Building2 size={15} className="text-blue-500" />
-                  <h2 className="text-sm font-semibold text-slate-700">Items / Services</h2>
-                </div>
-                <button onClick={addLine}
-                  className="flex items-center gap-1 text-xs font-semibold text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 px-2.5 py-1 rounded-lg transition">
-                  <Plus size={12} /> Add Line
+            <div className="flex items-center gap-2 flex-wrap">
+              {/* View toggle */}
+              <div className="flex bg-white/10 rounded-lg overflow-hidden">
+                <button
+                  onClick={() => setView("editor")}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold transition ${view === "editor" ? "bg-white text-blue-700" : "text-white hover:bg-white/10"}`}
+                >
+                  <Pencil size={12} /> Editor
+                </button>
+                <button
+                  onClick={() => { setView("history"); loadHistory(); }}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold transition ${view === "history" ? "bg-white text-blue-700" : "text-white hover:bg-white/10"}`}
+                >
+                  <History size={12} /> History
+                  {proformas.length > 0 && (
+                    <span className="bg-white/20 text-white rounded-full px-1.5 text-[10px]">{proformas.length}</span>
+                  )}
                 </button>
               </div>
 
-              {/* Column headers */}
-              <div className="grid grid-cols-[1fr_80px_110px_100px_32px] gap-2 px-5 py-2.5 bg-slate-50 border-b border-slate-100 text-[10px] font-semibold uppercase text-slate-400 tracking-wide">
-                <span>Description</span><span className="text-center">Qty</span><span className="text-center">Unit Price</span><span className="text-right">Subtotal</span><span />
-              </div>
+              {view === "editor" && (
+                <>
+                  <button onClick={clearAll} title="New proforma" className="p-2 rounded-lg bg-white/10 hover:bg-white/20 text-white transition">
+                    <RefreshCw size={14} />
+                  </button>
+                  <button onClick={addLine}
+                    className="bg-white/10 hover:bg-white/20 text-white px-3.5 py-1.5 rounded-lg flex items-center gap-1.5 text-sm font-semibold transition border border-white/20">
+                    <Plus size={15} /> Add Line
+                  </button>
+                  <button
+                    onClick={() => saveProforma(false)}
+                    disabled={!hasLines || saving}
+                    className="bg-white text-blue-700 px-3.5 py-1.5 rounded-lg flex items-center gap-1.5 text-sm font-semibold hover:bg-blue-50 transition disabled:opacity-40"
+                  >
+                    <Save size={15} />
+                    {saving ? "Saving…" : saveMsg || "Save"}
+                  </button>
+                  <button
+                    onClick={() => saveProforma(true)}
+                    disabled={!hasLines || saving}
+                    className="bg-blue-800 hover:bg-blue-900 text-white px-3.5 py-1.5 rounded-lg flex items-center gap-1.5 text-sm font-semibold transition disabled:opacity-40"
+                  >
+                    <Printer size={15} /> Save & Print
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
 
+        {/* ── HISTORY VIEW ── */}
+        {view === "history" && (
+          <div className="bg-white rounded-xl border border-slate-200">
+            <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between gap-3 flex-wrap">
+              <h2 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                <History size={15} className="text-blue-500" /> Saved Proformas
+                <span className="text-xs font-normal text-slate-400">({proformas.length})</span>
+              </h2>
+              <div className="flex items-center gap-2">
+                <div className="relative">
+                  <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    value={histSearch}
+                    onChange={(e) => setHistSearch(e.target.value)}
+                    placeholder="Search invoices…"
+                    className="border border-slate-200 rounded-lg pl-8 pr-3 py-1.5 text-sm w-52 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition"
+                  />
+                </div>
+                <button onClick={loadHistory} className="p-2 rounded-lg border border-slate-200 text-slate-400 hover:text-blue-600 hover:border-blue-300 transition">
+                  <RefreshCw size={13} className={histLoading ? "animate-spin" : ""} />
+                </button>
+              </div>
+            </div>
+
+            {histLoading && proformas.length === 0 ? (
+              <div className="flex items-center justify-center py-16 text-slate-400 text-sm">
+                <RefreshCw size={16} className="animate-spin mr-2" /> Loading…
+              </div>
+            ) : filteredHistory.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-16 text-center">
+                <FileText size={32} className="text-slate-200 mb-3" />
+                <p className="text-slate-500 font-medium text-sm">
+                  {histSearch ? "No proformas match your search" : "No saved proformas yet"}
+                </p>
+                <p className="text-slate-400 text-xs mt-1">
+                  {!histSearch && "Create and save a proforma to see it here"}
+                </p>
+                {!histSearch && (
+                  <button onClick={() => setView("editor")}
+                    className="mt-4 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-blue-700 transition flex items-center gap-2">
+                    <Plus size={14} /> Create Proforma
+                  </button>
+                )}
+              </div>
+            ) : (
               <div className="divide-y divide-slate-100">
-                {lines.map((line) => {
-                  const sub = line.qty * line.unit_price;
-                  return (
-                    <div key={line.id} className="px-5 py-3">
-                      <div className="grid grid-cols-[1fr_80px_110px_100px_32px] gap-2 items-center">
-                        <div className="flex flex-col gap-1.5">
-                          <input
-                            value={line.product_name}
-                            onChange={(e) => setLineField(line.id, "product_name", e.target.value)}
-                            placeholder="Product or service description…"
-                            className="border border-slate-200 text-gray-800 placeholder:text-gray-400 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition"
-                          />
-                          {products.length > 0 && (
-                            <select
-                              className="text-xs text-slate-400 border border-slate-100 rounded px-1.5 py-1 focus:outline-none focus:border-blue-300 transition"
-                              defaultValue=""
-                              onChange={(e) => { if (e.target.value) onProductPick(line.id, e.target.value); }}
-                            >
-                              <option value="">— Pick from inventory —</option>
-                              {products.map((p) => (
-                                <option key={p.id} value={p.id}>{p.name} ({p.selling_price.toLocaleString()} {currency})</option>
-                              ))}
-                            </select>
-                          )}
-                        </div>
-                        <input type="number" min="1" value={line.qty}
-                          onChange={(e) => setLineField(line.id, "qty", Math.max(1, Number(e.target.value)))}
-                          className="border border-slate-200 text-gray-800 rounded-lg px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition" />
-                        <input type="number" min="0" value={line.unit_price}
-                          onChange={(e) => setLineField(line.id, "unit_price", Number(e.target.value))}
-                          className="border border-slate-200 text-gray-800 rounded-lg px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition" />
-                        <p className="text-right font-semibold text-slate-800 text-sm tabular-nums">{sub.toLocaleString()}</p>
-                        <button onClick={() => removeLine(line.id)} disabled={lines.length === 1}
-                          className="p-1 rounded-lg hover:bg-red-50 text-slate-300 hover:text-red-400 transition disabled:opacity-20">
-                          <X size={14} />
-                        </button>
+                {filteredHistory.map((p) => (
+                  <div key={p.id} className="flex items-center gap-4 px-5 py-3.5 hover:bg-slate-50 transition group">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-mono font-semibold text-sm text-blue-700">{p.invoice_no}</span>
+                        <StatusBadge status={p.status} />
+                      </div>
+                      <div className="flex items-center gap-3 mt-0.5 text-xs text-slate-500 flex-wrap">
+                        <span className="font-medium text-slate-700 truncate max-w-40">
+                          {p.customer || <span className="italic text-slate-300">No customer</span>}
+                        </span>
+                        <span className="flex items-center gap-1"><Calendar size={10} /> {fmtDate(p.date)}</span>
+                        <span className="flex items-center gap-1"><Clock size={10} /> Valid until {fmtDate(p.valid_until)}</span>
                       </div>
                     </div>
-                  );
-                })}
-              </div>
-
-              {/* Totals */}
-              <div className="px-5 py-4 bg-slate-50 border-t border-slate-200 flex justify-end">
-                <div className="w-60 space-y-2 text-sm">
-                  <div className="flex justify-between text-slate-500">
-                    <span>Subtotal</span>
-                    <span className="tabular-nums font-medium text-slate-700">{subtotal2.toLocaleString()} {currency}</span>
-                  </div>
-                  {taxRate > 0 && (
-                    <div className="flex justify-between text-slate-500">
-                      <span>Tax ({taxRate}%)</span>
-                      <span className="tabular-nums font-medium">{taxAmt2.toLocaleString()} {currency}</span>
+                    <div className="text-right shrink-0">
+                      <p className="font-bold text-slate-800 tabular-nums">{p.grand_total.toLocaleString()} <span className="text-xs font-normal text-slate-400">{p.currency}</span></p>
+                      <p className="text-[10px] text-slate-400">{p.lines.length} item{p.lines.length !== 1 ? "s" : ""}</p>
                     </div>
-                  )}
-                  <div className="flex justify-between pt-2 border-t-2 border-blue-700">
-                    <span className="font-bold text-slate-900">Grand Total</span>
-                    <span className="font-bold text-blue-700 text-base tabular-nums">{grandTotal2.toLocaleString()} {currency}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Notes */}
-            <div className="bg-white rounded-xl border border-slate-200 p-5">
-              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Notes / Terms & Conditions</label>
-              <textarea value={notes} onChange={(e) => setNotes(e.target.value)}
-                rows={3} placeholder="e.g. Payment due within 30 days. Prices subject to change."
-                className={inputCls + " resize-none"} />
-            </div>
-
-          </div>
-
-          {/* SIDEBAR SUMMARY */}
-          <div className="space-y-4">
-
-            {/* Issued by */}
-            <div className="bg-white rounded-xl border border-slate-200 p-4">
-              <h3 className="text-xs font-semibold uppercase text-slate-400 tracking-wide mb-3">Issued By</h3>
-              <div className="flex items-start gap-2.5">
-                <div className="w-9 h-9 rounded-lg overflow-hidden shrink-0 flex items-center justify-center bg-blue-600 text-white font-bold text-sm">
-                  {shop.logo_url ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={shop.logo_url} alt={shop.name} className="w-9 h-9 object-cover" />
-                  ) : (shop.name || "?")[0]?.toUpperCase()}
-                </div>
-                <div>
-                  <p className="font-semibold text-slate-800 text-sm">{shop.name || "Your Shop"}</p>
-                  {shop.phone && <p className="text-xs text-slate-400 mt-0.5">{shop.phone}</p>}
-                  {shop.address && <p className="text-xs text-slate-400">{shop.address}</p>}
-                </div>
-              </div>
-            </div>
-
-            {/* Summary */}
-            <div className="bg-white rounded-xl border border-slate-200 p-4">
-              <h3 className="text-xs font-semibold uppercase text-slate-400 tracking-wide mb-3">Invoice Summary</h3>
-              <div className="space-y-2.5">
-                <div className="flex justify-between text-sm">
-                  <span className="text-slate-500">Number</span>
-                  <span className="font-mono font-semibold text-blue-600">{invoiceNo}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-slate-500">Date</span>
-                  <span className="font-medium text-slate-700">{fmtDate(date) || "—"}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-slate-500">Valid Until</span>
-                  <span className="font-medium text-slate-700">{fmtDate(validUntilDate) || "—"}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-slate-500">Bill To</span>
-                  <span className="font-medium text-slate-700 text-right max-w-28 truncate">{customer || <span className="text-slate-300 italic">Not set</span>}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-slate-500">Line Items</span>
-                  <span className="font-medium text-slate-700">{lines.filter((l) => l.product_name.trim()).length}</span>
-                </div>
-                <div className="border-t border-slate-100 pt-2.5 mt-2.5">
-                  <div className="flex justify-between">
-                    <span className="text-sm text-slate-500">Subtotal</span>
-                    <span className="font-medium text-slate-700 tabular-nums text-sm">{subtotal2.toLocaleString()}</span>
-                  </div>
-                  {taxRate > 0 && (
-                    <div className="flex justify-between mt-1.5">
-                      <span className="text-sm text-slate-500">Tax ({taxRate}%)</span>
-                      <span className="font-medium text-slate-700 tabular-nums text-sm">{taxAmt2.toLocaleString()}</span>
+                    <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition">
+                      <button
+                        onClick={() => loadProforma(p)}
+                        title="Edit"
+                        className="p-1.5 rounded-lg hover:bg-blue-50 text-slate-400 hover:text-blue-600 transition"
+                      >
+                        <Eye size={14} />
+                      </button>
+                      <button
+                        onClick={async () => {
+                          loadProforma(p);
+                          setTimeout(() => printPopup(), 100);
+                        }}
+                        title="Print"
+                        className="p-1.5 rounded-lg hover:bg-blue-50 text-slate-400 hover:text-blue-600 transition"
+                      >
+                        <Printer size={14} />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(p.id)}
+                        disabled={deletingId === p.id}
+                        title="Delete"
+                        className="p-1.5 rounded-lg hover:bg-red-50 text-slate-300 hover:text-red-400 transition disabled:opacity-40"
+                      >
+                        <Trash2 size={14} />
+                      </button>
                     </div>
-                  )}
-                </div>
-                <div className="bg-blue-600 rounded-lg px-3 py-3 flex justify-between items-center">
-                  <span className="text-blue-100 text-xs font-semibold uppercase tracking-wide">Grand Total</span>
-                  <span className="text-white font-bold tabular-nums">{grandTotal2.toLocaleString()} {currency}</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Print button */}
-            <button onClick={printPopup} disabled={!hasLines}
-              className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-blue-600 text-white font-semibold hover:bg-blue-700 transition disabled:opacity-40 text-sm">
-              <Printer size={16} />
-              Print / Save as PDF
-            </button>
-
-            {!hasLines && (
-              <p className="text-center text-xs text-slate-400">Add at least one item to enable printing.</p>
-            )}
-
-            <button onClick={clearAll}
-              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-slate-200 text-slate-500 font-medium hover:bg-slate-50 transition text-sm">
-              <Trash2 size={14} />
-              Clear All
-            </button>
-
-            {/* Quick actions */}
-            <div className="bg-white rounded-xl border border-slate-200 p-4">
-              <h3 className="text-xs font-semibold uppercase text-slate-400 tracking-wide mb-3">Quick Validity</h3>
-              <div className="flex flex-wrap gap-2">
-                {[7, 14, 30, 60, 90].map((d) => (
-                  <button key={d} onClick={() => setValidUntilDate(addDays(d))}
-                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-50 hover:bg-blue-50 text-xs font-medium text-slate-600 hover:text-blue-700 border border-slate-200 hover:border-blue-200 transition">
-                    <ChevronRight size={10} /> {d}d
-                  </button>
+                  </div>
                 ))}
               </div>
-            </div>
+            )}
           </div>
+        )}
 
-        </div>
+        {/* ── EDITOR VIEW ── */}
+        {view === "editor" && (
+          <div className="grid lg:grid-cols-[1fr_320px] gap-6">
+
+            {/* MAIN INVOICE FORM */}
+            <div className="space-y-4">
+
+              {/* Invoice Meta */}
+              <div className="bg-white rounded-xl border border-slate-200 p-5">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <Hash size={15} className="text-blue-500" />
+                    <h2 className="text-sm font-semibold text-slate-700">Invoice Details</h2>
+                  </div>
+                  {/* Status picker */}
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-slate-400">Status:</span>
+                    <select
+                      value={status}
+                      onChange={(e) => setStatus(e.target.value as ProformaStatus)}
+                      className="border border-slate-200 rounded-lg px-2 py-1 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition text-slate-700"
+                    >
+                      <option value="draft">Draft</option>
+                      <option value="sent">Sent</option>
+                      <option value="accepted">Accepted</option>
+                      <option value="expired">Expired</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1.5">Invoice #</label>
+                    <input className={inputCls} value={invoiceNo} onChange={(e) => setInvoiceNo(e.target.value)} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1.5">
+                      <Calendar size={11} className="inline mr-1" />Issue Date
+                    </label>
+                    <input type="date" className={inputCls} value={date} onChange={(e) => setDate(e.target.value)} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1.5">Valid Until</label>
+                    <input type="date" className={inputCls} value={validUntilDate} onChange={(e) => setValidUntilDate(e.target.value)} />
+                  </div>
+                </div>
+              </div>
+
+              {/* Customer Info */}
+              <div className="bg-white rounded-xl border border-slate-200 p-5">
+                <div className="flex items-center gap-2 mb-4">
+                  <User size={15} className="text-blue-500" />
+                  <h2 className="text-sm font-semibold text-slate-700">Bill To (Customer)</h2>
+                </div>
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div className="md:col-span-2">
+                    <label className="block text-xs font-medium text-gray-500 mb-1.5">Customer / Company Name</label>
+                    <input className={inputCls} placeholder="e.g. INYANGE Industries Ltd" value={customer} onChange={(e) => setCustomer(e.target.value)} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1.5">Phone</label>
+                    <input className={inputCls} placeholder="07XXXXXXXX" value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1.5">Address / Location</label>
+                    <input className={inputCls} placeholder="e.g. Kigali, Rwanda" value={customerAddress} onChange={(e) => setCustomerAddress(e.target.value)} />
+                  </div>
+                </div>
+              </div>
+
+              {/* Line Items */}
+              <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+                <div className="bg-slate-50 border-b border-slate-200 px-5 py-3 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Building2 size={15} className="text-blue-500" />
+                    <h2 className="text-sm font-semibold text-slate-700">Items / Services</h2>
+                  </div>
+                  <button onClick={addLine}
+                    className="flex items-center gap-1 text-xs font-semibold text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 px-2.5 py-1 rounded-lg transition">
+                    <Plus size={12} /> Add Line
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-[1fr_80px_110px_100px_32px] gap-2 px-5 py-2.5 bg-slate-50 border-b border-slate-100 text-[10px] font-semibold uppercase text-slate-400 tracking-wide">
+                  <span>Description</span><span className="text-center">Qty</span><span className="text-center">Unit Price</span><span className="text-right">Subtotal</span><span />
+                </div>
+
+                <div className="divide-y divide-slate-100">
+                  {lines.map((line) => {
+                    const sub = line.qty * line.unit_price;
+                    return (
+                      <div key={line.id} className="px-5 py-3">
+                        <div className="grid grid-cols-[1fr_80px_110px_100px_32px] gap-2 items-center">
+                          <div className="flex flex-col gap-1.5">
+                            <input
+                              value={line.product_name}
+                              onChange={(e) => setLineField(line.id, "product_name", e.target.value)}
+                              placeholder="Product or service description…"
+                              className="border border-slate-200 text-gray-800 placeholder:text-gray-400 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition"
+                            />
+                            {products.length > 0 && (
+                              <select
+                                className="text-xs text-slate-400 border border-slate-100 rounded px-1.5 py-1 focus:outline-none focus:border-blue-300 transition"
+                                defaultValue=""
+                                onChange={(e) => { if (e.target.value) onProductPick(line.id, e.target.value); }}
+                              >
+                                <option value="">— Pick from inventory —</option>
+                                {products.map((p) => (
+                                  <option key={p.id} value={p.id}>{p.name} ({p.selling_price.toLocaleString()} {currency})</option>
+                                ))}
+                              </select>
+                            )}
+                          </div>
+                          <input type="number" min="1" value={line.qty}
+                            onChange={(e) => setLineField(line.id, "qty", Math.max(1, Number(e.target.value)))}
+                            className="border border-slate-200 text-gray-800 rounded-lg px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition" />
+                          <input type="number" min="0" value={line.unit_price}
+                            onChange={(e) => setLineField(line.id, "unit_price", Number(e.target.value))}
+                            className="border border-slate-200 text-gray-800 rounded-lg px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition" />
+                          <p className="text-right font-semibold text-slate-800 text-sm tabular-nums">{sub.toLocaleString()}</p>
+                          <button onClick={() => removeLine(line.id)} disabled={lines.length === 1}
+                            className="p-1 rounded-lg hover:bg-red-50 text-slate-300 hover:text-red-400 transition disabled:opacity-20">
+                            <X size={14} />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Totals */}
+                <div className="px-5 py-4 bg-slate-50 border-t border-slate-200 flex justify-end">
+                  <div className="w-60 space-y-2 text-sm">
+                    <div className="flex justify-between text-slate-500">
+                      <span>Subtotal</span>
+                      <span className="tabular-nums font-medium text-slate-700">{subtotal2.toLocaleString()} {currency}</span>
+                    </div>
+                    {taxRate > 0 && (
+                      <div className="flex justify-between text-slate-500">
+                        <span>Tax ({taxRate}%)</span>
+                        <span className="tabular-nums font-medium">{taxAmt2.toLocaleString()} {currency}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between pt-2 border-t-2 border-blue-700">
+                      <span className="font-bold text-slate-900">Grand Total</span>
+                      <span className="font-bold text-blue-700 text-base tabular-nums">{grandTotal2.toLocaleString()} {currency}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Notes */}
+              <div className="bg-white rounded-xl border border-slate-200 p-5">
+                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Notes / Terms & Conditions</label>
+                <textarea value={notes} onChange={(e) => setNotes(e.target.value)}
+                  rows={3} placeholder="e.g. Payment due within 30 days. Prices subject to change."
+                  className={inputCls + " resize-none"} />
+              </div>
+
+            </div>
+
+            {/* SIDEBAR */}
+            <div className="space-y-4">
+
+              {/* Issued by */}
+              <div className="bg-white rounded-xl border border-slate-200 p-4">
+                <h3 className="text-xs font-semibold uppercase text-slate-400 tracking-wide mb-3">Issued By</h3>
+                <div className="flex items-start gap-2.5">
+                  <div className="w-9 h-9 rounded-lg overflow-hidden shrink-0 flex items-center justify-center bg-blue-600 text-white font-bold text-sm">
+                    {shop.logo_url
+                      // eslint-disable-next-line @next/next/no-img-element
+                      ? <img src={shop.logo_url} alt={shop.name} className="w-9 h-9 object-cover" />
+                      : (shop.name || "?")[0]?.toUpperCase()}
+                  </div>
+                  <div>
+                    <p className="font-semibold text-slate-800 text-sm">{shop.name || "Your Shop"}</p>
+                    {shop.phone && <p className="text-xs text-slate-400 mt-0.5">{shop.phone}</p>}
+                    {publicAddr && <p className="text-xs text-slate-400">{publicAddr}</p>}
+                  </div>
+                </div>
+              </div>
+
+              {/* Summary */}
+              <div className="bg-white rounded-xl border border-slate-200 p-4">
+                <h3 className="text-xs font-semibold uppercase text-slate-400 tracking-wide mb-3">Invoice Summary</h3>
+                <div className="space-y-2.5">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-slate-500">Number</span>
+                    <span className="font-mono font-semibold text-blue-600">{invoiceNo}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-slate-500">Status</span>
+                    <StatusBadge status={status} />
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-slate-500">Date</span>
+                    <span className="font-medium text-slate-700">{fmtDate(date) || "—"}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-slate-500">Valid Until</span>
+                    <span className="font-medium text-slate-700">{fmtDate(validUntilDate) || "—"}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-slate-500">Bill To</span>
+                    <span className="font-medium text-slate-700 text-right max-w-28 truncate">{customer || <span className="text-slate-300 italic">Not set</span>}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-slate-500">Line Items</span>
+                    <span className="font-medium text-slate-700">{lines.filter((l) => l.product_name.trim()).length}</span>
+                  </div>
+                  <div className="border-t border-slate-100 pt-2.5 mt-2.5">
+                    <div className="flex justify-between">
+                      <span className="text-sm text-slate-500">Subtotal</span>
+                      <span className="font-medium text-slate-700 tabular-nums text-sm">{subtotal2.toLocaleString()}</span>
+                    </div>
+                    {taxRate > 0 && (
+                      <div className="flex justify-between mt-1.5">
+                        <span className="text-sm text-slate-500">Tax ({taxRate}%)</span>
+                        <span className="font-medium text-slate-700 tabular-nums text-sm">{taxAmt2.toLocaleString()}</span>
+                      </div>
+                    )}
+                  </div>
+                  <div className="bg-blue-600 rounded-lg px-3 py-3 flex justify-between items-center">
+                    <span className="text-blue-100 text-xs font-semibold uppercase tracking-wide">Grand Total</span>
+                    <span className="text-white font-bold tabular-nums">{grandTotal2.toLocaleString()} {currency}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Actions */}
+              <button
+                onClick={() => saveProforma(false)}
+                disabled={!hasLines || saving}
+                className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-white border-2 border-blue-600 text-blue-700 font-semibold hover:bg-blue-50 transition disabled:opacity-40 text-sm"
+              >
+                <Save size={16} />
+                {saving ? "Saving…" : editingId ? "Update Proforma" : "Save Proforma"}
+              </button>
+
+              <button
+                onClick={() => saveProforma(true)}
+                disabled={!hasLines || saving}
+                className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-blue-600 text-white font-semibold hover:bg-blue-700 transition disabled:opacity-40 text-sm"
+              >
+                <Printer size={16} />
+                Save & Print PDF
+              </button>
+
+              {saveMsg && (
+                <p className={`text-center text-xs font-semibold ${saveMsg === "Saved" ? "text-green-600" : "text-red-500"}`}>
+                  {saveMsg === "Saved" ? "✓ Proforma saved successfully" : "✗ " + saveMsg}
+                </p>
+              )}
+
+              {!hasLines && (
+                <p className="text-center text-xs text-slate-400">Add at least one item to save or print.</p>
+              )}
+
+              <button onClick={clearAll}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-slate-200 text-slate-500 font-medium hover:bg-slate-50 transition text-sm">
+                <Trash2 size={14} />
+                {editingId ? "New Proforma" : "Clear All"}
+              </button>
+
+              {/* Quick validity */}
+              <div className="bg-white rounded-xl border border-slate-200 p-4">
+                <h3 className="text-xs font-semibold uppercase text-slate-400 tracking-wide mb-3">Quick Validity</h3>
+                <div className="flex flex-wrap gap-2">
+                  {[7, 14, 30, 60, 90].map((d) => (
+                    <button key={d} onClick={() => setValidUntilDate(addDays(d))}
+                      className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-50 hover:bg-blue-50 text-xs font-medium text-slate-600 hover:text-blue-700 border border-slate-200 hover:border-blue-200 transition">
+                      <ChevronRight size={10} /> {d}d
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Recent proformas mini-list */}
+              {proformas.length > 0 && (
+                <div className="bg-white rounded-xl border border-slate-200 p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-xs font-semibold uppercase text-slate-400 tracking-wide">Recent</h3>
+                    <button onClick={() => setView("history")} className="text-xs text-blue-600 hover:underline">View all</button>
+                  </div>
+                  <div className="space-y-2">
+                    {proformas.slice(0, 4).map((p) => (
+                      <button key={p.id} onClick={() => loadProforma(p)}
+                        className="w-full text-left flex items-center justify-between gap-2 p-2 rounded-lg hover:bg-slate-50 transition group">
+                        <div className="min-w-0">
+                          <p className="font-mono text-xs font-semibold text-blue-700 truncate">{p.invoice_no}</p>
+                          <p className="text-[10px] text-slate-400 truncate">{p.customer || "No customer"}</p>
+                        </div>
+                        <div className="shrink-0 text-right">
+                          <StatusBadge status={p.status} />
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+          </div>
+        )}
+
       </div>
     </div>
   );
 }
 
-// ─── Proforma Skeleton ────────────────────────────────────────────────────────
+// ─── Skeleton ─────────────────────────────────────────────────────────────────
 function ProformaSkeleton() {
   return (
     <>
       <style>{`
-        @keyframes pf-sh {
-          0%   { background-position: -700px 0; }
-          100% { background-position:  700px 0; }
-        }
-        .pf-sh {
-          background: linear-gradient(90deg, #f0f0f0 25%, #e8e8e8 50%, #f0f0f0 75%);
-          background-size: 700px 100%;
-          animation: pf-sh 1.4s infinite linear;
-          border-radius: 6px;
-        }
-        .pf-sh-w {
-          background: linear-gradient(90deg, rgba(255,255,255,0.15) 25%, rgba(255,255,255,0.28) 50%, rgba(255,255,255,0.15) 75%);
-          background-size: 700px 100%;
-          animation: pf-sh 1.4s infinite linear;
-          border-radius: 6px;
-        }
+        @keyframes pf-sh { 0%{background-position:-700px 0} 100%{background-position:700px 0} }
+        .pf-sh{background:linear-gradient(90deg,#f0f0f0 25%,#e8e8e8 50%,#f0f0f0 75%);background-size:700px 100%;animation:pf-sh 1.4s infinite linear;border-radius:6px}
+        .pf-sh-w{background:linear-gradient(90deg,rgba(255,255,255,.15) 25%,rgba(255,255,255,.28) 50%,rgba(255,255,255,.15) 75%);background-size:700px 100%;animation:pf-sh 1.4s infinite linear;border-radius:6px}
       `}</style>
       <div className="min-h-screen">
         <div className="max-w-5xl mx-auto px-3 sm:px-5 py-3 sm:py-4">
-
-          {/* Header */}
           <div className="rounded-2xl p-5 mb-6" style={{ background: "#1372e6" }}>
             <div className="flex justify-between items-center">
               <div className="flex items-center gap-2.5">
@@ -580,135 +864,27 @@ function ProformaSkeleton() {
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <div className="pf-sh-w rounded-lg" style={{ width: 36, height: 32 }} />
-                <div className="pf-sh-w rounded-lg" style={{ width: 90, height: 32 }} />
-                <div className="pf-sh-w rounded-lg" style={{ width: 120, height: 32 }} />
+                {[36, 90, 110, 120].map((w, i) => <div key={i} className="pf-sh-w rounded-lg" style={{ width: w, height: 32 }} />)}
               </div>
             </div>
           </div>
-
           <div className="grid lg:grid-cols-[1fr_320px] gap-6">
-
-            {/* Main form */}
             <div className="space-y-4">
-              {/* Invoice Details */}
-              <div className="bg-white rounded-xl border border-slate-200 p-5">
-                <div className="pf-sh mb-4" style={{ width: 110, height: 11 }} />
-                <div className="grid grid-cols-3 gap-4">
-                  {Array.from({ length: 3 }).map((_, i) => (
-                    <div key={i} className="space-y-1.5">
-                      <div className="pf-sh" style={{ width: 60, height: 8 }} />
-                      <div className="pf-sh rounded-lg" style={{ height: 36 }} />
-                    </div>
-                  ))}
+              {[110, 140, 200, 70].map((w, i) => (
+                <div key={i} className="bg-white rounded-xl border border-slate-200 p-5">
+                  <div className="pf-sh mb-4" style={{ width: w, height: 11 }} />
+                  <div className="pf-sh rounded-lg" style={{ height: 60 }} />
                 </div>
-              </div>
-
-              {/* Customer Info */}
-              <div className="bg-white rounded-xl border border-slate-200 p-5">
-                <div className="pf-sh mb-4" style={{ width: 140, height: 11 }} />
-                <div className="grid md:grid-cols-2 gap-4">
-                  <div className="md:col-span-2 space-y-1.5">
-                    <div className="pf-sh" style={{ width: 80, height: 8 }} />
-                    <div className="pf-sh rounded-lg" style={{ height: 36 }} />
-                  </div>
-                  {Array.from({ length: 2 }).map((_, i) => (
-                    <div key={i} className="space-y-1.5">
-                      <div className="pf-sh" style={{ width: 50, height: 8 }} />
-                      <div className="pf-sh rounded-lg" style={{ height: 36 }} />
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Line Items */}
-              <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-                <div className="bg-slate-50 border-b border-slate-200 px-5 py-3 flex justify-between items-center">
-                  <div className="pf-sh" style={{ width: 100, height: 11 }} />
-                  <div className="pf-sh rounded-lg" style={{ width: 80, height: 26 }} />
-                </div>
-                <div className="px-5 py-2.5 bg-slate-50 border-b border-slate-100">
-                  <div className="grid grid-cols-5 gap-2">
-                    {Array.from({ length: 5 }).map((_, i) => (
-                      <div key={i} className="pf-sh" style={{ height: 7 }} />
-                    ))}
-                  </div>
-                </div>
-                {Array.from({ length: 3 }).map((_, i) => (
-                  <div key={i} className="px-5 py-3 border-b border-slate-100">
-                    <div className="grid grid-cols-5 gap-2 items-center">
-                      <div className="col-span-2 space-y-1.5">
-                        <div className="pf-sh rounded-lg" style={{ height: 34 }} />
-                        <div className="pf-sh rounded" style={{ height: 26 }} />
-                      </div>
-                      <div className="pf-sh rounded-lg" style={{ height: 34 }} />
-                      <div className="pf-sh rounded-lg" style={{ height: 34 }} />
-                      <div className="pf-sh" style={{ width: 40, height: 11 }} />
-                    </div>
-                  </div>
-                ))}
-                <div className="px-5 py-4 bg-slate-50 border-t border-slate-200 flex justify-end">
-                  <div className="w-60 space-y-2.5">
-                    {Array.from({ length: 2 }).map((_, i) => (
-                      <div key={i} className="flex justify-between">
-                        <div className="pf-sh" style={{ width: 60, height: 9 }} />
-                        <div className="pf-sh" style={{ width: 80, height: 9 }} />
-                      </div>
-                    ))}
-                    <div className="flex justify-between pt-2 border-t-2 border-blue-700">
-                      <div className="pf-sh" style={{ width: 70, height: 11 }} />
-                      <div className="pf-sh" style={{ width: 90, height: 14 }} />
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Notes */}
-              <div className="bg-white rounded-xl border border-slate-200 p-5">
-                <div className="pf-sh mb-2" style={{ width: 160, height: 8 }} />
-                <div className="pf-sh rounded-lg" style={{ height: 70 }} />
-              </div>
+              ))}
             </div>
-
-            {/* Sidebar */}
             <div className="space-y-4">
-              <div className="bg-white rounded-xl border border-slate-200 p-4">
-                <div className="pf-sh mb-3" style={{ width: 70, height: 8 }} />
-                <div className="flex items-center gap-2.5">
-                  <div className="w-9 h-9 rounded-lg pf-sh shrink-0" />
-                  <div className="space-y-1.5 flex-1">
-                    <div className="pf-sh" style={{ width: "60%", height: 10 }} />
-                    <div className="pf-sh" style={{ width: "40%", height: 7 }} />
-                  </div>
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="bg-white rounded-xl border border-slate-200 p-4">
+                  <div className="pf-sh mb-3" style={{ width: 80, height: 8 }} />
+                  <div className="pf-sh rounded-lg" style={{ height: 44 }} />
                 </div>
-              </div>
-
-              <div className="bg-white rounded-xl border border-slate-200 p-4">
-                <div className="pf-sh mb-3" style={{ width: 110, height: 8 }} />
-                <div className="space-y-2.5">
-                  {Array.from({ length: 5 }).map((_, i) => (
-                    <div key={i} className="flex justify-between">
-                      <div className="pf-sh" style={{ width: 60, height: 9 }} />
-                      <div className="pf-sh" style={{ width: 80, height: 9 }} />
-                    </div>
-                  ))}
-                  <div className="pf-sh rounded-lg mt-1" style={{ height: 44 }} />
-                </div>
-              </div>
-
-              <div className="pf-sh rounded-xl" style={{ height: 44 }} />
-              <div className="pf-sh rounded-xl" style={{ height: 38 }} />
-
-              <div className="bg-white rounded-xl border border-slate-200 p-4">
-                <div className="pf-sh mb-3" style={{ width: 100, height: 8 }} />
-                <div className="flex flex-wrap gap-2">
-                  {Array.from({ length: 5 }).map((_, i) => (
-                    <div key={i} className="pf-sh rounded-lg" style={{ width: 44, height: 28 }} />
-                  ))}
-                </div>
-              </div>
+              ))}
             </div>
-
           </div>
         </div>
       </div>
