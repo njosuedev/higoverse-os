@@ -260,12 +260,20 @@ def list_messages(
 
     is_customer = uid == conv.customer_id
     incoming_type = "shop" if is_customer else "customer"
-    db.query(Message).filter(
+    updated = db.query(Message).filter(
         Message.conversation_id == conv.id,
         Message.sender_type == incoming_type,
         Message.is_read == False,
     ).update({"is_read": True})
     db.commit()
+
+    # Notify the other party that their messages were read (live double-tick update)
+    if updated:
+        sender_channel = conv.shop_id if is_customer else conv.customer_id
+        publish_sync(sender_channel, {
+            "type":            "messages_read",
+            "conversation_id": str(conv.id),
+        })
 
     return {"success": True, "data": [_fmt_msg(m) for m in msgs]}
 

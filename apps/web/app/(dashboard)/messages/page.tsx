@@ -133,39 +133,39 @@ function Bubble({
   return (
     <div className={`flex items-end gap-1 ${isMine ? "flex-row-reverse" : "flex-row"} mb-1 group`}>
 
-      {/* ··· menu button — visible on hover */}
+      {/* ··· menu button — visible on hover / tap */}
       {hasMenu && !msg.is_deleted && (
         <div className="relative shrink-0 self-center opacity-0 group-hover:opacity-100 transition-opacity" ref={menuRef}>
           <button
             onClick={() => setMenuOpen((o) => !o)}
-            className="w-7 h-7 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 text-gray-500 transition"
+            className="w-6 h-6 flex items-center justify-center rounded-full hover:bg-gray-200 text-gray-400 hover:text-gray-600 transition"
           >
-            <svg viewBox="0 0 20 20" fill="currentColor" width="15" height="15">
-              <circle cx="10" cy="4"  r="1.5"/>
-              <circle cx="10" cy="10" r="1.5"/>
-              <circle cx="10" cy="16" r="1.5"/>
+            <svg viewBox="0 0 16 16" fill="currentColor" width="12" height="12">
+              <circle cx="8" cy="2.5" r="1.3"/>
+              <circle cx="8" cy="8"   r="1.3"/>
+              <circle cx="8" cy="13.5" r="1.3"/>
             </svg>
           </button>
 
           {menuOpen && (
-            <div className={`absolute z-50 bottom-9 ${isMine ? "right-0" : "left-0"} w-44 bg-white rounded-2xl shadow-2xl border border-gray-100 py-1 overflow-hidden`}>
+            <div className={`absolute z-50 bottom-8 ${isMine ? "right-0" : "left-0"} w-28 bg-white rounded-xl shadow-lg border border-gray-100 py-0.5 overflow-hidden`}>
               {canEdit && (
                 <button
                   onClick={() => { onEdit?.(); setMenuOpen(false); }}
-                  className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition text-left"
+                  className="w-full flex items-center gap-2 px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition text-left"
                 >
-                  <Pencil size={15} className="text-gray-400 shrink-0" />
+                  <Pencil size={11} className="text-gray-400 shrink-0" />
                   Edit
                 </button>
               )}
               {canDelete && (
                 <>
-                  {canEdit && <div className="mx-3 border-t border-gray-100" />}
+                  {canEdit && <div className="mx-2 border-t border-gray-100" />}
                   <button
                     onClick={() => { onDelete?.(); setMenuOpen(false); }}
-                    className="w-full flex items-center gap-3 px-4 py-3 text-sm text-red-600 hover:bg-red-50 transition text-left"
+                    className="w-full flex items-center gap-2 px-3 py-2 text-xs text-red-500 hover:bg-red-50 transition text-left"
                   >
-                    <Trash2 size={15} className="shrink-0" />
+                    <Trash2 size={11} className="shrink-0" />
                     Remove
                   </button>
                 </>
@@ -220,6 +220,21 @@ function Bubble({
           <span className="text-[10px] text-gray-400">{timeAgo(msg.created_at)}</span>
           {msg.edited_at && !msg.is_deleted && (
             <span className="text-[10px] text-gray-400 italic">· Edited</span>
+          )}
+          {/* Read receipts — only on own messages */}
+          {isMine && !msg.is_deleted && (
+            <span className={`flex items-center -space-x-1 ${msg.is_read ? "text-blue-500" : "text-gray-300"}`}>
+              {/* First tick */}
+              <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="2,6 5,9 10,3"/>
+              </svg>
+              {/* Second tick — only when seen */}
+              {msg.is_read && (
+                <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="2,6 5,9 10,3"/>
+                </svg>
+              )}
+            </span>
           )}
         </div>
       </div>
@@ -353,6 +368,11 @@ export default function MessagesPage() {
         ) {
           const updated = evt.message;
           setMessages((prev) => prev.map((m) => (m.id === updated.id ? updated : m)));
+        }
+
+        // Recipient opened the conversation — mark our sent messages as seen
+        if (evt.type === "messages_read" && evt.conversation_id === activeRef.current?.id) {
+          setMessages((prev) => prev.map((m) => m.is_read ? m : { ...m, is_read: true }));
         }
       },
       () => {

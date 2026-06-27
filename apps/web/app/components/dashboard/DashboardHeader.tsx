@@ -61,6 +61,7 @@ const OWNER_MENUS = [
   { key: "nav.proforma",   href: "/proforma",    icon: FileText     },
   { key: "nav.advisor",    href: "/advisor",     icon: Sparkles     },
   { key: "nav.marketplace",href: "/marketplace", icon: Store        },
+  { key: "nav.messages",   href: "/messages",    icon: MessageSquare},
 ];
 
 const ADMIN_MENUS = [
@@ -267,16 +268,14 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
                   : "text-slate-600 hover:text-slate-900 hover:bg-slate-50";
 
                 const badge =
-                  menu.href === "/notifications"                      ? unreadNotifs :
-                  menu.href === "/messages"                           ? unreadMsgs   :
-                  menu.href === "/marketplace" && isShopOwner         ? unreadMsgs   : 0;
+                  menu.href === "/notifications" ? unreadNotifs :
+                  menu.href === "/messages"      ? unreadMsgs   : 0;
 
                 return (
                   <Link key={menu.href} href={menu.href}
                     onClick={() => {
                       if (menu.href === "/notifications") setUnreadNotifs(0);
                       if (menu.href === "/messages")      setUnreadMsgs(0);
-                      if (menu.href === "/marketplace" && isShopOwner) setUnreadMsgs(0);
                     }}
                     className={`relative flex flex-col items-center justify-center gap-0.5 px-3 lg:px-4
                       flex-shrink-0 min-w-[56px] transition-colors
