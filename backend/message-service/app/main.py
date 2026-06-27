@@ -71,6 +71,21 @@ async def on_startup():
     except Exception:
         pass  # already TEXT, or table doesn't exist yet — both are fine
 
+    # Add edit/delete columns to messages (safe to run repeatedly — IF NOT EXISTS)
+    try:
+        from sqlalchemy import text
+        with engine.begin() as conn:
+            conn.execute(text(
+                "ALTER TABLE messages "
+                "ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN NOT NULL DEFAULT FALSE"
+            ))
+            conn.execute(text(
+                "ALTER TABLE messages "
+                "ADD COLUMN IF NOT EXISTS edited_at TIMESTAMPTZ"
+            ))
+    except Exception:
+        pass
+
 
 @app.get("/")
 def root():

@@ -27,6 +27,8 @@ class Message(Base):
     offer_price     = Column(Numeric(12, 2))
 
     is_read         = Column(Boolean, default=False, nullable=False)
+    is_deleted      = Column(Boolean, default=False, nullable=False)
+    edited_at       = Column(DateTime(timezone=True), nullable=True)
     created_at      = Column(DateTime(timezone=True), default=_utcnow)
 
     conversation    = relationship("Conversation", back_populates="messages")

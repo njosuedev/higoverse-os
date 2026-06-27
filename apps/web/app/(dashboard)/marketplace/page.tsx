@@ -658,7 +658,7 @@ export default function MarketplacePage() {
       const conv = await createOrGetConversation({
         shop_id:       entry.shopId,
         shop_name:     entry.shopName,
-        customer_name: user?.name ?? user?.email,
+        customer_name: shop?.name ?? user?.name ?? user?.email,
         product_id:    entry.productId,
         product_name:  entry.name,
         product_image: entry.images.find((u) => u.startsWith("http")),
@@ -1345,7 +1345,7 @@ export default function MarketplacePage() {
                               const conv = await createOrGetConversation({
                                 shop_id:       detailEntry.shopId,
                                 shop_name:     detailEntry.shopName,
-                                customer_name: user?.name ?? user?.email,
+                                customer_name: shop?.name ?? user?.name ?? user?.email,
                                 product_id:    detailEntry.productId,
                                 product_name:  detailEntry.name,
                                 product_image: detailEntry.images.find((u) => u.startsWith("http")),

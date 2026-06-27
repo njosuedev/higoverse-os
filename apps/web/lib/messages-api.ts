@@ -55,6 +55,8 @@ export interface Message {
   message_type:    "text" | "offer" | "offer_accepted" | "offer_rejected" | "system";
   offer_price:     number | null;
   is_read:         boolean;
+  is_deleted:      boolean;
+  edited_at:       string | null;
   created_at:      string;
 }
 
@@ -148,6 +150,21 @@ export async function respondToOffer(
   const res = await msgRequest(`/api/v1/conversations/${convId}/offers/${msgId}`, {
     method: "POST",
     body: JSON.stringify({ action }),
+  });
+  return res?.data;
+}
+
+export async function editMessage(convId: string, msgId: string, content: string): Promise<Message> {
+  const res = await msgRequest(`/api/v1/conversations/${convId}/messages/${msgId}`, {
+    method: "PATCH",
+    body: JSON.stringify({ content }),
+  });
+  return res?.data;
+}
+
+export async function deleteMessage(convId: string, msgId: string): Promise<Message> {
+  const res = await msgRequest(`/api/v1/conversations/${convId}/messages/${msgId}`, {
+    method: "DELETE",
   });
   return res?.data;
 }

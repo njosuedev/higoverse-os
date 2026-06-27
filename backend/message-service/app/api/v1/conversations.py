@@ -16,7 +16,7 @@ from app.db.session import get_db
 from app.models.conversation import Conversation
 from app.models.message import Message
 from app.schemas.conversation import ConversationCreate, ConversationOut
-from app.schemas.message import MessageCreate, MessageOut, OfferAction
+from app.schemas.message import MessageCreate, MessageEdit, MessageOut, OfferAction
 
 router = APIRouter()
 
@@ -53,6 +53,8 @@ def _fmt_msg(m: Message) -> dict:
         "message_type":    m.message_type,
         "offer_price":     float(m.offer_price) if m.offer_price else None,
         "is_read":         m.is_read,
+        "is_deleted":      bool(getattr(m, "is_deleted", False)),
+        "edited_at":       m.edited_at.isoformat() if getattr(m, "edited_at", None) else None,
         "created_at":      m.created_at.isoformat() if m.created_at else None,
     }
 
@@ -311,6 +313,71 @@ def send_message(
 
     # SSE push — delivers to recipient instantly if they have the messages tab open
     _sse_push(recipient_id, conv, msg)
+
+    return {"success": True, "data": _fmt_msg(msg)}
+
+
+@router.patch("/conversations/{conv_id}/messages/{msg_id}")
+def edit_message(
+    conv_id: str,
+    msg_id:  str,
+    payload: MessageEdit,
+    db: Session = Depends(get_db),
+    current_user: TokenData = Depends(get_current_user),
+):
+    uid  = current_user.user_id
+    conv = _get_conv_or_403(conv_id, db, current_user)
+    msg  = db.query(Message).filter(
+        Message.id == msg_id, Message.conversation_id == conv.id
+    ).first()
+    if not msg:
+        raise HTTPException(status_code=404, detail="Message not found")
+    if msg.sender_id != uid:
+        raise HTTPException(status_code=403, detail="Only the sender can edit this message")
+    if msg.message_type != "text":
+        raise HTTPException(status_code=400, detail="Only text messages can be edited")
+    if getattr(msg, "is_deleted", False):
+        raise HTTPException(status_code=400, detail="Cannot edit a deleted message")
+
+    msg.content   = payload.content.strip()
+    msg.edited_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(msg)
+
+    event = {"type": "message_updated", "conversation_id": str(conv.id), "message": _fmt_msg(msg)}
+    recipient = conv.customer_id if uid != conv.customer_id else conv.shop_id
+    publish_sync(uid, event)
+    publish_sync(recipient, event)
+
+    return {"success": True, "data": _fmt_msg(msg)}
+
+
+@router.delete("/conversations/{conv_id}/messages/{msg_id}")
+def delete_message(
+    conv_id: str,
+    msg_id:  str,
+    db: Session = Depends(get_db),
+    current_user: TokenData = Depends(get_current_user),
+):
+    uid  = current_user.user_id
+    conv = _get_conv_or_403(conv_id, db, current_user)
+    msg  = db.query(Message).filter(
+        Message.id == msg_id, Message.conversation_id == conv.id
+    ).first()
+    if not msg:
+        raise HTTPException(status_code=404, detail="Message not found")
+    if msg.sender_id != uid:
+        raise HTTPException(status_code=403, detail="Only the sender can delete this message")
+
+    msg.is_deleted = True
+    msg.content    = "This message was deleted"
+    db.commit()
+    db.refresh(msg)
+
+    event = {"type": "message_deleted", "conversation_id": str(conv.id), "message": _fmt_msg(msg)}
+    recipient = conv.customer_id if uid != conv.customer_id else conv.shop_id
+    publish_sync(uid, event)
+    publish_sync(recipient, event)
 
     return {"success": True, "data": _fmt_msg(msg)}
 

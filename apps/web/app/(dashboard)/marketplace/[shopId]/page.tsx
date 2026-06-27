@@ -7,6 +7,7 @@ import { useParams, useRouter } from "next/navigation";
 
 const HigoMapView = dynamic(() => import("@/app/components/ui/HigoMapView"), { ssr: false });
 import { useAuth } from "@/lib/auth-context";
+import { useShop } from "@/lib/shop-context";
 import { useLanguage } from "@/lib/language-context";
 import { listShops, updateMyShop, type Shop } from "@/lib/shop-api";
 import { itemRequest } from "@/lib/product-api";
@@ -93,6 +94,7 @@ type Tab = "products" | "about" | "contact" | "messages";
 export default function ShopStorePage() {
   const { shopId } = useParams<{ shopId: string }>();
   const { user }   = useAuth();
+  const { shop: myShop } = useShop();
   const { t }      = useLanguage();
   const router     = useRouter();
 
@@ -404,7 +406,7 @@ export default function ShopStorePage() {
       const conv = await createOrGetConversation({
         shop_id:       shop.id,
         shop_name:     shop.name,
-        customer_name: user?.name ?? user?.email,
+        customer_name: myShop?.name ?? user?.name ?? user?.email,
         first_message: lines.join("\n"),
       });
       setCart([]);
@@ -608,7 +610,7 @@ export default function ShopStorePage() {
                               const conv = await createOrGetConversation({
                                 shop_id:       shop.id,
                                 shop_name:     shop.name,
-                                customer_name: user?.name ?? user?.email,
+                                customer_name: myShop?.name ?? user?.name ?? user?.email,
                               });
                               router.push(`/messages?conv=${conv.id}`);
                             } catch { /* silent */ }
@@ -935,7 +937,7 @@ export default function ShopStorePage() {
                                         const conv = await createOrGetConversation({
                                           shop_id:       shop.id,
                                           shop_name:     shop.name,
-                                          customer_name: user?.name ?? user?.email,
+                                          customer_name: myShop?.name ?? user?.name ?? user?.email,
                                           product_id:    entry.productId,
                                           product_name:  entry.name,
                                           product_image: entry.images.find((u) => u.startsWith("http")),

@@ -12,11 +12,15 @@ import {
   Package,
   Loader2,
   ShoppingBag,
+  Pencil,
+  Trash2,
 } from "lucide-react";
 import {
   listConversations,
   listMessages,
   sendMessage,
+  editMessage,
+  deleteMessage,
   respondToOffer,
   openMessageStream,
   Conversation,
@@ -80,30 +84,45 @@ function Bubble({
   isShop,
   onAccept,
   onReject,
+  onEdit,
+  onDelete,
 }: {
   msg: Message;
   isMine: boolean;
   isShop: boolean;
   onAccept?: () => void;
   onReject?: () => void;
+  onEdit?: () => void;
+  onDelete?: () => void;
 }) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
   const isOffer    = msg.message_type === "offer";
   const isAccepted = msg.message_type === "offer_accepted";
   const isRejected = msg.message_type === "offer_rejected";
   const isSystem   = isAccepted || isRejected || msg.message_type === "system";
+  const canEdit    = isMine && msg.message_type === "text" && !msg.is_deleted;
+  const canDelete  = isMine && !msg.is_deleted;
+  const hasMenu    = canEdit || canDelete;
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    function onOutside(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
+    }
+    document.addEventListener("mousedown", onOutside);
+    return () => document.removeEventListener("mousedown", onOutside);
+  }, [menuOpen]);
 
   if (isSystem) {
     return (
       <div className="flex justify-center my-3">
-        <span
-          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold ${
-            isAccepted
-              ? "bg-green-100 text-green-700"
-              : isRejected
-              ? "bg-red-100 text-red-700"
-              : "bg-gray-100 text-gray-500"
-          }`}
-        >
+        <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold ${
+          isAccepted ? "bg-green-100 text-green-700"
+          : isRejected ? "bg-red-100 text-red-700"
+          : "bg-gray-100 text-gray-500"
+        }`}>
           {isAccepted ? <Check size={12} /> : isRejected ? <X size={12} /> : null}
           {msg.content}
         </span>
@@ -112,42 +131,75 @@ function Bubble({
   }
 
   return (
-    <div className={`flex ${isMine ? "justify-end" : "justify-start"} mb-2`}>
-      <div className={`max-w-[72%] ${isMine ? "items-end" : "items-start"} flex flex-col gap-1`}>
-        {isOffer ? (
-          <div
-            className={`rounded-2xl overflow-hidden border ${
-              isMine ? "border-orange-200 bg-orange-50" : "border-blue-200 bg-blue-50"
-            }`}
+    <div className={`flex items-end gap-1 ${isMine ? "flex-row-reverse" : "flex-row"} mb-1 group`}>
+
+      {/* ··· menu button — visible on hover */}
+      {hasMenu && !msg.is_deleted && (
+        <div className="relative shrink-0 self-center opacity-0 group-hover:opacity-100 transition-opacity" ref={menuRef}>
+          <button
+            onClick={() => setMenuOpen((o) => !o)}
+            className="w-7 h-7 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 text-gray-500 transition"
           >
-            <div
-              className="px-4 py-2 text-xs font-bold text-white flex items-center gap-1.5"
-              style={{ background: isMine ? BRAND : "#3b82f6" }}
-            >
-              <Tag size={11} />
-              Price Offer
+            <svg viewBox="0 0 20 20" fill="currentColor" width="15" height="15">
+              <circle cx="10" cy="4"  r="1.5"/>
+              <circle cx="10" cy="10" r="1.5"/>
+              <circle cx="10" cy="16" r="1.5"/>
+            </svg>
+          </button>
+
+          {menuOpen && (
+            <div className={`absolute z-50 bottom-9 ${isMine ? "right-0" : "left-0"} w-44 bg-white rounded-2xl shadow-2xl border border-gray-100 py-1 overflow-hidden`}>
+              {canEdit && (
+                <button
+                  onClick={() => { onEdit?.(); setMenuOpen(false); }}
+                  className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition text-left"
+                >
+                  <Pencil size={15} className="text-gray-400 shrink-0" />
+                  Edit
+                </button>
+              )}
+              {canDelete && (
+                <>
+                  {canEdit && <div className="mx-3 border-t border-gray-100" />}
+                  <button
+                    onClick={() => { onDelete?.(); setMenuOpen(false); }}
+                    className="w-full flex items-center gap-3 px-4 py-3 text-sm text-red-600 hover:bg-red-50 transition text-left"
+                  >
+                    <Trash2 size={15} className="shrink-0" />
+                    Remove
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Bubble */}
+      <div className={`max-w-[68%] flex flex-col gap-0.5 ${isMine ? "items-end" : "items-start"}`}>
+        {msg.is_deleted ? (
+          <div className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-white border border-gray-200 text-gray-400">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="shrink-0">
+              <circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/>
+            </svg>
+            <span className="text-sm italic">You deleted this message</span>
+          </div>
+        ) : isOffer ? (
+          <div className={`rounded-2xl overflow-hidden border ${isMine ? "border-orange-200 bg-orange-50" : "border-blue-200 bg-blue-50"}`}>
+            <div className="px-4 py-2 text-xs font-bold text-white flex items-center gap-1.5" style={{ background: isMine ? BRAND : "#3b82f6" }}>
+              <Tag size={11} /> Price Offer
             </div>
             <div className="px-4 py-3">
-              <p className="text-2xl font-black text-gray-800 mb-0.5">
-                {priceStr(msg.offer_price)}
-              </p>
-              {msg.content && (
-                <p className="text-sm text-gray-600">{msg.content}</p>
-              )}
+              <p className="text-2xl font-black text-gray-800 mb-0.5">{priceStr(msg.offer_price)}</p>
+              {msg.content && <p className="text-sm text-gray-600">{msg.content}</p>}
             </div>
             {isShop && !isMine && onAccept && onReject && (
               <div className="flex border-t border-blue-200">
-                <button
-                  onClick={onAccept}
-                  className="flex-1 py-2.5 text-sm font-bold text-green-700 hover:bg-green-50 transition flex items-center justify-center gap-1"
-                >
+                <button onClick={onAccept} className="flex-1 py-2.5 text-sm font-bold text-green-700 hover:bg-green-50 transition flex items-center justify-center gap-1">
                   <Check size={14} /> Accept
                 </button>
                 <div className="w-px bg-blue-200" />
-                <button
-                  onClick={onReject}
-                  className="flex-1 py-2.5 text-sm font-bold text-red-600 hover:bg-red-50 transition flex items-center justify-center gap-1"
-                >
+                <button onClick={onReject} className="flex-1 py-2.5 text-sm font-bold text-red-600 hover:bg-red-50 transition flex items-center justify-center gap-1">
                   <X size={14} /> Reject
                 </button>
               </div>
@@ -156,16 +208,20 @@ function Bubble({
         ) : (
           <div
             className={`px-4 py-2.5 rounded-2xl text-sm leading-relaxed ${
-              isMine
-                ? "text-white rounded-br-sm"
-                : "bg-gray-100 text-gray-800 rounded-bl-sm"
+              isMine ? "text-white rounded-br-sm" : "bg-gray-100 text-gray-800 rounded-bl-sm"
             }`}
             style={isMine ? { background: BRAND } : {}}
           >
             {msg.content}
           </div>
         )}
-        <span className="text-[10px] text-gray-400 px-1">{timeAgo(msg.created_at)}</span>
+
+        <div className={`flex items-center gap-1 px-1 ${isMine ? "self-end" : "self-start"}`}>
+          <span className="text-[10px] text-gray-400">{timeAgo(msg.created_at)}</span>
+          {msg.edited_at && !msg.is_deleted && (
+            <span className="text-[10px] text-gray-400 italic">· Edited</span>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -191,6 +247,7 @@ export default function MessagesPage() {
   const [loading, setLoading]       = useState(true);
   const [error, setError]           = useState<string | null>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [editingMsg, setEditingMsg] = useState<Message | null>(null);
 
   const bottomRef    = useRef<HTMLDivElement>(null);
   const lastMsgTime  = useRef<string | null>(null);
@@ -279,8 +336,6 @@ export default function MessagesPage() {
 
         if (evt.type === "new_message" && evt.message && evt.conversation_id) {
           const msg = evt.message;
-
-          // Append to visible messages if this conversation is open
           if (activeRef.current?.id === evt.conversation_id) {
             setMessages((prev) => {
               if (prev.some((m) => m.id === msg.id)) return prev;
@@ -288,9 +343,16 @@ export default function MessagesPage() {
             });
             if (msg.created_at) lastMsgTime.current = msg.created_at;
           }
-
-          // Always refresh conversation list for unread counts
           loadConvs();
+        }
+
+        if (
+          (evt.type === "message_updated" || evt.type === "message_deleted") &&
+          evt.message && evt.conversation_id &&
+          activeRef.current?.id === evt.conversation_id
+        ) {
+          const updated = evt.message;
+          setMessages((prev) => prev.map((m) => (m.id === updated.id ? updated : m)));
         }
       },
       () => {
@@ -315,10 +377,29 @@ export default function MessagesPage() {
     if (hasIncoming) playMessageSound();
   }, [messages]);
 
-  // ── Send ───────────────────────────────────────────────────────────────────
+  // ── Send / Save edit ───────────────────────────────────────────────────────
   const handleSend = async () => {
     if (!active || sending) return;
     const content = text.trim();
+
+    // Saving an edit
+    if (editingMsg) {
+      if (!content) return;
+      setSending(true);
+      setError(null);
+      try {
+        const updated = await editMessage(active.id, editingMsg.id, content);
+        setMessages((prev) => prev.map((m) => (m.id === updated.id ? updated : m)));
+        setText("");
+        setEditingMsg(null);
+      } catch (e: unknown) {
+        setError(e instanceof Error ? e.message : "Failed to edit message");
+      } finally {
+        setSending(false);
+      }
+      return;
+    }
+
     if (!content && !offerMode) return;
     if (offerMode && !offerAmt) return;
 
@@ -342,6 +423,26 @@ export default function MessagesPage() {
       setError(e instanceof Error ? e.message : "Failed to send");
     } finally {
       setSending(false);
+    }
+  };
+
+  const handleEdit = async (msgId: string, content: string) => {
+    if (!active) return;
+    try {
+      const updated = await editMessage(active.id, msgId, content);
+      setMessages((prev) => prev.map((m) => (m.id === updated.id ? updated : m)));
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Failed to edit message");
+    }
+  };
+
+  const handleDelete = async (msgId: string) => {
+    if (!active) return;
+    try {
+      const updated = await deleteMessage(active.id, msgId);
+      setMessages((prev) => prev.map((m) => (m.id === updated.id ? updated : m)));
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Failed to delete message");
     }
   };
 
@@ -616,12 +717,10 @@ export default function MessagesPage() {
                     msg={msg}
                     isMine={msg.sender_id === myId}
                     isShop={!!myShopId && myShopId === active.shop_id}
-                    onAccept={
-                      msg.message_type === "offer" ? () => handleOffer(msg.id, "accept") : undefined
-                    }
-                    onReject={
-                      msg.message_type === "offer" ? () => handleOffer(msg.id, "reject") : undefined
-                    }
+                    onAccept={msg.message_type === "offer" ? () => handleOffer(msg.id, "accept") : undefined}
+                    onReject={msg.message_type === "offer" ? () => handleOffer(msg.id, "reject") : undefined}
+                    onEdit={() => { setEditingMsg(msg); setText(msg.content); }}
+                    onDelete={() => handleDelete(msg.id)}
                   />
                 ))
               )}
@@ -639,6 +738,23 @@ export default function MessagesPage() {
             {/* Composer */}
             {active.status === "open" ? (
               <div className="bg-white border-t border-gray-100 p-3 shrink-0">
+                {/* Editing banner */}
+                {editingMsg && (
+                  <div className="flex items-center gap-2 mb-2 px-3 py-2 bg-blue-50 rounded-xl border-l-4 border-blue-400">
+                    <Pencil size={13} className="text-blue-400 shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[10px] font-bold text-blue-500 uppercase tracking-wide mb-0.5">Editing message</p>
+                      <p className="text-xs text-gray-500 truncate">{editingMsg.content}</p>
+                    </div>
+                    <button
+                      onClick={() => { setEditingMsg(null); setText(""); }}
+                      className="text-gray-400 hover:text-gray-600 transition shrink-0"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                )}
+
                 {offerMode && (
                   <div className="flex items-center gap-2 mb-2 p-3 bg-orange-50 rounded-xl border border-orange-200">
                     <span className="text-xs font-bold text-orange-500 shrink-0">FRW</span>
@@ -663,7 +779,7 @@ export default function MessagesPage() {
                   <div className="flex-1 flex items-end gap-2 bg-gray-50 rounded-2xl px-3 py-2">
                     <textarea
                       rows={1}
-                      placeholder={offerMode ? "Add a note (optional)…" : "Type a message…"}
+                      placeholder={editingMsg ? "Edit your message…" : offerMode ? "Add a note (optional)…" : "Type a message…"}
                       value={text}
                       onChange={(e) => {
                         setText(e.target.value);
@@ -692,10 +808,12 @@ export default function MessagesPage() {
                     onClick={handleSend}
                     disabled={sending || (!text.trim() && !(offerMode && offerAmt))}
                     className="p-2.5 rounded-xl text-white transition shrink-0 disabled:opacity-40"
-                    style={{ background: BRAND }}
+                    style={{ background: editingMsg ? "#3b82f6" : BRAND }}
                   >
                     {sending ? (
                       <Loader2 size={16} className="animate-spin" />
+                    ) : editingMsg ? (
+                      <Check size={16} />
                     ) : (
                       <Send size={16} />
                     )}

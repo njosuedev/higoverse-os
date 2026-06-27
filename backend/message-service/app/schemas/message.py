@@ -11,6 +11,9 @@ class MessageCreate(BaseModel):
     sender_name:  Optional[str] = None
 
 
+class MessageEdit(BaseModel):
+    content: str
+
 class OfferAction(BaseModel):
     # accept | reject
     action: str
