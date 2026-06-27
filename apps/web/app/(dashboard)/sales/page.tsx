@@ -7,6 +7,7 @@ import { saleRequest } from "@/lib/sale-api";
 import { settingsRequest } from "@/lib/settings-api";
 import { useDebounce } from "@/lib/hooks";
 import { useLanguage } from "@/lib/language-context";
+import { useShop } from "@/lib/shop-context";
 import Pagination from "@/app/components/ui/Pagination";
 import DateRangeFilter from "@/app/components/ui/DateRangeFilter";
 import {
@@ -59,6 +60,7 @@ function toDateStr(d: Date) {
 
 export default function SaleManagementPage() {
   const { t } = useLanguage();
+  const { shop } = useShop();
 
   const [sales, setSales] = useState<Sale[]>([]);
   const [salesTotal, setSalesTotal] = useState(0);
@@ -485,7 +487,9 @@ export default function SaleManagementPage() {
 </head>
 <body>
 <div class="center" style="margin-bottom:10px">
-  <div class="shop-name">${shopName || "HIGOVERSE SHOP"}</div>
+  <div class="shop-name">${shop?.name || shopName}</div>
+  ${shop?.address ? `<div style="color:#666;font-size:10px;margin-top:2px">${shop.address}</div>` : ""}
+  ${shop?.phone ? `<div style="color:#666;font-size:10px;margin-top:1px">${shop.phone}</div>` : ""}
   <div style="color:#666;font-size:10px;margin-top:2px;text-transform:uppercase;letter-spacing:1px">Sales Receipt</div>
 </div>
 <hr class="dashed">
@@ -1318,7 +1322,9 @@ ${paymentHtml}
 
               <div className="px-6 py-5 font-mono text-sm bg-white max-h-96 overflow-y-auto">
                 <div className="text-center mb-4">
-                  <p className="font-bold text-base text-slate-900 uppercase tracking-widest">{shopName || "HIGOVERSE SHOP"}</p>
+                  <p className="font-bold text-base text-slate-900 uppercase tracking-widest">{shop?.name || shopName}</p>
+                  {shop?.address && <p className="text-xs text-slate-500 mt-0.5">{shop.address}</p>}
+                  {shop?.phone && <p className="text-xs text-slate-500 mt-0.5">{shop.phone}</p>}
                   <p className="text-xs text-slate-400 mt-0.5 uppercase tracking-wider">Sales Receipt</p>
                 </div>
                 <div className="border-t border-dashed border-slate-300 my-3" />
