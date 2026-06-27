@@ -116,7 +116,7 @@ export default function AIFloatingWidget() {
   const role        = (ready && !shopLoading) ? getEffectiveRole(user ?? null, shop?.is_active === true) : null;
   const isShopUser  = role === "SHOP_OWNER" || role === "ADMIN";
 
-  if (pathname === "/advisor") return null;
+  if (pathname === "/advisor" || pathname === "/messages") return null;
   if (!ready || shopLoading) return null;   // avoid flash
   if (!isShopUser) return null;             // customers never see this
 
