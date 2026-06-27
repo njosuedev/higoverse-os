@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   MessageSquare,
@@ -176,6 +176,7 @@ export default function MessagesPage() {
   const me       = getUser();
   const myId     = me?.id ?? "";
   const myShopId = me?.shop_id ?? "";
+  const isShopView = !!myShopId;
 
   const searchParams = useSearchParams();
   const convParam    = searchParams.get("conv");
@@ -226,11 +227,13 @@ export default function MessagesPage() {
     if (autoOpenedRef.current || !convParam || convs.length === 0) return;
     const found = convs.find((c) => c.id === convParam);
     if (found) {
+      const groupKey = isShopView ? found.customer_id : found.shop_id;
+      setExpandedKey(groupKey);
       setActive(found);
       setMobileOpen(true);
       autoOpenedRef.current = true;
     }
-  }, [convParam, convs]);
+  }, [convParam, convs, isShopView]);
 
   // ── Load messages ──────────────────────────────────────────────────────────
   const loadMessages = useCallback(async (conv: Conversation, after?: string) => {
@@ -360,6 +363,41 @@ export default function MessagesPage() {
     setMobileOpen(true);
   };
 
+  // ── Group conversations by counterpart (shop for customers, customer for shop owners) ──
+  interface ConvGroup {
+    key: string;
+    name: string;
+    initial: string;
+    convs: Conversation[];
+    unread: number;
+    latestTime: string | null;
+  }
+
+  const groups = useMemo<ConvGroup[]>(() => {
+    const map = new Map<string, ConvGroup>();
+    for (const c of convs) {
+      const key  = isShopView ? c.customer_id : c.shop_id;
+      const name = isShopView ? (c.customer_name || "Customer") : (c.shop_name || "Shop");
+      if (!map.has(key)) {
+        map.set(key, { key, name, initial: name[0]?.toUpperCase() ?? "?", convs: [], unread: 0, latestTime: null });
+      }
+      const g = map.get(key)!;
+      g.convs.push(c);
+      g.unread += c.unread_count;
+      if (c.last_message_at && (!g.latestTime || c.last_message_at > g.latestTime)) {
+        g.latestTime = c.last_message_at;
+      }
+    }
+    return [...map.values()].sort((a, b) => {
+      if (!a.latestTime && !b.latestTime) return 0;
+      if (!a.latestTime) return 1;
+      if (!b.latestTime) return -1;
+      return b.latestTime.localeCompare(a.latestTime);
+    });
+  }, [convs, isShopView]);
+
+  const [expandedKey, setExpandedKey] = useState<string | null>(null);
+
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div className="flex h-[calc(100vh-64px)] overflow-hidden bg-gray-50">
@@ -390,62 +428,115 @@ export default function MessagesPage() {
               </p>
             </div>
           ) : (
-            convs.map((c) => {
-              const isActive = active?.id === c.id;
+            groups.map((g) => {
+              const isExpanded   = expandedKey === g.key;
+              const hasMany      = g.convs.length > 1;
+              const isGroupActive = g.convs.some((c) => c.id === active?.id);
+
               return (
-                <button
-                  key={c.id}
-                  onClick={() => openConv(c)}
-                  className={`w-full flex items-start gap-3 px-4 py-3.5 text-left transition border-b border-gray-50 hover:bg-orange-50 ${
-                    isActive ? "bg-orange-50" : ""
-                  }`}
-                >
-                  <div className="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center shrink-0 overflow-hidden">
-                    {c.product_image ? (
-                      <img src={c.product_image} alt="" className="w-full h-full object-cover" />
-                    ) : (
-                      <Package size={18} className="text-gray-400" />
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-sm font-bold text-gray-800 truncate">
-                        {myShopId === c.shop_id
-                          ? c.customer_name || "Customer"
-                          : c.shop_name || "Shop"}
-                      </span>
-                      {c.unread_count > 0 && (
-                        <span
-                          className="shrink-0 w-5 h-5 rounded-full text-[10px] font-black text-white flex items-center justify-center"
-                          style={{ background: BRAND }}
-                        >
-                          {c.unread_count}
-                        </span>
-                      )}
+                <div key={g.key}>
+                  {/* ── Group row (one per shop / customer) ── */}
+                  <button
+                    onClick={() => {
+                      if (hasMany) {
+                        setExpandedKey(isExpanded ? null : g.key);
+                      } else {
+                        openConv(g.convs[0]);
+                      }
+                    }}
+                    className={`w-full flex items-center gap-3 px-4 py-3 text-left transition border-b border-gray-50 hover:bg-orange-50 ${
+                      isGroupActive && !hasMany ? "bg-orange-50" : ""
+                    }`}
+                  >
+                    {/* Avatar */}
+                    <div
+                      className="w-11 h-11 rounded-full flex items-center justify-center shrink-0 text-white text-sm font-black"
+                      style={{ background: BRAND }}
+                    >
+                      {g.initial}
                     </div>
-                    <p className="text-xs text-gray-500 truncate mt-0.5">
-                      {c.product_name || "Product inquiry"}
-                    </p>
-                    <div className="flex items-center justify-between mt-1">
-                      <span
-                        className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${
-                          c.status === "accepted"
-                            ? "bg-green-100 text-green-700"
-                            : c.status === "closed"
-                            ? "bg-gray-100 text-gray-500"
-                            : "bg-orange-100 text-orange-600"
+
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-sm font-bold text-gray-800 truncate">{g.name}</span>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          {g.latestTime && (
+                            <span className="text-[10px] text-gray-400">{timeAgo(g.latestTime)}</span>
+                          )}
+                          {g.unread > 0 && (
+                            <span
+                              className="w-5 h-5 rounded-full text-[10px] font-black text-white flex items-center justify-center"
+                              style={{ background: BRAND }}
+                            >
+                              {g.unread > 99 ? "99+" : g.unread}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <p className="text-xs text-gray-400 truncate mt-0.5">
+                        {hasMany
+                          ? `${g.convs.length} conversations`
+                          : (g.convs[0].product_name || "Product inquiry")}
+                      </p>
+                    </div>
+
+                    {/* Chevron for expandable groups */}
+                    {hasMany && (
+                      <span className={`text-gray-300 transition-transform shrink-0 ${isExpanded ? "rotate-180" : ""}`}>
+                        ▾
+                      </span>
+                    )}
+                  </button>
+
+                  {/* ── Sub-list: individual product threads ── */}
+                  {hasMany && isExpanded && g.convs.map((c) => {
+                    const isActive = active?.id === c.id;
+                    return (
+                      <button
+                        key={c.id}
+                        onClick={() => openConv(c)}
+                        className={`w-full flex items-center gap-3 pl-[52px] pr-4 py-2.5 text-left transition border-b border-gray-50 hover:bg-orange-50 ${
+                          isActive ? "bg-orange-50" : "bg-gray-50/60"
                         }`}
                       >
-                        {c.status === "open" ? "Active" : c.status}
-                      </span>
-                      {c.listed_price != null && (
-                        <span className="text-[10px] text-gray-400">
-                          Listed {priceStr(c.listed_price)}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </button>
+                        <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center shrink-0 overflow-hidden">
+                          {c.product_image ? (
+                            <img src={c.product_image} alt="" className="w-full h-full object-cover" />
+                          ) : (
+                            <Package size={14} className="text-gray-400" />
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-semibold text-gray-700 truncate">
+                            {c.product_name || "Product inquiry"}
+                          </p>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded-full ${
+                              c.status === "accepted" ? "bg-green-100 text-green-700"
+                              : c.status === "closed"  ? "bg-gray-100 text-gray-500"
+                              : "bg-orange-100 text-orange-600"
+                            }`}>
+                              {c.status === "open" ? "Active" : c.status}
+                            </span>
+                            {c.listed_price != null && (
+                              <span className="text-[9px] text-gray-400">
+                                {priceStr(c.listed_price)}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        {c.unread_count > 0 && (
+                          <span
+                            className="w-4 h-4 rounded-full text-[9px] font-black text-white flex items-center justify-center shrink-0"
+                            style={{ background: BRAND }}
+                          >
+                            {c.unread_count}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
               );
             })
           )}
