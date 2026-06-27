@@ -84,7 +84,31 @@ const SVC_COLORS: Record<string, { bg: string; text: string }> = {
   slate:  { bg: "bg-slate-100",  text: "text-slate-600" },
 };
 
-const REFRESH_INTERVAL = 30;
+const REFRESH_INTERVAL = 60;
+
+// ─── Dashboard cache (localStorage) ──────────────────────────────────────────
+const DASH_CACHE_KEY = "hgv_dash_v3";
+const DASH_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+interface DashCache {
+  stats: Stats; stockAlerts: StockAlert[]; dailyData: DailyRecord[];
+  recentSales: RecentSale[]; yesterdayRevenue: number;
+  expenseToday: { total_expenses: number; count: number };
+  purchaseCostToday: number; shops: ShopInfo[];
+}
+
+function readDashCache(): DashCache | null {
+  try {
+    const raw = localStorage.getItem(DASH_CACHE_KEY);
+    if (!raw) return null;
+    const { data, ts } = JSON.parse(raw) as { data: DashCache; ts: number };
+    return Date.now() - ts < DASH_CACHE_TTL ? data : null;
+  } catch { return null; }
+}
+
+function writeDashCache(data: DashCache) {
+  try { localStorage.setItem(DASH_CACHE_KEY, JSON.stringify({ data, ts: Date.now() })); } catch {}
+}
 
 // ─── Component ────────────────────────────────────────────────────────────────
 export default function DashboardPage() {
@@ -121,57 +145,89 @@ export default function DashboardPage() {
   const refreshRef   = useRef<ReturnType<typeof setInterval> | null>(null);
   const clockRef     = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  function applyCache(c: DashCache) {
+    setStats(c.stats);
+    setStockAlerts(c.stockAlerts);
+    setDailyData(c.dailyData);
+    setRecentSales(c.recentSales);
+    setYesterdayRevenue(c.yesterdayRevenue);
+    setExpenseToday(c.expenseToday);
+    setPurchaseCostToday(c.purchaseCostToday);
+    setShops(c.shops);
+  }
+
   const loadAll = async (soft = false) => {
     if (soft) setRefreshing(true);
+    const today = toDateStr(new Date());
+
+    // ── Phase 1: critical KPIs — unblocks UI fast ──────────────────────────
     try {
-      const today = toDateStr(new Date());
-      const [productsRes, partnersRes, salesRes, stockRes, shopsRes, dailyRes, recentRes, expenseRes, purchaseRes] = await Promise.allSettled([
-        itemRequest("/products?page=1&limit=1"),
-        partnerRequest("/suppliers"),
+      const [salesRes, stockRes, recentRes] = await Promise.allSettled([
         saleRequest(`/sales/summary?from_date=${today}&to_date=${today}`),
         itemRequest("/products/stock-alerts?threshold=10"),
-        listShops({ limit: 100 }),
-        reportRequest("/reports/daily?days=8"),
         saleRequest("/sales?page=1&limit=8"),
+      ]);
+
+      const saleCount = salesRes.status === "fulfilled" ? (salesRes.value?.data?.sales_count ?? 0) : 0;
+      const revenue   = salesRes.status === "fulfilled" ? (salesRes.value?.data?.revenue ?? 0) : 0;
+      const alertItems: StockAlert[] = stockRes.status === "fulfilled" ? (stockRes.value?.data ?? []) : [];
+      const recent: RecentSale[]    = recentRes.status === "fulfilled" ? (recentRes.value?.data?.items ?? []) : [];
+
+      setStats((prev) => ({
+        ...prev, sales: saleCount, revenue,
+        lowStock:   alertItems.filter((a) => a.quantity > 0).length,
+        outOfStock: alertItems.filter((a) => a.quantity === 0).length,
+      }));
+      setStockAlerts(alertItems.slice(0, 6));
+      setRecentSales(recent);
+    } catch { /* non-fatal */ }
+
+    setDataLoading(false); // unblock render after phase 1
+
+    // ── Phase 2: secondary data — loads in background ──────────────────────
+    try {
+      const [productsRes, partnersRes, shopsRes, dailyRes, expenseRes, purchaseRes] = await Promise.allSettled([
+        itemRequest("/products?page=1&limit=1"),
+        partnerRequest("/suppliers?limit=50"),
+        listShops({ limit: 20 }),
+        reportRequest("/reports/daily?days=8"),
         expenseRequest(`/expenses/summary?from_date=${today}&to_date=${today}`),
-        purchaseRequest(`/purchases?from_date=${today}&to_date=${today}&page=1&limit=200`),
+        purchaseRequest(`/purchases/summary?from_date=${today}&to_date=${today}`),
       ]);
 
       const productCount = productsRes.status === "fulfilled" ? (productsRes.value?.data?.total ?? 0) : 0;
       const partnerCount = partnersRes.status === "fulfilled"
-        ? (Array.isArray(partnersRes.value?.data) ? partnersRes.value.data.length : 0) : 0;
-      const saleCount = salesRes.status === "fulfilled" ? (salesRes.value?.data?.sales_count ?? 0) : 0;
-      const revenue   = salesRes.status === "fulfilled" ? (salesRes.value?.data?.revenue ?? 0) : 0;
-      const alertItems: StockAlert[] = stockRes.status === "fulfilled" ? (stockRes.value?.data ?? []) : [];
-
-      setStats({ products: productCount, partners: partnerCount, sales: saleCount, revenue,
-        lowStock:   alertItems.filter((a) => a.quantity > 0).length,
-        outOfStock: alertItems.filter((a) => a.quantity === 0).length,
-      });
-      setStockAlerts(alertItems.slice(0, 6));
-
-      if (shopsRes.status === "fulfilled" && shopsRes.value) setShops(shopsRes.value.items ?? []);
-
+        ? (Array.isArray(partnersRes.value?.data) ? partnersRes.value.data.length
+            : (partnersRes.value?.data?.total ?? 0)) : 0;
+      const newShops: ShopInfo[] = shopsRes.status === "fulfilled" ? (shopsRes.value?.items ?? []) : [];
       const daily: DailyRecord[] = dailyRes.status === "fulfilled" ? (dailyRes.value?.data ?? []) : [];
+      const expData = expenseRes.status === "fulfilled"
+        ? (expenseRes.value?.data || { total_expenses: 0, count: 0 })
+        : { total_expenses: 0, count: 0 };
+      const purchCost = purchaseRes.status === "fulfilled"
+        ? (purchaseRes.value?.data?.total_cost ?? purchaseRes.value?.data?.items?.reduce(
+            (s: number, p: { total_cost?: number }) => s + (p.total_cost ?? 0), 0) ?? 0)
+        : 0;
+      const yRev = daily.length >= 2 ? (daily[daily.length - 2]?.revenue ?? 0) : 0;
+
+      setStats((prev) => {
+        const next = { ...prev, products: productCount, partners: partnerCount };
+        // Persist full snapshot for instant next-visit render
+        writeDashCache({
+          stats: next, stockAlerts: [], dailyData: daily, recentSales: [],
+          yesterdayRevenue: yRev, expenseToday: expData,
+          purchaseCostToday: purchCost, shops: newShops,
+        });
+        return next;
+      });
+      setShops(newShops);
       setDailyData(daily);
-      if (daily.length >= 2) setYesterdayRevenue(daily[daily.length - 2]?.revenue ?? 0);
-
-      const recent: RecentSale[] = recentRes.status === "fulfilled"
-        ? (recentRes.value?.data?.items ?? []) : [];
-      setRecentSales(recent);
-
-      if (expenseRes.status === "fulfilled")
-        setExpenseToday(expenseRes.value?.data || { total_expenses: 0, count: 0 });
-
-      if (purchaseRes.status === "fulfilled") {
-        const purchaseItems: { total_cost?: number }[] = purchaseRes.value?.data?.items ?? [];
-        setPurchaseCostToday(purchaseItems.reduce((s, p) => s + (p.total_cost ?? 0), 0));
-      }
-
+      setYesterdayRevenue(yRev);
+      setExpenseToday(expData);
+      setPurchaseCostToday(purchCost);
       setLastUpdated(new Date());
-    } catch { /* informational */ } finally {
+    } catch { /* non-fatal */ } finally {
       setRefreshing(false);
-      setDataLoading(false);
     }
   };
 
@@ -186,6 +242,14 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (!user) return;
+
+    // Hydrate from cache immediately — zero-wait first paint
+    const cached = readDashCache();
+    if (cached) {
+      applyCache(cached);
+      setDataLoading(false);   // skip skeleton entirely on cache hit
+    }
+
     loadAll();
     clockRef.current     = setInterval(() => setNow(new Date()), 1000);
     countdownRef.current = setInterval(() => setCountdown((c) => (c <= 1 ? REFRESH_INTERVAL : c - 1)), 1000);
