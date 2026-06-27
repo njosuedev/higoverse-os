@@ -158,16 +158,26 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
     }
   }, [user]);
 
+  // Clear badge automatically when the user is on the messages page
+  useEffect(() => {
+    if (pathname === "/messages") setUnreadMsgs(0);
+  }, [pathname]);
+
   // ── Message SSE — real-time message badge + sound + browser notification ───
   useEffect(() => {
     if (!user) return;
     const ctrl = openMessageStream(
       (evt) => {
         if (evt.type !== "new_message") return;
-        setUnreadMsgs((n) => n + 1);
+
+        // Only increment badge when not already on messages page
+        if (pathname !== "/messages") {
+          setUnreadMsgs((n) => n + 1);
+        }
+
         playMsgSound();
 
-        // Browser notification for everyone when a new message arrives
+        // Browser notification for everyone — always show so the user knows
         if (evt.message) {
           const senderName = evt.message.sender_name ?? (isShopOwnerEarly ? "a customer" : "a shop");
           const title  = `New message from ${senderName}`;
@@ -194,7 +204,7 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
       () => { /* SSE unavailable — 60s poll handles recovery */ },
     );
     return () => ctrl.abort();
-  }, [user, isShopOwnerEarly, router]);
+  }, [user, isShopOwnerEarly, router, pathname]);
 
   useEffect(() => {
     function onOutside(e: MouseEvent) {

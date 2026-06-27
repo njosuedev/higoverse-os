@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { settingsRequest } from "@/lib/settings-api";
 import { updateMyShop } from "@/lib/shop-api";
-import { changePassword } from "@/lib/auth-api";
+import { changePassword, updateProfile } from "@/lib/auth-api";
 import { useLanguage } from "@/lib/language-context";
 import { useAuth } from "@/lib/auth-context";
 import { useShop } from "@/lib/shop-context";
@@ -71,7 +71,7 @@ type SectionStatus = "idle" | "saving" | "saved" | "error";
 
 export default function SettingsPage() {
   const { t, setLang } = useLanguage();
-  const { user } = useAuth();
+  const { user, updateUser } = useAuth();
   const { shop, loading: shopLoading } = useShop();
   const role = getEffectiveRole(user ?? null, shop?.is_active === true);
   const isCustomer = role === "CUSTOMER";
@@ -80,6 +80,11 @@ export default function SettingsPage() {
   const [shopForm, setShopForm]   = useState<ShopForm>(SHOP_DEFAULTS);
   const [opsForm, setOpsForm]     = useState<OperationalForm>(OPS_DEFAULTS);
   const [pwForm, setPwForm]       = useState<PwForm>(PW_DEFAULTS);
+
+  // Profile name (customer)
+  const [displayName, setDisplayName] = useState(user?.name ?? "");
+  const [nameStatus, setNameStatus]   = useState<SectionStatus>("idle");
+  const [nameErr, setNameErr]         = useState("");
 
   // Saved snapshot (what was last successfully loaded/saved)
   const savedShop = useRef<ShopForm>(SHOP_DEFAULTS);
@@ -205,6 +210,21 @@ export default function SettingsPage() {
 
   function statusTimer(set: (s: SectionStatus) => void) {
     setTimeout(() => set("idle"), 3000);
+  }
+
+  async function saveName() {
+    const trimmed = displayName.trim();
+    if (!trimmed) { setNameErr("Name cannot be empty."); return; }
+    setNameStatus("saving"); setNameErr("");
+    try {
+      const res = await updateProfile(trimmed);
+      updateUser(res);
+      setNameStatus("saved");
+      setTimeout(() => setNameStatus("idle"), 2500);
+    } catch (e: unknown) {
+      setNameErr(e instanceof Error ? e.message : "Failed to save name.");
+      setNameStatus("error");
+    }
   }
 
   async function saveShop() {
@@ -348,27 +368,62 @@ export default function SettingsPage() {
         {/* ── MY ACCOUNT (CUSTOMER only) ────────── */}
         {isCustomer && (
           <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-            <div className="flex items-center gap-2.5 px-5 py-4 border-b border-slate-100">
-              <div className="w-7 h-7 rounded-lg bg-blue-50 flex items-center justify-center">
-                <ShieldCheck size={14} className="text-blue-500" />
+            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+              <div className="flex items-center gap-2.5">
+                <div className="w-7 h-7 rounded-lg bg-blue-50 flex items-center justify-center">
+                  <ShieldCheck size={14} className="text-blue-500" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-slate-700">My Account</p>
+                  <p className="text-[11px] text-slate-400">Your Higoverse account information</p>
+                </div>
               </div>
-              <div>
-                <p className="text-sm font-semibold text-slate-700">My Account</p>
-                <p className="text-[11px] text-slate-400">Your Higoverse account information</p>
-              </div>
+              {nameStatus === "saved" && (
+                <span className="flex items-center gap-1 text-xs text-green-600 font-medium">
+                  <CheckCircle2 size={13} /> Saved
+                </span>
+              )}
             </div>
-            <div className="px-5 py-4 space-y-3">
-              {user?.name && (
-                <div className="flex items-center justify-between py-2 border-b border-slate-50">
-                  <span className="text-xs font-medium text-slate-500">Name</span>
-                  <span className="text-sm font-semibold text-slate-800">{user.name}</span>
+
+            <div className="px-5 py-4 space-y-4">
+              {nameErr && (
+                <div className="flex items-center gap-2 text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
+                  <AlertCircle size={13} /> {nameErr}
                 </div>
               )}
-              <div className="flex items-center justify-between py-2 border-b border-slate-50">
+
+              {/* Display Name — editable */}
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1.5">
+                  Display Name <span className="text-red-400">*</span>
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    value={displayName}
+                    onChange={(e) => { setDisplayName(e.target.value); setNameErr(""); }}
+                    placeholder="Your full name"
+                    className="flex-1 text-sm px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                  />
+                  <button
+                    onClick={saveName}
+                    disabled={nameStatus === "saving" || displayName.trim() === (user?.name ?? "")}
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700 disabled:opacity-40 transition"
+                  >
+                    {nameStatus === "saving" ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
+                    Save
+                  </button>
+                </div>
+                <p className="text-[11px] text-slate-400 mt-1">Shown to shops when you message them</p>
+              </div>
+
+              {/* Email — read-only */}
+              <div className="flex items-center justify-between py-2 border-t border-slate-50">
                 <span className="text-xs font-medium text-slate-500">Email</span>
                 <span className="text-sm text-slate-700">{user?.email}</span>
               </div>
-              <div className="flex items-center justify-between py-2">
+
+              {/* Account type badge */}
+              <div className="flex items-center justify-between py-2 border-t border-slate-50">
                 <span className="text-xs font-medium text-slate-500">Account Type</span>
                 <span className="inline-flex items-center gap-1.5 text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200 px-2.5 py-1 rounded-full">
                   <span className="w-1.5 h-1.5 rounded-full bg-amber-500 inline-block" />

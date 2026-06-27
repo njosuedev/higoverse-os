@@ -89,7 +89,7 @@ interface Product {
 
 interface CartItem { product: Product; qty: number; }
 
-type Tab = "products" | "about" | "contact" | "messages";
+type Tab = "products" | "about" | "contact";
 
 export default function ShopStorePage() {
   const { shopId } = useParams<{ shopId: string }>();
@@ -656,7 +656,7 @@ export default function ShopStorePage() {
 
         {/* Tab bar */}
         <div style={{ maxWidth: 1100, margin: "0 auto", padding: "0 16px", display: "flex", borderTop: "1px solid #f0f0f0" }}>
-          {(["products", "about", "contact", ...(isMine ? ["messages"] : [])] as Tab[]).map((t) => (
+          {(["products", "about", "contact"] as Tab[]).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -670,12 +670,7 @@ export default function ShopStorePage() {
                 transition: "color 0.15s",
               }}
             >
-              {t === "products" ? "Products" : t === "about" ? "About" : t === "contact" ? "Contact" : "Messages"}
-              {t === "messages" && totalUnread > 0 && (
-                <span style={{ position: "absolute", top: 6, right: 4, minWidth: 16, height: 16, borderRadius: 8, background: "#f5222d", color: "#fff", fontSize: 8, fontWeight: 900, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 3px" }}>
-                  {totalUnread}
-                </span>
-              )}
+              {t === "products" ? "Products" : t === "about" ? "About" : "Contact"}
             </button>
           ))}
         </div>
@@ -1104,167 +1099,6 @@ export default function ShopStorePage() {
           </div>
         )}
 
-        {/* ── MESSAGES TAB — localStorage + BroadcastChannel real-time ───────── */}
-        {tab === "messages" && isMine && (
-          <div style={{ display: "flex", gap: 10, height: "calc(100vh - 260px)", minHeight: 480 }}>
-
-            {/* Conversation list */}
-            <div style={{ width: 280, flexShrink: 0, background: "#fff", border: "1px solid #e8e8e8", display: "flex", flexDirection: "column" }}>
-              <div style={{ padding: "10px 14px", borderBottom: "1px solid #f0f0f0", display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={{ fontSize: 13, fontWeight: 700, color: "#333", flex: 1 }}>
-                  Inbox {totalUnread > 0 && (
-                    <span style={{ marginLeft: 5, background: "#f5222d", color: "#fff", fontSize: 9, padding: "1px 6px", fontWeight: 900, borderRadius: 20 }}>
-                      {totalUnread}
-                    </span>
-                  )}
-                </span>
-                <span style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 9, color: "#52c41a", fontWeight: 700 }}>
-                  <span style={{ width: 6, height: 6, background: "#52c41a", borderRadius: "50%", display: "inline-block", animation: "pulse 2s infinite" }} />
-                  Live
-                </span>
-              </div>
-              <div style={{ flex: 1, overflowY: "auto" }}>
-                {messages.length === 0 ? (
-                  <div style={{ padding: 24, textAlign: "center" }}>
-                    <Package size={28} style={{ color: "#e0e0e0", margin: "0 auto 8px" }} />
-                    <p style={{ fontSize: 11, color: "#aaa", lineHeight: 1.5 }}>No messages yet. When customers message you, conversations appear here.</p>
-                  </div>
-                ) : messages.map((msg) => (
-                  <button key={msg.id}
-                    onClick={() => {
-                      setOpenMsgId(msg.id);
-                      if (!msg.readByShop) {
-                        markMessageRead(msg.id);
-                        setMessages((prev) => prev.map((m) => m.id === msg.id ? { ...m, readByShop: true } : m));
-                      }
-                    }}
-                    style={{ width: "100%", display: "flex", gap: 10, padding: "10px 12px", border: "none", background: openMsgId === msg.id ? "#fff5f0" : "transparent", borderLeft: openMsgId === msg.id ? "3px solid #ff6a00" : "3px solid transparent", borderBottom: "1px solid #f8f8f8", cursor: "pointer", textAlign: "left" }}>
-                    <div style={{ width: 36, height: 36, borderRadius: "50%", background: "#ff6a00", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 14, fontWeight: 900, flexShrink: 0 }}>
-                      {msg.buyerName[0]?.toUpperCase()}
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                        <p style={{ fontSize: 12, fontWeight: !msg.readByShop ? 800 : 600, color: "#333", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{msg.buyerName}</p>
-                        <p style={{ fontSize: 9, color: "#bbb", margin: 0, flexShrink: 0 }}>{new Date(msg.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</p>
-                      </div>
-                      <p style={{ fontSize: 10, color: "#999", margin: "1px 0 0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                        Re: <strong style={{ color: "#555" }}>{msg.productName}</strong>
-                      </p>
-                      <p style={{ fontSize: 10, color: !msg.readByShop ? "#ff6a00" : "#aaa", margin: "1px 0 0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: !msg.readByShop ? 700 : 400 }}>
-                        {msg.replies.length > 0 ? `${msg.replies.length} replies` : msg.text}
-                      </p>
-                    </div>
-                    {!msg.readByShop && <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#ff6a00", flexShrink: 0, marginTop: 6 }} />}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Chat window */}
-            {openMsgId ? (() => {
-              const msg = messages.find((m) => m.id === openMsgId);
-              if (!msg) return null;
-              return (
-                <div style={{ flex: 1, background: "#fff", border: "1px solid #e8e8e8", display: "flex", flexDirection: "column", overflow: "hidden" }}>
-                  {/* Header */}
-                  <div style={{ padding: "10px 16px", borderBottom: "1px solid #f0f0f0", display: "flex", alignItems: "center", gap: 10, background: "#fafafa", flexShrink: 0 }}>
-                    <div style={{ width: 32, height: 32, borderRadius: "50%", background: "#ff6a00", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 12, fontWeight: 900, flexShrink: 0 }}>
-                      {msg.buyerName[0]?.toUpperCase()}
-                    </div>
-                    <div style={{ flex: 1 }}>
-                      <p style={{ fontSize: 13, fontWeight: 700, color: "#333", margin: 0 }}>{msg.buyerName}</p>
-                      <p style={{ fontSize: 10, color: "#999", margin: 0, display: "flex", alignItems: "center", gap: 4 }}>
-                        <Package size={9} style={{ color: "#ff6a00" }} /> About: <strong style={{ color: "#555" }}>{msg.productName}</strong>
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Thread */}
-                  <div ref={shopScrollRef} style={{ flex: 1, overflowY: "auto", padding: "16px", display: "flex", flexDirection: "column", gap: 10, background: "#f9f9f9" }}>
-                    {/* Customer's first message */}
-                    <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
-                      <div style={{ width: 28, height: 28, borderRadius: "50%", background: "#e8e8e8", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: "#555", flexShrink: 0 }}>
-                        {msg.buyerName[0]?.toUpperCase()}
-                      </div>
-                      <div>
-                        <p style={{ fontSize: 9, color: "#bbb", margin: "0 0 3px" }}>{msg.buyerName}</p>
-                        <div style={{ background: "#fff", border: "1px solid #e8e8e8", padding: "8px 12px", fontSize: 12, color: "#333", lineHeight: 1.6, maxWidth: 360, borderRadius: "12px 12px 12px 0", boxShadow: "0 1px 2px rgba(0,0,0,0.04)" }}>
-                          {msg.text}
-                        </div>
-                        <p style={{ fontSize: 9, color: "#bbb", margin: "3px 0 0" }}>{new Date(msg.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</p>
-                      </div>
-                    </div>
-
-                    {/* Replies (flat, alternating) */}
-                    {msg.replies.map((r) => {
-                      const isShop = r.fromShop;
-                      return (
-                        <div key={r.id} style={{ display: "flex", justifyContent: isShop ? "flex-end" : "flex-start", gap: 8, alignItems: "flex-end" }}>
-                          {!isShop && (
-                            <div style={{ width: 28, height: 28, borderRadius: "50%", background: "#e8e8e8", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: "#555", flexShrink: 0 }}>
-                              {msg.buyerName[0]?.toUpperCase()}
-                            </div>
-                          )}
-                          <div>
-                            {!isShop && <p style={{ fontSize: 9, color: "#bbb", margin: "0 0 3px" }}>{msg.buyerName}</p>}
-                            <div style={{ padding: "8px 12px", fontSize: 12, lineHeight: 1.6, maxWidth: 360, background: isShop ? "#ff6a00" : "#fff", color: isShop ? "#fff" : "#333", border: isShop ? "none" : "1px solid #e8e8e8", borderRadius: isShop ? "12px 12px 0 12px" : "12px 12px 12px 0", boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}>
-                              {r.text}
-                            </div>
-                            <p style={{ fontSize: 9, color: "#bbb", margin: "3px 0 0", textAlign: isShop ? "right" : "left" }}>
-                              {new Date(r.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                            </p>
-                          </div>
-                          {isShop && (
-                            <div style={{ width: 28, height: 28, borderRadius: "50%", overflow: "hidden", background: "#ff6a00", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                              {shop.logo_url ? <img src={shop.logo_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <span style={{ fontSize: 11, fontWeight: 900, color: "#fff" }}>{initial}</span>}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  {/* Reply input */}
-                  <div style={{ borderTop: "1px solid #e8e8e8", padding: "10px 12px", background: "#fff", display: "flex", gap: 8, alignItems: "center", flexShrink: 0 }}>
-                    <input
-                      value={replyText}
-                      onChange={(e) => setReplyText(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" && !e.shiftKey && replyText.trim()) {
-                          e.preventDefault();
-                          replyToMessage(msg.id, replyText.trim(), true);
-                          setReplyText("");
-                          setMessages(getMessagesForShop(shop.id));
-                          // Notify customer tab instantly
-                          bcRef.current?.postMessage({ type: "reply", shopId: shop.id });
-                        }
-                      }}
-                      placeholder={`Reply to ${msg.buyerName}…`}
-                      style={{ flex: 1, border: "1.5px solid #e8e8e8", padding: "8px 12px", fontSize: 12, outline: "none", borderRadius: 8 }}
-                    />
-                    <button
-                      disabled={!replyText.trim()}
-                      onClick={() => {
-                        if (!replyText.trim()) return;
-                        replyToMessage(msg.id, replyText.trim(), true);
-                        setReplyText("");
-                        setMessages(getMessagesForShop(shop.id));
-                        bcRef.current?.postMessage({ type: "reply", shopId: shop.id });
-                      }}
-                      style={{ padding: "8px 16px", background: replyText.trim() ? "#ff6a00" : "#f5f5f5", color: replyText.trim() ? "#fff" : "#ccc", border: "none", cursor: replyText.trim() ? "pointer" : "not-allowed", fontSize: 12, fontWeight: 700, display: "flex", alignItems: "center", gap: 5, flexShrink: 0, borderRadius: 8 }}>
-                      <Send size={13} /> Send
-                    </button>
-                  </div>
-                </div>
-              );
-            })() : (
-              <div style={{ flex: 1, background: "#fff", border: "1px solid #e8e8e8", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8 }}>
-                <Package size={40} style={{ color: "#e0e0e0" }} />
-                <p style={{ fontSize: 13, color: "#bbb" }}>Select a conversation to reply</p>
-              </div>
-            )}
-          </div>
-        )}
       </main>
 
       {/* ── CART DRAWER (own-shop order basket) ─────────────────────────────── */}

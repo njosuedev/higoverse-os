@@ -49,3 +49,6 @@ class ResetPasswordRequest(BaseModel):
 class VerifyRegistrationRequest(BaseModel):
     email: EmailStr
     otp: str
+
+class UpdateProfileRequest(BaseModel):
+    name: str

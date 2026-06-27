@@ -14,9 +14,11 @@ from app.core.security import verify_password, hash_password
 from app.db.deps import get_db, get_shop_db
 from app.models.password_reset import PasswordReset
 from app.models.user import User
+from app.core.security import create_access_token
 from app.schemas.auth import (
     RegisterRequest, RegisterShopRequest, LoginRequest, ChangePasswordRequest,
     ForgotPasswordRequest, ResetPasswordRequest, VerifyRegistrationRequest,
+    UpdateProfileRequest,
 )
 from app.services.auth_service import register_customer, register_shop, login_user
 
@@ -291,3 +293,41 @@ def reset_password(payload: ResetPasswordRequest, db: Session = Depends(get_db))
     db.commit()
 
     return {"success": True, "message": "Password reset successfully. You can now sign in."}
+
+
+# ----------------------------
+# UPDATE PROFILE (authenticated)
+# ----------------------------
+@router.put("/profile")
+def update_profile(
+    payload: UpdateProfileRequest,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    name = payload.name.strip()
+    if not name:
+        raise HTTPException(status_code=422, detail="Name cannot be empty")
+
+    current_user.name = name
+    db.commit()
+
+    # Issue a fresh token so the new name is reflected immediately
+    new_token = create_access_token({
+        "sub":     str(current_user.id),
+        "shop_id": str(current_user.shop_id) if current_user.shop_id else None,
+        "email":   current_user.email,
+        "role":    current_user.role,
+        "name":    current_user.name,
+    })
+
+    return {
+        "success": True,
+        "access_token": new_token,
+        "user": {
+            "id":      str(current_user.id),
+            "email":   current_user.email,
+            "shop_id": str(current_user.shop_id) if current_user.shop_id else None,
+            "role":    current_user.role,
+            "name":    current_user.name,
+        },
+    }

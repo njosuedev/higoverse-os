@@ -14,6 +14,7 @@ interface AuthState {
 interface AuthContextValue extends AuthState {
   login: (data: { access_token: string; user: User }) => void;
   logout: () => void;
+  updateUser: (data: { access_token: string; user: User }) => void;
 }
 
 const AuthContext = createContext<AuthContextValue>({
@@ -22,6 +23,7 @@ const AuthContext = createContext<AuthContextValue>({
   ready: false,
   login: () => {},
   logout: () => {},
+  updateUser: () => {},
 });
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -37,6 +39,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setState({ user: data.user, token: data.access_token, ready: true });
   }, []);
 
+  const updateUser = useCallback((data: { access_token: string; user: User }) => {
+    persistAuth(data);
+    setState((s) => ({ ...s, user: data.user, token: data.access_token }));
+  }, []);
+
   const logout = useCallback(() => {
     // Send offline signal first — token is still in localStorage at this point
     sendOffline();
@@ -46,7 +53,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ ...state, login, logout }}>
+    <AuthContext.Provider value={{ ...state, login, logout, updateUser }}>
       {children}
     </AuthContext.Provider>
   );

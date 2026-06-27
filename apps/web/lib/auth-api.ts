@@ -54,6 +54,14 @@ export async function listShops(): Promise<ShopProfile[]> {
   return res?.data ?? [];
 }
 
+export async function updateProfile(name: string): Promise<{ access_token: string; user: import("./auth").User }> {
+  const res = await authRequest("/api/v1/auth/profile", {
+    method: "PUT",
+    body: JSON.stringify({ name }),
+  });
+  return res;
+}
+
 export async function changePassword(currentPassword: string, newPassword: string): Promise<void> {
   await authRequest("/api/v1/auth/change-password", {
     method: "PUT",
