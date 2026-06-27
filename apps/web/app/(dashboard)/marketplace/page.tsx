@@ -26,7 +26,7 @@ import {
   followShop, unfollowShop, isFollowingShop, getFollowedShops, getShopFollowerCount,
   type ShopMessage,
 } from "@/lib/product-meta";
-import { createOrGetConversation } from "@/lib/messages-api";
+import { createOrGetConversation, warmupMsgService } from "@/lib/messages-api";
 import { createSelfNotification, openNotifStream } from "@/lib/notifications-api";
 
 // ── marketplace cache (90 s TTL — instant paint for returning users) ─────────
@@ -150,6 +150,7 @@ export default function MarketplacePage() {
   const serverCatalogRef = useRef<MarketplaceEntry[]>([]);
 
   useEffect(() => {
+    warmupMsgService(); // wake Render.com free-tier before user opens order modal
     if (localStorage.getItem("mp_shop_banner_dismissed") === "1") setBannerDismissed(true);
     if (localStorage.getItem("mp_shop_applied") === "1") setShopApplied(true);
     // Paint stale cache instantly so the page is never blank
@@ -648,7 +649,8 @@ export default function MarketplacePage() {
   // ── order ────────────────────────────────────────────────────────────────
   async function placeOrder() {
     if (!orderModal) return;
-    setOrdering(true); setOrderError("");
+    setOrdering(true);
+    setOrderError("Connecting to chat service…");
     try {
       const entry = orderModal.entry;
       const qty   = orderModal.qty;
@@ -669,10 +671,11 @@ export default function MarketplacePage() {
           `Please confirm availability and arrange delivery.`,
         ].join("\n"),
       });
+      setOrderError("");
       setOrderModal(null);
       router.push(`/messages?conv=${conv.id}`);
     } catch (err: unknown) {
-      setOrderError(err instanceof Error ? err.message : "Failed to open chat");
+      setOrderError(err instanceof Error ? err.message : "Could not open chat — please try again.");
     } finally { setOrdering(false); }
   }
 
@@ -1496,7 +1499,14 @@ export default function MarketplacePage() {
                     </div>
                   </div>
                 </div>
-                {orderError && <p style={{ fontSize: 11, color: "#f5222d", background: "#fff2f0", border: "1px solid #ffa39e", padding: "6px 10px", margin: 0 }}>{orderError}</p>}
+                {orderError && (
+                  <p style={{
+                    fontSize: 11, padding: "6px 10px", margin: 0,
+                    color:      orderError.startsWith("Connecting") ? "#1d4ed8" : "#f5222d",
+                    background: orderError.startsWith("Connecting") ? "#eff6ff"  : "#fff2f0",
+                    border:     `1px solid ${orderError.startsWith("Connecting") ? "#bfdbfe" : "#ffa39e"}`,
+                  }}>{orderError}</p>
+                )}
                 <p style={{ fontSize: 10, color: "#aaa", margin: 0, lineHeight: 1.5 }}>This will open a chat with the shop. Confirm availability, negotiate, and arrange delivery through messages.</p>
               </div>
               <div style={{ display: "flex", gap: 8, padding: "12px 16px", borderTop: "1px solid #f0f0f0" }}>

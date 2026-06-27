@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, timezone
-from sqlalchemy import Column, String, DateTime, Numeric
+from sqlalchemy import Column, String, DateTime, Numeric, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from app.db.base import Base
@@ -24,7 +24,7 @@ class Conversation(Base):
     # Product context
     product_id      = Column(String(255), index=True)
     product_name    = Column(String(500))
-    product_image   = Column(String(1000))
+    product_image   = Column(Text)
     listed_price    = Column(Numeric(12, 2))
 
     # Negotiation outcome

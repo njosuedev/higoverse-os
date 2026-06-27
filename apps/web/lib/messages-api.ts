@@ -78,6 +78,15 @@ export interface SendMessagePayload {
 
 // ── API calls ─────────────────────────────────────────────────────────────────
 
+/**
+ * Fire-and-forget ping that wakes the Render.com free-tier service.
+ * Call this on marketplace page mount so the service is warm by the time
+ * the user opens the order modal. Swallows all errors silently.
+ */
+export function warmupMsgService(): void {
+  fetch(`${MSG_API}/health`, { method: "GET", mode: "no-cors" }).catch(() => {});
+}
+
 export async function listConversations(): Promise<Conversation[]> {
   const res = await msgRequest("/api/v1/conversations");
   return res?.data ?? [];
@@ -86,11 +95,27 @@ export async function listConversations(): Promise<Conversation[]> {
 export async function createOrGetConversation(
   payload: CreateConversationPayload,
 ): Promise<Conversation> {
-  const res = await msgRequest("/api/v1/conversations", {
-    method: "POST",
-    body: JSON.stringify(payload),
-  });
-  return res?.data;
+  // Retry up to 4 times with backoff — handles Render.com cold-start (30-90 s wake time).
+  // Network errors ("Failed to fetch") trigger retry; HTTP errors (4xx/5xx) do not.
+  const MAX = 4;
+  const DELAYS = [2000, 5000, 10000, 15000]; // ms between attempts
+  let lastErr: unknown;
+  for (let i = 0; i < MAX; i++) {
+    try {
+      const res = await msgRequest("/api/v1/conversations", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+      return res?.data;
+    } catch (err) {
+      lastErr = err;
+      // Only retry on network errors, not on HTTP errors like 401/4xx
+      const isNetErr = err instanceof TypeError || (err instanceof Error && err.message.startsWith("Failed to fetch"));
+      if (!isNetErr || i === MAX - 1) break;
+      await new Promise((r) => setTimeout(r, DELAYS[i]));
+    }
+  }
+  throw lastErr;
 }
 
 export async function getConversation(id: string): Promise<Conversation> {
