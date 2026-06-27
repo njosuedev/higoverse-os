@@ -325,6 +325,22 @@ def send_message(
     return {"success": True, "data": _fmt_msg(msg)}
 
 
+@router.post("/conversations/{conv_id}/typing")
+def typing_indicator(
+    conv_id: str,
+    db: Session = Depends(get_db),
+    current_user: TokenData = Depends(get_current_user),
+):
+    uid  = current_user.user_id
+    conv = _get_conv_or_403(conv_id, db, current_user)
+    recipient = conv.shop_id if uid == conv.customer_id else conv.customer_id
+    publish_sync(recipient, {
+        "type":            "user_typing",
+        "conversation_id": str(conv.id),
+    })
+    return {"success": True}
+
+
 @router.patch("/conversations/{conv_id}/messages/{msg_id}")
 def edit_message(
     conv_id: str,

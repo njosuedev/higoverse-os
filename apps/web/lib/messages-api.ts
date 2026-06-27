@@ -154,6 +154,10 @@ export async function respondToOffer(
   return res?.data;
 }
 
+export async function sendTyping(convId: string): Promise<void> {
+  await msgRequest(`/api/v1/conversations/${convId}/typing`, { method: "POST" });
+}
+
 export async function editMessage(convId: string, msgId: string, content: string): Promise<Message> {
   const res = await msgRequest(`/api/v1/conversations/${convId}/messages/${msgId}`, {
     method: "PATCH",

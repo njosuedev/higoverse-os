@@ -150,13 +150,13 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
     return () => ctrl.abort();
   }, [user]);
 
-  // ── Request browser notification permission once ───────────────────────────
+  // ── Request browser notification permission once (all users) ─────────────
   useEffect(() => {
-    if (!user || !isShopOwnerEarly) return;
+    if (!user) return;
     if ("Notification" in window && Notification.permission === "default") {
       Notification.requestPermission().catch(() => {});
     }
-  }, [user, isShopOwnerEarly]);
+  }, [user]);
 
   // ── Message SSE — real-time message badge + sound + browser notification ───
   useEffect(() => {
@@ -167,10 +167,11 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
         setUnreadMsgs((n) => n + 1);
         playMsgSound();
 
-        // Browser notification for shop owners when a customer messages them
-        if (isShopOwnerEarly && evt.message?.sender_type === "customer") {
-          const title = `New message from ${evt.message.sender_name ?? "a customer"}`;
-          const body  = evt.message.content.slice(0, 120);
+        // Browser notification for everyone when a new message arrives
+        if (evt.message) {
+          const senderName = evt.message.sender_name ?? (isShopOwnerEarly ? "a customer" : "a shop");
+          const title  = `New message from ${senderName}`;
+          const body   = evt.message.content.slice(0, 120);
           const convId = evt.conversation_id;
 
           if ("Notification" in window && Notification.permission === "granted") {

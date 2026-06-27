@@ -19,6 +19,7 @@ import {
   listConversations,
   listMessages,
   sendMessage,
+  sendTyping,
   editMessage,
   deleteMessage,
   respondToOffer,
@@ -262,7 +263,10 @@ export default function MessagesPage() {
   const [loading, setLoading]       = useState(true);
   const [error, setError]           = useState<string | null>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [editingMsg, setEditingMsg] = useState<Message | null>(null);
+  const [editingMsg, setEditingMsg]   = useState<Message | null>(null);
+  const [peerTyping, setPeerTyping]   = useState(false);
+  const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastTypingSent = useRef<number>(0);
 
   const bottomRef    = useRef<HTMLDivElement>(null);
   const lastMsgTime  = useRef<string | null>(null);
@@ -333,6 +337,7 @@ export default function MessagesPage() {
     lastMsgTime.current = null;
     prevMsgCount.current = 0;
     setMessages([]);
+    setPeerTyping(false);
     loadMessages(active);
 
     // Catch-up poll — SSE handles real-time; this catches any missed events
@@ -373,6 +378,13 @@ export default function MessagesPage() {
         // Recipient opened the conversation — mark our sent messages as seen
         if (evt.type === "messages_read" && evt.conversation_id === activeRef.current?.id) {
           setMessages((prev) => prev.map((m) => m.is_read ? m : { ...m, is_read: true }));
+        }
+
+        // Peer is typing — show indicator, auto-clear after 3 s
+        if (evt.type === "user_typing" && evt.conversation_id === activeRef.current?.id) {
+          setPeerTyping(true);
+          if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
+          typingTimerRef.current = setTimeout(() => setPeerTyping(false), 3000);
         }
       },
       () => {
@@ -744,6 +756,20 @@ export default function MessagesPage() {
                   />
                 ))
               )}
+              {/* Typing indicator */}
+              {peerTyping && (
+                <div className="flex justify-start mb-2">
+                  <div className="flex items-center gap-1.5 px-4 py-3 rounded-2xl rounded-bl-sm bg-gray-100">
+                    {[0, 1, 2].map((i) => (
+                      <span
+                        key={i}
+                        className="w-2 h-2 rounded-full bg-gray-400"
+                        style={{ animation: "typing-bounce 1.2s infinite", animationDelay: `${i * 0.2}s` }}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
               <div ref={bottomRef} />
             </div>
 
@@ -805,6 +831,11 @@ export default function MessagesPage() {
                         setText(e.target.value);
                         e.target.style.height = "auto";
                         e.target.style.height = Math.min(e.target.scrollHeight, 120) + "px";
+                        // Throttle typing events — at most once every 2 s
+                        if (active && Date.now() - lastTypingSent.current > 2000) {
+                          lastTypingSent.current = Date.now();
+                          sendTyping(active.id).catch(() => {});
+                        }
                       }}
                       onKeyDown={(e) => {
                         if (e.key === "Enter" && !e.shiftKey) {
