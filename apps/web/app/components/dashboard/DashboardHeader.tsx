@@ -81,6 +81,9 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
   const [unreadNotifs, setUnreadNotifs] = useState(0);
   const menuRef = useRef<HTMLDivElement>(null);
 
+  // Derived early so effects below can use it as a dependency
+  const isShopOwnerEarly = !!shop?.is_active && getEffectiveRole(user ?? null, true) === "SHOP_OWNER";
+
   // ── Sounds ─────────────────────────────────────────────────────────────────
   function playNotifSound() {
     try {
@@ -146,20 +149,50 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
     return () => ctrl.abort();
   }, [user]);
 
-  // ── Message SSE — real-time message badge + sound ──────────────────────────
+  // ── Request browser notification permission once ───────────────────────────
+  useEffect(() => {
+    if (!user || !isShopOwnerEarly) return;
+    if ("Notification" in window && Notification.permission === "default") {
+      Notification.requestPermission().catch(() => {});
+    }
+  }, [user, isShopOwnerEarly]);
+
+  // ── Message SSE — real-time message badge + sound + browser notification ───
   useEffect(() => {
     if (!user) return;
     const ctrl = openMessageStream(
       (evt) => {
-        if (evt.type === "new_message") {
-          setUnreadMsgs((n) => n + 1);
-          playMsgSound();
+        if (evt.type !== "new_message") return;
+        setUnreadMsgs((n) => n + 1);
+        playMsgSound();
+
+        // Browser notification for shop owners when a customer messages them
+        if (isShopOwnerEarly && evt.message?.sender_type === "customer") {
+          const title = `New message from ${evt.message.sender_name ?? "a customer"}`;
+          const body  = evt.message.content.slice(0, 120);
+          const convId = evt.conversation_id;
+
+          if ("Notification" in window && Notification.permission === "granted") {
+            const notif = new Notification(title, {
+              body,
+              icon: "/higoverse.png",
+              tag:  convId ?? "msg",
+              requireInteraction: false,
+            });
+            if (convId) {
+              notif.onclick = () => {
+                window.focus();
+                router.push(`/messages?conv=${convId}`);
+                notif.close();
+              };
+            }
+          }
         }
       },
       () => { /* SSE unavailable — 60s poll handles recovery */ },
     );
     return () => ctrl.abort();
-  }, [user]);
+  }, [user, isShopOwnerEarly, router]);
 
   useEffect(() => {
     function onOutside(e: MouseEvent) {
@@ -234,14 +267,16 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
                   : "text-slate-600 hover:text-slate-900 hover:bg-slate-50";
 
                 const badge =
-                  menu.href === "/notifications" ? unreadNotifs :
-                  menu.href === "/messages"      ? unreadMsgs  : 0;
+                  menu.href === "/notifications"                      ? unreadNotifs :
+                  menu.href === "/messages"                           ? unreadMsgs   :
+                  menu.href === "/marketplace" && isShopOwner         ? unreadMsgs   : 0;
 
                 return (
                   <Link key={menu.href} href={menu.href}
                     onClick={() => {
                       if (menu.href === "/notifications") setUnreadNotifs(0);
                       if (menu.href === "/messages")      setUnreadMsgs(0);
+                      if (menu.href === "/marketplace" && isShopOwner) setUnreadMsgs(0);
                     }}
                     className={`relative flex flex-col items-center justify-center gap-0.5 px-3 lg:px-4
                       flex-shrink-0 min-w-[56px] transition-colors
