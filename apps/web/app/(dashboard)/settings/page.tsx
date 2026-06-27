@@ -1,6 +1,7 @@
 ﻿"use client";
 
 import { useEffect, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import { settingsRequest } from "@/lib/settings-api";
 import { updateMyShop } from "@/lib/shop-api";
 import { changePassword } from "@/lib/auth-api";
@@ -9,12 +10,15 @@ import { useAuth } from "@/lib/auth-context";
 import { useShop } from "@/lib/shop-context";
 import { getEffectiveRole } from "@/lib/auth";
 import { type Lang } from "@/lib/i18n";
+import { parseShopAddress } from "@/lib/product-meta";
 import PageSkeleton from "@/app/components/dashboard/PageSkeleton";
 import {
   Settings, Save, RefreshCw, Store, Phone, MapPin, DollarSign,
   AlertCircle, FileText, Lock, Eye, EyeOff, CheckCircle2, ChevronDown,
-  Globe, BarChart, ShieldCheck, Pencil, ImagePlus, X, Loader2,
+  Globe, BarChart, ShieldCheck, Pencil, ImagePlus, X, Loader2, Target,
 } from "lucide-react";
+
+const HigoMapPicker = dynamic(() => import("@/app/components/ui/HigoMapPicker"), { ssr: false });
 
 interface ShopForm {
   shop_name: string;
@@ -95,6 +99,50 @@ export default function SettingsPage() {
   const [logoLoading, setLogoLoading] = useState(false);
   const logoDirty = logoUrl !== savedLogoUrl.current;
 
+  // Map pin
+  const [pinLat, setPinLat]       = useState<number | null>(null);
+  const [pinLng, setPinLng]       = useState<number | null>(null);
+  const [showMap, setShowMap]     = useState(false);
+
+  // Address live-search
+  type NomResult = { display_name: string; lat: string; lon: string };
+  const [addrResults,  setAddrResults]  = useState<NomResult[]>([]);
+  const [addrSearching,setAddrSearching]= useState(false);
+  const [addrDropOpen, setAddrDropOpen] = useState(false);
+  const addrDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const addrAbort    = useRef<AbortController | null>(null);
+
+  async function searchAddress(q: string) {
+    addrAbort.current?.abort();
+    if (q.length < 2) { setAddrResults([]); setAddrDropOpen(false); return; }
+    const ctrl = new AbortController(); addrAbort.current = ctrl;
+    setAddrSearching(true);
+    try {
+      const r = await fetch(
+        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=6&addressdetails=1`,
+        { headers: { "Accept-Language": "en", "User-Agent": "Higoverse/1.0" }, signal: ctrl.signal }
+      );
+      const d: NomResult[] = await r.json();
+      setAddrResults(d ?? []);
+      setAddrDropOpen((d ?? []).length > 0);
+    } catch (err: unknown) {
+      if (err instanceof Error && err.name !== "AbortError") setAddrResults([]);
+    } finally { setAddrSearching(false); }
+  }
+
+  function onAddrInput(val: string) {
+    setShopForm(f => ({ ...f, address: val }));
+    if (addrDebounce.current) clearTimeout(addrDebounce.current);
+    addrDebounce.current = setTimeout(() => searchAddress(val), 350);
+  }
+
+  function selectAddr(r: NomResult) {
+    setShopForm(f => ({ ...f, address: r.display_name }));
+    setPinLat(parseFloat(r.lat));
+    setPinLng(parseFloat(r.lon));
+    setAddrResults([]); setAddrDropOpen(false);
+  }
+
   const [loading, setLoading]   = useState(true);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [showPw, setShowPw]     = useState(false);
@@ -136,6 +184,12 @@ export default function SettingsPage() {
       };
 
       const logo = shop?.logo_url || "";
+      // Restore any previously saved GPS pin
+      const parsed = parseShopAddress(newShop.address);
+      if (parsed.lat != null) setPinLat(parsed.lat);
+      if (parsed.lng != null) setPinLng(parsed.lng);
+      // Strip coords from the display field so the dropdown shows cleanly
+      if (parsed.lat != null) newShop.address = newShop.address.replace(/\|Lat:[^|]+\|Lng:[^|]+$/, "").replace(/\|Lat:[^|]+$/, "");
       setShopForm(newShop);
       setOpsForm(newOps);
       setLogoUrl(logo);
@@ -154,13 +208,17 @@ export default function SettingsPage() {
   }
 
   async function saveShop() {
-    if (!shopForm.address) { setShopErr("Please select a district."); return; }
+    if (!shopForm.address) { setShopErr("Please enter your business address."); return; }
     setShopStatus("saving"); setShopErr("");
+    // Encode GPS coords into address string if a pin was set
+    const finalAddress = pinLat != null && pinLng != null
+      ? `${shopForm.address}|Lat:${pinLat.toFixed(6)}|Lng:${pinLng.toFixed(6)}`
+      : shopForm.address;
     try {
       await updateMyShop({
         name:        shopForm.shop_name,
         phone:       shopForm.phone,
-        address:     shopForm.address,
+        address:     finalAddress,
         description: shopForm.description,
         logo_url:    logoUrl || undefined,
       });
@@ -170,7 +228,7 @@ export default function SettingsPage() {
         body: JSON.stringify({
           shop_name: shopForm.shop_name,
           phone:     shopForm.phone,
-          address:   shopForm.address,
+          address:   finalAddress,
         }),
       }).catch(() => {}); // best-effort
       savedShop.current    = { ...shopForm };
@@ -390,34 +448,72 @@ export default function SettingsPage() {
                 />
               </Field>
               <Field label={<><MapPin size={11} className="inline mr-1" />{t("common.address")} <span className="text-red-400">*</span></>}>
+                {/* Live address search — replaces old district dropdown */}
                 <div className="relative">
-                  <select
-                    className={`${inputCls} appearance-none pr-9 pl-3 ${!shopForm.address ? "text-gray-400 border-red-300 focus:border-red-400 focus:ring-red-500/20" : ""}`}
-                    value={shopForm.address}
-                    onChange={(e) => setShopForm({ ...shopForm, address: e.target.value })}
-                  >
-                    <option value="" disabled>Select your district…</option>
-                    <optgroup label="── Kigali City ──">
-                      {["Gasabo","Kicukiro","Nyarugenge"].map(d=><option key={d} value={`${d}, Kigali`}>{d}</option>)}
-                    </optgroup>
-                    <optgroup label="── Eastern Province ──">
-                      {["Bugesera","Gatsibo","Kayonza","Kirehe","Ngoma","Nyagatare","Rwamagana"].map(d=><option key={d} value={`${d}, Eastern Province`}>{d}</option>)}
-                    </optgroup>
-                    <optgroup label="── Western Province ──">
-                      {["Karongi","Ngororero","Nyabihu","Nyamasheke","Rubavu","Rusizi","Rutsiro"].map(d=><option key={d} value={`${d}, Western Province`}>{d}</option>)}
-                    </optgroup>
-                    <optgroup label="── Northern Province ──">
-                      {["Burera","Gakenke","Gicumbi","Musanze","Rulindo"].map(d=><option key={d} value={`${d}, Northern Province`}>{d}</option>)}
-                    </optgroup>
-                    <optgroup label="── Southern Province ──">
-                      {["Gisagara","Huye","Kamonyi","Muhanga","Nyamagabe","Nyanza","Nyaruguru","Ruhango"].map(d=><option key={d} value={`${d}, Southern Province`}>{d}</option>)}
-                    </optgroup>
-                  </select>
-                  <ChevronDown size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                  <div className="relative">
+                    <MapPin size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                    <input
+                      value={shopForm.address}
+                      onChange={(e) => onAddrInput(e.target.value)}
+                      onBlur={() => setTimeout(() => setAddrDropOpen(false), 150)}
+                      onFocus={() => addrResults.length > 0 && setAddrDropOpen(true)}
+                      placeholder="Search your street, area or landmark…"
+                      autoComplete="off"
+                      className={`${inputCls} pl-8 pr-8 ${!shopForm.address ? "border-red-300 focus:border-red-400 focus:ring-red-500/20" : ""}`}
+                    />
+                    <div className="absolute right-2.5 top-1/2 -translate-y-1/2">
+                      {addrSearching
+                        ? <Loader2 size={13} className="animate-spin text-[#1372e6]" />
+                        : shopForm.address
+                          ? <button type="button" onClick={() => { setShopForm(f=>({...f,address:""})); setAddrResults([]); setAddrDropOpen(false); }}
+                              className="text-slate-300 hover:text-slate-500 transition"><X size={13} /></button>
+                          : null
+                      }
+                    </div>
+                  </div>
+
+                  {/* Live results dropdown */}
+                  {addrDropOpen && addrResults.length > 0 && (
+                    <div className="absolute top-full left-0 right-0 mt-0.5 bg-white border border-slate-200 rounded-xl shadow-2xl z-30 overflow-hidden">
+                      {addrResults.map((r, i) => (
+                        <button key={i} type="button" onMouseDown={() => selectAddr(r)}
+                          className="w-full text-left px-3.5 py-2.5 hover:bg-blue-50 text-xs text-slate-700 border-b border-slate-50 last:border-0 transition flex items-start gap-2">
+                          <MapPin size={11} className="text-[#1372e6] mt-0.5 shrink-0" />
+                          <span className="line-clamp-2">{r.display_name}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
+
+                {/* Pin on map — works together with search above */}
+                <div className="mt-2 flex items-center gap-2 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => setShowMap(true)}
+                    className="flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-semibold transition"
+                    style={pinLat != null
+                      ? { background: "#e8f1fd", borderColor: "#1372e6", color: "#1372e6" }
+                      : { background: "#f8fafc", borderColor: "#e2e8f0", color: "#475569" }
+                    }
+                  >
+                    <Target size={13} />
+                    {pinLat != null ? "Update Pin on Map" : "Pin Exact Location on Map"}
+                  </button>
+                  {pinLat != null && (
+                    <span className="text-[10px] font-mono text-slate-400">
+                      {pinLat.toFixed(5)}, {pinLng?.toFixed(5)}
+                    </span>
+                  )}
+                </div>
+                {pinLat != null && (
+                  <p className="text-[11px] text-emerald-600 mt-1 flex items-center gap-1">
+                    <MapPin size={10} /> GPS pinned — customers can navigate directly to your shop
+                  </p>
+                )}
                 {!shopForm.address && (
                   <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
-                    <AlertCircle size={11} /> District is required
+                    <AlertCircle size={11} /> Address is required
                   </p>
                 )}
               </Field>
@@ -657,6 +753,22 @@ export default function SettingsPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Higoverse Map Picker modal */}
+      {showMap && (
+        <HigoMapPicker
+          initialLat={pinLat}
+          initialLng={pinLng}
+          onConfirm={(pos, lbl) => {
+            setPinLat(pos.lat);
+            setPinLng(pos.lng);
+            // Sync address text with the reverse-geocoded label from the map
+            if (lbl) setShopForm(f => ({ ...f, address: lbl }));
+            setShowMap(false);
+          }}
+          onClose={() => setShowMap(false)}
+        />
       )}
     </div>
   );

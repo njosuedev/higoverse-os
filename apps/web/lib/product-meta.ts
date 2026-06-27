@@ -276,14 +276,27 @@ export function addRejectionToDescription(description: string | undefined | null
   return JSON.stringify(obj);
 }
 
-/** Parse the address field: "TIN:xxx|Province:yyy|District:zzz|Sector:aaa|Addr:bbb" */
+/** Parse the address field: "TIN:xxx|Province:yyy|District:zzz|Sector:aaa|Addr:bbb|Lat:x|Lng:y" */
 export function parseShopAddress(address: string | undefined | null): {
   tin: string; province: string; district: string; sector: string; addr: string;
+  lat: number | null; lng: number | null;
 } {
-  const result = { tin: "", province: "", district: "", sector: "", addr: "" };
+  const result = { tin: "", province: "", district: "", sector: "", addr: "", lat: null as number | null, lng: null as number | null };
   if (!address) return result;
   if (!address.startsWith("TIN:")) {
-    result.district = address;
+    // Support plain "District, Province|Lat:x|Lng:y" format used by settings page
+    const pipeIdx = address.indexOf("|Lat:");
+    if (pipeIdx !== -1) {
+      result.district = address.slice(0, pipeIdx);
+      for (const seg of address.slice(pipeIdx + 1).split("|")) {
+        const ci = seg.indexOf(":"); if (ci === -1) continue;
+        const k = seg.slice(0, ci); const v = seg.slice(ci + 1);
+        if (k === "Lat") { const n = parseFloat(v); if (!isNaN(n)) result.lat = n; }
+        else if (k === "Lng") { const n = parseFloat(v); if (!isNaN(n)) result.lng = n; }
+      }
+    } else {
+      result.district = address;
+    }
     return result;
   }
   const parts = address.slice(4).split("|");
@@ -297,6 +310,8 @@ export function parseShopAddress(address: string | undefined | null): {
     else if (k === "District") result.district = v;
     else if (k === "Sector") result.sector = v;
     else if (k === "Addr") result.addr = v;
+    else if (k === "Lat") { const n = parseFloat(v); if (!isNaN(n)) result.lat = n; }
+    else if (k === "Lng") { const n = parseFloat(v); if (!isNaN(n)) result.lng = n; }
   }
   return result;
 }
@@ -312,12 +327,15 @@ export function formatPublicAddress(address: string | undefined | null): string 
 /** Build the address field from application components. */
 export function encodeShopAddress(data: {
   tin: string; province?: string; district: string; sector?: string; addr?: string;
+  lat?: number | null; lng?: number | null;
 }): string {
   let address = `TIN:${data.tin}`;
   if (data.province) address += `|Province:${data.province}`;
   if (data.district) address += `|District:${data.district}`;
   if (data.sector) address += `|Sector:${data.sector}`;
   if (data.addr) address += `|Addr:${data.addr}`;
+  if (data.lat != null) address += `|Lat:${data.lat.toFixed(6)}`;
+  if (data.lng != null) address += `|Lng:${data.lng.toFixed(6)}`;
   return address;
 }
 

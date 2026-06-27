@@ -21,7 +21,7 @@ import {
   getMessagesForShop, replyToMessage, markMessageRead, unreadCountForShop,
   sendMessage, getMyMessages,
   followShop, unfollowShop, isFollowingShop, getShopFollowerCount,
-  decodeShopCatalog, decodeShopHumanInfo, encodeDescriptionWithCatalog, catFromText, formatPublicAddress,
+  decodeShopCatalog, decodeShopHumanInfo, encodeDescriptionWithCatalog, catFromText, formatPublicAddress, parseShopAddress,
   type ProductMeta, type MarketplaceEntry, type ShopMessage,
 } from "@/lib/product-meta";
 import { createOrGetConversation } from "@/lib/messages-api";
@@ -1005,20 +1005,56 @@ export default function ShopStorePage() {
                     </a>
                   </div>
                 )}
-                {formatPublicAddress(shop.address) && (
-                  <div className="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-50 transition">
-                    <div className="w-9 h-9 rounded-xl bg-[#EBF2FD] flex items-center justify-center flex-shrink-0">
-                      <MapPin size={15} className="text-[#1372e6]" />
+                {formatPublicAddress(shop.address) && (() => {
+                  const { lat, lng } = parseShopAddress(shop.address);
+                  const hasPin = lat != null && lng != null;
+                  const mapsHref = hasPin
+                    ? `https://www.google.com/maps?q=${lat},${lng}`
+                    : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(formatPublicAddress(shop.address))}`;
+                  return (
+                    <div className="space-y-0">
+                      <div className="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-50 transition">
+                        <div className="w-9 h-9 rounded-xl bg-[#EBF2FD] flex items-center justify-center flex-shrink-0">
+                          <MapPin size={15} className="text-[#1372e6]" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[9px] text-slate-400 uppercase tracking-wide font-semibold">
+                            {hasPin ? "Exact Location" : "Address"}
+                          </p>
+                          <p className="text-sm font-bold text-slate-800 break-words">{formatPublicAddress(shop.address)}</p>
+                          {hasPin && (
+                            <p className="text-[10px] text-slate-400 font-mono">{lat!.toFixed(5)}, {lng!.toFixed(5)}</p>
+                          )}
+                        </div>
+                        <a href={mapsHref} target="_blank" rel="noopener noreferrer"
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-[#1372e6] bg-[#EBF2FD] hover:bg-[#D5E8FB] transition flex-shrink-0">
+                          <ExternalLink size={10} /> {hasPin ? "Navigate" : "Map"}
+                        </a>
+                      </div>
+
+                      {/* Embedded map — only shown when GPS pin exists */}
+                      {hasPin && (
+                        <div className="mx-3 mb-2 rounded-xl overflow-hidden border border-slate-200 shadow-sm" style={{ height: 220 }}>
+                          <iframe
+                            title="Business location"
+                            loading="lazy"
+                            style={{ width: "100%", height: "100%", border: 0 }}
+                            src={`https://www.openstreetmap.org/export/embed.html?bbox=${lng! - 0.002},${lat! - 0.002},${lng! + 0.002},${lat! + 0.002}&layer=mapnik&marker=${lat},${lng}`}
+                          />
+                          <div className="flex items-center justify-between px-3 py-1.5 bg-slate-50 border-t border-slate-100">
+                            <span className="text-[10px] text-slate-400 flex items-center gap-1">
+                              <MapPin size={9} className="text-[#1372e6]" /> Higoverse Location — powered by OpenStreetMap
+                            </span>
+                            <a href={mapsHref} target="_blank" rel="noopener noreferrer"
+                              className="text-[10px] font-bold text-[#1372e6] hover:underline flex items-center gap-1">
+                              Open in Google Maps <ExternalLink size={9} />
+                            </a>
+                          </div>
+                        </div>
+                      )}
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[9px] text-slate-400 uppercase tracking-wide font-semibold">Address</p>
-                      <p className="text-sm font-bold text-slate-800 break-words">{formatPublicAddress(shop.address)}</p>
-                    </div>
-                    <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(formatPublicAddress(shop.address))}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-[#1372e6] bg-[#EBF2FD] hover:bg-[#D5E8FB] transition flex-shrink-0">
-                      <ExternalLink size={10} /> Map
-                    </a>
-                  </div>
-                )}
+                  );
+                })()}
                 {!shop.phone && !formatPublicAddress(shop.address) && (
                   <p className="text-sm text-slate-400 italic text-center py-4">No contact details available.</p>
                 )}
