@@ -2,6 +2,7 @@ export interface ProductMeta {
   images: string[];
   listed: boolean;
   category?: string;
+  location?: string; // "Address text|Lat:x|Lng:y"
 }
 
 // ── per-product metadata (images + listed flag) ────────────────────────────
@@ -43,6 +44,7 @@ export interface MarketplaceEntry {
   name: string;
   description?: string;
   category?: string;
+  location?: string; // "Address text|Lat:x|Lng:y"
   sellingPrice: number;
   costPrice: number;
   quantity: number;

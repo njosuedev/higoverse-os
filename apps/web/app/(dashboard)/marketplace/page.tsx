@@ -404,6 +404,7 @@ export default function MarketplacePage() {
               name:         p.name,
               description:  p.description,
               category:     resolvedCategory,
+              location:     meta.location,
               sellingPrice: p.selling_price,
               costPrice:    p.cost_price ?? p.selling_price,
               quantity:     p.quantity,
@@ -1145,7 +1146,18 @@ export default function MarketplacePage() {
         const listedCount = listedPerShop[detailEntry.shopId] ?? 0;
         const inStock    = detailEntry.quantity > 0;
         const category   = detailEntry.category || catOf(detailEntry.name, detailEntry.description);
-        const cleanAddr  = (dShop?.address ?? "").replace(/^TIN:[^|]+\|/, "").trim();
+        // Prefer product-specific location; fall back to shop address
+        const prodLocRaw = detailEntry.location ?? "";
+        const shopAddrRaw = (dShop?.address ?? "").replace(/^TIN:[^|]+\|/, "").trim();
+        const locationRaw = prodLocRaw || shopAddrRaw;
+        const cleanAddr  = locationRaw.replace(/\|Lat:[^|]+(\|Lng:[^|]*)?$/, "").replace(/\|Lng:[^|]*$/, "").trim();
+        const locLatM    = locationRaw.match(/\|Lat:([-\d.]+)/);
+        const locLngM    = locationRaw.match(/\|Lng:([-\d.]+)/);
+        const locLat     = locLatM ? parseFloat(locLatM[1]) : null;
+        const locLng     = locLngM ? parseFloat(locLngM[1]) : null;
+        const mapsHref   = locLat != null && locLng != null
+          ? `https://www.google.com/maps?q=${locLat},${locLng}`
+          : cleanAddr ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(cleanAddr)}` : null;
         const related    = catalog
           .filter((e) => e.shopId === detailEntry.shopId && e.productId !== detailEntry.productId)
           .slice(0, 6);
@@ -1245,12 +1257,11 @@ export default function MarketplacePage() {
                       <tbody>
                         {([
                           ["Category",     category],
-                          cleanAddr && ["Location", cleanAddr],
                           ["Availability", inStock ? `In Stock` : "Out of Stock"],
                           ["Min. Order",   "1 unit"],
                           ["Supply",       `${listedCount} product${listedCount !== 1 ? "s" : ""} from this supplier`],
-                        ] as (string[] | false)[]).filter(Boolean).map((row, i) => {
-                          const [k, v] = row as string[];
+                        ] as string[][]).map((row, i) => {
+                          const [k, v] = row;
                           return (
                             <tr key={i} style={{ borderTop: "1px solid #f0f0f0" }}>
                               <td style={{ padding: "7px 0", color: "#aaa", width: 120, verticalAlign: "top", fontWeight: 400 }}>{k}</td>
@@ -1258,6 +1269,27 @@ export default function MarketplacePage() {
                             </tr>
                           );
                         })}
+                        {cleanAddr && (
+                          <tr style={{ borderTop: "1px solid #f0f0f0" }}>
+                            <td style={{ padding: "7px 0", color: "#aaa", width: 120, verticalAlign: "top", fontWeight: 400 }}>
+                              Location{prodLocRaw ? <span style={{ fontSize: 9, background: "#fff5f0", color: "#ff6a00", border: "1px solid #ffbb96", padding: "1px 5px", marginLeft: 4, fontWeight: 700 }}>Custom</span> : null}
+                            </td>
+                            <td style={{ padding: "7px 0", fontWeight: 500 }}>
+                              {mapsHref ? (
+                                <a href={mapsHref} target="_blank" rel="noopener noreferrer"
+                                  style={{ color: "#1677ff", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 4 }}>
+                                  <MapPin size={12} style={{ color: "#ff6a00", flexShrink: 0 }} />
+                                  {cleanAddr}
+                                </a>
+                              ) : (
+                                <span style={{ color: "#333", display: "inline-flex", alignItems: "center", gap: 4 }}>
+                                  <MapPin size={12} style={{ color: "#ff6a00", flexShrink: 0 }} />
+                                  {cleanAddr}
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        )}
                       </tbody>
                     </table>
                   </div>

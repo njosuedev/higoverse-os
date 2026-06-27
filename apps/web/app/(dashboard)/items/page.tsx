@@ -10,12 +10,15 @@ import { useAuth } from "@/lib/auth-context";
 import { useShop } from "@/lib/shop-context";
 import { updateMyShop } from "@/lib/shop-api";
 import Pagination from "@/app/components/ui/Pagination";
+import dynamic from "next/dynamic";
 import {
   Package, AlertCircle, Search, Filter, Plus, Trash2, Pencil, X,
   Boxes, DollarSign, TrendingUp, TrendingDown, ShoppingBag, RefreshCw, BarChart3, ChevronDown,
   FileSpreadsheet, FileText, Upload, Download, CheckCircle, XCircle,
-  ImagePlus, Store, Globe, Eye,
+  ImagePlus, Store, Globe, Eye, MapPin,
 } from "lucide-react";
+
+const HigoMapPicker = dynamic(() => import("@/app/components/ui/HigoMapPicker"), { ssr: false });
 import {
   getProductMeta, setProductMeta, deleteProductMeta, compressImage,
   upsertCatalogEntry, removeCatalogEntry, type ProductMeta,
@@ -79,6 +82,8 @@ export default function ItemManagementPage() {
   const [formImages, setFormImages]     = useState<string[]>([]);
   const [formListed, setFormListed]     = useState(false);
   const [formCategory, setFormCategory] = useState("");
+  const [formLocation, setFormLocation] = useState("");
+  const [showLocationPicker, setShowLocationPicker] = useState(false);
   const [imageUploading, setImageUploading] = useState(false);
   const imageInputRef = useRef<HTMLInputElement>(null);
   // local cache: productId → meta (loaded once on mount)
@@ -141,7 +146,7 @@ export default function ItemManagementPage() {
 
   function openCreateModal() {
     setForm(EMPTY_FORM); setEditingId(null); setModalMode("create");
-    setFormImages([]); setFormListed(false); setFormCategory("");
+    setFormImages([]); setFormListed(false); setFormCategory(""); setFormLocation("");
     setShowModal(true);
   }
 
@@ -158,12 +163,13 @@ export default function ItemManagementPage() {
     setFormImages(dbImages.length > 0 ? dbImages : meta.images);
     setFormListed(p.listed !== undefined ? p.listed : meta.listed);
     setFormCategory(p.category || (meta as ProductMeta & { category?: string }).category || "");
+    setFormLocation(meta.location || "");
     setEditingId(p.id); setModalMode("edit"); setShowModal(true);
   }
 
   function closeModal() {
     setShowModal(false); setForm(EMPTY_FORM); setEditingId(null);
-    setFormImages([]); setFormListed(false); setFormCategory("");
+    setFormImages([]); setFormListed(false); setFormCategory(""); setFormLocation("");
   }
 
   async function submitForm() {
@@ -188,16 +194,16 @@ export default function ItemManagementPage() {
       setSubmitting(true);
       if (modalMode === "edit" && editingId) {
         await itemRequest(`/products/${editingId}`, { method: "PUT", body: JSON.stringify(payload) });
-        setProductMeta(editingId, { images: formImages, listed: formListed, category: formCategory });
-        setProductMetaCache((prev) => ({ ...prev, [editingId]: { images: formImages, listed: formListed, category: formCategory } }));
-        syncCatalog(editingId, payload, formImages, formListed, formCategory);
+        setProductMeta(editingId, { images: formImages, listed: formListed, category: formCategory, location: formLocation || undefined });
+        setProductMetaCache((prev) => ({ ...prev, [editingId]: { images: formImages, listed: formListed, category: formCategory, location: formLocation || undefined } }));
+        syncCatalog(editingId, payload, formImages, formListed, formCategory, formLocation);
       } else {
         const res = await itemRequest("/products", { method: "POST", body: JSON.stringify(payload) });
         const newId: string | undefined = res?.data?.id;
         if (newId) {
-          setProductMeta(newId, { images: formImages, listed: formListed, category: formCategory });
-          setProductMetaCache((prev) => ({ ...prev, [newId]: { images: formImages, listed: formListed, category: formCategory } }));
-          syncCatalog(newId, payload, formImages, formListed, formCategory);
+          setProductMeta(newId, { images: formImages, listed: formListed, category: formCategory, location: formLocation || undefined });
+          setProductMetaCache((prev) => ({ ...prev, [newId]: { images: formImages, listed: formListed, category: formCategory, location: formLocation || undefined } }));
+          syncCatalog(newId, payload, formImages, formListed, formCategory, formLocation);
         }
       }
       closeModal(); await loadData(true);
@@ -439,6 +445,7 @@ export default function ItemManagementPage() {
     images: string[],
     listed: boolean,
     category: string,
+    location?: string,
   ) {
     if (!user) return;
     if (listed) {
@@ -451,6 +458,7 @@ export default function ItemManagementPage() {
         name: payload.name,
         description: payload.description ?? undefined,
         category: category || undefined,
+        location: location || undefined,
         sellingPrice: payload.selling_price,
         costPrice: payload.cost_price,
         quantity: payload.quantity,
@@ -1001,6 +1009,44 @@ export default function ItemManagementPage() {
                   )}
                 </div>
 
+                {/* ── PRODUCT LOCATION ───────────────────────────────────── */}
+                <div className="md:col-span-2">
+                  <label className="block text-xs font-medium text-gray-600 mb-1">
+                    <MapPin size={11} className="inline mr-1 text-[#1372e6]" />
+                    Custom Location <span className="text-slate-400">(optional — overrides shop address on marketplace)</span>
+                  </label>
+                  {formLocation ? (
+                    <div className="flex items-center gap-2 p-2.5 border border-[#1372e6] bg-[#EBF2FD] rounded-xl">
+                      <MapPin size={13} className="text-[#1372e6] shrink-0" />
+                      <span className="text-xs text-slate-700 flex-1 min-w-0 truncate">
+                        {formLocation.replace(/\|Lat:[^|]+\|Lng:[^|]+$/, "").replace(/\|Lat:[^|]+$/, "")}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setShowLocationPicker(true)}
+                        className="text-[10px] font-bold text-[#1372e6] hover:underline shrink-0"
+                      >
+                        Change
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setFormLocation("")}
+                        className="text-slate-400 hover:text-red-500 transition shrink-0"
+                      >
+                        <X size={13} />
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setShowLocationPicker(true)}
+                      className="w-full flex items-center gap-2 p-2.5 border border-dashed border-slate-300 rounded-xl text-slate-400 hover:border-[#1372e6] hover:text-[#1372e6] transition text-sm"
+                    >
+                      <MapPin size={14} /> Pin product pickup / collection location on map
+                    </button>
+                  )}
+                </div>
+
                 {/* ── PRODUCT IMAGES ─────────────────────────────────────── */}
                 <div className="md:col-span-2">
                   <div className="flex items-center justify-between mb-1.5">
@@ -1121,6 +1167,19 @@ export default function ItemManagementPage() {
           </div>
         )}
       </div>
+
+      {/* LOCATION PICKER */}
+      {showLocationPicker && (
+        <HigoMapPicker
+          initialLat={(() => { const m = formLocation.match(/\|Lat:([-\d.]+)/); return m ? parseFloat(m[1]) : null; })()}
+          initialLng={(() => { const m = formLocation.match(/\|Lng:([-\d.]+)/); return m ? parseFloat(m[1]) : null; })()}
+          onConfirm={(pos, label) => {
+            setFormLocation(`${label}|Lat:${pos.lat.toFixed(6)}|Lng:${pos.lng.toFixed(6)}`);
+            setShowLocationPicker(false);
+          }}
+          onClose={() => setShowLocationPicker(false)}
+        />
+      )}
 
       {/* IMPORT RESULTS MODAL */}
       {importResults && (
