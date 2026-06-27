@@ -157,6 +157,7 @@ export default function MarketplacePage() {
     if (c) {
       setShops(c.shops);
       setCatalog(c.catalog);
+      preloadImgs(c.catalog);
       setOnlineShopsCount(c.shops.filter((s) => isOnline(s.last_seen_at, new Date())).length);
       setLoading(false);
     }
@@ -372,6 +373,7 @@ export default function MarketplacePage() {
       }
       const builtCatalog = [...merged.values()];
       setCatalog(builtCatalog);
+      preloadImgs(builtCatalog);
       // Don't write cache here — wait until user-sync includes own-shop images
 
       // 3. Auto-sync the logged-in user's marketplace-listed products from real API
@@ -418,6 +420,7 @@ export default function MarketplacePage() {
           }
           const synced2 = [...m2.values()];
           setCatalog(synced2);
+          preloadImgs(synced2);
           writeMktCache(allShops, synced2); // write cache only here — always has images
           setApiSynced(true);
           setLiveConnected(true);
@@ -500,6 +503,7 @@ export default function MarketplacePage() {
         }
         const refreshed = [...merged.values()];
         setCatalog(refreshed);
+        preloadImgs(refreshed);
         writeMktCache(freshShops, refreshed);
         setLiveConnected(true);
         retries = 0;
@@ -1084,9 +1088,10 @@ export default function MarketplacePage() {
           ) : (
             <>
               <div className="mp-grid" style={{ display: "grid", gap: 8 }}>
-                {visible.map((entry) => (
+                {visible.map((entry, idx) => (
                   <LazyProductCard
                     key={entry.productId}
+                    priority={idx < 8}
                     entry={entry}
                     shop={shopMap[entry.shopId]}
                     isMine={entry.shopId === user?.shop_id}
@@ -2107,7 +2112,7 @@ function ReplyBox({ messageId, fromShop, onSent }: { messageId: string; fromShop
 // Skeleton shows until the card enters viewport AND its image fully downloads.
 // The real card renders off-screen while downloading so the browser can fetch
 // in parallel; once ready it swaps in with a fade-up animation.
-function LazyProductCard(props: React.ComponentProps<typeof ProductCard>) {
+function LazyProductCard(props: React.ComponentProps<typeof ProductCard> & { priority?: boolean }) {
   const pid        = props.entry.productId;
   const ref        = useRef<HTMLDivElement>(null);
   const [inView, setInView] = useState(false);
@@ -2119,7 +2124,7 @@ function LazyProductCard(props: React.ComponentProps<typeof ProductCard>) {
     if (!ref.current) return;
     const obs = new IntersectionObserver(
       ([e]) => { if (e.isIntersecting) { setInView(true); obs.disconnect(); } },
-      { rootMargin: "80px 0px" },
+      { rootMargin: "600px 0px" }, // pre-fetch images well before card is visible
     );
     obs.observe(ref.current);
     return () => obs.disconnect();
@@ -2201,9 +2206,23 @@ const _failedImgUrls  = new Set<string>(); // image URLs that 404'd
 const _loadedImgUrls  = new Set<string>(); // image URLs fully downloaded
 const _readyCardIds   = new Set<string>(); // product IDs whose card has been revealed
 
+/** Kick off background downloads for the first N product images so they're in
+ *  the browser cache by the time their cards scroll into view. */
+function preloadImgs(catalog: MarketplaceEntry[], n = 16) {
+  if (typeof window === "undefined") return;
+  catalog.slice(0, n).forEach((entry) => {
+    const url = entry.images.find((u) => !_failedImgUrls.has(u) && !_loadedImgUrls.has(u));
+    if (!url) return;
+    const img = new window.Image();
+    img.onload = () => _loadedImgUrls.add(url);
+    img.onerror = () => _failedImgUrls.add(url);
+    img.src = url;
+  });
+}
+
 
 // ── Product card ──────────────────────────────────────────────────────────────
-function ProductCard({ entry, shop, isMine, online, searchQ, onDetail, onOrder, onReady }: {
+function ProductCard({ entry, shop, isMine, online, searchQ, onDetail, onOrder, onReady, priority }: {
   entry: MarketplaceEntry;
   shop: Shop | undefined;
   isMine: boolean;
@@ -2212,6 +2231,7 @@ function ProductCard({ entry, shop, isMine, online, searchQ, onDetail, onOrder, 
   onDetail: () => void;
   onOrder: (e: React.MouseEvent) => void;
   onReady?: () => void;
+  priority?: boolean;
 }) {
   const [, _forceImg] = useState(0);
   const cover       = entry.images.find((u) => !_failedImgUrls.has(u));
@@ -2254,7 +2274,8 @@ function ProductCard({ entry, shop, isMine, online, searchQ, onDetail, onOrder, 
               src={cover}
               alt={entry.name}
               loading="eager"
-              decoding="async"
+              decoding={priority ? "sync" : "async"}
+              fetchPriority={priority ? "high" : "auto"}
               className={imgLoaded ? "loaded" : ""}
               onLoad={() => {
                 _loadedImgUrls.add(cover); // persist — survives remounts

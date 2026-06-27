@@ -97,7 +97,7 @@ export function clearMyShopCache() { _myShopCache = undefined; }
 export async function getMyShop(): Promise<Shop | null> {
   if (_myShopCache !== undefined) return _myShopCache;
   const res = await authShopRequest("/api/v1/shop");
-  _myShopCache = res?.data ?? null;
+  _myShopCache = (res?.data ?? null) as Shop | null;
   return _myShopCache;
 }
 
