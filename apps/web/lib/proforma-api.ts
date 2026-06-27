@@ -1,31 +1,3 @@
-import { getToken } from "@/lib/auth";
-
-const SALES_API = process.env.NEXT_PUBLIC_SALES_API || "https://higoverse-sales.vercel.app";
-
-async function proformaRequest(endpoint: string, options: RequestInit = {}) {
-  const token = getToken();
-  const headers = new Headers(options.headers);
-  headers.set("Content-Type", "application/json");
-  if (token) headers.set("Authorization", `Bearer ${token}`);
-
-  let res: Response;
-  try {
-    res = await fetch(`${SALES_API}${endpoint}`, { ...options, headers });
-  } catch {
-    return null;
-  }
-
-  if (res.status === 401) return null;
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`Proforma API error: ${res.status} ${text}`);
-  }
-  if (res.status === 204 || res.headers.get("content-length") === "0") return null;
-  const text = await res.text();
-  if (!text) return null;
-  try { return JSON.parse(text); } catch { return null; }
-}
-
 export type ProformaStatus = "draft" | "sent" | "accepted" | "expired";
 
 export interface ProformaLine {
@@ -54,22 +26,7 @@ export interface Proforma {
   updated_at?: string;
 }
 
-export interface ProformaPayload {
-  invoice_no: string;
-  date: string;
-  valid_until: string;
-  customer: string;
-  customer_phone: string;
-  customer_address: string;
-  notes: string;
-  lines: ProformaLine[];
-  subtotal: number;
-  tax_rate: number;
-  tax_amount: number;
-  grand_total: number;
-  currency: string;
-  status: ProformaStatus;
-}
+export type ProformaPayload = Omit<Proforma, "id" | "created_at" | "updated_at">;
 
 export interface ProformaListResult {
   items: Proforma[];
@@ -78,38 +35,69 @@ export interface ProformaListResult {
   limit: number;
 }
 
+const STORAGE_KEY = "hgv_proformas_v1";
+
+function readAll(): Proforma[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeAll(items: Proforma[]) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+}
+
+function genId() {
+  return `pf_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
+}
+
 export async function listProformas(params?: { page?: number; limit?: number; search?: string }): Promise<ProformaListResult> {
-  const q = new URLSearchParams({
-    page: String(params?.page ?? 1),
-    limit: String(params?.limit ?? 50),
-    ...(params?.search ? { search: params.search } : {}),
-  });
-  const res = await proformaRequest(`/proformas?${q}`);
-  return res?.data ?? { items: [], total: 0, page: 1, limit: 50 };
+  let items = readAll().sort((a, b) => b.created_at.localeCompare(a.created_at));
+  if (params?.search) {
+    const q = params.search.toLowerCase();
+    items = items.filter(
+      (p) =>
+        p.invoice_no.toLowerCase().includes(q) ||
+        p.customer.toLowerCase().includes(q) ||
+        p.status.toLowerCase().includes(q),
+    );
+  }
+  return { items, total: items.length, page: 1, limit: items.length };
 }
 
 export async function getProforma(id: string): Promise<Proforma | null> {
-  const res = await proformaRequest(`/proformas/${id}`);
-  return res?.data ?? null;
+  return readAll().find((p) => p.id === id) ?? null;
 }
 
-export async function createProforma(payload: ProformaPayload): Promise<Proforma | null> {
-  const res = await proformaRequest("/proformas", {
-    method: "POST",
-    body: JSON.stringify(payload),
-  });
-  return res?.data ?? null;
+export async function createProforma(payload: ProformaPayload): Promise<Proforma> {
+  const proforma: Proforma = {
+    ...payload,
+    id: genId(),
+    created_at: new Date().toISOString(),
+  };
+  writeAll([...readAll(), proforma]);
+  return proforma;
 }
 
 export async function updateProforma(id: string, payload: Partial<ProformaPayload>): Promise<Proforma | null> {
-  const res = await proformaRequest(`/proformas/${id}`, {
-    method: "PUT",
-    body: JSON.stringify(payload),
-  });
-  return res?.data ?? null;
+  const all = readAll();
+  const idx = all.findIndex((p) => p.id === id);
+  if (idx === -1) return null;
+  const updated: Proforma = { ...all[idx], ...payload, id, updated_at: new Date().toISOString() };
+  all[idx] = updated;
+  writeAll(all);
+  return updated;
 }
 
 export async function deleteProforma(id: string): Promise<boolean> {
-  const res = await proformaRequest(`/proformas/${id}`, { method: "DELETE" });
-  return res !== null;
+  const all = readAll();
+  const filtered = all.filter((p) => p.id !== id);
+  if (filtered.length === all.length) return false;
+  writeAll(filtered);
+  return true;
 }

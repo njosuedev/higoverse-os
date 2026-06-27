@@ -439,10 +439,18 @@ export default function ProformaPage() {
         {view === "history" && (
           <div className="bg-white rounded-xl border border-slate-200">
             <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between gap-3 flex-wrap">
-              <h2 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-                <History size={15} className="text-blue-500" /> Saved Proformas
-                <span className="text-xs font-normal text-slate-400">({proformas.length})</span>
-              </h2>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setView("editor")}
+                  className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-blue-600 border border-slate-200 hover:border-blue-300 px-2.5 py-1.5 rounded-lg transition"
+                >
+                  <ChevronRight size={12} className="rotate-180" /> Back
+                </button>
+                <h2 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                  <History size={15} className="text-blue-500" /> Saved Proformas
+                  <span className="text-xs font-normal text-slate-400">({proformas.length})</span>
+                </h2>
+              </div>
               <div className="flex items-center gap-2">
                 <div className="relative">
                   <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
