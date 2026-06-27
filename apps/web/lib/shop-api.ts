@@ -87,10 +87,18 @@ export async function listShops(params?: {
   };
 }
 
+// Session-level cache — avoids repeat 404s when navigating between pages.
+// undefined = not fetched yet | null = fetched, no shop | Shop = fetched, has shop
+let _myShopCache: Shop | null | undefined = undefined;
+
+export function clearMyShopCache() { _myShopCache = undefined; }
+
 /** Current user's shop profile */
 export async function getMyShop(): Promise<Shop | null> {
+  if (_myShopCache !== undefined) return _myShopCache;
   const res = await authShopRequest("/api/v1/shop");
-  return res?.data ?? null;
+  _myShopCache = res?.data ?? null;
+  return _myShopCache;
 }
 
 /** Update the current user's shop */
@@ -99,7 +107,9 @@ export async function updateMyShop(payload: ShopUpdatePayload): Promise<Shop | n
     method: "PUT",
     body: JSON.stringify(payload),
   });
-  return res?.data ?? null;
+  const updated = res?.data ?? null;
+  _myShopCache = updated; // keep cache fresh after update
+  return updated;
 }
 
 /** Ping the server to mark this shop as recently active (call every ~2 min while logged in) */

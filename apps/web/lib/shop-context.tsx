@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, useState, useEffect, type ReactNode } from "react";
-import { getMyShop, type Shop } from "@/lib/shop-api";
+import { getMyShop, clearMyShopCache, type Shop } from "@/lib/shop-api";
 
 interface ShopCtx {
   shop:    Shop | null;
@@ -26,8 +26,10 @@ export function ShopProvider({ children }: { children: ReactNode }) {
       .finally(() => setLoading(false));
   }, [rev]);
 
+  function reload() { clearMyShopCache(); setRev((r) => r + 1); }
+
   return (
-    <Ctx.Provider value={{ shop, loading, reload: () => setRev((r) => r + 1) }}>
+    <Ctx.Provider value={{ shop, loading, reload }}>
       {children}
     </Ctx.Provider>
   );

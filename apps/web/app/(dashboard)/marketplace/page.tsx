@@ -1085,7 +1085,7 @@ export default function MarketplacePage() {
             <>
               <div className="mp-grid" style={{ display: "grid", gap: 8 }}>
                 {visible.map((entry) => (
-                  <ProductCard
+                  <LazyProductCard
                     key={entry.productId}
                     entry={entry}
                     shop={shopMap[entry.shopId]}
@@ -1693,6 +1693,39 @@ export default function MarketplacePage() {
         @keyframes spin { to { transform: rotate(360deg); } }
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
 
+        /* Card reveal — skeleton fades out, real card slides up into place */
+        @keyframes mp-fadeup {
+          from { opacity: 0; transform: translateY(14px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+        .mp-card-reveal { animation: mp-fadeup 0.28s cubic-bezier(0.22, 0.61, 0.36, 1) both; }
+
+        /* Image cross-fade — shimmer underneath, image fades in on top.
+           mp-img-wrap must be position:absolute so height resolves inside aspect-ratio containers. */
+        .mp-img-wrap { position: absolute; inset: 0; }
+        .mp-img-wrap img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity 0.3s ease; }
+        .mp-img-wrap img.loaded { opacity: 1; }
+        .mp-img-shimmer { position: absolute; inset: 0; }
+
+        /* Hover quick-action overlay on image */
+        .mp-card { transition: box-shadow 0.2s, transform 0.2s; }
+        .mp-card:hover { box-shadow: 0 8px 28px rgba(0,0,0,0.13); transform: translateY(-2px); }
+        .mp-card:hover .mp-img-overlay { opacity: 1; }
+        .mp-img-overlay {
+          position: absolute; inset: 0; background: rgba(0,0,0,0.32);
+          display: flex; align-items: center; justify-content: center; gap: 8px;
+          opacity: 0; transition: opacity 0.18s ease;
+        }
+        .mp-img-overlay button {
+          padding: 7px 14px; border-radius: 20px; border: 1.5px solid rgba(255,255,255,0.9);
+          background: rgba(255,255,255,0.15); backdrop-filter: blur(4px);
+          color: #fff; font-size: 11px; font-weight: 700; cursor: pointer;
+          letter-spacing: 0.3px; transition: background 0.15s;
+        }
+        .mp-img-overlay button:hover { background: rgba(255,255,255,0.3); }
+        .mp-img-overlay button.primary { background: #ff6a00; border-color: #ff6a00; }
+        .mp-img-overlay button.primary:hover { background: #e55d00; }
+
         @media (max-width: 767px) {
           .mp-sidebar   { display: none !important; }
           .mp-body      { padding: 8px !important; }
@@ -2070,19 +2103,66 @@ function ReplyBox({ messageId, fromShop, onSent }: { messageId: string; fromShop
   );
 }
 
-// ── Skeleton card ─────────────────────────────────────────────────────────────
+// ── Lazy reveal wrapper ───────────────────────────────────────────────────────
+// Skeleton shows until the card enters viewport AND its image fully downloads.
+// The real card renders off-screen while downloading so the browser can fetch
+// in parallel; once ready it swaps in with a fade-up animation.
+function LazyProductCard(props: React.ComponentProps<typeof ProductCard>) {
+  const pid        = props.entry.productId;
+  const ref        = useRef<HTMLDivElement>(null);
+  const [inView, setInView] = useState(false);
+  // Initialise from module-level cache so remounts never regress to skeleton
+  const [ready, setReady]   = useState(() => _readyCardIds.has(pid));
+
+  useEffect(() => {
+    if (ready) return; // already revealed — skip observer entirely
+    if (!ref.current) return;
+    const obs = new IntersectionObserver(
+      ([e]) => { if (e.isIntersecting) { setInView(true); obs.disconnect(); } },
+      { rootMargin: "80px 0px" },
+    );
+    obs.observe(ref.current);
+    return () => obs.disconnect();
+  }, [ready]);
+
+  const handleReady = useCallback(() => {
+    _readyCardIds.add(pid); // persist across remounts
+    const el = ref.current;
+    const delay = el ? Math.min(el.getBoundingClientRect().left / window.innerWidth, 1) * 55 : 0;
+    setTimeout(() => setReady(true), delay);
+  }, [pid]);
+
+  // Already revealed on a previous render — show immediately, no wrapper needed
+  if (ready) return <ProductCard {...props} onReady={undefined} />;
+
+  return (
+    <div ref={ref} style={{ position: "relative" }}>
+      <SkeletonCard />
+      {inView && (
+        <div style={{ position: "absolute", inset: 0, opacity: 0, pointerEvents: "none" }}>
+          <ProductCard {...props} onReady={handleReady} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Skeleton card — matches new card shape exactly ───────────────────────────
 function SkeletonCard() {
   return (
-    <div style={{ background: "#fff", border: "1px solid #e8e8e8", overflow: "hidden" }}>
+    <div style={{ background: "#fff", border: "1px solid #ebebeb", borderRadius: 10, overflow: "hidden", boxShadow: "0 2px 8px rgba(0,0,0,0.04)" }}>
       <div className="mp-shimmer" style={{ aspectRatio: "1" }} />
-      <div style={{ padding: "8px 10px 10px" }}>
-        <div className="mp-shimmer" style={{ height: 11, borderRadius: 2, marginBottom: 6 }} />
-        <div className="mp-shimmer" style={{ height: 11, borderRadius: 2, width: "70%", marginBottom: 8 }} />
-        <div className="mp-shimmer" style={{ height: 16, borderRadius: 2, width: "55%", marginBottom: 6 }} />
-        <div className="mp-shimmer" style={{ height: 9, borderRadius: 2, width: "80%", marginBottom: 10 }} />
-        <div style={{ paddingTop: 6, borderTop: "1px solid #f5f5f5", display: "flex", gap: 6, alignItems: "center" }}>
-          <div className="mp-shimmer" style={{ width: 14, height: 14, borderRadius: "50%", flexShrink: 0 }} />
-          <div className="mp-shimmer" style={{ height: 9, borderRadius: 2, flex: 1 }} />
+      <div style={{ padding: "10px 12px 12px", display: "flex", flexDirection: "column", gap: 6 }}>
+        <div className="mp-shimmer" style={{ height: 12, borderRadius: 4, width: "90%" }} />
+        <div className="mp-shimmer" style={{ height: 12, borderRadius: 4, width: "65%" }} />
+        <div className="mp-shimmer" style={{ height: 18, borderRadius: 4, width: "50%", marginTop: 2 }} />
+        <div className="mp-shimmer" style={{ height: 9,  borderRadius: 4, width: "70%" }} />
+        <div style={{ paddingTop: 8, borderTop: "1px solid #f5f5f5", display: "flex", gap: 6, alignItems: "center", marginTop: 2 }}>
+          <div className="mp-shimmer" style={{ width: 22, height: 22, borderRadius: "50%", flexShrink: 0 }} />
+          <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 4 }}>
+            <div className="mp-shimmer" style={{ height: 10, borderRadius: 4, width: "75%" }} />
+            <div className="mp-shimmer" style={{ height: 8,  borderRadius: 4, width: "50%" }} />
+          </div>
         </div>
       </div>
     </div>
@@ -2115,11 +2195,15 @@ function EmptyState({ hasItems, onClear }: { hasItems: boolean; onClear: () => v
   );
 }
 
-// Module-level cache so image error state survives card remounts during poll updates
-const _failedImgUrls = new Set<string>();
+// ── Module-level caches — survive React remounts caused by catalog refreshes ──
+// Without these, every catalog poll resets component state → skeleton flash loop.
+const _failedImgUrls  = new Set<string>(); // image URLs that 404'd
+const _loadedImgUrls  = new Set<string>(); // image URLs fully downloaded
+const _readyCardIds   = new Set<string>(); // product IDs whose card has been revealed
+
 
 // ── Product card ──────────────────────────────────────────────────────────────
-function ProductCard({ entry, shop, isMine, online, searchQ, onDetail, onOrder }: {
+function ProductCard({ entry, shop, isMine, online, searchQ, onDetail, onOrder, onReady }: {
   entry: MarketplaceEntry;
   shop: Shop | undefined;
   isMine: boolean;
@@ -2127,139 +2211,152 @@ function ProductCard({ entry, shop, isMine, online, searchQ, onDetail, onOrder }
   searchQ: string;
   onDetail: () => void;
   onOrder: (e: React.MouseEvent) => void;
+  onReady?: () => void;
 }) {
   const [, _forceImg] = useState(0);
-  const cover   = entry.images.find((u) => !_failedImgUrls.has(u));
-  const inStock = entry.quantity > 0;
-  const initial = (entry.shopName[0] ?? "?").toUpperCase();
+  const cover       = entry.images.find((u) => !_failedImgUrls.has(u));
+  // Initialise from module-level cache — survives catalog refresh remounts
+  const [imgLoaded, setImgLoaded] = useState(() => !!cover && _loadedImgUrls.has(cover));
+  const inStock     = entry.quantity > 0;
+  const logoInitial = (entry.shopName[0] ?? "?").toUpperCase();
+
+  // Signal parent (LazyProductCard) when we know what to show.
+  // Use ref so this fires once even if component remounts.
+  const readyFired = useRef(false);
+  useEffect(() => {
+    if (readyFired.current || !onReady) return;
+    // Already loaded (from cache) or no image → signal immediately
+    if (!cover || _loadedImgUrls.has(cover)) { readyFired.current = true; onReady(); }
+  }, [cover, onReady]);
 
   return (
     <div
+      className="mp-card"
       onClick={onDetail}
-      onMouseEnter={(e) => {
-        (e.currentTarget as HTMLDivElement).style.boxShadow = "0 6px 20px rgba(0,0,0,0.11)";
-        (e.currentTarget as HTMLDivElement).style.borderColor = "#ffd8b8";
-      }}
-      onMouseLeave={(e) => {
-        (e.currentTarget as HTMLDivElement).style.boxShadow = "0 1px 4px rgba(0,0,0,0.06)";
-        (e.currentTarget as HTMLDivElement).style.borderColor = "#e8e8e8";
-      }}
       style={{
-        background: "#fff", border: "1px solid #e8e8e8", cursor: "pointer",
-        display: "flex", flexDirection: "column", position: "relative",
-        transition: "box-shadow 0.18s, border-color 0.18s",
-        boxShadow: "0 1px 4px rgba(0,0,0,0.06)", borderRadius: 3,
+        background: "#fff",
+        border: "1px solid #ebebeb",
+        borderRadius: 10,
         overflow: "hidden",
+        cursor: "pointer",
+        display: "flex",
+        flexDirection: "column",
+        boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
+        position: "relative",
       }}
     >
-      {/* Image */}
-      <div style={{ position: "relative", aspectRatio: "1", overflow: "hidden", background: "#f7f7f7", flexShrink: 0 }}>
-        {cover
-          ? <img
+      {/* ── Image / no-photo area ── */}
+      <div style={{ position: "relative", aspectRatio: "1", overflow: "hidden", flexShrink: 0 }}>
+        {cover ? (
+          <div className="mp-img-wrap">
+            {!imgLoaded && <div className="mp-img-shimmer mp-shimmer" />}
+            <img
               src={cover}
               alt={entry.name}
-              loading="lazy"
+              loading="eager"
               decoding="async"
-              onError={() => { _failedImgUrls.add(cover); _forceImg((n) => n + 1); }}
-              style={{ width: "100%", height: "100%", objectFit: "cover" }}
+              className={imgLoaded ? "loaded" : ""}
+              onLoad={() => {
+                _loadedImgUrls.add(cover); // persist — survives remounts
+                setImgLoaded(true);
+                if (!readyFired.current && onReady) { readyFired.current = true; onReady(); }
+              }}
+              onError={() => {
+                _failedImgUrls.add(cover);
+                _forceImg((n) => n + 1);
+                if (!readyFired.current && onReady) { readyFired.current = true; onReady(); }
+              }}
             />
-          : <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6, background: "linear-gradient(135deg,#f5f5f5 0%,#efefef 100%)" }}>
-              <Package size={30} style={{ color: "#d0d0d0" }} />
-              <span style={{ fontSize: 10, color: "#ccc", fontWeight: 500, letterSpacing: "0.02em" }}>No photo</span>
-            </div>}
+          </div>
+        ) : (
+          <div style={{ position: "absolute", inset: 0, background: "#f5f5f5" }} />
+        )}
 
-        {/* Multi-image pill */}
+        {/* Hover overlay — appears on .mp-card:hover via CSS */}
+        <div className="mp-img-overlay">
+          <button onClick={(e) => { e.stopPropagation(); onDetail(); }}>View</button>
+          {inStock && (
+            <button className="primary" onClick={(e) => { e.stopPropagation(); onOrder(e); }}>
+              Order
+            </button>
+          )}
+        </div>
+
+        {/* Top-left badges */}
+        <div style={{ position: "absolute", top: 8, left: 8, display: "flex", flexDirection: "column", gap: 4 }}>
+          {isMine && (
+            <span style={{ fontSize: 9, background: "#ff6a00", color: "#fff", padding: "2px 7px", fontWeight: 800, borderRadius: 4, letterSpacing: 0.4 }}>YOURS</span>
+          )}
+          {!inStock && (
+            <span style={{ fontSize: 9, background: "rgba(245,34,45,0.88)", color: "#fff", padding: "2px 7px", fontWeight: 700, borderRadius: 4, backdropFilter: "blur(4px)" }}>Out of stock</span>
+          )}
+        </div>
+
+        {/* Multi-image count */}
         {entry.images.length > 1 && (
-          <span style={{ position: "absolute", top: 6, right: 6, fontSize: 9, background: "rgba(0,0,0,0.42)", color: "#fff", padding: "2px 6px", borderRadius: 10, fontWeight: 600 }}>
+          <span style={{ position: "absolute", top: 8, right: 8, fontSize: 9, background: "rgba(0,0,0,0.45)", color: "#fff", padding: "2px 6px", borderRadius: 10, fontWeight: 600, backdropFilter: "blur(4px)" }}>
             +{entry.images.length - 1}
           </span>
         )}
 
-        {/* Out-of-stock overlay */}
-        {!inStock && (
-          <div style={{ position: "absolute", inset: 0, background: "rgba(255,255,255,0.78)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <span style={{ fontSize: 11, fontWeight: 700, color: "#f5222d", border: "1.5px solid #f5222d", padding: "3px 10px", background: "#fff", borderRadius: 2 }}>Out of Stock</span>
-          </div>
-        )}
-
-        {/* "YOURS" badge */}
-        {isMine && (
-          <span style={{ position: "absolute", top: 6, left: 6, fontSize: 9, background: "#ff6a00", color: "#fff", padding: "2px 7px", fontWeight: 700, borderRadius: 2 }}>YOURS</span>
+        {/* Online dot */}
+        {online && (
+          <span style={{ position: "absolute", bottom: 8, right: 8, width: 8, height: 8, borderRadius: "50%", background: "#52c41a", border: "2px solid #fff", boxShadow: "0 0 0 2px rgba(82,196,26,0.3)" }} title="Shop is online" />
         )}
       </div>
 
-      {/* Content */}
-      <div style={{ padding: "10px 10px 0", flex: 1, display: "flex", flexDirection: "column" }}>
+      {/* ── Content ── */}
+      <div style={{ padding: "10px 12px 12px", flex: 1, display: "flex", flexDirection: "column", gap: 4 }}>
 
-        {/* Product name — 2-line clamp */}
+        {/* Product name */}
         <p style={{
-          fontSize: 13, fontWeight: 500, color: "#222", margin: "0 0 6px", lineHeight: 1.5, minHeight: 39,
-          display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" as const, overflow: "hidden",
+          fontSize: 13, fontWeight: 600, color: "#1a1a1a", margin: 0, lineHeight: 1.45,
+          display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" as const,
+          overflow: "hidden", minHeight: 38,
         }}>
           {highlight(entry.name, searchQ)}
         </p>
 
-        {/* Price */}
-        <p style={{ fontSize: 17, fontWeight: 800, color: "#ff6a00", margin: "0 0 3px", lineHeight: 1 }}>
-          {fmtPrice(entry.sellingPrice)}
-        </p>
+        {/* Price row */}
+        <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginTop: 2 }}>
+          <span style={{ fontSize: 16, fontWeight: 800, color: "#ff6a00", lineHeight: 1 }}>
+            {fmtPrice(entry.sellingPrice)}
+          </span>
+          {entry.quantity > 0 && entry.quantity <= 10 && (
+            <span style={{ fontSize: 10, color: "#fa8c16", fontWeight: 600 }}>Only {entry.quantity} left</span>
+          )}
+        </div>
 
-        {/* Min order — Alibaba-style */}
-        <p style={{ fontSize: 11, color: "#aaa", margin: "0 0 10px" }}>Min. order: 1 unit</p>
+        {/* Min order */}
+        <p style={{ fontSize: 10, color: "#b0b0b0", margin: 0, fontWeight: 500 }}>Min. 1 unit · {(entry.category ?? catOf(entry.name, entry.description)).charAt(0).toUpperCase() + (entry.category ?? catOf(entry.name, entry.description)).slice(1)}</p>
 
-        {/* Divider */}
-        <div style={{ borderTop: "1px solid #f0f0f0", marginTop: "auto" }} />
-
-        {/* Supplier row */}
-        <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 0 8px" }}>
+        {/* Supplier row — always at bottom */}
+        <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: "auto", paddingTop: 8, borderTop: "1px solid #f5f5f5" }}>
           <div style={{
-            width: 20, height: 20, borderRadius: "50%", overflow: "hidden", background: "#ff6a00",
+            width: 22, height: 22, borderRadius: "50%", overflow: "hidden",
+            background: "linear-gradient(135deg,#ff6a00,#ee0979)",
             display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+            boxShadow: "0 1px 4px rgba(0,0,0,0.12)",
           }}>
             {shop?.logo_url && !_failedImgUrls.has(shop.logo_url)
-              ? <img src={shop.logo_url} alt={entry.shopName}
-                  loading="lazy" decoding="async"
+              ? <img src={shop.logo_url} alt={entry.shopName} loading="lazy" decoding="async"
                   onError={() => { _failedImgUrls.add(shop!.logo_url!); _forceImg((n) => n + 1); }}
                   style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-              : <span style={{ fontSize: 8, fontWeight: 900, color: "#fff" }}>{initial}</span>}
+              : <span style={{ fontSize: 9, fontWeight: 900, color: "#fff" }}>{logoInitial}</span>}
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <p style={{ fontSize: 11, color: "#555", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: 500 }}>
+            <p style={{ fontSize: 11, color: "#444", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: 600 }}>
               {highlight(entry.shopName, searchQ)}
             </p>
             {formatShortAddress(shop?.address) && (
-              <p style={{ fontSize: 10, color: "#bbb", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: 2 }}>
-                <MapPin size={8} style={{ flexShrink: 0 }} />
+              <p style={{ fontSize: 10, color: "#b0b0b0", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: 2 }}>
+                <MapPin size={8} style={{ flexShrink: 0, color: "#c0c0c0" }} />
                 {formatShortAddress(shop?.address)}
               </p>
             )}
           </div>
-          {online && (
-            <span style={{ fontSize: 9, color: "#52c41a", flexShrink: 0, fontWeight: 700, background: "#f6ffed", border: "1px solid #b7eb8f", padding: "1px 6px", borderRadius: 10 }}>
-              ● Live
-            </span>
-          )}
         </div>
       </div>
-
-      {/* CTA button */}
-      <button
-        onClick={onOrder}
-        disabled={!inStock}
-        style={{
-          margin: "0 10px 10px",
-          padding: "8px 0",
-          background: inStock ? "#ff6a00" : "#f5f5f5",
-          color: inStock ? "#fff" : "#bbb",
-          border: "none",
-          cursor: inStock ? "pointer" : "not-allowed",
-          fontSize: 12, fontWeight: 700, letterSpacing: 0.3,
-          display: "flex", alignItems: "center", justifyContent: "center", gap: 5,
-          flexShrink: 0, borderRadius: 2,
-        }}
-      >
-        <ShoppingCart size={12} /> {inStock ? "Start Order" : "Unavailable"}
-      </button>
     </div>
   );
 }
