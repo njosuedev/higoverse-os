@@ -89,6 +89,10 @@ const ALL_CATS = [
   { key: "agriculture", label: "Agriculture"       },
   { key: "health",      label: "Health & Beauty"   },
   { key: "furniture",   label: "Furniture & Decor" },
+  { key: "vehicles", label: "Vehicles" },
+  { key: "Gas & Accessories", label: "Gas & Accessories" },
+  { key: "Spare Parts",    label: "Spare Parts" },
+  { key: "Constructions",    label: "Constructions" },
   { key: "services",    label: "Services"          },
   { key: "other",       label: "Other"             },
 ];
@@ -978,68 +982,6 @@ export default function MarketplacePage() {
         {/* ── MAIN ───────────────────────────────────────────────────────── */}
         <main style={{ flex: 1, minWidth: 0 }}>
 
-          {/* Featured suppliers */}
-          {featuredSuppliers.length > 0 && !search && cat === "all" && (
-            <div style={{ display: "grid", gridTemplateColumns: `repeat(${Math.min(featuredSuppliers.length, 4)}, 1fr)`, gap: 8, marginBottom: 10 }}>
-              {featuredSuppliers.map((s) => {
-                const initial    = (s.name || "?")[0].toUpperCase();
-                const online     = isOnline(s.last_seen_at, now);
-                const listed     = listedPerShop[s.id] ?? 0;
-                const isFollowed = followedShopIds.has(s.id);
-                const isMine     = s.id === user?.shop_id;
-                return (
-                  <div key={s.id} style={{ position: "relative", background: "#fff", border: `1px solid ${isFollowed ? "#ffb3b3" : "#e8e8e8"}`, display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", transition: "border-color 0.15s" }}>
-                    {!isMine && (
-                      <button
-                        onClick={(e) => toggleFollow(s.id, s.name ?? "", e)}
-                        style={{ position: "absolute", top: 6, right: 6, border: "none", background: "none", cursor: "pointer", padding: 2 }}>
-                        <Heart size={13} style={{ color: isFollowed ? "#f5222d" : "#d9d9d9", fill: isFollowed ? "#f5222d" : "none", transition: "all 0.15s" }} />
-                      </button>
-                    )}
-                    <Link href={`/marketplace/${s.id}`} style={{ display: "contents", textDecoration: "none" }}>
-                      <div style={{ width: 36, height: 36, borderRadius: "50%", overflow: "hidden", background: "#ff6a00", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                        {s.logo_url
-                          ? <img src={s.logo_url} alt={s.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                          : <span style={{ fontSize: 14, fontWeight: 900, color: "#fff" }}>{initial}</span>}
-                      </div>
-                      <div style={{ minWidth: 0 }}>
-                        <p style={{ fontSize: 12, fontWeight: 700, color: "#333", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.name}</p>
-                        <p style={{ fontSize: 10, color: "#999", margin: "2px 0 0" }}>
-                          {listed} product{listed !== 1 ? "s" : ""}
-                          {online && <span style={{ color: "#52c41a", marginLeft: 6 }}>● Online</span>}
-                        </p>
-                        <p style={{ fontSize: 10, color: isFollowed ? "#f5222d" : "#ff6a00", margin: "2px 0 0", fontWeight: 600 }}>
-                          {isFollowed ? "❤ Following" : "View Store →"}
-                        </p>
-                      </div>
-                    </Link>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-
-          {/* ── Marketplace stats + result bar ────────────────────────────────── */}
-          {!search && cat === "all" && !loading && (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, marginBottom: 8 }}>
-              {[
-                { label: "Products listed", value: catalog.length, icon: <Package size={14} style={{ color: "#ff6a00" }} />, color: "#ff6a00" },
-                { label: "Active shops", value: Object.keys(listedPerShop).length, icon: <Store size={14} style={{ color: "#1372e6" }} />, color: "#1372e6" },
-                { label: "Shops online now", value: onlineShopsCount, icon: <Wifi size={14} style={{ color: "#52c41a" }} />, color: "#52c41a" },
-              ].map((s, i) => (
-                <div key={i} style={{ background: "#fff", border: "1px solid #e8e8e8", padding: "10px 14px", display: "flex", alignItems: "center", gap: 10 }}>
-                  <div style={{ width: 32, height: 32, borderRadius: 8, background: `${s.color}15`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                    {s.icon}
-                  </div>
-                  <div>
-                    <p style={{ fontSize: 18, fontWeight: 800, color: "#222", margin: 0, lineHeight: 1 }}>{s.value}</p>
-                    <p style={{ fontSize: 10, color: "#999", margin: "2px 0 0" }}>{s.label}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
           {/* Result bar */}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8, padding: "6px 10px", background: "#fff", border: "1px solid #f0f0f0", borderRadius: 6 }}>
             <span style={{ fontSize: 12, color: "#666", display: "flex", alignItems: "center", gap: 6 }}>
@@ -1844,6 +1786,10 @@ export default function MarketplacePage() {
                     <option value="Agriculture & Farming">Agriculture &amp; Farming</option>
                     <option value="Health & Pharmacy">Health &amp; Pharmacy</option>
                     <option value="Furniture & Home">Furniture &amp; Home</option>
+                    <option value="Vehicles">Vehicles</option>
+                    <option value="Gas & Accessories">Gas &amp; Accessories</option>
+                    <option value="Spare Parts">Spare Parts</option>
+                    <option value="Constructions">Constructions</option>
                     <option value="Services">Services</option>
                     <option value="Other">Other</option>
                   </select>
