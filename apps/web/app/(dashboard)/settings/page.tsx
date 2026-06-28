@@ -10,7 +10,7 @@ import { useAuth } from "@/lib/auth-context";
 import { useShop } from "@/lib/shop-context";
 import { getEffectiveRole } from "@/lib/auth";
 import { type Lang } from "@/lib/i18n";
-import { parseShopAddress } from "@/lib/product-meta";
+import { parseShopAddress, decodeShopHumanInfo } from "@/lib/product-meta";
 import PageSkeleton from "@/app/components/dashboard/PageSkeleton";
 import {
   Settings, Save, RefreshCw, Store, Phone, MapPin, DollarSign,
@@ -101,6 +101,7 @@ export default function SettingsPage() {
 
   const [logoUrl, setLogoUrl]       = useState("");
   const savedLogoUrl                = useRef("");
+  const rawDescRef                  = useRef<string>("");
   const [logoLoading, setLogoLoading] = useState(false);
   const logoDirty = logoUrl !== savedLogoUrl.current;
 
@@ -175,11 +176,13 @@ export default function SettingsPage() {
       const settRes = await settingsRequest("/settings/");
       const s = settRes?.data ?? null;
 
+      const rawDesc = shop?.description || "";
+      rawDescRef.current = rawDesc;
       const newShop: ShopForm = {
         shop_name:   shop?.name        || s?.shop_name || "",
         phone:       shop?.phone       || s?.phone     || "",
         address:     shop?.address     || s?.address   || "",
-        description: shop?.description || "",
+        description: decodeShopHumanInfo(rawDesc).desc || "",
       };
       const newOps: OperationalForm = {
         currency:            s?.currency            ?? "RWF",
@@ -234,12 +237,23 @@ export default function SettingsPage() {
     const finalAddress = pinLat != null && pinLng != null
       ? `${shopForm.address}|Lat:${pinLat.toFixed(6)}|Lng:${pinLng.toFixed(6)}`
       : shopForm.address;
+    // Merge updated description text back into the existing JSON structure
+    let encodedDesc: string;
+    try {
+      const existing = rawDescRef.current ? JSON.parse(rawDescRef.current) as Record<string, unknown> : {};
+      existing._d = shopForm.description;
+      encodedDesc = JSON.stringify(existing);
+    } catch {
+      encodedDesc = shopForm.description;
+    }
+    rawDescRef.current = encodedDesc;
+
     try {
       await updateMyShop({
         name:        shopForm.shop_name,
         phone:       shopForm.phone,
         address:     finalAddress,
-        description: shopForm.description,
+        description: encodedDesc,
         logo_url:    logoUrl || undefined,
       });
       // Also sync to settings-service

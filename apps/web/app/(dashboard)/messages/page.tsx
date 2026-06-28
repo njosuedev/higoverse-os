@@ -444,7 +444,7 @@ export default function MessagesPage() {
           : content,
         message_type: offerMode ? "offer" : "text",
         offer_price:  offerMode ? parseFloat(offerAmt) : undefined,
-        sender_name:  me?.name ?? me?.email,
+        sender_name:  me?.name ?? undefined,
       });
       setMessages((prev) => [...prev, msg]);
       lastMsgTime.current = msg.created_at;
