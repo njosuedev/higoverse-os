@@ -120,9 +120,9 @@ function Bubble({
     return (
       <div className="flex justify-center my-3">
         <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold ${
-          isAccepted ? "bg-green-100 text-green-700"
-          : isRejected ? "bg-red-100 text-red-700"
-          : "bg-gray-100 text-gray-500"
+          isAccepted ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+          : isRejected ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+          : "bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400"
         }`}>
           {isAccepted ? <Check size={12} /> : isRejected ? <X size={12} /> : null}
           {msg.content}
@@ -139,7 +139,7 @@ function Bubble({
         <div className="relative shrink-0 self-center opacity-0 group-hover:opacity-100 transition-opacity" ref={menuRef}>
           <button
             onClick={() => setMenuOpen((o) => !o)}
-            className="w-6 h-6 flex items-center justify-center rounded-full hover:bg-gray-200 text-gray-400 hover:text-gray-600 transition"
+            className="w-6 h-6 flex items-center justify-center rounded-full hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition"
           >
             <svg viewBox="0 0 16 16" fill="currentColor" width="12" height="12">
               <circle cx="8" cy="2.5" r="1.3"/>
@@ -149,22 +149,22 @@ function Bubble({
           </button>
 
           {menuOpen && (
-            <div className={`absolute z-50 bottom-8 ${isMine ? "right-0" : "left-0"} w-28 bg-white rounded-xl shadow-lg border border-gray-100 py-0.5 overflow-hidden`}>
+            <div className={`absolute z-50 bottom-8 ${isMine ? "right-0" : "left-0"} w-28 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-100 dark:border-gray-700 py-0.5 overflow-hidden`}>
               {canEdit && (
                 <button
                   onClick={() => { onEdit?.(); setMenuOpen(false); }}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition text-left"
+                  className="w-full flex items-center gap-2 px-3 py-2 text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition text-left"
                 >
-                  <Pencil size={11} className="text-gray-400 shrink-0" />
+                  <Pencil size={11} className="text-gray-400 dark:text-gray-500 shrink-0" />
                   Edit
                 </button>
               )}
               {canDelete && (
                 <>
-                  {canEdit && <div className="mx-2 border-t border-gray-100" />}
+                  {canEdit && <div className="mx-2 border-t border-gray-100 dark:border-gray-700" />}
                   <button
                     onClick={() => { onDelete?.(); setMenuOpen(false); }}
-                    className="w-full flex items-center gap-2 px-3 py-2 text-xs text-red-500 hover:bg-red-50 transition text-left"
+                    className="w-full flex items-center gap-2 px-3 py-2 text-xs text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition text-left"
                   >
                     <Trash2 size={11} className="shrink-0" />
                     Remove
@@ -179,28 +179,28 @@ function Bubble({
       {/* Bubble */}
       <div className={`max-w-[68%] flex flex-col gap-0.5 ${isMine ? "items-end" : "items-start"}`}>
         {msg.is_deleted ? (
-          <div className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-white border border-gray-200 text-gray-400">
+          <div className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-400 dark:text-gray-500">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="shrink-0">
               <circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/>
             </svg>
             <span className="text-sm italic">You deleted this message</span>
           </div>
         ) : isOffer ? (
-          <div className={`rounded-2xl overflow-hidden border ${isMine ? "border-orange-200 bg-orange-50" : "border-blue-200 bg-blue-50"}`}>
+          <div className={`rounded-2xl overflow-hidden border ${isMine ? "border-orange-200 dark:border-orange-800 bg-orange-50 dark:bg-orange-900/20" : "border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20"}`}>
             <div className="px-4 py-2 text-xs font-bold text-white flex items-center gap-1.5" style={{ background: isMine ? BRAND : "#3b82f6" }}>
               <Tag size={11} /> Price Offer
             </div>
             <div className="px-4 py-3">
-              <p className="text-2xl font-black text-gray-800 mb-0.5">{priceStr(msg.offer_price)}</p>
-              {msg.content && <p className="text-sm text-gray-600">{msg.content}</p>}
+              <p className="text-2xl font-black text-gray-800 dark:text-gray-100 mb-0.5">{priceStr(msg.offer_price)}</p>
+              {msg.content && <p className="text-sm text-gray-600 dark:text-gray-400">{msg.content}</p>}
             </div>
             {isShop && !isMine && onAccept && onReject && (
-              <div className="flex border-t border-blue-200">
-                <button onClick={onAccept} className="flex-1 py-2.5 text-sm font-bold text-green-700 hover:bg-green-50 transition flex items-center justify-center gap-1">
+              <div className="flex border-t border-blue-200 dark:border-blue-800">
+                <button onClick={onAccept} className="flex-1 py-2.5 text-sm font-bold text-green-700 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 transition flex items-center justify-center gap-1">
                   <Check size={14} /> Accept
                 </button>
-                <div className="w-px bg-blue-200" />
-                <button onClick={onReject} className="flex-1 py-2.5 text-sm font-bold text-red-600 hover:bg-red-50 transition flex items-center justify-center gap-1">
+                <div className="w-px bg-blue-200 dark:bg-blue-800" />
+                <button onClick={onReject} className="flex-1 py-2.5 text-sm font-bold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition flex items-center justify-center gap-1">
                   <X size={14} /> Reject
                 </button>
               </div>
@@ -209,7 +209,7 @@ function Bubble({
         ) : (
           <div
             className={`px-4 py-2.5 rounded-2xl text-sm leading-relaxed ${
-              isMine ? "text-white rounded-br-sm" : "bg-gray-100 text-gray-800 rounded-bl-sm"
+              isMine ? "text-white rounded-br-sm" : "bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-100 rounded-bl-sm"
             }`}
             style={isMine ? { background: BRAND } : {}}
           >
@@ -218,13 +218,13 @@ function Bubble({
         )}
 
         <div className={`flex items-center gap-1 px-1 ${isMine ? "self-end" : "self-start"}`}>
-          <span className="text-[10px] text-gray-400">{timeAgo(msg.created_at)}</span>
+          <span className="text-[10px] text-gray-400 dark:text-gray-500">{timeAgo(msg.created_at)}</span>
           {msg.edited_at && !msg.is_deleted && (
-            <span className="text-[10px] text-gray-400 italic">· Edited</span>
+            <span className="text-[10px] text-gray-400 dark:text-gray-500 italic">· Edited</span>
           )}
           {/* Read receipts — only on own messages */}
           {isMine && !msg.is_deleted && (
-            <span className={`flex items-center -space-x-1 ${msg.is_read ? "text-blue-500" : "text-gray-300"}`}>
+            <span className={`flex items-center -space-x-1 ${msg.is_read ? "text-blue-500" : "text-gray-300 dark:text-gray-600"}`}>
               {/* First tick */}
               <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <polyline points="2,6 5,9 10,3"/>
@@ -533,16 +533,16 @@ export default function MessagesPage() {
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
-    <div className="flex h-[calc(100vh-64px)] overflow-hidden bg-gray-50">
+    <div className="flex h-[calc(100vh-64px)] overflow-hidden bg-gray-50 dark:bg-gray-900">
       {/* Sidebar — conversation list */}
       <div
         className={`${
           mobileOpen ? "hidden" : "flex"
-        } md:flex flex-col w-full md:w-[320px] lg:w-[360px] bg-white border-r border-gray-100 shrink-0`}
+        } md:flex flex-col w-full md:w-[320px] lg:w-[360px] bg-white dark:bg-gray-800 border-r border-gray-100 dark:border-gray-700 shrink-0`}
       >
-        <div className="px-5 py-4 border-b border-gray-100">
-          <h2 className="text-lg font-bold text-gray-800">Messages</h2>
-          <p className="text-xs text-gray-400 mt-0.5">Chat with shops · negotiate prices</p>
+        <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700">
+          <h2 className="text-lg font-bold text-gray-800 dark:text-gray-100">Messages</h2>
+          <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">Chat with shops · negotiate prices</p>
         </div>
 
         <div className="flex-1 overflow-y-auto">
@@ -552,11 +552,11 @@ export default function MessagesPage() {
             </div>
           ) : convs.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full py-16 px-6 text-center">
-              <div className="w-14 h-14 rounded-2xl bg-orange-50 flex items-center justify-center mb-4">
+              <div className="w-14 h-14 rounded-2xl bg-orange-50 dark:bg-orange-900/20 flex items-center justify-center mb-4">
                 <MessageSquare size={26} className="text-orange-400" />
               </div>
-              <p className="text-sm font-semibold text-gray-700 mb-1">No messages yet</p>
-              <p className="text-xs text-gray-400">
+              <p className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-1">No messages yet</p>
+              <p className="text-xs text-gray-400 dark:text-gray-500">
                 Start a conversation from any product in the marketplace.
               </p>
             </div>
@@ -577,8 +577,8 @@ export default function MessagesPage() {
                         openConv(g.convs[0]);
                       }
                     }}
-                    className={`w-full flex items-center gap-3 px-4 py-3 text-left transition border-b border-gray-50 hover:bg-orange-50 ${
-                      isGroupActive && !hasMany ? "bg-orange-50" : ""
+                    className={`w-full flex items-center gap-3 px-4 py-3 text-left transition border-b border-gray-50 dark:border-gray-700/50 hover:bg-orange-50 dark:hover:bg-orange-900/20 ${
+                      isGroupActive && !hasMany ? "bg-orange-50 dark:bg-orange-900/20" : ""
                     }`}
                   >
                     {/* Avatar */}
@@ -591,10 +591,10 @@ export default function MessagesPage() {
 
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-2">
-                        <span className="text-sm font-bold text-gray-800 truncate">{g.name}</span>
+                        <span className="text-sm font-bold text-gray-800 dark:text-gray-100 truncate">{g.name}</span>
                         <div className="flex items-center gap-1.5 shrink-0">
                           {g.latestTime && (
-                            <span className="text-[10px] text-gray-400">{timeAgo(g.latestTime)}</span>
+                            <span className="text-[10px] text-gray-400 dark:text-gray-500">{timeAgo(g.latestTime)}</span>
                           )}
                           {g.unread > 0 && (
                             <span
@@ -606,7 +606,7 @@ export default function MessagesPage() {
                           )}
                         </div>
                       </div>
-                      <p className="text-xs text-gray-400 truncate mt-0.5">
+                      <p className="text-xs text-gray-400 dark:text-gray-500 truncate mt-0.5">
                         {hasMany
                           ? `${g.convs.length} conversations`
                           : (g.convs[0].product_name || "Product inquiry")}
@@ -615,7 +615,7 @@ export default function MessagesPage() {
 
                     {/* Chevron for expandable groups */}
                     {hasMany && (
-                      <span className={`text-gray-300 transition-transform shrink-0 ${isExpanded ? "rotate-180" : ""}`}>
+                      <span className={`text-gray-300 dark:text-gray-600 transition-transform shrink-0 ${isExpanded ? "rotate-180" : ""}`}>
                         ▾
                       </span>
                     )}
@@ -628,31 +628,31 @@ export default function MessagesPage() {
                       <button
                         key={c.id}
                         onClick={() => openConv(c)}
-                        className={`w-full flex items-center gap-3 pl-[52px] pr-4 py-2.5 text-left transition border-b border-gray-50 hover:bg-orange-50 ${
-                          isActive ? "bg-orange-50" : "bg-gray-50/60"
+                        className={`w-full flex items-center gap-3 pl-[52px] pr-4 py-2.5 text-left transition border-b border-gray-50 dark:border-gray-700/50 hover:bg-orange-50 dark:hover:bg-orange-900/20 ${
+                          isActive ? "bg-orange-50 dark:bg-orange-900/20" : "bg-gray-50/60 dark:bg-gray-700/30"
                         }`}
                       >
-                        <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center shrink-0 overflow-hidden">
+                        <div className="w-8 h-8 rounded-lg bg-gray-100 dark:bg-gray-700 flex items-center justify-center shrink-0 overflow-hidden">
                           {c.product_image ? (
                             <img src={c.product_image} alt="" className="w-full h-full object-cover" />
                           ) : (
-                            <Package size={14} className="text-gray-400" />
+                            <Package size={14} className="text-gray-400 dark:text-gray-500" />
                           )}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-xs font-semibold text-gray-700 truncate">
+                          <p className="text-xs font-semibold text-gray-700 dark:text-gray-300 truncate">
                             {c.product_name || "Product inquiry"}
                           </p>
                           <div className="flex items-center gap-2 mt-0.5">
                             <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded-full ${
-                              c.status === "accepted" ? "bg-green-100 text-green-700"
-                              : c.status === "closed"  ? "bg-gray-100 text-gray-500"
-                              : "bg-orange-100 text-orange-600"
+                              c.status === "accepted" ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                              : c.status === "closed"  ? "bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400"
+                              : "bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400"
                             }`}>
                               {c.status === "open" ? "Active" : c.status}
                             </span>
                             {c.listed_price != null && (
-                              <span className="text-[9px] text-gray-400">
+                              <span className="text-[9px] text-gray-400 dark:text-gray-500">
                                 {priceStr(c.listed_price)}
                               </span>
                             )}
@@ -680,15 +680,15 @@ export default function MessagesPage() {
       <div
         className={`${
           mobileOpen ? "flex" : "hidden"
-        } md:flex flex-col flex-1 min-w-0`}
+        } md:flex flex-col flex-1 min-w-0 bg-gray-50 dark:bg-gray-900`}
       >
         {!active ? (
           <div className="flex flex-col items-center justify-center h-full text-center px-8">
-            <div className="w-16 h-16 rounded-2xl bg-orange-50 flex items-center justify-center mb-5">
+            <div className="w-16 h-16 rounded-2xl bg-orange-50 dark:bg-orange-900/20 flex items-center justify-center mb-5">
               <MessageSquare size={30} className="text-orange-400" />
             </div>
-            <p className="text-lg font-bold text-gray-700 mb-2">Select a conversation</p>
-            <p className="text-sm text-gray-400">
+            <p className="text-lg font-bold text-gray-700 dark:text-gray-200 mb-2">Select a conversation</p>
+            <p className="text-sm text-gray-400 dark:text-gray-500">
               Pick a chat from the left or start one by clicking&nbsp;
               <span className="font-semibold text-orange-500">Message Shop</span> on any product.
             </p>
@@ -696,28 +696,28 @@ export default function MessagesPage() {
         ) : (
           <>
             {/* Chat header */}
-            <div className="flex items-center gap-3 px-4 py-3 bg-white border-b border-gray-100 shrink-0">
+            <div className="flex items-center gap-3 px-4 py-3 bg-white dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700 shrink-0">
               <button
-                className="md:hidden p-1.5 rounded-lg hover:bg-gray-100"
+                className="md:hidden p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
                 onClick={() => setMobileOpen(false)}
               >
-                <ChevronLeft size={18} />
+                <ChevronLeft size={18} className="text-gray-600 dark:text-gray-300" />
               </button>
-              <div className="w-9 h-9 rounded-xl bg-gray-100 flex items-center justify-center overflow-hidden shrink-0">
+              <div className="w-9 h-9 rounded-xl bg-gray-100 dark:bg-gray-700 flex items-center justify-center overflow-hidden shrink-0">
                 {active.product_image ? (
                   <img src={active.product_image} alt="" className="w-full h-full object-cover" />
                 ) : (
-                  <ShoppingBag size={16} className="text-gray-400" />
+                  <ShoppingBag size={16} className="text-gray-400 dark:text-gray-500" />
                 )}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-bold text-gray-800 truncate">
+                <p className="text-sm font-bold text-gray-800 dark:text-gray-100 truncate">
                   {myShopId === active.shop_id
                     ? active.customer_name || "Customer"
                     : active.shop_name || "Shop"}
                 </p>
                 {active.product_name && (
-                  <p className="text-xs text-gray-500 truncate">
+                  <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
                     {active.product_name}
                     {active.listed_price != null && (
                       <span className="ml-1 text-orange-500 font-semibold">
@@ -728,7 +728,7 @@ export default function MessagesPage() {
                 )}
               </div>
               {active.agreed_price != null && (
-                <div className="shrink-0 flex items-center gap-1 px-2.5 py-1 rounded-full bg-green-100 text-green-700 text-xs font-bold">
+                <div className="shrink-0 flex items-center gap-1 px-2.5 py-1 rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 text-xs font-bold">
                   <Check size={11} />
                   Deal {priceStr(active.agreed_price)}
                 </div>
@@ -739,8 +739,8 @@ export default function MessagesPage() {
             <div className="flex-1 overflow-y-auto px-4 py-4">
               {messages.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full text-center opacity-60">
-                  <MessageSquare size={32} className="text-gray-300 mb-2" />
-                  <p className="text-sm text-gray-400">No messages yet. Say hello!</p>
+                  <MessageSquare size={32} className="text-gray-300 dark:text-gray-600 mb-2" />
+                  <p className="text-sm text-gray-400 dark:text-gray-500">No messages yet. Say hello!</p>
                 </div>
               ) : (
                 messages.map((msg) => (
@@ -759,11 +759,11 @@ export default function MessagesPage() {
               {/* Typing indicator */}
               {peerTyping && (
                 <div className="flex justify-start mb-2">
-                  <div className="flex items-center gap-1.5 px-4 py-3 rounded-2xl rounded-bl-sm bg-gray-100">
+                  <div className="flex items-center gap-1.5 px-4 py-3 rounded-2xl rounded-bl-sm bg-gray-100 dark:bg-gray-700">
                     {[0, 1, 2].map((i) => (
                       <span
                         key={i}
-                        className="w-2 h-2 rounded-full bg-gray-400"
+                        className="w-2 h-2 rounded-full bg-gray-400 dark:bg-gray-500"
                         style={{ animation: "typing-bounce 1.2s infinite", animationDelay: `${i * 0.2}s` }}
                       />
                     ))}
@@ -775,7 +775,7 @@ export default function MessagesPage() {
 
             {/* Error strip */}
             {error && (
-              <div className="px-4 py-2 bg-red-50 text-xs text-red-600 border-t border-red-100 flex justify-between items-center">
+              <div className="px-4 py-2 bg-red-50 dark:bg-red-900/20 text-xs text-red-600 dark:text-red-400 border-t border-red-100 dark:border-red-800 flex justify-between items-center">
                 {error}
                 <button onClick={() => setError(null)}><X size={12} /></button>
               </div>
@@ -783,18 +783,18 @@ export default function MessagesPage() {
 
             {/* Composer */}
             {active.status === "open" ? (
-              <div className="bg-white border-t border-gray-100 p-3 shrink-0">
+              <div className="bg-white dark:bg-gray-800 border-t border-gray-100 dark:border-gray-700 p-3 shrink-0">
                 {/* Editing banner */}
                 {editingMsg && (
-                  <div className="flex items-center gap-2 mb-2 px-3 py-2 bg-blue-50 rounded-xl border-l-4 border-blue-400">
+                  <div className="flex items-center gap-2 mb-2 px-3 py-2 bg-blue-50 dark:bg-blue-900/20 rounded-xl border-l-4 border-blue-400 dark:border-blue-500">
                     <Pencil size={13} className="text-blue-400 shrink-0" />
                     <div className="flex-1 min-w-0">
-                      <p className="text-[10px] font-bold text-blue-500 uppercase tracking-wide mb-0.5">Editing message</p>
-                      <p className="text-xs text-gray-500 truncate">{editingMsg.content}</p>
+                      <p className="text-[10px] font-bold text-blue-500 dark:text-blue-400 uppercase tracking-wide mb-0.5">Editing message</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{editingMsg.content}</p>
                     </div>
                     <button
                       onClick={() => { setEditingMsg(null); setText(""); }}
-                      className="text-gray-400 hover:text-gray-600 transition shrink-0"
+                      className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition shrink-0"
                     >
                       <X size={14} />
                     </button>
@@ -802,7 +802,7 @@ export default function MessagesPage() {
                 )}
 
                 {offerMode && (
-                  <div className="flex items-center gap-2 mb-2 p-3 bg-orange-50 rounded-xl border border-orange-200">
+                  <div className="flex items-center gap-2 mb-2 p-3 bg-orange-50 dark:bg-orange-900/20 rounded-xl border border-orange-200 dark:border-orange-800">
                     <span className="text-xs font-bold text-orange-500 shrink-0">FRW</span>
                     <input
                       type="number"
@@ -811,18 +811,18 @@ export default function MessagesPage() {
                       placeholder="Your offer price"
                       value={offerAmt}
                       onChange={(e) => setOfferAmt(e.target.value)}
-                      className="flex-1 bg-transparent text-sm font-bold text-gray-800 outline-none placeholder:text-gray-400"
+                      className="flex-1 bg-transparent text-sm font-bold text-gray-800 dark:text-gray-100 outline-none placeholder:text-gray-400 dark:placeholder:text-gray-500"
                     />
                     <button
                       onClick={() => { setOfferMode(false); setOfferAmt(""); }}
-                      className="text-gray-400 hover:text-gray-600"
+                      className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300"
                     >
                       <X size={14} />
                     </button>
                   </div>
                 )}
                 <div className="flex items-end gap-2">
-                  <div className="flex-1 flex items-end gap-2 bg-gray-50 rounded-2xl px-3 py-2">
+                  <div className="flex-1 flex items-end gap-2 bg-gray-50 dark:bg-gray-700 rounded-2xl px-3 py-2">
                     <textarea
                       rows={1}
                       placeholder={editingMsg ? "Edit your message…" : offerMode ? "Add a note (optional)…" : "Type a message…"}
@@ -843,14 +843,14 @@ export default function MessagesPage() {
                           handleSend();
                         }
                       }}
-                      className="flex-1 bg-transparent text-sm text-gray-800 outline-none resize-none max-h-[120px] placeholder:text-gray-400"
+                      className="flex-1 bg-transparent text-sm text-gray-800 dark:text-gray-100 outline-none resize-none max-h-[120px] placeholder:text-gray-400 dark:placeholder:text-gray-500"
                     />
                   </div>
                   {myShopId !== active.shop_id && !offerMode && (
                     <button
                       onClick={() => setOfferMode(true)}
                       title="Make an offer"
-                      className="p-2.5 rounded-xl border border-orange-200 bg-orange-50 text-orange-500 hover:bg-orange-100 transition shrink-0"
+                      className="p-2.5 rounded-xl border border-orange-200 dark:border-orange-800 bg-orange-50 dark:bg-orange-900/20 text-orange-500 hover:bg-orange-100 dark:hover:bg-orange-900/30 transition shrink-0"
                     >
                       <Tag size={16} />
                     </button>
@@ -872,8 +872,8 @@ export default function MessagesPage() {
                 </div>
               </div>
             ) : (
-              <div className="px-4 py-3 bg-gray-50 border-t border-gray-100 text-center">
-                <p className="text-xs text-gray-400 font-medium">
+              <div className="px-4 py-3 bg-gray-50 dark:bg-gray-800 border-t border-gray-100 dark:border-gray-700 text-center">
+                <p className="text-xs text-gray-400 dark:text-gray-500 font-medium">
                   {active.status === "accepted"
                     ? `Deal agreed at ${priceStr(active.agreed_price)} · Conversation closed`
                     : "This conversation is closed"}
