@@ -2331,9 +2331,6 @@ function ProductCard({ entry, shop, isMine, online, searchQ, onDetail, onOrder, 
           <span style={{ fontSize: 16, fontWeight: 800, color: "#ff6a00", lineHeight: 1 }}>
             {fmtPrice(entry.sellingPrice)}
           </span>
-          {entry.quantity > 0 && entry.quantity <= 10 && (
-            <span style={{ fontSize: 10, color: "#fa8c16", fontWeight: 600 }}>Only {entry.quantity} left</span>
-          )}
         </div>
 
         {/* Min order */}
