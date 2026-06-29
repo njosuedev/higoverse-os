@@ -14,35 +14,9 @@ import { getUnreadNotifCount, openNotifStream } from "@/lib/notifications-api";
 import {
   Home, Package, Truck, ShoppingCart, BarChart3,
   Users, FileText, ChevronDown, ShieldCheck, Receipt,
-  Sparkles, Settings, LogOut, Moon, Sun, Globe, Store,
+  Sparkles, Settings, LogOut, Globe, Store,
   Bell, MessageSquare,
 } from "lucide-react";
-
-function useDarkMode() {
-  const pathname = usePathname();
-  const isMarketplace = pathname === "/marketplace" || pathname.startsWith("/marketplace/");
-  const [dark, setDark] = useState(false);
-
-  useEffect(() => {
-    const saved = localStorage.getItem("darkMode") === "true";
-    setDark(saved);
-    // Marketplace is always light-mode — never apply dark class there
-    document.documentElement.classList.toggle("dark", saved && !isMarketplace);
-  }, [isMarketplace]);
-
-  function toggle() {
-    setDark((d) => {
-      const next = !d;
-      localStorage.setItem("darkMode", String(next));
-      // Only apply to document when NOT on marketplace
-      if (!isMarketplace) {
-        document.documentElement.classList.toggle("dark", next);
-      }
-      return next;
-    });
-  }
-  return { dark, toggle, isMarketplace };
-}
 
 const CUSTOMER_MENUS = [
   { key: "nav.marketplace",   href: "/marketplace",   icon: Store          },
@@ -75,7 +49,6 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
   const { lang, setLang, t } = useLanguage();
   const { user, logout, ready } = useAuth();
   const { shop, loading: shopLoading } = useShop();
-  const { dark, toggle: toggleDark, isMarketplace } = useDarkMode();
 
   const [menuOpen, setMenuOpen]         = useState(false);
   const [unreadMsgs, setUnreadMsgs]     = useState(0);
@@ -414,22 +387,6 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
                     </Link>
                   )}
 
-                  {/* Dark mode — hidden on marketplace (not supported there) */}
-                  {!isMarketplace && <button
-                    onClick={toggleDark}
-                    className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl hover:bg-slate-50 transition group"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center transition
-                        ${dark ? "bg-slate-900 text-amber-400" : "bg-slate-100 text-slate-500"}`}>
-                        {dark ? <Sun size={15} /> : <Moon size={15} />}
-                      </div>
-                      <span className="text-sm font-medium text-slate-700">{dark ? "Light Mode" : "Dark Mode"}</span>
-                    </div>
-                    <div className={`w-9 h-5 rounded-full transition-colors relative shrink-0 ${dark ? "bg-[#1372e6]" : "bg-slate-200"}`}>
-                      <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow-sm transition-all duration-200 ${dark ? "left-4" : "left-0.5"}`} />
-                    </div>
-                  </button>}
 
                   {/* Language */}
                   <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-slate-50 transition">
