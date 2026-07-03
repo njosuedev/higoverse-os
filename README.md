@@ -1,2 +1,1 @@
 <h1>SHOPS NETWORK</h1>
-
