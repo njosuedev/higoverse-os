@@ -4,7 +4,7 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { useLanguage } from "@/lib/language-context";
 import { useShop } from "@/lib/shop-context";
-import { sendChat, type ChatMessage } from "@/lib/advisor-api";
+import { sendChat, pingAdvisor, type ChatMessage } from "@/lib/advisor-api";
 import { playAIResponse } from "@/lib/sound";
 import { Bot, Send, X, Sparkles, User, AlertCircle } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
@@ -115,6 +115,12 @@ export default function AIFloatingWidget() {
   // Hide while role is still resolving, and permanently for customers.
   const role        = (ready && !shopLoading) ? getEffectiveRole(user ?? null, shop?.is_active === true) : null;
   const isShopUser  = role === "SHOP_OWNER" || role === "ADMIN";
+
+  // Warm up the Render instance as soon as we know this user will see the widget,
+  // so the first message doesn't hit a cold start.
+  useEffect(() => {
+    if (isShopUser) pingAdvisor();
+  }, [isShopUser]);
 
   if (pathname === "/advisor" || pathname === "/messages") return null;
   if (!ready || shopLoading) return null;   // avoid flash
