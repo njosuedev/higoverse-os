@@ -55,7 +55,7 @@ def _send_otp_email(to_email: str, otp: str) -> None:
   </p>
 </td></tr>
 <tr><td style="background:#f8fafc;padding:20px 40px;text-align:center;border-top:1px solid #e2e8f0">
-  <div style="color:#94a3b8;font-size:11px">&copy; 2025 Higoverse</div>
+  <div style="color:#94a3b8;font-size:11px">&copy; {datetime.now(timezone.utc).year} Higoverse</div>
 </td></tr>
 </table></td></tr></table>
 </body></html>"""
@@ -104,7 +104,7 @@ def _send_verification_email(to_email: str, otp: str) -> None:
   </p>
 </td></tr>
 <tr><td style="background:#f8fafc;padding:20px 40px;text-align:center;border-top:1px solid #e2e8f0">
-  <div style="color:#94a3b8;font-size:11px">&copy; 2025 Higoverse</div>
+  <div style="color:#94a3b8;font-size:11px">&copy; {datetime.now(timezone.utc).year} Higoverse</div>
 </td></tr>
 </table></td></tr></table>
 </body></html>"""

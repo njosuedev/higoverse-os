@@ -72,45 +72,10 @@ export default function LoginPage() {
 
     setFpLoading(true);
     try {
-      // First: verify the email actually exists in the system by calling a lightweight
-      // check endpoint. We use resend-verification as a probe — if it says "already
-      // verified" the account exists; if "user not found" / 404 it doesn't.
-      let emailExists = false;
-      try {
-        const probe = await fetch(`${AUTH_URL}/api/v1/auth/resend-verification`, {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email }),
-        });
-        const probeData = await probe.json().catch(() => ({}));
-        const detail = (probeData?.detail ?? "").toLowerCase();
-        // Account exists (active/verified accounts return "already verified" / 200 / similar)
-        emailExists = probe.ok || detail.includes("already verified") || detail.includes("active") || detail.includes("verified");
-        // Account might exist but unverified
-        if (probe.ok) {
-          // Account is unverified — they should verify, not reset password
-          setFpError("This account has not been verified yet. Please complete email verification first.");
-          return;
-        }
-        // If probe says user not found
-        if (detail.includes("not found") || detail.includes("no user") || detail.includes("does not exist") || probe.status === 404) {
-          setFpError("No account found with this email address. Please register first.");
-          return;
-        }
-        // If "already verified" — account exists and is active, proceed
-        if (detail.includes("already verified") || detail.includes("active")) {
-          emailExists = true;
-        }
-      } catch {
-        // probe failed due to network — skip the pre-check and let forgot-password handle it
-        emailExists = true;
-      }
-
-      if (!emailExists) {
-        setFpError("No account found with this email address. Please register first.");
-        return;
-      }
-
-      // Now send the actual OTP
+      // The backend intentionally returns a generic success response for forgot-password
+      // regardless of whether the account exists, is verified, or is active — this avoids
+      // leaking account existence/status to an unauthenticated caller (email enumeration).
+      // So we just send the OTP request directly and surface whatever real error comes back.
       const res = await fetch(`${AUTH_URL}/api/v1/auth/forgot-password`, {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email }),
@@ -214,7 +179,7 @@ export default function LoginPage() {
         </div>
 
         {/* bottom: trust */}
-        <p className="text-[11px] text-slate-400">© 2025 Higoverse · Secure · Private</p>
+        <p className="text-[11px] text-slate-400">© {new Date().getFullYear()} Higoverse · Secure · Private</p>
       </div>
 
       {/* ══ RIGHT PANEL ══ */}

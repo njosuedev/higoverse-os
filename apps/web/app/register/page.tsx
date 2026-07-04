@@ -266,7 +266,7 @@ export default function RegisterPage() {
           </div>
         </div>
 
-        <p className="text-[11px] text-slate-400">© 2025 Higoverse · Secure · Private</p>
+        <p className="text-[11px] text-slate-400">© {new Date().getFullYear()} Higoverse · Secure · Private</p>
       </div>
 
       {/* ══ RIGHT PANEL ══ */}

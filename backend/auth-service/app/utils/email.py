@@ -1,4 +1,5 @@
 import smtplib
+from datetime import datetime, timezone
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
@@ -57,7 +58,7 @@ def send_otp_email(to_email: str, otp: str) -> None:
           <td style="background:#f8fafc;padding:20px 40px;text-align:center;
                      border-top:1px solid #e2e8f0">
             <div style="color:#94a3b8;font-size:11px">
-              &copy; 2025 Higoverse · This is an automated message, please do not reply.
+              &copy; {datetime.now(timezone.utc).year} Higoverse · This is an automated message, please do not reply.
             </div>
           </td>
         </tr>
