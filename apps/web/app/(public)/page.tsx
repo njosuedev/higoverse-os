@@ -1670,12 +1670,12 @@ function ProductCard({ entry, shop, isMine, online, onOrder, onReady, priority }
         </p>
 
         {/* Price */}
-        <span className="text-base font-extrabold leading-none text-slate-900">
+        <span className="text-base font-bold leading-none text-slate-900">
           {fmtPrice(entry.sellingPrice)}
         </span>
 
         {/* Min order */}
-        <p className="text-[10px] font-medium text-slate-400">
+        <p className="text-[10px] font-medium text-slate-600">
           Min. 1 unit · {category.charAt(0).toUpperCase() + category.slice(1)}
         </p>
 

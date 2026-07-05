@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Package, BadgeCheck, Camera } from "lucide-react";
 import { formatRwf } from "@/lib/format";
+import { categoryLabel } from "@/lib/categories";
 import type { PublicProduct } from "@/lib/marketplace-public";
 import type { Shop } from "@/lib/shop-api";
 
@@ -49,7 +50,10 @@ export default function ProductCard({ product, shop, shopName }: { product: Publ
       </div>
       <div className="flex flex-1 flex-col gap-1 p-2.5">
         <p className="line-clamp-2 min-h-[2.4em] text-xs leading-snug text-slate-700">{product.name}</p>
-        <p className="text-base font-extrabold text-slate-900">{formatRwf(product.price)}</p>
+        <p className="text-base font-bold text-slate-900">{formatRwf(product.price)}</p>
+        <p className="text-[10px] font-medium text-slate-600">
+          Min. 1 unit · {categoryLabel(product.category)}
+        </p>
         {name && (
           <p className="truncate text-[10px] text-slate-400">{name}</p>
         )}
