@@ -23,6 +23,10 @@ const dict: Record<Lang, Record<string, string>> = {
     "nav.advisor": "AI Advisor",
     "nav.notifications": "Notifications",
     "nav.messages": "Messages",
+    "nav.dashboard": "Dashboard",
+    "nav.inventory": "Inventory",
+    "nav.finance": "Finance",
+    "nav.more": "More",
 
     // AI advisor
     "advisor.welcome": "Your AI Business Advisor",
@@ -397,6 +401,10 @@ const dict: Record<Lang, Record<string, string>> = {
     "nav.proforma": "Inyandikorugero",
     "nav.admin": "Ubutegetsi",
     "nav.advisor": "Umujyanama AI",
+    "nav.dashboard": "Ikibaho",
+    "nav.inventory": "Ububiko",
+    "nav.finance": "Imari",
+    "nav.more": "Ibindi",
 
     "advisor.welcome": "Umujyanama w'Ubucuruzi wa AI",
     "advisor.welcome_sub": "Baza ikibazo icyo aricyo cyose ku bijyanye n'iduka ryawe — amagurishwa, ububiko, imari, cyangwa ingamba zo gutera imbere. Nsesengura amakuru nyakuri.",
@@ -723,6 +731,10 @@ const dict: Record<Lang, Record<string, string>> = {
     "nav.proforma": "Proforma",
     "nav.admin": "Admin",
     "nav.advisor": "Conseiller IA",
+    "nav.dashboard": "Tableau de bord",
+    "nav.inventory": "Inventaire",
+    "nav.finance": "Finance",
+    "nav.more": "Plus",
 
     "advisor.welcome": "Votre Conseiller Commercial IA",
     "advisor.welcome_sub": "Posez-moi n'importe quelle question sur votre boutique — ventes, inventaire, finances ou stratégies de croissance. J'analyse vos données réelles.",
@@ -1049,6 +1061,10 @@ const dict: Record<Lang, Record<string, string>> = {
     "nav.proforma": "Ankara ya Awali",
     "nav.admin": "Msimamizi",
     "nav.advisor": "Mshauri wa AI",
+    "nav.dashboard": "Dashibodi",
+    "nav.inventory": "Bidhaa",
+    "nav.finance": "Fedha",
+    "nav.more": "Zaidi",
 
     "advisor.welcome": "Mshauri Wako wa Biashara wa AI",
     "advisor.welcome_sub": "Niulize chochote kuhusu duka lako — mauzo, akiba, fedha, au mikakati ya ukuaji. Ninachambua data yako halisi.",

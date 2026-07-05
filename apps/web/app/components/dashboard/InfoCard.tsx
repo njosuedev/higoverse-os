@@ -2,27 +2,31 @@
 
 import React from "react";
 
+type Tone = "blue" | "orange" | "slate";
+
 interface InfoCardProps {
   icon: React.ReactNode;
   label: string;
   value: string;
+  tone?: Tone;
 }
 
-export default function InfoCard({
-  icon,
-  label,
-  value,
-}: InfoCardProps) {
-  return (
-    <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200 hover:border-blue-200 transition-all">
-      <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
-        {icon}
-        <span>{label}</span>
-      </div>
+const TONE_MAP: Record<Tone, string> = {
+  blue: "bg-blue-50 text-blue-600",
+  orange: "bg-orange-50 text-orange-600",
+  slate: "bg-slate-100 text-slate-600",
+};
 
-      <p className="mt-2 font-semibold text-slate-900 break-all">
-        {value}
-      </p>
+export default function InfoCard({ icon, label, value, tone = "blue" }: InfoCardProps) {
+  return (
+    <div className="hgv-card-hover rounded-2xl border border-slate-200 bg-slate-50 p-4">
+      <div className="flex items-center gap-2.5">
+        <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${TONE_MAP[tone]}`}>
+          {icon}
+        </div>
+        <span className="text-sm font-medium text-slate-500">{label}</span>
+      </div>
+      <p className="mt-2.5 break-all font-semibold text-slate-900">{value}</p>
     </div>
   );
 }

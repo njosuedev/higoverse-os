@@ -17,6 +17,10 @@ export default function LoginPage() {
   const router         = useRouter();
   const searchParams   = useSearchParams();
   const justRegistered = searchParams.get("registered") === "1";
+  // Where to send the user after a successful login — defaults to the public
+  // marketplace home; guest-only actions (follow, message, etc.) pass ?next=
+  // so the user lands back where they were.
+  const nextPath = searchParams.get("next") || "/";
   const { login, user, ready } = useAuth();
 
   const [email,       setEmail]       = useState("");
@@ -34,7 +38,7 @@ export default function LoginPage() {
   const [fpError,     setFpError]     = useState("");
   const [resendTimer, setResendTimer] = useState(0);
 
-  useEffect(() => { if (ready && user) router.replace("/marketplace"); }, [ready, user, router]);
+  useEffect(() => { if (ready && user) router.replace(nextPath); }, [ready, user, router, nextPath]);
   useEffect(() => {
     if (resendTimer <= 0) return;
     const t = setTimeout(() => setResendTimer((s) => s - 1), 1000);
@@ -55,7 +59,7 @@ export default function LoginPage() {
       });
       const data = await res.json();
       if (!res.ok) return setError(data?.detail || "Incorrect email or password.");
-      login(data); router.replace("/marketplace");
+      login(data); router.replace(nextPath);
     } catch { setError("Network error. Please try again."); }
     finally  { setLoading(false); }
   }, [email, password, login, router]);

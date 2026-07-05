@@ -11,6 +11,7 @@ import { reportRequest } from "@/lib/report-api";
 import { expenseRequest } from "@/lib/expense-api";
 import { purchaseRequest } from "@/lib/purchase-api";
 import { listShops, type Shop as ShopInfo } from "@/lib/shop-api";
+import StatCard from "@/app/components/dashboard/StatCard";
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer,
 } from "recharts";
@@ -75,12 +76,12 @@ function shopPresence(lastSeenAt: string | null, now: Date) {
 
 
 const SVC_COLORS: Record<string, { bg: string; text: string }> = {
-  blue:   { bg: "bg-[#EBF2FD]", text: "text-[#1372e6]" },
-  indigo: { bg: "bg-[#EBF2FD]", text: "text-[#1372e6]" },
-  teal:   { bg: "bg-[#EBF2FD]", text: "text-[#1372e6]" },
-  orange: { bg: "bg-[#EBF2FD]", text: "text-[#1372e6]" },
-  violet: { bg: "bg-[#EBF2FD]", text: "text-[#1372e6]" },
-  pink:   { bg: "bg-[#EBF2FD]", text: "text-[#1372e6]" },
+  blue:   { bg: "bg-[#eff6ff]", text: "text-[#2563eb]" },
+  indigo: { bg: "bg-[#eff6ff]", text: "text-[#2563eb]" },
+  teal:   { bg: "bg-[#eff6ff]", text: "text-[#2563eb]" },
+  orange: { bg: "bg-[#eff6ff]", text: "text-[#2563eb]" },
+  violet: { bg: "bg-[#eff6ff]", text: "text-[#2563eb]" },
+  pink:   { bg: "bg-[#eff6ff]", text: "text-[#2563eb]" },
   slate:  { bg: "bg-slate-100",  text: "text-slate-600" },
 };
 
@@ -124,7 +125,7 @@ export default function DashboardPage() {
     { title: t("nav.reports"),          description: t("dash.reports_desc"),          icon: BarChart3,    href: "/reports",   color: "violet" },
     { title: t("nav.proforma"),         description: t("dash.proforma_desc"),         icon: FileText,     href: "/proforma",  color: "pink" },
     { title: t("nav.settings"),         description: t("dash.settings_desc"),         icon: Settings,     href: "/settings",    color: "slate" },
-    { title: t("nav.marketplace"),      description: t("marketplace.dash_desc"),       icon: Store,        href: "/marketplace", color: "blue" },
+    { title: t("nav.marketplace"),      description: t("marketplace.dash_desc"),       icon: Store,        href: "/", color: "blue" },
   ];
 
   const [stats, setStats]             = useState<Stats>({ products: 0, partners: 0, sales: 0, revenue: 0, lowStock: 0, outOfStock: 0 });
@@ -290,21 +291,21 @@ export default function DashboardPage() {
       <main className="max-w-7xl mx-auto px-3 sm:px-5 py-2.5 sm:py-3 space-y-3">
 
         {/* ── HERO ────────────────────────────────────────────────────────────── */}
-        <section className="relative overflow-hidden rounded-xl text-white shadow-md" style={{ backgroundColor: "#1372e6" }}>
+        <section className="relative overflow-hidden rounded-2xl text-white shadow-md" style={{ backgroundColor: "#2563eb" }}>
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-white/10 via-transparent to-transparent pointer-events-none" />
 
-          <div className="relative z-10 flex flex-col md:flex-row md:items-center md:justify-between gap-2.5 px-3.5 py-2.5">
-            <div className="flex items-center gap-2.5">
+          <div className="relative z-10 flex flex-col md:flex-row md:items-center md:justify-between gap-3 px-4 py-3.5">
+            <div className="flex items-center gap-3">
               {currentShop?.logo_url && (
                 <img
                   src={currentShop.logo_url}
                   alt={currentShop.name}
-                  className="w-9 h-9 rounded-xl object-cover border-2 border-white/20 shadow shrink-0"
+                  className="w-11 h-11 rounded-2xl object-cover border-2 border-white/20 shadow shrink-0"
                 />
               )}
               <div>
                 <p className="text-blue-200 text-[10px] font-medium uppercase tracking-widest">{t("dash.welcome")}</p>
-                <h1 className="text-base md:text-lg font-bold mt-0.5">{currentShop?.name || user.name || "My Shop"}</h1>
+                <h1 className="text-lg md:text-xl font-bold mt-0.5">{currentShop?.name || user.name || "My Shop"}</h1>
                 <p className="text-blue-200 text-[11px] mt-0.5">{user.name} · {user.role || "Owner"}</p>
               </div>
             </div>
@@ -352,37 +353,42 @@ export default function DashboardPage() {
           </div>
         </section>
 
-        {/* ── KPI CARDS ────────────────────────────────────────────────────────── */}
-        <section className="grid grid-cols-3 sm:grid-cols-3 xl:grid-cols-6 gap-2.5">
-          <KpiCard label={t("dash.products")}    value={stats.products.toLocaleString()}
-            icon={<Package size={15} strokeWidth={2.5} />} color="blue" href="/items" sub={t("dash.in_your_shop")} t={t} />
-          <KpiCard label={t("dash.partners")}    value={stats.partners.toLocaleString()}
-            icon={<Users size={15} strokeWidth={2.5} />} color="indigo" href="/partners" sub={t("dash.suppliers_customers")} t={t} />
-          <KpiCard label={t("dash.sales_today")} value={stats.sales.toLocaleString()}
-            icon={<ShoppingCart size={15} strokeWidth={2.5} />} color="teal" href="/sales" sub={t("dash.transactions")} t={t} />
-          <KpiCard label={t("dash.revenue_today")}
+        {/* ── KPI CARDS — Revenue is the hero metric, everything else balanced ── */}
+        <section className="grid grid-cols-1 gap-3 lg:grid-cols-3">
+          <StatCard
+            label={t("dash.revenue_today")}
             value={stats.revenue > 0 ? fmtCurrency(stats.revenue) : t("common.no_data")}
-            icon={<TrendingUp size={15} strokeWidth={2.5} />} color="green" href="/reports" small
-            delta={revDeltaPct}
-            sub={yesterdayRevenue > 0 ? `Yesterday: ${fmtCurrency(yesterdayRevenue)}` : "first day data"} t={t} />
-          <KpiCard label={t("items.low_stock")} value={stats.lowStock.toLocaleString()}
-            icon={<AlertTriangle size={15} strokeWidth={2.5} />}
-            color={stats.lowStock > 0 ? "orange" : "slate"}
-            href="/items" sub="≤ 10 units" warn={stats.lowStock > 0} t={t} />
-          <KpiCard label={t("items.out_stock")} value={stats.outOfStock.toLocaleString()}
-            icon={<Package size={15} strokeWidth={2.5} />}
-            color={stats.outOfStock > 0 ? "red" : "slate"}
-            href="/items" sub="zero units" warn={stats.outOfStock > 0} t={t} />
+            icon={<TrendingUp size={20} strokeWidth={2.5} />}
+            tone="green"
+            size="lg"
+            href="/reports"
+            delta={revDeltaPct !== null ? { value: `${Math.abs(revDeltaPct)}%`, direction: revDeltaPct >= 0 ? "up" : "down" } : undefined}
+            subtitle={yesterdayRevenue > 0 ? `Yesterday: ${fmtCurrency(yesterdayRevenue)}` : "First day of data"}
+          />
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:col-span-2 lg:grid-cols-5">
+            <StatCard label={t("dash.products")} value={stats.products.toLocaleString()}
+              icon={<Package size={16} strokeWidth={2.5} />} tone="blue" href="/items" subtitle={t("dash.in_your_shop")} />
+            <StatCard label={t("dash.partners")} value={stats.partners.toLocaleString()}
+              icon={<Users size={16} strokeWidth={2.5} />} tone="blue" href="/partners" subtitle={t("dash.suppliers_customers")} />
+            <StatCard label={t("dash.sales_today")} value={stats.sales.toLocaleString()}
+              icon={<ShoppingCart size={16} strokeWidth={2.5} />} tone="blue" href="/sales" subtitle={t("dash.transactions")} />
+            <StatCard label={t("items.low_stock")} value={stats.lowStock.toLocaleString()}
+              icon={<AlertTriangle size={16} strokeWidth={2.5} />}
+              tone={stats.lowStock > 0 ? "amber" : "slate"} href="/items" subtitle="≤ 10 units" />
+            <StatCard label={t("items.out_stock")} value={stats.outOfStock.toLocaleString()}
+              icon={<Package size={16} strokeWidth={2.5} />}
+              tone={stats.outOfStock > 0 ? "red" : "slate"} href="/items" subtitle="zero units" />
+          </div>
         </section>
 
         {/* ── TODAY'S SHOP STATUS ──────────────────────────────────────────────── */}
         <section className="bg-white border border-slate-200 rounded-xl p-3 shadow-sm">
           <div className="flex items-center justify-between mb-2">
             <h2 className="font-bold text-slate-900 text-sm flex items-center gap-2">
-              <DollarSign size={13} className="text-[#1372e6]" />
+              <DollarSign size={13} className="text-[#2563eb]" />
               {t("dash.shop_status_today") || "Today's Shop Status"}
             </h2>
-            <Link href="/reports" className="text-[11px] font-semibold text-white px-2.5 py-0.5 rounded-lg transition hover:opacity-90" style={{ backgroundColor: "#1372e6" }}>
+            <Link href="/reports" className="text-[11px] font-semibold text-white px-2.5 py-0.5 rounded-lg transition hover:opacity-90" style={{ backgroundColor: "#2563eb" }}>
               {t("dash.full_report")} →
             </Link>
           </div>
@@ -403,9 +409,9 @@ export default function DashboardPage() {
               <p className="text-sm font-bold text-orange-700 mt-0.5">{expenseToday.total_expenses > 0 ? fmtCurrency(expenseToday.total_expenses) : "—"}</p>
               <p className="text-[10px] text-slate-400 mt-0.5">{expenseToday.count} {t("expenses.records") || "records"}</p>
             </div>
-            <div className={`p-2 rounded-xl ${netProfit >= 0 ? "bg-[#EBF2FD]" : "bg-red-50"}`}>
+            <div className={`p-2 rounded-xl ${netProfit >= 0 ? "bg-[#eff6ff]" : "bg-red-50"}`}>
               <p className="text-[9px] text-slate-400 uppercase tracking-wide font-medium">{t("dash.net_profit") || "Net Profit"}</p>
-              <p className={`text-sm font-bold mt-0.5 ${netProfit >= 0 ? "text-[#1372e6]" : "text-red-600"}`}>
+              <p className={`text-sm font-bold mt-0.5 ${netProfit >= 0 ? "text-[#2563eb]" : "text-red-600"}`}>
                 {totalCosts > 0 || stats.revenue > 0 ? fmtCurrency(netProfit) : "—"}
               </p>
               <p className="text-[10px] text-slate-400 mt-0.5">
@@ -431,7 +437,7 @@ export default function DashboardPage() {
                 <span className="flex items-center gap-1 text-[10px] text-slate-500">
                   <span className="w-2 h-1.5 rounded-sm bg-green-500 inline-block" /> {t("dash.profit_label") || "Profit"} {netPct}%
                 </span>
-                <Link href="/ExpenseManagement" className="ml-auto text-[10px] font-semibold text-white px-2.5 py-1 rounded-lg flex items-center gap-1 transition hover:opacity-90" style={{ backgroundColor: "#1372e6" }}>
+                <Link href="/ExpenseManagement" className="ml-auto text-[10px] font-semibold text-white px-2.5 py-1 rounded-lg flex items-center gap-1 transition hover:opacity-90" style={{ backgroundColor: "#2563eb" }}>
                   <Receipt size={10} strokeWidth={2.5} /> {t("expenses.add") || "Record Expense"}
                 </Link>
               </div>
@@ -452,7 +458,7 @@ export default function DashboardPage() {
               <div className="bg-white border border-slate-200 rounded-xl p-3 shadow-sm">
                 <div className="flex items-center justify-between mb-2">
                   <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500 flex items-center gap-1">
-                    <Package size={10} className="text-[#1372e6]" /> {t("dash.stock_health") || "Stock Health"}
+                    <Package size={10} className="text-[#2563eb]" /> {t("dash.stock_health") || "Stock Health"}
                   </p>
                   <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
                     healthPct >= 80 ? "bg-green-50 text-green-700" : healthPct >= 50 ? "bg-amber-50 text-amber-700" : "bg-red-50 text-red-600"
@@ -482,7 +488,7 @@ export default function DashboardPage() {
               <div className="bg-white border border-slate-200 rounded-xl p-3 shadow-sm">
                 <div className="flex items-center justify-between mb-2">
                   <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500 flex items-center gap-1">
-                    <TrendingUp size={10} className="text-[#1372e6]" /> {t("dash.profit_margin") || "Net Margin"}
+                    <TrendingUp size={10} className="text-[#2563eb]" /> {t("dash.profit_margin") || "Net Margin"}
                   </p>
                   <span className="text-[10px] font-bold" style={{ color }}>{margin}%</span>
                 </div>
@@ -504,7 +510,7 @@ export default function DashboardPage() {
               <div className="bg-white border border-slate-200 rounded-xl p-3 shadow-sm">
                 <div className="flex items-center justify-between mb-2">
                   <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500 flex items-center gap-1">
-                    <Globe size={10} className="text-[#1372e6]" /> {t("dash.shops_live") || "Shops Live"}
+                    <Globe size={10} className="text-[#2563eb]" /> {t("dash.shops_live") || "Shops Live"}
                   </p>
                   <span className="flex items-center gap-1 text-[10px] font-bold text-green-700">
                     <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />{onlineCount}/{shops.length}
@@ -528,7 +534,7 @@ export default function DashboardPage() {
             <div className="flex items-center justify-between mb-1">
               <div>
                 <h2 className="font-bold text-slate-900 text-sm flex items-center gap-2">
-                  <span className="w-5 h-5 rounded-md flex items-center justify-center text-white" style={{ backgroundColor: "#1372e6" }}>
+                  <span className="w-5 h-5 rounded-md flex items-center justify-center text-white" style={{ backgroundColor: "#2563eb" }}>
                     <Activity size={11} strokeWidth={2.5} />
                   </span>
                   {t("dash.revenue_7d")}
@@ -537,7 +543,7 @@ export default function DashboardPage() {
                   {t("common.total")}: {fmtCurrency(chartData.reduce((s, d) => s + d.revenue, 0))}
                 </p>
               </div>
-              <Link href="/reports" className="text-[11px] font-semibold text-white px-2.5 py-0.5 rounded-lg transition hover:opacity-90" style={{ backgroundColor: "#1372e6" }}>
+              <Link href="/reports" className="text-[11px] font-semibold text-white px-2.5 py-0.5 rounded-lg transition hover:opacity-90" style={{ backgroundColor: "#2563eb" }}>
                 {t("dash.full_report")} →
               </Link>
             </div>
@@ -546,8 +552,8 @@ export default function DashboardPage() {
               <AreaChart data={chartData} margin={{ top: 6, right: 4, bottom: 0, left: -20 }}>
                 <defs>
                   <linearGradient id="revFill" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%"  stopColor="#1372e6" stopOpacity={0.25} />
-                    <stop offset="95%" stopColor="#1372e6" stopOpacity={0} />
+                    <stop offset="5%"  stopColor="#2563eb" stopOpacity={0.25} />
+                    <stop offset="95%" stopColor="#2563eb" stopOpacity={0} />
                   </linearGradient>
                   <linearGradient id="profFill" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%"  stopColor="#10b981" stopOpacity={0.2} />
@@ -563,13 +569,13 @@ export default function DashboardPage() {
                     name === "revenue" ? t("dash.revenue_label") : t("dash.profit_label"),
                   ]}
                 />
-                <Area type="monotone" dataKey="revenue" stroke="#1372e6" fill="url(#revFill)" strokeWidth={2} dot={false} />
+                <Area type="monotone" dataKey="revenue" stroke="#2563eb" fill="url(#revFill)" strokeWidth={2} dot={false} />
                 <Area type="monotone" dataKey="profit"  stroke="#10b981" fill="url(#profFill)" strokeWidth={1.5} dot={false} strokeDasharray="4 2" />
               </AreaChart>
             </ResponsiveContainer>
             <div className="flex items-center gap-3 mt-1.5">
               <span className="flex items-center gap-1 text-[10px] text-slate-500">
-                <span className="w-2.5 h-0.5 rounded" style={{ background: "#1372e6" }} /> {t("dash.revenue_label")}
+                <span className="w-2.5 h-0.5 rounded" style={{ background: "#2563eb" }} /> {t("dash.revenue_label")}
               </span>
               <span className="flex items-center gap-1 text-[10px] text-slate-500">
                 <span className="w-2.5 h-0.5 bg-emerald-500 rounded" /> {t("dash.profit_label")}
@@ -580,10 +586,10 @@ export default function DashboardPage() {
           <section className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
             <div className="flex items-center justify-between px-3 pt-3 pb-2">
               <h2 className="font-bold text-slate-900 text-sm flex items-center gap-2">
-                <Receipt size={13} className="text-[#1372e6]" />
+                <Receipt size={13} className="text-[#2563eb]" />
                 {t("dash.recent_sales")}
               </h2>
-              <Link href="/sales" className="text-[11px] font-semibold text-white px-2.5 py-0.5 rounded-lg transition hover:opacity-90" style={{ backgroundColor: "#1372e6" }}>
+              <Link href="/sales" className="text-[11px] font-semibold text-white px-2.5 py-0.5 rounded-lg transition hover:opacity-90" style={{ backgroundColor: "#2563eb" }}>
                 {t("dash.all_sales")} →
               </Link>
             </div>
@@ -596,7 +602,7 @@ export default function DashboardPage() {
               <div className="divide-y divide-slate-50">
                 {recentSales.map((sale) => (
                   <div key={sale.id} className="flex items-center gap-2 px-3 py-2 hover:bg-slate-50 transition-colors">
-                    <div className="w-6 h-6 rounded-lg flex items-center justify-center shrink-0 text-white" style={{ backgroundColor: "#1372e6" }}>
+                    <div className="w-6 h-6 rounded-lg flex items-center justify-center shrink-0 text-white" style={{ backgroundColor: "#2563eb" }}>
                       <ShoppingCart size={11} strokeWidth={2.5} />
                     </div>
                     <div className="flex-1 min-w-0">
@@ -619,7 +625,7 @@ export default function DashboardPage() {
 
             <div className="px-3 py-2 border-t border-slate-50">
               <Link href="/sales"
-                className="w-full flex items-center justify-center gap-1.5 text-xs font-semibold text-white py-1.5 rounded-xl transition hover:opacity-90" style={{ background: "#1372e6" }}>
+                className="w-full flex items-center justify-center gap-1.5 text-xs font-semibold text-white py-1.5 rounded-xl transition hover:opacity-90" style={{ background: "#2563eb" }}>
                 <Plus size={11} /> {t("dash.record_new_sale")}
               </Link>
             </div>
@@ -640,7 +646,7 @@ export default function DashboardPage() {
                   </span>
                 )}
               </h2>
-              <Link href="/items" className="text-[11px] font-semibold text-white px-2.5 py-0.5 rounded-lg transition hover:opacity-90" style={{ backgroundColor: "#1372e6" }}>
+              <Link href="/items" className="text-[11px] font-semibold text-white px-2.5 py-0.5 rounded-lg transition hover:opacity-90" style={{ backgroundColor: "#2563eb" }}>
                 {t("dash.view_all")} →
               </Link>
             </div>
@@ -670,7 +676,7 @@ export default function DashboardPage() {
                     </div>
                     <Link
                       href="/PurchaseManagement"
-                      className="flex items-center gap-1 text-[10px] font-semibold text-white bg-[#1372e6] hover:bg-[#0d5cc4] px-2 py-0.5 rounded-lg transition"
+                      className="flex items-center gap-1 text-[10px] font-semibold text-white bg-[#2563eb] hover:bg-[#1d4ed8] px-2 py-0.5 rounded-lg transition"
                     >
                       <Plus size={10} /> {t("reports.restock")}
                     </Link>
@@ -682,7 +688,7 @@ export default function DashboardPage() {
             {stockAlerts.length > 0 && (
               <div className="px-3 py-2 border-t border-slate-50">
                 <Link href="/PurchaseManagement"
-                  className="w-full flex items-center justify-center gap-1.5 text-xs font-semibold text-[#1372e6] bg-[#EBF2FD] hover:bg-[#D5E8FB] py-1.5 rounded-xl transition">
+                  className="w-full flex items-center justify-center gap-1.5 text-xs font-semibold text-[#2563eb] bg-[#eff6ff] hover:bg-[#dbeafe] py-1.5 rounded-xl transition">
                   <Truck size={11} /> {t("items.go_purchases")}
                 </Link>
               </div>
@@ -700,7 +706,7 @@ export default function DashboardPage() {
               ].map((a) => (
                 <Link key={a.href} href={a.href}
                   className="flex items-center gap-2 p-2.5 rounded-xl text-white shadow-sm"
-                  style={{ backgroundColor: "#1372e6" }}
+                  style={{ backgroundColor: "#2563eb" }}
                 >
                   <div className="w-7 h-7 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
                     <a.icon size={13} strokeWidth={2.5} />
@@ -744,7 +750,7 @@ export default function DashboardPage() {
                 <Link key={svc.href} href={svc.href}
                   className="bg-white border border-slate-200 rounded-xl p-2.5 text-center block"
                 >
-                  <div className="w-8 h-8 rounded-xl flex items-center justify-center mx-auto mb-1.5 text-white" style={{ backgroundColor: "#1372e6" }}>
+                  <div className="w-8 h-8 rounded-xl flex items-center justify-center mx-auto mb-1.5 text-white" style={{ backgroundColor: "#2563eb" }}>
                     <Icon size={15} strokeWidth={2.5} />
                   </div>
                   <p className="text-[10px] font-bold text-slate-800 leading-tight">{svc.title}</p>
@@ -761,10 +767,10 @@ export default function DashboardPage() {
         <section>
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2">
-              <Globe size={13} className="text-[#1372e6]" />
+              <Globe size={13} className="text-[#2563eb]" />
               <h2 className="font-bold text-slate-900 text-sm">
                 {t("dash.shops_higoverse")}
-                <span className="ml-2 text-[10px] bg-[#EBF2FD] text-[#1372e6] font-semibold px-2 py-0.5 rounded-full align-middle">
+                <span className="ml-2 text-[10px] bg-[#eff6ff] text-[#2563eb] font-semibold px-2 py-0.5 rounded-full align-middle">
                   {shops.length}
                 </span>
               </h2>
@@ -798,16 +804,16 @@ export default function DashboardPage() {
                   <div key={shop.id}
                     className={`relative rounded-xl border bg-white ${
                       isMine
-                        ? "border-[#A8C8F8] ring-2 ring-[#1372e6]/20"
+                        ? "border-[#93c5fd] ring-2 ring-[#2563eb]/20"
                         : presence.online
                           ? "border-green-200"
                           : "border-slate-200"
                     }`}>
 
                     {/* Cover band */}
-                    <div className="h-12 rounded-t-xl relative overflow-hidden" style={{ backgroundColor: "#1372e6" }}>
+                    <div className="h-12 rounded-t-xl relative overflow-hidden" style={{ backgroundColor: "#2563eb" }}>
                       {isMine && (
-                        <span className="absolute top-1.5 right-1.5 text-[8px] font-black bg-white text-[#1372e6] px-1.5 py-0.5 rounded-full leading-none shadow">
+                        <span className="absolute top-1.5 right-1.5 text-[8px] font-black bg-white text-[#2563eb] px-1.5 py-0.5 rounded-full leading-none shadow">
                           YOU
                         </span>
                       )}
@@ -825,7 +831,7 @@ export default function DashboardPage() {
                         {shop.logo_url ? (
                           <img src={shop.logo_url} alt={shop.name} className="w-full h-full object-cover" />
                         ) : (
-                          <span className="text-sm font-black text-white w-full h-full flex items-center justify-center" style={{ backgroundColor: "#1372e6" }}>
+                          <span className="text-sm font-black text-white w-full h-full flex items-center justify-center" style={{ backgroundColor: "#2563eb" }}>
                             {initial}
                           </span>
                         )}
@@ -845,7 +851,7 @@ export default function DashboardPage() {
                       )}
 
                       <div className={`mt-1 flex items-center justify-center gap-1 text-[9px] font-medium ${
-                        isMine ? "text-[#1372e6]" : presence.online ? "text-green-600" : "text-slate-400"
+                        isMine ? "text-[#2563eb]" : presence.online ? "text-green-600" : "text-slate-400"
                       }`}>
                         <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
                           presence.online ? "bg-green-500" : "bg-slate-300"
@@ -854,8 +860,8 @@ export default function DashboardPage() {
                       </div>
 
                       <Link
-                        href={`/marketplace/${shop.id}`}
-                        className="mt-2 inline-flex items-center gap-1 text-[9px] font-bold text-[#1372e6] bg-[#EBF2FD] hover:bg-[#D5E8FB] px-2.5 py-1 rounded-full transition"
+                        href={`/shop/${shop.id}`}
+                        className="mt-2 inline-flex items-center gap-1 text-[9px] font-bold text-[#2563eb] bg-[#eff6ff] hover:bg-[#dbeafe] px-2.5 py-1 rounded-full transition"
                       >
                         <Store size={8} strokeWidth={2.5} />
                         Visit Store
@@ -884,13 +890,13 @@ export default function DashboardPage() {
             {/* Live business snapshot pills */}
             <div className="flex items-center gap-1.5 flex-wrap justify-center">
               <span className="flex items-center gap-1 text-[9px] font-semibold text-slate-600 bg-slate-100 px-2 py-1 rounded-full">
-                <Package size={10} className="text-[#1372e6]" /> {stats.products} {t("dash.products")}
+                <Package size={10} className="text-[#2563eb]" /> {stats.products} {t("dash.products")}
               </span>
               <span className="flex items-center gap-1 text-[9px] font-semibold text-slate-600 bg-slate-100 px-2 py-1 rounded-full">
-                <Users size={10} className="text-[#1372e6]" /> {stats.partners} {t("dash.partners")}
+                <Users size={10} className="text-[#2563eb]" /> {stats.partners} {t("dash.partners")}
               </span>
               <span className="flex items-center gap-1 text-[9px] font-semibold text-slate-600 bg-slate-100 px-2 py-1 rounded-full">
-                <ShoppingCart size={10} className="text-[#1372e6]" /> {stats.sales} {t("dash.sales_today")}
+                <ShoppingCart size={10} className="text-[#2563eb]" /> {stats.sales} {t("dash.sales_today")}
               </span>
               {stats.revenue > 0 && (
                 <span className="flex items-center gap-1 text-[9px] font-semibold text-green-700 bg-green-50 px-2 py-1 rounded-full">
@@ -947,7 +953,7 @@ function HomeSkeleton() {
         <main className="max-w-7xl mx-auto px-3 sm:px-5 py-2.5 sm:py-3 space-y-3">
 
           {/* Hero */}
-          <div className="rounded-xl overflow-hidden shadow-md" style={{ backgroundColor: "#1372e6" }}>
+          <div className="rounded-xl overflow-hidden shadow-md" style={{ backgroundColor: "#2563eb" }}>
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 px-4 py-3.5">
               <div className="flex items-center gap-3">
                 <div className="w-11 h-11 rounded-xl home-sh-w shrink-0" />
@@ -1125,58 +1131,3 @@ function HomeSkeleton() {
   );
 }
 
-// ─── KPI Card ─────────────────────────────────────────────────────────────────
-interface KpiCardProps {
-  label: string; value: string; icon: React.ReactNode; color: string;
-  href: string; sub?: string; small?: boolean; delta?: number | null; warn?: boolean;
-  t: (key: string) => string;
-}
-
-const KPI_COLORS: Record<string, { icon: string; accent: string; bg: string }> = {
-  blue:   { icon: "bg-[#EBF4FF] text-[#1372e6]",  accent: "bg-[#1372e6]",  bg: "" },
-  indigo: { icon: "bg-[#EBF2FD] text-[#1372e6]",  accent: "bg-[#1372e6]", bg: "" },
-  teal:   { icon: "bg-[#EBF2FD] text-[#1372e6]",  accent: "bg-[#1372e6]", bg: "" },
-  green:  { icon: "bg-green-50 text-green-600",    accent: "bg-green-500",  bg: "" },
-  orange: { icon: "bg-amber-50 text-amber-600",    accent: "bg-amber-500",  bg: "" },
-  red:    { icon: "bg-red-50 text-red-600",        accent: "bg-red-500",    bg: "" },
-  slate:  { icon: "bg-slate-100 text-slate-400",   accent: "bg-slate-300",  bg: "" },
-};
-
-function KpiCard({ label, value, icon, color, href, sub, small, delta, warn, t }: KpiCardProps) {
-  const c = KPI_COLORS[color] ?? KPI_COLORS.slate;
-  return (
-    <Link href={href} className="relative bg-white border border-slate-100 rounded-xl p-2.5 block overflow-hidden shadow-sm">
-      {/* Left accent bar */}
-      <div className={`absolute left-0 top-0 bottom-0 w-1 rounded-l-xl ${warn ? "bg-red-500" : c.accent}`} />
-
-      <div className="pl-2">
-        {/* Top row: label + icon */}
-        <div className="flex items-center justify-between mb-1.5">
-          <p className="text-[9px] text-slate-400 uppercase tracking-widest font-semibold">{label}</p>
-          <div className="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0 text-white" style={{ backgroundColor: "#1372e6" }}>
-            {icon}
-          </div>
-        </div>
-
-        {/* Value */}
-        <p className={`font-extrabold text-slate-900 leading-tight truncate ${small ? "text-xs" : "text-sm"}`}>
-          {value}
-        </p>
-
-        {/* Delta badge or sub text */}
-        <div className="mt-1 h-4 flex items-center">
-          {delta !== null && delta !== undefined ? (
-            <span className={`inline-flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full ${
-              delta >= 0 ? "bg-green-50 text-green-600" : "bg-red-50 text-red-500"
-            }`}>
-              {delta >= 0 ? <TrendingUp size={8} /> : <TrendingDown size={8} />}
-              {Math.abs(delta)}% {t("dash.vs_yesterday")}
-            </span>
-          ) : sub ? (
-            <p className="text-[9px] text-slate-400 truncate">{sub}</p>
-          ) : null}
-        </div>
-      </div>
-    </Link>
-  );
-}

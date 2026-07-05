@@ -14,12 +14,13 @@ import {
 } from "@/lib/product-meta";
 import { itemRequest } from "@/lib/product-api";
 import {
-  Search, X, ShoppingCart, Plus, Minus, Loader2,
+  X, ShoppingCart, Plus, Minus, Loader2,
   CheckCircle, Phone, Package, ChevronRight, Star,
   MapPin, MessageSquare, Send, Store, Mail,
   Rocket, ArrowRight, LayoutDashboard, CheckCircle2,
   Wifi, Building2, FileText, ImagePlus, ChevronDown,
-  Clock, BadgeCheck, Heart, Users,
+  Clock, BadgeCheck, Heart, Users, Camera,
+  Truck, Shirt, Home as HomeIcon, Leaf, Briefcase,
 } from "lucide-react";
 import {
   sendMessage, getMyMessages, replyToMessage,
@@ -28,6 +29,8 @@ import {
 } from "@/lib/product-meta";
 import { createOrGetConversation, warmupMsgService } from "@/lib/messages-api";
 import { createSelfNotification, openNotifStream } from "@/lib/notifications-api";
+import { CATEGORIES } from "@/lib/categories";
+import { productSlug } from "@/lib/slug";
 
 // ── marketplace cache (90 s TTL — instant paint for returning users) ─────────
 const MKT_CACHE_KEY = "hgv_mkt_v2";
@@ -65,37 +68,13 @@ function fmtPrice(n: number) {
     style: "currency", currency: "RWF", maximumFractionDigits: 0,
   }).format(n);
 }
-// highlight matched query inside text
-function highlight(text: string, q: string): React.ReactNode {
-  if (!q) return text;
-  const idx = text.toLowerCase().indexOf(q.toLowerCase());
-  if (idx === -1) return text;
-  return (
-    <>
-      {text.slice(0, idx)}
-      <mark style={{ background: "#fff3cd", padding: 0, fontWeight: 700 }}>{text.slice(idx, idx + q.length)}</mark>
-      {text.slice(idx + q.length)}
-    </>
-  );
+// Real tenure on the platform, derived from the shop's actual signup date.
+function shopTenureLabel(createdAt: string | null | undefined): string | null {
+  if (!createdAt) return null;
+  const years = (Date.now() - parseUTC(createdAt).getTime()) / (365.25 * 24 * 3600 * 1000);
+  if (years < 1) return "New";
+  return `${Math.floor(years)} yr${Math.floor(years) === 1 ? "" : "s"}`;
 }
-
-// ── categories ────────────────────────────────────────────────────────────────
-const ALL_CATS = [
-  { key: "all",         label: "All Products"     },
-  { key: "food",        label: "Food & Drinks"     },
-  { key: "electronics", label: "Electronics"       },
-  { key: "fashion",     label: "Fashion & Apparel" },
-  { key: "wholesale",   label: "Wholesale & Bulk"  },
-  { key: "agriculture", label: "Agriculture"       },
-  { key: "health",      label: "Health & Beauty"   },
-  { key: "furniture",   label: "Furniture & Decor" },
-  { key: "vehicles", label: "Vehicles" },
-  { key: "Gas & Accessories", label: "Gas & Accessories" },
-  { key: "Spare Parts",    label: "Spare Parts" },
-  { key: "Constructions",    label: "Constructions" },
-  { key: "services",    label: "Services"          },
-  { key: "other",       label: "Other"             },
-];
 
 const CAT_KW: Record<string, string[]> = {
   food:        ["food","drink","restaurant","café","cafe","bakery","juice","grocery","market","farm","rice","sugar","milk","flour","meat","fish","vegetable","beverage"],
@@ -116,6 +95,21 @@ function catOf(name: string, desc?: string | null) {
 
 const PAGE_SIZE = 24;
 
+// Icons for the curated CATEGORIES list (lib/categories.ts) shown in "Categories for you"
+const CATEGORY_ICONS: Record<string, typeof Package> = {
+  electronics: Package,
+  vehicles: Truck,
+  fashion: Shirt,
+  health: Heart,
+  furniture: HomeIcon,
+  agriculture: Leaf,
+  construction: Building2,
+  business: Briefcase,
+  food: Package,
+  wholesale: Package,
+  other: Package,
+};
+
 interface OrderModal { entry: MarketplaceEntry; shop: Shop | undefined; qty: number; }
 
 export default function MarketplacePage() {
@@ -126,18 +120,12 @@ export default function MarketplacePage() {
   const [shops, setShops]       = useState<Shop[]>([]);
   const [catalog, setCatalog]   = useState<MarketplaceEntry[]>([]);
   const [loading, setLoading]   = useState(true);
-  const [rawSearch, setRawSearch] = useState("");
-  const [search, setSearch]     = useState("");           // debounced
-  const [searching, setSearching] = useState(false);
-  const [cat, setCat]           = useState("all");
   const [now, setNow]           = useState(new Date());
   const [page, setPage]         = useState(1);            // how many PAGE_SIZE batches shown
   const loadingMore = false; // no artificial delay — scroll triggers immediately
   const [bannerDismissed, setBannerDismissed] = useState(false);
   const [apiSynced, setApiSynced] = useState(false);
   const [onlineShopsCount, setOnlineShopsCount] = useState(0);
-  const [sort, setSort] = useState<"newest"|"price_asc"|"price_desc"|"name_az"|"stock">("newest");
-  const [liveConnected, setLiveConnected] = useState(false);
 
   // Shop application form state
   const [showShopForm, setShowShopForm] = useState(false);
@@ -150,7 +138,6 @@ export default function MarketplacePage() {
   const [shopFormError, setShopFormError] = useState("");
 
   const sentinelRef = useRef<HTMLDivElement>(null);
-  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const serverCatalogRef = useRef<MarketplaceEntry[]>([]);
 
   useEffect(() => {
@@ -172,6 +159,8 @@ export default function MarketplacePage() {
   // For rejected applications, bypass the shopApplied localStorage flag so resubmission always works
   useEffect(() => {
     if (searchParams.get("apply") !== "1") return;
+    // Guests must sign in first — creating a shop requires an account.
+    if (!user) { router.replace(`/login?next=${encodeURIComponent("/?apply=1")}`); return; }
     if (shop?.is_active === true) return;
     const status = getApplicationStatus(shop?.description, shop?.address, !!shop?.is_active);
     const isRejected = status === "REJECTED";
@@ -180,7 +169,7 @@ export default function MarketplacePage() {
       setShowShopForm(true);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams, shop?.is_active, shop?.description, shop?.address]);
+  }, [searchParams, user, shop?.is_active, shop?.description, shop?.address]);
 
   // Pre-fill the form when shop data loads (supports rejection re-edit)
   useEffect(() => {
@@ -429,7 +418,6 @@ export default function MarketplacePage() {
           preloadImgs(synced2);
           writeMktCache(allShops, synced2); // write cache only here — always has images
           setApiSynced(true);
-          setLiveConnected(true);
         } catch {
           setApiSynced(false);
         }
@@ -446,7 +434,6 @@ export default function MarketplacePage() {
 
   // ── Real-time: SSE-driven refresh + 60s fallback polling ────────────────────
   useEffect(() => {
-    let retries = 0;
     let pollTimer: ReturnType<typeof setTimeout> | null = null;
     let sseCtrl: AbortController | null = null;
 
@@ -511,12 +498,7 @@ export default function MarketplacePage() {
         setCatalog(refreshed);
         preloadImgs(refreshed);
         writeMktCache(freshShops, refreshed);
-        setLiveConnected(true);
-        retries = 0;
-      } catch {
-        retries++;
-        if (retries >= 3) setLiveConnected(false);
-      }
+      } catch { /* keep showing last-known catalog until the next refresh succeeds */ }
     }
 
     // Schedule next fallback poll (60 s when SSE is healthy, 15 s when degraded)
@@ -539,7 +521,6 @@ export default function MarketplacePage() {
         },
         () => {
           // SSE unavailable — fall back to 15 s polling and try reconnecting after 30 s
-          setLiveConnected(false);
           schedulePoll(15_000);
           setTimeout(connectSSE, 30_000);
         },
@@ -556,62 +537,16 @@ export default function MarketplacePage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.shop_id, shop?.id]);
 
-  // ── instant search (80 ms debounce feels immediate) ───────────────────────
-  useEffect(() => {
-    if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
-    if (rawSearch !== search) setSearching(true);
-    searchTimerRef.current = setTimeout(() => {
-      setSearch(rawSearch);
-      setSearching(false);
-      setPage(1);
-    }, 80);
-    return () => { if (searchTimerRef.current) clearTimeout(searchTimerRef.current); };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rawSearch]);
-
-  // reset page on cat/search change
-  useEffect(() => { setPage(1); }, [cat, search]);
-
   const shopMap = useMemo(() => {
     const m: Record<string, Shop> = {};
     shops.forEach((s) => { m[s.id] = s; });
     return m;
   }, [shops]);
 
-  // ── category counts (from stored category field) ────────────────────────
-  const catCounts = useMemo(() => {
-    const m: Record<string, number> = { all: catalog.length };
-    catalog.forEach((e) => {
-      const c = e.category || catOf(e.name, e.description);
-      m[c] = (m[c] ?? 0) + 1;
-    });
-    return m;
-  }, [catalog]);
-
-  // ── filtered + sorted list ───────────────────────────────────────────────
-  const allFiltered = useMemo(() => {
-    const q = search.toLowerCase().trim();
-    const filtered = catalog.filter((e) => {
-      const ecat = e.category || catOf(e.name, e.description);
-      if (cat !== "all" && ecat !== cat) return false;
-      if (!q) return true;
-      return (
-        e.name.toLowerCase().includes(q) ||
-        e.shopName.toLowerCase().includes(q) ||
-        (e.description ?? "").toLowerCase().includes(q) ||
-        (e.category ?? "").toLowerCase().includes(q)
-      );
-    });
-    return [...filtered].sort((a, b) => {
-      switch (sort) {
-        case "price_asc":  return a.sellingPrice - b.sellingPrice;
-        case "price_desc": return b.sellingPrice - a.sellingPrice;
-        case "name_az":    return a.name.localeCompare(b.name);
-        case "stock":      return b.quantity - a.quantity;
-        default:           return new Date(b.listedAt).getTime() - new Date(a.listedAt).getTime();
-      }
-    });
-  }, [catalog, search, cat, sort]);
+  // ── newest-first list — the header search bar and /category pages now own filtering ──
+  const allFiltered = useMemo(() =>
+    [...catalog].sort((a, b) => new Date(b.listedAt).getTime() - new Date(a.listedAt).getTime()),
+    [catalog]);
 
   // ── paginated slice ──────────────────────────────────────────────────────
   const visible = useMemo(() => allFiltered.slice(0, page * PAGE_SIZE), [allFiltered, page]);
@@ -632,15 +567,6 @@ export default function MarketplacePage() {
     return () => obs.disconnect();
   }, [hasMore, visible.length]);
 
-  const filteredShops = useMemo(() => {
-    const q = search.toLowerCase().trim();
-    if (!q) return shops;
-    return shops.filter((s) =>
-      (s.name ?? "").toLowerCase().includes(q) ||
-      (s.address ?? "").toLowerCase().includes(q),
-    );
-  }, [shops, search]);
-
   const listedPerShop = useMemo(() => {
     const m: Record<string, number> = {};
     catalog.forEach((e) => { m[e.shopId] = (m[e.shopId] ?? 0) + 1; });
@@ -650,6 +576,12 @@ export default function MarketplacePage() {
   const featuredSuppliers = useMemo(() =>
     shops.filter((s) => (listedPerShop[s.id] ?? 0) > 0).slice(0, 4),
     [shops, listedPerShop]);
+
+  // Hero section content — newest listings first, independent of the in-page search/filter state below
+  const heroTrending = useMemo(() =>
+    [...catalog].sort((a, b) => new Date(b.listedAt).getTime() - new Date(a.listedAt).getTime()).slice(0, 5),
+    [catalog]);
+  const heroCategories = useMemo(() => CATEGORIES.slice(0, 6), []);
 
   // ── order ────────────────────────────────────────────────────────────────
   async function placeOrder() {
@@ -686,12 +618,14 @@ export default function MarketplacePage() {
 
   const openOrder = useCallback((entry: MarketplaceEntry, e?: React.MouseEvent) => {
     e?.stopPropagation();
+    if (!user) { router.push(`/login?next=${encodeURIComponent("/")}`); return; }
     setOrderModal({ entry, shop: shopMap[entry.shopId], qty: 1 });
     setOrderError("");
-  }, [shopMap]);
+  }, [shopMap, user, router]);
 
   function toggleFollow(shopId: string, shopName: string, e?: React.MouseEvent) {
     e?.preventDefault(); e?.stopPropagation();
+    if (!user) { router.push(`/login?next=${encodeURIComponent("/")}`); return; }
     if (followedShopIds.has(shopId)) {
       unfollowShop(shopId);
       setFollowedShopIds((prev) => { const next = new Set(prev); next.delete(shopId); return next; });
@@ -703,144 +637,139 @@ export default function MarketplacePage() {
 
   // ── render ───────────────────────────────────────────────────────────────
   return (
-    <div style={{ background: "#f4f4f4", minHeight: "100vh", fontFamily: "Arial, sans-serif" }}>
+    <div style={{ background: "#f5f5f5", minHeight: "100vh" }}>
 
-      {/* ── SEARCH BAR ───────────────────────────────────────────────────── */}
-      <div style={{ background: "#fff", borderBottom: "1px solid #e5e5e5", position: "sticky", top: 0, zIndex: 40, boxShadow: "0 2px 8px rgba(0,0,0,0.07)" }}>
-        <div style={{ maxWidth: 1400, margin: "0 auto", padding: "10px 16px", display: "flex", alignItems: "center", gap: 10 }}>
+      {/* ── QUICK MODULES (Alibaba-style dashboard strip) — white band ──────── */}
+      <div className="bg-white">
+      <section className="mx-auto max-w-7xl px-4 pt-4 sm:px-6">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-[1.1fr_1fr_1fr_1fr_1.3fr]">
 
-          {/* Search input */}
-          <div style={{ flex: 1, display: "flex", border: "2px solid #ff6a00", borderRadius: 6, overflow: "hidden", boxShadow: "0 1px 4px rgba(255,106,0,0.1)" }}>
-            <select
-              value={cat}
-              onChange={(e) => { setCat(e.target.value); setPage(1); }}
-              className="mp-cat-select"
-              style={{ border: "none", borderRight: "1px solid #e8e8e8", background: "#f8f8f8", padding: "0 10px", fontSize: 11, color: "#444", cursor: "pointer", outline: "none", flexShrink: 0, fontWeight: 500 }}
-            >
-              {ALL_CATS.map((c) => (
-                <option key={c.key} value={c.key}>
-                  {c.label}{catCounts[c.key] ? ` (${catCounts[c.key]})` : ""}
-                </option>
-              ))}
-            </select>
-            <div style={{ flex: 1, position: "relative", display: "flex", alignItems: "center" }}>
-              {searching
-                ? <Loader2 size={13} style={{ position: "absolute", left: 10, color: "#ff6a00", animation: "spin 0.7s linear infinite", flexShrink: 0 }} />
-                : <Search size={13} style={{ position: "absolute", left: 10, color: rawSearch ? "#ff6a00" : "#bbb", transition: "color 0.15s", flexShrink: 0 }} />}
-              <input
-                type="text"
-                value={rawSearch}
-                onChange={(e) => setRawSearch(e.target.value)}
-                onKeyDown={(e) => e.key === "Escape" && setRawSearch("")}
-                placeholder="Search products, shops, categories..."
-                style={{ width: "100%", border: "none", padding: "9px 34px 9px 32px", fontSize: 13, outline: "none", background: "#fff" }}
-              />
-              {rawSearch && (
-                <button onClick={() => setRawSearch("")}
-                  style={{ position: "absolute", right: 8, border: "none", background: "none", cursor: "pointer", color: "#bbb", padding: 2, display: "flex", borderRadius: "50%" }}>
-                  <X size={13} />
-                </button>
-              )}
-            </div>
-            <button
-              onClick={() => setSearch(rawSearch)}
-              style={{ background: "#ff6a00", color: "#fff", border: "none", padding: "0 20px", fontSize: 13, fontWeight: 700, cursor: "pointer", flexShrink: 0, letterSpacing: 0.3 }}>
-              Search
-            </button>
+          {/* Categories for you */}
+          <div className="min-w-0 overflow-hidden rounded-lg border border-slate-200 bg-white p-3">
+            <p className="mb-2 truncate text-xs font-bold text-slate-900">Categories for you</p>
+            <ul className="space-y-2">
+              {heroCategories.map((c) => {
+                const Icon = CATEGORY_ICONS[c.key] ?? Package;
+                return (
+                  <li key={c.key}>
+                    <Link href={`/category/${c.key}`} className="flex items-center gap-2 text-xs text-slate-600 transition hover:text-orange-600">
+                      <Icon size={13} className="shrink-0 text-slate-400" />
+                      <span className="flex-1 truncate">{c.label}</span>
+                      <ChevronRight size={12} className="shrink-0 text-slate-300" />
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
           </div>
 
-          {/* Sort dropdown */}
-          <div style={{ position: "relative", flexShrink: 0 }}>
-            <select
-              value={sort}
-              onChange={(e) => setSort(e.target.value as typeof sort)}
-              style={{ appearance: "none", border: "1.5px solid #e8e8e8", borderRadius: 6, background: "#fff", padding: "7px 28px 7px 10px", fontSize: 11, color: "#444", cursor: "pointer", outline: "none", fontWeight: 500 }}
-            >
-              <option value="newest">Newest first</option>
-              <option value="price_asc">Price: low → high</option>
-              <option value="price_desc">Price: high → low</option>
-              <option value="name_az">Name: A → Z</option>
-              <option value="stock">Most in stock</option>
-            </select>
-            <ChevronDown size={11} style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", color: "#999", pointerEvents: "none" }} />
-          </div>
-
-          {/* Live status + stats */}
-          <div className="mp-stats" style={{ flexShrink: 0, textAlign: "right" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 5, justifyContent: "flex-end", marginBottom: 2 }}>
-              <span style={{ fontSize: 12, fontWeight: 700, color: "#333" }}>{catalog.length}</span>
-              <span style={{ fontSize: 11, color: "#888" }}>products</span>
-              <span style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 9, background: liveConnected ? "#f6ffed" : "#fafafa", border: `1px solid ${liveConnected ? "#b7eb8f" : "#e8e8e8"}`, color: liveConnected ? "#52c41a" : "#bbb", padding: "1px 6px", borderRadius: 10, fontWeight: 700 }}>
-                <span style={{ width: 5, height: 5, borderRadius: "50%", background: liveConnected ? "#52c41a" : "#ccc", display: "inline-block", animation: liveConnected ? "pulse 2s infinite" : "none" }} />
-                {liveConnected ? "Live" : "Syncing"}
-              </span>
-            </div>
-            <div style={{ fontSize: 10, color: "#bbb" }}>
-              {shops.length} shops
-              {onlineShopsCount > 0 && <span style={{ color: "#52c41a", fontWeight: 600 }}> · {onlineShopsCount} online</span>}
-            </div>
-          </div>
-        </div>
-
-        {/* Category nav strip with counts */}
-        <div style={{ borderTop: "1px solid #f0f0f0" }}>
-          <div style={{ maxWidth: 1400, margin: "0 auto", padding: "0 16px", display: "flex", overflowX: "auto" }} className="mp-subnav">
-            {ALL_CATS.map((c) => {
-              const count = catCounts[c.key] ?? 0;
-              const active = cat === c.key;
-              return (
-                <button
-                  key={c.key}
-                  onClick={() => { setCat(c.key); setPage(1); }}
-                  style={{
-                    border: "none", background: "transparent", padding: "7px 12px",
-                    fontSize: 12, cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0,
-                    color: active ? "#ff6a00" : "#555",
-                    fontWeight: active ? 700 : 400,
-                    borderBottom: active ? "2px solid #ff6a00" : "2px solid transparent",
-                    transition: "color 0.15s",
-                    display: "flex", alignItems: "center", gap: 4,
-                  }}
-                >
-                  {c.label}
-                  {count > 0 && (
-                    <span style={{
-                      fontSize: 9, fontWeight: 700, padding: "1px 5px", borderRadius: 8,
-                      background: active ? "#ff6a00" : "#f0f0f0",
-                      color: active ? "#fff" : "#888",
-                      minWidth: 16, textAlign: "center",
-                    }}>{count}</span>
+          {/* Popular shop */}
+          <div className="hidden min-w-0 overflow-hidden rounded-lg border border-slate-200 bg-white p-3 sm:block">
+            <p className="mb-2 truncate text-xs font-bold text-slate-900">Popular Shop</p>
+            {featuredSuppliers[0] ? (
+              <Link href={`/shop/${featuredSuppliers[0].id}`} className="block">
+                <div className="relative mb-2 flex aspect-square w-full min-w-0 items-center justify-center overflow-hidden rounded bg-slate-50">
+                  {featuredSuppliers[0].logo_url ? (
+                    <img src={featuredSuppliers[0].logo_url} alt={featuredSuppliers[0].name} className="absolute inset-0 h-full w-full object-cover" />
+                  ) : (
+                    <Store size={28} className="text-slate-300" />
                   )}
-                </button>
-              );
-            })}
+                </div>
+                <p className="truncate text-xs font-semibold text-slate-800">{featuredSuppliers[0].name}</p>
+                <p className="truncate text-[10px] text-slate-400">{listedPerShop[featuredSuppliers[0].id] ?? 0} products</p>
+              </Link>
+            ) : (
+              <p className="text-[11px] text-slate-400">No shops yet</p>
+            )}
           </div>
+
+          {/* Trending product */}
+          <div className="hidden min-w-0 overflow-hidden rounded-lg border border-slate-200 bg-white p-3 sm:block">
+            <p className="mb-2 truncate text-xs font-bold text-slate-900">Trending Product</p>
+            {heroTrending[0] ? (
+              <Link href={`/product/${productSlug(heroTrending[0].name, heroTrending[0].productId)}`} className="block">
+                <div className="relative mb-2 flex aspect-square w-full min-w-0 items-center justify-center overflow-hidden rounded bg-slate-50">
+                  {heroTrending[0].images[0] ? (
+                    <img src={heroTrending[0].images[0]} alt={heroTrending[0].name} className="absolute inset-0 h-full w-full object-cover" />
+                  ) : (
+                    <Package size={28} className="text-slate-300" />
+                  )}
+                </div>
+                <p className="truncate text-xs font-semibold text-slate-800">{heroTrending[0].name}</p>
+                <p className="truncate text-[10px] font-bold text-orange-600">{fmtPrice(heroTrending[0].sellingPrice)}</p>
+              </Link>
+            ) : (
+              <p className="text-[11px] text-slate-400">No products yet</p>
+            )}
+          </div>
+
+          {/* Newly listed */}
+          <div className="hidden min-w-0 overflow-hidden rounded-lg border border-slate-200 bg-white p-3 lg:block">
+            <p className="mb-2 truncate text-xs font-bold text-slate-900">Newly Listed</p>
+            {heroTrending[1] ? (
+              <Link href={`/product/${productSlug(heroTrending[1].name, heroTrending[1].productId)}`} className="block">
+                <div className="relative mb-2 flex aspect-square w-full min-w-0 items-center justify-center overflow-hidden rounded bg-slate-50">
+                  {heroTrending[1].images[0] ? (
+                    <img src={heroTrending[1].images[0]} alt={heroTrending[1].name} className="absolute inset-0 h-full w-full object-cover" />
+                  ) : (
+                    <Package size={28} className="text-slate-300" />
+                  )}
+                </div>
+                <p className="truncate text-xs font-semibold text-slate-800">{heroTrending[1].name}</p>
+                <p className="truncate text-[10px] font-bold text-orange-600">{fmtPrice(heroTrending[1].sellingPrice)}</p>
+              </Link>
+            ) : (
+              <p className="text-[11px] text-slate-400">No products yet</p>
+            )}
+          </div>
+
+          {/* Promo banner */}
+          <Link
+            href="/products"
+            className="col-span-2 flex min-w-0 flex-col justify-between overflow-hidden rounded-lg bg-gradient-to-br from-orange-500 to-orange-600 p-4 sm:col-span-4 lg:col-span-1"
+          >
+            <div>
+              <p className="text-sm font-bold leading-snug text-white">Fast-selling products</p>
+              <p className="mt-1 text-xs text-orange-50">Discover what's trending across Higoverse</p>
+            </div>
+            <span className="mt-3 inline-flex w-fit items-center gap-1 rounded-full bg-white px-3 py-1.5 text-xs font-bold text-orange-600">
+              View more <ArrowRight size={12} />
+            </span>
+          </Link>
         </div>
+
+        <div className="my-4 flex items-center gap-3">
+          <div className="h-px flex-1 bg-slate-200" />
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Recommended for your business</p>
+          <div className="h-px flex-1 bg-slate-200" />
+        </div>
+      </section>
       </div>
 
       {/* ── SHOP STATUS BANNER ───────────────────────────────────────────── */}
 
       {/* State 0: Application REJECTED — show reason and resubmit CTA */}
       {appStatus === "REJECTED" && user?.role !== "admin" && (
-        <div style={{ background: "linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%)", borderBottom: "2px solid #ef4444" }}>
-          <div style={{ maxWidth: 1400, margin: "0 auto", padding: "14px 16px", display: "flex", alignItems: "flex-start", gap: 14 }}>
-            <div style={{ width: 44, height: 44, borderRadius: "50%", background: "#ef4444", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 2 }}>
-              <span style={{ fontSize: 22, color: "#fff", fontWeight: 900 }}>✕</span>
-            </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <p style={{ fontSize: 15, fontWeight: 800, color: "#991b1b", margin: "0 0 4px" }}>Your shop application was rejected</p>
+        <div className="border-b-2 border-red-400 bg-gradient-to-r from-red-50 to-red-100">
+          <div className="mx-auto flex max-w-7xl items-start gap-3.5 px-4 py-3.5 sm:px-6">
+            <div className="mt-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-red-500 text-xl font-black text-white">✕</div>
+            <div className="min-w-0 flex-1">
+              <p className="mb-1 text-sm font-extrabold text-red-800">Your shop application was rejected</p>
               {rejectionInfo.rejectionReason && (
-                <div style={{ background: "#fff", border: "1px solid #fca5a5", borderRadius: 8, padding: "8px 12px", marginBottom: 10, maxWidth: 540 }}>
-                  <p style={{ fontSize: 11, fontWeight: 700, color: "#7f1d1d", margin: "0 0 2px" }}>Reason from admin:</p>
-                  <p style={{ fontSize: 12, color: "#991b1b", margin: 0 }}>{rejectionInfo.rejectionReason}</p>
+                <div className="mb-2.5 max-w-md rounded-lg border border-red-300 bg-white px-3 py-2">
+                  <p className="mb-0.5 text-xs font-bold text-red-800">Reason from admin:</p>
+                  <p className="text-xs text-red-900">{rejectionInfo.rejectionReason}</p>
                 </div>
               )}
-              <p style={{ fontSize: 12, color: "#7f1d1d", margin: "0 0 12px", lineHeight: 1.5 }}>
+              <p className="mb-3 text-xs leading-relaxed text-red-800">
                 Review the feedback, update your shop details, and resubmit for another review.
               </p>
               <button
-                onClick={() => { setShowShopForm(true); }}
-                style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "9px 20px", background: "#ef4444", color: "#fff", border: "none", fontSize: 13, fontWeight: 700, borderRadius: 6, cursor: "pointer" }}
+                onClick={() => {
+                  if (!user) { router.push(`/login?next=${encodeURIComponent("/?apply=1")}`); return; }
+                  setShowShopForm(true);
+                }}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-red-500 px-5 py-2 text-xs font-bold text-white transition hover:bg-red-600"
               >
                 Edit &amp; Resubmit Application
               </button>
@@ -851,31 +780,34 @@ export default function MarketplacePage() {
 
       {/* State 1: No application yet — always visible, non-dismissible */}
       {appStatus === "NONE" && user?.role !== "admin" && (
-        <div style={{ background: "linear-gradient(135deg, #fff7ed 0%, #fff3e0 100%)", borderBottom: "2px solid #ff6a00" }}>
-          <div style={{ maxWidth: 1400, margin: "0 auto", padding: "14px 16px", display: "flex", alignItems: "flex-start", gap: 14 }}>
-            <div style={{ width: 44, height: 44, borderRadius: "50%", background: "#ff6a00", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 2 }}>
-              <Rocket size={20} style={{ color: "#fff" }} />
+        <div className="border-b-2 border-orange-400 bg-gradient-to-r from-orange-50 to-orange-100">
+          <div className="mx-auto flex max-w-7xl items-start gap-3.5 px-4 py-3.5 sm:px-6">
+            <div className="mt-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-orange-500">
+              <Rocket size={20} className="text-white" />
             </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <p style={{ fontSize: 15, fontWeight: 800, color: "#c2410c", margin: "0 0 4px" }}>Want to sell on Higoverse?</p>
-              <p style={{ fontSize: 12, color: "#78350f", margin: "0 0 12px", lineHeight: 1.5 }}>
+            <div className="min-w-0 flex-1">
+              <p className="mb-1 text-sm font-extrabold text-orange-800">Want to sell on Higoverse?</p>
+              <p className="mb-3.5 text-xs leading-relaxed text-orange-900">
                 Fill in your shop details — including your TIN — and submit for Higoverse admin review. Once approved, your full shop dashboard appears and your products go live on the marketplace.
               </p>
-              <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 14 }}>
+              <div className="mb-3.5 flex flex-wrap gap-1.5">
                 {[
                   { n: 1, label: "Fill shop application" },
                   { n: 2, label: "Admin review & TIN verify" },
                   { n: 3, label: "Access dashboard & sell" },
                 ].map((step) => (
-                  <div key={step.n} style={{ display: "flex", alignItems: "center", gap: 5, background: "#fff", border: "1px solid #fed7aa", borderRadius: 20, padding: "4px 10px" }}>
-                    <span style={{ width: 16, height: 16, borderRadius: "50%", background: "#ff6a00", color: "#fff", fontSize: 9, fontWeight: 900, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{step.n}</span>
-                    <span style={{ fontSize: 11, fontWeight: 600, color: "#7c2d12" }}>{step.label}</span>
+                  <div key={step.n} className="flex items-center gap-1.5 rounded-full border border-orange-200 bg-white px-2.5 py-1">
+                    <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-orange-500 text-[9px] font-black text-white">{step.n}</span>
+                    <span className="text-[11px] font-semibold text-orange-900">{step.label}</span>
                   </div>
                 ))}
               </div>
               <button
-                onClick={() => setShowShopForm(true)}
-                style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "9px 20px", background: "#ff6a00", color: "#fff", border: "none", fontSize: 13, fontWeight: 700, borderRadius: 6, cursor: "pointer", boxShadow: "0 2px 8px rgba(255,106,0,0.3)" }}
+                onClick={() => {
+                  if (!user) { router.push(`/login?next=${encodeURIComponent("/?apply=1")}`); return; }
+                  setShowShopForm(true);
+                }}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-orange-500 px-5 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-orange-600"
               >
                 <Store size={14} /> Create my shop <ArrowRight size={12} />
               </button>
@@ -884,19 +816,18 @@ export default function MarketplacePage() {
         </div>
       )}
 
-
       {/* State 3: Shop verified — quick access */}
       {!bannerDismissed && shopIsActive && (
-        <div style={{ background: "#f0fdf4", borderBottom: "1px solid #86efac" }}>
-          <div style={{ maxWidth: 1400, margin: "0 auto", padding: "10px 16px", display: "flex", alignItems: "center", gap: 10 }}>
-            <BadgeCheck size={16} style={{ color: "#16a34a", flexShrink: 0 }} />
-            <p style={{ fontSize: 12, color: "#15803d", margin: 0, fontWeight: 600, flex: 1 }}>
+        <div className="border-b border-emerald-200 bg-emerald-50">
+          <div className="mx-auto flex max-w-7xl items-center gap-2.5 px-4 py-2.5 sm:px-6">
+            <BadgeCheck size={16} className="shrink-0 text-emerald-600" />
+            <p className="flex-1 text-xs font-semibold text-emerald-800">
               <strong>{shop?.name}</strong> is verified and active on the marketplace.
             </p>
-            <Link href="/" style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "5px 12px", background: "#16a34a", color: "#fff", textDecoration: "none", fontSize: 11, fontWeight: 700, borderRadius: 6 }}>
+            <Link href="/dashboard" className="flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-[11px] font-bold text-white transition hover:bg-emerald-700">
               <LayoutDashboard size={12} /> Shop Dashboard
             </Link>
-            <button onClick={dismissBanner} style={{ border: "none", background: "none", cursor: "pointer", color: "#16a34a", padding: 4, display: "flex" }}>
+            <button onClick={dismissBanner} className="flex text-emerald-600 transition hover:text-emerald-800">
               <X size={13} />
             </button>
           </div>
@@ -904,136 +835,21 @@ export default function MarketplacePage() {
       )}
 
       {/* ── BODY ─────────────────────────────────────────────────────────── */}
-      <div className="mp-body" style={{ maxWidth: 1400, margin: "0 auto", padding: "10px 16px", display: "flex", gap: 10, alignItems: "flex-start" }}>
-
-        {/* ── SIDEBAR ────────────────────────────────────────────────────── */}
-        <aside className="mp-sidebar" style={{ width: 168, flexShrink: 0 }}>
-          <div style={{ background: "#fff", border: "1px solid #e8e8e8", marginBottom: 8 }}>
-            <div style={{ padding: "10px 12px 6px", borderBottom: "1px solid #f0f0f0", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <span style={{ fontSize: 12, fontWeight: 700, color: "#333" }}>Categories</span>
-              <span style={{ fontSize: 10, color: "#bbb" }}>{catalog.length} total</span>
-            </div>
-            {ALL_CATS.map((c) => {
-              const count = catCounts[c.key] ?? 0;
-              const active = cat === c.key;
-              return (
-                <button
-                  key={c.key}
-                  onClick={() => { setCat(c.key); setPage(1); }}
-                  style={{
-                    display: "flex", alignItems: "center", justifyContent: "space-between",
-                    width: "100%", border: "none",
-                    background: active ? "#fff5f0" : "transparent",
-                    padding: "6px 12px", fontSize: 12, cursor: "pointer", textAlign: "left",
-                    color: active ? "#ff6a00" : count === 0 ? "#ccc" : "#555",
-                    fontWeight: active ? 700 : 400,
-                    borderLeft: active ? "3px solid #ff6a00" : "3px solid transparent",
-                    transition: "background 0.12s",
-                  }}
-                >
-                  <span>{c.label}</span>
-                  <span style={{
-                    fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius: 8,
-                    background: active ? "#ff6a00" : count > 0 ? "#f0f0f0" : "transparent",
-                    color: active ? "#fff" : "#999", minWidth: 18, textAlign: "center",
-                  }}>{count > 0 ? count : ""}</span>
-                </button>
-              );
-            })}
-          </div>
-
-          <div style={{ background: "#fff", border: "1px solid #e8e8e8" }}>
-            <div style={{ padding: "10px 12px 6px", borderBottom: "1px solid #f0f0f0", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <span style={{ fontSize: 12, fontWeight: 700, color: "#333" }}>Suppliers</span>
-              <span style={{ fontSize: 10, color: "#999" }}>{shops.length}</span>
-            </div>
-            {shops.slice(0, 10).map((s) => {
-              const online  = isOnline(s.last_seen_at, now);
-              const initial = (s.name || "?")[0].toUpperCase();
-              const listed  = listedPerShop[s.id] ?? 0;
-              return (
-                <Link key={s.id} href={`/marketplace/${s.id}`}
-                  className="mp-supplier-row"
-                  style={{ display: "flex", alignItems: "center", gap: 7, padding: "7px 12px", textDecoration: "none", borderBottom: "1px solid #f8f8f8" }}>
-                  <div style={{ width: 22, height: 22, borderRadius: "50%", overflow: "hidden", background: "#ff6a00", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                    {s.logo_url
-                      ? <img src={s.logo_url} alt={s.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                      : <span style={{ fontSize: 8, fontWeight: 900, color: "#fff" }}>{initial}</span>}
-                  </div>
-                  <div style={{ minWidth: 0, flex: 1 }}>
-                    <p style={{ fontSize: 11, color: "#333", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {highlight(s.name ?? "", search)}
-                    </p>
-                    <p style={{ fontSize: 9, color: "#999", margin: 0 }}>
-                      {listed > 0 ? `${listed} products` : "No listings"}
-                      {online && <span style={{ color: "#52c41a", marginLeft: 4 }}>● live</span>}
-                    </p>
-                  </div>
-                </Link>
-              );
-            })}
-            {shops.length > 10 && (
-              <div style={{ padding: "7px 12px" }}>
-                <span style={{ fontSize: 11, color: "#ff6a00" }}>+{shops.length - 10} more</span>
-              </div>
-            )}
-          </div>
-        </aside>
+      <div className="mx-auto max-w-7xl px-4 py-3 sm:px-6">
 
         {/* ── MAIN ───────────────────────────────────────────────────────── */}
-        <main style={{ flex: 1, minWidth: 0 }}>
-
-          {/* Result bar */}
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8, padding: "6px 10px", background: "#fff", border: "1px solid #f0f0f0", borderRadius: 6 }}>
-            <span style={{ fontSize: 12, color: "#666", display: "flex", alignItems: "center", gap: 6 }}>
-              {searching ? (
-                <><Loader2 size={11} style={{ color: "#ff6a00", animation: "spin 0.7s linear infinite" }} />
-                  <span style={{ color: "#ff6a00", fontWeight: 600 }}>Searching...</span></>
-              ) : (
-                <>
-                  <strong style={{ color: "#111", fontSize: 13 }}>{allFiltered.length}</strong>
-                  <span style={{ color: "#888" }}>
-                    {search
-                      ? <> results for <em style={{ color: "#ff6a00", fontStyle: "normal", fontWeight: 700 }}>&ldquo;{search}&rdquo;</em></>
-                      : cat !== "all"
-                        ? <> in <strong style={{ color: "#333" }}>{ALL_CATS.find(c => c.key === cat)?.label}</strong></>
-                        : " products listed on marketplace"}
-                  </span>
-                  {allFiltered.length !== visible.length && (
-                    <span style={{ color: "#bbb", fontSize: 11 }}>· showing {visible.length}</span>
-                  )}
-                  {(search || cat !== "all") && (
-                    <button onClick={() => { setRawSearch(""); setCat("all"); }}
-                      style={{ fontSize: 10, color: "#ff6a00", border: "1px solid #fed7aa", background: "transparent", borderRadius: 4, padding: "1px 6px", cursor: "pointer", fontWeight: 600 }}>
-                      Clear filters
-                    </button>
-                  )}
-                </>
-              )}
-            </span>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <span style={{ fontSize: 10, display: "flex", alignItems: "center", gap: 3, color: liveConnected ? "#52c41a" : "#bbb" }}>
-                <span style={{ width: 6, height: 6, borderRadius: "50%", background: liveConnected ? "#52c41a" : "#ddd", display: "inline-block", animation: liveConnected ? "pulse 2s infinite" : "none" }} />
-                {liveConnected ? "Live" : "Syncing"}
-              </span>
-              {shopIsActive && (
-                <Link href="/items" style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: "#ff6a00", textDecoration: "none", fontWeight: 700, padding: "4px 10px", border: "1px solid #ffb38a", borderRadius: 4 }}>
-                  <Plus size={10} /> List a product
-                </Link>
-              )}
-            </div>
-          </div>
+        <main className="min-w-0">
 
           {/* Grid */}
           {loading ? (
-            <div className="mp-grid" style={{ display: "grid", gap: 8 }}>
+            <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
               {Array.from({ length: PAGE_SIZE }).map((_, i) => <SkeletonCard key={i} />)}
             </div>
           ) : allFiltered.length === 0 ? (
-            <EmptyState hasItems={catalog.length > 0} onClear={() => { setRawSearch(""); setCat("all"); }} />
+            <EmptyState />
           ) : (
             <>
-              <div className="mp-grid" style={{ display: "grid", gap: 8 }}>
+              <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
                 {visible.map((entry, idx) => (
                   <LazyProductCard
                     key={entry.productId}
@@ -1042,98 +858,27 @@ export default function MarketplacePage() {
                     shop={shopMap[entry.shopId]}
                     isMine={entry.shopId === user?.shop_id}
                     online={shopMap[entry.shopId] ? isOnline(shopMap[entry.shopId].last_seen_at, now) : false}
-                    searchQ={search}
-                    onDetail={() => { setDetailEntry(entry); setDetailImg(0); }}
                     onOrder={(e) => openOrder(entry, e)}
                   />
                 ))}
-
-                {/* "List your product" dashed tile */}
-                <Link href="/items" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8, border: "1px dashed #d9d9d9", textDecoration: "none", background: "#fafafa", minHeight: 260, color: "#bbb" }}>
-                  <div style={{ width: 40, height: 40, borderRadius: "50%", border: "2px dashed #d9d9d9", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    <Plus size={18} style={{ color: "#ccc" }} />
-                  </div>
-                  <span style={{ fontSize: 11, textAlign: "center", lineHeight: 1.5, color: "#aaa" }}>List your<br />products here</span>
-                </Link>
               </div>
 
               {/* Scroll sentinel */}
-              <div ref={sentinelRef} style={{ height: 1 }} />
+              <div ref={sentinelRef} className="h-px" />
 
               {/* Load-more skeleton row */}
               {loadingMore && (
-                <div className="mp-grid" style={{ display: "grid", gap: 8, marginTop: 8 }}>
+                <div className="mt-2.5 grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
                   {Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)}
                 </div>
               )}
 
               {!hasMore && allFiltered.length > PAGE_SIZE && (
-                <p style={{ textAlign: "center", fontSize: 11, color: "#bbb", padding: "20px 0 8px" }}>
+                <p className="py-5 text-center text-xs text-slate-300">
                   All {allFiltered.length} products loaded
                 </p>
               )}
             </>
-          )}
-
-          {/* Suppliers section */}
-          {filteredShops.length > 0 && (
-            <section style={{ marginTop: 24 }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-                <span style={{ fontSize: 14, fontWeight: 700, color: "#333" }}>All Suppliers</span>
-                <span style={{ fontSize: 11, color: "#999" }}>{filteredShops.length} registered</span>
-              </div>
-              <div className="mp-grid" style={{ display: "grid", gap: 8 }}>
-                {filteredShops.map((s) => {
-                  const online      = isOnline(s.last_seen_at, now);
-                  const isMine      = s.id === user?.shop_id;
-                  const initial     = (s.name || "?")[0].toUpperCase();
-                  const listed      = listedPerShop[s.id] ?? 0;
-                  const isFollowed  = followedShopIds.has(s.id);
-                  const followerCnt = getShopFollowerCount(s.id);
-                  return (
-                    <div key={s.id} style={{ position: "relative", background: "#fff", border: `1px solid ${isMine ? "#ffbb96" : isFollowed ? "#ff6a00" : "#e8e8e8"}`, display: "flex", flexDirection: "column", alignItems: "center", padding: "16px 12px", gap: 6, transition: "border-color 0.15s" }}>
-                      {/* Follow / like heart button */}
-                      {!isMine && (
-                        <button
-                          onClick={(e) => toggleFollow(s.id, s.name ?? "", e)}
-                          title={isFollowed ? "Unfollow shop" : "Follow shop"}
-                          style={{ position: "absolute", top: 8, right: 8, border: "none", background: "none", cursor: "pointer", padding: 3, display: "flex", alignItems: "center", justifyContent: "center" }}
-                        >
-                          <Heart size={15} style={{ color: isFollowed ? "#f5222d" : "#d9d9d9", fill: isFollowed ? "#f5222d" : "none", transition: "all 0.15s" }} />
-                        </button>
-                      )}
-
-                      <Link href={`/marketplace/${s.id}`} style={{ display: "contents", textDecoration: "none" }}>
-                        <div style={{ width: 44, height: 44, borderRadius: "50%", overflow: "hidden", background: "#ff6a00", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                          {s.logo_url
-                            ? <img src={s.logo_url} alt={s.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                            : <span style={{ fontSize: 16, fontWeight: 900, color: "#fff" }}>{initial}</span>}
-                        </div>
-                        <p style={{ fontSize: 12, fontWeight: 600, color: "#333", margin: 0, textAlign: "center", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", width: "100%" }}>
-                          {highlight(s.name ?? "", search)}
-                        </p>
-                        {listed > 0 && <p style={{ fontSize: 10, color: "#ff6a00", margin: 0 }}>{listed} products</p>}
-                        {formatShortAddress(s.address) && <p style={{ fontSize: 10, color: "#999", margin: 0, textAlign: "center", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", width: "100%" }}>{formatShortAddress(s.address)}</p>}
-                        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                          <span style={{ width: 6, height: 6, borderRadius: "50%", background: online ? "#52c41a" : "#d9d9d9" }} />
-                          <span style={{ fontSize: 10, color: online ? "#52c41a" : "#999" }}>{online ? "Online" : "Offline"}</span>
-                          {isMine && <span style={{ fontSize: 9, background: "#fff5f0", color: "#ff6a00", padding: "1px 5px", fontWeight: 700, marginLeft: 4 }}>You</span>}
-                        </div>
-                        {followerCnt > 0 && (
-                          <div style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 9, color: "#f5222d" }}>
-                            <Heart size={8} style={{ fill: "#f5222d" }} />
-                            <span>{followerCnt} {followerCnt === 1 ? "follower" : "followers"}</span>
-                          </div>
-                        )}
-                        <span style={{ fontSize: 11, color: isFollowed ? "#ff6a00" : "#1677ff", fontWeight: isFollowed ? 700 : 400 }}>
-                          {isFollowed ? "✓ Connected" : "View Store"}
-                        </span>
-                      </Link>
-                    </div>
-                  );
-                })}
-              </div>
-            </section>
           )}
         </main>
       </div>
@@ -1175,7 +920,7 @@ export default function MarketplacePage() {
                   <span style={{ cursor: "pointer", color: "#1677ff" }} onClick={() => setDetailEntry(null)}>Marketplace</span>
                   <ChevronRight size={12} />
                   <span style={{ textTransform: "capitalize", cursor: "pointer", color: "#1677ff" }}
-                    onClick={() => { setCat(category); setDetailEntry(null); }}>{category}</span>
+                    onClick={() => router.push(`/category/${category}`)}>{category}</span>
                   <ChevronRight size={12} />
                   <span style={{ color: "#333" }}>{detailEntry.name.slice(0, 50)}{detailEntry.name.length > 50 ? "…" : ""}</span>
                 </div>
@@ -1395,7 +1140,7 @@ export default function MarketplacePage() {
                     )}
                   </div>
                 </div>
-                <Link href={`/marketplace/${detailEntry.shopId}`} onClick={() => setDetailEntry(null)}
+                <Link href={`/shop/${detailEntry.shopId}`} onClick={() => setDetailEntry(null)}
                   style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: 5, padding: "9px 18px", border: "1.5px solid #e8e8e8", color: "#555", fontSize: 12, fontWeight: 600, textDecoration: "none" }}>
                   <Store size={13} /> View Store
                 </Link>
@@ -1660,79 +1405,6 @@ export default function MarketplacePage() {
           </div>
         );
       })()}
-
-      <style>{`
-        .mp-supplier-row:hover { background: #fff5f0; }
-        .mp-subnav { scrollbar-width: none; }
-        .mp-subnav::-webkit-scrollbar { display: none; }
-
-        /* Responsive grid — fills width, no fixed column count */
-        .mp-grid { grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); }
-
-        @keyframes shimmer {
-          0%   { background-position: -600px 0; }
-          100% { background-position:  600px 0; }
-        }
-        .mp-shimmer {
-          background: linear-gradient(90deg, #f0f0f0 25%, #e8e8e8 50%, #f0f0f0 75%);
-          background-size: 600px 100%;
-          animation: shimmer 1.4s infinite linear;
-        }
-
-        @keyframes spin { to { transform: rotate(360deg); } }
-        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
-
-        /* Card reveal — skeleton fades out, real card slides up into place */
-        @keyframes mp-fadeup {
-          from { opacity: 0; transform: translateY(14px); }
-          to   { opacity: 1; transform: translateY(0); }
-        }
-        .mp-card-reveal { animation: mp-fadeup 0.28s cubic-bezier(0.22, 0.61, 0.36, 1) both; }
-
-        /* Image cross-fade — shimmer underneath, image fades in on top.
-           mp-img-wrap must be position:absolute so height resolves inside aspect-ratio containers. */
-        .mp-img-wrap { position: absolute; inset: 0; }
-        .mp-img-wrap img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity 0.3s ease; }
-        .mp-img-wrap img.loaded { opacity: 1; }
-        .mp-img-shimmer { position: absolute; inset: 0; }
-
-        /* Hover quick-action overlay on image */
-        .mp-card { transition: box-shadow 0.2s, transform 0.2s; }
-        .mp-card:hover { box-shadow: 0 8px 28px rgba(0,0,0,0.13); transform: translateY(-2px); }
-        .mp-card:hover .mp-img-overlay { opacity: 1; }
-        .mp-img-overlay {
-          position: absolute; inset: 0; background: rgba(0,0,0,0.32);
-          display: flex; align-items: center; justify-content: center; gap: 8px;
-          opacity: 0; transition: opacity 0.18s ease;
-        }
-        .mp-img-overlay button {
-          padding: 7px 14px; border-radius: 20px; border: 1.5px solid rgba(255,255,255,0.9);
-          background: rgba(255,255,255,0.15); backdrop-filter: blur(4px);
-          color: #fff; font-size: 11px; font-weight: 700; cursor: pointer;
-          letter-spacing: 0.3px; transition: background 0.15s;
-        }
-        .mp-img-overlay button:hover { background: rgba(255,255,255,0.3); }
-        .mp-img-overlay button.primary { background: #ff6a00; border-color: #ff6a00; }
-        .mp-img-overlay button.primary:hover { background: #e55d00; }
-
-        @media (max-width: 767px) {
-          .mp-sidebar   { display: none !important; }
-          .mp-body      { padding: 8px !important; }
-          .mp-grid      { grid-template-columns: repeat(2, 1fr) !important; }
-          .mp-cat-select{ display: none !important; }
-          .mp-stats     { display: none !important; }
-        }
-        @media (min-width: 768px) and (max-width: 1023px) {
-          .mp-sidebar { width: 150px !important; }
-          .mp-grid    { grid-template-columns: repeat(3, 1fr) !important; }
-        }
-        @media (min-width: 1024px) and (max-width: 1279px) {
-          .mp-grid { grid-template-columns: repeat(4, 1fr) !important; }
-        }
-        @media (min-width: 1280px) {
-          .mp-grid { grid-template-columns: repeat(auto-fill, minmax(175px, 1fr)) !important; }
-        }
-      `}</style>
 
       {/* ── SHOP APPLICATION MODAL ───────────────────────────────────────── */}
       {showShopForm && (
@@ -2143,18 +1815,19 @@ function LazyProductCard(props: React.ComponentProps<typeof ProductCard> & { pri
 // ── Skeleton card — matches new card shape exactly ───────────────────────────
 function SkeletonCard() {
   return (
-    <div style={{ background: "#fff", border: "1px solid #ebebeb", borderRadius: 10, overflow: "hidden", boxShadow: "0 2px 8px rgba(0,0,0,0.04)" }}>
-      <div className="mp-shimmer" style={{ aspectRatio: "1" }} />
-      <div style={{ padding: "10px 12px 12px", display: "flex", flexDirection: "column", gap: 6 }}>
-        <div className="mp-shimmer" style={{ height: 12, borderRadius: 4, width: "90%" }} />
-        <div className="mp-shimmer" style={{ height: 12, borderRadius: 4, width: "65%" }} />
-        <div className="mp-shimmer" style={{ height: 18, borderRadius: 4, width: "50%", marginTop: 2 }} />
-        <div className="mp-shimmer" style={{ height: 9,  borderRadius: 4, width: "70%" }} />
-        <div style={{ paddingTop: 8, borderTop: "1px solid #f5f5f5", display: "flex", gap: 6, alignItems: "center", marginTop: 2 }}>
-          <div className="mp-shimmer" style={{ width: 22, height: 22, borderRadius: "50%", flexShrink: 0 }} />
-          <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 4 }}>
-            <div className="mp-shimmer" style={{ height: 10, borderRadius: 4, width: "75%" }} />
-            <div className="mp-shimmer" style={{ height: 8,  borderRadius: 4, width: "50%" }} />
+    <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+      <div className="hgv-shimmer aspect-square" />
+      <div className="flex flex-col gap-1.5 p-2.5">
+        <div className="hgv-shimmer h-3 w-[90%] rounded" />
+        <div className="hgv-shimmer h-3 w-[65%] rounded" />
+        <div className="hgv-shimmer mt-0.5 h-4 w-[50%] rounded" />
+        <div className="hgv-shimmer h-2 w-[70%] rounded" />
+        <div className="hgv-shimmer h-2 w-[45%] rounded" />
+        <div className="mt-0.5 flex items-center gap-1.5 border-t border-slate-100 pt-2">
+          <div className="hgv-shimmer h-6 w-6 shrink-0 rounded-full" />
+          <div className="flex flex-1 flex-col gap-1">
+            <div className="hgv-shimmer h-2.5 w-[75%] rounded" />
+            <div className="hgv-shimmer h-2 w-[50%] rounded" />
           </div>
         </div>
       </div>
@@ -2163,27 +1836,17 @@ function SkeletonCard() {
 }
 
 // ── Empty state ───────────────────────────────────────────────────────────────
-function EmptyState({ hasItems, onClear }: { hasItems: boolean; onClear: () => void }) {
+function EmptyState() {
   return (
-    <div style={{ background: "#fff", border: "1px solid #e8e8e8", padding: "64px 20px", textAlign: "center" }}>
-      <Package size={52} style={{ color: "#e0e0e0", margin: "0 auto 16px" }} />
-      <p style={{ fontSize: 15, fontWeight: 600, color: "#555", margin: "0 0 6px" }}>
-        {hasItems ? "No products match your search" : "No products listed yet"}
+    <div className="rounded-lg border border-slate-200 bg-white px-5 py-16 text-center">
+      <Package size={48} className="mx-auto mb-4 text-slate-200" />
+      <p className="mb-1.5 text-base font-semibold text-slate-600">No products listed yet</p>
+      <p className="mx-auto mb-5 max-w-sm text-xs leading-relaxed text-slate-400">
+        Go to Items, upload at least 3 product photos, then enable Share on Marketplace.
       </p>
-      <p style={{ fontSize: 12, color: "#aaa", margin: "0 0 20px", maxWidth: 340, marginLeft: "auto", marginRight: "auto", lineHeight: 1.6 }}>
-        {hasItems
-          ? "Try clearing filters or searching with different keywords."
-          : "Go to Items, upload at least 3 product photos, then enable Share on Marketplace."}
-      </p>
-      {hasItems ? (
-        <button onClick={onClear} style={{ padding: "8px 20px", border: "1px solid #d9d9d9", background: "#fff", cursor: "pointer", fontSize: 12, color: "#555" }}>
-          Clear filters
-        </button>
-      ) : (
-        <Link href="/items" style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 20px", background: "#ff6a00", color: "#fff", textDecoration: "none", fontSize: 12, fontWeight: 700 }}>
-          <Package size={13} /> Go to Items
-        </Link>
-      )}
+      <Link href="/items" className="inline-flex items-center gap-1.5 rounded-lg bg-orange-500 px-5 py-2 text-xs font-bold text-white transition hover:bg-orange-600">
+        <Package size={13} /> Go to Items
+      </Link>
     </div>
   );
 }
@@ -2210,13 +1873,11 @@ function preloadImgs(catalog: MarketplaceEntry[], n = 16) {
 
 
 // ── Product card ──────────────────────────────────────────────────────────────
-function ProductCard({ entry, shop, isMine, online, searchQ, onDetail, onOrder, onReady, priority }: {
+function ProductCard({ entry, shop, isMine, online, onOrder, onReady, priority }: {
   entry: MarketplaceEntry;
   shop: Shop | undefined;
   isMine: boolean;
   online: boolean;
-  searchQ: string;
-  onDetail: () => void;
   onOrder: (e: React.MouseEvent) => void;
   onReady?: () => void;
   priority?: boolean;
@@ -2237,34 +1898,25 @@ function ProductCard({ entry, shop, isMine, online, searchQ, onDetail, onOrder, 
     if (!cover || _loadedImgUrls.has(cover)) { readyFired.current = true; onReady(); }
   }, [cover, onReady]);
 
+  const category = entry.category ?? catOf(entry.name, entry.description);
+
   return (
-    <div
-      className="mp-card"
-      onClick={onDetail}
-      style={{
-        background: "#fff",
-        border: "1px solid #ebebeb",
-        borderRadius: 10,
-        overflow: "hidden",
-        cursor: "pointer",
-        display: "flex",
-        flexDirection: "column",
-        boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
-        position: "relative",
-      }}
+    <Link
+      href={`/product/${productSlug(entry.name, entry.productId)}`}
+      className="group relative flex flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg"
     >
       {/* ── Image / no-photo area ── */}
-      <div style={{ position: "relative", aspectRatio: "1", overflow: "hidden", flexShrink: 0 }}>
+      <div className="relative aspect-square shrink-0 overflow-hidden">
         {cover ? (
-          <div className="mp-img-wrap">
-            {!imgLoaded && <div className="mp-img-shimmer mp-shimmer" />}
+          <div className="absolute inset-0">
+            {!imgLoaded && <div className="hgv-shimmer absolute inset-0" />}
             <img
               src={cover}
               alt={entry.name}
               loading="eager"
               decoding={priority ? "sync" : "async"}
               fetchPriority={priority ? "high" : "auto"}
-              className={imgLoaded ? "loaded" : ""}
+              className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-300 ${imgLoaded ? "opacity-100" : "opacity-0"}`}
               onLoad={() => {
                 _loadedImgUrls.add(cover); // persist — survives remounts
                 setImgLoaded(true);
@@ -2278,91 +1930,94 @@ function ProductCard({ entry, shop, isMine, online, searchQ, onDetail, onOrder, 
             />
           </div>
         ) : (
-          <div style={{ position: "absolute", inset: 0, background: "#f5f5f5" }} />
+          <div className="absolute inset-0 flex items-center justify-center bg-slate-50 text-slate-300">
+            <Package size={32} />
+          </div>
         )}
 
-        {/* Hover overlay — appears on .mp-card:hover via CSS */}
-        <div className="mp-img-overlay">
-          <button onClick={(e) => { e.stopPropagation(); onDetail(); }}>View</button>
-          {inStock && (
-            <button className="primary" onClick={(e) => { e.stopPropagation(); onOrder(e); }}>
+        {/* Hover overlay */}
+        {inStock && (
+          <div className="absolute inset-0 flex items-center justify-center gap-2 bg-black/30 opacity-0 transition-opacity duration-150 group-hover:opacity-100">
+            <button
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); onOrder(e); }}
+              className="rounded-full bg-orange-500 px-3.5 py-1.5 text-[11px] font-bold text-white transition hover:bg-orange-600"
+            >
               Order
             </button>
-          )}
-        </div>
+          </div>
+        )}
 
         {/* Top-left badges */}
-        <div style={{ position: "absolute", top: 8, left: 8, display: "flex", flexDirection: "column", gap: 4 }}>
+        <div className="absolute left-2 top-2 flex flex-col gap-1">
           {isMine && (
-            <span style={{ fontSize: 9, background: "#ff6a00", color: "#fff", padding: "2px 7px", fontWeight: 800, borderRadius: 4, letterSpacing: 0.4 }}>YOURS</span>
+            <span className="rounded bg-orange-500 px-1.5 py-0.5 text-[9px] font-extrabold tracking-wide text-white">YOURS</span>
           )}
           {!inStock && (
-            <span style={{ fontSize: 9, background: "rgba(245,34,45,0.88)", color: "#fff", padding: "2px 7px", fontWeight: 700, borderRadius: 4, backdropFilter: "blur(4px)" }}>Out of stock</span>
+            <span className="rounded bg-red-500/90 px-1.5 py-0.5 text-[9px] font-bold text-white backdrop-blur-sm">Out of stock</span>
           )}
         </div>
 
-        {/* Multi-image count */}
-        {entry.images.length > 1 && (
-          <span style={{ position: "absolute", top: 8, right: 8, fontSize: 9, background: "rgba(0,0,0,0.45)", color: "#fff", padding: "2px 6px", borderRadius: 10, fontWeight: 600, backdropFilter: "blur(4px)" }}>
-            +{entry.images.length - 1}
+        {/* Gallery indicator — bottom-left camera badge */}
+        {cover && (
+          <span className="absolute bottom-2 left-2 flex h-6 w-6 items-center justify-center rounded-full bg-white/90 text-slate-500 shadow">
+            <Camera size={12} />
           </span>
         )}
 
         {/* Online dot */}
         {online && (
-          <span style={{ position: "absolute", bottom: 8, right: 8, width: 8, height: 8, borderRadius: "50%", background: "#52c41a", border: "2px solid #fff", boxShadow: "0 0 0 2px rgba(82,196,26,0.3)" }} title="Shop is online" />
+          <span className="absolute bottom-2 right-2 h-2 w-2 rounded-full border-2 border-white bg-emerald-500 shadow-[0_0_0_2px_rgba(16,185,129,0.3)]" title="Shop is online" />
         )}
       </div>
 
       {/* ── Content ── */}
-      <div style={{ padding: "10px 12px 12px", flex: 1, display: "flex", flexDirection: "column", gap: 4 }}>
+      <div className="flex flex-1 flex-col gap-1 p-2.5">
 
         {/* Product name */}
-        <p style={{
-          fontSize: 13, fontWeight: 600, color: "#1a1a1a", margin: 0, lineHeight: 1.45,
-          display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" as const,
-          overflow: "hidden", minHeight: 38,
-        }}>
-          {highlight(entry.name, searchQ)}
+        <p className="line-clamp-2 min-h-[2.4em] text-xs leading-snug text-slate-700">
+          {entry.name}
         </p>
 
-        {/* Price row */}
-        <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginTop: 2 }}>
-          <span style={{ fontSize: 16, fontWeight: 800, color: "#ff6a00", lineHeight: 1 }}>
-            {fmtPrice(entry.sellingPrice)}
-          </span>
-        </div>
+        {/* Price */}
+        <span className="text-base font-extrabold leading-none text-slate-900">
+          {fmtPrice(entry.sellingPrice)}
+        </span>
 
         {/* Min order */}
-        <p style={{ fontSize: 10, color: "#b0b0b0", margin: 0, fontWeight: 500 }}>Min. 1 unit · {(entry.category ?? catOf(entry.name, entry.description)).charAt(0).toUpperCase() + (entry.category ?? catOf(entry.name, entry.description)).slice(1)}</p>
+        <p className="text-[10px] font-medium text-slate-400">
+          Min. 1 unit · {category.charAt(0).toUpperCase() + category.slice(1)}
+        </p>
+
+        {/* Verified + tenure */}
+        {shop && (
+          <p className="flex items-center gap-1 text-[10px] font-semibold text-emerald-600">
+            <BadgeCheck size={11} /> Verified
+            {shopTenureLabel(shop.created_at) && <span className="font-normal text-slate-400">· {shopTenureLabel(shop.created_at)}</span>}
+          </p>
+        )}
 
         {/* Supplier row — always at bottom */}
-        <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: "auto", paddingTop: 8, borderTop: "1px solid #f5f5f5" }}>
-          <div style={{
-            width: 22, height: 22, borderRadius: "50%", overflow: "hidden",
-            background: "linear-gradient(135deg,#ff6a00,#ee0979)",
-            display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
-            boxShadow: "0 1px 4px rgba(0,0,0,0.12)",
-          }}>
+        <div className="mt-auto flex items-center gap-1.5 border-t border-slate-100 pt-2">
+          <div className="flex h-6 w-6 shrink-0 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-orange-500 to-pink-600 shadow-sm">
             {shop?.logo_url && !_failedImgUrls.has(shop.logo_url)
               ? <img src={shop.logo_url} alt={entry.shopName} loading="lazy" decoding="async"
                   onError={() => { _failedImgUrls.add(shop!.logo_url!); _forceImg((n) => n + 1); }}
-                  style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-              : <span style={{ fontSize: 9, fontWeight: 900, color: "#fff" }}>{logoInitial}</span>}
+                  className="h-full w-full object-cover" />
+              : <span className="text-[9px] font-black text-white">{logoInitial}</span>}
           </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <p style={{ fontSize: 11, color: "#444", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: 600 }}>
-              {highlight(entry.shopName, searchQ)}
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-[11px] font-semibold text-slate-600">
+              {entry.shopName}
             </p>
             {formatShortAddress(shop?.address) && (
-              <p style={{ fontSize: 10, color: "#b0b0b0", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: 2 }}>
-                <MapPin size={8} style={{ flexShrink: 0, color: "#c0c0c0" }} />
+              <p className="flex items-center gap-0.5 truncate text-[10px] text-slate-400">
+                <MapPin size={8} className="shrink-0 text-slate-300" />
                 {formatShortAddress(shop?.address)}
               </p>
             )}
           </div>
         </div>
       </div>
-    </div>
+    </Link>
   );
 }

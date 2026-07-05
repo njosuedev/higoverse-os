@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from app.db.database import get_db
 from app.models.product import Product
 from app.schemas.product import ProductCreate, ProductUpdate
-from app.core.security import get_current_user
+from app.core.security import get_current_user, get_current_user_optional
 from app.core.supplier_client import validate_supplier
 
 router = APIRouter(prefix="/products", tags=["Products"])
@@ -214,12 +214,13 @@ def create_product(
 
 # -----------------------------
 # GET MARKETPLACE (cross-shop, all listed products)
+# Public — no login required, so guests can browse the marketplace.
 # Must be registered BEFORE /{product_id} to avoid "marketplace" matching as an ID
 # -----------------------------
 @router.get("/marketplace")
 def get_marketplace(
     db: Session = Depends(get_db),
-    user: dict = Depends(get_current_user),
+    user: dict | None = Depends(get_current_user_optional),
     page: int = 1,
     limit: int = 100,
 ):
@@ -238,7 +239,8 @@ def get_marketplace(
             "category": p.category,
             "images": p.images,
             "selling_price": float(p.selling_price),
-            "cost_price": float(p.cost_price),
+            # cost_price is intentionally omitted — this endpoint is public,
+            # and cost_price is a shop's private profit margin.
             "quantity": p.quantity,
             "listed": p.listed,
         })

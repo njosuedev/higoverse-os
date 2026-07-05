@@ -3,8 +3,12 @@
 import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 
+// The public marketplace now lives at these paths (outside the private
+// dashboard route group entirely) instead of under /marketplace.
+const MARKETPLACE_PATHS = ["/products", "/categories", "/category", "/product", "/shop", "/suppliers", "/search", "/about", "/contact"];
 function isMP(p: string) {
-  return p === "/marketplace" || p.startsWith("/marketplace/");
+  if (p === "/") return true;
+  return MARKETPLACE_PATHS.some((seg) => p === seg || p.startsWith(`${seg}/`));
 }
 
 export default function MarketplaceTransitionLoader() {
@@ -93,7 +97,7 @@ export default function MarketplaceTransitionLoader() {
           <div style={{
             position: "absolute", inset: 0, borderRadius: "50%",
             border: "3.5px solid transparent",
-            borderTopColor: "#1372e6",
+            borderTopColor: "#2563eb",
             animation: "mp-loader-spin 0.75s linear infinite",
           }} />
           {/* Brand logo in centre */}

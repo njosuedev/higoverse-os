@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import AuthGuard from "@/app/components/AuthGuard";
+import DeviceGuard from "@/app/components/DeviceGuard";
 import HeartbeatManager from "@/app/components/dashboard/HeartbeatManager";
 import ClientProviders from "@/app/components/dashboard/ClientProviders";
 import DashboardHeader from "@/app/components/dashboard/DashboardHeader";
@@ -8,14 +10,21 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
+// Everything under this route group is the private business dashboard —
+// AuthGuard/DeviceGuard live here (not the root layout) so the public
+// marketplace routes are never gated or phone-blocked.
 export default function Layout({ children }: { children: React.ReactNode }) {
   return (
-    <ClientProviders>
-      <HeartbeatManager />
-      <DashboardHeader />
-      <ShopGuard>
-        {children}
-      </ShopGuard>
-    </ClientProviders>
+    <AuthGuard>
+      <DeviceGuard>
+        <ClientProviders>
+          <HeartbeatManager />
+          <DashboardHeader />
+          <ShopGuard>
+            {children}
+          </ShopGuard>
+        </ClientProviders>
+      </DeviceGuard>
+    </AuthGuard>
   );
 }

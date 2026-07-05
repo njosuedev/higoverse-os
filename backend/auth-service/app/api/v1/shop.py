@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
 
-from app.core.auth_bearer import get_current_user
+from app.core.auth_bearer import get_current_user, get_current_user_optional
 from app.db.deps import get_db, get_shop_db
 from app.models.shop import Shop
 from app.schemas.shop import ShopUpdate
@@ -88,11 +88,11 @@ def shop_heartbeat(
     return {"success": True}
 
 
-# ── All shops (directory) ─────────────────────────────────
+# ── All shops (directory) — public, no login required ─────
 @router.get("/shops")
 def list_shops(
     db: Session = Depends(get_shop_db),
-    current_user=Depends(get_current_user),
+    current_user=Depends(get_current_user_optional),
 ):
     shops = db.query(Shop).filter(Shop.is_active == True).order_by(Shop.created_at.desc()).all()
     return {"success": True, "data": [_fmt(s) for s in shops]}

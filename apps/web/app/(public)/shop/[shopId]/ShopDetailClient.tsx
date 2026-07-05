@@ -12,6 +12,7 @@ import { useLanguage } from "@/lib/language-context";
 import { listShops, updateMyShop, type Shop } from "@/lib/shop-api";
 import { itemRequest } from "@/lib/product-api";
 import { partnerRequest } from "@/lib/supplier-api";
+import { findShopBySlugOrId } from "@/lib/marketplace-public";
 import {
   ArrowLeft, Phone, Mail, MapPin, Wifi, WifiOff,
   Package, ShoppingCart, Plus, Minus, X, Loader2,
@@ -71,13 +72,15 @@ function fmtCurrency(n: number) {
 }
 
 // Read shop from the marketplace cache written by the marketplace page (avoids redundant API call)
-function shopFromMktCache(shopId: string): import("@/lib/shop-api").Shop | null {
+// The route param can be either a pretty slug ("mr-cars-ltd-a1b2c3") or a raw shop UUID
+// (old shared /marketplace/:id links redirect here) — resolve either form.
+function shopFromMktCache(slugOrId: string): import("@/lib/shop-api").Shop | null {
   try {
     const raw = localStorage.getItem("hgv_mkt_v2");
     if (!raw) return null;
     const c = JSON.parse(raw) as { shops: import("@/lib/shop-api").Shop[]; ts: number };
     if (Date.now() - c.ts > 120_000) return null; // honour 2-min freshness
-    return c.shops.find((s) => s.id === shopId) ?? null;
+    return findShopBySlugOrId(c.shops, slugOrId) ?? null;
   } catch { return null; }
 }
 
@@ -161,17 +164,18 @@ export default function ShopStorePage() {
 
     // Always validate / refresh from API in background
     listShops({ limit: 200 }).then((res) => {
-      const found = res.items?.find((s) => s.id === shopId) ?? null;
+      const found = findShopBySlugOrId(res.items ?? [], shopId) ?? null;
       if (found) { setShop(found); setLoading(false); }
       else if (!cached) { setNotFound(true); setLoading(false); }
     }).catch(() => { if (!cached) { setNotFound(true); setLoading(false); } });
   }, [shopId]);
 
+  // Follow state is keyed by the shop's real UUID, not the route's slug — use the resolved shop.
   useEffect(() => {
-    if (!shopId) return;
-    setFollowing(isFollowingShop(shopId));
-    setFollowerCount(getShopFollowerCount(shopId));
-  }, [shopId]);
+    if (!shop?.id) return;
+    setFollowing(isFollowingShop(shop.id));
+    setFollowerCount(getShopFollowerCount(shop.id));
+  }, [shop?.id]);
 
   // Open BroadcastChannel once
   useEffect(() => {
@@ -392,6 +396,7 @@ export default function ShopStorePage() {
 
   async function placeOrder() {
     if (cart.length === 0 || !shop) return;
+    if (!user) { router.push(`/login?next=${encodeURIComponent(`/shop/${shopId}`)}`); return; }
     setPlacingOrder(true);
     const cartSnapshot = [...cart];
     const total = cartSnapshot.reduce((s, c) => s + c.product.selling_price * c.qty, 0);
@@ -506,7 +511,7 @@ export default function ShopStorePage() {
       <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center gap-4">
         <Store size={40} className="text-slate-300" />
         <p className="text-slate-500 font-semibold">Shop not found</p>
-        <Link href="/marketplace" className="flex items-center gap-1.5 text-sm font-semibold text-[#1372e6] hover:underline">
+        <Link href="/" className="flex items-center gap-1.5 text-sm font-semibold text-[#1372e6] hover:underline">
           <ArrowLeft size={14} /> Back to Marketplace
         </Link>
       </div>
@@ -528,7 +533,7 @@ export default function ShopStorePage() {
 
         {/* Breadcrumb */}
         <div style={{ maxWidth: 1100, margin: "0 auto", padding: "8px 16px" }}>
-          <Link href="/marketplace" style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, color: "#999", textDecoration: "none" }}>
+          <Link href="/" style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, color: "#999", textDecoration: "none" }}>
             <ArrowLeft size={11} /> Marketplace
           </Link>
           <span style={{ fontSize: 11, color: "#ccc", margin: "0 4px" }}>/</span>
@@ -587,6 +592,7 @@ export default function ShopStorePage() {
                       {/* Follow / Connect button */}
                       <button
                         onClick={() => {
+                          if (!user) { router.push(`/login?next=${encodeURIComponent(`/shop/${shopId}`)}`); return; }
                           if (following) {
                             unfollowShop(shop.id);
                             setFollowing(false);
@@ -621,7 +627,10 @@ export default function ShopStorePage() {
                       )}
 
                       <button
-                        onClick={() => !partnerAdded && setShowPartnerModal(true)}
+                        onClick={() => {
+                          if (!user) { router.push(`/login?next=${encodeURIComponent(`/shop/${shopId}`)}`); return; }
+                          if (!partnerAdded) setShowPartnerModal(true);
+                        }}
                         style={{ display: "flex", alignItems: "center", gap: 5, padding: "7px 14px", border: partnerAdded ? "1px solid #b7eb8f" : "1px solid #d9d9d9", background: partnerAdded ? "#f6ffed" : "#fff", color: partnerAdded ? "#52c41a" : "#555", fontSize: 12, fontWeight: 600, cursor: partnerAdded ? "default" : "pointer" }}>
                         {partnerAdded ? <><CheckCircle size={12} /> Partner Added</> : <><UserPlus size={12} /> Add Partner</>}
                       </button>
@@ -957,7 +966,10 @@ export default function ShopStorePage() {
                                   </button>
                                 ) : (
                                   <button
-                                    onClick={() => { followShop(shop.id, shop.name); setFollowing(true); setFollowerCount((n) => n + 1); }}
+                                    onClick={() => {
+                                      if (!user) { router.push(`/login?next=${encodeURIComponent(`/shop/${shopId}`)}`); return; }
+                                      followShop(shop.id, shop.name); setFollowing(true); setFollowerCount((n) => n + 1);
+                                    }}
                                     title="Follow to contact supplier"
                                     style={{
                                       flex: 1, padding: "8px 0",

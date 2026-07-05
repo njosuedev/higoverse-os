@@ -15,33 +15,45 @@ import {
   Home, Package, Truck, ShoppingCart, BarChart3,
   Users, FileText, ChevronDown, ShieldCheck, Receipt,
   Sparkles, Settings, LogOut, Globe, Store,
-  Bell, MessageSquare,
+  Bell, MessageSquare, Menu, X,
 } from "lucide-react";
 
-const CUSTOMER_MENUS = [
-  { key: "nav.marketplace",   href: "/marketplace",   icon: Store          },
+type NavItem = { key: string; href: string; icon: typeof Home };
+
+const CUSTOMER_MENUS: NavItem[] = [
+  { key: "nav.marketplace",   href: "/",              icon: Store          },
   { key: "nav.notifications", href: "/notifications", icon: Bell           },
   { key: "nav.messages",      href: "/messages",      icon: MessageSquare  },
 ];
 
-const OWNER_MENUS = [
-  { key: "nav.home",       href: "/",           icon: Home         },
-  { key: "nav.items",      href: "/items",       icon: Package      },
-  { key: "nav.partners",   href: "/partners",    icon: Users        },
-  { key: "nav.purchases",  href: "/purchases",   icon: Truck        },
-  { key: "nav.sales",      href: "/sales",       icon: ShoppingCart },
-  { key: "nav.expenses",   href: "/expenses",    icon: Receipt      },
-  { key: "nav.reports",    href: "/reports",     icon: BarChart3    },
-  { key: "nav.proforma",   href: "/proforma",    icon: FileText     },
-  { key: "nav.advisor",    href: "/advisor",     icon: Sparkles     },
-  { key: "nav.marketplace",href: "/marketplace", icon: Store        },
-  { key: "nav.messages",   href: "/messages",    icon: MessageSquare},
+// Business-owner IA: Dashboard, Inventory, Sales, Finance▾, Marketplace, AI Advisor, More▾
+// Marketplace is now the public site at "/" — Dashboard lives at "/dashboard".
+const OWNER_PRIMARY: NavItem[] = [
+  { key: "nav.dashboard", href: "/dashboard", icon: Home         },
+  { key: "nav.inventory", href: "/items",     icon: Package      },
+  { key: "nav.sales",     href: "/sales",     icon: ShoppingCart },
 ];
+const FINANCE_MENUS: NavItem[] = [
+  { key: "nav.purchases", href: "/purchases", icon: Truck     },
+  { key: "nav.expenses",  href: "/expenses",  icon: Receipt   },
+  { key: "nav.reports",   href: "/reports",   icon: BarChart3 },
+  { key: "nav.partners",  href: "/partners",  icon: Users     },
+];
+const OWNER_TRAILING: NavItem[] = [
+  { key: "nav.marketplace", href: "/",           icon: Store    },
+  { key: "nav.advisor",     href: "/advisor",    icon: Sparkles },
+];
+const MORE_MENUS_BASE: NavItem[] = [
+  { key: "nav.messages", href: "/messages", icon: MessageSquare },
+  { key: "nav.proforma", href: "/proforma", icon: FileText      },
+  { key: "nav.settings", href: "/settings", icon: Settings      },
+];
+const ADMIN_ITEM: NavItem = { key: "nav.admin", href: "/admin", icon: ShieldCheck };
 
-const ADMIN_MENUS = [
-  ...OWNER_MENUS,
-  { key: "nav.admin", href: "/admin", icon: ShieldCheck },
-];
+function isActiveHref(pathname: string, href: string) {
+  if (href === "/") return pathname === "/";
+  return pathname.startsWith(href);
+}
 
 export default function DashboardHeader({ loading = false }: { loading?: boolean }) {
   const pathname   = usePathname();
@@ -51,9 +63,14 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
   const { shop, loading: shopLoading } = useShop();
 
   const [menuOpen, setMenuOpen]         = useState(false);
+  const [openDropdown, setOpenDropdown] = useState<"finance" | "more" | null>(null);
+  const [mobileOpen, setMobileOpen]     = useState(false);
+  const [mobileFinanceOpen, setMobileFinanceOpen] = useState(false);
+  const [mobileMoreOpen, setMobileMoreOpen]       = useState(false);
   const [unreadMsgs, setUnreadMsgs]     = useState(0);
   const [unreadNotifs, setUnreadNotifs] = useState(0);
   const menuRef = useRef<HTMLDivElement>(null);
+  const navRef  = useRef<HTMLDivElement>(null);
 
   // Derived early so effects below can use it as a dependency
   const isShopOwnerEarly = !!shop?.is_active && getEffectiveRole(user ?? null, true) === "SHOP_OWNER";
@@ -182,10 +199,17 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
   useEffect(() => {
     function onOutside(e: MouseEvent) {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
+      if (navRef.current && !navRef.current.contains(e.target as Node)) setOpenDropdown(null);
     }
     document.addEventListener("mousedown", onOutside);
     return () => document.removeEventListener("mousedown", onOutside);
   }, []);
+
+  // Close transient UI whenever the route changes
+  useEffect(() => {
+    setOpenDropdown(null);
+    setMobileOpen(false);
+  }, [pathname]);
 
   async function changeLang(code: typeof lang) {
     setLang(code);
@@ -196,6 +220,15 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
     setMenuOpen(false);
     logout();
     router.replace("/login");
+  }
+
+  function clearBadge(href: string) {
+    if (href === "/notifications") setUnreadNotifs(0);
+    if (href === "/messages") setUnreadMsgs(0);
+  }
+
+  function badgeFor(href: string) {
+    return href === "/notifications" ? unreadNotifs : href === "/messages" ? unreadMsgs : 0;
   }
 
   const currentLang = LANGUAGES.find((l) => l.code === lang) ?? LANGUAGES[0];
@@ -209,87 +242,167 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
   const isShopOwner = role === "SHOP_OWNER";
   const isCustomer  = role === "CUSTOMER";
 
-  const menus = isAdmin ? ADMIN_MENUS : isShopOwner ? OWNER_MENUS : CUSTOMER_MENUS;
+  const isBusinessNav = isAdmin || isShopOwner;
+  const moreMenus = isAdmin ? [...MORE_MENUS_BASE, ADMIN_ITEM] : MORE_MENUS_BASE;
+
+  // Flat list used for the mobile drawer and badge bookkeeping
+  const flatMenus: NavItem[] = isBusinessNav
+    ? [...OWNER_PRIMARY, ...FINANCE_MENUS, ...OWNER_TRAILING, ...moreMenus]
+    : CUSTOMER_MENUS;
+
+  function NavLink({ menu, compact = false }: { menu: NavItem; compact?: boolean }) {
+    const Icon = menu.icon;
+    const active = isActiveHref(pathname, menu.href);
+    const isAdminItem = menu.href === "/admin";
+    const indicatorColor = isAdminItem ? "bg-red-500" : "bg-blue-600";
+    const activeText = isAdminItem ? "text-red-600" : "text-blue-600";
+    const isAdvisor = menu.href === "/advisor";
+    const idleText = isAdvisor ? "text-blue-600 hover:bg-slate-50" : "text-slate-600 hover:text-slate-900 hover:bg-slate-50";
+    const badge = badgeFor(menu.href);
+
+    return (
+      <Link
+        href={menu.href}
+        onClick={() => clearBadge(menu.href)}
+        className={`relative flex flex-shrink-0 flex-col items-center justify-center gap-0.5 px-3 py-1.5 transition-colors ${
+          compact ? "" : "min-w-[56px] lg:px-4"
+        } ${active ? activeText : idleText}`}
+      >
+        <span className="relative">
+          <Icon size={20} strokeWidth={active ? 2.5 : 1.8} />
+          {badge > 0 && (
+            <span className="absolute -top-1 -right-1.5 flex h-[14px] min-w-[14px] items-center justify-center rounded-full bg-red-500 px-0.5 text-[9px] font-black leading-none text-white">
+              {badge > 99 ? "99+" : badge}
+            </span>
+          )}
+        </span>
+        <span className="hidden text-[10px] font-semibold leading-none md:block">{t(menu.key)}</span>
+        {active && <span className={`absolute bottom-0 left-1.5 right-1.5 h-[3px] rounded-t-full ${indicatorColor}`} />}
+      </Link>
+    );
+  }
+
+  function GroupTrigger({
+    label,
+    icon: Icon,
+    items,
+    id,
+  }: {
+    label: string;
+    icon: typeof Home;
+    items: NavItem[];
+    id: "finance" | "more";
+  }) {
+    const active = items.some((m) => isActiveHref(pathname, m.href));
+    const open = openDropdown === id;
+    const totalBadge = items.reduce((sum, m) => sum + badgeFor(m.href), 0);
+
+    return (
+      <div className="relative flex-shrink-0">
+        <button
+          type="button"
+          onClick={() => setOpenDropdown((cur) => (cur === id ? null : id))}
+          className={`relative flex h-full flex-col items-center justify-center gap-0.5 px-3 py-1.5 transition-colors lg:px-4 ${
+            active ? "text-blue-600" : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+          }`}
+        >
+          <span className="relative flex items-center gap-0.5">
+            <Icon size={20} strokeWidth={active ? 2.5 : 1.8} />
+            <ChevronDown size={12} className={`transition-transform ${open ? "rotate-180" : ""}`} />
+            {totalBadge > 0 && (
+              <span className="absolute -top-1.5 -right-1 flex h-[14px] min-w-[14px] items-center justify-center rounded-full bg-red-500 px-0.5 text-[9px] font-black leading-none text-white">
+                {totalBadge > 99 ? "99+" : totalBadge}
+              </span>
+            )}
+          </span>
+          <span className="hidden text-[10px] font-semibold leading-none md:block">{label}</span>
+          {active && <span className="absolute bottom-0 left-1.5 right-1.5 h-[3px] rounded-t-full bg-blue-600" />}
+        </button>
+
+        {open && (
+          <div className="absolute left-1/2 top-full mt-2 w-52 -translate-x-1/2 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-2xl z-50">
+            {items.map((menu) => {
+              const Icon2 = menu.icon;
+              const itemActive = isActiveHref(pathname, menu.href);
+              const badge = badgeFor(menu.href);
+              return (
+                <Link
+                  key={menu.href}
+                  href={menu.href}
+                  onClick={() => {
+                    clearBadge(menu.href);
+                    setOpenDropdown(null);
+                  }}
+                  className={`flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-medium transition ${
+                    itemActive ? "bg-blue-50 text-blue-700" : "text-slate-600 hover:bg-slate-50"
+                  }`}
+                >
+                  <Icon2 size={16} />
+                  <span className="flex-1">{t(menu.key)}</span>
+                  {badge > 0 && (
+                    <span className="flex h-[16px] min-w-[16px] items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-black leading-none text-white">
+                      {badge > 99 ? "99+" : badge}
+                    </span>
+                  )}
+                </Link>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <>
       <div className="h-[60px]" />
 
-      <header
-        className="fixed top-0 left-0 right-0 z-50 bg-white border-b border-slate-200 shadow-sm h-[60px]"
-        style={{ display: "grid", gridTemplateColumns: "1fr auto 1fr" }}
-      >
+      <header className="fixed top-0 left-0 right-0 z-50 flex h-[60px] items-center justify-between border-b border-slate-200 bg-white shadow-sm px-3 sm:px-4">
 
-        {/* ── LEFT: Logo ── */}
-        <div className="flex items-center px-4">
-          <Link href="/marketplace" className="flex items-center gap-2.5 hover:opacity-80 transition">
+        {/* ── LEFT: Logo + mobile hamburger ── */}
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => setMobileOpen((o) => !o)}
+            className="flex h-9 w-9 items-center justify-center rounded-xl text-slate-500 hover:bg-slate-100 md:hidden"
+            aria-label="Open menu"
+          >
+            <Menu size={20} />
+          </button>
+          <Link href="/" className="flex items-center gap-2.5 transition hover:opacity-80">
             {loading
-              ? <div className="w-8 h-8 rounded-xl bg-slate-200 animate-pulse" />
-              : <img src="/higoverse.png" alt="Higoverse" className="w-8 h-8 rounded-xl object-cover" />}
-            <span className="font-bold text-[15px] text-slate-900 hidden sm:inline tracking-tight">Higoverse</span>
+              ? <div className="h-8 w-8 animate-pulse rounded-xl bg-slate-200" />
+              : <img src="/higoverse.png" alt="Higoverse" className="h-8 w-8 rounded-xl object-cover" />}
+            <span className="hidden text-[15px] font-bold tracking-tight text-slate-900 sm:inline">Higoverse</span>
           </Link>
         </div>
 
-        {/* ── CENTER: Nav tabs ── */}
-        <nav className="flex items-stretch overflow-x-auto scrollbar-hide">
-          {(loading || isResolving)
-            ? Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} className="w-16 mx-1 my-auto h-8 bg-slate-100 animate-pulse rounded-lg flex-shrink-0" />
-              ))
-            : menus.map((menu) => {
-                const Icon = menu.icon;
-                const active = menu.href === "/"
-                  ? pathname === "/"
-                  : menu.href === "/marketplace"
-                  ? pathname === "/marketplace" || pathname.startsWith("/marketplace/")
-                  : pathname.startsWith(menu.href);
-                const isAdminItem  = menu.href === "/admin";
-                const isAdvisor    = menu.href === "/advisor";
-                const indicatorColor = isAdminItem ? "bg-red-500" : "bg-[#1372e6]";
-                const activeText     = isAdminItem ? "text-red-600" : "text-[#1372e6]";
-                const idleText       = isAdvisor
-                  ? "text-[#1372e6] hover:bg-slate-50"
-                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-50";
-
-                const badge =
-                  menu.href === "/notifications" ? unreadNotifs :
-                  menu.href === "/messages"      ? unreadMsgs   : 0;
-
-                return (
-                  <Link key={menu.href} href={menu.href}
-                    onClick={() => {
-                      if (menu.href === "/notifications") setUnreadNotifs(0);
-                      if (menu.href === "/messages")      setUnreadMsgs(0);
-                    }}
-                    className={`relative flex flex-col items-center justify-center gap-0.5 px-3 lg:px-4
-                      flex-shrink-0 min-w-[56px] transition-colors
-                      ${active ? activeText : idleText}`}>
-                    <span className="relative">
-                      <Icon size={20} strokeWidth={active ? 2.5 : 1.8} />
-                      {badge > 0 && (
-                        <span className="absolute -top-1 -right-1.5 min-w-[14px] h-[14px] px-0.5 rounded-full bg-red-500 text-white text-[9px] font-black flex items-center justify-center leading-none">
-                          {badge > 99 ? "99+" : badge}
-                        </span>
-                      )}
-                    </span>
-                    <span className="text-[10px] font-semibold hidden sm:block leading-none">{t(menu.key)}</span>
-                    {active && (
-                      <span className={`absolute bottom-0 left-1.5 right-1.5 h-[3px] rounded-t-full ${indicatorColor}`} />
-                    )}
-                  </Link>
-                );
-              })}
+        {/* ── CENTER: Nav (desktop) ── */}
+        <nav ref={navRef} className="hidden flex-1 items-stretch justify-center md:flex">
+          {(loading || isResolving) ? (
+            Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="mx-1 my-auto h-8 w-16 flex-shrink-0 animate-pulse rounded-lg bg-slate-100" />
+            ))
+          ) : isBusinessNav ? (
+            <>
+              {OWNER_PRIMARY.map((menu) => <NavLink key={menu.href} menu={menu} />)}
+              <GroupTrigger label={t("nav.finance")} icon={BarChart3} items={FINANCE_MENUS} id="finance" />
+              {OWNER_TRAILING.map((menu) => <NavLink key={menu.href} menu={menu} />)}
+              <GroupTrigger label={t("nav.more")} icon={Menu} items={moreMenus} id="more" />
+            </>
+          ) : (
+            CUSTOMER_MENUS.map((menu) => <NavLink key={menu.href} menu={menu} />)
+          )}
         </nav>
 
-        {/* ── RIGHT: CTA + settings menu ── */}
-        <div className="flex items-center justify-end gap-2 px-4">
+        {/* ── RIGHT: CTA + account menu ── */}
+        <div className="flex items-center justify-end gap-2">
 
           {/* "Create Shop" — only for CUSTOMER accounts (fully resolved) */}
           {!loading && !isResolving && isCustomer && (
             <Link
-              href="/marketplace?apply=1"
-              className="hidden sm:flex items-center gap-1.5 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition hover:opacity-90 shrink-0"
-              style={{ background: "#ff6a00", whiteSpace: "nowrap" }}
+              href="/?apply=1"
+              className="hidden shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl bg-orange-500 px-3 py-1.5 text-xs font-bold text-white transition hover:bg-orange-600 sm:flex"
             >
               <Store size={12} /> Create Shop
             </Link>
@@ -297,7 +410,7 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
 
           {/* Role badge for customers */}
           {!loading && !isResolving && isCustomer && (
-            <span className="hidden md:flex items-center gap-1 text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-full shrink-0">
+            <span className="hidden shrink-0 items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700 md:flex">
               Customer
             </span>
           )}
@@ -307,60 +420,57 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
             {/* Trigger */}
             <button
               onClick={() => setMenuOpen((o) => !o)}
-              className={`flex items-center gap-2 px-2 py-1.5 rounded-xl transition
-                ${menuOpen ? "bg-slate-100" : "hover:bg-slate-100"}`}
+              className={`flex items-center gap-2 rounded-xl px-2 py-1.5 transition ${menuOpen ? "bg-slate-100" : "hover:bg-slate-100"}`}
             >
               {loading ? (
-                <div className="w-8 h-8 rounded-full bg-slate-200 animate-pulse" />
+                <div className="h-8 w-8 animate-pulse rounded-full bg-slate-200" />
               ) : shop?.logo_url ? (
-                <img src={shop.logo_url} alt={shop.name}
-                  className="w-8 h-8 rounded-full object-cover border border-slate-200" />
+                <img src={shop.logo_url} alt={shop.name} className="h-8 w-8 rounded-full border border-slate-200 object-cover" />
               ) : (
-                <div className="w-8 h-8 rounded-full bg-[#1372e6] flex items-center justify-center text-white text-xs font-bold">
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-600 text-xs font-bold text-white">
                   {user?.name?.[0]?.toUpperCase() ?? shop?.name?.[0]?.toUpperCase() ?? "H"}
                 </div>
               )}
-              <ChevronDown size={14} className={`text-slate-500 transition-transform hidden sm:block ${menuOpen ? "rotate-180" : ""}`} />
+              <ChevronDown size={14} className={`hidden text-slate-500 transition-transform sm:block ${menuOpen ? "rotate-180" : ""}`} />
             </button>
 
             {/* Dropdown */}
             {menuOpen && (
-              <div className="absolute right-0 top-full mt-2 w-[300px] bg-white border border-slate-200 rounded-2xl shadow-2xl z-50 overflow-hidden">
+              <div className="absolute right-0 top-full z-50 mt-2 w-[300px] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
 
                 {/* ── Profile header ── */}
-                <div className="bg-gradient-to-br from-[#1372e6] to-[#0a4fb5] px-4 pt-5 pb-5">
+                <div className="bg-gradient-to-br from-blue-600 to-blue-800 px-4 pb-5 pt-5">
                   <div className="flex items-center gap-3.5">
                     <div className="relative shrink-0">
                       {shop?.logo_url ? (
-                        <img src={shop.logo_url} alt={shop.name}
-                          className="w-[52px] h-[52px] rounded-2xl object-cover ring-2 ring-white/40" />
+                        <img src={shop.logo_url} alt={shop.name} className="h-[52px] w-[52px] rounded-2xl object-cover ring-2 ring-white/40" />
                       ) : (
-                        <div className="w-[52px] h-[52px] rounded-2xl bg-white/20 flex items-center justify-center text-white font-bold text-xl ring-2 ring-white/30">
+                        <div className="flex h-[52px] w-[52px] items-center justify-center rounded-2xl bg-white/20 text-xl font-bold text-white ring-2 ring-white/30">
                           {(user?.name?.[0] ?? shop?.name?.[0] ?? "H").toUpperCase()}
                         </div>
                       )}
-                      <span className="absolute -bottom-1 -right-1 w-[14px] h-[14px] bg-green-400 border-2 border-[#1372e6] rounded-full" />
+                      <span className="absolute -bottom-1 -right-1 h-[14px] w-[14px] rounded-full border-2 border-blue-600 bg-green-400" />
                     </div>
 
                     <div className="min-w-0 flex-1">
-                      <p className="font-bold text-white text-[13px] truncate leading-snug">
+                      <p className="truncate text-[13px] font-bold leading-snug text-white">
                         {user?.name ?? shop?.name ?? "User"}
                       </p>
-                      <p className="text-white/60 text-[11px] truncate mt-0.5">{user?.email ?? ""}</p>
+                      <p className="mt-0.5 truncate text-[11px] text-white/60">{user?.email ?? ""}</p>
                       <div className="mt-2">
                         {isAdmin ? (
-                          <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-red-500/20 text-red-200 border border-red-400/30 px-2 py-0.5 rounded-full">
-                            <span className="w-1.5 h-1.5 rounded-full bg-red-300 inline-block" />
+                          <span className="inline-flex items-center gap-1 rounded-full border border-red-400/30 bg-red-500/20 px-2 py-0.5 text-[10px] font-bold text-red-200">
+                            <span className="inline-block h-1.5 w-1.5 rounded-full bg-red-300" />
                             Admin
                           </span>
                         ) : isShopOwner ? (
-                          <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-green-500/20 text-green-200 border border-green-400/30 px-2 py-0.5 rounded-full">
-                            <span className="w-1.5 h-1.5 rounded-full bg-green-300 inline-block" />
+                          <span className="inline-flex items-center gap-1 rounded-full border border-green-400/30 bg-green-500/20 px-2 py-0.5 text-[10px] font-bold text-green-200">
+                            <span className="inline-block h-1.5 w-1.5 rounded-full bg-green-300" />
                             Shop Owner
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1 text-[10px] font-semibold bg-amber-500/20 text-amber-200 border border-amber-400/30 px-2 py-0.5 rounded-full">
-                            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block" />
+                          <span className="inline-flex items-center gap-1 rounded-full border border-amber-400/30 bg-amber-500/20 px-2 py-0.5 text-[10px] font-semibold text-amber-200">
+                            <span className="inline-block h-1.5 w-1.5 rounded-full bg-amber-400" />
                             Customer
                           </span>
                         )}
@@ -374,31 +484,29 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
 
                   {/* Create Shop — customer shortcut */}
                   {isCustomer && (
-                    <Link href="/marketplace?apply=1" onClick={() => setMenuOpen(false)}
-                      className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-orange-50 transition group mb-1">
-                      <div className="w-8 h-8 rounded-lg bg-orange-50 group-hover:bg-orange-100 flex items-center justify-center transition"
-                        style={{ color: "#ff6a00" }}>
+                    <Link href="/?apply=1" onClick={() => setMenuOpen(false)}
+                      className="group mb-1 flex items-center gap-3 rounded-xl px-3 py-2.5 transition hover:bg-orange-50">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-orange-50 text-orange-500 transition group-hover:bg-orange-100">
                         <Store size={15} />
                       </div>
                       <div className="min-w-0">
                         <p className="text-sm font-semibold text-slate-700">Create a Shop</p>
-                        <p className="text-[10px] text-slate-400 leading-snug">Apply for shop dashboard access</p>
+                        <p className="text-[10px] leading-snug text-slate-400">Apply for shop dashboard access</p>
                       </div>
                     </Link>
                   )}
 
-
                   {/* Language */}
-                  <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-slate-50 transition">
-                    <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-slate-500 shrink-0">
+                  <div className="flex items-center gap-3 rounded-xl px-3 py-2.5 transition hover:bg-slate-50">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-500">
                       <Globe size={15} />
                     </div>
                     <span className="text-sm font-medium text-slate-700">Language</span>
-                    <div className="ml-auto relative shrink-0">
+                    <div className="relative ml-auto shrink-0">
                       <select
                         value={lang}
                         onChange={(e) => changeLang(e.target.value as typeof lang)}
-                        className="appearance-none bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-semibold rounded-lg pl-2 pr-6 py-1.5 cursor-pointer outline-none transition border-0"
+                        className="cursor-pointer appearance-none rounded-lg border-0 bg-slate-100 py-1.5 pl-2 pr-6 text-[11px] font-semibold text-slate-700 outline-none transition hover:bg-slate-200"
                       >
                         {LANGUAGES.map((l) => (
                           <option key={l.code} value={l.code}>
@@ -406,36 +514,36 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
                           </option>
                         ))}
                       </select>
-                      <ChevronDown size={11} className="absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                      <ChevronDown size={11} className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-400" />
                     </div>
                   </div>
 
                   {/* Settings — accessible to everyone */}
                   <Link href="/settings" onClick={() => setMenuOpen(false)}
-                    className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-slate-50 transition group">
-                    <div className="w-8 h-8 rounded-lg bg-slate-100 group-hover:bg-slate-200 flex items-center justify-center text-slate-500 transition">
+                    className="group flex items-center gap-3 rounded-xl px-3 py-2.5 transition hover:bg-slate-50">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 text-slate-500 transition group-hover:bg-slate-200">
                       <Settings size={15} />
                     </div>
                     <div className="min-w-0">
                       <p className="text-sm font-medium text-slate-700">
                         {isCustomer ? "Account & Profile" : "Settings"}
                       </p>
-                      <p className="text-[10px] text-slate-400 leading-snug">
+                      <p className="text-[10px] leading-snug text-slate-400">
                         {isCustomer ? "Password and account preferences" : "Shop, profile & preferences"}
                       </p>
                     </div>
-                    <ChevronDown size={13} className="ml-auto -rotate-90 text-slate-300 group-hover:text-slate-400 transition shrink-0" />
+                    <ChevronDown size={13} className="ml-auto shrink-0 -rotate-90 text-slate-300 transition group-hover:text-slate-400" />
                   </Link>
                 </div>
 
                 {/* ── Logout ── */}
-                <div className="px-2 pb-2 pt-1 border-t border-slate-100">
+                <div className="border-t border-slate-100 px-2 pb-2 pt-1">
                   <button onClick={handleLogout}
-                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-red-50 transition group">
-                    <div className="w-8 h-8 rounded-lg bg-red-50 group-hover:bg-red-100 flex items-center justify-center text-red-400 transition">
+                    className="group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 transition hover:bg-red-50">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-red-50 text-red-400 transition group-hover:bg-red-100">
                       <LogOut size={15} />
                     </div>
-                    <span className="text-sm font-semibold text-red-500 group-hover:text-red-600 transition">Log Out</span>
+                    <span className="text-sm font-semibold text-red-500 transition group-hover:text-red-600">Log Out</span>
                   </button>
                 </div>
 
@@ -443,8 +551,116 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
             )}
           </div>
         </div>
-
       </header>
+
+      {/* ── Mobile drawer ── */}
+      {mobileOpen && (
+        <div className="fixed inset-0 z-[60] md:hidden">
+          <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => setMobileOpen(false)} />
+          <div className="absolute left-0 top-0 flex h-full w-72 max-w-[85vw] flex-col overflow-y-auto bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-100 px-4 py-4">
+              <div className="flex items-center gap-2.5">
+                <img src="/higoverse.png" alt="Higoverse" className="h-8 w-8 rounded-xl object-cover" />
+                <span className="text-[15px] font-bold tracking-tight text-slate-900">Higoverse</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setMobileOpen(false)}
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100"
+                aria-label="Close menu"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <nav className="flex-1 space-y-1 p-3">
+              {isBusinessNav ? (
+                <>
+                  {OWNER_PRIMARY.map((menu) => (
+                    <MobileLink key={menu.href} menu={menu} pathname={pathname} t={t} badge={badgeFor(menu.href)} onNavigate={() => { clearBadge(menu.href); setMobileOpen(false); }} />
+                  ))}
+
+                  <button
+                    type="button"
+                    onClick={() => setMobileFinanceOpen((o) => !o)}
+                    className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50"
+                  >
+                    <BarChart3 size={18} />
+                    <span className="flex-1 text-left">{t("nav.finance")}</span>
+                    <ChevronDown size={14} className={`transition-transform ${mobileFinanceOpen ? "rotate-180" : ""}`} />
+                  </button>
+                  {mobileFinanceOpen && (
+                    <div className="ml-4 space-y-1 border-l border-slate-100 pl-3">
+                      {FINANCE_MENUS.map((menu) => (
+                        <MobileLink key={menu.href} menu={menu} pathname={pathname} t={t} badge={badgeFor(menu.href)} onNavigate={() => { clearBadge(menu.href); setMobileOpen(false); }} />
+                      ))}
+                    </div>
+                  )}
+
+                  {OWNER_TRAILING.map((menu) => (
+                    <MobileLink key={menu.href} menu={menu} pathname={pathname} t={t} badge={badgeFor(menu.href)} onNavigate={() => { clearBadge(menu.href); setMobileOpen(false); }} />
+                  ))}
+
+                  <button
+                    type="button"
+                    onClick={() => setMobileMoreOpen((o) => !o)}
+                    className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50"
+                  >
+                    <Menu size={18} />
+                    <span className="flex-1 text-left">{t("nav.more")}</span>
+                    <ChevronDown size={14} className={`transition-transform ${mobileMoreOpen ? "rotate-180" : ""}`} />
+                  </button>
+                  {mobileMoreOpen && (
+                    <div className="ml-4 space-y-1 border-l border-slate-100 pl-3">
+                      {moreMenus.map((menu) => (
+                        <MobileLink key={menu.href} menu={menu} pathname={pathname} t={t} badge={badgeFor(menu.href)} onNavigate={() => { clearBadge(menu.href); setMobileOpen(false); }} />
+                      ))}
+                    </div>
+                  )}
+                </>
+              ) : (
+                flatMenus.map((menu) => (
+                  <MobileLink key={menu.href} menu={menu} pathname={pathname} t={t} badge={badgeFor(menu.href)} onNavigate={() => { clearBadge(menu.href); setMobileOpen(false); }} />
+                ))
+              )}
+            </nav>
+          </div>
+        </div>
+      )}
     </>
+  );
+}
+
+function MobileLink({
+  menu,
+  pathname,
+  t,
+  badge,
+  onNavigate,
+}: {
+  menu: NavItem;
+  pathname: string;
+  t: (key: string) => string;
+  badge: number;
+  onNavigate: () => void;
+}) {
+  const Icon = menu.icon;
+  const active = isActiveHref(pathname, menu.href);
+  return (
+    <Link
+      href={menu.href}
+      onClick={onNavigate}
+      className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${
+        active ? "bg-blue-50 text-blue-700" : "text-slate-600 hover:bg-slate-50"
+      }`}
+    >
+      <Icon size={18} />
+      <span className="flex-1">{t(menu.key)}</span>
+      {badge > 0 && (
+        <span className="flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-black leading-none text-white">
+          {badge > 99 ? "99+" : badge}
+        </span>
+      )}
+    </Link>
   );
 }

@@ -9,8 +9,6 @@ const sora = Sora({
   display: "swap",
 });
 
-import AuthGuard from "@/app/components/AuthGuard";
-import DeviceGuard from "@/app/components/DeviceGuard";
 import { LanguageProvider } from "@/lib/language-context";
 import { AuthProvider } from "@/lib/auth-context";
 
@@ -114,11 +112,7 @@ export default function RootLayout({
       <head />
       <body className={`${sora.variable} ${sora.className}`}>
         <AuthProvider>
-          <LanguageProvider>
-            <AuthGuard>
-              <DeviceGuard>{children}</DeviceGuard>
-            </AuthGuard>
-          </LanguageProvider>
+          <LanguageProvider>{children}</LanguageProvider>
         </AuthProvider>
       </body>
     </html>

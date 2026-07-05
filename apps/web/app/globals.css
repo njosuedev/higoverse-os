@@ -5,19 +5,12 @@
   --font-family-sans: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
 }
 
-/* ── BRAND BLUE OVERRIDE ────────────────────────────────── */
-@theme {
-  --color-blue-50:  #ebf2fd;
-  --color-blue-100: #d6e6fb;
-  --color-blue-200: #adc8f8;
-  --color-blue-300: #84a9f4;
-  --color-blue-400: #5b8bf0;
-  --color-blue-500: #326cec;
-  --color-blue-600: #1372e6;
-  --color-blue-700: #0f61d6;
-  --color-blue-800: #0b4db8;
-  --color-blue-900: #083a8c;
-}
+/* ── BRAND COLORS ───────────────────────────────────────────
+   Business surfaces (Inventory/Sales/Finance/Reports): blue-600 (#2563EB)
+   Marketplace surfaces: orange-500 (#F97316)
+   Both are Tailwind's stock palette values — use the `blue-*` /
+   `orange-*` utilities directly rather than raw hex, so this stays
+   the single source of truth for brand color. */
 
 /* ── FORCE LIGHT MODE — ignore OS dark preference ───────── */
 html {
@@ -49,10 +42,31 @@ html {
 
 body {
   font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
-  background-color: #f0f2f5;
+  background-color: #ffffff;
   color: #050505;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* ── SHARED ELEVATION / MOTION ──────────────────────────────
+   One soft-shadow + hover-lift recipe used by Card/Button/etc. */
+.hgv-card-hover {
+  transition: box-shadow 200ms ease, transform 200ms ease, border-color 200ms ease;
+}
+.hgv-card-hover:hover {
+  box-shadow: 0 8px 24px -8px rgb(15 23 42 / 0.12);
+  transform: translateY(-2px);
+}
+
+/* ── SKELETON SHIMMER ────────────────────────────────────── */
+@keyframes hgv-shimmer {
+  0%   { background-position: -400px 0; }
+  100% { background-position: 400px 0; }
+}
+.hgv-shimmer {
+  background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 37%, #f1f5f9 63%);
+  background-size: 800px 100%;
+  animation: hgv-shimmer 1.6s ease-in-out infinite;
 }
 
 input, textarea, select, button {
