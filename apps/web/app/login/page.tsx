@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { Suspense, useEffect, useState, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import { useAuth } from "@/lib/auth-context";
@@ -14,6 +14,14 @@ const AUTH_URL = process.env.NEXT_PUBLIC_AUTH_API || "https://higoverse-auth.ver
 type Step = "login" | "forgot" | "otp" | "success";
 
 export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginPageContent />
+    </Suspense>
+  );
+}
+
+function LoginPageContent() {
   const router         = useRouter();
   const searchParams   = useSearchParams();
   const justRegistered = searchParams.get("registered") === "1";

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
@@ -15,16 +15,15 @@ import {
 import { itemRequest } from "@/lib/product-api";
 import {
   X, ShoppingCart, Plus, Minus, Loader2,
-  CheckCircle, Phone, Package, ChevronRight, Star,
+  CheckCircle, Phone, Package, ChevronRight,
   MapPin, MessageSquare, Send, Store, Mail,
   Rocket, ArrowRight, LayoutDashboard, CheckCircle2,
-  Wifi, Building2, FileText, ImagePlus, ChevronDown,
-  Clock, BadgeCheck, Heart, Users, Camera,
+  Building2, FileText, ImagePlus, ChevronDown,
+  Clock, BadgeCheck, Heart, Camera,
   Truck, Shirt, Home as HomeIcon, Leaf, Briefcase,
 } from "lucide-react";
 import {
   sendMessage, getMyMessages, replyToMessage,
-  followShop, unfollowShop, isFollowingShop, getFollowedShops, getShopFollowerCount,
   type ShopMessage,
 } from "@/lib/product-meta";
 import { createOrGetConversation, warmupMsgService } from "@/lib/messages-api";
@@ -113,6 +112,14 @@ const CATEGORY_ICONS: Record<string, typeof Package> = {
 interface OrderModal { entry: MarketplaceEntry; shop: Shop | undefined; qty: number; }
 
 export default function MarketplacePage() {
+  return (
+    <Suspense fallback={null}>
+      <MarketplacePageContent />
+    </Suspense>
+  );
+}
+
+function MarketplacePageContent() {
   const { user }  = useAuth();
   const { shop }  = useShop();
   const searchParams = useSearchParams();
@@ -272,8 +279,6 @@ export default function MarketplacePage() {
   const appStatus     = getApplicationStatus(shop?.description, shop?.address, shopIsActive);
   const rejectionInfo = decodeShopHumanInfo(shop?.description);
 
-  const [detailEntry, setDetailEntry] = useState<MarketplaceEntry | null>(null);
-  const [detailImg, setDetailImg]     = useState(0);
   const [orderModal, setOrderModal]   = useState<OrderModal | null>(null);
   const [ordering, setOrdering]       = useState(false);
   const [orderError, setOrderError]   = useState("");
@@ -283,10 +288,6 @@ export default function MarketplacePage() {
   const [msgText, setMsgText]         = useState("");
   const [msgSent, setMsgSent]         = useState(false);
   const [myMessages, setMyMessages]   = useState<ShopMessage[]>([]);
-  const [contactingProductId, setContactingProductId] = useState<string | null>(null);
-
-  // follow
-  const [followedShopIds, setFollowedShopIds] = useState<Set<string>>(new Set());
 
   // ── data load ────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -426,7 +427,6 @@ export default function MarketplacePage() {
 
     load();
     if (user?.shop_id) setMyMessages(getMyMessages(user.shop_id));
-    setFollowedShopIds(new Set(getFollowedShops().map((f) => f.shopId)));
     const tick = setInterval(() => setNow(new Date()), 15_000);
     return () => clearInterval(tick);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -622,18 +622,6 @@ export default function MarketplacePage() {
     setOrderModal({ entry, shop: shopMap[entry.shopId], qty: 1 });
     setOrderError("");
   }, [shopMap, user, router]);
-
-  function toggleFollow(shopId: string, shopName: string, e?: React.MouseEvent) {
-    e?.preventDefault(); e?.stopPropagation();
-    if (!user) { router.push(`/login?next=${encodeURIComponent("/")}`); return; }
-    if (followedShopIds.has(shopId)) {
-      unfollowShop(shopId);
-      setFollowedShopIds((prev) => { const next = new Set(prev); next.delete(shopId); return next; });
-    } else {
-      followShop(shopId, shopName);
-      setFollowedShopIds((prev) => new Set([...prev, shopId]));
-    }
-  }
 
   // ── render ───────────────────────────────────────────────────────────────
   return (
@@ -882,303 +870,6 @@ export default function MarketplacePage() {
           )}
         </main>
       </div>
-
-      {/* ── DETAIL MODAL — Alibaba-style full product page ────────────────── */}
-      {detailEntry && (() => {
-        const dShop      = shopMap[detailEntry.shopId];
-        const dOnline    = dShop ? isOnline(dShop.last_seen_at, now) : false;
-        const isMine     = detailEntry.shopId === user?.shop_id;
-        const listedCount = listedPerShop[detailEntry.shopId] ?? 0;
-        const inStock    = detailEntry.quantity > 0;
-        const category   = detailEntry.category || catOf(detailEntry.name, detailEntry.description);
-        // Prefer product-specific location; fall back to shop address
-        const prodLocRaw = detailEntry.location ?? "";
-        const shopAddrRaw = (dShop?.address ?? "").replace(/^TIN:[^|]+\|/, "").trim();
-        const locationRaw = prodLocRaw || shopAddrRaw;
-        const cleanAddr  = locationRaw.replace(/\|Lat:[^|]+(\|Lng:[^|]*)?$/, "").replace(/\|Lng:[^|]*$/, "").trim();
-        const locLatM    = locationRaw.match(/\|Lat:([-\d.]+)/);
-        const locLngM    = locationRaw.match(/\|Lng:([-\d.]+)/);
-        const locLat     = locLatM ? parseFloat(locLatM[1]) : null;
-        const locLng     = locLngM ? parseFloat(locLngM[1]) : null;
-        const mapsHref   = locLat != null && locLng != null
-          ? `https://www.google.com/maps?q=${locLat},${locLng}`
-          : cleanAddr ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(cleanAddr)}` : null;
-        const related    = catalog
-          .filter((e) => e.shopId === detailEntry.shopId && e.productId !== detailEntry.productId)
-          .slice(0, 6);
-
-        return (
-          <div
-            onClick={(e) => { if (e.target === e.currentTarget) setDetailEntry(null); }}
-            style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 50, overflowY: "auto", padding: "20px 12px 40px" }}
-          >
-            <div style={{ maxWidth: 980, margin: "0 auto", fontFamily: "Arial, sans-serif" }}>
-
-              {/* Breadcrumb bar */}
-              <div style={{ background: "#fff", padding: "9px 16px", marginBottom: 8, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, color: "#999", flexWrap: "wrap" }}>
-                  <span style={{ cursor: "pointer", color: "#1677ff" }} onClick={() => setDetailEntry(null)}>Marketplace</span>
-                  <ChevronRight size={12} />
-                  <span style={{ textTransform: "capitalize", cursor: "pointer", color: "#1677ff" }}
-                    onClick={() => router.push(`/category/${category}`)}>{category}</span>
-                  <ChevronRight size={12} />
-                  <span style={{ color: "#333" }}>{detailEntry.name.slice(0, 50)}{detailEntry.name.length > 50 ? "…" : ""}</span>
-                </div>
-                <button onClick={() => setDetailEntry(null)}
-                  style={{ border: "1px solid #e8e8e8", background: "#fff", cursor: "pointer", padding: "5px 14px", fontSize: 12, color: "#555", display: "flex", alignItems: "center", gap: 5, flexShrink: 0 }}>
-                  <X size={12} /> Close
-                </button>
-              </div>
-
-              {/* ── Top section: image + info ── */}
-              <div style={{ background: "#fff", display: "flex", gap: 0, marginBottom: 8 }}>
-
-                {/* LEFT — image gallery */}
-                <div style={{ width: 400, flexShrink: 0, padding: 20, borderRight: "1px solid #f0f0f0" }}>
-                  {/* Main image */}
-                  <div style={{ width: "100%", aspectRatio: "1", background: "#f7f7f7", border: "1px solid #eee", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", position: "relative", marginBottom: 10 }}>
-                    {detailEntry.images[detailImg]
-                      ? <img src={detailEntry.images[detailImg]} alt={detailEntry.name} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
-                      : <Package size={72} style={{ color: "#ddd" }} />}
-                    {!inStock && (
-                      <div style={{ position: "absolute", inset: 0, background: "rgba(255,255,255,0.78)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                        <span style={{ fontSize: 13, fontWeight: 700, color: "#f5222d", border: "1.5px solid #f5222d", padding: "4px 16px", background: "#fff" }}>Out of Stock</span>
-                      </div>
-                    )}
-                    {isMine && (
-                      <span style={{ position: "absolute", top: 8, left: 8, fontSize: 10, background: "#ff6a00", color: "#fff", padding: "2px 8px", fontWeight: 700 }}>YOURS</span>
-                    )}
-                  </div>
-                  {/* Thumbnails */}
-                  {detailEntry.images.length > 1 && (
-                    <div style={{ display: "flex", gap: 6, overflowX: "auto" }}>
-                      {detailEntry.images.map((src, i) => (
-                        <button key={i} onClick={() => setDetailImg(i)}
-                          style={{ flexShrink: 0, width: 60, height: 60, border: i === detailImg ? "2px solid #ff6a00" : "1.5px solid #e8e8e8", background: "none", cursor: "pointer", padding: 0, overflow: "hidden" }}>
-                          <img src={src} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {/* RIGHT — product details */}
-                <div style={{ flex: 1, minWidth: 0, padding: "20px 20px 20px 24px", display: "flex", flexDirection: "column", gap: 14 }}>
-
-                  {/* Title */}
-                  <h1 style={{ fontSize: 17, fontWeight: 600, color: "#1a1a1a", margin: 0, lineHeight: 1.55 }}>
-                    {detailEntry.name}
-                  </h1>
-
-                  {/* Stars + status */}
-                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <div style={{ display: "flex", gap: 2 }}>
-                      {[1,2,3,4].map((i) => <Star key={i} size={13} style={{ color: "#fa8c16", fill: "#fa8c16" }} />)}
-                      <Star size={13} style={{ color: "#d9d9d9", fill: "#d9d9d9" }} />
-                    </div>
-                    <span style={{ fontSize: 12, color: "#888" }}>Verified Supplier</span>
-                    {dOnline && (
-                      <span style={{ fontSize: 10, color: "#52c41a", background: "#f6ffed", border: "1px solid #b7eb8f", padding: "1px 8px", borderRadius: 10, fontWeight: 700 }}>● Online now</span>
-                    )}
-                  </div>
-
-                  {/* Price block */}
-                  <div style={{ background: "#fff9f5", border: "1px solid #fde8d5", padding: "14px 16px" }}>
-                    <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
-                      <span style={{ fontSize: 30, fontWeight: 800, color: "#ff6a00", lineHeight: 1 }}>
-                        {fmtPrice(detailEntry.sellingPrice)}
-                      </span>
-                      <span style={{ fontSize: 13, color: "#bbb" }}>/ unit</span>
-                    </div>
-                    <p style={{ fontSize: 12, color: "#999", margin: "6px 0 0" }}>
-                      Min. order: 1 unit &nbsp;·&nbsp; Price may vary with quantity
-                    </p>
-                  </div>
-
-                  {/* Key attributes table */}
-                  <div>
-                    <p style={{ fontSize: 11, fontWeight: 700, color: "#888", textTransform: "uppercase", letterSpacing: 1, margin: "0 0 8px" }}>Product Details</p>
-                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-                      <tbody>
-                        {([
-                          ["Category",     category],
-                          ["Availability", inStock ? `In Stock` : "Out of Stock"],
-                          ["Min. Order",   "1 unit"],
-                          ["Supply",       `${listedCount} product${listedCount !== 1 ? "s" : ""} from this supplier`],
-                        ] as string[][]).map((row, i) => {
-                          const [k, v] = row;
-                          return (
-                            <tr key={i} style={{ borderTop: "1px solid #f0f0f0" }}>
-                              <td style={{ padding: "7px 0", color: "#aaa", width: 120, verticalAlign: "top", fontWeight: 400 }}>{k}</td>
-                              <td style={{ padding: "7px 0", color: k === "Availability" ? (inStock ? "#52c41a" : "#f5222d") : "#333", fontWeight: 500, textTransform: "capitalize" }}>{v}</td>
-                            </tr>
-                          );
-                        })}
-                        {cleanAddr && (
-                          <tr style={{ borderTop: "1px solid #f0f0f0" }}>
-                            <td style={{ padding: "7px 0", color: "#aaa", width: 120, verticalAlign: "top", fontWeight: 400 }}>
-                              Location{prodLocRaw ? <span style={{ fontSize: 9, background: "#fff5f0", color: "#ff6a00", border: "1px solid #ffbb96", padding: "1px 5px", marginLeft: 4, fontWeight: 700 }}>Custom</span> : null}
-                            </td>
-                            <td style={{ padding: "7px 0", fontWeight: 500 }}>
-                              {mapsHref ? (
-                                <a href={mapsHref} target="_blank" rel="noopener noreferrer"
-                                  style={{ color: "#1677ff", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 4 }}>
-                                  <MapPin size={12} style={{ color: "#ff6a00", flexShrink: 0 }} />
-                                  {cleanAddr}
-                                </a>
-                              ) : (
-                                <span style={{ color: "#333", display: "inline-flex", alignItems: "center", gap: 4 }}>
-                                  <MapPin size={12} style={{ color: "#ff6a00", flexShrink: 0 }} />
-                                  {cleanAddr}
-                                </span>
-                              )}
-                            </td>
-                          </tr>
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-
-                  {/* Description */}
-                  {detailEntry.description && (
-                    <div>
-                      <p style={{ fontSize: 11, fontWeight: 700, color: "#888", textTransform: "uppercase", letterSpacing: 1, margin: "0 0 8px" }}>Description</p>
-                      <p style={{ fontSize: 13, color: "#555", margin: 0, lineHeight: 1.8, background: "#fafafa", padding: "12px 14px", border: "1px solid #f0f0f0" }}>
-                        {detailEntry.description}
-                      </p>
-                    </div>
-                  )}
-
-                  {/* Spacer */}
-                  <div style={{ flex: 1 }} />
-
-                  {/* Action buttons */}
-                  <div style={{ display: "flex", gap: 10 }}>
-                    {!isMine && (
-                      followedShopIds.has(detailEntry.shopId) ? (
-                        <button
-                          disabled={contactingProductId === detailEntry.productId}
-                          onClick={async () => {
-                            setContactingProductId(detailEntry.productId);
-                            try {
-                              const conv = await createOrGetConversation({
-                                shop_id:       detailEntry.shopId,
-                                shop_name:     detailEntry.shopName,
-                                customer_name: shop?.name ?? user?.name ?? user?.email,
-                                product_id:    detailEntry.productId,
-                                product_name:  detailEntry.name,
-                                product_image: detailEntry.images.find((u) => u.startsWith("http")),
-                                listed_price:  detailEntry.sellingPrice,
-                              });
-                              setDetailEntry(null);
-                              router.push(`/messages?conv=${conv.id}`);
-                            } catch {
-                              setContactingProductId(null);
-                            }
-                          }}
-                          style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "11px", border: "1.5px solid #ff6a00", background: "#fff", color: "#ff6a00", fontSize: 13, fontWeight: 700, cursor: contactingProductId === detailEntry.productId ? "not-allowed" : "pointer", opacity: contactingProductId === detailEntry.productId ? 0.6 : 1 }}>
-                          {contactingProductId === detailEntry.productId ? <Loader2 size={15} className="animate-spin" /> : <MessageSquare size={15} />} Contact Supplier
-                        </button>
-                      ) : (
-                        <button
-                          onClick={() => toggleFollow(detailEntry.shopId, detailEntry.shopName)}
-                          style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "11px", border: "1.5px solid #ff6a00", background: "#fff", color: "#ff6a00", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
-                          <Heart size={15} /> Follow Supplier
-                        </button>
-                      )
-                    )}
-                    <button
-                      onClick={() => { setDetailEntry(null); openOrder(detailEntry); }}
-                      disabled={!inStock}
-                      style={{ flex: 2, display: "flex", alignItems: "center", justifyContent: "center", gap: 7, padding: "12px", border: "none", background: inStock ? "#ff6a00" : "#f0f0f0", color: inStock ? "#fff" : "#bbb", fontSize: 14, fontWeight: 700, cursor: inStock ? "pointer" : "not-allowed" }}>
-                      <ShoppingCart size={16} /> {inStock ? "Start Order" : "Out of Stock"}
-                    </button>
-                  </div>
-
-                  {/* Call link */}
-                  {detailEntry.shopPhone && (
-                    <a href={`tel:${detailEntry.shopPhone}`}
-                      style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "8px", background: "#f6ffed", border: "1px solid #b7eb8f", color: "#389e0d", fontSize: 12, fontWeight: 600, textDecoration: "none" }}>
-                      <Phone size={13} /> Call {detailEntry.shopName} directly — {detailEntry.shopPhone}
-                    </a>
-                  )}
-                </div>
-              </div>
-
-              {/* ── Supplier card ── */}
-              <div style={{ background: "#fff", padding: "16px 20px", marginBottom: 8, display: "flex", alignItems: "center", gap: 14 }}>
-                <div style={{ width: 52, height: 52, borderRadius: "50%", overflow: "hidden", background: "#ff6a00", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                  {dShop?.logo_url
-                    ? <img src={dShop.logo_url} alt={detailEntry.shopName} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                    : <span style={{ fontSize: 20, fontWeight: 900, color: "#fff" }}>{detailEntry.shopName[0]?.toUpperCase()}</span>}
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                    <span style={{ fontSize: 15, fontWeight: 700, color: "#222" }}>{detailEntry.shopName}</span>
-                    {isMine && <span style={{ fontSize: 10, background: "#fff5f0", color: "#ff6a00", padding: "2px 8px", fontWeight: 700 }}>Your Shop</span>}
-                    <span style={{ fontSize: 11, color: "#888", display: "flex", alignItems: "center", gap: 3 }}>
-                      {[1,2,3,4].map((i) => <Star key={i} size={10} style={{ color: "#fa8c16", fill: "#fa8c16" }} />)}
-                      <Star size={10} style={{ color: "#d9d9d9", fill: "#d9d9d9" }} />
-                      Verified Supplier
-                    </span>
-                  </div>
-                  <div style={{ display: "flex", gap: 16, marginTop: 4, flexWrap: "wrap" }}>
-                    {cleanAddr && (
-                      <span style={{ fontSize: 12, color: "#888", display: "flex", alignItems: "center", gap: 4 }}>
-                        <MapPin size={12} style={{ color: "#ff6a00", flexShrink: 0 }} />{cleanAddr}
-                      </span>
-                    )}
-                    {detailEntry.shopPhone && (
-                      <a href={`tel:${detailEntry.shopPhone}`} style={{ fontSize: 12, color: "#333", display: "flex", alignItems: "center", gap: 4, textDecoration: "none" }}>
-                        <Phone size={12} style={{ color: "#52c41a" }} />{detailEntry.shopPhone}
-                      </a>
-                    )}
-                    {dShop?.email && (
-                      <a href={`mailto:${dShop.email}`} style={{ fontSize: 12, color: "#333", display: "flex", alignItems: "center", gap: 4, textDecoration: "none" }}>
-                        <Mail size={12} style={{ color: "#1677ff" }} />{dShop.email}
-                      </a>
-                    )}
-                  </div>
-                </div>
-                <Link href={`/shop/${detailEntry.shopId}`} onClick={() => setDetailEntry(null)}
-                  style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: 5, padding: "9px 18px", border: "1.5px solid #e8e8e8", color: "#555", fontSize: 12, fontWeight: 600, textDecoration: "none" }}>
-                  <Store size={13} /> View Store
-                </Link>
-              </div>
-
-              {/* ── Other recommendations ── */}
-              {related.length > 0 && (
-                <div style={{ background: "#fff", padding: "16px 20px" }}>
-                  <p style={{ fontSize: 14, fontWeight: 700, color: "#222", margin: "0 0 14px", paddingBottom: 10, borderBottom: "1px solid #f0f0f0" }}>
-                    Other products from {detailEntry.shopName}
-                  </p>
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: 10 }}>
-                    {related.map((rel) => (
-                      <div key={rel.productId}
-                        onClick={() => { setDetailEntry(rel); setDetailImg(0); }}
-                        onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.borderColor = "#ffb38a"; (e.currentTarget as HTMLDivElement).style.boxShadow = "0 2px 10px rgba(0,0,0,0.08)"; }}
-                        onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.borderColor = "#e8e8e8"; (e.currentTarget as HTMLDivElement).style.boxShadow = "none"; }}
-                        style={{ border: "1px solid #e8e8e8", cursor: "pointer", background: "#fff", transition: "border-color 0.15s, box-shadow 0.15s" }}
-                      >
-                        <div style={{ aspectRatio: "1", background: "#f7f7f7", overflow: "hidden" }}>
-                          {rel.images[0]
-                            ? <img src={rel.images[0]} alt={rel.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                            : <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}><Package size={28} style={{ color: "#ddd" }} /></div>}
-                        </div>
-                        <div style={{ padding: "8px 10px" }}>
-                          <p style={{ fontSize: 12, color: "#333", margin: "0 0 4px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: 500 }}>{rel.name}</p>
-                          <p style={{ fontSize: 13, fontWeight: 700, color: "#ff6a00", margin: 0 }}>{fmtPrice(rel.sellingPrice)}</p>
-                          <p style={{ fontSize: 10, color: "#aaa", margin: "2px 0 0" }}>Min. 1 unit</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        );
-      })()}
 
       {/* ── ORDER MODAL ──────────────────────────────────────────────────── */}
       {orderModal && (
