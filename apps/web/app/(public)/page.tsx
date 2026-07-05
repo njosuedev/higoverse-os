@@ -14,7 +14,7 @@ import {
 } from "@/lib/product-meta";
 import { itemRequest } from "@/lib/product-api";
 import {
-  X, ShoppingCart, Plus, Minus, Loader2,
+  X, Loader2,
   CheckCircle, Phone, Package, ChevronRight,
   MapPin, MessageSquare, Send, Store, Mail,
   Rocket, ArrowRight, LayoutDashboard, CheckCircle2,
@@ -26,7 +26,7 @@ import {
   sendMessage, getMyMessages, replyToMessage,
   type ShopMessage,
 } from "@/lib/product-meta";
-import { createOrGetConversation, warmupMsgService } from "@/lib/messages-api";
+import { warmupMsgService } from "@/lib/messages-api";
 import { createSelfNotification, openNotifStream } from "@/lib/notifications-api";
 import { CATEGORIES } from "@/lib/categories";
 import { productSlug } from "@/lib/slug";
@@ -108,8 +108,6 @@ const CATEGORY_ICONS: Record<string, typeof Package> = {
   wholesale: Package,
   other: Package,
 };
-
-interface OrderModal { entry: MarketplaceEntry; shop: Shop | undefined; qty: number; }
 
 export default function MarketplacePage() {
   return (
@@ -278,10 +276,6 @@ function MarketplacePageContent() {
   const shopIsActive  = shop?.is_active === true;
   const appStatus     = getApplicationStatus(shop?.description, shop?.address, shopIsActive);
   const rejectionInfo = decodeShopHumanInfo(shop?.description);
-
-  const [orderModal, setOrderModal]   = useState<OrderModal | null>(null);
-  const [ordering, setOrdering]       = useState(false);
-  const [orderError, setOrderError]   = useState("");
 
   // messaging
   const [msgEntry, setMsgEntry]       = useState<MarketplaceEntry | null>(null);
@@ -583,46 +577,6 @@ function MarketplacePageContent() {
     [catalog]);
   const heroCategories = useMemo(() => CATEGORIES.slice(0, 6), []);
 
-  // ── order ────────────────────────────────────────────────────────────────
-  async function placeOrder() {
-    if (!orderModal) return;
-    setOrdering(true);
-    setOrderError("Connecting to chat service…");
-    try {
-      const entry = orderModal.entry;
-      const qty   = orderModal.qty;
-      const total = entry.sellingPrice * qty;
-      const conv = await createOrGetConversation({
-        shop_id:       entry.shopId,
-        shop_name:     entry.shopName,
-        customer_name: shop?.name ?? user?.name ?? user?.email,
-        product_id:    entry.productId,
-        product_name:  entry.name,
-        product_image: entry.images.find((u) => u.startsWith("http")),
-        listed_price:  entry.sellingPrice,
-        first_message: [
-          `🛒 I'd like to order:`,
-          `• ${entry.name} × ${qty} = ${fmtPrice(total)}`,
-          `Listed price: ${fmtPrice(entry.sellingPrice)} each`,
-          ``,
-          `Please confirm availability and arrange delivery.`,
-        ].join("\n"),
-      });
-      setOrderError("");
-      setOrderModal(null);
-      router.push(`/messages?conv=${conv.id}`);
-    } catch (err: unknown) {
-      setOrderError(err instanceof Error ? err.message : "Could not open chat — please try again.");
-    } finally { setOrdering(false); }
-  }
-
-  const openOrder = useCallback((entry: MarketplaceEntry, e?: React.MouseEvent) => {
-    e?.stopPropagation();
-    if (!user) { router.push(`/login?next=${encodeURIComponent("/")}`); return; }
-    setOrderModal({ entry, shop: shopMap[entry.shopId], qty: 1 });
-    setOrderError("");
-  }, [shopMap, user, router]);
-
   // ── render ───────────────────────────────────────────────────────────────
   return (
     <div style={{ background: "#f5f5f5", minHeight: "100vh" }}>
@@ -846,7 +800,6 @@ function MarketplacePageContent() {
                     shop={shopMap[entry.shopId]}
                     isMine={entry.shopId === user?.shop_id}
                     online={shopMap[entry.shopId] ? isOnline(shopMap[entry.shopId].last_seen_at, now) : false}
-                    onOrder={(e) => openOrder(entry, e)}
                   />
                 ))}
               </div>
@@ -870,66 +823,6 @@ function MarketplacePageContent() {
           )}
         </main>
       </div>
-
-      {/* ── ORDER MODAL ──────────────────────────────────────────────────── */}
-      {orderModal && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
-          <div style={{ background: "#fff", width: "100%", maxWidth: 400 }}>
-            <>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", borderBottom: "1px solid #f0f0f0" }}>
-                <span style={{ fontSize: 14, fontWeight: 700, color: "#333" }}>Start Order</span>
-                <button onClick={() => setOrderModal(null)} style={{ border: "none", background: "#f5f5f5", cursor: "pointer", padding: "4px 8px", fontSize: 12 }}>✕</button>
-              </div>
-              <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 12 }}>
-                <div style={{ display: "flex", gap: 12, padding: "10px 12px", background: "#f9f9f9", border: "1px solid #f0f0f0" }}>
-                  {orderModal.entry.images[0]
-                    ? <img src={orderModal.entry.images[0]} alt={orderModal.entry.name} style={{ width: 56, height: 56, objectFit: "cover", border: "1px solid #e8e8e8", flexShrink: 0 }} />
-                    : <div style={{ width: 56, height: 56, background: "#f0f0f0", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Package size={20} style={{ color: "#ccc" }} /></div>}
-                  <div style={{ minWidth: 0 }}>
-                    <p style={{ fontSize: 12, fontWeight: 600, color: "#333", margin: "0 0 3px", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" as const, overflow: "hidden" }}>{orderModal.entry.name}</p>
-                    <p style={{ fontSize: 11, color: "#999", margin: "0 0 3px" }}>{orderModal.entry.shopName}</p>
-                    <p style={{ fontSize: 16, fontWeight: 700, color: "#ff6a00", margin: 0 }}>{fmtPrice(orderModal.entry.sellingPrice)}</p>
-                  </div>
-                </div>
-                <div>
-                  <p style={{ fontSize: 12, fontWeight: 600, color: "#333", margin: "0 0 8px" }}>Quantity</p>
-                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                    <button onClick={() => setOrderModal((m) => m ? { ...m, qty: Math.max(1, m.qty - 1) } : null)}
-                      style={{ width: 32, height: 32, border: "1px solid #d9d9d9", background: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                      <Minus size={12} />
-                    </button>
-                    <span style={{ fontSize: 16, fontWeight: 700, color: "#333", width: 32, textAlign: "center" }}>{orderModal.qty}</span>
-                    <button onClick={() => setOrderModal((m) => m ? { ...m, qty: Math.min(m.entry.quantity || 9999, m.qty + 1) } : null)}
-                      style={{ width: 32, height: 32, border: "1px solid #d9d9d9", background: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                      <Plus size={12} />
-                    </button>
-                    <div style={{ marginLeft: "auto", textAlign: "right" }}>
-                      <p style={{ fontSize: 10, color: "#999", margin: 0 }}>Total</p>
-                      <p style={{ fontSize: 16, fontWeight: 700, color: "#ff6a00", margin: 0 }}>{fmtPrice(orderModal.entry.sellingPrice * orderModal.qty)}</p>
-                    </div>
-                  </div>
-                </div>
-                {orderError && (
-                  <p style={{
-                    fontSize: 11, padding: "6px 10px", margin: 0,
-                    color:      orderError.startsWith("Connecting") ? "#1d4ed8" : "#f5222d",
-                    background: orderError.startsWith("Connecting") ? "#eff6ff"  : "#fff2f0",
-                    border:     `1px solid ${orderError.startsWith("Connecting") ? "#bfdbfe" : "#ffa39e"}`,
-                  }}>{orderError}</p>
-                )}
-                <p style={{ fontSize: 10, color: "#aaa", margin: 0, lineHeight: 1.5 }}>This will open a chat with the shop. Confirm availability, negotiate, and arrange delivery through messages.</p>
-              </div>
-              <div style={{ display: "flex", gap: 8, padding: "12px 16px", borderTop: "1px solid #f0f0f0" }}>
-                <button onClick={() => setOrderModal(null)} style={{ flex: 1, padding: "8px", border: "1px solid #d9d9d9", background: "#fff", cursor: "pointer", fontSize: 12, color: "#555" }}>Cancel</button>
-                <button onClick={placeOrder} disabled={ordering || orderModal.entry.quantity === 0}
-                  style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "8px", border: "none", background: "#ff6a00", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", opacity: orderModal.entry.quantity === 0 ? 0.4 : 1 }}>
-                  {ordering ? <><Loader2 size={12} className="animate-spin" /> Opening chat...</> : <><MessageSquare size={12} /> Chat to Order</>}
-                </button>
-              </div>
-            </>
-          </div>
-        </div>
-      )}
 
       {/* ── CHAT NOW PANEL (Alibaba style) ───────────────────────────────── */}
       {msgEntry && (() => {
@@ -1564,12 +1457,11 @@ function preloadImgs(catalog: MarketplaceEntry[], n = 16) {
 
 
 // ── Product card ──────────────────────────────────────────────────────────────
-function ProductCard({ entry, shop, isMine, online, onOrder, onReady, priority }: {
+function ProductCard({ entry, shop, isMine, online, onReady, priority }: {
   entry: MarketplaceEntry;
   shop: Shop | undefined;
   isMine: boolean;
   online: boolean;
-  onOrder: (e: React.MouseEvent) => void;
   onReady?: () => void;
   priority?: boolean;
 }) {
@@ -1623,18 +1515,6 @@ function ProductCard({ entry, shop, isMine, online, onOrder, onReady, priority }
         ) : (
           <div className="absolute inset-0 flex items-center justify-center bg-slate-50 text-slate-300">
             <Package size={32} />
-          </div>
-        )}
-
-        {/* Hover overlay */}
-        {inStock && (
-          <div className="absolute inset-0 flex items-center justify-center gap-2 bg-black/30 opacity-0 transition-opacity duration-150 group-hover:opacity-100">
-            <button
-              onClick={(e) => { e.preventDefault(); e.stopPropagation(); onOrder(e); }}
-              className="rounded-full bg-orange-500 px-3.5 py-1.5 text-[11px] font-bold text-white transition hover:bg-orange-600"
-            >
-              Order
-            </button>
           </div>
         )}
 
