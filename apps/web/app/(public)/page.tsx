@@ -383,8 +383,10 @@ function MarketplacePageContent() {
 
   // ── flattened, entry-shaped product list from all loaded feed pages ────────
   // Server already returns newest-first, so no client re-sort is needed.
+  // Skip products whose shop isn't in the active shops list (deactivated/
+  // deleted shop, or a race between the two queries) — never show orphans.
   const entries = useMemo(
-    () => (feedData?.pages ?? []).flatMap((p) => p.items).map((item) => toEntry(item, shopMap)),
+    () => (feedData?.pages ?? []).flatMap((p) => p.items).filter((item) => shopMap[item.shop_id]).map((item) => toEntry(item, shopMap)),
     [feedData, shopMap],
   );
 
