@@ -1330,6 +1330,7 @@ function ProductCard({ entry, shop, isMine, online, onReady, priority }: {
   return (
     <Link
       href={`/product/${productSlug(entry.name, entry.productId)}`}
+      prefetch={false}
       className="group relative flex flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg"
     >
       {/* ── Image / no-photo area ── */}

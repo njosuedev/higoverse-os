@@ -2,7 +2,10 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ChevronRight, MapPin, Phone } from "lucide-react";
-import { getPublicProducts, getPublicShops, findProductBySlug } from "@/lib/marketplace-public";
+import {
+  getPublicProductBySlug, getPublicProductsByCategory, getPublicShops,
+  getPublicProducts, findProductBySlug,
+} from "@/lib/marketplace-public";
 import { categoryLabel } from "@/lib/categories";
 import { formatRwf } from "@/lib/format";
 import { shopSlug } from "@/lib/slug";
@@ -16,13 +19,24 @@ interface Props {
 }
 
 async function loadData(slug: string) {
-  const [products, shops] = await Promise.all([getPublicProducts(), getPublicShops()]);
-  const product = findProductBySlug(products, slug);
+  // Targeted lookups — a single product + its shop + a bounded related list,
+  // instead of downloading the entire (base64-image-laden) catalog just to
+  // find one product by slug.
+  let product = await getPublicProductBySlug(slug);
+  // Fall back to the full-catalog scan only if the fast path comes up empty —
+  // covers the deploy window before the backend's /marketplace/by-id route
+  // ships. Once it's live everywhere this branch never runs.
+  if (!product) {
+    const products = await getPublicProducts();
+    product = findProductBySlug(products, slug) ?? null;
+  }
   if (!product) return null;
+
+  const [shops, related] = await Promise.all([
+    getPublicShops(),
+    getPublicProductsByCategory(product.category, product.id, 10),
+  ]);
   const shop = shops.find((s) => s.id === product.shopId);
-  const related = products
-    .filter((p) => p.id !== product.id && p.category === product.category)
-    .slice(0, 10);
   return { product, shop, related };
 }
 

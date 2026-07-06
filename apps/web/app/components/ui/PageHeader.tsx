@@ -73,7 +73,7 @@ export default function PageHeader({
     const t = setTimeout(() => {
       setDisplay({ title, subtitle });
       setSettled(true);
-    }, 180);
+    }, 180);  
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [title, subtitle]);

@@ -246,8 +246,11 @@ def get_marketplace(
     page: int = 1,
     limit: int = 100,
     cursor: str | None = None,
+    category: str | None = None,
 ):
     query = db.query(Product).filter(Product.listed == True)  # noqa: E712
+    if category:
+        query = query.filter(Product.category == category)
 
     cursor_value = decode_marketplace_cursor(cursor) if cursor else None
 
@@ -298,6 +301,46 @@ def get_marketplace(
             "limit": limit,
             "next_cursor": next_cursor,
         }
+    }
+
+
+# -----------------------------
+# GET ONE MARKETPLACE PRODUCT BY SLUG-EMBEDDED ID PREFIX
+# Public — lets the product detail page fetch exactly one listed product
+# instead of the whole feed. Product slugs are "{name}-{id[:6]}" (see
+# apps/web/lib/slug.ts), so `id_prefix` is that 6-char suffix (or a full id).
+# Must be registered BEFORE /{product_id} — same reasoning as /marketplace.
+# -----------------------------
+@router.get("/marketplace/by-id/{id_prefix}")
+def get_marketplace_product_by_id_prefix(
+    id_prefix: str,
+    db: Session = Depends(get_db),
+    user: dict | None = Depends(get_current_user_optional),
+):
+    # Escape LIKE wildcards — id_prefix is attacker-controlled (public route param).
+    escaped_prefix = id_prefix.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    product = (
+        db.query(Product)
+        .filter(Product.listed == True, Product.id.like(f"{escaped_prefix}%", escape="\\"))  # noqa: E712
+        .first()
+    )
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+
+    return {
+        "success": True,
+        "data": {
+            "id": product.id,
+            "shop_id": product.shop_id,
+            "name": product.name,
+            "description": product.description,
+            "category": product.category,
+            "images": product.images,
+            "selling_price": float(product.selling_price),
+            "quantity": product.quantity,
+            "listed": product.listed,
+            "created_at": product.created_at.isoformat(),
+        },
     }
 
 

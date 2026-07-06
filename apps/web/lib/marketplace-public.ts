@@ -92,6 +92,64 @@ export async function getMarketplaceFeedPage(cursor: string | null, limit = 24):
   }
 }
 
+/** One listed product by its slug-embedded id prefix (see lib/slug.ts's
+ *  productSlug) — a single targeted lookup instead of scanning the whole
+ *  catalog. Used by the product detail page. */
+export async function getPublicProductBySlug(slug: string): Promise<PublicProduct | null> {
+  const idPrefix = slug.slice(-6);
+  try {
+    const res = await itemRequest(`/products/marketplace/by-id/${idPrefix}`);
+    const p = res?.data;
+    if (!p) return null;
+    return {
+      id: p.id,
+      shopId: p.shop_id,
+      name: p.name,
+      description: p.description,
+      category: p.category || categoryOf(p.name, p.description),
+      images: parseImages(p.images),
+      price: p.selling_price,
+      quantity: p.quantity,
+      listedAt: p.created_at,
+      slug: productSlug(p.name, p.id),
+    };
+  } catch {
+    return null;
+  }
+}
+
+/** Up to `limit` other listed products in the same category — used for the
+ *  product detail page's "related" carousel without fetching the whole feed. */
+export async function getPublicProductsByCategory(
+  category: string, excludeId: string, limit = 10,
+): Promise<PublicProduct[]> {
+  try {
+    const qs = new URLSearchParams({ limit: String(limit + 1), category });
+    const res = await itemRequest(`/products/marketplace?${qs.toString()}`);
+    const items: Array<{
+      id: string; shop_id: string; name: string; description?: string;
+      category?: string; images?: unknown; selling_price: number; quantity: number;
+    }> = res?.data?.items ?? [];
+
+    return items
+      .filter((p) => p.id !== excludeId)
+      .slice(0, limit)
+      .map((p) => ({
+        id: p.id,
+        shopId: p.shop_id,
+        name: p.name,
+        description: p.description,
+        category: p.category || categoryOf(p.name, p.description),
+        images: parseImages(p.images),
+        price: p.selling_price,
+        quantity: p.quantity,
+        slug: productSlug(p.name, p.id),
+      }));
+  } catch {
+    return [];
+  }
+}
+
 /** All approved (active) shops — the public supplier directory. */
 export async function getPublicShops(): Promise<Shop[]> {
   try {
