@@ -115,6 +115,18 @@ class Product(Base):
         server_default='false'
     )
 
+    # Denormalized copy of the owning shop's is_active flag. Products and
+    # shops live in physically separate Postgres databases (product-service
+    # vs. auth-service's shop_db) with no FK between them, so this can't be a
+    # live join — auth-service pushes changes here via
+    # PATCH /internal/shops/{shop_id}/status whenever a shop's status changes.
+    shop_is_active = Column(
+        Boolean,
+        nullable=False,
+        default=True,
+        server_default='true'
+    )
+
     # =====================================
     # AUDIT
     # =====================================
@@ -135,6 +147,22 @@ class Product(Base):
     __table_args__ = (
         Index(
             "ix_products_marketplace_feed",
+            created_at.desc(),
+            id.desc(),
+            postgresql_where=text("listed = true"),
+        ),
+        # Backs shop-scoped feeds (shop detail page's product grid).
+        Index(
+            "ix_products_shop_feed",
+            shop_id,
+            created_at.desc(),
+            id.desc(),
+            postgresql_where=text("listed = true"),
+        ),
+        # Backs category-filtered feeds (category pages, related-products carousel).
+        Index(
+            "ix_products_category_feed",
+            category,
             created_at.desc(),
             id.desc(),
             postgresql_where=text("listed = true"),

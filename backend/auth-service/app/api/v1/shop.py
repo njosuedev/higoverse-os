@@ -2,11 +2,12 @@ import uuid
 import logging
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.core.auth_bearer import get_current_user, get_current_user_optional
+from app.core.product_client import sync_shop_status
 from app.db.deps import get_db, get_shop_db
 from app.models.shop import Shop
 from app.schemas.shop import ShopUpdate
@@ -28,6 +29,22 @@ def _fmt(s: Shop) -> dict:
         "is_active":    s.is_active,
         "created_at":   s.created_at.isoformat() if s.created_at else None,
         "updated_at":   s.updated_at.isoformat() if s.updated_at else None,
+        "last_seen_at": s.last_seen_at.isoformat() if s.last_seen_at else None,
+    }
+
+
+def _fmt_list(s: Shop) -> dict:
+    """Lean projection for the public directory listing — drops `description`
+    (an unbounded text field, also used to store an encoded product catalog),
+    the heaviest field per row when returning many shops at once."""
+    return {
+        "id":           str(s.id),
+        "name":         s.name,
+        "phone":        s.phone,
+        "address":      s.address,
+        "logo_url":     s.logo_url,
+        "is_active":    s.is_active,
+        "created_at":   s.created_at.isoformat() if s.created_at else None,
         "last_seen_at": s.last_seen_at.isoformat() if s.last_seen_at else None,
     }
 
@@ -91,11 +108,43 @@ def shop_heartbeat(
 # ── All shops (directory) — public, no login required ─────
 @router.get("/shops")
 def list_shops(
+    response: Response,
+    db: Session = Depends(get_shop_db),
+    current_user=Depends(get_current_user_optional),
+    page: int = 1,
+    limit: int = Query(200, ge=1, le=500),
+):
+    response.headers["Cache-Control"] = "public, s-maxage=60, stale-while-revalidate=300"
+
+    offset = (page - 1) * limit
+    query = db.query(Shop).filter(Shop.is_active == True)  # noqa: E712
+    total = query.count()
+    shops = query.order_by(Shop.created_at.desc()).offset(offset).limit(limit).all()
+
+    return {
+        "success": True,
+        "data": [_fmt_list(s) for s in shops],
+        "total": total,
+        "page": page,
+        "limit": limit,
+    }
+
+
+# ── Single shop by id — public, no login required ─────────
+@router.get("/shops/{shop_id}")
+def get_shop_by_id(
+    shop_id: str,
+    response: Response,
     db: Session = Depends(get_shop_db),
     current_user=Depends(get_current_user_optional),
 ):
-    shops = db.query(Shop).filter(Shop.is_active == True).order_by(Shop.created_at.desc()).all()
-    return {"success": True, "data": [_fmt(s) for s in shops]}
+    response.headers["Cache-Control"] = "public, s-maxage=60, stale-while-revalidate=300"
+
+    shop = db.query(Shop).filter(Shop.id == shop_id, Shop.is_active == True).first()  # noqa: E712
+    if not shop:
+        raise HTTPException(status_code=404, detail="Shop not found")
+
+    return {"success": True, "data": _fmt(shop)}
 
 
 # ── Shop application (customer → create or resubmit) ─────
@@ -167,6 +216,8 @@ def submit_shop_application(
         # Link shop to user in auth_db
         current_user.shop_id = shop.id
         auth_db.commit()
+
+        sync_shop_status(str(shop.id), shop.is_active)
 
         return {"success": True, "message": "Application submitted", "data": _fmt(shop)}
 

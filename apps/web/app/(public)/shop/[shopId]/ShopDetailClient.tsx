@@ -1,18 +1,21 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
+import type { InfiniteData } from "@tanstack/react-query";
 
 const HigoMapView = dynamic(() => import("@/app/components/ui/HigoMapView"), { ssr: false });
 import { useAuth } from "@/lib/auth-context";
 import { useShop } from "@/lib/shop-context";
 import { useLanguage } from "@/lib/language-context";
-import { listShops, updateMyShop, type Shop } from "@/lib/shop-api";
+import { updateMyShop, type Shop } from "@/lib/shop-api";
 import { itemRequest } from "@/lib/product-api";
 import { partnerRequest } from "@/lib/supplier-api";
-import { findShopBySlugOrId } from "@/lib/marketplace-public";
+import { parseImages, type MarketplaceFeedPage, type RawMarketplaceItem } from "@/lib/marketplace-public";
+import { useProductFeed } from "@/lib/hooks/useProductFeed";
+import { useInfiniteScroll } from "@/lib/hooks/useInfiniteScroll";
 import {
   ArrowLeft, Phone, Mail, MapPin, Wifi, WifiOff,
   Package, ShoppingCart, Plus, Minus, X, Loader2,
@@ -22,11 +25,10 @@ import {
 } from "lucide-react";
 import {
   getProductMeta, setProductMeta, upsertCatalogEntry, removeCatalogEntry,
-  getCatalog,
   getMessagesForShop, replyToMessage, markMessageRead, unreadCountForShop,
   sendMessage, getMyMessages,
   followShop, unfollowShop, isFollowingShop, getShopFollowerCount,
-  decodeShopCatalog, decodeShopHumanInfo, encodeDescriptionWithCatalog, catFromText,
+  decodeShopHumanInfo, encodeDescriptionWithCatalog, catFromText,
   formatPublicAddress, formatShortAddress, parseShopAddress,
   type ProductMeta, type MarketplaceEntry, type ShopMessage,
 } from "@/lib/product-meta";
@@ -71,17 +73,22 @@ function fmtCurrency(n: number) {
   return new Intl.NumberFormat("en-RW", { style: "currency", currency: "RWF", maximumFractionDigits: 0 }).format(n);
 }
 
-// Read shop from the marketplace cache written by the marketplace page (avoids redundant API call)
-// The route param can be either a pretty slug ("mr-cars-ltd-a1b2c3") or a raw shop UUID
-// (old shared /marketplace/:id links redirect here) — resolve either form.
-function shopFromMktCache(slugOrId: string): import("@/lib/shop-api").Shop | null {
-  try {
-    const raw = localStorage.getItem("hgv_mkt_v2");
-    if (!raw) return null;
-    const c = JSON.parse(raw) as { shops: import("@/lib/shop-api").Shop[]; ts: number };
-    if (Date.now() - c.ts > 120_000) return null; // honour 2-min freshness
-    return findShopBySlugOrId(c.shops, slugOrId) ?? null;
-  } catch { return null; }
+function rawItemToEntry(item: RawMarketplaceItem, shop: Shop): MarketplaceEntry {
+  return {
+    productId: item.id,
+    shopId: shop.id,
+    shopName: shop.name,
+    shopLogoUrl: shop.logo_url ?? undefined,
+    shopPhone: shop.phone ?? undefined,
+    name: item.name,
+    description: item.description,
+    category: item.category,
+    sellingPrice: item.selling_price,
+    costPrice: item.selling_price,
+    quantity: item.quantity,
+    images: parseImages(item.images),
+    listedAt: item.created_at ?? new Date().toISOString(),
+  };
 }
 
 interface Product {
@@ -94,16 +101,24 @@ interface CartItem { product: Product; qty: number; }
 
 type Tab = "products" | "about" | "contact";
 
-export default function ShopStorePage() {
+interface ShopStorePageProps {
+  initialShop: Shop | null;
+  initialItems: RawMarketplaceItem[];
+  initialNextCursor: string | null;
+}
+
+export default function ShopStorePage({ initialShop, initialItems, initialNextCursor }: ShopStorePageProps) {
   const { shopId } = useParams<{ shopId: string }>();
   const { user }   = useAuth();
   const { shop: myShop } = useShop();
   const { t }      = useLanguage();
   const router     = useRouter();
 
-  const [shop, setShop]         = useState<Shop | null>(null);
-  const [loading, setLoading]   = useState(true);
-  const [notFound, setNotFound] = useState(false);
+  // Already resolved server-side (this page is always dynamically rendered
+  // per request — see app/(public)/shop/[shopId]/page.tsx) — no client fetch
+  // or loading skeleton needed for the shop itself.
+  const [shop] = useState<Shop | null>(initialShop);
+  const notFound = !initialShop;
   const [tab, setTab]           = useState<Tab>("products");
 
   // Own-shop products
@@ -125,8 +140,9 @@ export default function ShopStorePage() {
   const [partnerError, setPartnerError]   = useState("");
   const [partnerId, setPartnerId] = useState<string | null>(null);
 
-  // Listed products for visitors (other shops browsing)
-  const [listedProducts, setListedProducts] = useState<MarketplaceEntry[]>([]);
+  // Listed products for visitors (other shops browsing) — SSR-seeded first
+  // page, infinite-scrolled from there. See useProductFeed/useInfiniteScroll below.
+  const productsSentinelRef = useRef<HTMLDivElement>(null);
 
   // Messages — shopkeeper inbox (localStorage + BroadcastChannel)
   const [messages, setMessages]       = useState<ShopMessage[]>([]);
@@ -157,18 +173,29 @@ export default function ShopStorePage() {
 
   const isMine = shop?.id === user?.shop_id;
 
-  useEffect(() => {
-    // Fast path: serve from marketplace cache (written by marketplace page)
-    const cached = shopFromMktCache(shopId);
-    if (cached) { setShop(cached); setLoading(false); }
+  // Visitor product grid — SSR-seeded first page, cursor-paginated from there.
+  const initialFeedData: InfiniteData<MarketplaceFeedPage, string | null> = useMemo(() => ({
+    pages: [{ items: initialItems, nextCursor: initialNextCursor }],
+    pageParams: [null],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), [shop?.id]);
 
-    // Always validate / refresh from API in background
-    listShops({ limit: 200 }).then((res) => {
-      const found = findShopBySlugOrId(res.items ?? [], shopId) ?? null;
-      if (found) { setShop(found); setLoading(false); }
-      else if (!cached) { setNotFound(true); setLoading(false); }
-    }).catch(() => { if (!cached) { setNotFound(true); setLoading(false); } });
-  }, [shopId]);
+  const { data: feedData, fetchNextPage, hasNextPage, isFetchingNextPage } = useProductFeed(
+    20,
+    shop ? { shopId: shop.id } : undefined,
+    initialFeedData,
+  );
+
+  useInfiniteScroll(productsSentinelRef, {
+    hasNextPage: !!hasNextPage,
+    isFetchingNextPage,
+    onLoadMore: fetchNextPage,
+  });
+
+  const listedProducts: MarketplaceEntry[] = useMemo(() => {
+    if (!shop) return [];
+    return (feedData?.pages ?? []).flatMap((p) => p.items).map((item) => rawItemToEntry(item, shop));
+  }, [feedData, shop]);
 
   // Follow state is keyed by the shop's real UUID, not the route's slug — use the resolved shop.
   useEffect(() => {
@@ -238,59 +265,6 @@ export default function ShopStorePage() {
   useEffect(() => {
     chatScrollRef.current?.scrollTo({ top: chatScrollRef.current.scrollHeight, behavior: "smooth" });
   }, [customerMessages]);
-
-  // Load catalog products for this shop (visible to all visitors)
-  useEffect(() => {
-    if (!shop) return;
-    // Server catalog from shop description (cross-device)
-    const serverEntries: MarketplaceEntry[] = decodeShopCatalog(shop.description).map((e) => ({
-      productId: e.pid, shopId: shop.id, shopName: shop.name,
-      shopLogoUrl: shop.logo_url, shopPhone: shop.phone,
-      name: e.n, description: e.d, category: e.cat,
-      sellingPrice: e.price, costPrice: e.price,
-      quantity: e.qty, images: [], listedAt: e.at,
-    }));
-    // Overlay with localStorage entries which carry product images
-    const merged = new Map<string, MarketplaceEntry>(serverEntries.map((e) => [e.productId, e]));
-    for (const e of getCatalog().filter((le) => le.shopId === shop.id)) merged.set(e.productId, e);
-    setListedProducts([...merged.values()]);
-
-    // Also fetch from product DB — authoritative source (only returns listed products)
-    itemRequest("/products/marketplace?limit=200")
-      .then((res) => {
-        const mkItems: Array<{
-          id: string; shop_id: string; name: string; description?: string;
-          category?: string; images?: string; selling_price: number;
-          cost_price: number; quantity: number;
-        }> = res?.data?.items ?? [];
-
-        // Build a local-images index for best-quality image merging
-        const localByPid = new Map(
-          getCatalog().filter((le) => le.shopId === shop.id).map((le) => [le.productId, le])
-        );
-
-        // API is authoritative: rebuild for this shop from API results only
-        merged.clear();
-        for (const item of mkItems) {
-          if (item.shop_id !== shop.id) continue;
-          const serverImgs: string[] = item.images
-            ? (() => { try { return JSON.parse(item.images) as string[]; } catch { return []; } })()
-            : [];
-          const localImgs = localByPid.get(item.id)?.images ?? [];
-          merged.set(item.id, {
-            productId: item.id, shopId: shop.id, shopName: shop.name,
-            shopLogoUrl: shop.logo_url ?? undefined, shopPhone: shop.phone ?? undefined,
-            name: item.name, description: item.description, category: item.category,
-            sellingPrice: item.selling_price, costPrice: item.cost_price,
-            quantity: item.quantity,
-            images: localImgs.length > 0 ? localImgs : serverImgs,
-            listedAt: new Date().toISOString(),
-          });
-        }
-        setListedProducts([...merged.values()]);
-      })
-      .catch(() => {});
-  }, [shop]);
 
   // Shop inbox: poll localStorage every 1.5 s + BroadcastChannel instant refresh
   useEffect(() => {
@@ -423,87 +397,6 @@ export default function ShopStorePage() {
     } finally {
       setPlacingOrder(false);
     }
-  }
-
-  if (loading) {
-    return (
-      <div style={{ minHeight: "100vh", background: "#f4f4f4", fontFamily: "Arial, sans-serif" }}>
-        <style>{`
-          @keyframes hgv-shimmer {
-            0%   { background-position: -600px 0; }
-            100% { background-position:  600px 0; }
-          }
-          .hgv-sk {
-            background: linear-gradient(90deg, #ebebeb 25%, #f5f5f5 50%, #ebebeb 75%);
-            background-size: 1200px 100%;
-            animation: hgv-shimmer 1.4s infinite linear;
-          }
-        `}</style>
-
-        {/* Header skeleton */}
-        <div style={{ background: "#fff", borderBottom: "1px solid #e8e8e8" }}>
-          {/* Breadcrumb */}
-          <div style={{ maxWidth: 1100, margin: "0 auto", padding: "8px 16px" }}>
-            <div className="hgv-sk" style={{ height: 10, width: 140, borderRadius: 4 }} />
-          </div>
-
-          {/* Banner */}
-          <div className="hgv-sk" style={{ height: 80 }} />
-
-          {/* Shop info */}
-          <div style={{ maxWidth: 1100, margin: "0 auto", padding: "0 16px" }}>
-            <div style={{ display: "flex", alignItems: "flex-end", gap: 16, marginTop: -30, paddingBottom: 14 }}>
-              <div className="hgv-sk" style={{ width: 72, height: 72, flexShrink: 0, border: "3px solid #fff" }} />
-              <div style={{ flex: 1, paddingTop: 32, display: "flex", flexDirection: "column", gap: 8 }}>
-                <div className="hgv-sk" style={{ height: 18, width: 200, borderRadius: 4 }} />
-                <div className="hgv-sk" style={{ height: 11, width: 280, borderRadius: 4 }} />
-                <div className="hgv-sk" style={{ height: 11, width: 180, borderRadius: 4 }} />
-              </div>
-              <div className="hgv-sk" style={{ width: 100, height: 32, flexShrink: 0 }} />
-            </div>
-
-            {/* Stats bar */}
-            <div style={{ display: "flex", gap: 24, borderTop: "1px solid #f0f0f0", paddingTop: 10, paddingBottom: 6 }}>
-              {[60, 50, 40].map((w, i) => (
-                <div key={i} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                  <div className="hgv-sk" style={{ height: 14, width: w, borderRadius: 3 }} />
-                  <div className="hgv-sk" style={{ height: 10, width: 70, borderRadius: 3 }} />
-                </div>
-              ))}
-            </div>
-
-            {/* Tab bar */}
-            <div style={{ display: "flex", gap: 4, borderTop: "1px solid #f0f0f0", paddingTop: 4 }}>
-              {[70, 50, 60].map((w, i) => (
-                <div key={i} className="hgv-sk" style={{ height: 36, width: w, margin: "0 4px" }} />
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Content skeleton */}
-        <div style={{ maxWidth: 1100, margin: "0 auto", padding: "16px 16px" }}>
-
-          {/* Section label */}
-          <div className="hgv-sk" style={{ height: 14, width: 160, borderRadius: 4, marginBottom: 14 }} />
-
-          {/* Product grid */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 10 }}>
-            {Array.from({ length: 8 }).map((_, i) => (
-              <div key={i} style={{ background: "#fff", border: "1px solid #e8e8e8", overflow: "hidden" }}>
-                <div className="hgv-sk" style={{ height: 160, width: "100%" }} />
-                <div style={{ padding: "10px 10px 12px" }}>
-                  <div className="hgv-sk" style={{ height: 11, width: "90%", borderRadius: 3, marginBottom: 6 }} />
-                  <div className="hgv-sk" style={{ height: 11, width: "60%", borderRadius: 3, marginBottom: 10 }} />
-                  <div className="hgv-sk" style={{ height: 16, width: "45%", borderRadius: 3, marginBottom: 8 }} />
-                  <div className="hgv-sk" style={{ height: 28, width: "100%", borderRadius: 2 }} />
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    );
   }
 
   if (notFound || !shop) {
@@ -987,6 +880,16 @@ export default function ShopStorePage() {
                         );
                       })}
                     </div>
+
+                    <div ref={productsSentinelRef} className="h-px" />
+
+                    {isFetchingNextPage && (
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(185px, 1fr))", gap: 10, marginTop: 10 }}>
+                        {Array.from({ length: 4 }).map((_, i) => (
+                          <div key={i} style={{ background: "#fff", border: "1px solid #e8e8e8", height: 260 }} className="animate-pulse" />
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
 

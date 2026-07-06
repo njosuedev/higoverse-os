@@ -1,31 +1,34 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useQuery, useQueryClient, type InfiniteData } from "@tanstack/react-query";
 import Link from "next/link";
-import Image from "next/image";
 import { useAuth } from "@/lib/auth-context";
 import { useShop } from "@/lib/shop-context";
 import { listShops, updateMyShop, createShopApplication, type Shop } from "@/lib/shop-api";
 import {
   compressImage,
   encodeShopDescription, encodeShopAddress, parseShopAddress, decodeShopHumanInfo,
-  getApplicationStatus, formatShortAddress,
+  getApplicationStatus,
   type MarketplaceEntry,
 } from "@/lib/product-meta";
 import { useMarketplaceFeed } from "@/lib/hooks/useMarketplaceFeed";
+import { useInfiniteScroll } from "@/lib/hooks/useInfiniteScroll";
 import {
   getMarketplaceFeedPage, parseImages, MARKETPLACE_PAGE_SIZE as PAGE_SIZE,
-  type MarketplaceFeedPage, type RawMarketplaceItem,
+  type MarketplaceFeedPage, type RawMarketplaceItem, type PublicProduct,
 } from "@/lib/marketplace-public";
+import { preloadCoverImages } from "@/lib/product-card-cache";
+import LazyProductCard from "./LazyProductCard";
+import ProductCardSkeleton from "./ProductCardSkeleton";
 import {
   X, Loader2,
-  CheckCircle, Phone, Package, ChevronRight,
-  MapPin, MessageSquare, Send, Store, Mail,
+  CheckCircle, Package, ChevronRight,
+  Send, Store, Mail,
   ArrowRight, LayoutDashboard, CheckCircle2,
   Building2, FileText, ImagePlus, ChevronDown,
-  Clock, BadgeCheck, Heart, Camera,
+  Clock, BadgeCheck, Heart,
   Truck, Shirt, Home as HomeIcon, Leaf, Briefcase, TrendingUp,
 } from "lucide-react";
 import {
@@ -50,13 +53,6 @@ function fmtPrice(n: number) {
   return new Intl.NumberFormat("en-RW", {
     style: "currency", currency: "RWF", maximumFractionDigits: 0,
   }).format(n);
-}
-// Real tenure on the platform, derived from the shop's actual signup date.
-function shopTenureLabel(createdAt: string | null | undefined): string | null {
-  if (!createdAt) return null;
-  const years = (Date.now() - parseUTC(createdAt).getTime()) / (365.25 * 24 * 3600 * 1000);
-  if (years < 1) return "New";
-  return `${Math.floor(years)} yr${Math.floor(years) === 1 ? "" : "s"}`;
 }
 
 const CAT_KW: Record<string, string[]> = {
@@ -95,6 +91,21 @@ function toEntry(item: RawMarketplaceItem, shopMap: Record<string, Shop>): Marke
     quantity: item.quantity,
     images: parseImages(item.images),
     listedAt: item.created_at ?? new Date().toISOString(),
+  };
+}
+
+function entryToPublicProduct(entry: MarketplaceEntry): PublicProduct {
+  return {
+    id: entry.productId,
+    shopId: entry.shopId,
+    name: entry.name,
+    description: entry.description,
+    category: entry.category || catOf(entry.name, entry.description),
+    images: entry.images,
+    price: entry.sellingPrice,
+    quantity: entry.quantity,
+    listedAt: entry.listedAt,
+    slug: productSlug(entry.name, entry.productId),
   };
 }
 
@@ -328,7 +339,7 @@ export default function MarketplaceHome({ initialFeed, initialShops }: Marketpla
   useEffect(() => {
     const firstPageItems = feedData?.pages[0]?.items;
     if (!firstPageItems) return;
-    preloadImgs(firstPageItems.map((item) => toEntry(item, shopMap)));
+    preloadCoverImages(firstPageItems.map((item) => toEntry(item, shopMap)));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [feedData?.pages[0]]);
 
@@ -396,19 +407,11 @@ export default function MarketplaceHome({ initialFeed, initialShops }: Marketpla
   );
 
   // ── infinite scroll sentinel — fetches the next cursor page from the server ──
-  useEffect(() => {
-    if (!sentinelRef.current || !hasNextPage) return;
-    const obs = new IntersectionObserver(
-      (obsEntries) => {
-        if (obsEntries[0].isIntersecting && hasNextPage && !isFetchingNextPage) {
-          fetchNextPage();
-        }
-      },
-      { rootMargin: "400px" }, // pre-load next batch 400px before user reaches bottom
-    );
-    obs.observe(sentinelRef.current);
-    return () => obs.disconnect();
-  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
+  useInfiniteScroll(sentinelRef, {
+    hasNextPage: !!hasNextPage,
+    isFetchingNextPage,
+    onLoadMore: fetchNextPage,
+  });
 
   const listedPerShop = useMemo(() => {
     const m: Record<string, number> = {};
@@ -620,7 +623,7 @@ export default function MarketplaceHome({ initialFeed, initialShops }: Marketpla
           {/* Grid */}
           {isLoading ? (
             <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
-              {Array.from({ length: PAGE_SIZE }).map((_, i) => <SkeletonCard key={i} />)}
+              {Array.from({ length: PAGE_SIZE }).map((_, i) => <ProductCardSkeleton key={i} />)}
             </div>
           ) : entries.length === 0 ? (
             <EmptyState />
@@ -631,7 +634,7 @@ export default function MarketplaceHome({ initialFeed, initialShops }: Marketpla
                   <LazyProductCard
                     key={entry.productId}
                     priority={idx < 8}
-                    entry={entry}
+                    product={entryToPublicProduct(entry)}
                     shop={shopMap[entry.shopId]}
                     isMine={entry.shopId === user?.shop_id}
                     online={shopMap[entry.shopId] ? isOnline(shopMap[entry.shopId].last_seen_at, now) : false}
@@ -645,7 +648,7 @@ export default function MarketplaceHome({ initialFeed, initialShops }: Marketpla
               {/* Skeletons for the batch currently being fetched — never a full-page loader */}
               {isFetchingNextPage && (
                 <div className="mt-2.5 grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
-                  {Array.from({ length: PAGE_SIZE }).map((_, i) => <SkeletonCard key={i} />)}
+                  {Array.from({ length: PAGE_SIZE }).map((_, i) => <ProductCardSkeleton key={i} />)}
                 </div>
               )}
 
@@ -1187,87 +1190,6 @@ function ReplyBox({ messageId, fromShop, onSent }: { messageId: string; fromShop
   );
 }
 
-// ── Lazy reveal wrapper ───────────────────────────────────────────────────────
-// Skeleton shows until the card enters viewport AND its image fully downloads.
-// The real card renders off-screen while downloading so the browser can fetch
-// in parallel; once ready it swaps in with a fade-up animation.
-function LazyProductCard(props: React.ComponentProps<typeof ProductCard> & { priority?: boolean }) {
-  const pid        = props.entry.productId;
-  const ref        = useRef<HTMLDivElement>(null);
-  const [inView, setInView] = useState(false);
-  // Initialise from module-level cache so remounts never regress to skeleton
-  const [ready, setReady]   = useState(() => _readyCardIds.has(pid));
-  // Only the cards that flip skeleton → loaded *during this mount* get the
-  // reveal animation — cards already cached from a prior render show instantly.
-  const [justRevealed, setJustRevealed] = useState(false);
-
-  useEffect(() => {
-    if (ready) return; // already revealed — skip observer entirely
-    if (!ref.current) return;
-    const obs = new IntersectionObserver(
-      ([e]) => { if (e.isIntersecting) { setInView(true); obs.disconnect(); } },
-      { rootMargin: "600px 0px" }, // pre-fetch images well before card is visible
-    );
-    obs.observe(ref.current);
-    return () => obs.disconnect();
-  }, [ready]);
-
-  const handleReady = useCallback(() => {
-    _readyCardIds.add(pid); // persist across remounts
-    const el = ref.current;
-    // Diagonal wave: cards further right/down in the grid reveal a beat later,
-    // the way Alibaba's product grid fills in rather than popping all at once.
-    const h = el ? Math.min(el.getBoundingClientRect().left / window.innerWidth, 1) : 0;
-    const v = el ? Math.min(el.getBoundingClientRect().top / window.innerHeight, 1) : 0;
-    const delay = (h * 0.7 + v * 0.3) * 90;
-    setTimeout(() => { setJustRevealed(true); setReady(true); }, delay);
-  }, [pid]);
-
-  if (ready) {
-    // Already revealed on a previous render — show immediately, no animation replay
-    if (!justRevealed) return <ProductCard {...props} onReady={undefined} />;
-    return (
-      <div className="hgv-card-reveal">
-        <ProductCard {...props} onReady={undefined} />
-      </div>
-    );
-  }
-
-  return (
-    <div ref={ref} style={{ position: "relative" }}>
-      <SkeletonCard />
-      {inView && (
-        <div style={{ position: "absolute", inset: 0, opacity: 0, pointerEvents: "none" }}>
-          <ProductCard {...props} onReady={handleReady} />
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ── Skeleton card — matches new card shape exactly ───────────────────────────
-function SkeletonCard() {
-  return (
-    <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
-      <div className="hgv-shimmer aspect-square" />
-      <div className="flex flex-col gap-1.5 p-2.5">
-        <div className="hgv-shimmer h-3 w-[90%] rounded" />
-        <div className="hgv-shimmer h-3 w-[65%] rounded" />
-        <div className="hgv-shimmer mt-0.5 h-4 w-[50%] rounded" />
-        <div className="hgv-shimmer h-2 w-[70%] rounded" />
-        <div className="hgv-shimmer h-2 w-[45%] rounded" />
-        <div className="mt-0.5 flex items-center gap-1.5 border-t border-slate-100 pt-2">
-          <div className="hgv-shimmer h-6 w-6 shrink-0 rounded-full" />
-          <div className="flex flex-1 flex-col gap-1">
-            <div className="hgv-shimmer h-2.5 w-[75%] rounded" />
-            <div className="hgv-shimmer h-2 w-[50%] rounded" />
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // ── Empty state ───────────────────────────────────────────────────────────────
 function EmptyState() {
   return (
@@ -1284,165 +1206,3 @@ function EmptyState() {
   );
 }
 
-// ── Module-level caches — survive React remounts caused by catalog refreshes ──
-// Without these, every catalog poll resets component state → skeleton flash loop.
-const _failedImgUrls  = new Set<string>(); // image URLs that 404'd
-const _loadedImgUrls  = new Set<string>(); // image URLs fully downloaded
-const _readyCardIds   = new Set<string>(); // product IDs whose card has been revealed
-
-/** Kick off background downloads for the first N product images so they're in
- *  the browser cache by the time their cards scroll into view. */
-function preloadImgs(catalog: MarketplaceEntry[], n = 16) {
-  if (typeof window === "undefined") return;
-  catalog.slice(0, n).forEach((entry) => {
-    const url = entry.images.find((u) => !_failedImgUrls.has(u) && !_loadedImgUrls.has(u));
-    if (!url) return;
-    const img = new window.Image();
-    img.onload = () => _loadedImgUrls.add(url);
-    img.onerror = () => _failedImgUrls.add(url);
-    img.src = url;
-  });
-}
-
-
-// ── Product card ──────────────────────────────────────────────────────────────
-function ProductCard({ entry, shop, isMine, online, onReady, priority }: {
-  entry: MarketplaceEntry;
-  shop: Shop | undefined;
-  isMine: boolean;
-  online: boolean;
-  onReady?: () => void;
-  priority?: boolean;
-}) {
-  const [, _forceImg] = useState(0);
-  const cover       = entry.images.find((u) => !_failedImgUrls.has(u));
-  // Initialise from module-level cache — survives catalog refresh remounts
-  const [imgLoaded, setImgLoaded] = useState(() => !!cover && _loadedImgUrls.has(cover));
-  const inStock     = entry.quantity > 0;
-  const logoInitial = (entry.shopName[0] ?? "?").toUpperCase();
-
-  // Signal parent (LazyProductCard) when we know what to show.
-  // Use ref so this fires once even if component remounts.
-  const readyFired = useRef(false);
-  useEffect(() => {
-    if (readyFired.current || !onReady) return;
-    // Already loaded (from cache) or no image → signal immediately
-    if (!cover || _loadedImgUrls.has(cover)) { readyFired.current = true; onReady(); }
-  }, [cover, onReady]);
-
-  const category = entry.category ?? catOf(entry.name, entry.description);
-
-  return (
-    <Link
-      href={`/product/${productSlug(entry.name, entry.productId)}`}
-      prefetch={false}
-      className="group relative flex flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg"
-    >
-      {/* ── Image / no-photo area ── */}
-      <div className="relative aspect-square shrink-0 overflow-hidden">
-        {cover ? (
-          <div className="absolute inset-0">
-            {!imgLoaded && <div className="hgv-shimmer absolute inset-0" />}
-            <Image
-              src={cover}
-              alt={entry.name}
-              fill
-              sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, (max-width: 1280px) 25vw, (max-width: 1536px) 20vw, 16vw"
-              priority={priority}
-              // data: URIs (the common case — images are stored as base64 in
-              // Postgres, no CDN) gain nothing from the optimizer and would
-              // just add proxy/decode overhead for zero resizing benefit.
-              unoptimized={cover.startsWith("data:")}
-              className={`object-cover transition-opacity duration-300 ${imgLoaded ? "opacity-100" : "opacity-0"}`}
-              onLoad={() => {
-                _loadedImgUrls.add(cover); // persist — survives remounts
-                setImgLoaded(true);
-                if (!readyFired.current && onReady) { readyFired.current = true; onReady(); }
-              }}
-              onError={() => {
-                _failedImgUrls.add(cover);
-                _forceImg((n) => n + 1);
-                if (!readyFired.current && onReady) { readyFired.current = true; onReady(); }
-              }}
-            />
-          </div>
-        ) : (
-          <div className="absolute inset-0 flex items-center justify-center bg-slate-50 text-slate-300">
-            <Package size={32} />
-          </div>
-        )}
-
-        {/* Top-left badges */}
-        <div className="absolute left-2 top-2 flex flex-col gap-1">
-          {isMine && (
-            <span className="rounded bg-orange-500 px-1.5 py-0.5 text-[9px] font-extrabold tracking-wide text-white">YOURS</span>
-          )}
-          {!inStock && (
-            <span className="rounded bg-red-500/90 px-1.5 py-0.5 text-[9px] font-bold text-white backdrop-blur-sm">Out of stock</span>
-          )}
-        </div>
-
-        {/* Gallery indicator — bottom-left camera badge */}
-        {cover && (
-          <span className="absolute bottom-2 left-2 flex h-6 w-6 items-center justify-center rounded-full bg-white/90 text-slate-500 shadow">
-            <Camera size={12} />
-          </span>
-        )}
-
-        {/* Online dot */}
-        {online && (
-          <span className="absolute bottom-2 right-2 h-2 w-2 rounded-full border-2 border-white bg-emerald-500 shadow-[0_0_0_2px_rgba(16,185,129,0.3)]" title="Shop is online" />
-        )}
-      </div>
-
-      {/* ── Content ── */}
-      <div className="flex flex-1 flex-col gap-1 p-2.5">
-
-        {/* Product name */}
-        <p className="line-clamp-2 min-h-[2.4em] text-xs leading-snug text-slate-700">
-          {entry.name}
-        </p>
-
-        {/* Price */}
-        <span className="text-base font-bold leading-none text-slate-900">
-          {fmtPrice(entry.sellingPrice)}
-        </span>
-
-        {/* Min order */}
-        <p className="text-[10px] font-medium text-slate-600">
-          Min. 1 unit · {category.charAt(0).toUpperCase() + category.slice(1)}
-        </p>
-
-        {/* Verified + tenure */}
-        {shop && (
-          <p className="flex items-center gap-1 text-[10px] font-semibold text-emerald-600">
-            <BadgeCheck size={11} /> Verified
-            {shopTenureLabel(shop.created_at) && <span className="font-normal text-slate-400">· {shopTenureLabel(shop.created_at)}</span>}
-          </p>
-        )}
-
-        {/* Supplier row — always at bottom */}
-        <div className="mt-auto flex items-center gap-1.5 border-t border-slate-100 pt-2">
-          <div className="flex h-6 w-6 shrink-0 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-orange-500 to-pink-600 shadow-sm">
-            {shop?.logo_url && !_failedImgUrls.has(shop.logo_url)
-              ? <img src={shop.logo_url} alt={entry.shopName} loading="lazy" decoding="async"
-                  onError={() => { _failedImgUrls.add(shop!.logo_url!); _forceImg((n) => n + 1); }}
-                  className="h-full w-full object-cover" />
-              : <span className="text-[9px] font-black text-white">{logoInitial}</span>}
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-[11px] font-semibold text-slate-600">
-              {entry.shopName}
-            </p>
-            {formatShortAddress(shop?.address) && (
-              <p className="flex items-center gap-0.5 truncate text-[10px] text-slate-400">
-                <MapPin size={8} className="shrink-0 text-slate-300" />
-                {formatShortAddress(shop?.address)}
-              </p>
-            )}
-          </div>
-        </div>
-      </div>
-    </Link>
-  );
-}

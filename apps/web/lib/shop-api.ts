@@ -68,10 +68,15 @@ export async function listShops(params?: {
   page?: number;
   limit?: number;
 }): Promise<ShopListResult> {
-  const res = await authShopRequest("/api/v1/shops");
+  const qs = new URLSearchParams();
+  if (params?.page) qs.set("page", String(params.page));
+  if (params?.limit) qs.set("limit", String(params.limit));
+  const query = qs.toString();
+  const res = await authShopRequest(`/api/v1/shops${query ? `?${query}` : ""}`);
   let items: Shop[] = Array.isArray(res?.data) ? res.data : [];
+  const total: number = typeof res?.total === "number" ? res.total : items.length;
 
-  // Client-side search (auth-service returns all active shops in one call)
+  // Client-side search — the backend doesn't support it yet.
   if (params?.search) {
     const q = params.search.toLowerCase();
     items = items.filter(
@@ -82,11 +87,12 @@ export async function listShops(params?: {
     );
   }
 
+  const limit = res?.limit ?? params?.limit ?? Math.max(items.length, 100);
   return {
-    total: items.length,
-    page: 1,
-    limit: Math.max(items.length, 100),
-    pages: 1,
+    total,
+    page: res?.page ?? 1,
+    limit,
+    pages: Math.max(1, Math.ceil(total / limit)),
     items,
   };
 }
@@ -155,9 +161,9 @@ export async function createShopApplication(payload: ShopUpdatePayload): Promise
   return res?.data ?? null;
 }
 
-/** Get any shop by ID */
+/** Get any active shop by its full ID — a single indexed lookup instead of
+ *  fetching every shop and scanning for a match. */
 export async function getShopById(shopId: string): Promise<Shop | null> {
-  const res = await authShopRequest(`/api/v1/shops`);
-  const items: Shop[] = Array.isArray(res?.data) ? res.data : [];
-  return items.find((s) => s.id === shopId) ?? null;
+  const res = await authShopRequest(`/api/v1/shops/${shopId}`);
+  return res?.data ?? null;
 }

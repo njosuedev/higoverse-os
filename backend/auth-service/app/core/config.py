@@ -16,6 +16,12 @@ class Settings(BaseSettings):
     SMTP_PASS: str = os.getenv("SMTP_PASS", "")
     SMTP_FROM: str = os.getenv("SMTP_FROM", "Higoverse <noreply@higoverse.com>")
 
+    # Cross-service sync: pushes shop.is_active changes to product-service so
+    # marketplace queries can filter shop_is_active without a cross-database
+    # join (shops and products live in separate Postgres instances).
+    PRODUCT_SERVICE_URL:      str = os.getenv("PRODUCT_SERVICE_URL", "https://higoverse-products.vercel.app")
+    INTERNAL_SERVICE_SECRET:  str = os.getenv("INTERNAL_SERVICE_SECRET", "")
+
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 

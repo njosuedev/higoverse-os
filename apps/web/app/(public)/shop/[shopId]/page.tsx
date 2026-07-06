@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
-import { getPublicProducts, getPublicShops, findShopBySlugOrId } from "@/lib/marketplace-public";
+import {
+  getPublicShops, findShopBySlugOrId, getMarketplaceFeedPage, MARKETPLACE_PAGE_SIZE,
+} from "@/lib/marketplace-public";
 import ShopDetailClient from "./ShopDetailClient";
 
 interface Props {
@@ -30,8 +32,12 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function ShopPage({ params }: Props) {
   const { shopId } = await params;
-  const [shops, products] = await Promise.all([getPublicShops(), getPublicProducts()]);
+  const shops = await getPublicShops();
   const shop = findShopBySlugOrId(shops, shopId);
+
+  const feed = shop
+    ? await getMarketplaceFeedPage(null, MARKETPLACE_PAGE_SIZE, { shopId: shop.id })
+    : { items: [], nextCursor: null };
 
   const jsonLd = shop
     ? {
@@ -42,10 +48,9 @@ export default async function ShopPage({ params }: Props) {
         image: shop.logo_url,
         telephone: shop.phone,
         address: shop.address?.split("|").pop()?.trim(),
-        makesOffer: products
-          .filter((p) => p.shopId === shop.id)
+        makesOffer: feed.items
           .slice(0, 20)
-          .map((p) => ({ "@type": "Offer", itemOffered: { "@type": "Product", name: p.name }, price: p.price, priceCurrency: "RWF" })),
+          .map((p) => ({ "@type": "Offer", itemOffered: { "@type": "Product", name: p.name }, price: p.selling_price, priceCurrency: "RWF" })),
       }
     : null;
 
@@ -54,7 +59,11 @@ export default async function ShopPage({ params }: Props) {
       {jsonLd && (
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
       )}
-      <ShopDetailClient />
+      <ShopDetailClient
+        initialShop={shop ?? null}
+        initialItems={feed.items}
+        initialNextCursor={feed.nextCursor}
+      />
     </>
   );
 }

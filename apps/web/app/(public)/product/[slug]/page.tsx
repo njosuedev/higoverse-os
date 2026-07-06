@@ -90,10 +90,20 @@ export default async function ProductPage({ params }: Props) {
     },
   };
 
+  const breadcrumbJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: "Home", item: "https://higoverse-os.vercel.app/" },
+      { "@type": "ListItem", position: 2, name: categoryLabel(product.category), item: `https://higoverse-os.vercel.app/category/${product.category}` },
+      { "@type": "ListItem", position: 3, name: product.name, item: `https://higoverse-os.vercel.app/product/${product.slug}` },
+    ],
+  };
+
   return (
     <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
-      {/* eslint-disable-next-line @next/next/no-page-custom-font */}
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
 
       <nav className="mb-4 flex items-center gap-1.5 text-xs text-slate-500">
         <Link href="/" className="hover:text-orange-600">Home</Link>

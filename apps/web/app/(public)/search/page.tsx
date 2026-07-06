@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
 import { Search as SearchIcon } from "lucide-react";
-import { getPublicProducts, getPublicShops } from "@/lib/marketplace-public";
+import {
+  getMarketplaceFeedPage, getMarketplaceShopCounts, getPublicShops, MARKETPLACE_PAGE_SIZE,
+} from "@/lib/marketplace-public";
 import { categoryLabel } from "@/lib/categories";
-import ProductCard from "@/app/components/public/ProductCard";
 import ShopCard from "@/app/components/public/ShopCard";
+import InfiniteProductGrid from "@/app/components/public/InfiniteProductGrid";
 import EmptyState from "@/app/components/ui/EmptyState";
 import SearchBox from "@/app/components/public/SearchBox";
 
@@ -12,22 +14,27 @@ export const metadata: Metadata = {
   robots: { index: false, follow: true },
 };
 
+export const revalidate = 60;
+
 export default async function SearchPage({ searchParams }: { searchParams: Promise<{ q?: string; cat?: string }> }) {
   const { q = "", cat = "" } = await searchParams;
-  const query = q.trim().toLowerCase();
+  const query = q.trim();
+  const hasQuery = query.length > 0;
+  const hasSearch = hasQuery || !!cat;
 
-  const [products, shops] = await Promise.all([getPublicProducts(), getPublicShops()]);
-  const shopMap = new Map(shops.map((s) => [s.id, s]));
-  const counts = new Map<string, number>();
-  for (const p of products) counts.set(p.shopId, (counts.get(p.shopId) ?? 0) + 1);
+  const [feed, shops] = await Promise.all([
+    hasSearch
+      ? getMarketplaceFeedPage(null, MARKETPLACE_PAGE_SIZE, { category: cat || undefined, q: hasQuery ? query : undefined })
+      : Promise.resolve({ items: [], nextCursor: null }),
+    getPublicShops(),
+  ]);
 
-  const byCategory = cat ? products.filter((p) => p.category === cat) : products;
-  const matchedProducts = query
-    ? byCategory.filter((p) => p.name.toLowerCase().includes(query) || (p.description ?? "").toLowerCase().includes(query))
-    : cat ? byCategory : [];
-  const matchedShops = query && !cat
-    ? shops.filter((s) => (s.name ?? "").toLowerCase().includes(query) || (s.address ?? "").toLowerCase().includes(query))
+  const matchedShops = hasQuery && !cat
+    ? shops.filter((s) => (s.name ?? "").toLowerCase().includes(query.toLowerCase()) || (s.address ?? "").toLowerCase().includes(query.toLowerCase()))
     : [];
+  const shopCounts = await getMarketplaceShopCounts(matchedShops.map((s) => s.id));
+
+  const noResults = hasSearch && feed.items.length === 0 && matchedShops.length === 0;
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -39,9 +46,9 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
         <SearchBox defaultValue={q} />
       </div>
 
-      {!query && !cat ? (
+      {!hasSearch ? (
         <p className="mt-8 text-sm text-slate-400">Search for products, suppliers, or categories.</p>
-      ) : matchedProducts.length === 0 && matchedShops.length === 0 ? (
+      ) : noResults ? (
         <EmptyState
           icon={<SearchIcon size={30} />}
           tone="orange"
@@ -58,21 +65,21 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
               <h2 className="mb-4 text-lg font-bold text-slate-900">Shops ({matchedShops.length})</h2>
               <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
                 {matchedShops.map((s) => (
-                  <ShopCard key={s.id} shop={s} productCount={counts.get(s.id) ?? 0} />
+                  <ShopCard key={s.id} shop={s} productCount={shopCounts[s.id] ?? 0} />
                 ))}
               </div>
             </section>
           )}
-          {matchedProducts.length > 0 && (
-            <section className="mt-8">
-              <h2 className="mb-4 text-lg font-bold text-slate-900">Products ({matchedProducts.length})</h2>
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6">
-                {matchedProducts.map((p) => (
-                  <ProductCard key={p.id} product={p} shop={shopMap.get(p.shopId)} />
-                ))}
-              </div>
-            </section>
-          )}
+          <section className="mt-8">
+            <h2 className="mb-4 text-lg font-bold text-slate-900">Products</h2>
+            <InfiniteProductGrid
+              initialItems={feed.items}
+              initialNextCursor={feed.nextCursor}
+              initialShops={shops}
+              fetchParams={{ category: cat || undefined, q: hasQuery ? query : undefined }}
+              emptyState={<p className="py-8 text-sm text-slate-400">No matching products.</p>}
+            />
+          </section>
         </>
       )}
     </div>

@@ -77,23 +77,90 @@ export interface RawMarketplaceItem {
 export interface MarketplaceFeedPage {
   items: RawMarketplaceItem[];
   nextCursor: string | null;
+  /** Total matching row count — only present on the first (cursor-less) page. */
+  total?: number | null;
 }
 
-/** One page of the public marketplace feed — cursor-based, 24 items by default.
- *  Used by the marketplace homepage's infinite-scroll grid. Raw items are
- *  returned (not `PublicProduct`) since the caller joins them against a live
- *  shops list for shopName/shopLogoUrl/shopPhone. */
-export async function getMarketplaceFeedPage(cursor: string | null, limit = 24): Promise<MarketplaceFeedPage> {
+/** Extra filters for the marketplace feed, forwarded as query params. */
+export interface MarketplaceFeedParams {
+  category?: string;
+  q?: string;
+  shopId?: string;
+}
+
+/** One page of the public marketplace feed — cursor-based, 20 items by default.
+ *  Used by every marketplace listing page's infinite-scroll grid. Raw items
+ *  are returned (not `PublicProduct`) since the caller joins them against a
+ *  live shops list for shopName/shopLogoUrl/shopPhone. */
+export async function getMarketplaceFeedPage(
+  cursor: string | null,
+  limit = MARKETPLACE_PAGE_SIZE,
+  params?: MarketplaceFeedParams,
+): Promise<MarketplaceFeedPage> {
   const qs = new URLSearchParams({ limit: String(limit) });
   if (cursor) qs.set("cursor", cursor);
+  if (params?.category) qs.set("category", params.category);
+  if (params?.q) qs.set("q", params.q);
+  if (params?.shopId) qs.set("shop_id", params.shopId);
   try {
     const res = await itemRequest(`/products/marketplace?${qs.toString()}`);
     return {
       items: res?.data?.items ?? [],
       nextCursor: res?.data?.next_cursor ?? null,
+      total: res?.data?.total ?? null,
     };
   } catch {
-    return { items: [], nextCursor: null };
+    return { items: [], nextCursor: null, total: null };
+  }
+}
+
+/** Product count per category — backs the /categories directory page
+ *  without fetching the whole catalog just to tally counts. */
+export async function getMarketplaceCategoryCounts(): Promise<Record<string, number>> {
+  try {
+    const res = await itemRequest("/products/marketplace/category-counts");
+    const rows: Array<{ category: string | null; count: number }> = res?.data ?? [];
+    const map: Record<string, number> = {};
+    for (const row of rows) {
+      if (row.category) map[row.category] = row.count;
+    }
+    return map;
+  } catch {
+    return {};
+  }
+}
+
+export interface SitemapProductItem {
+  id: string;
+  name: string;
+}
+
+/** One offset-paginated, lean page of listed products — used only by
+ *  app/sitemap.ts to chunk product URLs into multiple sitemap files at
+ *  scale. Not for user-facing pages (see getMarketplaceFeedPage for that). */
+export async function getMarketplaceSitemapPage(
+  page: number,
+  limit: number,
+): Promise<{ items: SitemapProductItem[]; total: number }> {
+  try {
+    const qs = new URLSearchParams({ page: String(page), limit: String(limit) });
+    const res = await itemRequest(`/products/marketplace/sitemap?${qs.toString()}`);
+    return { items: res?.data?.items ?? [], total: res?.data?.total ?? 0 };
+  } catch {
+    return { items: [], total: 0 };
+  }
+}
+
+/** Product count for a small, bounded set of shops — used to caption shop
+ *  cards (e.g. search results) without a full-catalog fetch. */
+export async function getMarketplaceShopCounts(shopIds: string[]): Promise<Record<string, number>> {
+  if (shopIds.length === 0) return {};
+  try {
+    const qs = new URLSearchParams({ shop_ids: shopIds.join(",") });
+    const res = await itemRequest(`/products/marketplace/shop-counts?${qs.toString()}`);
+    return res?.data ?? {};
+  } catch {
+    return {};
   }
 }
 

@@ -1,18 +1,20 @@
 import type { Metadata } from "next";
 import { Store } from "lucide-react";
-import { getPublicProducts, getPublicShops } from "@/lib/marketplace-public";
+import { getMarketplaceShopCounts, getPublicShops } from "@/lib/marketplace-public";
 import ShopCard from "@/app/components/public/ShopCard";
 import EmptyState from "@/app/components/ui/EmptyState";
 
 export const metadata: Metadata = {
   title: "Suppliers",
   description: "Browse verified suppliers and shops on the Higoverse marketplace.",
+  alternates: { canonical: "/suppliers" },
 };
 
+export const revalidate = 60;
+
 export default async function SuppliersPage() {
-  const [shops, products] = await Promise.all([getPublicShops(), getPublicProducts()]);
-  const counts = new Map<string, number>();
-  for (const p of products) counts.set(p.shopId, (counts.get(p.shopId) ?? 0) + 1);
+  const shops = await getPublicShops();
+  const counts = await getMarketplaceShopCounts(shops.map((s) => s.id));
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
@@ -32,7 +34,7 @@ export default async function SuppliersPage() {
       ) : (
         <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
           {shops.map((s) => (
-            <ShopCard key={s.id} shop={s} productCount={counts.get(s.id) ?? 0} />
+            <ShopCard key={s.id} shop={s} productCount={counts[s.id] ?? 0} />
           ))}
         </div>
       )}

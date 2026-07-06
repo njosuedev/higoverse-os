@@ -1,18 +1,19 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { LayoutGrid } from "lucide-react";
-import { getPublicProducts } from "@/lib/marketplace-public";
+import { getMarketplaceCategoryCounts } from "@/lib/marketplace-public";
 import { CATEGORIES } from "@/lib/categories";
 
 export const metadata: Metadata = {
   title: "Categories",
   description: "Explore Higoverse marketplace categories — Electronics, Vehicles, Fashion, Health, Furniture, Agriculture, Construction, Business Services and more.",
+  alternates: { canonical: "/categories" },
 };
 
+export const revalidate = 60;
+
 export default async function CategoriesPage() {
-  const products = await getPublicProducts();
-  const counts = new Map<string, number>();
-  for (const p of products) counts.set(p.category, (counts.get(p.category) ?? 0) + 1);
+  const counts = await getMarketplaceCategoryCounts();
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
@@ -30,7 +31,7 @@ export default async function CategoriesPage() {
               <LayoutGrid size={26} />
             </div>
             <p className="text-sm font-semibold text-slate-900">{c.label}</p>
-            <p className="text-xs text-slate-400">{counts.get(c.key) ?? 0} products</p>
+            <p className="text-xs text-slate-400">{counts[c.key] ?? 0} products</p>
           </Link>
         ))}
       </div>

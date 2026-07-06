@@ -1,7 +1,8 @@
 import base64
+import json
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, Header, Response
+from fastapi import APIRouter, Depends, HTTPException, Header, Query, Response
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from sqlalchemy import func, tuple_
 from sqlalchemy.orm import Session
@@ -61,6 +62,21 @@ def calculate_profit(cost_price: float, selling_price: float):
     percent = (profit / cost_price) * 100
 
     return profit, round(percent, 2)
+
+
+def lean_cover_image(images_raw: str | None) -> str | None:
+    """Shrinks a product's `images` (JSON-encoded list) down to just the
+    cover image for list/feed responses — the full set is only needed on
+    the detail page (`/marketplace/by-id/{id_prefix}`)."""
+    if not images_raw:
+        return images_raw
+    try:
+        parsed = json.loads(images_raw)
+    except Exception:
+        return images_raw
+    if isinstance(parsed, list) and parsed:
+        return json.dumps([parsed[0]])
+    return images_raw
 
 
 # -----------------------------
@@ -245,18 +261,29 @@ def get_marketplace(
     db: Session = Depends(get_db),
     user: dict | None = Depends(get_current_user_optional),
     page: int = 1,
-    limit: int = 100,
+    limit: int = Query(20, ge=1, le=48),
     cursor: str | None = None,
     category: str | None = None,
+    shop_id: str | None = None,
+    q: str | None = None,
 ):
     # Public, mostly-cacheable listing — lets any CDN/proxy/browser in front of
     # this service cache responses. The primary request-throttling lever is
     # the frontend's `export const revalidate` (Next.js ISR), not this header.
     response.headers["Cache-Control"] = "public, s-maxage=60, stale-while-revalidate=300"
 
-    query = db.query(Product).filter(Product.listed == True)  # noqa: E712
+    query = db.query(Product).filter(
+        Product.listed == True,  # noqa: E712
+        Product.shop_is_active == True,  # noqa: E712
+    )
     if category:
         query = query.filter(Product.category == category)
+    if shop_id:
+        query = query.filter(Product.shop_id == shop_id)
+    if q:
+        # Escape ILIKE wildcards — q is attacker-controlled (public query param).
+        escaped_q = q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        query = query.filter(Product.name.ilike(f"%{escaped_q}%", escape="\\"))
 
     cursor_value = decode_marketplace_cursor(cursor) if cursor else None
 
@@ -284,7 +311,7 @@ def get_marketplace(
             "name": p.name,
             "description": p.description,
             "category": p.category,
-            "images": p.images,
+            "images": lean_cover_image(p.images),
             "selling_price": float(p.selling_price),
             # cost_price is intentionally omitted — this endpoint is public,
             # and cost_price is a shop's private profit margin.
@@ -311,6 +338,101 @@ def get_marketplace(
 
 
 # -----------------------------
+# CATEGORY COUNTS (for the /categories directory page)
+# Public — a lightweight aggregate instead of fetching the whole catalog
+# just to count products per category.
+# Must be registered BEFORE /{product_id} — same reasoning as /marketplace.
+# -----------------------------
+@router.get("/marketplace/category-counts")
+def get_marketplace_category_counts(
+    response: Response,
+    db: Session = Depends(get_db),
+):
+    response.headers["Cache-Control"] = "public, s-maxage=60, stale-while-revalidate=300"
+
+    rows = (
+        db.query(Product.category, func.count(Product.id))
+        .filter(Product.listed == True, Product.shop_is_active == True)  # noqa: E712
+        .group_by(Product.category)
+        .all()
+    )
+
+    return {
+        "success": True,
+        "data": [{"category": category, "count": count} for category, count in rows],
+    }
+
+
+# -----------------------------
+# PER-SHOP PRODUCT COUNTS (for shop cards on the search page)
+# Public — bounded to the requested shop_ids, so it stays cheap without a
+# full-catalog fetch just to caption a handful of shop cards.
+# Must be registered BEFORE /{product_id} — same reasoning as /marketplace.
+# -----------------------------
+@router.get("/marketplace/shop-counts")
+def get_marketplace_shop_counts(
+    response: Response,
+    db: Session = Depends(get_db),
+    shop_ids: str = "",
+):
+    response.headers["Cache-Control"] = "public, s-maxage=60, stale-while-revalidate=300"
+
+    ids = [s for s in shop_ids.split(",") if s]
+    if not ids:
+        return {"success": True, "data": {}}
+
+    rows = (
+        db.query(Product.shop_id, func.count(Product.id))
+        .filter(
+            Product.listed == True,  # noqa: E712
+            Product.shop_is_active == True,  # noqa: E712
+            Product.shop_id.in_(ids),
+        )
+        .group_by(Product.shop_id)
+        .all()
+    )
+
+    return {"success": True, "data": {shop_id: count for shop_id, count in rows}}
+
+
+# -----------------------------
+# SITEMAP EXPORT (bulk, lean, offset-paginated)
+# Public — for app/sitemap.ts's generateSitemaps() chunking. Offset pagination
+# is fine here (unlike the public feed): sitemap generation is an infrequent
+# background job, not a latency-sensitive user request, and this endpoint
+# only ever selects `id`/`name` (no images/price), keeping even a deep offset cheap.
+# Must be registered BEFORE /{product_id} — same reasoning as /marketplace.
+# -----------------------------
+@router.get("/marketplace/sitemap")
+def get_marketplace_sitemap_page(
+    response: Response,
+    db: Session = Depends(get_db),
+    page: int = 1,
+    limit: int = Query(40000, ge=1, le=45000),
+):
+    response.headers["Cache-Control"] = "public, s-maxage=3600, stale-while-revalidate=86400"
+
+    query = db.query(Product.id, Product.name).filter(
+        Product.listed == True,  # noqa: E712
+        Product.shop_is_active == True,  # noqa: E712
+    ).order_by(Product.created_at.desc(), Product.id.desc())
+
+    total = query.order_by(None).count()
+    offset = (page - 1) * limit
+    rows = query.offset(offset).limit(limit).all()
+
+    return {
+        "success": True,
+        "data": {
+            "items": [{"id": r.id, "name": r.name} for r in rows],
+            "total": total,
+            "page": page,
+            "limit": limit,
+        },
+    }
+
+
+# -----------------------------
 # GET ONE MARKETPLACE PRODUCT BY SLUG-EMBEDDED ID PREFIX
 # Public — lets the product detail page fetch exactly one listed product
 # instead of the whole feed. Product slugs are "{name}-{id[:6]}" (see
@@ -330,7 +452,11 @@ def get_marketplace_product_by_id_prefix(
     escaped_prefix = id_prefix.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
     product = (
         db.query(Product)
-        .filter(Product.listed == True, Product.id.like(f"{escaped_prefix}%", escape="\\"))  # noqa: E712
+        .filter(
+            Product.listed == True,  # noqa: E712
+            Product.shop_is_active == True,  # noqa: E712
+            Product.id.like(f"{escaped_prefix}%", escape="\\"),
+        )
         .first()
     )
     if not product:

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Boolean, DateTime, Text
+from sqlalchemy import Column, String, Boolean, DateTime, Text, Index
 from sqlalchemy.sql import func
 from app.db.base import Base
 from sqlalchemy.dialects.postgresql import UUID
@@ -27,3 +27,8 @@ class Shop(Base):
     created_at   = Column(DateTime(timezone=True), default=_utcnow)
     updated_at   = Column(DateTime(timezone=True), onupdate=func.now())
     last_seen_at = Column(DateTime(timezone=True), nullable=True)
+
+    # Backs the public shop directory's `WHERE is_active ORDER BY created_at DESC`.
+    __table_args__ = (
+        Index("ix_shops_active_created", is_active, created_at.desc()),
+    )
