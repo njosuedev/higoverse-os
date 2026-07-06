@@ -323,36 +323,36 @@ function MarketplacePageContent() {
       setLoading(false); // show UI immediately with whatever images we have locally
 
       // ── PHASE 2: Enrich with API images (arrives ~300-800 ms later) ──────────
+      // Runs for everyone, logged in or not — /products/marketplace is a public
+      // endpoint, so anonymous visitors get real photos too, not just registered users.
       const dbEntries: MarketplaceEntry[] = [];
-      if (user) {
-        try {
-          const mkRes = await itemRequest("/products/marketplace?limit=200");
-          const mkItems: Array<{
-            id: string; shop_id: string; name: string; description?: string;
-            category?: string; images?: string; selling_price: number;
-            cost_price: number; quantity: number;
-          }> = mkRes?.data?.items ?? [];
-          for (const item of mkItems) {
-            const itemShop = allShops.find((s) => s.id === item.shop_id);
-            if (!itemShop) continue;
-            const serverImgs: string[] = item.images
-              ? (() => { try { return JSON.parse(item.images) as string[]; } catch { return []; } })()
-              : [];
-            const localImgs = phase1.get(item.id)?.images ?? [];
-            dbEntries.push({
-              productId: item.id, shopId: item.shop_id,
-              shopName: itemShop.name,
-              shopLogoUrl: itemShop.logo_url, shopPhone: itemShop.phone,
-              name: item.name, description: item.description, category: item.category,
-              sellingPrice: item.selling_price, costPrice: item.cost_price,
-              quantity: item.quantity,
-              // prefer local (base64, already rendered) → fallback to server URL
-              images: localImgs.length > 0 ? localImgs : serverImgs,
-              listedAt: new Date().toISOString(),
-            });
-          }
-        } catch { /* product service unavailable — phase1 result stands */ }
-      }
+      try {
+        const mkRes = await itemRequest("/products/marketplace?limit=200");
+        const mkItems: Array<{
+          id: string; shop_id: string; name: string; description?: string;
+          category?: string; images?: string; selling_price: number;
+          cost_price: number; quantity: number;
+        }> = mkRes?.data?.items ?? [];
+        for (const item of mkItems) {
+          const itemShop = allShops.find((s) => s.id === item.shop_id);
+          if (!itemShop) continue;
+          const serverImgs: string[] = item.images
+            ? (() => { try { return JSON.parse(item.images) as string[]; } catch { return []; } })()
+            : [];
+          const localImgs = phase1.get(item.id)?.images ?? [];
+          dbEntries.push({
+            productId: item.id, shopId: item.shop_id,
+            shopName: itemShop.name,
+            shopLogoUrl: itemShop.logo_url, shopPhone: itemShop.phone,
+            name: item.name, description: item.description, category: item.category,
+            sellingPrice: item.selling_price, costPrice: item.cost_price,
+            quantity: item.quantity,
+            // prefer local (base64, already rendered) → fallback to server URL
+            images: localImgs.length > 0 ? localImgs : serverImgs,
+            listedAt: new Date().toISOString(),
+          });
+        }
+      } catch { /* product service unavailable — phase1 result stands */ }
 
       // Re-merge with API data and update catalog
       const merged = new Map(phase1);
@@ -453,31 +453,28 @@ function MarketplacePageContent() {
         }
         serverCatalogRef.current = srvEntries;
 
+        // Public endpoint — fetch for everyone, not just logged-in users.
         const dbEntries: MarketplaceEntry[] = [];
-        if (user) {
-          try {
-            const mkRes = await itemRequest("/products/marketplace?limit=200");
-            const mkItems: Array<{
-              id: string; shop_id: string; name: string; description?: string;
-              category?: string; images?: string; selling_price: number;
-              cost_price: number; quantity: number;
-            }> = mkRes?.data?.items ?? [];
-            const activeIds = new Set(freshShops.map((s) => s.id));
-            for (const item of mkItems) {
-              const s = freshShops.find((sh) => sh.id === item.shop_id);
-              if (!s) continue;
-              const imgs: string[] = item.images ? (() => { try { return JSON.parse(item.images!) as string[]; } catch { return []; } })() : [];
-              dbEntries.push({
-                productId: item.id, shopId: item.shop_id,
-                shopName: s.name, shopLogoUrl: s.logo_url, shopPhone: s.phone,
-                name: item.name, description: item.description, category: item.category,
-                sellingPrice: item.selling_price, costPrice: item.cost_price,
-                quantity: item.quantity, images: imgs, listedAt: new Date().toISOString(),
-              });
-              void activeIds;
-            }
-          } catch { /* product service temporarily unavailable */ }
-        }
+        try {
+          const mkRes = await itemRequest("/products/marketplace?limit=200");
+          const mkItems: Array<{
+            id: string; shop_id: string; name: string; description?: string;
+            category?: string; images?: string; selling_price: number;
+            cost_price: number; quantity: number;
+          }> = mkRes?.data?.items ?? [];
+          for (const item of mkItems) {
+            const s = freshShops.find((sh) => sh.id === item.shop_id);
+            if (!s) continue;
+            const imgs: string[] = item.images ? (() => { try { return JSON.parse(item.images!) as string[]; } catch { return []; } })() : [];
+            dbEntries.push({
+              productId: item.id, shopId: item.shop_id,
+              shopName: s.name, shopLogoUrl: s.logo_url, shopPhone: s.phone,
+              name: item.name, description: item.description, category: item.category,
+              sellingPrice: item.selling_price, costPrice: item.cost_price,
+              quantity: item.quantity, images: imgs, listedAt: new Date().toISOString(),
+            });
+          }
+        } catch { /* product service temporarily unavailable */ }
 
         const activeIds = new Set(freshShops.map((s) => s.id));
         const merged = new Map<string, MarketplaceEntry>(srvEntries.map((e) => [e.productId, e]));

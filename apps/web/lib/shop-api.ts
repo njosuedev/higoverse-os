@@ -12,6 +12,10 @@ async function authShopRequest(endpoint: string, options: RequestInit = {}) {
   const res = await fetch(`${AUTH_API}${endpoint}`, { ...options, headers });
 
   if (res.status === 401) {
+    // A guest (no token) hitting a "my shop" endpoint is expected — there's no
+    // session to expire. Only force logout when a previously-valid token was
+    // rejected, i.e. a genuinely expired/invalid session.
+    if (!token) return null;
     handleUnauthorized();
     throw new Error("Session expired. Please log in again.");
   }
