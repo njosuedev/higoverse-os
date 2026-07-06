@@ -20,7 +20,7 @@ import {
   ArrowRight, LayoutDashboard, CheckCircle2,
   Building2, FileText, ImagePlus, ChevronDown,
   Clock, BadgeCheck, Heart, Camera,
-  Truck, Shirt, Home as HomeIcon, Leaf, Briefcase,
+  Truck, Shirt, Home as HomeIcon, Leaf, Briefcase, TrendingUp,
 } from "lucide-react";
 import {
   sendMessage, getMyMessages, replyToMessage,
@@ -90,6 +90,25 @@ function catOf(name: string, desc?: string | null) {
   for (const [cat, kws] of Object.entries(CAT_KW))
     if (kws.some((kw) => text.includes(kw))) return cat;
   return "other";
+}
+
+// Rotating taglines for the "Fast-selling products" promo banner — a vertical
+// sliding ticker, the way ecommerce sites (Amazon, Alibaba) cycle promo copy.
+const PROMO_MESSAGES = [
+  "Discover what's trending across Higoverse",
+  "New arrivals added daily from verified shops",
+  "Unbeatable deals, updated in real time",
+  "Shop smarter — compare prices instantly",
+];
+
+function usePromoTicker(length: number, intervalMs = 3200) {
+  const [index, setIndex] = useState(0);
+  useEffect(() => {
+    if (length <= 1) return;
+    const tick = setInterval(() => setIndex((i) => (i + 1) % length), intervalMs);
+    return () => clearInterval(tick);
+  }, [length, intervalMs]);
+  return index;
 }
 
 const PAGE_SIZE = 24;
@@ -574,6 +593,13 @@ function MarketplacePageContent() {
     [catalog]);
   const heroCategories = useMemo(() => CATEGORIES.slice(0, 6), []);
 
+  // Quick-module content — fixed per page load; only changes when the catalog
+  // itself refreshes (page reload / poll), not on a timer.
+  const popularShop  = featuredSuppliers[0];
+  const trendProduct = heroTrending[0];
+  const newProduct   = heroTrending[1];
+  const promoIdx     = usePromoTicker(PROMO_MESSAGES.length);
+
   // ── render ───────────────────────────────────────────────────────────────
   return (
     <div style={{ background: "#f5f5f5", minHeight: "100vh" }}>
@@ -584,17 +610,17 @@ function MarketplacePageContent() {
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-[1.1fr_1fr_1fr_1fr_1.3fr]">
 
           {/* Categories for you */}
-          <div className="min-w-0 overflow-hidden rounded-lg border border-slate-200 bg-white p-3">
+          <div className="hgv-module-in min-w-0 overflow-hidden rounded-lg border border-slate-200 bg-white p-3" style={{ animationDelay: "0ms" }}>
             <p className="mb-2 truncate text-xs font-bold text-slate-900">Categories for you</p>
             <ul className="space-y-2">
               {heroCategories.map((c) => {
                 const Icon = CATEGORY_ICONS[c.key] ?? Package;
                 return (
                   <li key={c.key}>
-                    <Link href={`/category/${c.key}`} className="flex items-center gap-2 text-xs text-slate-600 transition hover:text-orange-600">
-                      <Icon size={13} className="shrink-0 text-slate-400" />
+                    <Link href={`/category/${c.key}`} className="group flex items-center gap-2 text-xs text-slate-600 transition hover:text-orange-600">
+                      <Icon size={13} className="shrink-0 text-slate-400 transition group-hover:text-orange-500" />
                       <span className="flex-1 truncate">{c.label}</span>
-                      <ChevronRight size={12} className="shrink-0 text-slate-300" />
+                      <ChevronRight size={12} className="shrink-0 text-slate-300 transition-transform duration-200 group-hover:translate-x-0.5 group-hover:text-orange-400" />
                     </Link>
                   </li>
                 );
@@ -603,19 +629,19 @@ function MarketplacePageContent() {
           </div>
 
           {/* Popular shop */}
-          <div className="hidden min-w-0 overflow-hidden rounded-lg border border-slate-200 bg-white p-3 sm:block">
+          <div className="hgv-module-in hgv-card-hover hidden min-w-0 overflow-hidden rounded-lg border border-slate-200 bg-white p-3 sm:block" style={{ animationDelay: "80ms" }}>
             <p className="mb-2 truncate text-xs font-bold text-slate-900">Popular Shop</p>
-            {featuredSuppliers[0] ? (
-              <Link href={`/shop/${featuredSuppliers[0].id}`} className="block">
+            {popularShop ? (
+              <Link href={`/shop/${popularShop.id}`} className="group block">
                 <div className="relative mb-2 flex aspect-square w-full min-w-0 items-center justify-center overflow-hidden rounded bg-slate-50">
-                  {featuredSuppliers[0].logo_url ? (
-                    <img src={featuredSuppliers[0].logo_url} alt={featuredSuppliers[0].name} className="absolute inset-0 h-full w-full object-cover" />
+                  {popularShop.logo_url ? (
+                    <img src={popularShop.logo_url} alt={popularShop.name} className="hgv-img-zoom absolute inset-0 h-full w-full object-cover" />
                   ) : (
                     <Store size={28} className="text-slate-300" />
                   )}
                 </div>
-                <p className="truncate text-xs font-semibold text-slate-800">{featuredSuppliers[0].name}</p>
-                <p className="truncate text-[10px] text-slate-400">{listedPerShop[featuredSuppliers[0].id] ?? 0} products</p>
+                <p className="truncate text-xs font-semibold text-slate-800">{popularShop.name}</p>
+                <p className="truncate text-[10px] text-slate-400">{listedPerShop[popularShop.id] ?? 0} products</p>
               </Link>
             ) : (
               <p className="text-[11px] text-slate-400">No shops yet</p>
@@ -623,19 +649,19 @@ function MarketplacePageContent() {
           </div>
 
           {/* Trending product */}
-          <div className="hidden min-w-0 overflow-hidden rounded-lg border border-slate-200 bg-white p-3 sm:block">
+          <div className="hgv-module-in hgv-card-hover hidden min-w-0 overflow-hidden rounded-lg border border-slate-200 bg-white p-3 sm:block" style={{ animationDelay: "160ms" }}>
             <p className="mb-2 truncate text-xs font-bold text-slate-900">Trending Product</p>
-            {heroTrending[0] ? (
-              <Link href={`/product/${productSlug(heroTrending[0].name, heroTrending[0].productId)}`} className="block">
+            {trendProduct ? (
+              <Link href={`/product/${productSlug(trendProduct.name, trendProduct.productId)}`} className="group block">
                 <div className="relative mb-2 flex aspect-square w-full min-w-0 items-center justify-center overflow-hidden rounded bg-slate-50">
-                  {heroTrending[0].images[0] ? (
-                    <img src={heroTrending[0].images[0]} alt={heroTrending[0].name} className="absolute inset-0 h-full w-full object-cover" />
+                  {trendProduct.images[0] ? (
+                    <img src={trendProduct.images[0]} alt={trendProduct.name} className="hgv-img-zoom absolute inset-0 h-full w-full object-cover" />
                   ) : (
                     <Package size={28} className="text-slate-300" />
                   )}
                 </div>
-                <p className="truncate text-xs font-semibold text-slate-800">{heroTrending[0].name}</p>
-                <p className="truncate text-[10px] font-bold text-orange-600">{fmtPrice(heroTrending[0].sellingPrice)}</p>
+                <p className="truncate text-xs font-semibold text-slate-800">{trendProduct.name}</p>
+                <p className="truncate text-[10px] font-bold text-orange-600">{fmtPrice(trendProduct.sellingPrice)}</p>
               </Link>
             ) : (
               <p className="text-[11px] text-slate-400">No products yet</p>
@@ -643,19 +669,19 @@ function MarketplacePageContent() {
           </div>
 
           {/* Newly listed */}
-          <div className="hidden min-w-0 overflow-hidden rounded-lg border border-slate-200 bg-white p-3 lg:block">
+          <div className="hgv-module-in hgv-card-hover hidden min-w-0 overflow-hidden rounded-lg border border-slate-200 bg-white p-3 lg:block" style={{ animationDelay: "240ms" }}>
             <p className="mb-2 truncate text-xs font-bold text-slate-900">Newly Listed</p>
-            {heroTrending[1] ? (
-              <Link href={`/product/${productSlug(heroTrending[1].name, heroTrending[1].productId)}`} className="block">
+            {newProduct ? (
+              <Link href={`/product/${productSlug(newProduct.name, newProduct.productId)}`} className="group block">
                 <div className="relative mb-2 flex aspect-square w-full min-w-0 items-center justify-center overflow-hidden rounded bg-slate-50">
-                  {heroTrending[1].images[0] ? (
-                    <img src={heroTrending[1].images[0]} alt={heroTrending[1].name} className="absolute inset-0 h-full w-full object-cover" />
+                  {newProduct.images[0] ? (
+                    <img src={newProduct.images[0]} alt={newProduct.name} className="hgv-img-zoom absolute inset-0 h-full w-full object-cover" />
                   ) : (
                     <Package size={28} className="text-slate-300" />
                   )}
                 </div>
-                <p className="truncate text-xs font-semibold text-slate-800">{heroTrending[1].name}</p>
-                <p className="truncate text-[10px] font-bold text-orange-600">{fmtPrice(heroTrending[1].sellingPrice)}</p>
+                <p className="truncate text-xs font-semibold text-slate-800">{newProduct.name}</p>
+                <p className="truncate text-[10px] font-bold text-orange-600">{fmtPrice(newProduct.sellingPrice)}</p>
               </Link>
             ) : (
               <p className="text-[11px] text-slate-400">No products yet</p>
@@ -665,14 +691,33 @@ function MarketplacePageContent() {
           {/* Promo banner */}
           <Link
             href="/products"
-            className="col-span-2 flex min-w-0 flex-col justify-between overflow-hidden rounded-lg bg-gradient-to-br from-orange-500 to-orange-600 p-4 sm:col-span-4 lg:col-span-1"
+            className="hgv-banner-slide-in group relative col-span-2 flex min-w-0 flex-col justify-between overflow-hidden rounded-xl bg-gradient-to-br from-orange-500 to-orange-600 p-6 shadow-md transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl hover:ring-2 hover:ring-orange-300/60 sm:col-span-4 sm:min-h-[190px] lg:col-span-1"
           >
-            <div>
-              <p className="text-sm font-bold leading-snug text-white">Fast-selling products</p>
-              <p className="mt-1 text-xs text-orange-50">Discover what's trending across Higoverse</p>
+            <TrendingUp
+              size={104}
+              strokeWidth={1.5}
+              className="pointer-events-none absolute -bottom-5 -right-5 text-white/10 transition-transform duration-500 group-hover:scale-110 group-hover:rotate-6"
+            />
+
+            <div className="relative">
+              <div className="mb-2.5 flex h-9 w-9 items-center justify-center rounded-lg bg-white/15 backdrop-blur-sm transition-transform duration-300 group-hover:scale-110">
+                <TrendingUp size={18} className="text-white" />
+              </div>
+              <p className="text-lg font-extrabold leading-snug text-white sm:text-xl">Fast-selling products</p>
+              <div className="relative mt-1.5 h-5 overflow-hidden">
+                <div
+                  className="transition-transform duration-500 ease-out"
+                  style={{ transform: `translateY(-${promoIdx * 1.25}rem)` }}
+                >
+                  {PROMO_MESSAGES.map((msg) => (
+                    <p key={msg} className="h-5 truncate text-sm leading-5 text-orange-50">{msg}</p>
+                  ))}
+                </div>
+              </div>
             </div>
-            <span className="mt-3 inline-flex w-fit items-center gap-1 rounded-full bg-white px-3 py-1.5 text-xs font-bold text-orange-600">
-              View more <ArrowRight size={12} />
+
+            <span className="relative mt-4 inline-flex w-fit items-center gap-1.5 rounded-full bg-white px-4 py-2 text-sm font-bold text-orange-600 shadow-sm transition-all duration-200 group-hover:gap-2.5 group-hover:bg-orange-50">
+              View more <ArrowRight size={14} className="hgv-arrow-nudge" />
             </span>
           </Link>
         </div>
