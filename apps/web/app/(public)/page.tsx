@@ -633,9 +633,9 @@ function MarketplacePageContent() {
             <p className="mb-2 truncate text-xs font-bold text-slate-900">Popular Shop</p>
             {popularShop ? (
               <Link href={`/shop/${popularShop.id}`} className="group block">
-                <div className="relative mb-2 flex aspect-square w-full min-w-0 items-center justify-center overflow-hidden rounded bg-slate-50">
+                <div className="relative mb-2 flex aspect-square w-full min-w-0 items-center justify-center overflow-hidden rounded border border-slate-100 bg-slate-50 p-3">
                   {popularShop.logo_url ? (
-                    <img src={popularShop.logo_url} alt={popularShop.name} className="hgv-img-zoom absolute inset-0 h-full w-full object-cover" />
+                    <img src={popularShop.logo_url} alt={popularShop.name} className="hgv-img-zoom h-full w-full object-contain" />
                   ) : (
                     <Store size={28} className="text-slate-300" />
                   )}
@@ -1366,6 +1366,9 @@ function LazyProductCard(props: React.ComponentProps<typeof ProductCard> & { pri
   const [inView, setInView] = useState(false);
   // Initialise from module-level cache so remounts never regress to skeleton
   const [ready, setReady]   = useState(() => _readyCardIds.has(pid));
+  // Only the cards that flip skeleton → loaded *during this mount* get the
+  // reveal animation — cards already cached from a prior render show instantly.
+  const [justRevealed, setJustRevealed] = useState(false);
 
   useEffect(() => {
     if (ready) return; // already revealed — skip observer entirely
@@ -1381,12 +1384,23 @@ function LazyProductCard(props: React.ComponentProps<typeof ProductCard> & { pri
   const handleReady = useCallback(() => {
     _readyCardIds.add(pid); // persist across remounts
     const el = ref.current;
-    const delay = el ? Math.min(el.getBoundingClientRect().left / window.innerWidth, 1) * 55 : 0;
-    setTimeout(() => setReady(true), delay);
+    // Diagonal wave: cards further right/down in the grid reveal a beat later,
+    // the way Alibaba's product grid fills in rather than popping all at once.
+    const h = el ? Math.min(el.getBoundingClientRect().left / window.innerWidth, 1) : 0;
+    const v = el ? Math.min(el.getBoundingClientRect().top / window.innerHeight, 1) : 0;
+    const delay = (h * 0.7 + v * 0.3) * 90;
+    setTimeout(() => { setJustRevealed(true); setReady(true); }, delay);
   }, [pid]);
 
-  // Already revealed on a previous render — show immediately, no wrapper needed
-  if (ready) return <ProductCard {...props} onReady={undefined} />;
+  if (ready) {
+    // Already revealed on a previous render — show immediately, no animation replay
+    if (!justRevealed) return <ProductCard {...props} onReady={undefined} />;
+    return (
+      <div className="hgv-card-reveal">
+        <ProductCard {...props} onReady={undefined} />
+      </div>
+    );
+  }
 
   return (
     <div ref={ref} style={{ position: "relative" }}>

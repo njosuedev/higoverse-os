@@ -96,6 +96,26 @@ function isActive(pathname: string, href: string) {
   return pathname.startsWith(href);
 }
 
+// Cycles through real example queries in the search placeholder — informative
+// (shows what's actually searchable) and gives the bar a bit of life when idle.
+const SEARCH_PLACEHOLDER_EXAMPLES = [
+  "wireless earbuds",
+  "office chairs",
+  "verified suppliers",
+  "fresh produce",
+  "laptop accessories",
+];
+
+function useRotatingPlaceholder(examples: string[], intervalMs = 2600) {
+  const [index, setIndex] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setIndex((i) => (i + 1) % examples.length), intervalMs);
+    return () => clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [examples.length, intervalMs]);
+  return examples[index];
+}
+
 export default function PublicHeader() {
   const pathname = usePathname();
   const router = useRouter();
@@ -115,11 +135,28 @@ export default function PublicHeader() {
   const [suggestProducts, setSuggestProducts] = useState<PublicProduct[] | null>(null);
   const [suggestShops, setSuggestShops] = useState<Shop[] | null>(null);
   const [activeIndex, setActiveIndex] = useState(-1);
+  const [searchFocused, setSearchFocused] = useState(false);
   const searchWrapRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const productsLoaded = useRef(false);
   const shopsLoaded = useRef(false);
+  const placeholderExample = useRotatingPlaceholder(SEARCH_PLACEHOLDER_EXAMPLES);
 
   useEffect(() => { setRecentSearches(loadRecentSearches()); }, []);
+
+  // "/" focuses the search bar from anywhere on the page — a common power-user shortcut.
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      const target = e.target as HTMLElement;
+      const isTyping = ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName) || target.isContentEditable;
+      if (e.key === "/" && !isTyping) {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+      }
+    }
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, []);
 
   const loadSuggestData = useCallback(() => {
     if (!productsLoaded.current) {
@@ -131,6 +168,10 @@ export default function PublicHeader() {
       getPublicShops().then(setSuggestShops);
     }
   }, [user]);
+
+  // Pre-warm real product data on mount so "Popular categories" reflects actual
+  // marketplace stock the first time the search bar opens, not a generic fallback.
+  useEffect(() => { loadSuggestData(); }, [loadSuggestData]);
 
   const isResolving = !ready || shopLoading;
   const role = isResolving ? null : getEffectiveRole(user ?? null, shop?.is_active === true);
@@ -174,6 +215,19 @@ export default function PublicHeader() {
   }
 
   const trimmedQuery = query.trim();
+
+  // Only suggest categories that actually have listed products in the live
+  // marketplace catalog — not every curated category, whether stocked or not.
+  const categoriesWithListings = useMemo(() => {
+    if (!suggestProducts) return null;
+    return new Set(suggestProducts.map((p) => p.category));
+  }, [suggestProducts]);
+
+  const popularCategories = useMemo(() => {
+    if (!categoriesWithListings) return CATEGORIES.slice(0, 8);
+    const stocked = CATEGORIES.filter((c) => categoriesWithListings.has(c.key));
+    return (stocked.length > 0 ? stocked : CATEGORIES).slice(0, 8);
+  }, [categoriesWithListings]);
 
   const suggestions = useMemo<Suggestion[]>(() => {
     if (!trimmedQuery) return [];
@@ -231,7 +285,7 @@ export default function PublicHeader() {
         });
       });
 
-    CATEGORIES.filter((c) => c.label.toLowerCase().includes(q))
+    CATEGORIES.filter((c) => c.label.toLowerCase().includes(q) && (!categoriesWithListings || categoriesWithListings.has(c.key)))
       .slice(0, 4)
       .forEach((c) => {
         list.push({
@@ -251,7 +305,7 @@ export default function PublicHeader() {
       });
 
     return list;
-  }, [trimmedQuery, suggestProducts, suggestShops]);
+  }, [trimmedQuery, suggestProducts, suggestShops, categoriesWithListings]);
 
   useEffect(() => { setActiveIndex(-1); }, [trimmedQuery]);
 
@@ -301,73 +355,88 @@ export default function PublicHeader() {
 
         {/* ── Row 1: logo + search + account ── */}
         <div className="border-b border-slate-100">
-          <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-3 px-4 py-3 sm:px-6">
-            <button
-              type="button"
-              onClick={() => setMobileOpen((o) => !o)}
-              className="flex h-9 w-9 items-center justify-center rounded-xl text-slate-500 hover:bg-slate-100 lg:hidden"
-              aria-label="Open menu"
-            >
-              <Menu size={20} />
-            </button>
+          <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-2.5 px-4 py-2 sm:px-6 lg:grid lg:flex-nowrap lg:grid-cols-[auto_1fr_auto]">
+            <div className="flex shrink-0 items-center gap-2.5">
+              <button
+                type="button"
+                onClick={() => setMobileOpen((o) => !o)}
+                className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 lg:hidden"
+                aria-label="Open menu"
+              >
+                <Menu size={16} />
+              </button>
 
-            <Link href="/" className="flex shrink-0 items-center gap-2 transition hover:opacity-80">
-              <img src="/higoverse.png" alt="Higoverse" className="h-8 w-8 rounded-xl object-cover" />
-              <span className="hidden text-[16px] font-bold tracking-tight text-slate-900 sm:inline">Higoverse</span>
-            </Link>
+              <Link href="/" className="flex shrink-0 items-center gap-1.5 transition hover:opacity-80">
+                <img src="/higoverse.png" alt="Higoverse" className="h-6 w-6 rounded-lg object-cover" />
+                <span className="hidden text-[13px] font-bold tracking-tight text-slate-900 sm:inline">Higoverse</span>
+              </Link>
+            </div>
 
-            {/* Search bar — wraps to its own full-width row on mobile */}
-            <div ref={searchWrapRef} className="relative order-3 w-full lg:order-none lg:w-auto lg:flex-1 lg:max-w-2xl">
+            {/* Search bar — wraps to its own full-width row on mobile, truly centered on desktop */}
+            <div ref={searchWrapRef} className="relative order-3 w-full lg:order-none lg:mx-auto lg:w-full lg:max-w-2xl">
               <form onSubmit={submitSearch} className="w-full">
-                <div className="flex h-11 w-full items-stretch overflow-hidden rounded-full bg-white shadow-sm ring-1 ring-slate-200 transition focus-within:shadow-md focus-within:ring-2 focus-within:ring-orange-400">
+                <div
+                  className={`flex h-8 w-full items-stretch overflow-hidden rounded-full bg-white shadow-sm ring-1 transition-all duration-200 ${
+                    searchFocused ? "scale-[1.015] shadow-md ring-2 ring-orange-400" : "ring-slate-200 hover:ring-slate-300"
+                  }`}
+                >
                   <div className="relative hidden shrink-0 sm:block">
                     <select
                       value={category}
                       onChange={(e) => setCategory(e.target.value)}
                       aria-label="Category"
-                      className="h-full appearance-none rounded-l-full border-r border-slate-200 bg-slate-50 py-2 pl-4 pr-8 text-xs font-medium text-slate-600 outline-none transition hover:bg-slate-100"
+                      className="h-full appearance-none rounded-l-full border-r border-slate-200 bg-slate-50 py-1 pl-3 pr-6 text-[11px] font-medium text-slate-600 outline-none transition hover:bg-slate-100"
                     >
                       <option value="all">All categories</option>
                       {CATEGORIES.map((c) => (
                         <option key={c.key} value={c.key}>{c.label}</option>
                       ))}
                     </select>
-                    <ChevronDown size={12} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <ChevronDown size={10} className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-slate-400" />
                   </div>
 
-                  <div className="flex min-w-0 flex-1 items-center gap-2 pl-4">
-                    <Search size={16} className="hidden shrink-0 text-slate-300 sm:block" />
+                  <div className="flex min-w-0 flex-1 items-center gap-1.5 pl-3">
+                    <Search
+                      size={13}
+                      className={`hidden shrink-0 transition-colors duration-200 sm:block ${searchFocused ? "text-orange-400" : "text-slate-300"}`}
+                    />
                     <input
+                      ref={searchInputRef}
                       type="text"
                       value={query}
                       onChange={(e) => setQuery(e.target.value)}
-                      onFocus={() => { setSuggestOpen(true); loadSuggestData(); }}
+                      onFocus={() => { setSearchFocused(true); setSuggestOpen(true); loadSuggestData(); }}
+                      onBlur={() => setSearchFocused(false)}
                       onKeyDown={handleSearchKeyDown}
-                      placeholder="Search products, suppliers, or categories..."
+                      placeholder={`Search for ${placeholderExample}...`}
                       role="combobox"
                       aria-expanded={suggestOpen}
                       aria-autocomplete="list"
                       autoComplete="off"
-                      className="min-w-0 flex-1 bg-transparent text-sm text-slate-800 outline-none placeholder:text-slate-400"
+                      className="min-w-0 flex-1 bg-transparent text-[11px] text-slate-800 outline-none placeholder:text-slate-400"
                     />
-                    {query && (
+                    {query ? (
                       <button
                         type="button"
                         onClick={() => setQuery("")}
                         aria-label="Clear search"
                         className="flex shrink-0 items-center justify-center rounded-full p-1 text-slate-300 transition hover:bg-slate-100 hover:text-slate-500"
                       >
-                        <X size={14} />
+                        <X size={12} />
                       </button>
+                    ) : (
+                      <kbd className="hidden shrink-0 items-center rounded-md border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[10px] font-semibold text-slate-400 sm:flex">
+                        /
+                      </kbd>
                     )}
                   </div>
 
                   <button
                     type="submit"
                     aria-label="Search"
-                    className="m-1 flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full bg-orange-500 px-4 text-sm font-bold text-white transition hover:bg-orange-600 active:scale-[0.97] sm:px-6"
+                    className="m-1 flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full bg-orange-500 px-3 text-[11px] font-bold text-white transition hover:bg-orange-600 active:scale-[0.97] sm:px-4"
                   >
-                    <Search size={15} className="sm:hidden" />
+                    <Search size={12} className="sm:hidden" />
                     <span className="hidden sm:inline">Search</span>
                   </button>
                 </div>
@@ -407,7 +476,7 @@ export default function PublicHeader() {
                       <div>
                         <p className="px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400">Popular categories</p>
                         <div className="flex flex-wrap gap-1.5 px-2 pb-1">
-                          {CATEGORIES.slice(0, 8).map((c) => {
+                          {popularCategories.map((c) => {
                             const Icon = CATEGORY_ICONS[c.key] ?? Package;
                             return (
                               <button
@@ -451,13 +520,13 @@ export default function PublicHeader() {
               )}
             </div>
 
-            <div className="ml-auto flex items-center gap-2">
+            <div className="ml-auto flex shrink-0 items-center gap-1.5 lg:ml-0">
               {isBusiness && (
                 <Link
                   href="/dashboard"
-                  className="hidden items-center gap-1.5 rounded-xl bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-200 md:flex"
+                  className="hidden items-center gap-1.5 rounded-lg bg-slate-100 px-2.5 py-1.5 text-[11px] font-semibold text-slate-700 transition hover:bg-slate-200 md:flex"
                 >
-                  <LayoutDashboard size={16} />
+                  <LayoutDashboard size={13} />
                   Dashboard
                 </Link>
               )}
@@ -466,13 +535,13 @@ export default function PublicHeader() {
                 <>
                   <Link
                     href="/login"
-                    className="rounded-xl px-3 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
+                    className="rounded-lg px-2.5 py-1.5 text-[11px] font-semibold text-slate-600 transition hover:bg-slate-50"
                   >
                     Login
                   </Link>
                   <Link
                     href="/register"
-                    className="whitespace-nowrap rounded-xl bg-orange-500 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-orange-600"
+                    className="whitespace-nowrap rounded-lg bg-orange-500 px-3 py-1.5 text-[11px] font-semibold text-white shadow-sm transition hover:bg-orange-600"
                   >
                     Create account
                   </Link>
@@ -483,16 +552,16 @@ export default function PublicHeader() {
                 <div ref={menuRef} className="relative">
                   <button
                     onClick={() => setMenuOpen((o) => !o)}
-                    className={`flex items-center gap-2 rounded-xl px-2 py-1.5 transition ${menuOpen ? "bg-slate-100" : "hover:bg-slate-100"}`}
+                    className={`flex items-center gap-1.5 rounded-lg px-1.5 py-1 transition ${menuOpen ? "bg-slate-100" : "hover:bg-slate-100"}`}
                   >
                     {shop?.logo_url ? (
-                      <img src={shop.logo_url} alt={shop.name} className="h-8 w-8 rounded-full border border-slate-200 object-cover" />
+                      <img src={shop.logo_url} alt={shop.name} className="h-6 w-6 rounded-full border border-slate-200 object-cover" />
                     ) : (
-                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-orange-500 text-xs font-bold text-white">
+                      <div className="flex h-6 w-6 items-center justify-center rounded-full bg-orange-500 text-[10px] font-bold text-white">
                         {user?.name?.[0]?.toUpperCase() ?? "H"}
                       </div>
                     )}
-                    <ChevronDown size={14} className={`hidden text-slate-500 transition-transform sm:block ${menuOpen ? "rotate-180" : ""}`} />
+                    <ChevronDown size={12} className={`hidden text-slate-500 transition-transform sm:block ${menuOpen ? "rotate-180" : ""}`} />
                   </button>
 
                   {menuOpen && (
@@ -512,13 +581,13 @@ export default function PublicHeader() {
               )}
             </div>
           </div>
-          <div className="mx-auto hidden max-w-7xl items-center gap-2 px-4 pb-2.5 text-xs text-slate-400 sm:px-6 lg:flex">
+          <div className="mx-auto hidden max-w-7xl items-center gap-2 px-4 pb-1.5 text-[11px] text-slate-400 sm:px-6 lg:flex">
             <span className="font-medium text-slate-500">Popular:</span>
             {CATEGORIES.slice(0, 6).map((c) => (
               <Link
                 key={c.key}
                 href={`/category/${c.key}`}
-                className="rounded-full px-2.5 py-1 transition hover:bg-slate-100 hover:text-slate-700"
+                className="rounded-full px-2 py-0.5 transition hover:bg-slate-100 hover:text-slate-700"
               >
                 {c.label}
               </Link>
@@ -528,18 +597,18 @@ export default function PublicHeader() {
 
         {/* ── Row 2: secondary nav (desktop only) ── */}
         <div className="hidden border-b border-slate-100 lg:block">
-          <div className="mx-auto flex h-10 max-w-7xl items-center justify-between px-4 text-xs sm:px-6">
-            <nav className="flex items-center gap-5">
+          <div className="mx-auto flex h-8 max-w-7xl items-center justify-between px-4 text-[11px] sm:px-6">
+            <nav className="flex items-center gap-4">
               <div ref={catMenuRef} className="relative">
                 <button
                   type="button"
                   onClick={() => setCatMenuOpen((o) => !o)}
-                  className={`flex items-center gap-1.5 font-semibold transition ${
+                  className={`flex items-center gap-1 font-semibold transition ${
                     catMenuOpen || isActive(pathname, CATEGORIES_LINK.href) ? "text-orange-600" : "text-slate-700 hover:text-slate-900"
                   }`}
                 >
-                  <LayoutGrid size={13} /> {CATEGORIES_LINK.label}
-                  <ChevronDown size={12} className={`transition-transform ${catMenuOpen ? "rotate-180" : ""}`} />
+                  <LayoutGrid size={11} /> {CATEGORIES_LINK.label}
+                  <ChevronDown size={10} className={`transition-transform ${catMenuOpen ? "rotate-180" : ""}`} />
                 </button>
 
                 {catMenuOpen && (
@@ -570,7 +639,7 @@ export default function PublicHeader() {
                   </div>
                 )}
               </div>
-              <span className="h-3 w-px bg-slate-200" />
+              <span className="h-2.5 w-px bg-slate-200" />
               {PUBLIC_LINKS.filter((l) => l.href !== "/").map((link) => {
                 const active = isActive(pathname, link.href);
                 return (
