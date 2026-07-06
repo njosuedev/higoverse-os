@@ -1,3 +1,5 @@
+import os
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
@@ -12,15 +14,26 @@ app = FastAPI(
 )
 
 # -----------------------------
-# CORS CONFIG (FIX FOR FETCH ERROR)
+# CORS CONFIG
 # -----------------------------
+# Matches localhost/127.0.0.1 on any port (local dev), the production domain,
+# and Vercel preview deployment URLs — instead of a fixed origin list that
+# breaks the moment the frontend runs on a different port or preview URL.
+# Override via CORS_ALLOWED_ORIGIN_REGEX if the frontend ever moves domains.
+# allow_credentials=False because auth here is a Bearer token in the
+# Authorization header, not cookies — so a browser never needs to send
+# credentials cross-origin, and we're free to match origins broadly.
+CORS_ORIGIN_REGEX = os.getenv(
+    "CORS_ALLOWED_ORIGIN_REGEX",
+    r"^https?://localhost(:\d+)?$"
+    r"|^https?://127\.0\.0\.1(:\d+)?$"
+    r"|^https://higoverse-os(-[\w.]+)?\.vercel\.app$",
+)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "https://higoverse-os.vercel.app"
-    ],
-    allow_credentials=True,
+    allow_origin_regex=CORS_ORIGIN_REGEX,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )

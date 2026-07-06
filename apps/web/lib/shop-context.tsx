@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useState, useEffect, type ReactNode } from "react";
 import { getMyShop, clearMyShopCache, type Shop } from "@/lib/shop-api";
+import { useAuth } from "@/lib/auth-context";
 
 interface ShopCtx {
   shop:    Shop | null;
@@ -14,17 +15,25 @@ const Ctx = createContext<ShopCtx>({ shop: null, loading: true, reload: () => {}
 export function useShop() { return useContext(Ctx); }
 
 export function ShopProvider({ children }: { children: ReactNode }) {
+  const { token, ready } = useAuth();
   const [shop,    setShop]    = useState<Shop | null>(null);
   const [loading, setLoading] = useState(true);
   const [rev,     setRev]     = useState(0);
 
   useEffect(() => {
+    // Anonymous visitors have no shop to fetch. `/api/v1/shop` requires auth,
+    // so this must never be called for logged-out visitors — the public
+    // marketplace (this provider is mounted on every public page) has to
+    // work without a token.
+    if (!ready) return;
+    if (!token) { setShop(null); setLoading(false); return; }
+
     setLoading(true);
     getMyShop()
       .then(setShop)
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [rev]);
+  }, [rev, ready, token]);
 
   function reload() { clearMyShopCache(); setRev((r) => r + 1); }
 
