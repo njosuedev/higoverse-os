@@ -1,7 +1,7 @@
 import base64
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, Header
+from fastapi import APIRouter, Depends, HTTPException, Header, Response
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from sqlalchemy import func, tuple_
 from sqlalchemy.orm import Session
@@ -241,6 +241,7 @@ def create_product(
 # -----------------------------
 @router.get("/marketplace")
 def get_marketplace(
+    response: Response,
     db: Session = Depends(get_db),
     user: dict | None = Depends(get_current_user_optional),
     page: int = 1,
@@ -248,6 +249,11 @@ def get_marketplace(
     cursor: str | None = None,
     category: str | None = None,
 ):
+    # Public, mostly-cacheable listing — lets any CDN/proxy/browser in front of
+    # this service cache responses. The primary request-throttling lever is
+    # the frontend's `export const revalidate` (Next.js ISR), not this header.
+    response.headers["Cache-Control"] = "public, s-maxage=60, stale-while-revalidate=300"
+
     query = db.query(Product).filter(Product.listed == True)  # noqa: E712
     if category:
         query = query.filter(Product.category == category)
@@ -314,9 +320,12 @@ def get_marketplace(
 @router.get("/marketplace/by-id/{id_prefix}")
 def get_marketplace_product_by_id_prefix(
     id_prefix: str,
+    response: Response,
     db: Session = Depends(get_db),
     user: dict | None = Depends(get_current_user_optional),
 ):
+    response.headers["Cache-Control"] = "public, s-maxage=60, stale-while-revalidate=300"
+
     # Escape LIKE wildcards — id_prefix is attacker-controlled (public route param).
     escaped_prefix = id_prefix.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
     product = (

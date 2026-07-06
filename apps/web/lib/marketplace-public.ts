@@ -6,6 +6,11 @@ import { listShops, type Shop } from "@/lib/shop-api";
 import { categoryOf } from "@/lib/categories";
 import { productSlug } from "@/lib/slug";
 
+// Shared between the marketplace homepage's Server Component (initial SSR
+// fetch) and its client island (subsequent infinite-scroll pages) — one
+// source of truth for how many products load per batch.
+export const MARKETPLACE_PAGE_SIZE = 20;
+
 export interface PublicProduct {
   id: string;
   shopId: string;
