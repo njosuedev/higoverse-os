@@ -19,7 +19,7 @@ export interface PublicProduct {
   slug: string;
 }
 
-function parseImages(raw: unknown): string[] {
+export function parseImages(raw: unknown): string[] {
   if (Array.isArray(raw)) return raw as string[];
   if (typeof raw === "string") {
     try {
@@ -54,6 +54,41 @@ export async function getPublicProducts(): Promise<PublicProduct[]> {
     }));
   } catch {
     return [];
+  }
+}
+
+export interface RawMarketplaceItem {
+  id: string;
+  shop_id: string;
+  name: string;
+  description?: string;
+  category?: string;
+  images?: unknown;
+  selling_price: number;
+  quantity: number;
+  created_at?: string;
+}
+
+export interface MarketplaceFeedPage {
+  items: RawMarketplaceItem[];
+  nextCursor: string | null;
+}
+
+/** One page of the public marketplace feed — cursor-based, 24 items by default.
+ *  Used by the marketplace homepage's infinite-scroll grid. Raw items are
+ *  returned (not `PublicProduct`) since the caller joins them against a live
+ *  shops list for shopName/shopLogoUrl/shopPhone. */
+export async function getMarketplaceFeedPage(cursor: string | null, limit = 24): Promise<MarketplaceFeedPage> {
+  const qs = new URLSearchParams({ limit: String(limit) });
+  if (cursor) qs.set("cursor", cursor);
+  try {
+    const res = await itemRequest(`/products/marketplace?${qs.toString()}`);
+    return {
+      items: res?.data?.items ?? [],
+      nextCursor: res?.data?.next_cursor ?? null,
+    };
+  } catch {
+    return { items: [], nextCursor: null };
   }
 }
 

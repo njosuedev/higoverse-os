@@ -1,6 +1,12 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  images: {
+    // Product/shop images are base64 data URIs today (no CDN), so this
+    // matters only if a real remote image URL is ever introduced.
+    remotePatterns: [{ protocol: "https", hostname: "**" }],
+  },
+
   async redirects() {
     return [
       { source: "/SaleManagement",     destination: "/sales",     permanent: true },

@@ -1,6 +1,9 @@
+import base64
+from datetime import datetime
+
 from fastapi import APIRouter, Depends, HTTPException, Header
 from starlette.exceptions import HTTPException as StarletteHTTPException
-from sqlalchemy import func
+from sqlalchemy import func, tuple_
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
@@ -10,6 +13,25 @@ from app.core.security import get_current_user, get_current_user_optional
 from app.core.supplier_client import validate_supplier
 
 router = APIRouter(prefix="/products", tags=["Products"])
+
+
+# -----------------------------
+# MARKETPLACE FEED CURSOR (keyset pagination)
+# -----------------------------
+def encode_marketplace_cursor(created_at: datetime, product_id: str) -> str:
+    raw = f"{created_at.isoformat()}|{product_id}"
+    return base64.urlsafe_b64encode(raw.encode()).decode()
+
+
+def decode_marketplace_cursor(cursor: str) -> tuple[datetime, str] | None:
+    """Returns None on any malformed/stale cursor so callers can gracefully
+    fall back to first-page behavior instead of erroring."""
+    try:
+        raw = base64.urlsafe_b64decode(cursor.encode()).decode()
+        created_at_raw, product_id = raw.split("|", 1)
+        return datetime.fromisoformat(created_at_raw), product_id
+    except Exception:
+        return None
 
 
 # -----------------------------
@@ -223,11 +245,27 @@ def get_marketplace(
     user: dict | None = Depends(get_current_user_optional),
     page: int = 1,
     limit: int = 100,
+    cursor: str | None = None,
 ):
-    offset = (page - 1) * limit
     query = db.query(Product).filter(Product.listed == True)  # noqa: E712
-    total = query.count()
-    products = query.order_by(Product.created_at.desc()).offset(offset).limit(limit).all()
+
+    cursor_value = decode_marketplace_cursor(cursor) if cursor else None
+
+    if cursor_value is not None:
+        # Keyset pagination — stays fast at any depth, unlike OFFSET.
+        cursor_created_at, cursor_id = cursor_value
+        query = query.filter(
+            tuple_(Product.created_at, Product.id) < (cursor_created_at, cursor_id)
+        )
+        products = query.order_by(Product.created_at.desc(), Product.id.desc()).limit(limit).all()
+        total = None  # only computed on the first, cursor-less request
+        response_page = None
+    else:
+        # First request of a session (or a legacy page/limit caller) — count once.
+        offset = (page - 1) * limit
+        total = query.count()
+        products = query.order_by(Product.created_at.desc(), Product.id.desc()).offset(offset).limit(limit).all()
+        response_page = page
 
     items = []
     for p in products:
@@ -243,15 +281,22 @@ def get_marketplace(
             # and cost_price is a shop's private profit margin.
             "quantity": p.quantity,
             "listed": p.listed,
+            "created_at": p.created_at.isoformat(),
         })
+
+    next_cursor = None
+    if len(products) == limit:
+        last = products[-1]
+        next_cursor = encode_marketplace_cursor(last.created_at, last.id)
 
     return {
         "success": True,
         "data": {
             "items": items,
             "total": total,
-            "page": page,
+            "page": response_page,
             "limit": limit,
+            "next_cursor": next_cursor,
         }
     }
 

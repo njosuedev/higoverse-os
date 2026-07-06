@@ -6,6 +6,8 @@ from sqlalchemy import (
     DateTime,
     Text,
     Boolean,
+    Index,
+    text,
 )
 from sqlalchemy.sql import func
 
@@ -121,4 +123,20 @@ class Product(Base):
         DateTime(timezone=True),
         server_default=func.now(),
         nullable=False
+    )
+
+    # =====================================
+    # INDEXES
+    # =====================================
+    # Backs the public marketplace feed's keyset pagination
+    # (WHERE listed = true ORDER BY created_at DESC, id DESC).
+    # Partial + covers only listed rows, so it stays small even as the
+    # overall products table grows into the hundreds of thousands.
+    __table_args__ = (
+        Index(
+            "ix_products_marketplace_feed",
+            created_at.desc(),
+            id.desc(),
+            postgresql_where=text("listed = true"),
+        ),
     )

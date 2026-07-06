@@ -2,17 +2,20 @@
 
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
+import { useQuery, useQueryClient, type InfiniteData } from "@tanstack/react-query";
 import Link from "next/link";
+import Image from "next/image";
 import { useAuth } from "@/lib/auth-context";
 import { useShop } from "@/lib/shop-context";
 import { listShops, updateMyShop, createShopApplication, type Shop } from "@/lib/shop-api";
 import {
-  getCatalog, upsertCatalogEntry, getProductMeta, compressImage, decodeShopCatalog,
+  compressImage,
   encodeShopDescription, encodeShopAddress, parseShopAddress, decodeShopHumanInfo,
-  getApplicationStatus, formatPublicAddress, formatShortAddress,
+  getApplicationStatus, formatShortAddress,
   type MarketplaceEntry,
 } from "@/lib/product-meta";
-import { itemRequest } from "@/lib/product-api";
+import { useMarketplaceFeed } from "@/lib/hooks/useMarketplaceFeed";
+import { getMarketplaceFeedPage, parseImages, type MarketplaceFeedPage, type RawMarketplaceItem } from "@/lib/marketplace-public";
 import {
   X, Loader2,
   CheckCircle, Phone, Package, ChevronRight,
@@ -30,28 +33,6 @@ import { warmupMsgService } from "@/lib/messages-api";
 import { createSelfNotification, openNotifStream } from "@/lib/notifications-api";
 import { CATEGORIES } from "@/lib/categories";
 import { productSlug } from "@/lib/slug";
-
-// ── marketplace cache (90 s TTL — instant paint for returning users) ─────────
-const MKT_CACHE_KEY = "hgv_mkt_v2";
-const MKT_CACHE_TTL = 90_000;
-
-interface MktCache { shops: Shop[]; catalog: MarketplaceEntry[]; ts: number }
-
-function readMktCache(): MktCache | null {
-  try {
-    const raw = localStorage.getItem(MKT_CACHE_KEY);
-    if (!raw) return null;
-    const c = JSON.parse(raw) as MktCache;
-    if (Date.now() - c.ts > MKT_CACHE_TTL) return null;
-    return c;
-  } catch { return null; }
-}
-
-function writeMktCache(shops: Shop[], catalog: MarketplaceEntry[]) {
-  try {
-    localStorage.setItem(MKT_CACHE_KEY, JSON.stringify({ shops, catalog, ts: Date.now() } satisfies MktCache));
-  } catch { /* storage quota exceeded */ }
-}
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 function parseUTC(ts: string | null | undefined): Date {
@@ -90,6 +71,28 @@ function catOf(name: string, desc?: string | null) {
   for (const [cat, kws] of Object.entries(CAT_KW))
     if (kws.some((kw) => text.includes(kw))) return cat;
   return "other";
+}
+
+// Joins a raw marketplace-feed item (server truth) with the live shop list to
+// build the shape the grid/cards already expect. costPrice is never rendered
+// publicly — kept at 0 only to satisfy MarketplaceEntry's shape.
+function toEntry(item: RawMarketplaceItem, shopMap: Record<string, Shop>): MarketplaceEntry {
+  const s = shopMap[item.shop_id];
+  return {
+    productId: item.id,
+    shopId: item.shop_id,
+    shopName: s?.name ?? "Unknown shop",
+    shopLogoUrl: s?.logo_url,
+    shopPhone: s?.phone,
+    name: item.name,
+    description: item.description,
+    category: item.category || catOf(item.name, item.description),
+    sellingPrice: item.selling_price,
+    costPrice: 0,
+    quantity: item.quantity,
+    images: parseImages(item.images),
+    listedAt: item.created_at ?? new Date().toISOString(),
+  };
 }
 
 // Rotating taglines for the "Fast-selling products" promo banner — a vertical
@@ -141,15 +144,9 @@ function MarketplacePageContent() {
   const { shop }  = useShop();
   const searchParams = useSearchParams();
   const router = useRouter();
-  const [shops, setShops]       = useState<Shop[]>([]);
-  const [catalog, setCatalog]   = useState<MarketplaceEntry[]>([]);
-  const [loading, setLoading]   = useState(true);
+  const queryClient = useQueryClient();
   const [now, setNow]           = useState(new Date());
-  const [page, setPage]         = useState(1);            // how many PAGE_SIZE batches shown
-  const loadingMore = false; // no artificial delay — scroll triggers immediately
   const [bannerDismissed, setBannerDismissed] = useState(false);
-  const [apiSynced, setApiSynced] = useState(false);
-  const [onlineShopsCount, setOnlineShopsCount] = useState(0);
 
   // Shop application form state
   const [showShopForm, setShowShopForm] = useState(false);
@@ -162,21 +159,17 @@ function MarketplacePageContent() {
   const [shopFormError, setShopFormError] = useState("");
 
   const sentinelRef = useRef<HTMLDivElement>(null);
-  const serverCatalogRef = useRef<MarketplaceEntry[]>([]);
 
   useEffect(() => {
     warmupMsgService(); // wake Render.com free-tier before user opens order modal
     if (localStorage.getItem("mp_shop_banner_dismissed") === "1") setBannerDismissed(true);
     if (localStorage.getItem("mp_shop_applied") === "1") setShopApplied(true);
-    // Paint stale cache instantly so the page is never blank
-    const c = readMktCache();
-    if (c) {
-      setShops(c.shops);
-      setCatalog(c.catalog);
-      preloadImgs(c.catalog);
-      setOnlineShopsCount(c.shops.filter((s) => isOnline(s.last_seen_at, new Date())).length);
-      setLoading(false);
-    }
+  }, []);
+
+  // Online-status "N minutes ago" recency needs a live clock — tick every 15s.
+  useEffect(() => {
+    const tick = setInterval(() => setNow(new Date()), 15_000);
+    return () => clearInterval(tick);
   }, []);
 
   // Auto-open shop application form from CTA links (?apply=1)
@@ -302,213 +295,55 @@ function MarketplacePageContent() {
   const [msgSent, setMsgSent]         = useState(false);
   const [myMessages, setMyMessages]   = useState<ShopMessage[]>([]);
 
-  // ── data load ────────────────────────────────────────────────────────────
+  // ── data: live shops list + cursor-paginated product feed ──────────────────
+  const { data: shops = [] } = useQuery({
+    queryKey: ["marketplace-shops"],
+    queryFn: async () => (await listShops({ limit: 200 })).items?.filter((s) => s.is_active) ?? [],
+  });
+
+  const shopMap = useMemo(() => {
+    const m: Record<string, Shop> = {};
+    shops.forEach((s) => { m[s.id] = s; });
+    return m;
+  }, [shops]);
+
+  const {
+    data: feedData,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+    isLoading,
+  } = useMarketplaceFeed(PAGE_SIZE);
+
   useEffect(() => {
-    const load = async () => {
-      // 1. Load shops from live auth API — source of truth for all registered shops
-      let allShops: typeof shops = [];
-      try {
-        const shopsRes = await listShops({ limit: 200 });
-        allShops = (shopsRes.items ?? []).filter((s) => s.is_active);
-        setShops(allShops);
-        const nowTs = new Date();
-        setOnlineShopsCount(allShops.filter((s) => isOnline(s.last_seen_at, nowTs)).length);
-      } catch { /* shops stay empty */ }
-
-      // 1.5. Build server catalog from shop description fields (fast, no images)
-      const serverEntries: MarketplaceEntry[] = [];
-      for (const s of allShops) {
-        for (const e of decodeShopCatalog(s.description)) {
-          serverEntries.push({
-            productId: e.pid, shopId: s.id, shopName: s.name,
-            shopLogoUrl: s.logo_url, shopPhone: s.phone,
-            name: e.n, description: e.d, category: e.cat,
-            sellingPrice: e.price, costPrice: e.price,
-            quantity: e.qty, images: [], listedAt: e.at,
-          });
-        }
-      }
-      serverCatalogRef.current = serverEntries;
-
-      // ── PHASE 1: Paint local-cache images immediately (no API wait) ──────────
-      // Merge serverEntries < getCatalog() so anything already in localStorage
-      // (including base64 images from previous sessions) shows instantly.
-      const activeShopIds = new Set(allShops.map((s) => s.id));
-      const phase1 = new Map<string, MarketplaceEntry>(serverEntries.map((e) => [e.productId, e]));
-      for (const e of getCatalog()) {
-        if (activeShopIds.has(e.shopId)) phase1.set(e.productId, e);
-      }
-      setCatalog([...phase1.values()]);
-      setLoading(false); // show UI immediately with whatever images we have locally
-
-      // ── PHASE 2: Enrich with API images (arrives ~300-800 ms later) ──────────
-      // Runs for everyone, logged in or not — /products/marketplace is a public
-      // endpoint, so anonymous visitors get real photos too, not just registered users.
-      const dbEntries: MarketplaceEntry[] = [];
-      try {
-        const mkRes = await itemRequest("/products/marketplace?limit=200");
-        const mkItems: Array<{
-          id: string; shop_id: string; name: string; description?: string;
-          category?: string; images?: string; selling_price: number;
-          cost_price: number; quantity: number;
-        }> = mkRes?.data?.items ?? [];
-        for (const item of mkItems) {
-          const itemShop = allShops.find((s) => s.id === item.shop_id);
-          if (!itemShop) continue;
-          const serverImgs: string[] = item.images
-            ? (() => { try { return JSON.parse(item.images) as string[]; } catch { return []; } })()
-            : [];
-          const localImgs = phase1.get(item.id)?.images ?? [];
-          dbEntries.push({
-            productId: item.id, shopId: item.shop_id,
-            shopName: itemShop.name,
-            shopLogoUrl: itemShop.logo_url, shopPhone: itemShop.phone,
-            name: item.name, description: item.description, category: item.category,
-            sellingPrice: item.selling_price, costPrice: item.cost_price,
-            quantity: item.quantity,
-            // prefer local (base64, already rendered) → fallback to server URL
-            images: localImgs.length > 0 ? localImgs : serverImgs,
-            listedAt: new Date().toISOString(),
-          });
-        }
-      } catch { /* product service unavailable — phase1 result stands */ }
-
-      // Re-merge with API data and update catalog
-      const merged = new Map(phase1);
-      for (const e of dbEntries) {
-        const existing = merged.get(e.productId);
-        merged.set(e.productId, { ...e, images: (existing?.images?.length ?? 0) > 0 ? existing!.images : e.images, listedAt: existing?.listedAt ?? e.listedAt });
-      }
-      const builtCatalog = [...merged.values()];
-      setCatalog(builtCatalog);
-      preloadImgs(builtCatalog);
-      // Don't write cache here — wait until user-sync includes own-shop images
-
-      // 3. Auto-sync the logged-in user's marketplace-listed products from real API
-      if (user?.shop_id && shop) {
-        try {
-          const res = await itemRequest("/products?page=1&limit=100");
-          const products: Array<{
-            id: string; name: string; description?: string;
-            selling_price: number; cost_price?: number; quantity: number;
-          }> = res?.data?.items ?? res?.data ?? [];
-
-          let synced = 0;
-          for (const p of products) {
-            const meta = getProductMeta(p.id);
-            if (!meta.listed) continue;
-            const resolvedCategory = meta.category || (p as { category?: string }).category || catOf(p.name, p.description);
-            upsertCatalogEntry({
-              productId:    p.id,
-              shopId:       user.shop_id,
-              shopName:     shop.name,
-              shopLogoUrl:  shop.logo_url,
-              shopPhone:    shop.phone,
-              name:         p.name,
-              description:  p.description,
-              category:     resolvedCategory,
-              location:     meta.location,
-              sellingPrice: p.selling_price,
-              costPrice:    p.cost_price ?? p.selling_price,
-              quantity:     p.quantity,
-              images:       meta.images,
-              listedAt:     meta.listed ? (getCatalog().find(e => e.productId === p.id)?.listedAt ?? new Date().toISOString()) : new Date().toISOString(),
-            });
-            synced++;
-          }
-          // Always rebuild after sync so the catalog reflects own-shop changes.
-          // Start from builtCatalog (has Phase 2 API images) then overlay localStorage.
-          const activeIds = new Set(allShops.map((s) => s.id));
-          const m2 = new Map<string, MarketplaceEntry>(builtCatalog.map((e) => [e.productId, e]));
-          for (const e of getCatalog()) {
-            if (activeIds.has(e.shopId)) {
-              const existing = m2.get(e.productId);
-              // Keep existing images if the catalog entry has none (prefer non-empty)
-              m2.set(e.productId, { ...e, images: e.images.length > 0 ? e.images : (existing?.images ?? []) });
-            }
-          }
-          const synced2 = [...m2.values()];
-          setCatalog(synced2);
-          preloadImgs(synced2);
-          writeMktCache(allShops, synced2); // write cache only here — always has images
-          setApiSynced(true);
-        } catch {
-          setApiSynced(false);
-        }
-      }
-    };
-
-    load();
     if (user?.shop_id) setMyMessages(getMyMessages(user.shop_id));
-    const tick = setInterval(() => setNow(new Date()), 15_000);
-    return () => clearInterval(tick);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.shop_id, shop?.id]);
+  }, [user?.shop_id]);
+
+  // Warm the browser image cache for the first batch as soon as it lands.
+  useEffect(() => {
+    const firstPageItems = feedData?.pages[0]?.items;
+    if (!firstPageItems) return;
+    preloadImgs(firstPageItems.map((item) => toEntry(item, shopMap)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [feedData?.pages[0]]);
 
   // ── Real-time: SSE-driven refresh + 60s fallback polling ────────────────────
+  // Only invalidates shops + refetches page 1 of the feed — never disturbs
+  // scroll position or already-loaded pages further down the grid.
   useEffect(() => {
     let pollTimer: ReturnType<typeof setTimeout> | null = null;
     let sseCtrl: AbortController | null = null;
 
-    // Lightweight refresh: shops + marketplace products, no user-sync (done on initial load)
     async function refresh() {
-      try {
-        const shopsRes = await listShops({ limit: 200 });
-        const freshShops = (shopsRes.items ?? []).filter((s) => s.is_active);
-        setShops(freshShops);
-        setOnlineShopsCount(freshShops.filter((s) => isOnline(s.last_seen_at, new Date())).length);
-
-        const srvEntries: MarketplaceEntry[] = [];
-        for (const s of freshShops) {
-          for (const e of decodeShopCatalog(s.description)) {
-            srvEntries.push({
-              productId: e.pid, shopId: s.id, shopName: s.name,
-              shopLogoUrl: s.logo_url, shopPhone: s.phone,
-              name: e.n, description: e.d, category: e.cat,
-              sellingPrice: e.price, costPrice: e.price,
-              quantity: e.qty, images: [], listedAt: e.at,
-            });
-          }
-        }
-        serverCatalogRef.current = srvEntries;
-
-        // Public endpoint — fetch for everyone, not just logged-in users.
-        const dbEntries: MarketplaceEntry[] = [];
-        try {
-          const mkRes = await itemRequest("/products/marketplace?limit=200");
-          const mkItems: Array<{
-            id: string; shop_id: string; name: string; description?: string;
-            category?: string; images?: string; selling_price: number;
-            cost_price: number; quantity: number;
-          }> = mkRes?.data?.items ?? [];
-          for (const item of mkItems) {
-            const s = freshShops.find((sh) => sh.id === item.shop_id);
-            if (!s) continue;
-            const imgs: string[] = item.images ? (() => { try { return JSON.parse(item.images!) as string[]; } catch { return []; } })() : [];
-            dbEntries.push({
-              productId: item.id, shopId: item.shop_id,
-              shopName: s.name, shopLogoUrl: s.logo_url, shopPhone: s.phone,
-              name: item.name, description: item.description, category: item.category,
-              sellingPrice: item.selling_price, costPrice: item.cost_price,
-              quantity: item.quantity, images: imgs, listedAt: new Date().toISOString(),
-            });
-          }
-        } catch { /* product service temporarily unavailable */ }
-
-        const activeIds = new Set(freshShops.map((s) => s.id));
-        const merged = new Map<string, MarketplaceEntry>(srvEntries.map((e) => [e.productId, e]));
-        for (const e of getCatalog()) {
-          if (activeIds.has(e.shopId)) merged.set(e.productId, e);
-        }
-        for (const e of dbEntries) {
-          const local = merged.get(e.productId);
-          merged.set(e.productId, { ...e, images: (local?.images?.length ?? 0) > 0 ? local!.images : e.images, listedAt: local?.listedAt ?? e.listedAt });
-        }
-        const refreshed = [...merged.values()];
-        setCatalog(refreshed);
-        preloadImgs(refreshed);
-        writeMktCache(freshShops, refreshed);
-      } catch { /* keep showing last-known catalog until the next refresh succeeds */ }
+      queryClient.invalidateQueries({ queryKey: ["marketplace-shops"] });
+      // React Query's infinite queries have no "refetch just page 1" option, so
+      // we fetch it manually and splice it into the cache — refreshes what's
+      // newest without refetching (or disturbing scroll position on) later pages.
+      const freshFirstPage = await getMarketplaceFeedPage(null, PAGE_SIZE);
+      queryClient.setQueryData<InfiniteData<MarketplaceFeedPage, string | null>>(
+        ["marketplace-feed"],
+        (old) => old && { ...old, pages: [freshFirstPage, ...old.pages.slice(1)] },
+      );
     }
 
     // Schedule next fallback poll (60 s when SSE is healthy, 15 s when degraded)
@@ -544,53 +379,42 @@ function MarketplacePageContent() {
       sseCtrl?.abort();
       if (pollTimer) clearTimeout(pollTimer);
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.shop_id, shop?.id]);
+  }, [queryClient]);
 
-  const shopMap = useMemo(() => {
-    const m: Record<string, Shop> = {};
-    shops.forEach((s) => { m[s.id] = s; });
-    return m;
-  }, [shops]);
+  // ── flattened, entry-shaped product list from all loaded feed pages ────────
+  // Server already returns newest-first, so no client re-sort is needed.
+  const entries = useMemo(
+    () => (feedData?.pages ?? []).flatMap((p) => p.items).map((item) => toEntry(item, shopMap)),
+    [feedData, shopMap],
+  );
 
-  // ── newest-first list — the header search bar and /category pages now own filtering ──
-  const allFiltered = useMemo(() =>
-    [...catalog].sort((a, b) => new Date(b.listedAt).getTime() - new Date(a.listedAt).getTime()),
-    [catalog]);
-
-  // ── paginated slice ──────────────────────────────────────────────────────
-  const visible = useMemo(() => allFiltered.slice(0, page * PAGE_SIZE), [allFiltered, page]);
-  const hasMore  = visible.length < allFiltered.length;
-
-  // ── infinite scroll sentinel ─────────────────────────────────────────────
+  // ── infinite scroll sentinel — fetches the next cursor page from the server ──
   useEffect(() => {
-    if (!sentinelRef.current || !hasMore) return;
+    if (!sentinelRef.current || !hasNextPage) return;
     const obs = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting && hasMore) {
-          setPage((p) => p + 1);
+      (obsEntries) => {
+        if (obsEntries[0].isIntersecting && hasNextPage && !isFetchingNextPage) {
+          fetchNextPage();
         }
       },
       { rootMargin: "400px" }, // pre-load next batch 400px before user reaches bottom
     );
     obs.observe(sentinelRef.current);
     return () => obs.disconnect();
-  }, [hasMore, visible.length]);
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   const listedPerShop = useMemo(() => {
     const m: Record<string, number> = {};
-    catalog.forEach((e) => { m[e.shopId] = (m[e.shopId] ?? 0) + 1; });
+    entries.forEach((e) => { m[e.shopId] = (m[e.shopId] ?? 0) + 1; });
     return m;
-  }, [catalog]);
+  }, [entries]);
 
   const featuredSuppliers = useMemo(() =>
     shops.filter((s) => (listedPerShop[s.id] ?? 0) > 0).slice(0, 4),
     [shops, listedPerShop]);
 
-  // Hero section content — newest listings first, independent of the in-page search/filter state below
-  const heroTrending = useMemo(() =>
-    [...catalog].sort((a, b) => new Date(b.listedAt).getTime() - new Date(a.listedAt).getTime()).slice(0, 5),
-    [catalog]);
+  // Hero section content — first page is already newest-first from the server
+  const heroTrending = useMemo(() => entries.slice(0, 5), [entries]);
   const heroCategories = useMemo(() => CATEGORIES.slice(0, 6), []);
 
   // Quick-module content — fixed per page load; only changes when the catalog
@@ -787,16 +611,16 @@ function MarketplacePageContent() {
         <main className="min-w-0">
 
           {/* Grid */}
-          {loading ? (
+          {isLoading ? (
             <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
               {Array.from({ length: PAGE_SIZE }).map((_, i) => <SkeletonCard key={i} />)}
             </div>
-          ) : allFiltered.length === 0 ? (
+          ) : entries.length === 0 ? (
             <EmptyState />
           ) : (
             <>
               <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
-                {visible.map((entry, idx) => (
+                {entries.map((entry, idx) => (
                   <LazyProductCard
                     key={entry.productId}
                     priority={idx < 8}
@@ -811,16 +635,16 @@ function MarketplacePageContent() {
               {/* Scroll sentinel */}
               <div ref={sentinelRef} className="h-px" />
 
-              {/* Load-more skeleton row */}
-              {loadingMore && (
+              {/* Skeletons for the batch currently being fetched — never a full-page loader */}
+              {isFetchingNextPage && (
                 <div className="mt-2.5 grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
-                  {Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)}
+                  {Array.from({ length: PAGE_SIZE }).map((_, i) => <SkeletonCard key={i} />)}
                 </div>
               )}
 
-              {!hasMore && allFiltered.length > PAGE_SIZE && (
+              {!hasNextPage && entries.length > PAGE_SIZE && (
                 <p className="py-5 text-center text-xs text-slate-300">
-                  All {allFiltered.length} products loaded
+                  All {entries.length} products loaded
                 </p>
               )}
             </>
@@ -1511,13 +1335,17 @@ function ProductCard({ entry, shop, isMine, online, onReady, priority }: {
         {cover ? (
           <div className="absolute inset-0">
             {!imgLoaded && <div className="hgv-shimmer absolute inset-0" />}
-            <img
+            <Image
               src={cover}
               alt={entry.name}
-              loading="eager"
-              decoding={priority ? "sync" : "async"}
-              fetchPriority={priority ? "high" : "auto"}
-              className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-300 ${imgLoaded ? "opacity-100" : "opacity-0"}`}
+              fill
+              sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, (max-width: 1280px) 25vw, (max-width: 1536px) 20vw, 16vw"
+              priority={priority}
+              // data: URIs (the common case — images are stored as base64 in
+              // Postgres, no CDN) gain nothing from the optimizer and would
+              // just add proxy/decode overhead for zero resizing benefit.
+              unoptimized={cover.startsWith("data:")}
+              className={`object-cover transition-opacity duration-300 ${imgLoaded ? "opacity-100" : "opacity-0"}`}
               onLoad={() => {
                 _loadedImgUrls.add(cover); // persist — survives remounts
                 setImgLoaded(true);

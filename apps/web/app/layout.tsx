@@ -11,6 +11,7 @@ const sora = Sora({
 
 import { LanguageProvider } from "@/lib/language-context";
 import { AuthProvider } from "@/lib/auth-context";
+import { QueryProvider } from "@/lib/query-provider";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://higoverse-os.vercel.app"),
@@ -112,7 +113,9 @@ export default function RootLayout({
       <head />
       <body className={`${sora.variable} ${sora.className}`}>
         <AuthProvider>
-          <LanguageProvider>{children}</LanguageProvider>
+          <LanguageProvider>
+            <QueryProvider>{children}</QueryProvider>
+          </LanguageProvider>
         </AuthProvider>
       </body>
     </html>
