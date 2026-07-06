@@ -17,7 +17,7 @@ import {
   X, Loader2,
   CheckCircle, Phone, Package, ChevronRight,
   MapPin, MessageSquare, Send, Store, Mail,
-  Rocket, ArrowRight, LayoutDashboard, CheckCircle2,
+  ArrowRight, LayoutDashboard, CheckCircle2,
   Building2, FileText, ImagePlus, ChevronDown,
   Clock, BadgeCheck, Heart, Camera,
   Truck, Shirt, Home as HomeIcon, Leaf, Briefcase,
@@ -711,44 +711,6 @@ function MarketplacePageContent() {
                 className="inline-flex items-center gap-1.5 rounded-lg bg-red-500 px-5 py-2 text-xs font-bold text-white transition hover:bg-red-600"
               >
                 Edit &amp; Resubmit Application
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* State 1: No application yet — always visible, non-dismissible */}
-      {appStatus === "NONE" && user?.role !== "admin" && (
-        <div className="border-b-2 border-orange-400 bg-gradient-to-r from-orange-50 to-orange-100">
-          <div className="mx-auto flex max-w-7xl items-start gap-3.5 px-4 py-3.5 sm:px-6">
-            <div className="mt-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-orange-500">
-              <Rocket size={20} className="text-white" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="mb-1 text-sm font-extrabold text-orange-800">Want to sell on Higoverse?</p>
-              <p className="mb-3.5 text-xs leading-relaxed text-orange-900">
-                Fill in your shop details — including your TIN — and submit for Higoverse admin review. Once approved, your full shop dashboard appears and your products go live on the marketplace.
-              </p>
-              <div className="mb-3.5 flex flex-wrap gap-1.5">
-                {[
-                  { n: 1, label: "Fill shop application" },
-                  { n: 2, label: "Admin review & TIN verify" },
-                  { n: 3, label: "Access dashboard & sell" },
-                ].map((step) => (
-                  <div key={step.n} className="flex items-center gap-1.5 rounded-full border border-orange-200 bg-white px-2.5 py-1">
-                    <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-orange-500 text-[9px] font-black text-white">{step.n}</span>
-                    <span className="text-[11px] font-semibold text-orange-900">{step.label}</span>
-                  </div>
-                ))}
-              </div>
-              <button
-                onClick={() => {
-                  if (!user) { router.push(`/login?next=${encodeURIComponent("/?apply=1")}`); return; }
-                  setShowShopForm(true);
-                }}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-orange-500 px-5 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-orange-600"
-              >
-                <Store size={14} /> Create my shop <ArrowRight size={12} />
               </button>
             </div>
           </div>
