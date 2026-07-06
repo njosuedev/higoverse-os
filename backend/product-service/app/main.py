@@ -27,7 +27,7 @@ CORS_ORIGIN_REGEX = os.getenv(
     "CORS_ALLOWED_ORIGIN_REGEX",
     r"^https?://localhost(:\d+)?$"
     r"|^https?://127\.0\.0\.1(:\d+)?$"
-    r"|^https://higoverse-os(-[\w.]+)?\.vercel\.app$",
+    r"|^https://higoverse-os(-[\w-]+)?\.vercel\.app$",
 )
 
 app.add_middleware(
