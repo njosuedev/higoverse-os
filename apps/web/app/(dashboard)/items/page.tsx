@@ -60,6 +60,7 @@ export default function ItemManagementPage() {
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [loadError, setLoadError] = useState(false);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
@@ -136,8 +137,10 @@ export default function ItemManagementPage() {
       const allPartners: Supplier[] = suppliersRes?.data?.items || suppliersRes?.data || [];
       setSuppliers(allPartners.filter((p) => p.address?.startsWith("TIN:")));
       setLastUpdated(new Date());
+      setLoadError(false);
     } catch (err) {
       console.error(err);
+      setLoadError(true);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -611,6 +614,22 @@ export default function ItemManagementPage() {
             </div>
           </div>
         </div>
+
+        {/* LOAD ERROR BANNER */}
+        {loadError && (
+          <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-lg px-3 py-1.5 mb-2">
+            <AlertCircle size={11} className="text-red-500 shrink-0" />
+            <p className="text-[10px] text-red-700 flex-1 min-w-0">
+              Couldn&apos;t load inventory — the product service may be temporarily unavailable.
+            </p>
+            <button
+              onClick={manualRefresh}
+              className="text-[10px] font-bold text-red-700 bg-red-100 hover:bg-red-200 px-2 py-0.5 rounded-md shrink-0 transition"
+            >
+              Retry
+            </button>
+          </div>
+        )}
 
         {/* LOW STOCK ALERT */}
         {alertItems.length > 0 && (

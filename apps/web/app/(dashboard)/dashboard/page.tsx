@@ -139,6 +139,7 @@ export default function DashboardPage() {
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [dataLoading, setDataLoading] = useState(true);
   const [refreshing, setRefreshing]   = useState(false);
+  const [productServiceError, setProductServiceError] = useState(false);
   const [countdown, setCountdown]     = useState(REFRESH_INTERVAL);
   const [now, setNow]                 = useState(new Date());
 
@@ -181,6 +182,7 @@ export default function DashboardPage() {
       }));
       setStockAlerts(alertItems.slice(0, 6));
       setRecentSales(recent);
+      setProductServiceError(stockRes.status === "rejected");
     } catch { /* non-fatal */ }
 
     setDataLoading(false); // unblock render after phase 1
@@ -227,6 +229,7 @@ export default function DashboardPage() {
       setExpenseToday(expData);
       setPurchaseCostToday(purchCost);
       setLastUpdated(new Date());
+      setProductServiceError((prev) => prev || productsRes.status === "rejected");
     } catch { /* non-fatal */ } finally {
       setRefreshing(false);
     }
@@ -289,6 +292,22 @@ export default function DashboardPage() {
   return (
     <div className="min-h-screen">
       <main className="max-w-7xl mx-auto px-3 sm:px-5 py-2.5 sm:py-3 space-y-3">
+
+        {/* ── PRODUCT SERVICE ERROR BANNER ───────────────────────────────────── */}
+        {productServiceError && (
+          <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-lg px-3 py-1.5">
+            <AlertTriangle size={11} className="text-red-500 shrink-0" />
+            <p className="text-[10px] text-red-700 flex-1 min-w-0">
+              Couldn&apos;t load inventory data — the product service may be temporarily unavailable. Sales and other figures below are unaffected.
+            </p>
+            <button
+              onClick={manualRefresh}
+              className="text-[10px] font-bold text-red-700 bg-red-100 hover:bg-red-200 px-2 py-0.5 rounded-md shrink-0 transition"
+            >
+              Retry
+            </button>
+          </div>
+        )}
 
         {/* ── HERO ────────────────────────────────────────────────────────────── */}
         <section className="relative overflow-hidden rounded-2xl text-white shadow-md" style={{ backgroundColor: "#2563eb" }}>
