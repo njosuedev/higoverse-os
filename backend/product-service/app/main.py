@@ -1,7 +1,9 @@
 import os
+import re
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from sqlalchemy import text
 
 from app.api.routes.products import router as product_router
@@ -29,6 +31,18 @@ CORS_ORIGIN_REGEX = os.getenv(
     r"|^https?://127\.0\.0\.1(:\d+)?$"
     r"|^https://higoverse-os(-[\w-]+)?\.vercel\.app$",
 )
+_origin_matcher = re.compile(CORS_ORIGIN_REGEX)
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    # CORSMiddleware never gets to add headers to a response built by an
+    # exception handler, so an unhandled 500 needs them added here too —
+    # otherwise the browser reports it as a CORS error, hiding the real 500.
+    origin = request.headers.get("origin", "")
+    extra = {"Access-Control-Allow-Origin": origin} if origin and _origin_matcher.match(origin) else {}
+    return JSONResponse(status_code=500, content={"detail": str(exc)}, headers=extra)
+
 
 app.add_middleware(
     CORSMiddleware,
@@ -50,30 +64,39 @@ app.include_router(internal_router)
 # -----------------------------
 @app.on_event("startup")
 def on_startup():
-    Base.metadata.create_all(bind=engine)
-    # Safe migrations — ADD COLUMN IF NOT EXISTS / CREATE INDEX IF NOT EXISTS
-    # are idempotent on PostgreSQL. `create_all` only creates tables/indexes
-    # that don't exist yet, so on an already-existing `products` table it
-    # silently skips columns/indexes added to the model later — these
-    # statements are what actually land them on a live database.
-    with engine.connect() as conn:
-        for sql in [
-            "ALTER TABLE products ADD COLUMN IF NOT EXISTS category VARCHAR(100)",
-            "ALTER TABLE products ADD COLUMN IF NOT EXISTS images TEXT",
-            "ALTER TABLE products ADD COLUMN IF NOT EXISTS listed BOOLEAN NOT NULL DEFAULT FALSE",
-            "ALTER TABLE products ADD COLUMN IF NOT EXISTS shop_is_active BOOLEAN NOT NULL DEFAULT TRUE",
-            "CREATE INDEX IF NOT EXISTS ix_products_marketplace_feed ON products (created_at DESC, id DESC) WHERE listed = true",
-            "CREATE INDEX IF NOT EXISTS ix_products_shop_feed ON products (shop_id, created_at DESC, id DESC) WHERE listed = true",
-            "CREATE INDEX IF NOT EXISTS ix_products_category_feed ON products (category, created_at DESC, id DESC) WHERE listed = true",
-            # Trigram index backs ILIKE '%term%' search on product name at scale.
-            "CREATE EXTENSION IF NOT EXISTS pg_trgm",
-            "CREATE INDEX IF NOT EXISTS ix_products_name_trgm ON products USING gin (name gin_trgm_ops)",
-        ]:
-            try:
-                conn.execute(text(sql))
-                conn.commit()
-            except Exception:
-                conn.rollback()
+    # Guarded end-to-end: a missing/unreachable DATABASE_URL or any DDL
+    # failure here must not crash the ASGI lifespan, which would otherwise
+    # take down every route in the service (including /health) instead of
+    # just the DB-dependent endpoints.
+    if not engine:
+        return
+    try:
+        Base.metadata.create_all(bind=engine)
+        # Safe migrations — ADD COLUMN IF NOT EXISTS / CREATE INDEX IF NOT EXISTS
+        # are idempotent on PostgreSQL. `create_all` only creates tables/indexes
+        # that don't exist yet, so on an already-existing `products` table it
+        # silently skips columns/indexes added to the model later — these
+        # statements are what actually land them on a live database.
+        with engine.connect() as conn:
+            for sql in [
+                "ALTER TABLE products ADD COLUMN IF NOT EXISTS category VARCHAR(100)",
+                "ALTER TABLE products ADD COLUMN IF NOT EXISTS images TEXT",
+                "ALTER TABLE products ADD COLUMN IF NOT EXISTS listed BOOLEAN NOT NULL DEFAULT FALSE",
+                "ALTER TABLE products ADD COLUMN IF NOT EXISTS shop_is_active BOOLEAN NOT NULL DEFAULT TRUE",
+                "CREATE INDEX IF NOT EXISTS ix_products_marketplace_feed ON products (created_at DESC, id DESC) WHERE listed = true",
+                "CREATE INDEX IF NOT EXISTS ix_products_shop_feed ON products (shop_id, created_at DESC, id DESC) WHERE listed = true",
+                "CREATE INDEX IF NOT EXISTS ix_products_category_feed ON products (category, created_at DESC, id DESC) WHERE listed = true",
+                # Trigram index backs ILIKE '%term%' search on product name at scale.
+                "CREATE EXTENSION IF NOT EXISTS pg_trgm",
+                "CREATE INDEX IF NOT EXISTS ix_products_name_trgm ON products USING gin (name gin_trgm_ops)",
+            ]:
+                try:
+                    conn.execute(text(sql))
+                    conn.commit()
+                except Exception:
+                    conn.rollback()
+    except Exception:
+        pass
 
 
 # -----------------------------
