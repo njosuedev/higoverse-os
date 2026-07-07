@@ -27,6 +27,14 @@ export async function itemRequest(
 
   if (!res.ok) {
     const errorText = await res.text().catch(() => "");
+    // 5xx here is almost always backend infra (DB down/unreachable, quota
+    // exhausted, cold-start crash) rather than something about this
+    // particular request — the raw body can contain DB hostnames/credentials
+    // in the driver's error message, so don't surface it to callers/console.
+    if (res.status >= 500) {
+      console.warn(`Product service unavailable (${res.status}):`, errorText);
+      throw new Error("Product service is temporarily unavailable. Please try again shortly.");
+    }
     throw new Error(`Product API error: ${res.status} ${errorText || ""}`);
   }
 

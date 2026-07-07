@@ -139,7 +139,9 @@ export default function ItemManagementPage() {
       setLastUpdated(new Date());
       setLoadError(false);
     } catch (err) {
-      console.error(err);
+      // Already surfaced to the user via the banner below — console.warn
+      // (not .error) so it doesn't retrigger Next's dev-overlay redbox.
+      console.warn(err);
       setLoadError(true);
     } finally {
       setLoading(false);
