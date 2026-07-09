@@ -24,12 +24,13 @@ import LazyProductCard from "./LazyProductCard";
 import ProductCardSkeleton from "./ProductCardSkeleton";
 import {
   X, Loader2,
-  CheckCircle, Package, ChevronRight,
+  CheckCircle, Package, ChevronRight, ChevronLeft,
   Send, Store, Mail,
   ArrowRight, LayoutDashboard, CheckCircle2,
   Building2, FileText, ImagePlus, ChevronDown,
   Clock, BadgeCheck, Heart,
   Truck, Shirt, Home as HomeIcon, Leaf, Briefcase, TrendingUp,
+  Smartphone, UtensilsCrossed, Boxes, Sparkles, LayoutGrid,
 } from "lucide-react";
 import {
   sendMessage, getMyMessages, replyToMessage,
@@ -109,28 +110,57 @@ function entryToPublicProduct(entry: MarketplaceEntry): PublicProduct {
   };
 }
 
-// Rotating taglines for the "Fast-selling products" promo banner — a vertical
-// sliding ticker, the way ecommerce sites (Amazon, Alibaba) cycle promo copy.
-const PROMO_MESSAGES = [
-  "Discover what's trending across Higoverse",
-  "New arrivals added daily from verified shops",
-  "Unbeatable deals, updated in real time",
-  "Shop smarter — compare prices instantly",
-];
+// Hero carousel slides — static/editable, the way Jumia rotates promo
+// banners. Update this array to change what's advertised up top; no data
+// dependency, so it's safe to edit without touching the feed logic.
+const HERO_SLIDES = [
+  {
+    title: "Fast-selling products",
+    subtitle: "Discover what's trending across Higoverse",
+    cta: "Shop trending",
+    href: "/products",
+    gradient: "from-orange-500 to-orange-600",
+    Icon: TrendingUp,
+  },
+  {
+    title: "New arrivals, daily",
+    subtitle: "Fresh listings added by verified shops every day",
+    cta: "See what's new",
+    href: "/products",
+    gradient: "from-blue-600 to-blue-700",
+    Icon: Sparkles,
+  },
+  {
+    title: "Verified suppliers",
+    subtitle: "Buy with confidence from TIN-verified businesses",
+    cta: "Browse suppliers",
+    href: "/suppliers",
+    gradient: "from-emerald-600 to-emerald-700",
+    Icon: BadgeCheck,
+  },
+  {
+    title: "Grow your business",
+    subtitle: "List your products and reach buyers across Rwanda",
+    cta: "Sell on Higoverse",
+    href: "/?apply=1",
+    gradient: "from-slate-800 to-slate-900",
+    Icon: Store,
+  },
+] as const;
 
-function usePromoTicker(length: number, intervalMs = 3200) {
+function useCarousel(length: number, intervalMs = 5000) {
   const [index, setIndex] = useState(0);
   useEffect(() => {
     if (length <= 1) return;
     const tick = setInterval(() => setIndex((i) => (i + 1) % length), intervalMs);
     return () => clearInterval(tick);
   }, [length, intervalMs]);
-  return index;
+  return [index, setIndex] as const;
 }
 
-// Icons for the curated CATEGORIES list (lib/categories.ts) shown in "Categories for you"
+// Icons for the curated CATEGORIES list (lib/categories.ts) — sidebar + deals strip
 const CATEGORY_ICONS: Record<string, typeof Package> = {
-  electronics: Package,
+  electronics: Smartphone,
   vehicles: Truck,
   fashion: Shirt,
   health: Heart,
@@ -138,10 +168,24 @@ const CATEGORY_ICONS: Record<string, typeof Package> = {
   agriculture: Leaf,
   construction: Building2,
   business: Briefcase,
-  food: Package,
-  wholesale: Package,
+  food: UtensilsCrossed,
+  wholesale: Boxes,
   other: Package,
 };
+
+// Horizontal "deals" strip below the hero — quick jumps into category/browse
+// views, the way Jumia rows deal tiles (Awoof Deals, Clearance, etc.) under
+// its hero banner. Tinted icon tiles stand in for photographic deal art.
+const DEAL_TILES = [
+  { label: "New Arrivals", Icon: Sparkles, href: "/products", tint: "bg-orange-50 text-orange-600" },
+  { label: "Top Shops", Icon: Store, href: "/suppliers", tint: "bg-blue-50 text-blue-600" },
+  { label: "Electronics", Icon: Smartphone, href: "/category/electronics", tint: "bg-violet-50 text-violet-600" },
+  { label: "Fashion & Apparel", Icon: Shirt, href: "/category/fashion", tint: "bg-pink-50 text-pink-600" },
+  { label: "Wholesale & Bulk", Icon: Boxes, href: "/category/wholesale", tint: "bg-amber-50 text-amber-600" },
+  { label: "Agriculture", Icon: Leaf, href: "/category/agriculture", tint: "bg-emerald-50 text-emerald-600" },
+  { label: "Food & Drinks", Icon: UtensilsCrossed, href: "/category/food", tint: "bg-rose-50 text-rose-600" },
+  { label: "All Categories", Icon: LayoutGrid, href: "/categories", tint: "bg-slate-100 text-slate-600" },
+] as const;
 
 interface MarketplaceHomeProps {
   /** Server-fetched first page of the product feed — seeds React Query so the
@@ -425,34 +469,33 @@ export default function MarketplaceHome({ initialFeed, initialShops }: Marketpla
 
   // Hero section content — first page is already newest-first from the server
   const heroTrending = useMemo(() => entries.slice(0, 5), [entries]);
-  const heroCategories = useMemo(() => CATEGORIES.slice(0, 6), []);
 
   // Quick-module content — fixed per page load; only changes when the catalog
   // itself refreshes (page reload / poll), not on a timer.
   const popularShop  = featuredSuppliers[0];
   const trendProduct = heroTrending[0];
   const newProduct   = heroTrending[1];
-  const promoIdx     = usePromoTicker(PROMO_MESSAGES.length);
+  const [slideIdx, setSlideIdx] = useCarousel(HERO_SLIDES.length);
 
   // ── render ───────────────────────────────────────────────────────────────
   return (
     <div style={{ background: "#f5f5f5", minHeight: "100vh" }}>
 
-      {/* ── QUICK MODULES (Alibaba-style dashboard strip) — white band ──────── */}
+      {/* ── HERO (Jumia-style: category sidebar + banner carousel + promo stack) ── */}
       <div className="bg-white">
       <section className="mx-auto max-w-7xl px-4 pt-4 sm:px-6">
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-[1.1fr_1fr_1fr_1fr_1.3fr]">
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-[220px_1fr_260px]">
 
-          {/* Categories for you */}
-          <div className="hgv-module-in min-w-0 overflow-hidden rounded-lg border border-slate-200 bg-white p-3" style={{ animationDelay: "0ms" }}>
-            <p className="mb-2 truncate text-xs font-bold text-slate-900">Categories for you</p>
-            <ul className="space-y-2">
-              {heroCategories.map((c) => {
+          {/* Category sidebar */}
+          <aside className="hgv-module-in hidden overflow-hidden rounded-xl border border-slate-200 bg-white lg:block" style={{ animationDelay: "0ms" }}>
+            <p className="border-b border-slate-100 px-4 py-3 text-xs font-bold uppercase tracking-wide text-slate-500">All Categories</p>
+            <ul className="py-1">
+              {CATEGORIES.map((c) => {
                 const Icon = CATEGORY_ICONS[c.key] ?? Package;
                 return (
                   <li key={c.key}>
-                    <Link href={`/category/${c.key}`} className="group flex items-center gap-2 text-xs text-slate-600 transition hover:text-orange-600">
-                      <Icon size={13} className="shrink-0 text-slate-400 transition group-hover:text-orange-500" />
+                    <Link href={`/category/${c.key}`} className="group flex items-center gap-2.5 px-4 py-2 text-xs text-slate-600 transition hover:bg-orange-50 hover:text-orange-600">
+                      <Icon size={14} className="shrink-0 text-slate-400 transition group-hover:text-orange-500" />
                       <span className="flex-1 truncate">{c.label}</span>
                       <ChevronRight size={12} className="shrink-0 text-slate-300 transition-transform duration-200 group-hover:translate-x-0.5 group-hover:text-orange-400" />
                     </Link>
@@ -460,100 +503,169 @@ export default function MarketplaceHome({ initialFeed, initialShops }: Marketpla
                 );
               })}
             </ul>
-          </div>
+          </aside>
 
-          {/* Popular shop */}
-          <div className="hgv-module-in hgv-card-hover hidden min-w-0 overflow-hidden rounded-lg border border-slate-200 bg-white p-3 sm:block" style={{ animationDelay: "80ms" }}>
-            <p className="mb-2 truncate text-xs font-bold text-slate-900">Popular Shop</p>
-            {popularShop ? (
-              <Link href={`/shop/${popularShop.id}`} className="group block">
-                <div className="relative mb-2 flex aspect-square w-full min-w-0 items-center justify-center overflow-hidden rounded border border-slate-100 bg-slate-50 p-3">
-                  {popularShop.logo_url ? (
-                    <img src={popularShop.logo_url} alt={popularShop.name} className="hgv-img-zoom h-full w-full object-contain" />
-                  ) : (
-                    <Store size={28} className="text-slate-300" />
-                  )}
+          {/* Hero banner carousel */}
+          <div className="hgv-module-in group relative min-w-0 overflow-hidden rounded-xl shadow-sm sm:min-h-[280px]" style={{ animationDelay: "80ms" }}>
+            {HERO_SLIDES.map((slide, i) => (
+              <Link
+                key={slide.title}
+                href={slide.href}
+                aria-hidden={i !== slideIdx}
+                tabIndex={i === slideIdx ? 0 : -1}
+                className={`flex min-h-[220px] flex-col justify-between bg-gradient-to-br ${slide.gradient} p-6 transition-opacity duration-500 sm:min-h-[280px] sm:p-8 ${
+                  i === slideIdx ? "relative opacity-100" : "pointer-events-none absolute inset-0 opacity-0"
+                }`}
+              >
+                <slide.Icon
+                  size={140}
+                  strokeWidth={1.5}
+                  className="pointer-events-none absolute -bottom-6 -right-6 text-white/10 transition-transform duration-500 group-hover:scale-110 group-hover:rotate-6"
+                />
+                <div className="relative">
+                  <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-lg bg-white/15 backdrop-blur-sm">
+                    <slide.Icon size={20} className="text-white" />
+                  </div>
+                  <p className="text-2xl font-extrabold leading-snug text-white sm:text-3xl">{slide.title}</p>
+                  <p className="mt-1.5 max-w-sm text-sm text-white/85">{slide.subtitle}</p>
                 </div>
-                <p className="truncate text-xs font-semibold text-slate-800">{popularShop.name}</p>
-                <p className="truncate text-[10px] text-slate-400">{listedPerShop[popularShop.id] ?? 0} products</p>
+                <span className="relative mt-4 inline-flex w-fit items-center gap-1.5 rounded-full bg-white px-4 py-2 text-sm font-bold text-slate-800 shadow-sm transition-all duration-200 group-hover:gap-2.5">
+                  {slide.cta} <ArrowRight size={14} className="hgv-arrow-nudge" />
+                </span>
               </Link>
-            ) : (
-              <p className="text-[11px] text-slate-400">No shops yet</p>
-            )}
-          </div>
+            ))}
 
-          {/* Trending product */}
-          <div className="hgv-module-in hgv-card-hover hidden min-w-0 overflow-hidden rounded-lg border border-slate-200 bg-white p-3 sm:block" style={{ animationDelay: "160ms" }}>
-            <p className="mb-2 truncate text-xs font-bold text-slate-900">Trending Product</p>
-            {trendProduct ? (
-              <Link href={`/product/${productSlug(trendProduct.name, trendProduct.productId)}`} className="group block">
-                <div className="relative mb-2 flex aspect-square w-full min-w-0 items-center justify-center overflow-hidden rounded bg-slate-50">
-                  {trendProduct.images[0] ? (
-                    <img src={trendProduct.images[0]} alt={trendProduct.name} className="hgv-img-zoom absolute inset-0 h-full w-full object-cover" />
-                  ) : (
-                    <Package size={28} className="text-slate-300" />
-                  )}
-                </div>
-                <p className="truncate text-xs font-semibold text-slate-800">{trendProduct.name}</p>
-                <p className="truncate text-[10px] font-bold text-orange-600">{fmtPrice(trendProduct.sellingPrice)}</p>
-              </Link>
-            ) : (
-              <p className="text-[11px] text-slate-400">No products yet</p>
-            )}
-          </div>
-
-          {/* Newly listed */}
-          <div className="hgv-module-in hgv-card-hover hidden min-w-0 overflow-hidden rounded-lg border border-slate-200 bg-white p-3 lg:block" style={{ animationDelay: "240ms" }}>
-            <p className="mb-2 truncate text-xs font-bold text-slate-900">Newly Listed</p>
-            {newProduct ? (
-              <Link href={`/product/${productSlug(newProduct.name, newProduct.productId)}`} className="group block">
-                <div className="relative mb-2 flex aspect-square w-full min-w-0 items-center justify-center overflow-hidden rounded bg-slate-50">
-                  {newProduct.images[0] ? (
-                    <img src={newProduct.images[0]} alt={newProduct.name} className="hgv-img-zoom absolute inset-0 h-full w-full object-cover" />
-                  ) : (
-                    <Package size={28} className="text-slate-300" />
-                  )}
-                </div>
-                <p className="truncate text-xs font-semibold text-slate-800">{newProduct.name}</p>
-                <p className="truncate text-[10px] font-bold text-orange-600">{fmtPrice(newProduct.sellingPrice)}</p>
-              </Link>
-            ) : (
-              <p className="text-[11px] text-slate-400">No products yet</p>
-            )}
-          </div>
-
-          {/* Promo banner */}
-          <Link
-            href="/products"
-            className="hgv-banner-slide-in group relative col-span-2 flex min-w-0 flex-col justify-between overflow-hidden rounded-xl bg-gradient-to-br from-orange-500 to-orange-600 p-6 shadow-md transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl hover:ring-2 hover:ring-orange-300/60 sm:col-span-4 sm:min-h-[190px] lg:col-span-1"
-          >
-            <TrendingUp
-              size={104}
-              strokeWidth={1.5}
-              className="pointer-events-none absolute -bottom-5 -right-5 text-white/10 transition-transform duration-500 group-hover:scale-110 group-hover:rotate-6"
-            />
-
-            <div className="relative">
-              <div className="mb-2.5 flex h-9 w-9 items-center justify-center rounded-lg bg-white/15 backdrop-blur-sm transition-transform duration-300 group-hover:scale-110">
-                <TrendingUp size={18} className="text-white" />
-              </div>
-              <p className="text-lg font-extrabold leading-snug text-white sm:text-xl">Fast-selling products</p>
-              <div className="relative mt-1.5 h-5 overflow-hidden">
-                <div
-                  className="transition-transform duration-500 ease-out"
-                  style={{ transform: `translateY(-${promoIdx * 1.25}rem)` }}
+            {/* prev/next controls */}
+            {HERO_SLIDES.length > 1 && (
+              <>
+                <button
+                  onClick={(e) => { e.preventDefault(); setSlideIdx((i) => (i - 1 + HERO_SLIDES.length) % HERO_SLIDES.length); }}
+                  aria-label="Previous slide"
+                  className="absolute left-2 top-1/2 z-10 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-white/25 text-white opacity-0 backdrop-blur-sm transition hover:bg-white/40 group-hover:opacity-100"
                 >
-                  {PROMO_MESSAGES.map((msg) => (
-                    <p key={msg} className="h-5 truncate text-sm leading-5 text-orange-50">{msg}</p>
+                  <ChevronLeft size={16} />
+                </button>
+                <button
+                  onClick={(e) => { e.preventDefault(); setSlideIdx((i) => (i + 1) % HERO_SLIDES.length); }}
+                  aria-label="Next slide"
+                  className="absolute right-2 top-1/2 z-10 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-white/25 text-white opacity-0 backdrop-blur-sm transition hover:bg-white/40 group-hover:opacity-100"
+                >
+                  <ChevronRight size={16} />
+                </button>
+
+                {/* dots */}
+                <div className="absolute bottom-3 left-1/2 z-10 flex -translate-x-1/2 gap-1.5">
+                  {HERO_SLIDES.map((slide, i) => (
+                    <button
+                      key={slide.title}
+                      onClick={(e) => { e.preventDefault(); setSlideIdx(i); }}
+                      aria-label={`Go to slide ${i + 1}`}
+                      className={`h-1.5 rounded-full transition-all ${i === slideIdx ? "w-5 bg-white" : "w-1.5 bg-white/50"}`}
+                    />
                   ))}
                 </div>
-              </div>
+              </>
+            )}
+          </div>
+
+          {/* Right promo stack */}
+          <div className="hidden min-w-0 flex-col gap-2.5 lg:flex">
+            {/* Popular shop */}
+            <div className="hgv-module-in hgv-card-hover min-w-0 overflow-hidden rounded-xl border border-slate-200 bg-white p-3" style={{ animationDelay: "120ms" }}>
+              <p className="mb-2 truncate text-xs font-bold text-slate-900">Popular Shop</p>
+              {popularShop ? (
+                <Link href={`/shop/${popularShop.id}`} className="group flex items-center gap-2.5">
+                  <div className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded border border-slate-100 bg-slate-50 p-1.5">
+                    {popularShop.logo_url ? (
+                      <img src={popularShop.logo_url} alt={popularShop.name} className="hgv-img-zoom h-full w-full object-contain" />
+                    ) : (
+                      <Store size={20} className="text-slate-300" />
+                    )}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="truncate text-xs font-semibold text-slate-800">{popularShop.name}</p>
+                    <p className="truncate text-[10px] text-slate-400">{listedPerShop[popularShop.id] ?? 0} products</p>
+                  </div>
+                </Link>
+              ) : (
+                <p className="text-[11px] text-slate-400">No shops yet</p>
+              )}
             </div>
 
-            <span className="relative mt-4 inline-flex w-fit items-center gap-1.5 rounded-full bg-white px-4 py-2 text-sm font-bold text-orange-600 shadow-sm transition-all duration-200 group-hover:gap-2.5 group-hover:bg-orange-50">
-              View more <ArrowRight size={14} className="hgv-arrow-nudge" />
-            </span>
-          </Link>
+            {/* Trending product */}
+            <div className="hgv-module-in hgv-card-hover min-w-0 overflow-hidden rounded-xl border border-slate-200 bg-white p-3" style={{ animationDelay: "160ms" }}>
+              <p className="mb-2 truncate text-xs font-bold text-slate-900">Trending Product</p>
+              {trendProduct ? (
+                <Link href={`/product/${productSlug(trendProduct.name, trendProduct.productId)}`} className="group flex items-center gap-2.5">
+                  <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded bg-slate-50">
+                    {trendProduct.images[0] ? (
+                      <img src={trendProduct.images[0]} alt={trendProduct.name} className="hgv-img-zoom absolute inset-0 h-full w-full object-cover" />
+                    ) : (
+                      <Package size={20} className="absolute inset-0 m-auto text-slate-300" />
+                    )}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="truncate text-xs font-semibold text-slate-800">{trendProduct.name}</p>
+                    <p className="truncate text-[10px] font-bold text-orange-600">{fmtPrice(trendProduct.sellingPrice)}</p>
+                  </div>
+                </Link>
+              ) : (
+                <p className="text-[11px] text-slate-400">No products yet</p>
+              )}
+            </div>
+
+            {/* Newly listed */}
+            <div className="hgv-module-in hgv-card-hover min-w-0 overflow-hidden rounded-xl border border-slate-200 bg-white p-3" style={{ animationDelay: "200ms" }}>
+              <p className="mb-2 truncate text-xs font-bold text-slate-900">Newly Listed</p>
+              {newProduct ? (
+                <Link href={`/product/${productSlug(newProduct.name, newProduct.productId)}`} className="group flex items-center gap-2.5">
+                  <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded bg-slate-50">
+                    {newProduct.images[0] ? (
+                      <img src={newProduct.images[0]} alt={newProduct.name} className="hgv-img-zoom absolute inset-0 h-full w-full object-cover" />
+                    ) : (
+                      <Package size={20} className="absolute inset-0 m-auto text-slate-300" />
+                    )}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="truncate text-xs font-semibold text-slate-800">{newProduct.name}</p>
+                    <p className="truncate text-[10px] font-bold text-orange-600">{fmtPrice(newProduct.sellingPrice)}</p>
+                  </div>
+                </Link>
+              ) : (
+                <p className="text-[11px] text-slate-400">No products yet</p>
+              )}
+            </div>
+
+            {/* Sell CTA — mirrors Jumia's "Jumia Force / Join now" block */}
+            <Link
+              href={shopIsActive ? "/dashboard" : "/?apply=1"}
+              className="hgv-banner-slide-in group relative flex flex-1 min-h-[92px] flex-col justify-center overflow-hidden rounded-xl bg-gradient-to-br from-orange-500 to-orange-600 p-4 shadow-sm transition hover:shadow-md"
+            >
+              <Store size={72} strokeWidth={1.5} className="pointer-events-none absolute -bottom-3 -right-3 text-white/15 transition-transform duration-500 group-hover:scale-110" />
+              <p className="relative text-sm font-extrabold text-white">{shopIsActive ? "Manage Your Shop" : "Sell on Higoverse"}</p>
+              <p className="relative mt-1 text-[11px] text-orange-50">{shopIsActive ? "View orders, items & messages" : "Reach buyers across Rwanda"}</p>
+              <span className="relative mt-2 inline-flex w-fit items-center gap-1 text-[11px] font-bold text-white">
+                {shopIsActive ? "Open dashboard" : "Join now"} <ArrowRight size={12} className="hgv-arrow-nudge" />
+              </span>
+            </Link>
+          </div>
+        </div>
+
+        {/* Deals strip */}
+        <div className="mt-3 grid grid-cols-4 gap-2 sm:gap-2.5 lg:grid-cols-8">
+          {DEAL_TILES.map((tile, i) => (
+            <Link
+              key={tile.label}
+              href={tile.href}
+              className="hgv-module-in hgv-card-hover flex min-w-0 flex-col items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-2 py-3 text-center"
+              style={{ animationDelay: `${i * 40}ms` }}
+            >
+              <span className={`flex h-9 w-9 items-center justify-center rounded-full ${tile.tint}`}>
+                <tile.Icon size={16} />
+              </span>
+              <span className="line-clamp-2 text-[10.5px] font-semibold leading-tight text-slate-700">{tile.label}</span>
+            </Link>
+          ))}
         </div>
 
         <div className="my-4 flex items-center gap-3">
