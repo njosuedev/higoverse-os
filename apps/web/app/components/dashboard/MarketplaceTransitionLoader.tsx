@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 
 // The public marketplace now lives at these paths (outside the private
 // dashboard route group entirely) instead of under /marketplace.
-const MARKETPLACE_PATHS = ["/products", "/categories", "/category", "/product", "/shop", "/suppliers", "/search", "/about", "/contact"];
+const MARKETPLACE_PATHS = ["/products", "/categories", "/category", "/product", "/search", "/about", "/contact"];
 function isMP(p: string) {
   if (p === "/") return true;
   return MARKETPLACE_PATHS.some((seg) => p === seg || p.startsWith(`${seg}/`));

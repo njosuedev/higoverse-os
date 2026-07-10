@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, Header, HTTPException
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -37,3 +38,35 @@ def update_shop_status(
     db.commit()
 
     return {"success": True, "data": {"shop_id": shop_id, "updated": updated}}
+
+
+# ── Stock adjustment (called by order-service) ────────────────────────────
+# Customers placing an order have no shop_id, so the normal shop-scoped
+# PUT /products/{id} route (which requires a shop-owner JWT) can't be used.
+# order-service calls this with the shared internal secret instead, for both
+# decrementing stock on order creation and restoring it on cancellation.
+@router.post("/products/{product_id}/adjust-stock")
+def adjust_stock(
+    product_id: str,
+    payload: dict,
+    db: Session = Depends(get_db),
+    _: None = Depends(require_internal_secret),
+):
+    delta = payload.get("delta")
+    if not isinstance(delta, int):
+        raise HTTPException(status_code=422, detail="delta (int) is required")
+
+    updated = db.execute(
+        text(
+            "UPDATE products SET quantity = quantity + :delta "
+            "WHERE id = :id AND quantity + :delta >= 0 "
+            "RETURNING quantity"
+        ),
+        {"delta": delta, "id": product_id},
+    ).fetchone()
+
+    if not updated:
+        raise HTTPException(status_code=400, detail="Insufficient stock or product not found")
+
+    db.commit()
+    return {"success": True, "data": {"quantity": updated[0]}}

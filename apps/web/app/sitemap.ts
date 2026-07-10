@@ -1,7 +1,7 @@
 import type { MetadataRoute } from "next";
-import { getPublicShops, getMarketplaceSitemapPage } from "@/lib/marketplace-public";
+import { getMarketplaceSitemapPage } from "@/lib/marketplace-public";
 import { CATEGORIES } from "@/lib/categories";
-import { productSlug, shopSlug } from "@/lib/slug";
+import { productSlug } from "@/lib/slug";
 
 const BASE_URL = "https://higoverse-os.vercel.app";
 
@@ -19,13 +19,10 @@ export async function generateSitemaps() {
 
 export default async function sitemap({ id }: { id: number }): Promise<MetadataRoute.Sitemap> {
   if (id === 0) {
-    const shops = await getPublicShops();
-
     const staticRoutes: MetadataRoute.Sitemap = [
       { url: `${BASE_URL}/`, changeFrequency: "hourly", priority: 1 },
       { url: `${BASE_URL}/products`, changeFrequency: "hourly", priority: 0.9 },
       { url: `${BASE_URL}/categories`, changeFrequency: "daily", priority: 0.7 },
-      { url: `${BASE_URL}/suppliers`, changeFrequency: "daily", priority: 0.7 },
       { url: `${BASE_URL}/search`, changeFrequency: "weekly", priority: 0.3 },
       { url: `${BASE_URL}/about`, changeFrequency: "monthly", priority: 0.4 },
       { url: `${BASE_URL}/contact`, changeFrequency: "monthly", priority: 0.4 },
@@ -37,13 +34,7 @@ export default async function sitemap({ id }: { id: number }): Promise<MetadataR
       priority: 0.6,
     }));
 
-    const shopRoutes: MetadataRoute.Sitemap = shops.map((s) => ({
-      url: `${BASE_URL}/shop/${shopSlug(s.name, s.id)}`,
-      changeFrequency: "daily",
-      priority: 0.5,
-    }));
-
-    return [...staticRoutes, ...categoryRoutes, ...shopRoutes];
+    return [...staticRoutes, ...categoryRoutes];
   }
 
   // id 1 -> page 1 (products 1..40000), id 2 -> page 2, etc.

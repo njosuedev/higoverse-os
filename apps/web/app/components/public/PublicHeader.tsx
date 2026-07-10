@@ -7,10 +7,11 @@ import { useAuth } from "@/lib/auth-context";
 import { useShop } from "@/lib/shop-context";
 import { getEffectiveRole } from "@/lib/auth";
 import { CATEGORIES, categoryLabel } from "@/lib/categories";
-import { getPublicProducts, getPublicShops, type PublicProduct } from "@/lib/marketplace-public";
-import type { Shop } from "@/lib/shop-api";
+import { getPublicProducts, type PublicProduct } from "@/lib/marketplace-public";
+import { useCart } from "@/lib/hooks/useCart";
+import { cartCount } from "@/lib/cart";
 import {
-  Home, LayoutGrid, Store, Package, Info, Phone,
+  Home, LayoutGrid, Package, Info, Phone,
   LayoutDashboard, ShoppingCart, BarChart3, Sparkles,
   Search, Menu, X, ChevronDown, LogOut, Settings, User,
   MapPin, Globe, ShieldCheck, Truck, Shirt, Heart,
@@ -77,7 +78,6 @@ const CATEGORY_ICONS: Record<string, typeof Package> = {
 
 const PUBLIC_LINKS = [
   { label: "Home", href: "/", icon: Home },
-  { label: "Verified Suppliers", href: "/suppliers", icon: Store },
   { label: "Products", href: "/products", icon: Package },
   { label: "About us", href: "/about", icon: Info },
   { label: "Contact", href: "/contact", icon: Phone },
@@ -101,7 +101,6 @@ function isActive(pathname: string, href: string) {
 const SEARCH_PLACEHOLDER_EXAMPLES = [
   "wireless earbuds",
   "office chairs",
-  "verified suppliers",
   "fresh produce",
   "laptop accessories",
 ];
@@ -123,23 +122,18 @@ export default function PublicHeader() {
   const { shop, loading: shopLoading } = useShop();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [catMenuOpen, setCatMenuOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const [category, setCategory] = useState("all");
   const menuRef = useRef<HTMLDivElement>(null);
-  const catMenuRef = useRef<HTMLDivElement>(null);
 
   // ── Search suggestions: recent terms, live product/supplier matches ──
   const [suggestOpen, setSuggestOpen] = useState(false);
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const [suggestProducts, setSuggestProducts] = useState<PublicProduct[] | null>(null);
-  const [suggestShops, setSuggestShops] = useState<Shop[] | null>(null);
   const [activeIndex, setActiveIndex] = useState(-1);
   const [searchFocused, setSearchFocused] = useState(false);
   const searchWrapRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const productsLoaded = useRef(false);
-  const shopsLoaded = useRef(false);
   const placeholderExample = useRotatingPlaceholder(SEARCH_PLACEHOLDER_EXAMPLES);
 
   useEffect(() => { setRecentSearches(loadRecentSearches()); }, []);
@@ -163,11 +157,7 @@ export default function PublicHeader() {
       productsLoaded.current = true;
       getPublicProducts().then(setSuggestProducts);
     }
-    if (user && !shopsLoaded.current) {
-      shopsLoaded.current = true;
-      getPublicShops().then(setSuggestShops);
-    }
-  }, [user]);
+  }, []);
 
   // Pre-warm real product data on mount so "Popular categories" reflects actual
   // marketplace stock the first time the search bar opens, not a generic fallback.
@@ -176,11 +166,12 @@ export default function PublicHeader() {
   const isResolving = !ready || shopLoading;
   const role = isResolving ? null : getEffectiveRole(user ?? null, shop?.is_active === true);
   const isBusiness = role === "SHOP_OWNER" || role === "ADMIN";
+  const cartItems = useCart();
+  const cartQty = cartCount(cartItems);
 
   useEffect(() => {
     function onOutside(e: MouseEvent) {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
-      if (catMenuRef.current && !catMenuRef.current.contains(e.target as Node)) setCatMenuOpen(false);
       if (searchWrapRef.current && !searchWrapRef.current.contains(e.target as Node)) setSuggestOpen(false);
     }
     document.addEventListener("mousedown", onOutside);
@@ -190,7 +181,6 @@ export default function PublicHeader() {
   useEffect(() => {
     setMobileOpen(false);
     setMenuOpen(false);
-    setCatMenuOpen(false);
     setSuggestOpen(false);
   }, [pathname]);
 
@@ -202,11 +192,7 @@ export default function PublicHeader() {
   function runSearch(term: string) {
     const q = term.trim();
     if (q) setRecentSearches(saveRecentSearch(q));
-    if (category !== "all") {
-      goTo(q ? `/search?q=${encodeURIComponent(q)}&cat=${category}` : `/category/${category}`);
-    } else {
-      goTo(q ? `/search?q=${encodeURIComponent(q)}` : "/search");
-    }
+    goTo(q ? `/search?q=${encodeURIComponent(q)}` : "/search");
   }
 
   function submitSearch(e: React.FormEvent) {
@@ -260,31 +246,6 @@ export default function PublicHeader() {
         });
       });
 
-    (suggestShops ?? [])
-      .filter((s) => (s.name ?? "").toLowerCase().includes(q))
-      .slice(0, 3)
-      .forEach((s) => {
-        list.push({
-          key: `s-${s.id}`,
-          href: `/shop/${s.id}`,
-          render: (active) => (
-            <div className={`flex items-center gap-3 rounded-xl px-3 py-2 transition ${active ? "bg-orange-50" : "hover:bg-slate-50"}`}>
-              {s.logo_url ? (
-                <img src={s.logo_url} alt="" className="h-9 w-9 shrink-0 rounded-full border border-slate-200 object-cover" />
-              ) : (
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-orange-100 text-orange-500">
-                  <Store size={15} />
-                </div>
-              )}
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium text-slate-700">{highlightMatch(s.name, trimmedQuery)}</p>
-                <p className="truncate text-xs text-slate-400">Supplier{s.address ? ` · ${s.address}` : ""}</p>
-              </div>
-            </div>
-          ),
-        });
-      });
-
     CATEGORIES.filter((c) => c.label.toLowerCase().includes(q) && (!categoriesWithListings || categoriesWithListings.has(c.key)))
       .slice(0, 4)
       .forEach((c) => {
@@ -305,7 +266,7 @@ export default function PublicHeader() {
       });
 
     return list;
-  }, [trimmedQuery, suggestProducts, suggestShops, categoriesWithListings]);
+  }, [trimmedQuery, suggestProducts, categoriesWithListings]);
 
   useEffect(() => { setActiveIndex(-1); }, [trimmedQuery]);
 
@@ -335,17 +296,16 @@ export default function PublicHeader() {
               <span className="flex items-center gap-1.5">
                 <MapPin size={12} className="text-orange-400" /> Deliver to Rwanda
               </span>
-              <span className="hidden items-center gap-1.5 border-l border-slate-700 pl-4 md:flex">
-                <ShieldCheck size={12} className="text-orange-400" /> Buy safely from verified suppliers
+              <a href="tel:+250790885174" className="hidden items-center gap-1.5 border-l border-slate-700 pl-4 transition hover:text-white md:flex">
+                <Phone size={12} className="text-orange-400" /> Call to order: +250 790 885 174
+              </a>
+              <span className="hidden items-center gap-1.5 border-l border-slate-700 pl-4 lg:flex">
+                <ShieldCheck size={12} className="text-orange-400" /> Quality guaranteed on every order
               </span>
             </div>
             <div className="flex items-center gap-4">
-              <Link href="/suppliers" className="transition hover:text-white">Verified Suppliers</Link>
               <Link href="/products" className="hidden transition hover:text-white sm:inline">All Products</Link>
               <Link href="/contact" className="transition hover:text-white">Help Center</Link>
-              {!isResolving && !user && (
-                <Link href="/register" className="font-semibold text-orange-400 transition hover:text-orange-300">Sell on Higoverse</Link>
-              )}
               <span className="hidden items-center gap-1 border-l border-slate-700 pl-4 md:flex">
                 <Globe size={12} /> EN
               </span>
@@ -353,52 +313,37 @@ export default function PublicHeader() {
           </div>
         </div>
 
-        {/* ── Row 1: logo + search + account ── */}
+        {/* ── Single row: logo + big search + account ── */}
         <div className="border-b border-slate-100">
-          <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-2.5 px-4 py-2 sm:px-6 lg:grid lg:flex-nowrap lg:grid-cols-[auto_1fr_auto]">
+          <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-3 px-4 py-3 sm:px-6 lg:flex-nowrap">
             <div className="flex shrink-0 items-center gap-2.5">
               <button
                 type="button"
                 onClick={() => setMobileOpen((o) => !o)}
-                className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 lg:hidden"
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 lg:hidden"
                 aria-label="Open menu"
               >
-                <Menu size={16} />
+                <Menu size={18} />
               </button>
 
-              <Link href="/" className="flex shrink-0 items-center gap-1.5 transition hover:opacity-80">
-                <img src="/higoverse.png" alt="Higoverse" className="h-6 w-6 rounded-lg object-cover" />
-                <span className="hidden text-[13px] font-bold tracking-tight text-slate-900 sm:inline">Higoverse</span>
+              <Link href="/" className="flex shrink-0 items-center gap-2 transition hover:opacity-80">
+                <img src="/higoverse.png" alt="Higoverse" className="h-8 w-8 rounded-lg object-cover" />
+                <span className="hidden text-base font-extrabold tracking-tight text-slate-900 sm:inline">Higoverse</span>
               </Link>
             </div>
 
-            {/* Search bar — wraps to its own full-width row on mobile, truly centered on desktop */}
-            <div ref={searchWrapRef} className="relative order-3 w-full lg:order-none lg:mx-auto lg:w-full lg:max-w-2xl">
+            {/* Search bar — wraps to its own full-width row on mobile, fills remaining width on desktop */}
+            <div ref={searchWrapRef} className="relative order-3 w-full lg:order-none lg:flex-1">
               <form onSubmit={submitSearch} className="w-full">
                 <div
-                  className={`flex h-8 w-full items-stretch overflow-hidden rounded-full bg-white shadow-sm ring-1 transition-all duration-200 ${
-                    searchFocused ? "scale-[1.015] shadow-md ring-2 ring-orange-400" : "ring-slate-200 hover:ring-slate-300"
+                  className={`flex h-11 w-full items-stretch overflow-hidden rounded-full bg-white shadow-sm ring-1 transition-all duration-200 ${
+                    searchFocused ? "shadow-md ring-2 ring-orange-400" : "ring-slate-200 hover:ring-slate-300"
                   }`}
                 >
-                  <div className="relative hidden shrink-0 sm:block">
-                    <select
-                      value={category}
-                      onChange={(e) => setCategory(e.target.value)}
-                      aria-label="Category"
-                      className="h-full appearance-none rounded-l-full border-r border-slate-200 bg-slate-50 py-1 pl-3 pr-6 text-[11px] font-medium text-slate-600 outline-none transition hover:bg-slate-100"
-                    >
-                      <option value="all">All categories</option>
-                      {CATEGORIES.map((c) => (
-                        <option key={c.key} value={c.key}>{c.label}</option>
-                      ))}
-                    </select>
-                    <ChevronDown size={10} className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-slate-400" />
-                  </div>
-
-                  <div className="flex min-w-0 flex-1 items-center gap-1.5 pl-3">
+                  <div className="flex min-w-0 flex-1 items-center gap-2 pl-4">
                     <Search
-                      size={13}
-                      className={`hidden shrink-0 transition-colors duration-200 sm:block ${searchFocused ? "text-orange-400" : "text-slate-300"}`}
+                      size={16}
+                      className={`shrink-0 transition-colors duration-200 ${searchFocused ? "text-orange-400" : "text-slate-300"}`}
                     />
                     <input
                       ref={searchInputRef}
@@ -413,7 +358,7 @@ export default function PublicHeader() {
                       aria-expanded={suggestOpen}
                       aria-autocomplete="list"
                       autoComplete="off"
-                      className="min-w-0 flex-1 bg-transparent text-[11px] text-slate-800 outline-none placeholder:text-slate-400"
+                      className="min-w-0 flex-1 bg-transparent text-sm text-slate-800 outline-none placeholder:text-slate-400"
                     />
                     {query ? (
                       <button
@@ -422,7 +367,7 @@ export default function PublicHeader() {
                         aria-label="Clear search"
                         className="flex shrink-0 items-center justify-center rounded-full p-1 text-slate-300 transition hover:bg-slate-100 hover:text-slate-500"
                       >
-                        <X size={12} />
+                        <X size={14} />
                       </button>
                     ) : (
                       <kbd className="hidden shrink-0 items-center rounded-md border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[10px] font-semibold text-slate-400 sm:flex">
@@ -434,9 +379,9 @@ export default function PublicHeader() {
                   <button
                     type="submit"
                     aria-label="Search"
-                    className="m-1 flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full bg-orange-500 px-3 text-[11px] font-bold text-white transition hover:bg-orange-600 active:scale-[0.97] sm:px-4"
+                    className="m-1.5 flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full bg-orange-500 px-5 text-sm font-bold text-white transition hover:bg-orange-600 active:scale-[0.97]"
                   >
-                    <Search size={12} className="sm:hidden" />
+                    <Search size={14} className="sm:hidden" />
                     <span className="hidden sm:inline">Search</span>
                   </button>
                 </div>
@@ -521,6 +466,19 @@ export default function PublicHeader() {
             </div>
 
             <div className="ml-auto flex shrink-0 items-center gap-1.5 lg:ml-0">
+              <Link
+                href="/cart"
+                aria-label="Cart"
+                className="relative flex h-9 w-9 items-center justify-center rounded-lg text-slate-600 transition hover:bg-slate-100"
+              >
+                <ShoppingCart size={19} />
+                {cartQty > 0 && (
+                  <span className="absolute -right-1 -top-1 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-orange-500 px-1 text-[10px] font-bold text-white">
+                    {cartQty > 99 ? "99+" : cartQty}
+                  </span>
+                )}
+              </Link>
+
               {isBusiness && (
                 <Link
                   href="/dashboard"
@@ -581,88 +539,6 @@ export default function PublicHeader() {
               )}
             </div>
           </div>
-          <div className="mx-auto hidden max-w-7xl items-center gap-2 px-4 pb-1.5 text-[11px] text-slate-400 sm:px-6 lg:flex">
-            <span className="font-medium text-slate-500">Popular:</span>
-            {CATEGORIES.slice(0, 6).map((c) => (
-              <Link
-                key={c.key}
-                href={`/category/${c.key}`}
-                className="rounded-full px-2 py-0.5 transition hover:bg-slate-100 hover:text-slate-700"
-              >
-                {c.label}
-              </Link>
-            ))}
-          </div>
-        </div>
-
-        {/* ── Row 2: secondary nav (desktop only) ── */}
-        <div className="hidden border-b border-slate-100 lg:block">
-          <div className="mx-auto flex h-8 max-w-7xl items-center justify-between px-4 text-[11px] sm:px-6">
-            <nav className="flex items-center gap-4">
-              <div ref={catMenuRef} className="relative">
-                <button
-                  type="button"
-                  onClick={() => setCatMenuOpen((o) => !o)}
-                  className={`flex items-center gap-1 font-semibold transition ${
-                    catMenuOpen || isActive(pathname, CATEGORIES_LINK.href) ? "text-orange-600" : "text-slate-700 hover:text-slate-900"
-                  }`}
-                >
-                  <LayoutGrid size={11} /> {CATEGORIES_LINK.label}
-                  <ChevronDown size={10} className={`transition-transform ${catMenuOpen ? "rotate-180" : ""}`} />
-                </button>
-
-                {catMenuOpen && (
-                  <div className="absolute left-0 top-full z-50 mt-2 w-[26rem] overflow-hidden rounded-2xl border border-slate-200 bg-white p-2 shadow-2xl">
-                    <div className="grid grid-cols-2 gap-0.5">
-                      {CATEGORIES.map((c) => {
-                        const Icon = CATEGORY_ICONS[c.key] ?? Package;
-                        return (
-                          <Link
-                            key={c.key}
-                            href={`/category/${c.key}`}
-                            onClick={() => setCatMenuOpen(false)}
-                            className="flex items-start gap-2.5 rounded-xl px-3 py-2 text-xs font-medium text-slate-600 transition hover:bg-orange-50 hover:text-orange-600"
-                          >
-                            <Icon size={15} className="mt-0.5 shrink-0 text-slate-400" />
-                            <span className="whitespace-nowrap">{c.label}</span>
-                          </Link>
-                        );
-                      })}
-                    </div>
-                    <Link
-                      href="/categories"
-                      onClick={() => setCatMenuOpen(false)}
-                      className="mt-1 flex items-center justify-center rounded-xl border-t border-slate-100 px-3 py-2 text-xs font-semibold text-orange-600 hover:bg-orange-50"
-                    >
-                      Browse all categories →
-                    </Link>
-                  </div>
-                )}
-              </div>
-              <span className="h-2.5 w-px bg-slate-200" />
-              {PUBLIC_LINKS.filter((l) => l.href !== "/").map((link) => {
-                const active = isActive(pathname, link.href);
-                return (
-                  <Link
-                    key={link.href}
-                    href={link.href}
-                    className={`font-medium transition ${active ? "text-orange-600" : "text-slate-500 hover:text-slate-900"}`}
-                  >
-                    {link.label}
-                  </Link>
-                );
-              })}
-            </nav>
-            {isBusiness && (
-              <nav className="flex items-center gap-4 text-slate-400">
-                {BUSINESS_LINKS.map((link) => (
-                  <Link key={link.href} href={link.href} className="font-medium transition hover:text-slate-700">
-                    {link.label}
-                  </Link>
-                ))}
-              </nav>
-            )}
-          </div>
         </div>
       </header>
 
@@ -685,6 +561,20 @@ export default function PublicHeader() {
               </button>
             </div>
             <nav className="flex-1 space-y-1 p-3">
+              <Link
+                href="/cart"
+                className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${
+                  isActive(pathname, "/cart") ? "bg-orange-50 text-orange-600" : "text-slate-600 hover:bg-slate-50"
+                }`}
+              >
+                <ShoppingCart size={18} />
+                Cart
+                {cartQty > 0 && (
+                  <span className="ml-auto flex h-5 min-w-[20px] items-center justify-center rounded-full bg-orange-500 px-1.5 text-[10px] font-bold text-white">
+                    {cartQty > 99 ? "99+" : cartQty}
+                  </span>
+                )}
+              </Link>
               {[...PUBLIC_LINKS, CATEGORIES_LINK].map((link) => {
                 const Icon = link.icon;
                 const active = isActive(pathname, link.href);

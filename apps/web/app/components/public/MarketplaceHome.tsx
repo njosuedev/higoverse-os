@@ -30,7 +30,8 @@ import {
   Building2, FileText, ImagePlus, ChevronDown,
   Clock, BadgeCheck, Heart,
   Truck, Shirt, Home as HomeIcon, Leaf, Briefcase, TrendingUp,
-  Smartphone, UtensilsCrossed, Boxes, Sparkles, LayoutGrid,
+  Smartphone, UtensilsCrossed, Boxes, Sparkles, LayoutGrid, Phone,
+  ShieldCheck,
 } from "lucide-react";
 import {
   sendMessage, getMyMessages, replyToMessage,
@@ -42,14 +43,6 @@ import { CATEGORIES } from "@/lib/categories";
 import { productSlug } from "@/lib/slug";
 
 // ── helpers ──────────────────────────────────────────────────────────────────
-function parseUTC(ts: string | null | undefined): Date {
-  if (!ts) return new Date(0);
-  const s = ts.endsWith("Z") || ts.includes("+") ? ts : ts + "Z";
-  return new Date(s);
-}
-function isOnline(lastSeenAt: string | null, now: Date) {
-  return !!lastSeenAt && (now.getTime() - parseUTC(lastSeenAt).getTime()) / 1000 < 300;
-}
 function fmtPrice(n: number) {
   return new Intl.NumberFormat("en-RW", {
     style: "currency", currency: "RWF", maximumFractionDigits: 0,
@@ -131,17 +124,9 @@ const HERO_SLIDES = [
     Icon: Sparkles,
   },
   {
-    title: "Verified suppliers",
-    subtitle: "Buy with confidence from TIN-verified businesses",
-    cta: "Browse suppliers",
-    href: "/suppliers",
-    gradient: "from-emerald-600 to-emerald-700",
-    Icon: BadgeCheck,
-  },
-  {
-    title: "Grow your business",
-    subtitle: "List your products and reach buyers across Rwanda",
-    cta: "Sell on Higoverse",
+    title: "Become a Higoverse Member",
+    subtitle: "Give us your products — we list, sell & deliver for you",
+    cta: "Apply for Membership",
     href: "/?apply=1",
     gradient: "from-slate-800 to-slate-900",
     Icon: Store,
@@ -178,7 +163,6 @@ const CATEGORY_ICONS: Record<string, typeof Package> = {
 // its hero banner. Tinted icon tiles stand in for photographic deal art.
 const DEAL_TILES = [
   { label: "New Arrivals", Icon: Sparkles, href: "/products", tint: "bg-orange-50 text-orange-600" },
-  { label: "Top Shops", Icon: Store, href: "/suppliers", tint: "bg-blue-50 text-blue-600" },
   { label: "Electronics", Icon: Smartphone, href: "/category/electronics", tint: "bg-violet-50 text-violet-600" },
   { label: "Fashion & Apparel", Icon: Shirt, href: "/category/fashion", tint: "bg-pink-50 text-pink-600" },
   { label: "Wholesale & Bulk", Icon: Boxes, href: "/category/wholesale", tint: "bg-amber-50 text-amber-600" },
@@ -202,7 +186,6 @@ export default function MarketplaceHome({ initialFeed, initialShops }: Marketpla
   const searchParams = useSearchParams();
   const router = useRouter();
   const queryClient = useQueryClient();
-  const [now, setNow]           = useState(new Date());
   const [bannerDismissed, setBannerDismissed] = useState(false);
 
   // Shop application form state
@@ -221,12 +204,6 @@ export default function MarketplaceHome({ initialFeed, initialShops }: Marketpla
     warmupMsgService(); // wake Render.com free-tier before user opens order modal
     if (localStorage.getItem("mp_shop_banner_dismissed") === "1") setBannerDismissed(true);
     if (localStorage.getItem("mp_shop_applied") === "1") setShopApplied(true);
-  }, []);
-
-  // Online-status "N minutes ago" recency needs a live clock — tick every 15s.
-  useEffect(() => {
-    const tick = setInterval(() => setNow(new Date()), 15_000);
-    return () => clearInterval(tick);
   }, []);
 
   // Auto-open shop application form from CTA links (?apply=1)
@@ -457,22 +434,20 @@ export default function MarketplaceHome({ initialFeed, initialShops }: Marketpla
     onLoadMore: fetchNextPage,
   });
 
-  const listedPerShop = useMemo(() => {
-    const m: Record<string, number> = {};
-    entries.forEach((e) => { m[e.shopId] = (m[e.shopId] ?? 0) + 1; });
+  // Category sidebar hover flyout — groups already-loaded entries by category
+  // so hovering a row can preview real products instead of a static submenu
+  // (the catalog has no curated subcategory taxonomy to show otherwise).
+  const entriesByCategory = useMemo(() => {
+    const m: Record<string, MarketplaceEntry[]> = {};
+    entries.forEach((e) => { (m[e.category ?? "other"] ??= []).push(e); });
     return m;
   }, [entries]);
-
-  const featuredSuppliers = useMemo(() =>
-    shops.filter((s) => (listedPerShop[s.id] ?? 0) > 0).slice(0, 4),
-    [shops, listedPerShop]);
 
   // Hero section content — first page is already newest-first from the server
   const heroTrending = useMemo(() => entries.slice(0, 5), [entries]);
 
   // Quick-module content — fixed per page load; only changes when the catalog
   // itself refreshes (page reload / poll), not on a timer.
-  const popularShop  = featuredSuppliers[0];
   const trendProduct = heroTrending[0];
   const newProduct   = heroTrending[1];
   const [slideIdx, setSlideIdx] = useCarousel(HERO_SLIDES.length);
@@ -486,26 +461,79 @@ export default function MarketplaceHome({ initialFeed, initialShops }: Marketpla
       <section className="mx-auto max-w-7xl px-4 pt-4 sm:px-6">
         <div className="grid grid-cols-1 gap-3 lg:grid-cols-[220px_1fr_260px]">
 
-          {/* Category sidebar */}
-          <aside className="hgv-module-in hidden overflow-hidden rounded-xl border border-slate-200 bg-white lg:block" style={{ animationDelay: "0ms" }}>
+          {/* Category sidebar — no overflow-hidden here (the hover flyout
+              renders outside this column's bounds), and z-20 so it paints
+              above the hero banner: hgv-module-in's transform leaves both
+              elements as separate stacking contexts, and without an explicit
+              z-index the later-in-DOM hero would otherwise win ties. */}
+          <aside className="hgv-module-in relative z-20 hidden rounded-xl border border-slate-200 bg-white lg:block" style={{ animationDelay: "0ms" }}>
             <p className="border-b border-slate-100 px-4 py-3 text-xs font-bold uppercase tracking-wide text-slate-500">All Categories</p>
             <ul className="py-1">
-              {CATEGORIES.map((c) => {
+              {CATEGORIES.map((c, i) => {
                 const Icon = CATEGORY_ICONS[c.key] ?? Package;
+                const preview = entriesByCategory[c.key] ?? [];
+                const isLast = i === CATEGORIES.length - 1;
                 return (
-                  <li key={c.key}>
-                    <Link href={`/category/${c.key}`} className="group flex items-center gap-2.5 px-4 py-2 text-xs text-slate-600 transition hover:bg-orange-50 hover:text-orange-600">
+                  <li key={c.key} className="group/cat relative">
+                    <Link
+                      href={`/category/${c.key}`}
+                      className={`group flex items-center gap-2.5 px-4 py-2 text-xs text-slate-600 transition hover:bg-orange-50 hover:text-orange-600 ${isLast ? "rounded-b-xl" : ""}`}
+                    >
                       <Icon size={14} className="shrink-0 text-slate-400 transition group-hover:text-orange-500" />
                       <span className="flex-1 truncate">{c.label}</span>
                       <ChevronRight size={12} className="shrink-0 text-slate-300 transition-transform duration-200 group-hover:translate-x-0.5 group-hover:text-orange-400" />
                     </Link>
+
+                    {/* Hover flyout — previews real listings in this category */}
+                    <div className="absolute left-full top-0 z-40 ml-1.5 hidden w-[420px] rounded-xl border border-slate-200 bg-white p-4 shadow-2xl group-hover/cat:block">
+                      <div className="mb-3 flex items-center justify-between">
+                        <p className="text-sm font-bold text-slate-900">{c.label}</p>
+                        <Link href={`/category/${c.key}`} className="flex items-center gap-1 text-xs font-semibold text-orange-600 hover:text-orange-700">
+                          View all <ChevronRight size={12} />
+                        </Link>
+                      </div>
+
+                      {preview.length > 0 ? (
+                        <div className="grid grid-cols-3 gap-2.5">
+                          {preview.slice(0, 6).map((p) => (
+                            <Link
+                              key={p.productId}
+                              href={`/product/${productSlug(p.name, p.productId)}`}
+                              className="group/item min-w-0"
+                            >
+                              <div className="relative aspect-square overflow-hidden rounded-lg bg-slate-50">
+                                {p.images[0] ? (
+                                  <img src={p.images[0]} alt={p.name} className="h-full w-full object-cover transition group-hover/item:scale-105" />
+                                ) : (
+                                  <Package size={18} className="absolute inset-0 m-auto text-slate-300" />
+                                )}
+                              </div>
+                              <p className="mt-1 truncate text-[10px] text-slate-600 group-hover/item:text-orange-600">{p.name}</p>
+                              <p className="truncate text-[10px] font-bold text-slate-900">{fmtPrice(p.sellingPrice)}</p>
+                            </Link>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-center gap-2 py-6 text-center">
+                          <Icon size={22} className="text-slate-200" />
+                          <p className="text-xs text-slate-400">No {c.label.toLowerCase()} listed yet</p>
+                          <Link href="/products" className="text-xs font-semibold text-orange-600 hover:text-orange-700">
+                            Browse all products →
+                          </Link>
+                        </div>
+                      )}
+                    </div>
                   </li>
                 );
               })}
             </ul>
           </aside>
 
-          {/* Hero banner carousel */}
+          {/* Hero banner carousel — the active slide is h-full so it stretches
+              to match the taller category-sidebar/promo-stack columns
+              instead of leaving dead white space below a fixed-height card.
+              min-h stays as the floor for mobile, where this is the only
+              column in the grid row (nothing taller to stretch against). */}
           <div className="hgv-module-in group relative min-w-0 overflow-hidden rounded-xl shadow-sm sm:min-h-[280px]" style={{ animationDelay: "80ms" }}>
             {HERO_SLIDES.map((slide, i) => (
               <Link
@@ -513,7 +541,7 @@ export default function MarketplaceHome({ initialFeed, initialShops }: Marketpla
                 href={slide.href}
                 aria-hidden={i !== slideIdx}
                 tabIndex={i === slideIdx ? 0 : -1}
-                className={`flex min-h-[220px] flex-col justify-between bg-gradient-to-br ${slide.gradient} p-6 transition-opacity duration-500 sm:min-h-[280px] sm:p-8 ${
+                className={`flex h-full min-h-[220px] flex-col justify-between bg-gradient-to-br ${slide.gradient} p-6 transition-opacity duration-500 sm:min-h-[280px] sm:p-8 ${
                   i === slideIdx ? "relative opacity-100" : "pointer-events-none absolute inset-0 opacity-0"
                 }`}
               >
@@ -570,32 +598,25 @@ export default function MarketplaceHome({ initialFeed, initialShops }: Marketpla
 
           {/* Right promo stack */}
           <div className="hidden min-w-0 flex-col gap-2.5 lg:flex">
-            {/* Popular shop */}
-            <div className="hgv-module-in hgv-card-hover min-w-0 overflow-hidden rounded-xl border border-slate-200 bg-white p-3" style={{ animationDelay: "120ms" }}>
-              <p className="mb-2 truncate text-xs font-bold text-slate-900">Popular Shop</p>
-              {popularShop ? (
-                <Link href={`/shop/${popularShop.id}`} className="group flex items-center gap-2.5">
-                  <div className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded border border-slate-100 bg-slate-50 p-1.5">
-                    {popularShop.logo_url ? (
-                      <img src={popularShop.logo_url} alt={popularShop.name} className="hgv-img-zoom h-full w-full object-contain" />
-                    ) : (
-                      <Store size={20} className="text-slate-300" />
-                    )}
-                  </div>
-                  <div className="min-w-0">
-                    <p className="truncate text-xs font-semibold text-slate-800">{popularShop.name}</p>
-                    <p className="truncate text-[10px] text-slate-400">{listedPerShop[popularShop.id] ?? 0} products</p>
-                  </div>
-                </Link>
-              ) : (
-                <p className="text-[11px] text-slate-400">No shops yet</p>
-              )}
-            </div>
+            {/* Call to order */}
+            <a
+              href="tel:+250790885174"
+              className="hgv-module-in hgv-card-hover flex min-w-0 items-center gap-2.5 rounded-xl border border-slate-200 bg-white p-3"
+              style={{ animationDelay: "80ms" }}
+            >
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-orange-50 text-orange-600">
+                <Phone size={16} />
+              </span>
+              <div className="min-w-0">
+                <p className="truncate text-[10px] font-bold uppercase tracking-wide text-slate-400">Call to order</p>
+                <p className="truncate text-xs font-bold text-slate-900">+250 790 885 174</p>
+              </div>
+            </a>
 
-            {/* Trending product */}
-            <div className="hgv-module-in hgv-card-hover min-w-0 overflow-hidden rounded-xl border border-slate-200 bg-white p-3" style={{ animationDelay: "160ms" }}>
-              <p className="mb-2 truncate text-xs font-bold text-slate-900">Trending Product</p>
-              {trendProduct ? (
+            {/* Trending product — omitted entirely (not a dead placeholder) when the catalog has nothing yet */}
+            {trendProduct && (
+              <div className="hgv-module-in hgv-card-hover min-w-0 overflow-hidden rounded-xl border border-slate-200 bg-white p-3" style={{ animationDelay: "160ms" }}>
+                <p className="mb-2 truncate text-xs font-bold text-slate-900">Trending Product</p>
                 <Link href={`/product/${productSlug(trendProduct.name, trendProduct.productId)}`} className="group flex items-center gap-2.5">
                   <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded bg-slate-50">
                     {trendProduct.images[0] ? (
@@ -609,15 +630,13 @@ export default function MarketplaceHome({ initialFeed, initialShops }: Marketpla
                     <p className="truncate text-[10px] font-bold text-orange-600">{fmtPrice(trendProduct.sellingPrice)}</p>
                   </div>
                 </Link>
-              ) : (
-                <p className="text-[11px] text-slate-400">No products yet</p>
-              )}
-            </div>
+              </div>
+            )}
 
-            {/* Newly listed */}
-            <div className="hgv-module-in hgv-card-hover min-w-0 overflow-hidden rounded-xl border border-slate-200 bg-white p-3" style={{ animationDelay: "200ms" }}>
-              <p className="mb-2 truncate text-xs font-bold text-slate-900">Newly Listed</p>
-              {newProduct ? (
+            {/* Newly listed — same: skip rather than show an empty state */}
+            {newProduct && (
+              <div className="hgv-module-in hgv-card-hover min-w-0 overflow-hidden rounded-xl border border-slate-200 bg-white p-3" style={{ animationDelay: "200ms" }}>
+                <p className="mb-2 truncate text-xs font-bold text-slate-900">Newly Listed</p>
                 <Link href={`/product/${productSlug(newProduct.name, newProduct.productId)}`} className="group flex items-center gap-2.5">
                   <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded bg-slate-50">
                     {newProduct.images[0] ? (
@@ -631,23 +650,41 @@ export default function MarketplaceHome({ initialFeed, initialShops }: Marketpla
                     <p className="truncate text-[10px] font-bold text-orange-600">{fmtPrice(newProduct.sellingPrice)}</p>
                   </div>
                 </Link>
-              ) : (
-                <p className="text-[11px] text-slate-400">No products yet</p>
-              )}
+              </div>
+            )}
+
+            {/* Why shop here — always shown, keeps the column informative even
+                when the live catalog has no trending/new items yet */}
+            <div className="hgv-module-in hgv-card-hover min-w-0 rounded-xl border border-slate-200 bg-white p-3" style={{ animationDelay: "240ms" }}>
+              <p className="mb-2.5 truncate text-xs font-bold text-slate-900">Why shop here</p>
+              <ul className="space-y-2">
+                <li className="flex items-center gap-2 text-[11px] text-slate-600">
+                  <Truck size={13} className="shrink-0 text-orange-500" /> Fast delivery across Rwanda
+                </li>
+                <li className="flex items-center gap-2 text-[11px] text-slate-600">
+                  <ShieldCheck size={13} className="shrink-0 text-orange-500" /> Quality guaranteed on every order
+                </li>
+                <li className="flex items-center gap-2 text-[11px] text-slate-600">
+                  <Smartphone size={13} className="shrink-0 text-orange-500" /> Pay by cash or mobile money
+                </li>
+              </ul>
             </div>
 
-            {/* Sell CTA — mirrors Jumia's "Jumia Force / Join now" block */}
+            {/* Track orders — real, always-useful navigation rather than filler */}
             <Link
-              href={shopIsActive ? "/dashboard" : "/?apply=1"}
-              className="hgv-banner-slide-in group relative flex flex-1 min-h-[92px] flex-col justify-center overflow-hidden rounded-xl bg-gradient-to-br from-orange-500 to-orange-600 p-4 shadow-sm transition hover:shadow-md"
+              href="/orders"
+              className="hgv-module-in hgv-card-hover flex min-w-0 items-center gap-2.5 rounded-xl border border-slate-200 bg-white p-3"
+              style={{ animationDelay: "280ms" }}
             >
-              <Store size={72} strokeWidth={1.5} className="pointer-events-none absolute -bottom-3 -right-3 text-white/15 transition-transform duration-500 group-hover:scale-110" />
-              <p className="relative text-sm font-extrabold text-white">{shopIsActive ? "Manage Your Shop" : "Sell on Higoverse"}</p>
-              <p className="relative mt-1 text-[11px] text-orange-50">{shopIsActive ? "View orders, items & messages" : "Reach buyers across Rwanda"}</p>
-              <span className="relative mt-2 inline-flex w-fit items-center gap-1 text-[11px] font-bold text-white">
-                {shopIsActive ? "Open dashboard" : "Join now"} <ArrowRight size={12} className="hgv-arrow-nudge" />
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-orange-50 text-orange-600">
+                <Package size={16} />
               </span>
+              <div className="min-w-0">
+                <p className="truncate text-xs font-bold text-slate-900">My Orders</p>
+                <p className="truncate text-[10px] text-slate-400">Track delivery status</p>
+              </div>
             </Link>
+
           </div>
         </div>
 
@@ -670,7 +707,7 @@ export default function MarketplaceHome({ initialFeed, initialShops }: Marketpla
 
         <div className="my-4 flex items-center gap-3">
           <div className="h-px flex-1 bg-slate-200" />
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Recommended for your business</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Membership</p>
           <div className="h-px flex-1 bg-slate-200" />
         </div>
       </section>
@@ -747,9 +784,7 @@ export default function MarketplaceHome({ initialFeed, initialShops }: Marketpla
                     key={entry.productId}
                     priority={idx < 8}
                     product={entryToPublicProduct(entry)}
-                    shop={shopMap[entry.shopId]}
                     isMine={entry.shopId === user?.shop_id}
-                    online={shopMap[entry.shopId] ? isOnline(shopMap[entry.shopId].last_seen_at, now) : false}
                   />
                 ))}
               </div>
@@ -1309,10 +1344,10 @@ function EmptyState() {
       <Package size={48} className="mx-auto mb-4 text-slate-200" />
       <p className="mb-1.5 text-base font-semibold text-slate-600">No products listed yet</p>
       <p className="mx-auto mb-5 max-w-sm text-xs leading-relaxed text-slate-400">
-        Go to Items, upload at least 3 product photos, then enable Share on Marketplace.
+        Higoverse members give us their products, and we handle the listing, selling and delivery on their behalf.
       </p>
-      <Link href="/items" className="inline-flex items-center gap-1.5 rounded-lg bg-orange-500 px-5 py-2 text-xs font-bold text-white transition hover:bg-orange-600">
-        <Package size={13} /> Go to Items
+      <Link href="/?apply=1" className="inline-flex items-center gap-1.5 rounded-lg bg-orange-500 px-5 py-2 text-xs font-bold text-white transition hover:bg-orange-600">
+        <Package size={13} /> Apply for Membership
       </Link>
     </div>
   );

@@ -4,9 +4,8 @@ import { useRef } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import ProductCard from "@/app/components/public/ProductCard";
 import type { PublicProduct } from "@/lib/marketplace-public";
-import type { Shop } from "@/lib/shop-api";
 
-export default function RelatedCarousel({ products, shop }: { products: PublicProduct[]; shop?: Shop }) {
+export default function RelatedCarousel({ products }: { products: PublicProduct[] }) {
   const trackRef = useRef<HTMLDivElement>(null);
 
   function scrollBy(dir: number) {
@@ -30,7 +29,7 @@ export default function RelatedCarousel({ products, shop }: { products: PublicPr
       >
         {products.map((p) => (
           <div key={p.id} className="w-40 shrink-0 sm:w-48">
-            <ProductCard product={p} shop={shop} />
+            <ProductCard product={p} />
           </div>
         ))}
       </div>

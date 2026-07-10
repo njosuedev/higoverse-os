@@ -111,7 +111,6 @@ export default function InfiniteProductGrid({
             key={item.id}
             priority={idx < 8}
             product={toPublicProduct(item)}
-            shop={shopMap[item.shop_id]}
           />
         ))}
       </div>

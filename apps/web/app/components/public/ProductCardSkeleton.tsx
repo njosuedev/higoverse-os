@@ -9,15 +9,7 @@ export default function ProductCardSkeleton() {
         <Skeleton className="h-3 w-[90%]" />
         <Skeleton className="h-3 w-[65%]" />
         <Skeleton className="mt-0.5 h-4 w-[50%]" />
-        <Skeleton className="h-2 w-[70%]" />
-        <Skeleton className="h-2 w-[45%]" />
-        <div className="mt-0.5 flex items-center gap-1.5 border-t border-slate-100 pt-2">
-          <Skeleton className="h-6 w-6 shrink-0" rounded="full" />
-          <div className="flex flex-1 flex-col gap-1">
-            <Skeleton className="h-2.5 w-[75%]" />
-            <Skeleton className="h-2 w-[50%]" />
-          </div>
-        </div>
+        <Skeleton className="mt-auto h-2 w-[45%]" />
       </div>
     </div>
   );

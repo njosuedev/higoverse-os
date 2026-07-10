@@ -1,10 +1,7 @@
 import type { Metadata } from "next";
 import { Search as SearchIcon } from "lucide-react";
-import {
-  getMarketplaceFeedPage, getMarketplaceShopCounts, getPublicShops, MARKETPLACE_PAGE_SIZE,
-} from "@/lib/marketplace-public";
+import { getMarketplaceFeedPage, getPublicShops, MARKETPLACE_PAGE_SIZE } from "@/lib/marketplace-public";
 import { categoryLabel } from "@/lib/categories";
-import ShopCard from "@/app/components/public/ShopCard";
 import InfiniteProductGrid from "@/app/components/public/InfiniteProductGrid";
 import EmptyState from "@/app/components/ui/EmptyState";
 import SearchBox from "@/app/components/public/SearchBox";
@@ -29,12 +26,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
     getPublicShops(),
   ]);
 
-  const matchedShops = hasQuery && !cat
-    ? shops.filter((s) => (s.name ?? "").toLowerCase().includes(query.toLowerCase()) || (s.address ?? "").toLowerCase().includes(query.toLowerCase()))
-    : [];
-  const shopCounts = await getMarketplaceShopCounts(matchedShops.map((s) => s.id));
-
-  const noResults = hasSearch && feed.items.length === 0 && matchedShops.length === 0;
+  const noResults = hasSearch && feed.items.length === 0;
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -47,7 +39,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
       </div>
 
       {!hasSearch ? (
-        <p className="mt-8 text-sm text-slate-400">Search for products, suppliers, or categories.</p>
+        <p className="mt-8 text-sm text-slate-400">Search for products or categories.</p>
       ) : noResults ? (
         <EmptyState
           icon={<SearchIcon size={30} />}
@@ -59,28 +51,16 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
           className="mt-10"
         />
       ) : (
-        <>
-          {matchedShops.length > 0 && (
-            <section className="mt-8">
-              <h2 className="mb-4 text-lg font-bold text-slate-900">Shops ({matchedShops.length})</h2>
-              <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-                {matchedShops.map((s) => (
-                  <ShopCard key={s.id} shop={s} productCount={shopCounts[s.id] ?? 0} />
-                ))}
-              </div>
-            </section>
-          )}
-          <section className="mt-8">
-            <h2 className="mb-4 text-lg font-bold text-slate-900">Products</h2>
-            <InfiniteProductGrid
-              initialItems={feed.items}
-              initialNextCursor={feed.nextCursor}
-              initialShops={shops}
-              fetchParams={{ category: cat || undefined, q: hasQuery ? query : undefined }}
-              emptyState={<p className="py-8 text-sm text-slate-400">No matching products.</p>}
-            />
-          </section>
-        </>
+        <section className="mt-8">
+          <h2 className="mb-4 text-lg font-bold text-slate-900">Products</h2>
+          <InfiniteProductGrid
+            initialItems={feed.items}
+            initialNextCursor={feed.nextCursor}
+            initialShops={shops}
+            fetchParams={{ category: cat || undefined, q: hasQuery ? query : undefined }}
+            emptyState={<p className="py-8 text-sm text-slate-400">No matching products.</p>}
+          />
+        </section>
       )}
     </div>
     </div>

@@ -14,10 +14,6 @@ export function productSlug(name: string, id: string): string {
   return `${slugify(name)}-${id.slice(0, 6)}`;
 }
 
-export function shopSlug(name: string, id: string): string {
-  return `${slugify(name)}-${id.slice(0, 6)}`;
-}
-
 /** Given a slug (or a raw id, for backward-compat links), find the matching item by id suffix or exact id. */
 export function resolveBySlugOrId<T extends { id: string }>(items: T[], slugOrId: string): T | undefined {
   const exact = items.find((i) => i.id === slugOrId);

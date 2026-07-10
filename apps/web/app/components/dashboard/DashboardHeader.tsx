@@ -15,7 +15,7 @@ import {
   Home, Package, Truck, ShoppingCart, BarChart3,
   Users, FileText, ChevronDown, ShieldCheck, Receipt,
   Sparkles, Settings, LogOut, Globe, Store,
-  Bell, MessageSquare, Menu, X,
+  Bell, MessageSquare, Menu, X, ClipboardList,
 } from "lucide-react";
 
 type NavItem = { key: string; href: string; icon: typeof Home };
@@ -49,6 +49,7 @@ const MORE_MENUS_BASE: NavItem[] = [
   { key: "nav.settings", href: "/settings", icon: Settings      },
 ];
 const ADMIN_ITEM: NavItem = { key: "nav.admin", href: "/admin", icon: ShieldCheck };
+const ORDERS_ITEM: NavItem = { key: "nav.orders", href: "/orders-admin", icon: ClipboardList };
 
 function isActiveHref(pathname: string, href: string) {
   if (href === "/") return pathname === "/";
@@ -243,7 +244,7 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
   const isCustomer  = role === "CUSTOMER";
 
   const isBusinessNav = isAdmin || isShopOwner;
-  const moreMenus = isAdmin ? [...MORE_MENUS_BASE, ADMIN_ITEM] : MORE_MENUS_BASE;
+  const moreMenus = isAdmin ? [...MORE_MENUS_BASE, ORDERS_ITEM, ADMIN_ITEM] : MORE_MENUS_BASE;
 
   // Flat list used for the mobile drawer and badge bookkeeping
   const flatMenus: NavItem[] = isBusinessNav

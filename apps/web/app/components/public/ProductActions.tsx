@@ -1,101 +1,96 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Heart, MessageSquare, ShoppingCart, Loader2 } from "lucide-react";
+import Link from "next/link";
+import { ShoppingCart, ShoppingBag, Check, CheckCircle2, ArrowRight } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
-import { useShop } from "@/lib/shop-context";
-import { followShop, unfollowShop, isFollowingShop } from "@/lib/product-meta";
-import { createOrGetConversation } from "@/lib/messages-api";
-import { formatRwf } from "@/lib/format";
 import Button from "@/app/components/ui/Button";
+import OrderModal from "./OrderModal";
+import { addToCart } from "@/lib/cart";
+import type { Order } from "@/lib/order-api";
 
 interface Props {
   productId: string;
   productName: string;
   productImage?: string;
   price: number;
-  shopId: string;
-  shopName: string;
+  quantity: number;
 }
 
-export default function ProductActions({ productId, productName, productImage, price, shopId, shopName }: Props) {
+export default function ProductActions({ productId, productName, productImage, price, quantity }: Props) {
   const { user } = useAuth();
-  const { shop } = useShop();
   const router = useRouter();
-  const [following, setFollowing] = useState(false);
-  const [ordering, setOrdering] = useState(false);
-  const [error, setError] = useState("");
-
-  useEffect(() => {
-    setFollowing(isFollowingShop(shopId));
-  }, [shopId]);
+  const [showOrder, setShowOrder] = useState(false);
+  const [placedOrder, setPlacedOrder] = useState<Order | null>(null);
+  const [added, setAdded] = useState(false);
 
   const nextPath = `/product/${productId}`;
+  const outOfStock = quantity <= 0;
 
   function requireLogin() {
     router.push(`/login?next=${encodeURIComponent(nextPath)}`);
   }
 
-  function toggleFollow() {
+  function openOrder() {
     if (!user) return requireLogin();
-    if (following) {
-      unfollowShop(shopId);
-      setFollowing(false);
-    } else {
-      followShop(shopId, shopName);
-      setFollowing(true);
-    }
+    setShowOrder(true);
   }
 
-  async function startOrder() {
-    if (!user) return requireLogin();
-    setOrdering(true);
-    setError("");
-    try {
-      const conv = await createOrGetConversation({
-        shop_id: shopId,
-        shop_name: shopName,
-        customer_name: shop?.name ?? user.name ?? user.email,
-        product_id: productId,
-        product_name: productName,
-        product_image: productImage,
-        listed_price: price,
-        first_message: [
-          `🛒 I'd like to order:`,
-          `• ${productName} — ${formatRwf(price)} each`,
-          ``,
-          `Please confirm availability and arrange delivery.`,
-        ].join("\n"),
-      });
-      router.push(`/messages?conv=${conv.id}`);
-    } catch {
-      setError("Could not open chat — please try again.");
-    } finally {
-      setOrdering(false);
-    }
+  function handleAddToCart() {
+    addToCart({ productId, name: productName, image: productImage, price, maxQuantity: quantity });
+    setAdded(true);
+    setTimeout(() => setAdded(false), 1500);
+  }
+
+  if (placedOrder) {
+    return (
+      <div className="flex flex-col gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+        <p className="flex items-center gap-1.5 text-sm font-bold text-emerald-800">
+          <CheckCircle2 size={16} /> Order placed
+        </p>
+        <p className="text-xs text-emerald-700">We&apos;ll deliver it to the address you provided. You can track its status in My Orders.</p>
+        <Link href="/orders" className="mt-1 flex w-fit items-center gap-1 text-xs font-bold text-emerald-800 hover:text-emerald-900">
+          View My Orders <ArrowRight size={12} />
+        </Link>
+      </div>
+    );
   }
 
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap gap-2">
-        <Button variant="primary" tone="orange" leftIcon={<ShoppingCart size={16} />} onClick={startOrder} disabled={ordering}>
-          {ordering ? <Loader2 size={16} className="animate-spin" /> : "Start Order"}
-        </Button>
-        <Button variant="secondary" tone="orange" leftIcon={<MessageSquare size={16} />} onClick={startOrder} disabled={ordering}>
-          Contact Supplier
+        <Button variant="primary" tone="orange" leftIcon={<ShoppingBag size={16} />} onClick={openOrder} disabled={outOfStock}>
+          {outOfStock ? "Out of stock" : "Order Now"}
         </Button>
         <Button
-          variant={following ? "primary" : "ghost"}
+          variant="secondary"
           tone="orange"
-          leftIcon={<Heart size={16} fill={following ? "currentColor" : "none"} />}
-          onClick={toggleFollow}
+          leftIcon={added ? <Check size={16} /> : <ShoppingCart size={16} />}
+          onClick={handleAddToCart}
+          disabled={outOfStock}
         >
-          {following ? "Following" : "Follow Shop"}
+          {added ? "Added" : "Add to Cart"}
         </Button>
       </div>
-      {error && <p className="text-xs text-red-600">{error}</p>}
-      {!user && <p className="text-xs text-slate-400">Sign in to contact the supplier or place an order.</p>}
+      {!user && <p className="text-xs text-slate-400">Sign in to place an order.</p>}
+      {added && (
+        <p className="text-xs text-emerald-600">
+          Added to cart — <Link href="/cart" className="font-semibold underline hover:text-emerald-700">view cart</Link>
+        </p>
+      )}
+
+      {showOrder && (
+        <OrderModal
+          productId={productId}
+          productName={productName}
+          productImage={productImage}
+          price={price}
+          maxQuantity={quantity}
+          onClose={() => setShowOrder(false)}
+          onSuccess={(order) => { setShowOrder(false); setPlacedOrder(order); }}
+        />
+      )}
     </div>
   );
 }

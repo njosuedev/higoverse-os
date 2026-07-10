@@ -3,41 +3,42 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { Package, BadgeCheck, Camera, MapPin } from "lucide-react";
+import { Package, BadgeCheck, Camera, ShoppingCart, Check } from "lucide-react";
 import { formatRwf } from "@/lib/format";
 import { categoryLabel } from "@/lib/categories";
-import { formatShortAddress } from "@/lib/product-meta";
 import type { PublicProduct } from "@/lib/marketplace-public";
-import type { Shop } from "@/lib/shop-api";
 import { failedImgUrls, loadedImgUrls } from "@/lib/product-card-cache";
-
-function shopTenureLabel(createdAt: string | null | undefined): string | null {
-  if (!createdAt) return null;
-  const raw = createdAt.endsWith("Z") || createdAt.includes("+") ? createdAt : createdAt + "Z";
-  const years = (Date.now() - new Date(raw).getTime()) / (365.25 * 24 * 3600 * 1000);
-  if (years < 1) return "New";
-  return `${Math.floor(years)} yr${Math.floor(years) === 1 ? "" : "s"}`;
-}
+import { addToCart } from "@/lib/cart";
 
 export interface ProductCardProps {
   product: PublicProduct;
-  shop?: Shop;
-  shopName?: string;
   isMine?: boolean;
-  online?: boolean;
   priority?: boolean;
   /** Fired once the card knows what it'll render (image loaded/failed, or no image) — used by LazyProductCard's reveal wrapper. */
   onReady?: () => void;
 }
 
-export default function ProductCard({ product, shop, shopName, isMine, online, priority, onReady }: ProductCardProps) {
+export default function ProductCard({ product, isMine, priority, onReady }: ProductCardProps) {
   const [, forceRender] = useState(0);
   const cover = product.images.find((u) => !failedImgUrls.has(u));
   const [imgLoaded, setImgLoaded] = useState(() => !!cover && loadedImgUrls.has(cover));
   const inStock = product.quantity > 0;
-  const name = shopName ?? shop?.name ?? "Unknown shop";
-  const logoInitial = (name[0] ?? "?").toUpperCase();
-  const tenure = shop ? shopTenureLabel(shop.created_at) : null;
+  const [added, setAdded] = useState(false);
+
+  function handleAddToCart(e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!inStock) return;
+    addToCart({
+      productId: product.id,
+      name: product.name,
+      image: cover,
+      price: product.price,
+      maxQuantity: product.quantity,
+    });
+    setAdded(true);
+    setTimeout(() => setAdded(false), 1500);
+  }
 
   const readyFired = useRef(false);
   useEffect(() => {
@@ -101,9 +102,19 @@ export default function ProductCard({ product, shop, shopName, isMine, online, p
           </span>
         )}
 
-        {/* Online dot */}
-        {online && (
-          <span className="absolute bottom-2 right-2 h-2 w-2 rounded-full border-2 border-white bg-emerald-500 shadow-[0_0_0_2px_rgba(16,185,129,0.3)]" title="Shop is online" />
+        {/* Add to cart */}
+        {inStock && (
+          <button
+            type="button"
+            onClick={handleAddToCart}
+            aria-label="Add to cart"
+            title="Add to cart"
+            className={`absolute bottom-2 right-2 flex h-7 w-7 items-center justify-center rounded-full shadow transition ${
+              added ? "bg-emerald-500 text-white" : "bg-white/90 text-slate-600 hover:bg-orange-500 hover:text-white"
+            }`}
+          >
+            {added ? <Check size={13} /> : <ShoppingCart size={13} />}
+          </button>
         )}
       </div>
 
@@ -115,38 +126,9 @@ export default function ProductCard({ product, shop, shopName, isMine, online, p
           Min. 1 unit · {categoryLabel(product.category)}
         </p>
 
-        <p className="flex items-center gap-1 text-[10px] font-semibold text-emerald-600">
+        <p className="mt-auto flex items-center gap-1 text-[10px] font-semibold text-emerald-600">
           <BadgeCheck size={11} /> Verified
-          {tenure && <span className="font-normal text-slate-400">· {tenure}</span>}
         </p>
-
-        {/* Supplier row — always at bottom */}
-        <div className="mt-auto flex items-center gap-1.5 border-t border-slate-100 pt-2">
-          <div className="flex h-6 w-6 shrink-0 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-orange-500 to-pink-600 shadow-sm">
-            {shop?.logo_url && !failedImgUrls.has(shop.logo_url) ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={shop.logo_url}
-                alt={name}
-                loading="lazy"
-                decoding="async"
-                onError={() => { failedImgUrls.add(shop!.logo_url!); forceRender((n) => n + 1); }}
-                className="h-full w-full object-cover"
-              />
-            ) : (
-              <span className="text-[9px] font-black text-white">{logoInitial}</span>
-            )}
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-[11px] font-semibold text-slate-600">{name}</p>
-            {formatShortAddress(shop?.address) && (
-              <p className="flex items-center gap-0.5 truncate text-[10px] text-slate-400">
-                <MapPin size={8} className="shrink-0 text-slate-300" />
-                {formatShortAddress(shop?.address)}
-              </p>
-            )}
-          </div>
-        </div>
       </div>
     </Link>
   );

@@ -25,6 +25,9 @@ timeout /t 2 /nobreak >nul
 start "shop-service (8007)" cmd /k "cd backend\shop-service && pip install -r requirements.txt -q && uvicorn app.main:app --port 8007 --reload"
 timeout /t 2 /nobreak >nul
 
+start "order-service (8008)" cmd /k "cd backend\order-service && pip install -r requirements.txt -q && uvicorn app.main:app --port 8008 --reload"
+timeout /t 2 /nobreak >nul
+
 echo.
 echo All services starting in separate windows:
 echo   auth-service     -^> http://localhost:8000
@@ -35,6 +38,7 @@ echo   purchase-service -^> http://localhost:8004
 echo   expense-service  -^> http://localhost:8005
 echo   settings-service -^> http://localhost:8006
 echo   shop-service     -^> http://localhost:8007
+echo   order-service    -^> http://localhost:8008
 echo   report-service   -^> https://higoverse-reports.vercel.app (production)
 echo.
 echo Then run the frontend: cd apps\web ^&^& npm run dev

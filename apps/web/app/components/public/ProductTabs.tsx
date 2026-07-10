@@ -1,15 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
-import { MapPin, Phone, Star } from "lucide-react";
+import { Star } from "lucide-react";
 import type { PublicProduct } from "@/lib/marketplace-public";
-import type { Shop } from "@/lib/shop-api";
 import { categoryLabel } from "@/lib/categories";
 import { formatRwf } from "@/lib/format";
-import { shopSlug } from "@/lib/slug";
 
-const TABS = ["Attributes", "Reviews", "Supplier", "Description"] as const;
+const TABS = ["Attributes", "Reviews", "Description"] as const;
 type Tab = (typeof TABS)[number];
 
 function AttributeRow({ label, value }: { label: string; value: string }) {
@@ -21,7 +18,7 @@ function AttributeRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-export default function ProductTabs({ product, shop }: { product: PublicProduct; shop?: Shop }) {
+export default function ProductTabs({ product }: { product: PublicProduct }) {
   const [active, setActive] = useState<Tab>("Attributes");
 
   return (
@@ -56,48 +53,8 @@ export default function ProductTabs({ product, shop }: { product: PublicProduct;
           <div className="flex flex-col items-center gap-2 py-10 text-center text-slate-400">
             <Star size={28} />
             <p className="text-sm font-medium text-slate-500">No reviews yet</p>
-            <p className="max-w-sm text-xs">Be the first to order from this supplier and share your experience.</p>
+            <p className="max-w-sm text-xs">Be the first to order this product and share your experience.</p>
           </div>
-        )}
-
-        {active === "Supplier" && (
-          shop ? (
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-              <Link href={`/shop/${shopSlug(shop.name, shop.id)}`} className="flex items-center gap-3">
-                {shop.logo_url ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={shop.logo_url} alt={shop.name} className="h-12 w-12 rounded-full border border-slate-200 object-cover" />
-                ) : (
-                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-orange-100 text-base font-bold text-orange-600">
-                    {shop.name[0]?.toUpperCase()}
-                  </div>
-                )}
-                <div>
-                  <p className="text-sm font-semibold text-slate-900 hover:text-orange-600">{shop.name}</p>
-                  <div className="mt-1 space-y-0.5 text-xs text-slate-500">
-                    {shop.address && (
-                      <p className="flex items-center gap-1.5">
-                        <MapPin size={12} /> {shop.address.split("|").pop()?.trim()}
-                      </p>
-                    )}
-                    {shop.phone && (
-                      <p className="flex items-center gap-1.5">
-                        <Phone size={12} /> {shop.phone}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              </Link>
-              <Link
-                href={`/shop/${shopSlug(shop.name, shop.id)}`}
-                className="inline-flex w-fit items-center gap-1.5 rounded-lg border border-orange-200 px-4 py-2 text-xs font-bold text-orange-600 transition hover:bg-orange-50"
-              >
-                Visit Store
-              </Link>
-            </div>
-          ) : (
-            <p className="text-sm text-slate-400">Supplier information unavailable.</p>
-          )
         )}
 
         {active === "Description" && (

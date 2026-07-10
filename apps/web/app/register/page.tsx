@@ -216,7 +216,7 @@ export default function RegisterPage() {
             <span className="text-blue-600">it&apos;s free.</span>
           </h1>
           <p className="text-slate-500 text-sm leading-relaxed max-w-sm mb-10">
-            Join Higoverse with a personal account. Browse the marketplace, discover products from shops across Rwanda, and apply to open your own shop when you&apos;re ready.
+            Join Higoverse with a personal account to browse products and place orders in minutes.
           </p>
 
           <div className="grid grid-cols-2 gap-3 max-w-sm mb-10">
@@ -425,16 +425,6 @@ export default function RegisterPage() {
                   ? <><Loader2 size={15} className="animate-spin" /> Creating account…</>
                   : <>Create account <ChevronRight size={16} /></>}
               </button>
-
-              <div className="mt-4 p-3 bg-blue-50 rounded-xl border border-blue-100">
-                <div className="flex items-center gap-2">
-                  <ShoppingBag size={14} className="text-blue-600 shrink-0" />
-                  <p className="text-xs text-blue-700 font-medium">Want to sell on Higoverse?</p>
-                </div>
-                <p className="text-xs text-blue-600 mt-1 ml-5">
-                  After creating your account, visit the marketplace and apply to open your shop. Higoverse admin will review and approve your application.
-                </p>
-              </div>
 
               <p className="text-center text-xs text-gray-400 mt-4">By registering you agree to our Terms of Service</p>
             </>

@@ -1,14 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ChevronRight, MapPin, Phone } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 import {
-  getPublicProductBySlug, getPublicProductsByCategory, getPublicShops,
+  getPublicProductBySlug, getPublicProductsByCategory,
   getPublicProducts, findProductBySlug,
 } from "@/lib/marketplace-public";
 import { categoryLabel } from "@/lib/categories";
 import { formatRwf } from "@/lib/format";
-import { shopSlug } from "@/lib/slug";
 import ProductActions from "@/app/components/public/ProductActions";
 import ProductGallery from "@/app/components/public/ProductGallery";
 import ProductTabs from "@/app/components/public/ProductTabs";
@@ -19,9 +18,9 @@ interface Props {
 }
 
 async function loadData(slug: string) {
-  // Targeted lookups — a single product + its shop + a bounded related list,
-  // instead of downloading the entire (base64-image-laden) catalog just to
-  // find one product by slug.
+  // Targeted lookup — a single product + a bounded related list, instead of
+  // downloading the entire (base64-image-laden) catalog just to find one
+  // product by slug.
   let product = await getPublicProductBySlug(slug);
   // Fall back to the full-catalog scan only if the fast path comes up empty —
   // covers the deploy window before the backend's /marketplace/by-id route
@@ -32,21 +31,17 @@ async function loadData(slug: string) {
   }
   if (!product) return null;
 
-  const [shops, related] = await Promise.all([
-    getPublicShops(),
-    getPublicProductsByCategory(product.category, product.id, 10),
-  ]);
-  const shop = shops.find((s) => s.id === product.shopId);
-  return { product, shop, related };
+  const related = await getPublicProductsByCategory(product.category, product.id, 10);
+  return { product, related };
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   const data = await loadData(slug);
   if (!data) return { title: "Product not found" };
-  const { product, shop } = data;
+  const { product } = data;
   const title = `${product.name} — ${formatRwf(product.price)}`;
-  const description = product.description?.slice(0, 160) || `${product.name} available from ${shop?.name ?? "a Higoverse supplier"} on the Higoverse marketplace.`;
+  const description = product.description?.slice(0, 160) || `${product.name} available on Higoverse.`;
   const image = product.images[0];
 
   return {
@@ -72,7 +67,7 @@ export default async function ProductPage({ params }: Props) {
   const { slug } = await params;
   const data = await loadData(slug);
   if (!data) notFound();
-  const { product, shop, related } = data;
+  const { product, related } = data;
 
   const jsonLd = {
     "@context": "https://schema.org",
@@ -86,7 +81,7 @@ export default async function ProductPage({ params }: Props) {
       price: product.price,
       priceCurrency: "RWF",
       availability: product.quantity > 0 ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
-      seller: shop ? { "@type": "Organization", name: shop.name } : undefined,
+      seller: { "@type": "Organization", name: "Higoverse" },
     },
   };
 
@@ -126,43 +121,13 @@ export default async function ProductPage({ params }: Props) {
             {product.quantity > 0 ? `${product.quantity} in stock` : "Out of stock"}
           </p>
 
-          {shop && (
-            <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Sold by</p>
-              <Link href={`/shop/${shopSlug(shop.name, shop.id)}`} className="mt-1 flex items-center gap-3">
-                {shop.logo_url ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={shop.logo_url} alt={shop.name} className="h-10 w-10 rounded-full border border-slate-200 object-cover" />
-                ) : (
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-orange-100 text-sm font-bold text-orange-600">
-                    {shop.name[0]?.toUpperCase()}
-                  </div>
-                )}
-                <span className="text-sm font-semibold text-slate-900 hover:text-orange-600">{shop.name}</span>
-              </Link>
-              <div className="mt-2 space-y-1 text-xs text-slate-500">
-                {shop.address && (
-                  <p className="flex items-center gap-1.5">
-                    <MapPin size={12} /> {shop.address.split("|").pop()?.trim()}
-                  </p>
-                )}
-                {shop.phone && (
-                  <p className="flex items-center gap-1.5">
-                    <Phone size={12} /> {shop.phone}
-                  </p>
-                )}
-              </div>
-            </div>
-          )}
-
           <div className="mt-6">
             <ProductActions
               productId={product.id}
               productName={product.name}
               productImage={product.images[0]}
               price={product.price}
-              shopId={product.shopId}
-              shopName={shop?.name ?? "Shop"}
+              quantity={product.quantity}
             />
           </div>
         </div>
@@ -171,11 +136,11 @@ export default async function ProductPage({ params }: Props) {
       {related.length > 0 && (
         <section className="mt-12">
           <h2 className="mb-4 text-lg font-bold text-slate-900">Other recommendations for your business</h2>
-          <RelatedCarousel products={related} shop={shop} />
+          <RelatedCarousel products={related} />
         </section>
       )}
 
-      <ProductTabs product={product} shop={shop} />
+      <ProductTabs product={product} />
     </div>
   );
 }
