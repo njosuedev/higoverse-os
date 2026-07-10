@@ -15,21 +15,21 @@ const POINTS = [
 
 export default function AboutPage() {
   return (
-    <div className="mx-auto max-w-4xl px-4 py-12 sm:px-6">
-      <h1 className="text-3xl font-bold text-slate-900">About Higoverse</h1>
-      <p className="mt-4 text-lg leading-relaxed text-slate-600">
+    <div className="mx-auto max-w-4xl px-2.5 py-5 sm:px-6 sm:py-12">
+      <h1 className="text-xl font-bold text-slate-900 sm:text-3xl">About Higoverse</h1>
+      <p className="mt-2 text-sm leading-relaxed text-slate-600 sm:mt-4 sm:text-lg">
         Higoverse is a business technology platform for Rwanda and Africa — combining a modern inventory management
         system for shop owners with a public marketplace where anyone can discover products and suppliers.
       </p>
 
-      <div className="mt-10 grid grid-cols-1 gap-6 sm:grid-cols-2">
+      <div className="mt-5 grid grid-cols-1 gap-3 sm:mt-10 sm:grid-cols-2 sm:gap-6">
         {POINTS.map((p) => (
-          <div key={p.title} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-orange-50 text-orange-500">
-              <p.icon size={20} />
+          <div key={p.title} className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-sm sm:rounded-2xl sm:p-5">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-orange-50 text-orange-500 sm:h-11 sm:w-11 sm:rounded-xl">
+              <p.icon size={17} className="sm:h-5 sm:w-5" />
             </div>
-            <h2 className="mt-3 text-base font-semibold text-slate-900">{p.title}</h2>
-            <p className="mt-1 text-sm text-slate-500">{p.body}</p>
+            <h2 className="mt-2.5 text-sm font-semibold text-slate-900 sm:mt-3 sm:text-base">{p.title}</h2>
+            <p className="mt-1 text-xs text-slate-500 sm:text-sm">{p.body}</p>
           </div>
         ))}
       </div>

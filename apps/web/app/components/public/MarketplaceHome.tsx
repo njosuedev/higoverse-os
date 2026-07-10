@@ -31,7 +31,7 @@ import {
   Clock, BadgeCheck, Heart,
   Truck, Shirt, Home as HomeIcon, Leaf, Briefcase, TrendingUp,
   Smartphone, UtensilsCrossed, Boxes, Sparkles, LayoutGrid, Phone,
-  ShieldCheck,
+  ShieldCheck, Percent,
 } from "lucide-react";
 import {
   sendMessage, getMyMessages, replyToMessage,
@@ -122,6 +122,14 @@ const HERO_SLIDES = [
     href: "/products",
     gradient: "from-blue-600 to-blue-700",
     Icon: Sparkles,
+  },
+  {
+    title: "Buy more, save more",
+    subtitle: "Order more of what you love and get 10% off",
+    cta: "Shop and save",
+    href: "/products",
+    gradient: "from-rose-500 to-red-600",
+    Icon: Percent,
   },
   {
     title: "Become a Higoverse Member",

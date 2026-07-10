@@ -14,7 +14,7 @@ import {
   Package, Phone,
   LayoutDashboard, ShoppingCart,
   Search, X, ChevronDown, LogOut, Settings,
-  MapPin, Globe, ShieldCheck, Truck, Shirt, Heart,
+  MapPin, Globe, ShieldCheck, Percent, Truck, Shirt, Heart,
   Home as HomeIcon, Leaf, Building2, Briefcase, Clock, ImageOff,
 } from "lucide-react";
 
@@ -93,6 +93,23 @@ function useRotatingPlaceholder(examples: string[], intervalMs = 2600) {
   return examples[index];
 }
 
+// Mobile utility strip rotates between the call-to-order number and a savings
+// nudge — one line of space, two messages, the way delivery apps cycle promos.
+const MOBILE_STRIP_MESSAGES = [
+  { text: "Call to order: +250 790 885 174", href: "tel:+250790885174", icon: Phone },
+  { text: "Buy more to save big", href: "/products", icon: Percent },
+] as const;
+
+function useRotatingIndex(length: number, intervalMs: number) {
+  const [index, setIndex] = useState(0);
+  useEffect(() => {
+    if (length <= 1) return;
+    const t = setInterval(() => setIndex((i) => (i + 1) % length), intervalMs);
+    return () => clearInterval(t);
+  }, [length, intervalMs]);
+  return index;
+}
+
 export default function PublicHeader() {
   const pathname = usePathname();
   const router = useRouter();
@@ -112,6 +129,8 @@ export default function PublicHeader() {
   const searchInputRef = useRef<HTMLInputElement>(null);
   const productsLoaded = useRef(false);
   const placeholderExample = useRotatingPlaceholder(SEARCH_PLACEHOLDER_EXAMPLES);
+  const stripIdx = useRotatingIndex(MOBILE_STRIP_MESSAGES.length, 3200);
+  const stripMsg = MOBILE_STRIP_MESSAGES[stripIdx];
 
   useEffect(() => { setRecentSearches(loadRecentSearches()); }, []);
 
@@ -266,39 +285,47 @@ export default function PublicHeader() {
     <>
       <header className="sticky top-0 z-50 bg-white shadow-sm">
         {/* ── Row 0: slim utility strip ── */}
-        <div className="hidden bg-slate-900 sm:block">
-          <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-1.5 text-[11px] text-slate-300 sm:px-6">
-            <div className="flex items-center gap-4">
-              <span className="flex items-center gap-1.5">
-                <MapPin size={12} className="text-orange-400" /> Deliver to Rwanda
-              </span>
-              <a href="tel:+250790885174" className="hidden items-center gap-1.5 border-l border-slate-700 pl-4 transition hover:text-white md:flex">
-                <Phone size={12} className="text-orange-400" /> Call to order: +250 790 885 174
-              </a>
-              <span className="hidden items-center gap-1.5 border-l border-slate-700 pl-4 lg:flex">
-                <ShieldCheck size={12} className="text-orange-400" /> Quality guaranteed on every order
-              </span>
-            </div>
-            <div className="flex items-center gap-4">
-              <Link href="/products" className="hidden transition hover:text-white sm:inline">All Products</Link>
-              <Link href="/contact" className="transition hover:text-white">Help Center</Link>
-              <span className="hidden items-center gap-1 border-l border-slate-700 pl-4 md:flex">
-                <Globe size={12} /> EN
-              </span>
+        <div className="bg-slate-900">
+          <div className="mx-auto max-w-7xl px-3 py-1.5 text-[11px] text-slate-300 sm:px-6">
+            {/* Mobile: rotates between the call-to-order number and a savings nudge */}
+            <a href={stripMsg.href} className="flex items-center justify-center gap-1.5 font-semibold text-white sm:hidden">
+              <stripMsg.icon size={12} className="shrink-0 text-orange-400" /> {stripMsg.text}
+            </a>
+
+            {/* sm+: full utility strip */}
+            <div className="hidden items-center justify-between sm:flex">
+              <div className="flex items-center gap-4">
+                <span className="flex items-center gap-1.5">
+                  <MapPin size={12} className="text-orange-400" /> Deliver to Rwanda
+                </span>
+                <a href="tel:+250790885174" className="hidden items-center gap-1.5 border-l border-slate-700 pl-4 transition hover:text-white md:flex">
+                  <Phone size={12} className="text-orange-400" /> Call to order: +250 790 885 174
+                </a>
+                <span className="hidden items-center gap-1.5 border-l border-slate-700 pl-4 lg:flex">
+                  <ShieldCheck size={12} className="text-orange-400" /> Quality guaranteed on every order
+                </span>
+              </div>
+              <div className="flex items-center gap-4">
+                <Link href="/products" className="hidden transition hover:text-white sm:inline">All Products</Link>
+                <Link href="/contact" className="transition hover:text-white">Help Center</Link>
+                <span className="hidden items-center gap-1 border-l border-slate-700 pl-4 md:flex">
+                  <Globe size={12} /> EN
+                </span>
+              </div>
             </div>
           </div>
         </div>
 
         {/* ── Single row: logo + big search + account ── */}
         <div className="border-b border-slate-100">
-          <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-1.5 px-2.5 py-1.5 sm:gap-3 sm:px-6 sm:py-3 lg:flex-nowrap">
+          <div className="mx-auto flex max-w-7xl items-center gap-1.5 px-2.5 py-1.5 sm:gap-3 sm:px-6 sm:py-3">
             <Link href="/" className="flex shrink-0 items-center gap-1.5 transition hover:opacity-80 sm:gap-2">
               <img src="/higoverse.png" alt="Higoverse" className="h-6 w-6 rounded-md object-cover sm:h-8 sm:w-8 sm:rounded-lg" />
               <span className="hidden text-base font-extrabold tracking-tight text-slate-900 sm:inline">Higoverse</span>
             </Link>
 
-            {/* Search bar — wraps to its own full-width row on mobile, fills remaining width on desktop */}
-            <div ref={searchWrapRef} className="relative order-3 w-full lg:order-none lg:flex-1">
+            {/* Search bar — stays on the same line as the logo at every breakpoint */}
+            <div ref={searchWrapRef} className="relative min-w-0 flex-1">
               <form onSubmit={submitSearch} className="w-full">
                 <div
                   className={`flex h-8 w-full items-stretch overflow-hidden rounded-full transition-all duration-200 sm:h-11 sm:bg-white sm:shadow-sm sm:ring-1 ${
