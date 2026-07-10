@@ -11,9 +11,9 @@ import { getPublicProducts, type PublicProduct } from "@/lib/marketplace-public"
 import { useCart } from "@/lib/hooks/useCart";
 import { cartCount } from "@/lib/cart";
 import {
-  Home, LayoutGrid, Package, Info, Phone,
-  LayoutDashboard, ShoppingCart, BarChart3, Sparkles,
-  Search, Menu, X, ChevronDown, LogOut, Settings, User,
+  Package, Phone,
+  LayoutDashboard, ShoppingCart,
+  Search, X, ChevronDown, LogOut, Settings,
   MapPin, Globe, ShieldCheck, Truck, Shirt, Heart,
   Home as HomeIcon, Leaf, Building2, Briefcase, Clock, ImageOff,
 } from "lucide-react";
@@ -59,8 +59,6 @@ interface Suggestion {
   render: (active: boolean) => React.ReactNode;
 }
 
-const CATEGORIES_LINK = { label: "All categories", href: "/categories", icon: LayoutGrid };
-
 // Icons for the curated CATEGORIES list (lib/categories.ts) — used in the category flyout
 const CATEGORY_ICONS: Record<string, typeof Package> = {
   electronics: Package,
@@ -75,26 +73,6 @@ const CATEGORY_ICONS: Record<string, typeof Package> = {
   wholesale: Package,
   other: Package,
 };
-
-const PUBLIC_LINKS = [
-  { label: "Home", href: "/", icon: Home },
-  { label: "Products", href: "/products", icon: Package },
-  { label: "About us", href: "/about", icon: Info },
-  { label: "Contact", href: "/contact", icon: Phone },
-];
-
-const BUSINESS_LINKS = [
-  { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { label: "Inventory", href: "/items", icon: Package },
-  { label: "Sales", href: "/sales", icon: ShoppingCart },
-  { label: "Reports", href: "/reports", icon: BarChart3 },
-  { label: "AI Advisor", href: "/advisor", icon: Sparkles },
-];
-
-function isActive(pathname: string, href: string) {
-  if (href === "/") return pathname === "/";
-  return pathname.startsWith(href);
-}
 
 // Cycles through real example queries in the search placeholder — informative
 // (shows what's actually searchable) and gives the bar a bit of life when idle.
@@ -120,7 +98,6 @@ export default function PublicHeader() {
   const router = useRouter();
   const { user, ready } = useAuth();
   const { shop, loading: shopLoading } = useShop();
-  const [mobileOpen, setMobileOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [query, setQuery] = useState("");
   const menuRef = useRef<HTMLDivElement>(null);
@@ -179,7 +156,6 @@ export default function PublicHeader() {
   }, []);
 
   useEffect(() => {
-    setMobileOpen(false);
     setMenuOpen(false);
     setSuggestOpen(false);
   }, [pathname]);
@@ -315,35 +291,24 @@ export default function PublicHeader() {
 
         {/* ── Single row: logo + big search + account ── */}
         <div className="border-b border-slate-100">
-          <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-3 px-4 py-3 sm:px-6 lg:flex-nowrap">
-            <div className="flex shrink-0 items-center gap-2.5">
-              <button
-                type="button"
-                onClick={() => setMobileOpen((o) => !o)}
-                className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 lg:hidden"
-                aria-label="Open menu"
-              >
-                <Menu size={18} />
-              </button>
-
-              <Link href="/" className="flex shrink-0 items-center gap-2 transition hover:opacity-80">
-                <img src="/higoverse.png" alt="Higoverse" className="h-8 w-8 rounded-lg object-cover" />
-                <span className="hidden text-base font-extrabold tracking-tight text-slate-900 sm:inline">Higoverse</span>
-              </Link>
-            </div>
+          <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-1.5 px-2.5 py-1.5 sm:gap-3 sm:px-6 sm:py-3 lg:flex-nowrap">
+            <Link href="/" className="flex shrink-0 items-center gap-1.5 transition hover:opacity-80 sm:gap-2">
+              <img src="/higoverse.png" alt="Higoverse" className="h-6 w-6 rounded-md object-cover sm:h-8 sm:w-8 sm:rounded-lg" />
+              <span className="hidden text-base font-extrabold tracking-tight text-slate-900 sm:inline">Higoverse</span>
+            </Link>
 
             {/* Search bar — wraps to its own full-width row on mobile, fills remaining width on desktop */}
             <div ref={searchWrapRef} className="relative order-3 w-full lg:order-none lg:flex-1">
               <form onSubmit={submitSearch} className="w-full">
                 <div
-                  className={`flex h-11 w-full items-stretch overflow-hidden rounded-full bg-white shadow-sm ring-1 transition-all duration-200 ${
-                    searchFocused ? "shadow-md ring-2 ring-orange-400" : "ring-slate-200 hover:ring-slate-300"
+                  className={`flex h-8 w-full items-stretch overflow-hidden rounded-full transition-all duration-200 sm:h-11 sm:bg-white sm:shadow-sm sm:ring-1 ${
+                    searchFocused ? "bg-white ring-1 ring-orange-400 sm:shadow-md sm:ring-2" : "bg-slate-100 sm:ring-slate-200 sm:hover:ring-slate-300"
                   }`}
                 >
-                  <div className="flex min-w-0 flex-1 items-center gap-2 pl-4">
+                  <div className="flex min-w-0 flex-1 items-center gap-1.5 pl-3 sm:gap-2 sm:pl-4">
                     <Search
-                      size={16}
-                      className={`shrink-0 transition-colors duration-200 ${searchFocused ? "text-orange-400" : "text-slate-300"}`}
+                      size={13}
+                      className={`shrink-0 transition-colors duration-200 sm:h-4 sm:w-4 ${searchFocused ? "text-orange-400" : "text-slate-400 sm:text-slate-300"}`}
                     />
                     <input
                       ref={searchInputRef}
@@ -358,7 +323,7 @@ export default function PublicHeader() {
                       aria-expanded={suggestOpen}
                       aria-autocomplete="list"
                       autoComplete="off"
-                      className="min-w-0 flex-1 bg-transparent text-sm text-slate-800 outline-none placeholder:text-slate-400"
+                      className="min-w-0 flex-1 truncate bg-transparent text-xs text-slate-800 outline-none placeholder:text-slate-400 sm:text-sm"
                     />
                     {query ? (
                       <button
@@ -379,9 +344,9 @@ export default function PublicHeader() {
                   <button
                     type="submit"
                     aria-label="Search"
-                    className="m-1.5 flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full bg-orange-500 px-5 text-sm font-bold text-white transition hover:bg-orange-600 active:scale-[0.97]"
+                    className="m-1 flex h-6 w-6 shrink-0 items-center justify-center whitespace-nowrap rounded-full bg-orange-500 text-white transition hover:bg-orange-600 active:scale-[0.97] sm:m-1.5 sm:h-auto sm:w-auto sm:gap-1.5 sm:px-5 sm:text-sm sm:font-bold"
                   >
-                    <Search size={14} className="sm:hidden" />
+                    <Search size={12} className="sm:hidden" />
                     <span className="hidden sm:inline">Search</span>
                   </button>
                 </div>
@@ -465,7 +430,7 @@ export default function PublicHeader() {
               )}
             </div>
 
-            <div className="ml-auto flex shrink-0 items-center gap-1.5 lg:ml-0">
+            <div className="ml-auto hidden shrink-0 items-center gap-1.5 lg:flex">
               <Link
                 href="/cart"
                 aria-label="Cart"
@@ -482,7 +447,7 @@ export default function PublicHeader() {
               {isBusiness && (
                 <Link
                   href="/dashboard"
-                  className="hidden items-center gap-1.5 rounded-lg bg-slate-100 px-2.5 py-1.5 text-[11px] font-semibold text-slate-700 transition hover:bg-slate-200 md:flex"
+                  className="flex items-center gap-1.5 rounded-lg bg-slate-100 px-2.5 py-1.5 text-[11px] font-semibold text-slate-700 transition hover:bg-slate-200"
                 >
                   <LayoutDashboard size={13} />
                   Dashboard
@@ -519,7 +484,7 @@ export default function PublicHeader() {
                         {user?.name?.[0]?.toUpperCase() ?? "H"}
                       </div>
                     )}
-                    <ChevronDown size={12} className={`hidden text-slate-500 transition-transform sm:block ${menuOpen ? "rotate-180" : ""}`} />
+                    <ChevronDown size={12} className={`text-slate-500 transition-transform ${menuOpen ? "rotate-180" : ""}`} />
                   </button>
 
                   {menuOpen && (
@@ -541,93 +506,6 @@ export default function PublicHeader() {
           </div>
         </div>
       </header>
-
-      {mobileOpen && (
-        <div className="fixed inset-0 z-[60] lg:hidden">
-          <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => setMobileOpen(false)} />
-          <div className="absolute left-0 top-0 flex h-full w-72 max-w-[85vw] flex-col overflow-y-auto bg-white shadow-2xl">
-            <div className="flex items-center justify-between border-b border-slate-100 px-4 py-4">
-              <div className="flex items-center gap-2.5">
-                <img src="/higoverse.png" alt="Higoverse" className="h-8 w-8 rounded-xl object-cover" />
-                <span className="text-[15px] font-bold tracking-tight text-slate-900">Higoverse</span>
-              </div>
-              <button
-                type="button"
-                onClick={() => setMobileOpen(false)}
-                className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100"
-                aria-label="Close menu"
-              >
-                <X size={18} />
-              </button>
-            </div>
-            <nav className="flex-1 space-y-1 p-3">
-              <Link
-                href="/cart"
-                className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${
-                  isActive(pathname, "/cart") ? "bg-orange-50 text-orange-600" : "text-slate-600 hover:bg-slate-50"
-                }`}
-              >
-                <ShoppingCart size={18} />
-                Cart
-                {cartQty > 0 && (
-                  <span className="ml-auto flex h-5 min-w-[20px] items-center justify-center rounded-full bg-orange-500 px-1.5 text-[10px] font-bold text-white">
-                    {cartQty > 99 ? "99+" : cartQty}
-                  </span>
-                )}
-              </Link>
-              {[...PUBLIC_LINKS, CATEGORIES_LINK].map((link) => {
-                const Icon = link.icon;
-                const active = isActive(pathname, link.href);
-                return (
-                  <Link
-                    key={link.href}
-                    href={link.href}
-                    className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${
-                      active ? "bg-orange-50 text-orange-600" : "text-slate-600 hover:bg-slate-50"
-                    }`}
-                  >
-                    <Icon size={18} />
-                    {link.label}
-                  </Link>
-                );
-              })}
-              {isBusiness && (
-                <>
-                  <div className="mt-3 border-t border-slate-100 pt-3 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-                    Business
-                  </div>
-                  {BUSINESS_LINKS.map((link) => {
-                    const Icon = link.icon;
-                    const active = isActive(pathname, link.href);
-                    return (
-                      <Link
-                        key={link.href}
-                        href={link.href}
-                        className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${
-                          active ? "bg-blue-50 text-blue-700" : "text-slate-600 hover:bg-slate-50"
-                        }`}
-                      >
-                        <Icon size={18} />
-                        {link.label}
-                      </Link>
-                    );
-                  })}
-                </>
-              )}
-              {!isResolving && !user && (
-                <div className="mt-3 space-y-2 border-t border-slate-100 pt-3">
-                  <Link href="/login" className="flex items-center justify-center rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-semibold text-slate-700">
-                    <User size={16} className="mr-2" /> Login
-                  </Link>
-                  <Link href="/register" className="flex items-center justify-center rounded-xl bg-orange-500 px-3 py-2.5 text-sm font-semibold text-white">
-                    Create account
-                  </Link>
-                </div>
-              )}
-            </nav>
-          </div>
-        </div>
-      )}
     </>
   );
 }

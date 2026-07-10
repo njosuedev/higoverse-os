@@ -25,10 +25,10 @@ export default function RelatedCarousel({ products }: { products: PublicProduct[
 
       <div
         ref={trackRef}
-        className="flex gap-4 overflow-x-auto scroll-smooth pb-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        className="flex gap-2 overflow-x-auto scroll-smooth pb-2 [-ms-overflow-style:none] [scrollbar-width:none] sm:gap-4 [&::-webkit-scrollbar]:hidden"
       >
         {products.map((p) => (
-          <div key={p.id} className="w-40 shrink-0 sm:w-48">
+          <div key={p.id} className="w-28 shrink-0 sm:w-48">
             <ProductCard product={p} />
           </div>
         ))}

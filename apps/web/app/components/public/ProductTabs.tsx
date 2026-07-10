@@ -22,14 +22,14 @@ export default function ProductTabs({ product }: { product: PublicProduct }) {
   const [active, setActive] = useState<Tab>("Attributes");
 
   return (
-    <section className="mt-12">
-      <div className="flex gap-6 border-b border-slate-200">
+    <section className="mt-6 sm:mt-12">
+      <div className="flex gap-4 border-b border-slate-200 sm:gap-6">
         {TABS.map((tab) => (
           <button
             key={tab}
             type="button"
             onClick={() => setActive(tab)}
-            className={`border-b-2 px-1 pb-3 text-sm font-semibold transition ${
+            className={`border-b-2 px-1 pb-2 text-xs font-semibold transition sm:pb-3 sm:text-sm ${
               active === tab ? "border-slate-900 text-slate-900" : "border-transparent text-slate-400 hover:text-slate-600"
             }`}
           >
@@ -38,7 +38,7 @@ export default function ProductTabs({ product }: { product: PublicProduct }) {
         ))}
       </div>
 
-      <div className="py-6">
+      <div className="py-4 sm:py-6">
         {active === "Attributes" && (
           <div className="overflow-hidden rounded-lg border border-slate-200">
             <div className="divide-y divide-slate-100">

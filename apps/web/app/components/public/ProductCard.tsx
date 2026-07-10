@@ -50,7 +50,7 @@ export default function ProductCard({ product, isMine, priority, onReady }: Prod
     <Link
       href={`/product/${product.slug}`}
       prefetch={false}
-      className="group relative flex h-full flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg"
+      className="group relative flex h-full flex-col overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg sm:rounded-lg"
     >
       {/* ── Image / no-photo area ── */}
       <div className="relative aspect-square shrink-0 overflow-hidden">
@@ -86,19 +86,19 @@ export default function ProductCard({ product, isMine, priority, onReady }: Prod
         )}
 
         {/* Top-left badges */}
-        <div className="absolute left-2 top-2 flex flex-col gap-1">
+        <div className="absolute left-1.5 top-1.5 flex flex-col gap-1 sm:left-2 sm:top-2">
           {isMine && (
-            <span className="rounded bg-orange-500 px-1.5 py-0.5 text-[9px] font-extrabold tracking-wide text-white">YOURS</span>
+            <span className="rounded bg-orange-500 px-1.5 py-0.5 text-[8px] font-extrabold tracking-wide text-white sm:text-[9px]">YOURS</span>
           )}
           {!inStock && (
-            <span className="rounded bg-red-500/90 px-1.5 py-0.5 text-[9px] font-bold text-white backdrop-blur-sm">Out of stock</span>
+            <span className="rounded bg-red-500/90 px-1.5 py-0.5 text-[8px] font-bold text-white backdrop-blur-sm sm:text-[9px]">Out of stock</span>
           )}
         </div>
 
         {/* Gallery indicator */}
         {cover && (
-          <span className="absolute bottom-2 left-2 flex h-6 w-6 items-center justify-center rounded-full bg-white/90 text-slate-500 shadow">
-            <Camera size={12} />
+          <span className="absolute bottom-1.5 left-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-white/90 text-slate-500 shadow sm:bottom-2 sm:left-2 sm:h-6 sm:w-6">
+            <Camera size={11} className="sm:h-3 sm:w-3" />
           </span>
         )}
 
@@ -109,25 +109,25 @@ export default function ProductCard({ product, isMine, priority, onReady }: Prod
             onClick={handleAddToCart}
             aria-label="Add to cart"
             title="Add to cart"
-            className={`absolute bottom-2 right-2 flex h-7 w-7 items-center justify-center rounded-full shadow transition ${
+            className={`absolute bottom-1.5 right-1.5 flex h-6 w-6 items-center justify-center rounded-full shadow transition sm:bottom-2 sm:right-2 sm:h-7 sm:w-7 ${
               added ? "bg-emerald-500 text-white" : "bg-white/90 text-slate-600 hover:bg-orange-500 hover:text-white"
             }`}
           >
-            {added ? <Check size={13} /> : <ShoppingCart size={13} />}
+            {added ? <Check size={12} className="sm:h-[13px] sm:w-[13px]" /> : <ShoppingCart size={12} className="sm:h-[13px] sm:w-[13px]" />}
           </button>
         )}
       </div>
 
       {/* ── Content ── */}
-      <div className="flex flex-1 flex-col gap-1 p-2.5">
-        <p className="line-clamp-2 min-h-[2.4em] text-xs leading-snug text-slate-700">{product.name}</p>
-        <span className="text-base font-bold leading-none text-slate-900">{formatRwf(product.price)}</span>
-        <p className="text-[10px] font-medium text-slate-600">
+      <div className="flex flex-1 flex-col gap-0.5 p-1.5 sm:gap-1 sm:p-2.5">
+        <p className="line-clamp-2 min-h-[2.2em] text-[11px] leading-snug text-slate-700 sm:min-h-[2.4em] sm:text-xs">{product.name}</p>
+        <span className="text-sm font-bold leading-none text-slate-900 sm:text-base">{formatRwf(product.price)}</span>
+        <p className="hidden text-[10px] font-medium text-slate-600 sm:block">
           Min. 1 unit · {categoryLabel(product.category)}
         </p>
 
-        <p className="mt-auto flex items-center gap-1 text-[10px] font-semibold text-emerald-600">
-          <BadgeCheck size={11} /> Verified
+        <p className="mt-auto flex items-center gap-1 text-[9px] font-semibold text-emerald-600 sm:text-[10px]">
+          <BadgeCheck size={10} className="sm:h-[11px] sm:w-[11px]" /> Verified
         </p>
       </div>
     </Link>

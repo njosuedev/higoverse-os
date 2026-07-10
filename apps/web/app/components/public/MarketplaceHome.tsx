@@ -458,8 +458,8 @@ export default function MarketplaceHome({ initialFeed, initialShops }: Marketpla
 
       {/* ── HERO (Jumia-style: category sidebar + banner carousel + promo stack) ── */}
       <div className="bg-white">
-      <section className="mx-auto max-w-7xl px-4 pt-4 sm:px-6">
-        <div className="grid grid-cols-1 gap-3 lg:grid-cols-[220px_1fr_260px]">
+      <section className="mx-auto max-w-7xl px-2.5 pt-2 sm:px-6 sm:pt-4">
+        <div className="grid grid-cols-1 gap-2 lg:grid-cols-[220px_1fr_260px] lg:gap-3">
 
           {/* Category sidebar — no overflow-hidden here (the hover flyout
               renders outside this column's bounds), and z-20 so it paints
@@ -534,31 +534,31 @@ export default function MarketplaceHome({ initialFeed, initialShops }: Marketpla
               instead of leaving dead white space below a fixed-height card.
               min-h stays as the floor for mobile, where this is the only
               column in the grid row (nothing taller to stretch against). */}
-          <div className="hgv-module-in group relative min-w-0 overflow-hidden rounded-xl shadow-sm sm:min-h-[280px]" style={{ animationDelay: "80ms" }}>
+          <div className="hgv-module-in group relative min-w-0 overflow-hidden rounded-lg shadow-sm sm:rounded-xl sm:min-h-[280px]" style={{ animationDelay: "80ms" }}>
             {HERO_SLIDES.map((slide, i) => (
               <Link
                 key={slide.title}
                 href={slide.href}
                 aria-hidden={i !== slideIdx}
                 tabIndex={i === slideIdx ? 0 : -1}
-                className={`flex h-full min-h-[220px] flex-col justify-between bg-gradient-to-br ${slide.gradient} p-6 transition-opacity duration-500 sm:min-h-[280px] sm:p-8 ${
+                className={`flex h-full min-h-[128px] flex-col justify-between bg-gradient-to-br ${slide.gradient} p-3.5 transition-opacity duration-500 sm:min-h-[280px] sm:p-8 ${
                   i === slideIdx ? "relative opacity-100" : "pointer-events-none absolute inset-0 opacity-0"
                 }`}
               >
                 <slide.Icon
-                  size={140}
+                  size={90}
                   strokeWidth={1.5}
-                  className="pointer-events-none absolute -bottom-6 -right-6 text-white/10 transition-transform duration-500 group-hover:scale-110 group-hover:rotate-6"
+                  className="pointer-events-none absolute -bottom-4 -right-4 text-white/10 transition-transform duration-500 group-hover:scale-110 group-hover:rotate-6 sm:h-[140px] sm:w-[140px] sm:-bottom-6 sm:-right-6"
                 />
                 <div className="relative">
-                  <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-lg bg-white/15 backdrop-blur-sm">
-                    <slide.Icon size={20} className="text-white" />
+                  <div className="mb-1.5 flex h-7 w-7 items-center justify-center rounded-lg bg-white/15 backdrop-blur-sm sm:mb-3 sm:h-10 sm:w-10">
+                    <slide.Icon size={15} className="text-white sm:h-5 sm:w-5" />
                   </div>
-                  <p className="text-2xl font-extrabold leading-snug text-white sm:text-3xl">{slide.title}</p>
-                  <p className="mt-1.5 max-w-sm text-sm text-white/85">{slide.subtitle}</p>
+                  <p className="text-base font-extrabold leading-snug text-white sm:text-3xl">{slide.title}</p>
+                  <p className="mt-1 max-w-sm text-[11px] text-white/85 sm:mt-1.5 sm:text-sm">{slide.subtitle}</p>
                 </div>
-                <span className="relative mt-4 inline-flex w-fit items-center gap-1.5 rounded-full bg-white px-4 py-2 text-sm font-bold text-slate-800 shadow-sm transition-all duration-200 group-hover:gap-2.5">
-                  {slide.cta} <ArrowRight size={14} className="hgv-arrow-nudge" />
+                <span className="relative mt-2 inline-flex w-fit items-center gap-1 rounded-full bg-white px-2.5 py-1 text-[11px] font-bold text-slate-800 shadow-sm transition-all duration-200 group-hover:gap-2.5 sm:mt-4 sm:gap-1.5 sm:px-4 sm:py-2 sm:text-sm">
+                  {slide.cta} <ArrowRight size={12} className="hgv-arrow-nudge sm:h-3.5 sm:w-3.5" />
                 </span>
               </Link>
             ))}
@@ -569,20 +569,20 @@ export default function MarketplaceHome({ initialFeed, initialShops }: Marketpla
                 <button
                   onClick={(e) => { e.preventDefault(); setSlideIdx((i) => (i - 1 + HERO_SLIDES.length) % HERO_SLIDES.length); }}
                   aria-label="Previous slide"
-                  className="absolute left-2 top-1/2 z-10 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-white/25 text-white opacity-0 backdrop-blur-sm transition hover:bg-white/40 group-hover:opacity-100"
+                  className="absolute left-1.5 top-1/2 z-10 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full bg-white/25 text-white opacity-0 backdrop-blur-sm transition hover:bg-white/40 group-hover:opacity-100 sm:left-2 sm:h-8 sm:w-8"
                 >
-                  <ChevronLeft size={16} />
+                  <ChevronLeft size={14} />
                 </button>
                 <button
                   onClick={(e) => { e.preventDefault(); setSlideIdx((i) => (i + 1) % HERO_SLIDES.length); }}
                   aria-label="Next slide"
-                  className="absolute right-2 top-1/2 z-10 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-white/25 text-white opacity-0 backdrop-blur-sm transition hover:bg-white/40 group-hover:opacity-100"
+                  className="absolute right-1.5 top-1/2 z-10 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full bg-white/25 text-white opacity-0 backdrop-blur-sm transition hover:bg-white/40 group-hover:opacity-100 sm:right-2 sm:h-8 sm:w-8"
                 >
-                  <ChevronRight size={16} />
+                  <ChevronRight size={14} />
                 </button>
 
                 {/* dots */}
-                <div className="absolute bottom-3 left-1/2 z-10 flex -translate-x-1/2 gap-1.5">
+                <div className="absolute bottom-2 left-1/2 z-10 flex -translate-x-1/2 gap-1.5 sm:bottom-3">
                   {HERO_SLIDES.map((slide, i) => (
                     <button
                       key={slide.title}
@@ -689,25 +689,25 @@ export default function MarketplaceHome({ initialFeed, initialShops }: Marketpla
         </div>
 
         {/* Deals strip */}
-        <div className="mt-3 grid grid-cols-4 gap-2 sm:gap-2.5 lg:grid-cols-8">
+        <div className="mt-2 grid grid-cols-4 gap-1.5 sm:mt-3 sm:gap-2.5 lg:grid-cols-8">
           {DEAL_TILES.map((tile, i) => (
             <Link
               key={tile.label}
               href={tile.href}
-              className="hgv-module-in hgv-card-hover flex min-w-0 flex-col items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-2 py-3 text-center"
+              className="hgv-module-in hgv-card-hover flex min-w-0 flex-col items-center gap-1 rounded-lg border border-slate-200 bg-white px-1.5 py-2 text-center sm:gap-1.5 sm:rounded-xl sm:px-2 sm:py-3"
               style={{ animationDelay: `${i * 40}ms` }}
             >
-              <span className={`flex h-9 w-9 items-center justify-center rounded-full ${tile.tint}`}>
-                <tile.Icon size={16} />
+              <span className={`flex h-7 w-7 items-center justify-center rounded-full sm:h-9 sm:w-9 ${tile.tint}`}>
+                <tile.Icon size={14} className="sm:h-4 sm:w-4" />
               </span>
-              <span className="line-clamp-2 text-[10.5px] font-semibold leading-tight text-slate-700">{tile.label}</span>
+              <span className="line-clamp-2 text-[9px] font-semibold leading-tight text-slate-700 sm:text-[10.5px]">{tile.label}</span>
             </Link>
           ))}
         </div>
 
-        <div className="my-4 flex items-center gap-3">
+        <div className="my-2.5 flex items-center gap-3 sm:my-4">
           <div className="h-px flex-1 bg-slate-200" />
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Membership</p>
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400 sm:text-xs">Membership</p>
           <div className="h-px flex-1 bg-slate-200" />
         </div>
       </section>
@@ -764,21 +764,21 @@ export default function MarketplaceHome({ initialFeed, initialShops }: Marketpla
       )}
 
       {/* ── BODY ─────────────────────────────────────────────────────────── */}
-      <div className="mx-auto max-w-7xl px-4 py-3 sm:px-6">
+      <div className="mx-auto max-w-7xl px-2.5 py-2 sm:px-6 sm:py-3">
 
         {/* ── MAIN ───────────────────────────────────────────────────────── */}
         <main className="min-w-0">
 
           {/* Grid */}
           {isLoading ? (
-            <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
+            <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3 sm:gap-2.5 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
               {Array.from({ length: PAGE_SIZE }).map((_, i) => <ProductCardSkeleton key={i} />)}
             </div>
           ) : entries.length === 0 ? (
             <EmptyState />
           ) : (
             <>
-              <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
+              <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3 sm:gap-2.5 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
                 {entries.map((entry, idx) => (
                   <LazyProductCard
                     key={entry.productId}
@@ -794,7 +794,7 @@ export default function MarketplaceHome({ initialFeed, initialShops }: Marketpla
 
               {/* Skeletons for the batch currently being fetched — never a full-page loader */}
               {isFetchingNextPage && (
-                <div className="mt-2.5 grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
+                <div className="mt-1.5 grid grid-cols-2 gap-1.5 sm:mt-2.5 sm:grid-cols-3 sm:gap-2.5 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
                   {Array.from({ length: PAGE_SIZE }).map((_, i) => <ProductCardSkeleton key={i} />)}
                 </div>
               )}

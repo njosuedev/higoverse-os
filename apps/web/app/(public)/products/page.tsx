@@ -20,13 +20,13 @@ export default async function ProductsPage() {
 
   return (
     <div className="min-h-screen bg-slate-50">
-    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
-      <h1 className="text-2xl font-bold text-slate-900">All Products</h1>
+    <div className="mx-auto max-w-7xl px-2.5 py-3 sm:px-6 sm:py-8">
+      <h1 className="text-lg font-bold text-slate-900 sm:text-2xl">All Products</h1>
       {typeof feed.total === "number" && (
-        <p className="mt-1 text-sm text-slate-500">{feed.total} products available on Higoverse.</p>
+        <p className="mt-1 text-xs text-slate-500 sm:text-sm">{feed.total} products available on Higoverse.</p>
       )}
 
-      <div className="mt-6">
+      <div className="mt-3 sm:mt-6">
         <InfiniteProductGrid
           initialItems={feed.items}
           initialNextCursor={feed.nextCursor}

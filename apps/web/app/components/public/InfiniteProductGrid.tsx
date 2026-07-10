@@ -32,7 +32,7 @@ function toPublicProduct(item: RawMarketplaceItem): PublicProduct {
   };
 }
 
-const GRID_CLASSES = "grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6";
+const GRID_CLASSES = "grid grid-cols-2 gap-1.5 sm:grid-cols-3 sm:gap-2.5 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6";
 
 export interface InfiniteProductGridProps {
   /** Server-fetched first page — renders immediately, no client refetch/flash. */
@@ -118,7 +118,7 @@ export default function InfiniteProductGrid({
       <div ref={sentinelRef} className="h-px" />
 
       {isFetchingNextPage && (
-        <div className={`mt-2.5 ${GRID_CLASSES}`}>
+        <div className={`mt-1.5 sm:mt-2.5 ${GRID_CLASSES}`}>
           {Array.from({ length: pageSize }).map((_, i) => <ProductCardSkeleton key={i} />)}
         </div>
       )}

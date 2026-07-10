@@ -46,14 +46,14 @@ export default async function CategoryPage({ params }: Props) {
 
   return (
     <div className="min-h-screen bg-slate-50">
-    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
+    <div className="mx-auto max-w-7xl px-2.5 py-3 sm:px-6 sm:py-8">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
-      <h1 className="text-2xl font-bold text-slate-900">{categoryLabel(slug)}</h1>
+      <h1 className="text-lg font-bold text-slate-900 sm:text-2xl">{categoryLabel(slug)}</h1>
       {typeof feed.total === "number" && (
-        <p className="mt-1 text-sm text-slate-500">{feed.total} products in this category.</p>
+        <p className="mt-1 text-xs text-slate-500 sm:text-sm">{feed.total} products in this category.</p>
       )}
 
-      <div className="mt-6">
+      <div className="mt-3 sm:mt-6">
         <InfiniteProductGrid
           initialItems={feed.items}
           initialNextCursor={feed.nextCursor}

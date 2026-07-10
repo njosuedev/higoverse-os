@@ -44,8 +44,8 @@ export default function OrdersPage() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6">
-      <h1 className="mb-6 text-xl font-bold text-slate-900">My Orders</h1>
+    <div className="mx-auto max-w-3xl px-2.5 py-4 sm:px-6 sm:py-8">
+      <h1 className="mb-3 text-lg font-bold text-slate-900 sm:mb-6 sm:text-xl">My Orders</h1>
 
       {orders.length === 0 ? (
         <div className="rounded-2xl border border-slate-200 bg-white px-5 py-16 text-center">
@@ -59,15 +59,15 @@ export default function OrdersPage() {
           </Link>
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-2 sm:space-y-3">
           {orders.map((o) => (
-            <div key={o.id} className="rounded-2xl border border-slate-200 bg-white p-4">
-              <div className="flex items-start gap-3">
+            <div key={o.id} className="rounded-xl border border-slate-200 bg-white p-3 sm:rounded-2xl sm:p-4">
+              <div className="flex items-start gap-2.5 sm:gap-3">
                 {o.product_image ? (
-                  <img src={o.product_image} alt={o.product_name ?? ""} className="h-14 w-14 shrink-0 rounded-lg border border-slate-100 object-cover" />
+                  <img src={o.product_image} alt={o.product_name ?? ""} className="h-12 w-12 shrink-0 rounded-lg border border-slate-100 object-cover sm:h-14 sm:w-14" />
                 ) : (
-                  <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-300">
-                    <Package size={20} />
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-300 sm:h-14 sm:w-14">
+                    <Package size={18} className="sm:h-5 sm:w-5" />
                   </div>
                 )}
                 <div className="min-w-0 flex-1">

@@ -30,16 +30,16 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
 
   return (
     <div className="min-h-screen bg-slate-50">
-    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
-      <h1 className="text-2xl font-bold text-slate-900">
+    <div className="mx-auto max-w-7xl px-2.5 py-3 sm:px-6 sm:py-8">
+      <h1 className="text-lg font-bold text-slate-900 sm:text-2xl">
         {cat ? `Search in ${categoryLabel(cat)}` : "Search"}
       </h1>
-      <div className="mt-4 max-w-xl">
+      <div className="mt-3 max-w-xl sm:mt-4">
         <SearchBox defaultValue={q} />
       </div>
 
       {!hasSearch ? (
-        <p className="mt-8 text-sm text-slate-400">Search for products or categories.</p>
+        <p className="mt-6 text-sm text-slate-400 sm:mt-8">Search for products or categories.</p>
       ) : noResults ? (
         <EmptyState
           icon={<SearchIcon size={30} />}
@@ -51,8 +51,8 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
           className="mt-10"
         />
       ) : (
-        <section className="mt-8">
-          <h2 className="mb-4 text-lg font-bold text-slate-900">Products</h2>
+        <section className="mt-5 sm:mt-8">
+          <h2 className="mb-2.5 text-base font-bold text-slate-900 sm:mb-4 sm:text-lg">Products</h2>
           <InfiniteProductGrid
             initialItems={feed.items}
             initialNextCursor={feed.nextCursor}

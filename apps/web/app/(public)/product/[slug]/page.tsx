@@ -96,32 +96,32 @@ export default async function ProductPage({ params }: Props) {
   };
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
+    <div className="mx-auto max-w-6xl px-2.5 py-3 sm:px-6 sm:py-6">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
 
-      <nav className="mb-4 flex items-center gap-1.5 text-xs text-slate-500">
+      <nav className="mb-2.5 flex items-center gap-1.5 text-[11px] text-slate-500 sm:mb-4 sm:text-xs">
         <Link href="/" className="hover:text-orange-600">Home</Link>
-        <ChevronRight size={12} />
+        <ChevronRight size={11} />
         <Link href={`/category/${product.category}`} className="hover:text-orange-600">{categoryLabel(product.category)}</Link>
-        <ChevronRight size={12} />
+        <ChevronRight size={11} />
         <span className="line-clamp-1 text-slate-700">{product.name}</span>
       </nav>
 
-      <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-8">
         <ProductGallery images={product.images} alt={product.name} />
 
         <div>
-          <span className="mb-2 inline-block rounded-full bg-orange-50 px-2.5 py-1 text-xs font-semibold text-orange-600">
+          <span className="mb-1.5 inline-block rounded-full bg-orange-50 px-2.5 py-1 text-xs font-semibold text-orange-600 sm:mb-2">
             {categoryLabel(product.category)}
           </span>
-          <h1 className="text-2xl font-bold text-slate-900">{product.name}</h1>
-          <p className="mt-2 text-3xl font-bold text-orange-600">{formatRwf(product.price)}</p>
+          <h1 className="text-lg font-bold text-slate-900 sm:text-2xl">{product.name}</h1>
+          <p className="mt-1.5 text-2xl font-bold text-orange-600 sm:mt-2 sm:text-3xl">{formatRwf(product.price)}</p>
           <p className={`mt-1 text-sm font-medium ${product.quantity > 0 ? "text-emerald-600" : "text-red-500"}`}>
             {product.quantity > 0 ? `${product.quantity} in stock` : "Out of stock"}
           </p>
 
-          <div className="mt-6">
+          <div className="mt-3 sm:mt-6">
             <ProductActions
               productId={product.id}
               productName={product.name}
@@ -134,8 +134,8 @@ export default async function ProductPage({ params }: Props) {
       </div>
 
       {related.length > 0 && (
-        <section className="mt-12">
-          <h2 className="mb-4 text-lg font-bold text-slate-900">Other recommendations for your business</h2>
+        <section className="mt-6 sm:mt-12">
+          <h2 className="mb-2.5 text-base font-bold text-slate-900 sm:mb-4 sm:text-lg">Other recommendations for your business</h2>
           <RelatedCarousel products={related} />
         </section>
       )}
