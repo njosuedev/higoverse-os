@@ -1,1 +1,1 @@
-<h1>SHOPS NETWORK.</h1>
+<h1>SHOPS NETWORK</h1>
