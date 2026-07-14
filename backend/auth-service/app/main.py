@@ -100,4 +100,21 @@ def root():
 
 @app.get("/health")
 def health():
-    return {"status": "ok"}
+    # Reports which DB host/name this deployment actually resolved
+    # DATABASE_URL to (credentials stripped) — lets us confirm a Vercel env
+    # var change actually took effect without exposing the password.
+    db_target = "unset"
+    tables = None
+    if auth_engine is not None:
+        url = auth_engine.url
+        db_target = f"{url.host}/{url.database}"
+        try:
+            with auth_engine.connect() as conn:
+                rows = conn.execute(text(
+                    "SELECT table_name FROM information_schema.tables "
+                    "WHERE table_schema='public' ORDER BY table_name"
+                ))
+                tables = [r[0] for r in rows]
+        except Exception as e:
+            tables = f"query failed: {e}"
+    return {"status": "ok", "db_target": db_target, "tables": tables}
