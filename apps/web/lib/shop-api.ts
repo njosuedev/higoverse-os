@@ -1,4 +1,4 @@
-import { getToken, handleUnauthorized } from "@/lib/auth";
+import { getToken } from "@/lib/auth";
 
 // Shops live in auth-service's shop_db — call auth-service directly
 const AUTH_API = process.env.NEXT_PUBLIC_AUTH_API || "https://auth-esys.vercel.app";
@@ -12,11 +12,11 @@ async function authShopRequest(endpoint: string, options: RequestInit = {}) {
   const res = await fetch(`${AUTH_API}${endpoint}`, { ...options, headers });
 
   if (res.status === 401) {
-    // A guest (no token) hitting a "my shop" endpoint is expected — there's no
-    // session to expire. Only force logout when a previously-valid token was
-    // rejected, i.e. a genuinely expired/invalid session.
+    // Shop endpoints 401 for plenty of authenticated-but-shopless accounts
+    // (e.g. no shop yet) — that's not a session expiry, so don't force a
+    // global logout here the way auth-api/admin-api do for explicit actions.
+    // Callers (heartbeat, ShopProvider) already treat a failure as "no shop".
     if (!token) return null;
-    handleUnauthorized();
     throw new Error("Session expired. Please log in again.");
   }
   // 404 = user has no shop yet (admin accounts, pure customers) — not an error

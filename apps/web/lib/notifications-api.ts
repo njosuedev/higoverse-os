@@ -1,4 +1,4 @@
-import { getToken, handleUnauthorized } from "@/lib/auth";
+import { getToken } from "@/lib/auth";
 
 export const NOTIF_API = (
   process.env.NEXT_PUBLIC_NOTIFICATION_API || "https://higoverse-notifications.onrender.com"
@@ -13,8 +13,10 @@ async function notifRequest(endpoint: string, options: RequestInit = {}) {
   const res = await fetch(`${NOTIF_API}${endpoint}`, { ...options, headers });
 
   if (res.status === 401) {
-    handleUnauthorized();
-    throw new Error("Session expired.");
+    // Passive background polling (badge count, SSE fallback) — treat like the
+    // other services (sale/purchase/expense/…) and return empty rather than
+    // force-logging out the whole session over one notification-service call.
+    return null;
   }
   if (!res.ok) {
     const text = await res.text().catch(() => "");

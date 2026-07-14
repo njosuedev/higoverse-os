@@ -59,6 +59,9 @@ def list_sales(
     from_date: str | None = None,
     to_date: str | None = None,
 ):
+    if not user["shop_id"]:
+        return {"success": True, "data": {"items": [], "total": 0, "page": page, "limit": limit}}
+
     q = db.query(Sale).filter(Sale.shop_id == user["shop_id"])
 
     if from_date:
@@ -92,6 +95,15 @@ def get_summary(
     from_date: str | None = None,
     to_date: str | None = None,
 ):
+    if not user["shop_id"]:
+        return {
+            "success": True,
+            "data": {
+                "revenue": 0.0, "profit": 0.0, "items_sold": 0,
+                "sales_count": 0, "unique_customers": 0,
+            },
+        }
+
     q = db.query(Sale).filter(Sale.shop_id == user["shop_id"])
     if from_date:
         q = q.filter(Sale.created_at >= datetime.fromisoformat(from_date + "T00:00:00"))
@@ -128,6 +140,9 @@ def get_daily(
     user: dict = Depends(get_current_user),
     days: int = 14,
 ):
+    if not user["shop_id"]:
+        return {"success": True, "data": []}
+
     since = datetime.now(timezone.utc) - timedelta(days=days)
     q = db.query(Sale).filter(
         Sale.shop_id == user["shop_id"],
@@ -167,6 +182,9 @@ def get_top_products(
     from_date: str | None = None,
     to_date: str | None = None,
 ):
+    if not user["shop_id"]:
+        return {"success": True, "data": []}
+
     q = db.query(Sale).filter(Sale.shop_id == user["shop_id"])
     if from_date:
         q = q.filter(Sale.created_at >= datetime.fromisoformat(from_date + "T00:00:00"))
@@ -209,6 +227,9 @@ def create_sale(
     user: dict = Depends(get_current_user),
     authorization: str = Header(None),
 ):
+    if not user["shop_id"]:
+        raise HTTPException(status_code=400, detail="You need a shop before recording sales")
+
     token = _token(authorization)
     product = get_product(payload.product_id, token)
 

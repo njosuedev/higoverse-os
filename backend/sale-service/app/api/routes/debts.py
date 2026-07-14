@@ -38,6 +38,9 @@ def list_debts(
     user: dict = Depends(get_current_user),
     is_paid: bool | None = None,
 ):
+    if not user["shop_id"]:
+        return {"success": True, "data": {"items": [], "total": 0, "total_outstanding": 0.0}}
+
     q = db.query(Debt).filter(Debt.shop_id == user["shop_id"])
     if is_paid is not None:
         q = q.filter(Debt.is_paid == is_paid)
@@ -60,6 +63,9 @@ def create_debt(
     db: Session = Depends(get_db),
     user: dict = Depends(get_current_user),
 ):
+    if not user["shop_id"]:
+        raise HTTPException(status_code=400, detail="You need a shop before recording debts")
+
     debt = Debt(
         shop_id=user["shop_id"],
         sale_id=payload.sale_id,

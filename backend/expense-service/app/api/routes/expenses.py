@@ -61,6 +61,10 @@ def list_expenses(
     from_date: str | None = None,
     to_date: str | None = None,
 ):
+    # No shop yet (e.g. account not linked to a shop) — nothing to list.
+    if not user["shop_id"]:
+        return {"success": True, "data": {"items": [], "total": 0, "page": page, "limit": limit}}
+
     q = db.query(Expense).filter(Expense.shop_id == user["shop_id"])
 
     if category:
@@ -96,6 +100,9 @@ def get_summary(
     from_date: str | None = None,
     to_date: str | None = None,
 ):
+    if not user["shop_id"]:
+        return {"success": True, "data": {"total_expenses": 0.0, "count": 0}}
+
     q = db.query(Expense).filter(Expense.shop_id == user["shop_id"])
     if from_date:
         q = q.filter(Expense.expense_date >= datetime.fromisoformat(from_date + "T00:00:00"))
@@ -127,6 +134,9 @@ def get_by_category(
     from_date: str | None = None,
     to_date: str | None = None,
 ):
+    if not user["shop_id"]:
+        return {"success": True, "data": []}
+
     q = db.query(Expense).filter(Expense.shop_id == user["shop_id"])
     if from_date:
         q = q.filter(Expense.expense_date >= datetime.fromisoformat(from_date + "T00:00:00"))
@@ -162,6 +172,9 @@ def get_daily(
     user: dict = Depends(get_current_user),
     days: int = 14,
 ):
+    if not user["shop_id"]:
+        return {"success": True, "data": []}
+
     since = datetime.now(timezone.utc) - timedelta(days=days)
     q = db.query(Expense).filter(
         Expense.shop_id == user["shop_id"],
@@ -197,6 +210,9 @@ def create_expense(
     db: Session = Depends(get_db),
     user: dict = Depends(get_current_user),
 ):
+    if not user["shop_id"]:
+        raise HTTPException(status_code=400, detail="You need a shop before recording expenses")
+
     expense = Expense(
         shop_id=user["shop_id"],
         created_by=user["user_id"],

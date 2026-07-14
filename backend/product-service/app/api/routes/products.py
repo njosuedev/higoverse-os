@@ -49,6 +49,15 @@ def get_summary(
     db: Session = Depends(get_db),
     user: dict = Depends(get_current_user),
 ):
+    if not user["shop_id"]:
+        return {
+            "success": True,
+            "data": {
+                "stock_value": 0.0, "potential_profit": 0.0,
+                "total_products": 0, "out_of_stock": 0, "low_stock": 0,
+            },
+        }
+
     row = db.query(Product).filter(Product.shop_id == user["shop_id"]).with_entities(
         func.coalesce(func.sum(Product.selling_price * Product.quantity), 0).label("stock_value"),
         func.coalesce(func.sum((Product.selling_price - Product.cost_price) * Product.quantity), 0).label("potential_profit"),
@@ -78,6 +87,9 @@ def get_stock_alerts(
     user: dict = Depends(get_current_user),
     threshold: int = 10,
 ):
+    if not user["shop_id"]:
+        return {"success": True, "data": []}
+
     items = db.query(Product).filter(
         Product.shop_id == user["shop_id"],
         Product.quantity <= threshold,
@@ -109,6 +121,9 @@ def get_products(
     page: int = 1,
     limit: int = 10
 ):
+    if not user["shop_id"]:
+        return {"success": True, "data": {"items": [], "total": 0, "page": page, "limit": limit}}
+
     offset = (page - 1) * limit
 
     query = db.query(Product).filter(Product.shop_id == user["shop_id"])
@@ -157,6 +172,9 @@ def create_product(
     user: dict = Depends(get_current_user),
     authorization: str = Header(None)
 ):
+    if not user["shop_id"]:
+        raise HTTPException(status_code=400, detail="You need a shop before adding products")
+
     try:
         validate_supplier(
             payload.supplier_id,
