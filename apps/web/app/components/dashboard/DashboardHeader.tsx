@@ -13,7 +13,7 @@ import { getUnreadNotifCount, openNotifStream } from "@/lib/notifications-api";
 import {
   Home, Package, Truck, ShoppingCart, BarChart3,
   Users, FileText, ChevronDown, ShieldCheck, Receipt,
-  Sparkles, Settings, LogOut, Globe, Store,
+  Settings, LogOut, Globe, Store,
   Bell, Menu, X,
 } from "lucide-react";
 
@@ -23,7 +23,7 @@ const CUSTOMER_MENUS: NavItem[] = [
   { key: "nav.notifications", href: "/notifications", icon: Bell },
 ];
 
-// Business-owner IA: Dashboard, Inventory, Sales, Finance▾, AI Advisor, More▾
+// Business-owner IA: Dashboard, Inventory, Sales, Finance▾, More▾
 const OWNER_PRIMARY: NavItem[] = [
   { key: "nav.dashboard", href: "/dashboard", icon: Home         },
   { key: "nav.inventory", href: "/items",     icon: Package      },
@@ -34,9 +34,6 @@ const FINANCE_MENUS: NavItem[] = [
   { key: "nav.expenses",  href: "/expenses",  icon: Receipt   },
   { key: "nav.reports",   href: "/reports",   icon: BarChart3 },
   { key: "nav.partners",  href: "/partners",  icon: Users     },
-];
-const OWNER_TRAILING: NavItem[] = [
-  { key: "nav.advisor", href: "/advisor", icon: Sparkles },
 ];
 const MORE_MENUS_BASE: NavItem[] = [
   { key: "nav.proforma", href: "/proforma", icon: FileText },
@@ -169,7 +166,7 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
 
   // Flat list used for the mobile drawer and badge bookkeeping
   const flatMenus: NavItem[] = isBusinessNav
-    ? [...OWNER_PRIMARY, ...FINANCE_MENUS, ...OWNER_TRAILING, ...moreMenus]
+    ? [...OWNER_PRIMARY, ...FINANCE_MENUS, ...moreMenus]
     : CUSTOMER_MENUS;
 
   function NavLink({ menu, compact = false }: { menu: NavItem; compact?: boolean }) {
@@ -178,8 +175,7 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
     const isAdminItem = menu.href === "/admin";
     const indicatorColor = isAdminItem ? "bg-red-500" : "bg-blue-600";
     const activeText = isAdminItem ? "text-red-600" : "text-blue-600";
-    const isAdvisor = menu.href === "/advisor";
-    const idleText = isAdvisor ? "text-blue-600 hover:bg-slate-50" : "text-slate-600 hover:text-slate-900 hover:bg-slate-50";
+    const idleText = "text-slate-600 hover:text-slate-900 hover:bg-slate-50";
     const badge = badgeFor(menu.href);
 
     return (
@@ -309,7 +305,6 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
             <>
               {OWNER_PRIMARY.map((menu) => <NavLink key={menu.href} menu={menu} />)}
               <GroupTrigger label={t("nav.finance")} icon={BarChart3} items={FINANCE_MENUS} id="finance" />
-              {OWNER_TRAILING.map((menu) => <NavLink key={menu.href} menu={menu} />)}
               <GroupTrigger label={t("nav.more")} icon={Menu} items={moreMenus} id="more" />
             </>
           ) : (
@@ -518,10 +513,6 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
                       ))}
                     </div>
                   )}
-
-                  {OWNER_TRAILING.map((menu) => (
-                    <MobileLink key={menu.href} menu={menu} pathname={pathname} t={t} badge={badgeFor(menu.href)} onNavigate={() => { clearBadge(menu.href); setMobileOpen(false); }} />
-                  ))}
 
                   <button
                     type="button"
