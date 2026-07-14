@@ -114,21 +114,3 @@ export async function clearUserEmail(userId: string): Promise<void> {
     body: JSON.stringify({ email: `_deleted_${Date.now()}_${userId.slice(0, 8)}@removed.invalid` }),
   });
 }
-
-/**
- * Reject a shop application with a reason.
- * Marks the shop's description with rejection status — does NOT delete the user.
- * The applicant remains a CUSTOMER and can resubmit.
- */
-export async function rejectApplication(shopId: string, reason: string, currentDescription?: string): Promise<AdminShop> {
-  let obj: Record<string, unknown> = {};
-  try { if (currentDescription) obj = JSON.parse(currentDescription) as Record<string, unknown>; } catch { /* ignore */ }
-  obj._s = "REJECTED";
-  obj._r = reason || "Application did not meet requirements";
-  const newDesc = JSON.stringify(obj);
-  const res = await adminRequest(`/api/v1/admin/shops/${shopId}`, {
-    method: "PATCH",
-    body: JSON.stringify({ description: newDesc }),
-  });
-  return res?.data ?? ({ id: shopId, description: newDesc } as AdminShop);
-}

@@ -13,15 +13,11 @@ import { getUnreadNotifCount, openNotifStream } from "@/lib/notifications-api";
 import {
   Home, Package, Truck, ShoppingCart, BarChart3,
   Users, FileText, ChevronDown, ShieldCheck, Receipt,
-  Settings, LogOut, Globe, Store,
-  Bell, Menu, X,
+  Settings, LogOut, Globe,
+  Menu, X,
 } from "lucide-react";
 
 type NavItem = { key: string; href: string; icon: typeof Home };
-
-const CUSTOMER_MENUS: NavItem[] = [
-  { key: "nav.notifications", href: "/notifications", icon: Bell },
-];
 
 // Business-owner IA, flat and ordered by frequency of use: daily-use items
 // first (Dashboard/Inventory/Sales), then finance/operations, then documents.
@@ -54,7 +50,7 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
   const router     = useRouter();
   const { lang, setLang, t } = useLanguage();
   const { user, logout, ready } = useAuth();
-  const { shop, loading: shopLoading } = useShop();
+  const { shop } = useShop();
 
   const [menuOpen, setMenuOpen]         = useState(false);
   const [mobileOpen, setMobileOpen]     = useState(false);
@@ -150,24 +146,14 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
   const currentLang = LANGUAGES.find((l) => l.code === lang) ?? LANGUAGES[0];
   void currentLang;
 
-  // Wait for both auth (localStorage hydration) AND shop fetch before committing to a role.
-  // This prevents the flash where a shop owner briefly sees customer menus on hard refresh.
-  const isResolving = !ready || shopLoading;
-  const role        = isResolving ? null : getEffectiveRole(user ?? null, shop?.is_active === true);
+  // Wait for auth (localStorage hydration) before committing to a role.
+  const isResolving = !ready;
+  const role        = isResolving ? null : getEffectiveRole(user ?? null);
   const isAdmin     = role === "ADMIN";
-  const isShopOwner = role === "SHOP_OWNER";
-  const isCustomer  = role === "CUSTOMER";
-
-  const isBusinessNav = isAdmin || isShopOwner;
 
   // Regular business menus (everyone with dashboard access) vs. the
   // admin-only item, kept separate so the nav can render a divider between them.
   const businessMenus: NavItem[] = [...OWNER_PRIMARY, ...FINANCE_MENUS, ...DOCUMENT_MENUS];
-
-  // Flat list used for the mobile drawer and badge bookkeeping
-  const flatMenus: NavItem[] = isBusinessNav
-    ? (isAdmin ? [...businessMenus, ADMIN_ITEM] : businessMenus)
-    : CUSTOMER_MENUS;
 
   return (
     <>
@@ -199,7 +185,7 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
             Array.from({ length: 4 }).map((_, i) => (
               <div key={i} className="mx-1 my-auto h-8 w-16 flex-shrink-0 animate-pulse rounded-lg bg-slate-100" />
             ))
-          ) : isBusinessNav ? (
+          ) : (
             <>
               {businessMenus.map((menu) => (
                 <NavLink key={menu.href} menu={menu} pathname={pathname} t={t} badge={badgeFor(menu.href)} onNavigate={() => clearBadge(menu.href)} />
@@ -211,32 +197,11 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
                 </>
               )}
             </>
-          ) : (
-            CUSTOMER_MENUS.map((menu) => (
-              <NavLink key={menu.href} menu={menu} pathname={pathname} t={t} badge={badgeFor(menu.href)} onNavigate={() => clearBadge(menu.href)} />
-            ))
           )}
         </nav>
 
-        {/* ── RIGHT: CTA + account menu ── */}
+        {/* ── RIGHT: account menu ── */}
         <div className="flex items-center justify-end gap-2">
-
-          {/* "Create Shop" — only for CUSTOMER accounts (fully resolved) */}
-          {!loading && !isResolving && isCustomer && (
-            <Link
-              href="/apply-shop"
-              className="hidden shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl bg-orange-500 px-3 py-1.5 text-xs font-bold text-white transition hover:bg-orange-600 sm:flex"
-            >
-              <Store size={12} /> Create Shop
-            </Link>
-          )}
-
-          {/* Role badge for customers */}
-          {!loading && !isResolving && isCustomer && (
-            <span className="hidden shrink-0 items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700 md:flex">
-              Customer
-            </span>
-          )}
 
           <div ref={menuRef} className="relative">
 
@@ -286,15 +251,10 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
                             <span className="inline-block h-1.5 w-1.5 rounded-full bg-red-300" />
                             Admin
                           </span>
-                        ) : isShopOwner ? (
+                        ) : (
                           <span className="inline-flex items-center gap-1 rounded-full border border-green-400/30 bg-green-500/20 px-2 py-0.5 text-[10px] font-bold text-green-200">
                             <span className="inline-block h-1.5 w-1.5 rounded-full bg-green-300" />
                             Shop Owner
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 rounded-full border border-amber-400/30 bg-amber-500/20 px-2 py-0.5 text-[10px] font-semibold text-amber-200">
-                            <span className="inline-block h-1.5 w-1.5 rounded-full bg-amber-400" />
-                            Customer
                           </span>
                         )}
                       </div>
@@ -304,20 +264,6 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
 
                 {/* ── Options ── */}
                 <div className="p-2">
-
-                  {/* Create Shop — customer shortcut */}
-                  {isCustomer && (
-                    <Link href="/apply-shop" onClick={() => setMenuOpen(false)}
-                      className="group mb-1 flex items-center gap-3 rounded-xl px-3 py-2.5 transition hover:bg-orange-50">
-                      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-orange-50 text-orange-500 transition group-hover:bg-orange-100">
-                        <Store size={15} />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-sm font-semibold text-slate-700">Create a Shop</p>
-                        <p className="text-[10px] leading-snug text-slate-400">Apply for shop dashboard access</p>
-                      </div>
-                    </Link>
-                  )}
 
                   {/* Language */}
                   <div className="flex items-center gap-3 rounded-xl px-3 py-2.5 transition hover:bg-slate-50">
@@ -348,12 +294,8 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
                       <Settings size={15} />
                     </div>
                     <div className="min-w-0">
-                      <p className="text-sm font-medium text-slate-700">
-                        {isCustomer ? "Account & Profile" : "Settings"}
-                      </p>
-                      <p className="text-[10px] leading-snug text-slate-400">
-                        {isCustomer ? "Password and account preferences" : "Shop, profile & preferences"}
-                      </p>
+                      <p className="text-sm font-medium text-slate-700">Settings</p>
+                      <p className="text-[10px] leading-snug text-slate-400">Shop, profile & preferences</p>
                     </div>
                     <ChevronDown size={13} className="ml-auto shrink-0 -rotate-90 text-slate-300 transition group-hover:text-slate-400" />
                   </Link>
@@ -397,22 +339,14 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
             </div>
 
             <nav className="flex-1 space-y-1 p-3">
-              {isBusinessNav ? (
+              {businessMenus.map((menu) => (
+                <MobileLink key={menu.href} menu={menu} pathname={pathname} t={t} badge={badgeFor(menu.href)} onNavigate={() => { clearBadge(menu.href); setMobileOpen(false); }} />
+              ))}
+              {isAdmin && (
                 <>
-                  {businessMenus.map((menu) => (
-                    <MobileLink key={menu.href} menu={menu} pathname={pathname} t={t} badge={badgeFor(menu.href)} onNavigate={() => { clearBadge(menu.href); setMobileOpen(false); }} />
-                  ))}
-                  {isAdmin && (
-                    <>
-                      <div aria-hidden="true" className="my-2 border-t border-slate-100" />
-                      <MobileLink menu={ADMIN_ITEM} pathname={pathname} t={t} badge={badgeFor(ADMIN_ITEM.href)} onNavigate={() => { clearBadge(ADMIN_ITEM.href); setMobileOpen(false); }} />
-                    </>
-                  )}
+                  <div aria-hidden="true" className="my-2 border-t border-slate-100" />
+                  <MobileLink menu={ADMIN_ITEM} pathname={pathname} t={t} badge={badgeFor(ADMIN_ITEM.href)} onNavigate={() => { clearBadge(ADMIN_ITEM.href); setMobileOpen(false); }} />
                 </>
-              ) : (
-                flatMenus.map((menu) => (
-                  <MobileLink key={menu.href} menu={menu} pathname={pathname} t={t} badge={badgeFor(menu.href)} onNavigate={() => { clearBadge(menu.href); setMobileOpen(false); }} />
-                ))
               )}
             </nav>
           </div>

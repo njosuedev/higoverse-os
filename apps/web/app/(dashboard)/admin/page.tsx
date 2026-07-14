@@ -5,25 +5,25 @@ import { useAuth } from "@/lib/auth-context";
 import { useRouter } from "next/navigation";
 import {
   getAdminStats, getAdminShops, getAdminUsers,
-  toggleShop, deleteShop, toggleUser, updateUserRole, deleteUser, rejectApplication,
+  toggleShop, deleteShop, toggleUser, updateUserRole, deleteUser,
   type AdminStats, type AdminShop, type AdminUser,
 } from "@/lib/admin-api";
-import { decodeShopHumanInfo, parseShopAddress } from "@/lib/product-meta";
+import { decodeShopHumanInfo } from "@/lib/product-meta";
 import {
   PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis,
   Tooltip, ResponsiveContainer,
 } from "recharts";
 import {
-  ShieldCheck, Users, Store, AlertTriangle, Trash2,
+  ShieldCheck, Store, AlertTriangle, Trash2,
   ToggleLeft, ToggleRight, RefreshCw, ChevronDown,
   UserCog, Search, Mail, Phone, MapPin, Eye, EyeOff,
-  CheckCircle, XCircle, ClipboardList, BadgeCheck,
-  Building2, CreditCard, Clock, UserX, ShieldX,
+  CheckCircle, XCircle,
+  UserX,
   Receipt, Pencil, X, ChevronLeft,
 } from "lucide-react";
 import { expenseRequest } from "@/lib/expense-api";
 
-type Tab = "overview" | "applications" | "shops" | "users" | "expenses";
+type Tab = "overview" | "shops" | "users" | "expenses";
 type ShopSort = "newest" | "lastActive" | "name" | "users";
 
 const LI_BLUE  = "#1372e6";
@@ -82,26 +82,6 @@ function joinedThisWeek(s: string | null) {
   return !!s && (Date.now() - parseUTC(s).getTime()) < 7 * 86_400_000;
 }
 
-// ── Parse shop application fields ─────────────────────────────────────────────
-function parseApplication(shop: AdminShop) {
-  const addr = parseShopAddress(shop.address);
-  const { type: bizType = "", desc: bizDesc = "", ownerName = "", email: bizEmail = "", status } = decodeShopHumanInfo(shop.description);
-  const location = [addr.province, addr.district, addr.sector].filter(Boolean).join(" › ");
-  return { tin: addr.tin, district: addr.district, province: addr.province, sector: addr.sector, streetAddr: addr.addr, location, bizType, bizDesc, ownerName, bizEmail, status };
-}
-
-// ── Is this a submitted (pending) application? Excludes already-rejected ones.
-function isApplication(shop: AdminShop) {
-  if (shop.is_active) return false;
-  const { status } = decodeShopHumanInfo(shop.description);
-  if (status === "REJECTED") return false;
-  return (
-    (shop.address && shop.address.length > 0) ||
-    (shop.phone && shop.phone.length > 0) ||
-    (shop.description && shop.description.length > 0 && shop.description !== "{}")
-  );
-}
-
 // ── Donut chart ───────────────────────────────────────────────────────────────
 function DonutChart({ data, total, label }: { data: { name: string; value: number; fill: string }[]; total: number; label: string }) {
   return (
@@ -131,12 +111,6 @@ interface ConfirmState {
   shopId?: string;    // shop to co-delete when removing a user
 }
 
-interface RejectModalState {
-  shopId: string;
-  shopName: string;
-  description?: string;
-}
-
 // ── Component ─────────────────────────────────────────────────────────────────
 export default function AdminPage() {
   const { user, ready } = useAuth();
@@ -151,8 +125,6 @@ export default function AdminPage() {
   const [actionId, setActionId]           = useState<string | null>(null);
   const [error, setError]                 = useState<string | null>(null);
   const [confirm, setConfirm]             = useState<ConfirmState | null>(null);
-  const [rejectModal, setRejectModal]     = useState<RejectModalState | null>(null);
-  const [rejectReason, setRejectReason]   = useState("");
   const [roleEdit, setRoleEdit]           = useState<{ id: string; role: string } | null>(null);
   const [shopSearch, setShopSearch]       = useState("");
   const [shopFilter, setShopFilter]       = useState<"all" | "active" | "inactive">("all");
@@ -160,7 +132,6 @@ export default function AdminPage() {
   const [userSearch, setUserSearch]       = useState("");
   const [userRoleFilter, setUserRoleFilter] = useState<"all" | "admin" | "owner" | "staff">("all");
   const [expandedShop, setExpandedShop]   = useState<string | null>(null);
-  const [appSearch, setAppSearch]         = useState("");
   const [lastUpdated, setLastUpdated]     = useState<Date | null>(null);
 
   // Expenses tab state
@@ -225,7 +196,6 @@ export default function AdminPage() {
     return shops.filter((s) => s.owner_email === null || userEmails.has(s.owner_email));
   }, [shops, users]);
 
-  const applications = useMemo(() => visibleShops.filter(isApplication), [visibleShops]);
   const activeShops  = useMemo(() => visibleShops.filter((s) => s.is_active), [visibleShops]);
 
   const onlineNow   = activeShops.filter((s) => isOnline(s.last_seen_at)).length;
@@ -268,15 +238,6 @@ export default function AdminPage() {
       const updated = await toggleShop(id);
       setShops((p) => p.map((s) => s.id === id ? updated : s));
     } catch (e: unknown) { setError(e instanceof Error ? e.message : "Failed"); }
-    finally { setActionId(null); }
-  };
-
-  const handleApproveShop = async (id: string) => {
-    setActionId(id);
-    try {
-      const updated = await toggleShop(id);
-      setShops((p) => p.map((s) => s.id === id ? updated : s));
-    } catch (e: unknown) { setError(e instanceof Error ? e.message : "Failed to approve"); }
     finally { setActionId(null); }
   };
 
@@ -353,16 +314,6 @@ export default function AdminPage() {
       setRoleEdit(null);
     } catch (e: unknown) { setError(e instanceof Error ? e.message : "Failed"); }
     finally { setActionId(null); }
-  };
-
-  const handleRejectApplication = async () => {
-    if (!rejectModal) return;
-    setActionId(rejectModal.shopId);
-    try {
-      const updated = await rejectApplication(rejectModal.shopId, rejectReason || "Application did not meet requirements", rejectModal.description);
-      setShops((p) => p.map((s) => s.id === rejectModal.shopId ? { ...s, description: updated.description } : s));
-    } catch (e: unknown) { setError(e instanceof Error ? e.message : "Failed to reject"); }
-    finally { setActionId(null); setRejectModal(null); setRejectReason(""); }
   };
 
   // ── Admin expense helpers ─────────────────────────────────────────────────
@@ -461,16 +412,8 @@ export default function AdminPage() {
       return u.email?.toLowerCase().includes(q) || u.shop_name?.toLowerCase().includes(q);
     });
 
-  const filteredApplications = applications.filter((s) => {
-    if (!appSearch) return true;
-    const q = appSearch.toLowerCase();
-    return s.name?.toLowerCase().includes(q) || s.owner_email?.toLowerCase().includes(q) ||
-           s.phone?.includes(q) || s.address?.toLowerCase().includes(q);
-  }).sort((a, b) => parseUTC(b.created_at).getTime() - parseUTC(a.created_at).getTime());
-
   const TABS: { key: Tab; label: string; count?: number; urgent?: boolean }[] = [
     { key: "overview",      label: "Overview" },
-    { key: "applications",  label: "Applications", count: applications.length, urgent: applications.length > 0 },
     { key: "shops",         label: "Active Shops",  count: activeShops.length },
     { key: "users",         label: "Users",         count: users.length },
     { key: "expenses",      label: "Shop Expenses" },
@@ -493,14 +436,6 @@ export default function AdminPage() {
             </div>
           </div>
           <div className="flex items-center gap-3">
-            {applications.length > 0 && (
-              <button onClick={() => setTab("applications")}
-                className="flex items-center gap-2 text-xs px-3 py-1.5 rounded-full font-semibold text-white animate-pulse"
-                style={{ background: "#fa8c16" }}>
-                <ClipboardList size={12} />
-                {applications.length} pending review{applications.length !== 1 ? "s" : ""}
-              </button>
-            )}
             <div className="text-xs text-gray-400 flex items-center gap-1.5">
               <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
               {refreshing ? "Updating…" : `Refreshes in ${countdown}s`}
@@ -557,29 +492,10 @@ export default function AdminPage() {
             ) : stats ? (
               <>
                 {/* Pending applications callout */}
-                {applications.length > 0 && (
-                  <div className="flex items-center gap-3 p-4 bg-amber-50 border border-amber-200 rounded-xl">
-                    <ClipboardList size={18} className="text-amber-600 shrink-0" />
-                    <div className="flex-1">
-                      <p className="font-semibold text-amber-800 text-sm">
-                        {applications.length} shop application{applications.length !== 1 ? "s" : ""} waiting for your review
-                      </p>
-                      <p className="text-xs text-amber-700 mt-0.5">
-                        Review each submission&apos;s TIN, business type, and details before approving shop dashboard access.
-                      </p>
-                    </div>
-                    <button onClick={() => setTab("applications")}
-                      className="px-4 py-2 rounded-lg text-sm font-bold text-white shrink-0 transition hover:opacity-90"
-                      style={{ background: "#fa8c16" }}>
-                      Review Now
-                    </button>
-                  </div>
-                )}
-
                 {/* KPI row */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   {[
-                    { label: "Active Shops",  value: stats.active_shops,   sub: `${applications.length} pending review`, color: LI_BLUE  },
+                    { label: "Active Shops",  value: stats.active_shops,   sub: `${stats.inactive_shops} inactive`,        color: LI_BLUE  },
                     { label: "Total Users",   value: stats.total_users,    sub: `${stats.active_users} active`,           color: LI_BLUE  },
                     { label: "Online Now",    value: onlineNow,            sub: "shops live",                             color: "#057642" },
                     { label: "New This Week", value: newThisWeek,          sub: "new shops joined",                       color: LI_BLUE  },
@@ -703,173 +619,6 @@ export default function AdminPage() {
                 </div>
               </>
             ) : null}
-          </div>
-        )}
-
-        {/* ══ APPLICATIONS ════════════════════════════════════════════════════ */}
-        {tab === "applications" && (
-          <div className="space-y-4">
-
-            {/* Header */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 px-5 py-4">
-              <div className="flex items-center justify-between gap-3 flex-wrap">
-                <div>
-                  <h2 className="font-semibold text-gray-900 text-sm flex items-center gap-2">
-                    <ClipboardList size={15} style={{ color: "#fa8c16" }} />
-                    Shop Applications — Pending Review
-                  </h2>
-                  <p className="text-xs text-gray-400 mt-0.5">
-                    Each applicant has submitted their TIN and business details. Review carefully before granting shop dashboard access.
-                  </p>
-                </div>
-                <div className="relative">
-                  <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
-                  <input value={appSearch} onChange={(e) => setAppSearch(e.target.value)}
-                    placeholder="Search applications…"
-                    className="pl-7 pr-3 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-100 w-48" />
-                </div>
-              </div>
-            </div>
-
-            {loading ? (
-              <div className="space-y-3">
-                {Array.from({ length: 3 }).map((_, i) => (
-                  <div key={i} className="h-40 bg-white rounded-xl animate-pulse border border-gray-200" />
-                ))}
-              </div>
-            ) : filteredApplications.length === 0 ? (
-              <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
-                <CheckCircle size={36} className="text-green-400 mx-auto mb-3" />
-                <p className="font-semibold text-gray-600 text-sm">No pending applications</p>
-                <p className="text-gray-400 text-xs mt-1">All submissions have been reviewed. New applications will appear here.</p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {filteredApplications.map((shop) => {
-                  const { tin, location, bizType, bizDesc, ownerName, bizEmail, streetAddr } = parseApplication(shop);
-                  const busy = actionId === shop.id;
-                  const ownerUser = users.find((u) => u.shop_id === shop.id || u.email === shop.owner_email);
-                  return (
-                    <div key={shop.id} className="bg-white rounded-xl border border-amber-200 shadow-sm overflow-hidden">
-                      {/* Status bar */}
-                      <div className="flex items-center gap-2 px-5 py-2 text-xs font-semibold" style={{ background: "#fff7e6", color: "#fa8c16", borderBottom: "1px solid #fde8bd" }}>
-                        <Clock size={11} />
-                        Submitted {timeAgo(shop.created_at)} · Waiting for admin review
-                      </div>
-
-                      <div className="p-5">
-                        <div className="flex gap-4 flex-wrap">
-                          {/* Logo */}
-                          <div className="w-16 h-16 rounded-xl overflow-hidden flex items-center justify-center font-bold text-2xl text-white shrink-0"
-                            style={{ background: shop.logo_url ? "transparent" : LI_BLUE }}>
-                            {shop.logo_url
-                              // eslint-disable-next-line @next/next/no-img-element
-                              ? <img src={shop.logo_url} alt={shop.name} className="w-16 h-16 object-cover" />
-                              : (shop.name ?? "?")[0].toUpperCase()}
-                          </div>
-
-                          {/* Details */}
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-start justify-between gap-3 flex-wrap">
-                              <div>
-                                <h3 className="font-bold text-gray-900 text-base">{shop.name}</h3>
-                                {shop.owner_email && (
-                                  <p className="text-xs text-gray-500 flex items-center gap-1 mt-0.5">
-                                    <Mail size={10} /> {shop.owner_email}
-                                  </p>
-                                )}
-                              </div>
-                              {/* Actions */}
-                              <div className="flex items-center gap-2 shrink-0">
-                                <button
-                                  onClick={() => handleApproveShop(shop.id)}
-                                  disabled={busy}
-                                  className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold text-white transition disabled:opacity-40 hover:opacity-90"
-                                  style={{ background: "#389e0d" }}>
-                                  {busy ? "Approving…" : <><BadgeCheck size={14} /> Approve Shop</>}
-                                </button>
-                                <button
-                                  onClick={() => { setRejectReason(""); setRejectModal({ shopId: shop.id, shopName: shop.name ?? "this application", description: shop.description }); }}
-                                  disabled={busy}
-                                  className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold border border-red-200 text-red-500 hover:bg-red-50 transition disabled:opacity-40">
-                                  <ShieldX size={13} /> Reject
-                                </button>
-                              </div>
-                            </div>
-
-                            {/* Application fields */}
-                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mt-4">
-                              <div className="bg-gray-50 rounded-lg p-3 border border-gray-100">
-                                <p className="text-[9px] uppercase tracking-wider text-gray-400 font-semibold flex items-center gap-1 mb-1">
-                                  <CreditCard size={9} /> TIN / Tax ID
-                                </p>
-                                <p className="text-sm font-bold text-gray-900 font-mono">{tin || <span className="text-gray-300 font-normal font-sans">Not provided</span>}</p>
-                              </div>
-                              <div className="bg-gray-50 rounded-lg p-3 border border-gray-100">
-                                <p className="text-[9px] uppercase tracking-wider text-gray-400 font-semibold flex items-center gap-1 mb-1">
-                                  <Building2 size={9} /> Business Type
-                                </p>
-                                <p className="text-sm font-bold text-gray-900 capitalize">{bizType || <span className="text-gray-300 font-normal">—</span>}</p>
-                              </div>
-                              <div className="bg-gray-50 rounded-lg p-3 border border-gray-100">
-                                <p className="text-[9px] uppercase tracking-wider text-gray-400 font-semibold flex items-center gap-1 mb-1">
-                                  <Phone size={9} /> Phone
-                                </p>
-                                <p className="text-sm font-bold text-gray-900">{shop.phone || <span className="text-gray-300 font-normal">—</span>}</p>
-                              </div>
-                              {ownerName && (
-                                <div className="bg-gray-50 rounded-lg p-3 border border-gray-100">
-                                  <p className="text-[9px] uppercase tracking-wider text-gray-400 font-semibold flex items-center gap-1 mb-1">
-                                    <Users size={9} /> Owner Name
-                                  </p>
-                                  <p className="text-sm font-bold text-gray-900">{ownerName}</p>
-                                </div>
-                              )}
-                              {bizEmail && (
-                                <div className="bg-gray-50 rounded-lg p-3 border border-gray-100">
-                                  <p className="text-[9px] uppercase tracking-wider text-gray-400 font-semibold flex items-center gap-1 mb-1">
-                                    <Mail size={9} /> Business Email
-                                  </p>
-                                  <p className="text-xs font-bold text-gray-900 truncate">{bizEmail}</p>
-                                </div>
-                              )}
-                              <div className="bg-gray-50 rounded-lg p-3 border border-gray-100">
-                                <p className="text-[9px] uppercase tracking-wider text-gray-400 font-semibold flex items-center gap-1 mb-1">
-                                  <MapPin size={9} /> Location
-                                </p>
-                                <p className="text-xs font-bold text-gray-900">{location || <span className="text-gray-300 font-normal">—</span>}</p>
-                                {streetAddr && <p className="text-[10px] text-gray-500 mt-0.5">{streetAddr}</p>}
-                              </div>
-                            </div>
-
-                            {bizDesc && (
-                              <div className="mt-3 p-3 bg-blue-50 border border-blue-100 rounded-lg">
-                                <p className="text-[9px] uppercase tracking-wider text-blue-400 font-semibold mb-1">Business Description</p>
-                                <p className="text-xs text-gray-700 leading-relaxed">{bizDesc}</p>
-                              </div>
-                            )}
-
-                            {/* Owner account info */}
-                            {ownerUser && (
-                              <div className="mt-3 flex items-center gap-2 p-2 bg-gray-50 rounded-lg border border-gray-100">
-                                <div className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0" style={{ background: LI_BLUE }}>
-                                  {ownerUser.email[0].toUpperCase()}
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                  <p className="text-xs text-gray-700 font-medium truncate">{ownerUser.email}</p>
-                                  <p className="text-[9px] text-gray-400">Account registered {fmtDate(ownerUser.created_at)}</p>
-                                </div>
-                                <span className="text-[9px] text-gray-400 capitalize shrink-0">{ownerUser.role}</span>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
           </div>
         )}
 
@@ -1497,50 +1246,6 @@ export default function AdminPage() {
                 className="px-3 py-1 rounded-md text-[11px] font-semibold text-white transition disabled:opacity-60 hover:opacity-90"
                 style={{ background: LI_BLUE }}>
                 {editSaving ? "Saving…" : "Save Changes"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── REJECT APPLICATION MODAL ──────────────────────────────────────────── */}
-      {rejectModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
-            <div className="flex items-center gap-3 px-5 pt-5 pb-4 border-b border-gray-100">
-              <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center shrink-0">
-                <ShieldX size={18} className="text-red-600" />
-              </div>
-              <div>
-                <h3 className="font-bold text-gray-900 text-sm">Reject Application</h3>
-                <p className="text-xs text-gray-400 mt-0.5">&ldquo;{rejectModal.shopName}&rdquo;</p>
-              </div>
-            </div>
-            <div className="px-5 py-4 space-y-3">
-              <p className="text-xs text-gray-500">
-                The applicant will stay registered as a <strong>Customer</strong> and can edit their application and resubmit. Your reason will be shown to them.
-              </p>
-              <div>
-                <label className="block text-xs font-semibold text-gray-600 mb-1.5">Rejection reason <span className="text-gray-400 font-normal">(recommended)</span></label>
-                <textarea
-                  value={rejectReason}
-                  onChange={(e) => setRejectReason(e.target.value)}
-                  rows={3}
-                  placeholder="e.g. TIN number could not be verified. Please double-check and resubmit."
-                  className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm resize-none outline-none focus:border-red-300 font-inherit"
-                  style={{ fontFamily: "inherit" }}
-                />
-              </div>
-            </div>
-            <div className="flex gap-2.5 px-5 pb-5">
-              <button onClick={() => setRejectModal(null)}
-                className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition">
-                Cancel
-              </button>
-              <button onClick={handleRejectApplication} disabled={!!actionId}
-                className="flex-1 py-2.5 rounded-xl text-sm font-bold text-white flex items-center justify-center gap-2 transition disabled:opacity-50"
-                style={{ background: "#dc2626" }}>
-                {actionId ? "Rejecting…" : <><ShieldX size={13} /> Send Rejection</>}
               </button>
             </div>
           </div>

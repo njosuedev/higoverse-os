@@ -6,14 +6,14 @@ export interface User {
   name?: string;
 }
 
-export type AppRole = "CUSTOMER" | "SHOP_OWNER" | "ADMIN";
+export type AppRole = "GUEST" | "SHOP_OWNER" | "ADMIN";
 
-/** Derive the effective app role from user + shop activation state. */
-export function getEffectiveRole(user: User | null, shopIsActive: boolean): AppRole {
-  if (!user) return "CUSTOMER";
+/** Derive the effective app role from the logged-in user. Every authenticated
+ *  user gets full dashboard access — there is no shop-application approval gate. */
+export function getEffectiveRole(user: User | null): AppRole {
+  if (!user) return "GUEST";
   if (user.role === "admin") return "ADMIN";
-  if (shopIsActive) return "SHOP_OWNER";
-  return "CUSTOMER";
+  return "SHOP_OWNER";
 }
 
 const TOKEN_KEY = "token";

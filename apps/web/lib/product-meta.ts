@@ -24,32 +24,6 @@ export function decodeShopHumanInfo(
   return { desc: description };
 }
 
-/** Build a shop description JSON string from application fields. */
-export function encodeShopDescription(data: {
-  type?: string;
-  desc?: string;
-  ownerName?: string;
-  email?: string;
-  bannerUrl?: string;
-}): string {
-  const obj: Record<string, unknown> = {};
-  if (data.type) obj._t = data.type;
-  if (data.desc) obj._d = data.desc;
-  if (data.ownerName) obj._owner = data.ownerName;
-  if (data.email) obj._email = data.email;
-  if (data.bannerUrl) obj._banner = data.bannerUrl;
-  return JSON.stringify(obj);
-}
-
-/** Add rejection status to an existing description JSON string. */
-export function addRejectionToDescription(description: string | undefined | null, reason: string): string {
-  let obj: Record<string, unknown> = {};
-  try { if (description) obj = JSON.parse(description) as Record<string, unknown>; } catch { /* ignore */ }
-  obj._s = "REJECTED";
-  obj._r = reason;
-  return JSON.stringify(obj);
-}
-
 /** Parse the address field: "TIN:xxx|Province:yyy|District:zzz|Sector:aaa|Addr:bbb|Lat:x|Lng:y" */
 export function parseShopAddress(address: string | undefined | null): {
   tin: string; province: string; district: string; sector: string; addr: string;
@@ -126,58 +100,3 @@ export function formatShortAddress(address: string | undefined | null): string {
   return filtered.slice(mid, mid + 2).join(", ");
 }
 
-/** Build the address field from application components. */
-export function encodeShopAddress(data: {
-  tin: string; province?: string; district: string; sector?: string; addr?: string;
-  lat?: number | null; lng?: number | null;
-}): string {
-  let address = `TIN:${data.tin}`;
-  if (data.province) address += `|Province:${data.province}`;
-  if (data.district) address += `|District:${data.district}`;
-  if (data.sector) address += `|Sector:${data.sector}`;
-  if (data.addr) address += `|Addr:${data.addr}`;
-  if (data.lat != null) address += `|Lat:${data.lat.toFixed(6)}`;
-  if (data.lng != null) address += `|Lng:${data.lng.toFixed(6)}`;
-  return address;
-}
-
-/** Determine application status from shop fields. */
-export function getApplicationStatus(
-  description: string | undefined | null,
-  address: string | undefined | null,
-  isActive: boolean,
-): "NONE" | "PENDING" | "REJECTED" | "ACTIVE" {
-  if (isActive) return "ACTIVE";
-  const info = decodeShopHumanInfo(description);
-  if (info.status === "REJECTED") return "REJECTED";
-  if (address?.startsWith("TIN:")) return "PENDING";
-  if ((description && description !== "{}") || address) return "PENDING";
-  return "NONE";
-}
-
-// ── image compression ──────────────────────────────────────────────────────
-export async function compressImage(
-  file: File,
-  maxPx = 700,
-  quality = 0.65,
-): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    const objectUrl = URL.createObjectURL(file);
-    img.onload = () => {
-      URL.revokeObjectURL(objectUrl);
-      const scale = Math.min(1, maxPx / Math.max(img.width, img.height));
-      const w = Math.round(img.width * scale);
-      const h = Math.round(img.height * scale);
-      const canvas = document.createElement("canvas");
-      canvas.width = w;
-      canvas.height = h;
-      const ctx = canvas.getContext("2d");
-      if (!ctx) { reject(new Error("canvas")); return; }
-      ctx.drawImage(img, 0, 0, w, h);
-      resolve(canvas.toDataURL("image/webp", quality));
-    };
-    img.onerror = reject;
-    img.src = objectUrl;
-  });
-}
