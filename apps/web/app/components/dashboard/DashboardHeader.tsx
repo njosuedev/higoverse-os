@@ -23,7 +23,11 @@ const CUSTOMER_MENUS: NavItem[] = [
   { key: "nav.notifications", href: "/notifications", icon: Bell },
 ];
 
-// Business-owner IA: Dashboard, Inventory, Sales, Finance▾, More▾
+// Business-owner IA, flat and ordered by frequency of use: daily-use items
+// first (Dashboard/Inventory/Sales), then finance/operations, then documents.
+// Settings lives in the account menu only, not the primary nav. Admin is
+// visually separated (see the divider in the render below) since it's a
+// distinct, privileged section rather than a regular business menu.
 const OWNER_PRIMARY: NavItem[] = [
   { key: "nav.dashboard", href: "/dashboard", icon: Home         },
   { key: "nav.inventory", href: "/items",     icon: Package      },
@@ -35,9 +39,8 @@ const FINANCE_MENUS: NavItem[] = [
   { key: "nav.reports",   href: "/reports",   icon: BarChart3 },
   { key: "nav.partners",  href: "/partners",  icon: Users     },
 ];
-const MORE_MENUS_BASE: NavItem[] = [
+const DOCUMENT_MENUS: NavItem[] = [
   { key: "nav.proforma", href: "/proforma", icon: FileText },
-  { key: "nav.settings", href: "/settings", icon: Settings },
 ];
 const ADMIN_ITEM: NavItem = { key: "nav.admin", href: "/admin", icon: ShieldCheck };
 
@@ -54,13 +57,9 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
   const { shop, loading: shopLoading } = useShop();
 
   const [menuOpen, setMenuOpen]         = useState(false);
-  const [openDropdown, setOpenDropdown] = useState<"finance" | "more" | null>(null);
   const [mobileOpen, setMobileOpen]     = useState(false);
-  const [mobileFinanceOpen, setMobileFinanceOpen] = useState(false);
-  const [mobileMoreOpen, setMobileMoreOpen]       = useState(false);
   const [unreadNotifs, setUnreadNotifs] = useState(0);
   const menuRef = useRef<HTMLDivElement>(null);
-  const navRef  = useRef<HTMLDivElement>(null);
 
   // ── Sounds ─────────────────────────────────────────────────────────────────
   function playNotifSound() {
@@ -119,7 +118,6 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
   useEffect(() => {
     function onOutside(e: MouseEvent) {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
-      if (navRef.current && !navRef.current.contains(e.target as Node)) setOpenDropdown(null);
     }
     document.addEventListener("mousedown", onOutside);
     return () => document.removeEventListener("mousedown", onOutside);
@@ -127,7 +125,6 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
 
   // Close transient UI whenever the route changes
   useEffect(() => {
-    setOpenDropdown(null);
     setMobileOpen(false);
   }, [pathname]);
 
@@ -162,114 +159,15 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
   const isCustomer  = role === "CUSTOMER";
 
   const isBusinessNav = isAdmin || isShopOwner;
-  const moreMenus = isAdmin ? [...MORE_MENUS_BASE, ADMIN_ITEM] : MORE_MENUS_BASE;
+
+  // Regular business menus (everyone with dashboard access) vs. the
+  // admin-only item, kept separate so the nav can render a divider between them.
+  const businessMenus: NavItem[] = [...OWNER_PRIMARY, ...FINANCE_MENUS, ...DOCUMENT_MENUS];
 
   // Flat list used for the mobile drawer and badge bookkeeping
   const flatMenus: NavItem[] = isBusinessNav
-    ? [...OWNER_PRIMARY, ...FINANCE_MENUS, ...moreMenus]
+    ? (isAdmin ? [...businessMenus, ADMIN_ITEM] : businessMenus)
     : CUSTOMER_MENUS;
-
-  function NavLink({ menu, compact = false }: { menu: NavItem; compact?: boolean }) {
-    const Icon = menu.icon;
-    const active = isActiveHref(pathname, menu.href);
-    const isAdminItem = menu.href === "/admin";
-    const indicatorColor = isAdminItem ? "bg-red-500" : "bg-blue-600";
-    const activeText = isAdminItem ? "text-red-600" : "text-blue-600";
-    const idleText = "text-slate-600 hover:text-slate-900 hover:bg-slate-50";
-    const badge = badgeFor(menu.href);
-
-    return (
-      <Link
-        href={menu.href}
-        onClick={() => clearBadge(menu.href)}
-        className={`relative flex flex-shrink-0 flex-col items-center justify-center gap-0.5 px-3 py-1.5 transition-colors ${
-          compact ? "" : "min-w-[56px] lg:px-4"
-        } ${active ? activeText : idleText}`}
-      >
-        <span className="relative">
-          <Icon size={20} strokeWidth={active ? 2.5 : 1.8} />
-          {badge > 0 && (
-            <span className="absolute -top-1 -right-1.5 flex h-[14px] min-w-[14px] items-center justify-center rounded-full bg-red-500 px-0.5 text-[9px] font-black leading-none text-white">
-              {badge > 99 ? "99+" : badge}
-            </span>
-          )}
-        </span>
-        <span className="hidden text-[10px] font-semibold leading-none md:block">{t(menu.key)}</span>
-        {active && <span className={`absolute bottom-0 left-1.5 right-1.5 h-[3px] rounded-t-full ${indicatorColor}`} />}
-      </Link>
-    );
-  }
-
-  function GroupTrigger({
-    label,
-    icon: Icon,
-    items,
-    id,
-  }: {
-    label: string;
-    icon: typeof Home;
-    items: NavItem[];
-    id: "finance" | "more";
-  }) {
-    const active = items.some((m) => isActiveHref(pathname, m.href));
-    const open = openDropdown === id;
-    const totalBadge = items.reduce((sum, m) => sum + badgeFor(m.href), 0);
-
-    return (
-      <div className="relative flex-shrink-0">
-        <button
-          type="button"
-          onClick={() => setOpenDropdown((cur) => (cur === id ? null : id))}
-          className={`relative flex h-full flex-col items-center justify-center gap-0.5 px-3 py-1.5 transition-colors lg:px-4 ${
-            active ? "text-blue-600" : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
-          }`}
-        >
-          <span className="relative flex items-center gap-0.5">
-            <Icon size={20} strokeWidth={active ? 2.5 : 1.8} />
-            <ChevronDown size={12} className={`transition-transform ${open ? "rotate-180" : ""}`} />
-            {totalBadge > 0 && (
-              <span className="absolute -top-1.5 -right-1 flex h-[14px] min-w-[14px] items-center justify-center rounded-full bg-red-500 px-0.5 text-[9px] font-black leading-none text-white">
-                {totalBadge > 99 ? "99+" : totalBadge}
-              </span>
-            )}
-          </span>
-          <span className="hidden text-[10px] font-semibold leading-none md:block">{label}</span>
-          {active && <span className="absolute bottom-0 left-1.5 right-1.5 h-[3px] rounded-t-full bg-blue-600" />}
-        </button>
-
-        {open && (
-          <div className="absolute left-1/2 top-full mt-2 w-52 -translate-x-1/2 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-2xl z-50">
-            {items.map((menu) => {
-              const Icon2 = menu.icon;
-              const itemActive = isActiveHref(pathname, menu.href);
-              const badge = badgeFor(menu.href);
-              return (
-                <Link
-                  key={menu.href}
-                  href={menu.href}
-                  onClick={() => {
-                    clearBadge(menu.href);
-                    setOpenDropdown(null);
-                  }}
-                  className={`flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-medium transition ${
-                    itemActive ? "bg-blue-50 text-blue-700" : "text-slate-600 hover:bg-slate-50"
-                  }`}
-                >
-                  <Icon2 size={16} />
-                  <span className="flex-1">{t(menu.key)}</span>
-                  {badge > 0 && (
-                    <span className="flex h-[16px] min-w-[16px] items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-black leading-none text-white">
-                      {badge > 99 ? "99+" : badge}
-                    </span>
-                  )}
-                </Link>
-              );
-            })}
-          </div>
-        )}
-      </div>
-    );
-  }
 
   return (
     <>
@@ -296,19 +194,27 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
         </div>
 
         {/* ── CENTER: Nav (desktop) ── */}
-        <nav ref={navRef} className="hidden flex-1 items-stretch justify-center md:flex">
+        <nav className="hidden flex-1 items-stretch justify-center md:flex">
           {(loading || isResolving) ? (
             Array.from({ length: 4 }).map((_, i) => (
               <div key={i} className="mx-1 my-auto h-8 w-16 flex-shrink-0 animate-pulse rounded-lg bg-slate-100" />
             ))
           ) : isBusinessNav ? (
             <>
-              {OWNER_PRIMARY.map((menu) => <NavLink key={menu.href} menu={menu} />)}
-              <GroupTrigger label={t("nav.finance")} icon={BarChart3} items={FINANCE_MENUS} id="finance" />
-              <GroupTrigger label={t("nav.more")} icon={Menu} items={moreMenus} id="more" />
+              {businessMenus.map((menu) => (
+                <NavLink key={menu.href} menu={menu} pathname={pathname} t={t} badge={badgeFor(menu.href)} onNavigate={() => clearBadge(menu.href)} />
+              ))}
+              {isAdmin && (
+                <>
+                  <div aria-hidden="true" className="mx-1 my-auto h-6 w-px flex-shrink-0 bg-slate-200" />
+                  <NavLink menu={ADMIN_ITEM} pathname={pathname} t={t} badge={badgeFor(ADMIN_ITEM.href)} onNavigate={() => clearBadge(ADMIN_ITEM.href)} />
+                </>
+              )}
             </>
           ) : (
-            CUSTOMER_MENUS.map((menu) => <NavLink key={menu.href} menu={menu} />)
+            CUSTOMER_MENUS.map((menu) => (
+              <NavLink key={menu.href} menu={menu} pathname={pathname} t={t} badge={badgeFor(menu.href)} onNavigate={() => clearBadge(menu.href)} />
+            ))
           )}
         </nav>
 
@@ -493,42 +399,14 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
             <nav className="flex-1 space-y-1 p-3">
               {isBusinessNav ? (
                 <>
-                  {OWNER_PRIMARY.map((menu) => (
+                  {businessMenus.map((menu) => (
                     <MobileLink key={menu.href} menu={menu} pathname={pathname} t={t} badge={badgeFor(menu.href)} onNavigate={() => { clearBadge(menu.href); setMobileOpen(false); }} />
                   ))}
-
-                  <button
-                    type="button"
-                    onClick={() => setMobileFinanceOpen((o) => !o)}
-                    className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50"
-                  >
-                    <BarChart3 size={18} />
-                    <span className="flex-1 text-left">{t("nav.finance")}</span>
-                    <ChevronDown size={14} className={`transition-transform ${mobileFinanceOpen ? "rotate-180" : ""}`} />
-                  </button>
-                  {mobileFinanceOpen && (
-                    <div className="ml-4 space-y-1 border-l border-slate-100 pl-3">
-                      {FINANCE_MENUS.map((menu) => (
-                        <MobileLink key={menu.href} menu={menu} pathname={pathname} t={t} badge={badgeFor(menu.href)} onNavigate={() => { clearBadge(menu.href); setMobileOpen(false); }} />
-                      ))}
-                    </div>
-                  )}
-
-                  <button
-                    type="button"
-                    onClick={() => setMobileMoreOpen((o) => !o)}
-                    className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50"
-                  >
-                    <Menu size={18} />
-                    <span className="flex-1 text-left">{t("nav.more")}</span>
-                    <ChevronDown size={14} className={`transition-transform ${mobileMoreOpen ? "rotate-180" : ""}`} />
-                  </button>
-                  {mobileMoreOpen && (
-                    <div className="ml-4 space-y-1 border-l border-slate-100 pl-3">
-                      {moreMenus.map((menu) => (
-                        <MobileLink key={menu.href} menu={menu} pathname={pathname} t={t} badge={badgeFor(menu.href)} onNavigate={() => { clearBadge(menu.href); setMobileOpen(false); }} />
-                      ))}
-                    </div>
+                  {isAdmin && (
+                    <>
+                      <div aria-hidden="true" className="my-2 border-t border-slate-100" />
+                      <MobileLink menu={ADMIN_ITEM} pathname={pathname} t={t} badge={badgeFor(ADMIN_ITEM.href)} onNavigate={() => { clearBadge(ADMIN_ITEM.href); setMobileOpen(false); }} />
+                    </>
                   )}
                 </>
               ) : (
@@ -541,6 +419,48 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
         </div>
       )}
     </>
+  );
+}
+
+function NavLink({
+  menu,
+  pathname,
+  t,
+  badge,
+  onNavigate,
+}: {
+  menu: NavItem;
+  pathname: string;
+  t: (key: string) => string;
+  badge: number;
+  onNavigate: () => void;
+}) {
+  const Icon = menu.icon;
+  const active = isActiveHref(pathname, menu.href);
+  const isAdminItem = menu.href === "/admin";
+  const indicatorColor = isAdminItem ? "bg-red-500" : "bg-blue-600";
+  const activeText = isAdminItem ? "text-red-600" : "text-blue-600";
+  const idleText = "text-slate-600 hover:text-slate-900 hover:bg-slate-50";
+
+  return (
+    <Link
+      href={menu.href}
+      onClick={onNavigate}
+      className={`relative flex flex-shrink-0 flex-col items-center justify-center gap-0.5 px-3 py-1.5 min-w-[56px] lg:px-4 transition-colors ${
+        active ? activeText : idleText
+      }`}
+    >
+      <span className="relative">
+        <Icon size={20} strokeWidth={active ? 2.5 : 1.8} />
+        {badge > 0 && (
+          <span className="absolute -top-1 -right-1.5 flex h-[14px] min-w-[14px] items-center justify-center rounded-full bg-red-500 px-0.5 text-[9px] font-black leading-none text-white">
+            {badge > 99 ? "99+" : badge}
+          </span>
+        )}
+      </span>
+      <span className="hidden text-[10px] font-semibold leading-none md:block">{t(menu.key)}</span>
+      {active && <span className={`absolute bottom-0 left-1.5 right-1.5 h-[3px] rounded-t-full ${indicatorColor}`} />}
+    </Link>
   );
 }
 
