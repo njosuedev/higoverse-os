@@ -5,9 +5,6 @@ from sqlalchemy import (
     Numeric,
     DateTime,
     Text,
-    Boolean,
-    Index,
-    text,
 )
 from sqlalchemy.sql import func
 
@@ -95,7 +92,7 @@ class Product(Base):
     )
 
     # =====================================
-    # MARKETPLACE
+    # CATALOG DETAILS
     # =====================================
 
     category = Column(
@@ -108,25 +105,6 @@ class Product(Base):
         nullable=True
     )
 
-    listed = Column(
-        Boolean,
-        nullable=False,
-        default=False,
-        server_default='false'
-    )
-
-    # Denormalized copy of the owning shop's is_active flag. Products and
-    # shops live in physically separate Postgres databases (product-service
-    # vs. auth-service's shop_db) with no FK between them, so this can't be a
-    # live join — auth-service pushes changes here via
-    # PATCH /internal/shops/{shop_id}/status whenever a shop's status changes.
-    shop_is_active = Column(
-        Boolean,
-        nullable=False,
-        default=True,
-        server_default='true'
-    )
-
     # =====================================
     # AUDIT
     # =====================================
@@ -135,36 +113,4 @@ class Product(Base):
         DateTime(timezone=True),
         server_default=func.now(),
         nullable=False
-    )
-
-    # =====================================
-    # INDEXES
-    # =====================================
-    # Backs the public marketplace feed's keyset pagination
-    # (WHERE listed = true ORDER BY created_at DESC, id DESC).
-    # Partial + covers only listed rows, so it stays small even as the
-    # overall products table grows into the hundreds of thousands.
-    __table_args__ = (
-        Index(
-            "ix_products_marketplace_feed",
-            created_at.desc(),
-            id.desc(),
-            postgresql_where=text("listed = true"),
-        ),
-        # Backs shop-scoped feeds (shop detail page's product grid).
-        Index(
-            "ix_products_shop_feed",
-            shop_id,
-            created_at.desc(),
-            id.desc(),
-            postgresql_where=text("listed = true"),
-        ),
-        # Backs category-filtered feeds (category pages, related-products carousel).
-        Index(
-            "ix_products_category_feed",
-            category,
-            created_at.desc(),
-            id.desc(),
-            postgresql_where=text("listed = true"),
-        ),
     )

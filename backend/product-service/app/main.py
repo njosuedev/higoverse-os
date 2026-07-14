@@ -7,7 +7,6 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import text
 
 from app.api.routes.products import router as product_router
-from app.api.routes.internal import router as internal_router
 from app.db.database import Base, engine
 
 app = FastAPI(
@@ -56,7 +55,6 @@ app.add_middleware(
 # ROUTES
 # -----------------------------
 app.include_router(product_router)
-app.include_router(internal_router)
 
 
 # -----------------------------
@@ -81,11 +79,6 @@ def on_startup():
             for sql in [
                 "ALTER TABLE products ADD COLUMN IF NOT EXISTS category VARCHAR(100)",
                 "ALTER TABLE products ADD COLUMN IF NOT EXISTS images TEXT",
-                "ALTER TABLE products ADD COLUMN IF NOT EXISTS listed BOOLEAN NOT NULL DEFAULT FALSE",
-                "ALTER TABLE products ADD COLUMN IF NOT EXISTS shop_is_active BOOLEAN NOT NULL DEFAULT TRUE",
-                "CREATE INDEX IF NOT EXISTS ix_products_marketplace_feed ON products (created_at DESC, id DESC) WHERE listed = true",
-                "CREATE INDEX IF NOT EXISTS ix_products_shop_feed ON products (shop_id, created_at DESC, id DESC) WHERE listed = true",
-                "CREATE INDEX IF NOT EXISTS ix_products_category_feed ON products (category, created_at DESC, id DESC) WHERE listed = true",
                 # Trigram index backs ILIKE '%term%' search on product name at scale.
                 "CREATE EXTENSION IF NOT EXISTS pg_trgm",
                 "CREATE INDEX IF NOT EXISTS ix_products_name_trgm ON products USING gin (name gin_trgm_ops)",

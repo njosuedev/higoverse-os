@@ -7,7 +7,6 @@ from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.core.auth_bearer import get_current_user, get_current_user_optional
-from app.core.product_client import sync_shop_status
 from app.db.deps import get_db, get_shop_db
 from app.models.shop import Shop
 from app.schemas.shop import ShopUpdate
@@ -216,8 +215,6 @@ def submit_shop_application(
         # Link shop to user in auth_db
         current_user.shop_id = shop.id
         auth_db.commit()
-
-        sync_shop_status(str(shop.id), shop.is_active)
 
         return {"success": True, "message": "Application submitted", "data": _fmt(shop)}
 

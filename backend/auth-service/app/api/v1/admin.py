@@ -4,7 +4,6 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.auth_bearer import get_current_user
-from app.core.product_client import sync_shop_status
 from app.db.deps import get_db, get_shop_db
 from app.models.shop import Shop
 from app.models.user import User
@@ -142,9 +141,6 @@ def admin_patch_shop(
         auth_shop.updated_at = shop.updated_at
         db.commit()
 
-    if "is_active" in payload:
-        sync_shop_status(str(shop.id), shop.is_active)
-
     users = db.query(User).filter(User.shop_id == shop.id).all()
     owner = next((u for u in users if u.role in ("owner", "admin", "customer")), None)
     return {"success": True, "data": _fmt_shop(shop, owner.email if owner else None, len(users))}
@@ -183,8 +179,6 @@ def admin_toggle_shop(
                 u.role = "owner"
 
     db.commit()
-
-    sync_shop_status(str(shop.id), activating)
 
     user_count = len(users)
     owner = next((u for u in users if u.role in ("owner", "admin")), None)

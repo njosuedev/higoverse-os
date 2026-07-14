@@ -8,11 +8,6 @@ class Settings(BaseSettings):
     AUTH_SERVICE_ALGORITHM: str = "HS256"
     SERVICE_NAME:           str = "product-service"
     SUPPLIER_SERVICE_URL:   str = os.getenv("SUPPLIER_SERVICE_URL", "https://higoverse-suppliers.vercel.app")
-    # Shared secret checked on /internal/* routes — auth-service uses this to
-    # push shop is_active changes here so marketplace queries can filter
-    # shop_is_active without a cross-database join (products and shops live
-    # in separate Postgres instances).
-    INTERNAL_SERVICE_SECRET: str = os.getenv("INTERNAL_SERVICE_SECRET", "")
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

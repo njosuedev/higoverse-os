@@ -1,38 +1,15 @@
-import base64
-import json
-from datetime import datetime
-
-from fastapi import APIRouter, Depends, HTTPException, Header, Query, Response
+from fastapi import APIRouter, Depends, HTTPException, Header
 from starlette.exceptions import HTTPException as StarletteHTTPException
-from sqlalchemy import func, tuple_
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
 from app.models.product import Product
 from app.schemas.product import ProductCreate, ProductUpdate
-from app.core.security import get_current_user, get_current_user_optional
+from app.core.security import get_current_user
 from app.core.supplier_client import validate_supplier
 
 router = APIRouter(prefix="/products", tags=["Products"])
-
-
-# -----------------------------
-# MARKETPLACE FEED CURSOR (keyset pagination)
-# -----------------------------
-def encode_marketplace_cursor(created_at: datetime, product_id: str) -> str:
-    raw = f"{created_at.isoformat()}|{product_id}"
-    return base64.urlsafe_b64encode(raw.encode()).decode()
-
-
-def decode_marketplace_cursor(cursor: str) -> tuple[datetime, str] | None:
-    """Returns None on any malformed/stale cursor so callers can gracefully
-    fall back to first-page behavior instead of erroring."""
-    try:
-        raw = base64.urlsafe_b64decode(cursor.encode()).decode()
-        created_at_raw, product_id = raw.split("|", 1)
-        return datetime.fromisoformat(created_at_raw), product_id
-    except Exception:
-        return None
 
 
 # -----------------------------
@@ -62,21 +39,6 @@ def calculate_profit(cost_price: float, selling_price: float):
     percent = (profit / cost_price) * 100
 
     return profit, round(percent, 2)
-
-
-def lean_cover_image(images_raw: str | None) -> str | None:
-    """Shrinks a product's `images` (JSON-encoded list) down to just the
-    cover image for list/feed responses — the full set is only needed on
-    the detail page (`/marketplace/by-id/{id_prefix}`)."""
-    if not images_raw:
-        return images_raw
-    try:
-        parsed = json.loads(images_raw)
-    except Exception:
-        return images_raw
-    if isinstance(parsed, list) and parsed:
-        return json.dumps([parsed[0]])
-    return images_raw
 
 
 # -----------------------------
@@ -169,7 +131,6 @@ def get_products(
             "quantity": p.quantity,
             "category": p.category,
             "images": p.images,
-            "listed": p.listed,
             "profit_status": "profit" if profit >= 0 else "loss",
             "profit_money": float(profit),
             "profit_percent": percent
@@ -216,7 +177,6 @@ def create_product(
             barcode=payload.barcode,
             category=payload.category,
             images=payload.images,
-            listed=payload.listed,
         )
 
         db.add(product)
@@ -250,234 +210,6 @@ def create_product(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# -----------------------------
-# GET MARKETPLACE (cross-shop, all listed products)
-# Public — no login required, so guests can browse the marketplace.
-# Must be registered BEFORE /{product_id} to avoid "marketplace" matching as an ID
-# -----------------------------
-@router.get("/marketplace")
-def get_marketplace(
-    response: Response,
-    db: Session = Depends(get_db),
-    user: dict | None = Depends(get_current_user_optional),
-    page: int = 1,
-    limit: int = Query(20, ge=1, le=48),
-    cursor: str | None = None,
-    category: str | None = None,
-    shop_id: str | None = None,
-    q: str | None = None,
-):
-    # Public, mostly-cacheable listing — lets any CDN/proxy/browser in front of
-    # this service cache responses. The primary request-throttling lever is
-    # the frontend's `export const revalidate` (Next.js ISR), not this header.
-    response.headers["Cache-Control"] = "public, s-maxage=60, stale-while-revalidate=300"
-
-    query = db.query(Product).filter(
-        Product.listed == True,  # noqa: E712
-        Product.shop_is_active == True,  # noqa: E712
-    )
-    if category:
-        query = query.filter(Product.category == category)
-    if shop_id:
-        query = query.filter(Product.shop_id == shop_id)
-    if q:
-        # Escape ILIKE wildcards — q is attacker-controlled (public query param).
-        escaped_q = q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-        query = query.filter(Product.name.ilike(f"%{escaped_q}%", escape="\\"))
-
-    cursor_value = decode_marketplace_cursor(cursor) if cursor else None
-
-    if cursor_value is not None:
-        # Keyset pagination — stays fast at any depth, unlike OFFSET.
-        cursor_created_at, cursor_id = cursor_value
-        query = query.filter(
-            tuple_(Product.created_at, Product.id) < (cursor_created_at, cursor_id)
-        )
-        products = query.order_by(Product.created_at.desc(), Product.id.desc()).limit(limit).all()
-        total = None  # only computed on the first, cursor-less request
-        response_page = None
-    else:
-        # First request of a session (or a legacy page/limit caller) — count once.
-        offset = (page - 1) * limit
-        total = query.count()
-        products = query.order_by(Product.created_at.desc(), Product.id.desc()).offset(offset).limit(limit).all()
-        response_page = page
-
-    items = []
-    for p in products:
-        items.append({
-            "id": p.id,
-            "shop_id": p.shop_id,
-            "name": p.name,
-            "description": p.description,
-            "category": p.category,
-            "images": lean_cover_image(p.images),
-            "selling_price": float(p.selling_price),
-            # cost_price is intentionally omitted — this endpoint is public,
-            # and cost_price is a shop's private profit margin.
-            "quantity": p.quantity,
-            "listed": p.listed,
-            "created_at": p.created_at.isoformat(),
-        })
-
-    next_cursor = None
-    if len(products) == limit:
-        last = products[-1]
-        next_cursor = encode_marketplace_cursor(last.created_at, last.id)
-
-    return {
-        "success": True,
-        "data": {
-            "items": items,
-            "total": total,
-            "page": response_page,
-            "limit": limit,
-            "next_cursor": next_cursor,
-        }
-    }
-
-
-# -----------------------------
-# CATEGORY COUNTS (for the /categories directory page)
-# Public — a lightweight aggregate instead of fetching the whole catalog
-# just to count products per category.
-# Must be registered BEFORE /{product_id} — same reasoning as /marketplace.
-# -----------------------------
-@router.get("/marketplace/category-counts")
-def get_marketplace_category_counts(
-    response: Response,
-    db: Session = Depends(get_db),
-):
-    response.headers["Cache-Control"] = "public, s-maxage=60, stale-while-revalidate=300"
-
-    rows = (
-        db.query(Product.category, func.count(Product.id))
-        .filter(Product.listed == True, Product.shop_is_active == True)  # noqa: E712
-        .group_by(Product.category)
-        .all()
-    )
-
-    return {
-        "success": True,
-        "data": [{"category": category, "count": count} for category, count in rows],
-    }
-
-
-# -----------------------------
-# PER-SHOP PRODUCT COUNTS (for shop cards on the search page)
-# Public — bounded to the requested shop_ids, so it stays cheap without a
-# full-catalog fetch just to caption a handful of shop cards.
-# Must be registered BEFORE /{product_id} — same reasoning as /marketplace.
-# -----------------------------
-@router.get("/marketplace/shop-counts")
-def get_marketplace_shop_counts(
-    response: Response,
-    db: Session = Depends(get_db),
-    shop_ids: str = "",
-):
-    response.headers["Cache-Control"] = "public, s-maxage=60, stale-while-revalidate=300"
-
-    ids = [s for s in shop_ids.split(",") if s]
-    if not ids:
-        return {"success": True, "data": {}}
-
-    rows = (
-        db.query(Product.shop_id, func.count(Product.id))
-        .filter(
-            Product.listed == True,  # noqa: E712
-            Product.shop_is_active == True,  # noqa: E712
-            Product.shop_id.in_(ids),
-        )
-        .group_by(Product.shop_id)
-        .all()
-    )
-
-    return {"success": True, "data": {shop_id: count for shop_id, count in rows}}
-
-
-# -----------------------------
-# SITEMAP EXPORT (bulk, lean, offset-paginated)
-# Public — for app/sitemap.ts's generateSitemaps() chunking. Offset pagination
-# is fine here (unlike the public feed): sitemap generation is an infrequent
-# background job, not a latency-sensitive user request, and this endpoint
-# only ever selects `id`/`name` (no images/price), keeping even a deep offset cheap.
-# Must be registered BEFORE /{product_id} — same reasoning as /marketplace.
-# -----------------------------
-@router.get("/marketplace/sitemap")
-def get_marketplace_sitemap_page(
-    response: Response,
-    db: Session = Depends(get_db),
-    page: int = 1,
-    limit: int = Query(40000, ge=1, le=45000),
-):
-    response.headers["Cache-Control"] = "public, s-maxage=3600, stale-while-revalidate=86400"
-
-    query = db.query(Product.id, Product.name).filter(
-        Product.listed == True,  # noqa: E712
-        Product.shop_is_active == True,  # noqa: E712
-    ).order_by(Product.created_at.desc(), Product.id.desc())
-
-    total = query.order_by(None).count()
-    offset = (page - 1) * limit
-    rows = query.offset(offset).limit(limit).all()
-
-    return {
-        "success": True,
-        "data": {
-            "items": [{"id": r.id, "name": r.name} for r in rows],
-            "total": total,
-            "page": page,
-            "limit": limit,
-        },
-    }
-
-
-# -----------------------------
-# GET ONE MARKETPLACE PRODUCT BY SLUG-EMBEDDED ID PREFIX
-# Public — lets the product detail page fetch exactly one listed product
-# instead of the whole feed. Product slugs are "{name}-{id[:6]}" (see
-# apps/web/lib/slug.ts), so `id_prefix` is that 6-char suffix (or a full id).
-# Must be registered BEFORE /{product_id} — same reasoning as /marketplace.
-# -----------------------------
-@router.get("/marketplace/by-id/{id_prefix}")
-def get_marketplace_product_by_id_prefix(
-    id_prefix: str,
-    response: Response,
-    db: Session = Depends(get_db),
-    user: dict | None = Depends(get_current_user_optional),
-):
-    response.headers["Cache-Control"] = "public, s-maxage=60, stale-while-revalidate=300"
-
-    # Escape LIKE wildcards — id_prefix is attacker-controlled (public route param).
-    escaped_prefix = id_prefix.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-    product = (
-        db.query(Product)
-        .filter(
-            Product.listed == True,  # noqa: E712
-            Product.shop_is_active == True,  # noqa: E712
-            Product.id.like(f"{escaped_prefix}%", escape="\\"),
-        )
-        .first()
-    )
-    if not product:
-        raise HTTPException(status_code=404, detail="Product not found")
-
-    return {
-        "success": True,
-        "data": {
-            "id": product.id,
-            "shop_id": product.shop_id,
-            "name": product.name,
-            "description": product.description,
-            "category": product.category,
-            "images": product.images,
-            "selling_price": float(product.selling_price),
-            "quantity": product.quantity,
-            "listed": product.listed,
-            "created_at": product.created_at.isoformat(),
-        },
-    }
-
 
 # -----------------------------
 # GET SINGLE PRODUCT
@@ -504,7 +236,6 @@ def get_product(
             "description": product.description,
             "category": product.category,
             "images": product.images,
-            "listed": product.listed,
             "cost_price": float(product.cost_price),
             "selling_price": float(product.selling_price),
             "quantity": product.quantity,
