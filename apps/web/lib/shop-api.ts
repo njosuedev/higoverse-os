@@ -1,7 +1,7 @@
 import { getToken, handleUnauthorized } from "@/lib/auth";
 
 // Shops live in auth-service's shop_db — call auth-service directly
-const AUTH_API = process.env.NEXT_PUBLIC_AUTH_API || "https://higoverse-auth.vercel.app";
+const AUTH_API = process.env.NEXT_PUBLIC_AUTH_API || "https://auth-esys.vercel.app";
 
 async function authShopRequest(endpoint: string, options: RequestInit = {}) {
   const token = getToken();

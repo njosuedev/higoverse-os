@@ -10,7 +10,7 @@ import {
   Boxes, BarChart3, ShieldCheck, Truck,
 } from "lucide-react";
 
-const AUTH_URL = process.env.NEXT_PUBLIC_AUTH_API || "https://higoverse-auth.vercel.app";
+const AUTH_URL = process.env.NEXT_PUBLIC_AUTH_API || "https://auth-esys.vercel.app";
 type Step = "login" | "forgot" | "otp" | "success";
 
 export default function LoginPage() {

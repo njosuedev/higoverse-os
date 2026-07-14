@@ -1,6 +1,6 @@
 import { getToken, handleUnauthorized } from "@/lib/auth";
 
-const AUTH_API = process.env.NEXT_PUBLIC_AUTH_API || "https://higoverse-auth.vercel.app";
+const AUTH_API = process.env.NEXT_PUBLIC_AUTH_API || "https://auth-esys.vercel.app";
 
 async function adminRequest(endpoint: string, options: RequestInit = {}) {
   const token = getToken();

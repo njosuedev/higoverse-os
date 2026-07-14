@@ -1,6 +1,6 @@
 import { getToken } from "@/lib/auth";
 
-const PRODUCT_API = process.env.NEXT_PUBLIC_PRODUCT_API || "https://higoverse-products.vercel.app";
+const PRODUCT_API = process.env.NEXT_PUBLIC_PRODUCT_API || "https://products-esys.vercel.app";
 
 export async function itemRequest(
   endpoint: string,

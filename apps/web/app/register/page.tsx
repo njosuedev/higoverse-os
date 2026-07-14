@@ -87,7 +87,7 @@ export default function RegisterPage() {
     if (!formOk) return;
     setError(null); setEmailTaken(false); setNameTaken(false); setLoading(true);
     try {
-      const AUTH_URL = process.env.NEXT_PUBLIC_AUTH_API || "https://higoverse-auth.vercel.app";
+      const AUTH_URL = process.env.NEXT_PUBLIC_AUTH_API || "https://auth-esys.vercel.app";
       const payload = {
         name:     form.name.trim(),
         email:    form.email.trim(),
@@ -137,7 +137,7 @@ export default function RegisterPage() {
     if (otp.length !== 6) return;
     setVerifyError(null); setVerifyLoading(true);
     try {
-      const AUTH_URL = process.env.NEXT_PUBLIC_AUTH_API || "https://higoverse-auth.vercel.app";
+      const AUTH_URL = process.env.NEXT_PUBLIC_AUTH_API || "https://auth-esys.vercel.app";
       const res  = await fetch(`${AUTH_URL}/api/v1/auth/verify-registration`, {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: verifyEmail, otp }),
@@ -158,7 +158,7 @@ export default function RegisterPage() {
   const handleCompleteVerification = async () => {
     setResendingVerify(true);
     try {
-      const AUTH_URL = process.env.NEXT_PUBLIC_AUTH_API || "https://higoverse-auth.vercel.app";
+      const AUTH_URL = process.env.NEXT_PUBLIC_AUTH_API || "https://auth-esys.vercel.app";
       const res = await fetch(`${AUTH_URL}/api/v1/auth/resend-verification`, {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: form.email.trim() }),
@@ -186,7 +186,7 @@ export default function RegisterPage() {
   const handleResend = async () => {
     setVerifyError(null); setVerifyLoading(true);
     try {
-      const AUTH_URL = process.env.NEXT_PUBLIC_AUTH_API || "https://higoverse-auth.vercel.app";
+      const AUTH_URL = process.env.NEXT_PUBLIC_AUTH_API || "https://auth-esys.vercel.app";
       await fetch(`${AUTH_URL}/api/v1/auth/resend-verification`, {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: verifyEmail }),

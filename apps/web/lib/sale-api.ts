@@ -1,6 +1,6 @@
 import { getToken } from "@/lib/auth";
 
-const SALE_API = process.env.NEXT_PUBLIC_API_SALES || "https://higoverse-sales.vercel.app";
+const SALE_API = process.env.NEXT_PUBLIC_API_SALES || "https://sales-esys.vercel.app";
 
 export async function saleRequest(endpoint: string, options: RequestInit = {}) {
   const token = getToken();
