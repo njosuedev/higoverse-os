@@ -187,8 +187,10 @@ def verify_registration(payload: VerifyRegistrationRequest, db: Session = Depend
 @router.post("/resend-verification")
 def resend_verification(payload: ForgotPasswordRequest, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == payload.email).first()
-    if not user or user.is_active:
-        return {"success": True, "message": "If that email is pending verification, a new code has been sent."}
+    if not user:
+        raise HTTPException(status_code=404, detail="No account found with this email")
+    if user.is_active:
+        raise HTTPException(status_code=400, detail="This email is already verified. Please sign in instead.")
 
     db.query(PasswordReset).filter(
         PasswordReset.email == payload.email,
