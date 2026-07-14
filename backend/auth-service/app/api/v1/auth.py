@@ -148,6 +148,8 @@ def register(
 
     try:
         _send_verification_email(data.email, otp)
+    except RuntimeError:
+        raise HTTPException(status_code=503, detail="Email service is not configured. Please contact support.")
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Failed to send verification email: {exc}")
 
@@ -204,6 +206,8 @@ def resend_verification(payload: ForgotPasswordRequest, db: Session = Depends(ge
 
     try:
         _send_verification_email(payload.email, otp)
+    except RuntimeError:
+        raise HTTPException(status_code=503, detail="Email service is not configured. Please contact support.")
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Failed to send email: {exc}")
 
@@ -261,6 +265,8 @@ def forgot_password(payload: ForgotPasswordRequest, db: Session = Depends(get_db
 
     try:
         _send_otp_email(payload.email, otp)
+    except RuntimeError:
+        raise HTTPException(status_code=503, detail="Email service is not configured. Please contact support.")
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Failed to send email: {exc}")
 

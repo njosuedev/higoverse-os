@@ -172,6 +172,8 @@ export default function RegisterPage() {
         const detail = (data?.detail ?? "").toLowerCase();
         if (detail.includes("already verified") || detail.includes("active")) {
           setError("This account is already verified. Please sign in instead.");
+        } else if (res.status === 503 || detail.includes("not configured")) {
+          setError("Email delivery is temporarily unavailable. Please try again later or contact support.");
         } else {
           setError("Could not resend code. The account may have been deleted. Try a different email or contact admin.");
         }
