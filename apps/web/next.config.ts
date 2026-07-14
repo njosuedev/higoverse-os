@@ -14,15 +14,12 @@ const nextConfig: NextConfig = {
       { source: "/PartnerManagement",  destination: "/partners",  permanent: true },
       { source: "/PurchaseManagement", destination: "/purchases", permanent: true },
       { source: "/ExpenseManagement",  destination: "/expenses",  permanent: true },
-      // Marketplace moved from the private dashboard shell to the public
-      // site at "/" — keep old shared links working.
-      { source: "/marketplace",           destination: "/",         permanent: true },
-      { source: "/marketplace/:shopId",   destination: "/products", permanent: true },
-      // Higoverse dropped the multi-shop marketplace in favor of direct
-      // selling — old supplier-directory and per-shop storefront links
-      // now land on the product catalog instead of 404ing.
-      { source: "/suppliers",  destination: "/products", permanent: true },
-      { source: "/shop/:shopId", destination: "/products", permanent: true },
+      // Higoverse dropped the public marketplace — old shared links now
+      // land on the dashboard instead of 404ing.
+      { source: "/marketplace",         destination: "/", permanent: true },
+      { source: "/marketplace/:shopId", destination: "/", permanent: true },
+      { source: "/suppliers",           destination: "/", permanent: true },
+      { source: "/shop/:shopId",        destination: "/", permanent: true },
     ];
   },
 

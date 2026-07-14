@@ -9,14 +9,13 @@ import { getApplicationStatus, decodeShopHumanInfo } from "@/lib/product-meta";
 import { Loader2, Store, Clock, XCircle } from "lucide-react";
 import EmptyState from "@/app/components/ui/EmptyState";
 
-// Routes freely accessible to any logged-in user regardless of role.
-// Marketplace browsing itself now lives in the public route group (outside
-// ShopGuard entirely) — these are the private-tree routes still open to CUSTOMER.
+// Routes freely accessible to any logged-in user regardless of role —
+// a CUSTOMER (no approved shop yet) needs these to apply for a shop.
 function isOpenRoute(pathname: string) {
   return (
     pathname === "/settings" ||
     pathname === "/notifications" ||
-    pathname === "/messages"
+    pathname === "/apply-shop"
   );
 }
 
@@ -34,8 +33,8 @@ export default function ShopGuard({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (loading || !isProtected || isAdmin || isOwner) return;
-    // CUSTOMER on a protected (business) route → redirect to the (now public) marketplace home
-    router.replace("/");
+    // CUSTOMER on a protected (business) route → send them to apply for a shop
+    router.replace("/apply-shop");
   }, [loading, isProtected, isAdmin, isOwner, router]);
 
   if (loading && isProtected) {
@@ -60,7 +59,7 @@ export default function ShopGuard({ children }: { children: React.ReactNode }) {
             title="Application Rejected"
             description={rejectionReason ? undefined : "You can edit your application and resubmit for another review."}
             actionLabel={rejectionReason ? undefined : "Edit & Resubmit Application"}
-            actionHref={rejectionReason ? undefined : "/?apply=1"}
+            actionHref={rejectionReason ? undefined : "/apply-shop"}
             className="max-w-md"
           />
           {rejectionReason && (
@@ -70,7 +69,7 @@ export default function ShopGuard({ children }: { children: React.ReactNode }) {
                 <p className="text-sm text-red-800">{rejectionReason}</p>
               </div>
               <a
-                href="/?apply=1"
+                href="/apply-shop"
                 className="inline-flex items-center gap-2 rounded-xl bg-orange-500 px-5 py-2.5 text-sm font-bold text-white transition hover:bg-orange-600"
               >
                 <Store size={15} />
@@ -90,8 +89,6 @@ export default function ShopGuard({ children }: { children: React.ReactNode }) {
             tone="orange"
             title="Application Under Review"
             description="The Higoverse admin is reviewing your shop application. You'll get full dashboard access once approved. This usually takes 1–2 business days."
-            actionLabel="Back to Marketplace"
-            actionHref="/"
             className="max-w-md"
           />
         </div>
@@ -107,7 +104,7 @@ export default function ShopGuard({ children }: { children: React.ReactNode }) {
           title="Create a Shop to Access This"
           description="Submit a shop application and get approved by the Higoverse admin to unlock the full business dashboard."
           actionLabel="Create my Shop"
-          actionHref="/?apply=1"
+          actionHref="/apply-shop"
           className="max-w-md"
         />
       </div>

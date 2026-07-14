@@ -11,8 +11,7 @@ export const metadata: Metadata = {
 };
 
 // Everything under this route group is the private business dashboard —
-// AuthGuard/DeviceGuard live here (not the root layout) so the public
-// marketplace routes are never gated or phone-blocked.
+// AuthGuard/DeviceGuard live here (not the root layout).
 export default function Layout({ children }: { children: React.ReactNode }) {
   return (
     <AuthGuard>

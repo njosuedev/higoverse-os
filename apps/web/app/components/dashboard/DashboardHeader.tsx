@@ -9,25 +9,21 @@ import { useShop } from "@/lib/shop-context";
 import { LANGUAGES } from "@/lib/i18n";
 import { settingsRequest } from "@/lib/settings-api";
 import { getEffectiveRole } from "@/lib/auth";
-import { getUnreadCount, openMessageStream } from "@/lib/messages-api";
 import { getUnreadNotifCount, openNotifStream } from "@/lib/notifications-api";
 import {
   Home, Package, Truck, ShoppingCart, BarChart3,
   Users, FileText, ChevronDown, ShieldCheck, Receipt,
   Sparkles, Settings, LogOut, Globe, Store,
-  Bell, MessageSquare, Menu, X, ClipboardList,
+  Bell, Menu, X,
 } from "lucide-react";
 
 type NavItem = { key: string; href: string; icon: typeof Home };
 
 const CUSTOMER_MENUS: NavItem[] = [
-  { key: "nav.marketplace",   href: "/",              icon: Store          },
-  { key: "nav.notifications", href: "/notifications", icon: Bell           },
-  { key: "nav.messages",      href: "/messages",      icon: MessageSquare  },
+  { key: "nav.notifications", href: "/notifications", icon: Bell },
 ];
 
-// Business-owner IA: Dashboard, Inventory, Sales, Finance▾, Marketplace, AI Advisor, More▾
-// Marketplace is now the public site at "/" — Dashboard lives at "/dashboard".
+// Business-owner IA: Dashboard, Inventory, Sales, Finance▾, AI Advisor, More▾
 const OWNER_PRIMARY: NavItem[] = [
   { key: "nav.dashboard", href: "/dashboard", icon: Home         },
   { key: "nav.inventory", href: "/items",     icon: Package      },
@@ -40,16 +36,13 @@ const FINANCE_MENUS: NavItem[] = [
   { key: "nav.partners",  href: "/partners",  icon: Users     },
 ];
 const OWNER_TRAILING: NavItem[] = [
-  { key: "nav.marketplace", href: "/",           icon: Store    },
-  { key: "nav.advisor",     href: "/advisor",    icon: Sparkles },
+  { key: "nav.advisor", href: "/advisor", icon: Sparkles },
 ];
 const MORE_MENUS_BASE: NavItem[] = [
-  { key: "nav.messages", href: "/messages", icon: MessageSquare },
-  { key: "nav.proforma", href: "/proforma", icon: FileText      },
-  { key: "nav.settings", href: "/settings", icon: Settings      },
+  { key: "nav.proforma", href: "/proforma", icon: FileText },
+  { key: "nav.settings", href: "/settings", icon: Settings },
 ];
 const ADMIN_ITEM: NavItem = { key: "nav.admin", href: "/admin", icon: ShieldCheck };
-const ORDERS_ITEM: NavItem = { key: "nav.orders", href: "/orders-admin", icon: ClipboardList };
 
 function isActiveHref(pathname: string, href: string) {
   if (href === "/") return pathname === "/";
@@ -68,13 +61,9 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
   const [mobileOpen, setMobileOpen]     = useState(false);
   const [mobileFinanceOpen, setMobileFinanceOpen] = useState(false);
   const [mobileMoreOpen, setMobileMoreOpen]       = useState(false);
-  const [unreadMsgs, setUnreadMsgs]     = useState(0);
   const [unreadNotifs, setUnreadNotifs] = useState(0);
   const menuRef = useRef<HTMLDivElement>(null);
   const navRef  = useRef<HTMLDivElement>(null);
-
-  // Derived early so effects below can use it as a dependency
-  const isShopOwnerEarly = !!shop?.is_active && getEffectiveRole(user ?? null, true) === "SHOP_OWNER";
 
   // ── Sounds ─────────────────────────────────────────────────────────────────
   function playNotifSound() {
@@ -94,27 +83,8 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
     } catch { /* AudioContext unavailable */ }
   }
 
-  function playMsgSound() {
-    try {
-      const Ctx = window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-      const ctx = new Ctx();
-      // Two-note ping for messages (same as chat page)
-      ([[ 587.3, 0, 0.13 ], [ 783.9, 0.09, 0.18 ]] as const).forEach(([freq, when, dur]) => {
-        const osc = ctx.createOscillator(); const gain = ctx.createGain();
-        osc.connect(gain); gain.connect(ctx.destination);
-        osc.type = "sine"; osc.frequency.value = freq;
-        gain.gain.setValueAtTime(0, ctx.currentTime + when);
-        gain.gain.linearRampToValueAtTime(0.15, ctx.currentTime + when + 0.012);
-        gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + when + dur);
-        osc.start(ctx.currentTime + when); osc.stop(ctx.currentTime + when + dur);
-      });
-      setTimeout(() => ctx.close(), 1000);
-    } catch { /* AudioContext unavailable */ }
-  }
-
   // ── Load initial badge counts ───────────────────────────────────────────────
   const refreshBadges = useCallback(async () => {
-    try { setUnreadMsgs(await getUnreadCount()); } catch { /* silent */ }
     try { setUnreadNotifs(await getUnreadNotifCount()); } catch { /* silent */ }
   }, []);
 
@@ -149,54 +119,6 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
     }
   }, [user]);
 
-  // Clear badge automatically when the user is on the messages page
-  useEffect(() => {
-    if (pathname === "/messages") setUnreadMsgs(0);
-  }, [pathname]);
-
-  // ── Message SSE — real-time message badge + sound + browser notification ───
-  useEffect(() => {
-    if (!user) return;
-    const ctrl = openMessageStream(
-      (evt) => {
-        if (evt.type !== "new_message") return;
-
-        // Only increment badge when not already on messages page
-        if (pathname !== "/messages") {
-          setUnreadMsgs((n) => n + 1);
-        }
-
-        playMsgSound();
-
-        // Browser notification for everyone — always show so the user knows
-        if (evt.message) {
-          const senderName = evt.message.sender_name ?? (isShopOwnerEarly ? "a customer" : "a shop");
-          const title  = `New message from ${senderName}`;
-          const body   = evt.message.content.slice(0, 120);
-          const convId = evt.conversation_id;
-
-          if ("Notification" in window && Notification.permission === "granted") {
-            const notif = new Notification(title, {
-              body,
-              icon: "/higoverse.png",
-              tag:  convId ?? "msg",
-              requireInteraction: false,
-            });
-            if (convId) {
-              notif.onclick = () => {
-                window.focus();
-                router.push(`/messages?conv=${convId}`);
-                notif.close();
-              };
-            }
-          }
-        }
-      },
-      () => { /* SSE unavailable — 60s poll handles recovery */ },
-    );
-    return () => ctrl.abort();
-  }, [user, isShopOwnerEarly, router, pathname]);
-
   useEffect(() => {
     function onOutside(e: MouseEvent) {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
@@ -225,11 +147,10 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
 
   function clearBadge(href: string) {
     if (href === "/notifications") setUnreadNotifs(0);
-    if (href === "/messages") setUnreadMsgs(0);
   }
 
   function badgeFor(href: string) {
-    return href === "/notifications" ? unreadNotifs : href === "/messages" ? unreadMsgs : 0;
+    return href === "/notifications" ? unreadNotifs : 0;
   }
 
   const currentLang = LANGUAGES.find((l) => l.code === lang) ?? LANGUAGES[0];
@@ -244,7 +165,7 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
   const isCustomer  = role === "CUSTOMER";
 
   const isBusinessNav = isAdmin || isShopOwner;
-  const moreMenus = isAdmin ? [...MORE_MENUS_BASE, ORDERS_ITEM, ADMIN_ITEM] : MORE_MENUS_BASE;
+  const moreMenus = isAdmin ? [...MORE_MENUS_BASE, ADMIN_ITEM] : MORE_MENUS_BASE;
 
   // Flat list used for the mobile drawer and badge bookkeeping
   const flatMenus: NavItem[] = isBusinessNav
@@ -402,7 +323,7 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
           {/* "Create Shop" — only for CUSTOMER accounts (fully resolved) */}
           {!loading && !isResolving && isCustomer && (
             <Link
-              href="/?apply=1"
+              href="/apply-shop"
               className="hidden shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl bg-orange-500 px-3 py-1.5 text-xs font-bold text-white transition hover:bg-orange-600 sm:flex"
             >
               <Store size={12} /> Create Shop
@@ -485,7 +406,7 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
 
                   {/* Create Shop — customer shortcut */}
                   {isCustomer && (
-                    <Link href="/?apply=1" onClick={() => setMenuOpen(false)}
+                    <Link href="/apply-shop" onClick={() => setMenuOpen(false)}
                       className="group mb-1 flex items-center gap-3 rounded-xl px-3 py-2.5 transition hover:bg-orange-50">
                       <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-orange-50 text-orange-500 transition group-hover:bg-orange-100">
                         <Store size={15} />

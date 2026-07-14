@@ -25,9 +25,7 @@ function LoginPageContent() {
   const router         = useRouter();
   const searchParams   = useSearchParams();
   const justRegistered = searchParams.get("registered") === "1";
-  // Where to send the user after a successful login — defaults to the public
-  // marketplace home; guest-only actions (follow, message, etc.) pass ?next=
-  // so the user lands back where they were.
+  // Where to send the user after a successful login — defaults to the dashboard.
   const nextPath = searchParams.get("next") || "/";
   const { login, user, ready } = useAuth();
 

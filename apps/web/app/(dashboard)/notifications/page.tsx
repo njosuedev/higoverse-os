@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { useRouter } from "next/navigation";
 import {
   Bell,
   MessageSquare,
@@ -56,7 +55,6 @@ function timeAgo(iso: string) {
 }
 
 export default function NotificationsPage() {
-  const router = useRouter();
   const [notifs, setNotifs]   = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState<string | null>(null);
@@ -119,10 +117,6 @@ export default function NotificationsPage() {
 
   const handleClick = (n: Notification) => {
     handleRead(n.id);
-    const convId = n.data?.conversation_id as string | undefined;
-    if (convId) {
-      router.push("/messages");
-    }
   };
 
   const unread = notifs.filter((n) => !n.is_read).length;

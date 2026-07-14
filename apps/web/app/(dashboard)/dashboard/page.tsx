@@ -19,7 +19,7 @@ import {
   Package, Truck, BarChart3, ShoppingCart, Users, Settings,
   RefreshCw, AlertTriangle, TrendingUp, TrendingDown, Globe,
   CheckCircle, FileText, Plus,
-  Activity, Receipt, Wallet, DollarSign, MapPin, Phone, Store,
+  Activity, Receipt, Wallet, DollarSign, MapPin, Phone,
 } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -125,7 +125,6 @@ export default function DashboardPage() {
     { title: t("nav.reports"),          description: t("dash.reports_desc"),          icon: BarChart3,    href: "/reports",   color: "violet" },
     { title: t("nav.proforma"),         description: t("dash.proforma_desc"),         icon: FileText,     href: "/proforma",  color: "pink" },
     { title: t("nav.settings"),         description: t("dash.settings_desc"),         icon: Settings,     href: "/settings",    color: "slate" },
-    { title: t("nav.marketplace"),      description: t("marketplace.dash_desc"),       icon: Store,        href: "/", color: "blue" },
   ];
 
   const [stats, setStats]             = useState<Stats>({ products: 0, partners: 0, sales: 0, revenue: 0, lowStock: 0, outOfStock: 0 });
@@ -780,117 +779,6 @@ export default function DashboardPage() {
               );
             })}
           </div>
-        </section>
-
-        {/* ── SHOPS ON HIGOVERSE — Social Media Cards ─────────────────────────── */}
-        <section>
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-2">
-              <Globe size={13} className="text-[#2563eb]" />
-              <h2 className="font-bold text-slate-900 text-sm">
-                {t("dash.shops_higoverse")}
-                <span className="ml-2 text-[10px] bg-[#eff6ff] text-[#2563eb] font-semibold px-2 py-0.5 rounded-full align-middle">
-                  {shops.length}
-                </span>
-              </h2>
-            </div>
-            {onlineCount > 0 && (
-              <span className="flex items-center gap-1.5 text-[10px] font-semibold text-green-700 bg-green-50 border border-green-200 px-2 py-1 rounded-full">
-                <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-                {onlineCount} {t("common.online")}
-              </span>
-            )}
-          </div>
-
-          {shops.length === 0 ? (
-            <div className="bg-white border border-slate-200 rounded-xl p-6 text-center">
-              <Globe size={28} className="text-slate-300 mx-auto mb-2" />
-              <p className="text-slate-400 text-xs">{t("common.no_data")}</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2">
-              {shops.map((shop) => {
-                const isMine   = shop.id === user.shop_id;
-                const presence = shopPresence(shop.last_seen_at, now);
-                const initial  = (shop.name || "?")[0].toUpperCase();
-                const presenceLabel = presence.label === "never_seen"
-                  ? t("dash.never_seen")
-                  : presence.label === "online_now"
-                  ? t("dash.online_now")
-                  : `${t("dash.last_seen")} ${presence.label}`;
-
-                return (
-                  <div key={shop.id}
-                    className={`relative rounded-xl border bg-white ${
-                      isMine
-                        ? "border-[#93c5fd] ring-2 ring-[#2563eb]/20"
-                        : presence.online
-                          ? "border-green-200"
-                          : "border-slate-200"
-                    }`}>
-
-                    {/* Cover band */}
-                    <div className="h-12 rounded-t-xl relative overflow-hidden" style={{ backgroundColor: "#2563eb" }}>
-                      {isMine && (
-                        <span className="absolute top-1.5 right-1.5 text-[8px] font-black bg-white text-[#2563eb] px-1.5 py-0.5 rounded-full leading-none shadow">
-                          YOU
-                        </span>
-                      )}
-                      {presence.online && !isMine && (
-                        <span className="absolute top-1.5 right-1.5 flex items-center gap-0.5 text-[8px] font-black bg-green-500 text-white px-1.5 py-0.5 rounded-full leading-none shadow">
-                          <span className="w-1 h-1 rounded-full bg-white animate-pulse" />
-                          LIVE
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Circular avatar overlapping cover */}
-                    <div className="relative z-10 flex justify-center -mt-5">
-                      <div className="w-10 h-10 rounded-full border-[3px] border-white overflow-hidden bg-slate-100 flex items-center justify-center shadow-sm">
-                        {shop.logo_url ? (
-                          <img src={shop.logo_url} alt={shop.name} className="w-full h-full object-cover" />
-                        ) : (
-                          <span className="text-sm font-black text-white w-full h-full flex items-center justify-center" style={{ backgroundColor: "#2563eb" }}>
-                            {initial}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Info */}
-                    <div className="px-2.5 pb-2.5 pt-1 text-center">
-                      <p className="text-xs font-semibold text-slate-900 leading-tight truncate" title={shop.name}>
-                        {shop.name}
-                      </p>
-
-                      {shop.phone && (
-                        <p className="text-[9px] text-slate-400 mt-0.5 truncate">
-                          {shop.phone}
-                        </p>
-                      )}
-
-                      <div className={`mt-1 flex items-center justify-center gap-1 text-[9px] font-medium ${
-                        isMine ? "text-[#2563eb]" : presence.online ? "text-green-600" : "text-slate-400"
-                      }`}>
-                        <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
-                          presence.online ? "bg-green-500" : "bg-slate-300"
-                        } ${(presence.online || isMine) ? "animate-pulse" : ""}`} />
-                        {isMine ? t("dash.you_online") : presenceLabel}
-                      </div>
-
-                      <Link
-                        href={`/shop/${shop.id}`}
-                        className="mt-2 inline-flex items-center gap-1 text-[9px] font-bold text-[#2563eb] bg-[#eff6ff] hover:bg-[#dbeafe] px-2.5 py-1 rounded-full transition"
-                      >
-                        <Store size={8} strokeWidth={2.5} />
-                        Visit Store
-                      </Link>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
         </section>
 
         {/* ── FOOTER ──────────────────────────────────────────────────────────── */}

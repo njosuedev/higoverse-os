@@ -6,24 +6,12 @@ import { itemRequest } from "@/lib/product-api";
 import { partnerRequest } from "@/lib/supplier-api";
 import { useDebounce } from "@/lib/hooks";
 import { useLanguage } from "@/lib/language-context";
-import { useAuth } from "@/lib/auth-context";
-import { useShop } from "@/lib/shop-context";
-import { updateMyShop } from "@/lib/shop-api";
 import Pagination from "@/app/components/ui/Pagination";
-import dynamic from "next/dynamic";
 import {
   Package, AlertCircle, Search, Filter, Plus, Trash2, Pencil, X,
   Boxes, DollarSign, TrendingUp, TrendingDown, ShoppingBag, RefreshCw, BarChart3, ChevronDown,
   FileSpreadsheet, FileText, Upload, Download, CheckCircle, XCircle,
-  ImagePlus, Store, Globe, Eye, MapPin,
 } from "lucide-react";
-
-const HigoMapPicker = dynamic(() => import("@/app/components/ui/HigoMapPicker"), { ssr: false });
-import {
-  getProductMeta, setProductMeta, deleteProductMeta, compressImage,
-  upsertCatalogEntry, removeCatalogEntry, type ProductMeta,
-  type ShopCatalogEntry, encodeDescriptionWithCatalog, catFromText,
-} from "@/lib/product-meta";
 
 interface Product {
   id: string;
@@ -36,9 +24,6 @@ interface Product {
   profit_status?: "profit" | "loss";
   profit_money?: number;
   created_at?: string;
-  category?: string;
-  images?: string;    // JSON-encoded string[] saved in DB
-  listed?: boolean;
 }
 
 interface Supplier { id: string; name: string; phone?: string; address?: string; }
@@ -48,14 +33,10 @@ const EMPTY_FORM = {
   name: "", description: "", cost_price: "", selling_price: "", quantity: "", supplier_id: "",
 };
 
-const MAX_IMAGES = 5;
-
 const PAGE_SIZES = [25, 50, 100, 250];
 
 export default function ItemManagementPage() {
   const { t } = useLanguage();
-  const { user } = useAuth();
-  const { shop } = useShop();
   const [products, setProducts] = useState<Product[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(true);
@@ -78,17 +59,6 @@ export default function ItemManagementPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState("");
   const [form, setForm] = useState(EMPTY_FORM);
-
-  // product images & marketplace meta (stored in localStorage, separate from API payload)
-  const [formImages, setFormImages]     = useState<string[]>([]);
-  const [formListed, setFormListed]     = useState(false);
-  const [formCategory, setFormCategory] = useState("");
-  const [formLocation, setFormLocation] = useState("");
-  const [showLocationPicker, setShowLocationPicker] = useState(false);
-  const [imageUploading, setImageUploading] = useState(false);
-  const imageInputRef = useRef<HTMLInputElement>(null);
-  // local cache: productId → meta (loaded once on mount)
-  const [productMeta, setProductMetaCache] = useState<Record<string, ProductMeta>>({});
 
   const [importLoading, setImportLoading] = useState(false);
   const [importResults, setImportResults] = useState<{
@@ -118,14 +88,6 @@ export default function ItemManagementPage() {
     refreshRef.current = setInterval(() => { loadDataRef.current(true); setCountdown(30); }, 30_000);
   }
 
-  // keep local meta cache in sync whenever products list changes
-  useEffect(() => {
-    if (products.length === 0) return;
-    const cache: Record<string, ProductMeta> = {};
-    products.forEach((p) => { cache[p.id] = getProductMeta(p.id); });
-    setProductMetaCache(cache);
-  }, [products]);
-
   async function loadData(soft = false) {
     try {
       if (!soft) setLoading(true); else setRefreshing(true);
@@ -151,7 +113,6 @@ export default function ItemManagementPage() {
 
   function openCreateModal() {
     setForm(EMPTY_FORM); setEditingId(null); setModalMode("create");
-    setFormImages([]); setFormListed(false); setFormCategory(""); setFormLocation("");
     setShowModal(true);
   }
 
@@ -161,84 +122,33 @@ export default function ItemManagementPage() {
       cost_price: String(p.cost_price), selling_price: String(p.selling_price),
       quantity: String(p.quantity), supplier_id: p.supplier_id || "",
     });
-    const meta = getProductMeta(p.id);
-    // Prefer DB data; fall back to localStorage meta
-    const rawDbImgs = p.images;
-    const dbImages: string[] = rawDbImgs ? (() => { try { return JSON.parse(rawDbImgs) as string[]; } catch { return []; } })() : [];
-    setFormImages(dbImages.length > 0 ? dbImages : meta.images);
-    setFormListed(p.listed !== undefined ? p.listed : meta.listed);
-    setFormCategory(p.category || (meta as ProductMeta & { category?: string }).category || "");
-    setFormLocation(meta.location || "");
     setEditingId(p.id); setModalMode("edit"); setShowModal(true);
   }
 
   function closeModal() {
     setShowModal(false); setForm(EMPTY_FORM); setEditingId(null);
-    setFormImages([]); setFormListed(false); setFormCategory(""); setFormLocation("");
   }
 
   async function submitForm() {
     if (!form.name.trim() || !form.cost_price || !form.selling_price || !form.quantity) {
       alert("Name, cost price, selling price and quantity are required."); return;
     }
-    if (formListed && formImages.length < 3) {
-      alert("You need at least 3 product images to share on Marketplace."); return;
-    }
-    if (formListed && !formCategory) {
-      alert("Please select a category to share this product on Marketplace."); return;
-    }
     const payload = {
       name: form.name.trim(), description: form.description.trim() || null,
       cost_price: Number(form.cost_price), selling_price: Number(form.selling_price),
       quantity: Number(form.quantity), supplier_id: form.supplier_id || null,
-      category: formCategory || null,
-      images: formImages.length > 0 ? JSON.stringify(formImages) : null,
-      listed: formListed,
     };
     try {
       setSubmitting(true);
       if (modalMode === "edit" && editingId) {
         await itemRequest(`/products/${editingId}`, { method: "PUT", body: JSON.stringify(payload) });
-        setProductMeta(editingId, { images: formImages, listed: formListed, category: formCategory, location: formLocation || undefined });
-        setProductMetaCache((prev) => ({ ...prev, [editingId]: { images: formImages, listed: formListed, category: formCategory, location: formLocation || undefined } }));
-        syncCatalog(editingId, payload, formImages, formListed, formCategory, formLocation);
       } else {
-        const res = await itemRequest("/products", { method: "POST", body: JSON.stringify(payload) });
-        const newId: string | undefined = res?.data?.id;
-        if (newId) {
-          setProductMeta(newId, { images: formImages, listed: formListed, category: formCategory, location: formLocation || undefined });
-          setProductMetaCache((prev) => ({ ...prev, [newId]: { images: formImages, listed: formListed, category: formCategory, location: formLocation || undefined } }));
-          syncCatalog(newId, payload, formImages, formListed, formCategory, formLocation);
-        }
+        await itemRequest("/products", { method: "POST", body: JSON.stringify(payload) });
       }
       closeModal(); await loadData(true);
-      syncServerCatalog(); // fire-and-forget: sync server catalog
     } catch (err) {
       console.error(err); alert(`Failed to ${modalMode === "edit" ? "update" : "add"} item.`);
     } finally { setSubmitting(false); }
-  }
-
-  async function syncServerCatalog() {
-    if (!user?.shop_id) return;
-    try {
-      const res = await itemRequest("/products?limit=1000");
-      const all: Array<{ id: string; name: string; description?: string; selling_price: number; quantity: number }> = res?.data?.items ?? res?.data ?? [];
-      const entries: ShopCatalogEntry[] = [];
-      for (const p of all) {
-        const meta = getProductMeta(p.id);
-        if (!meta.listed) continue;
-        entries.push({
-          pid: p.id,
-          n: p.name,
-          d: p.description ? p.description.slice(0, 200) : undefined,
-          cat: (meta as ProductMeta & { category?: string }).category || catFromText(p.name, p.description),
-          price: p.selling_price,
-          qty: p.quantity,
-          at: new Date().toISOString(),
-        });
-      }
-      await updateMyShop({ description: encodeDescriptionWithCatalog(shop?.description, entries) });
-    } catch { /* best-effort — silent */ }
   }
 
   async function deleteProduct(id: string) {
@@ -246,11 +156,7 @@ export default function ItemManagementPage() {
     try {
       setDeletingId(id);
       await itemRequest(`/products/${id}`, { method: "DELETE" });
-      deleteProductMeta(id);
-      removeCatalogEntry(id);
-      setProductMetaCache((prev) => { const n = { ...prev }; delete n[id]; return n; });
       await loadData(true);
-      syncServerCatalog(); // fire-and-forget: sync server catalog
     } catch (err) { console.error(err); alert("Failed to delete item."); }
     finally { setDeletingId(""); }
   }
@@ -442,49 +348,6 @@ export default function ItemManagementPage() {
       setImportLoading(false);
       if (importInputRef.current) importInputRef.current.value = "";
     }
-  }
-
-  function syncCatalog(
-    productId: string,
-    payload: { name: string; description?: string | null; cost_price: number; selling_price: number; quantity: number },
-    images: string[],
-    listed: boolean,
-    category: string,
-    location?: string,
-  ) {
-    if (!user) return;
-    if (listed) {
-      upsertCatalogEntry({
-        productId,
-        shopId: user.shop_id ?? user.id ?? productId,
-        shopName: user.name ?? "My Shop",
-        shopLogoUrl: undefined,
-        shopPhone: undefined,
-        name: payload.name,
-        description: payload.description ?? undefined,
-        category: category || undefined,
-        location: location || undefined,
-        sellingPrice: payload.selling_price,
-        costPrice: payload.cost_price,
-        quantity: payload.quantity,
-        images,
-        listedAt: new Date().toISOString(),
-      });
-    } else {
-      removeCatalogEntry(productId);
-    }
-  }
-
-  async function handleImageFiles(files: FileList | null) {
-    if (!files || files.length === 0) return;
-    setImageUploading(true);
-    try {
-      const remaining = MAX_IMAGES - formImages.length;
-      const toProcess = Array.from(files).slice(0, remaining);
-      const compressed = await Promise.all(toProcess.map((f) => compressImage(f)));
-      setFormImages((prev) => [...prev, ...compressed]);
-    } catch { /* ignore individual failures */ }
-    finally { setImageUploading(false); }
   }
 
   const inputCls =
@@ -780,37 +643,12 @@ export default function ItemManagementPage() {
                       {/* Product */}
                       <td className="px-3 py-1.5">
                         <div className="flex items-center gap-2">
-                          {/* thumbnail — prefer DB images, fall back to localStorage */}
-                          {(() => {
-                            const rawImgs = p.images;
-                            const dbImgs: string[] = rawImgs ? (() => { try { return JSON.parse(rawImgs) as string[]; } catch { return []; } })() : [];
-                            const img0 = dbImgs[0] || productMeta[p.id]?.images?.[0];
-                            return img0 ? (
-                              <img src={img0} alt={p.name} className="w-8 h-8 rounded-lg object-cover border border-slate-200 flex-shrink-0" />
-                            ) : (
-                              <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center flex-shrink-0">
-                                <Package size={12} className="text-slate-300" />
-                              </div>
-                            );
-                          })()}
+                          <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center flex-shrink-0">
+                            <Package size={12} className="text-slate-300" />
+                          </div>
                           <div className="min-w-0">
                             <div className="flex items-center gap-1.5 flex-wrap">
                               <p className="font-semibold text-slate-800 text-xs leading-tight">{p.name}</p>
-                              {(p.listed || productMeta[p.id]?.listed) && (
-                                <span className="inline-flex items-center gap-0.5 text-[8px] font-bold text-[#1372e6] bg-[#EBF2FD] border border-[#A8C8F8] px-1 py-0.5 rounded-full leading-none">
-                                  <Globe size={7} /> Listed
-                                </span>
-                              )}
-                              {(() => {
-                                const rawImgs2 = p.images;
-                                const dbCnt = rawImgs2 ? (() => { try { return (JSON.parse(rawImgs2) as string[]).length; } catch { return 0; } })() : 0;
-                                const cnt = dbCnt || productMeta[p.id]?.images?.length || 0;
-                                return cnt > 0 ? (
-                                  <span className="inline-flex items-center gap-0.5 text-[8px] font-semibold text-slate-500 bg-slate-100 px-1 py-0.5 rounded-full leading-none">
-                                    <Eye size={7} /> {cnt}
-                                  </span>
-                                ) : null;
-                              })()}
                             </div>
                             {p.description && (
                               <p className="text-[10px] text-slate-400 max-w-[160px] truncate">{p.description}</p>
@@ -997,186 +835,6 @@ export default function ItemManagementPage() {
                   </select>
                 </div>
 
-                {/* ── CATEGORY ───────────────────────────────────────────── */}
-                <div className="md:col-span-2">
-                  <label className="block text-xs font-medium text-gray-600 mb-1">
-                    Category
-                    {formListed
-                      ? <span className="text-red-400 ml-1">*</span>
-                      : <span className="text-slate-400 ml-1">(optional)</span>}
-                  </label>
-                  <select
-                    value={formCategory}
-                    onChange={(e) => setFormCategory(e.target.value)}
-                    className={`w-full border rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1372e6]/30 focus:border-[#1372e6] transition ${
-                      formListed && !formCategory ? "border-red-400 bg-red-50" : "border-slate-200 bg-white"
-                    }`}
-                  >
-                    <option value="">-- Select a category --</option>
-                    <option value="food">Food &amp; Drinks</option>
-                    <option value="electronics">Electronics</option>
-                    <option value="fashion">Fashion &amp; Apparel</option>
-                    <option value="wholesale">Wholesale &amp; Bulk</option>
-                    <option value="agriculture">Agriculture</option>
-                    <option value="health">Health &amp; Beauty</option>
-                    <option value="furniture">Furniture &amp; Decor</option>
-                    <option value="services">Services</option>
-                    <option value="other">Other</option>
-                  </select>
-                  {formListed && !formCategory && (
-                    <p className="text-[10px] text-red-600 mt-1 flex items-center gap-1">
-                      <AlertCircle size={10} /> Category is required to share on Marketplace
-                    </p>
-                  )}
-                </div>
-
-                {/* ── PRODUCT LOCATION ───────────────────────────────────── */}
-                <div className="md:col-span-2">
-                  <label className="block text-xs font-medium text-gray-600 mb-1">
-                    <MapPin size={11} className="inline mr-1 text-[#1372e6]" />
-                    Custom Location <span className="text-slate-400">(optional — overrides shop address on marketplace)</span>
-                  </label>
-                  {formLocation ? (
-                    <div className="flex items-center gap-2 p-2.5 border border-[#1372e6] bg-[#EBF2FD] rounded-xl">
-                      <MapPin size={13} className="text-[#1372e6] shrink-0" />
-                      <span className="text-xs text-slate-700 flex-1 min-w-0 truncate">
-                        {formLocation.replace(/\|Lat:[^|]+\|Lng:[^|]+$/, "").replace(/\|Lat:[^|]+$/, "")}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => setShowLocationPicker(true)}
-                        className="text-[10px] font-bold text-[#1372e6] hover:underline shrink-0"
-                      >
-                        Change
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setFormLocation("")}
-                        className="text-slate-400 hover:text-red-500 transition shrink-0"
-                      >
-                        <X size={13} />
-                      </button>
-                    </div>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => setShowLocationPicker(true)}
-                      className="w-full flex items-center gap-2 p-2.5 border border-dashed border-slate-300 rounded-xl text-slate-400 hover:border-[#1372e6] hover:text-[#1372e6] transition text-sm"
-                    >
-                      <MapPin size={14} /> Pin product pickup / collection location on map
-                    </button>
-                  )}
-                </div>
-
-                {/* ── PRODUCT IMAGES ─────────────────────────────────────── */}
-                <div className="md:col-span-2">
-                  <div className="flex items-center justify-between mb-1.5">
-                    <label className="text-xs font-medium text-gray-600">
-                      Product Images
-                      {formListed
-                        ? <><span className="text-red-400 ml-1">*</span><span className="text-slate-400 ml-1">(min 3 for marketplace)</span></>
-                        : <span className="text-slate-400 ml-1">(optional, max {MAX_IMAGES})</span>}
-                    </label>
-                    {formImages.length > 0 && (
-                      <span className="text-[10px] text-slate-400">{formImages.length}/{MAX_IMAGES} uploaded</span>
-                    )}
-                  </div>
-
-                  {/* image preview grid + upload slot */}
-                  <div className="flex flex-wrap gap-2">
-                    {formImages.map((src, i) => (
-                      <div key={i} className="relative w-20 h-20 rounded-xl overflow-hidden border-2 border-slate-200 group flex-shrink-0">
-                        <img src={src} alt={`Photo ${i + 1}`} className="w-full h-full object-cover" />
-                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
-                          <button
-                            type="button"
-                            onClick={() => setFormImages((prev) => prev.filter((_, idx) => idx !== i))}
-                            className="opacity-0 group-hover:opacity-100 w-6 h-6 bg-red-500 rounded-full flex items-center justify-center text-white transition-opacity"
-                          >
-                            <X size={12} />
-                          </button>
-                        </div>
-                        <span className="absolute bottom-1 left-1 text-[8px] font-bold bg-black/50 text-white px-1 py-0.5 rounded">
-                          {i === 0 ? "Cover" : `#${i + 1}`}
-                        </span>
-                      </div>
-                    ))}
-
-                    {/* Add more slot */}
-                    {formImages.length < MAX_IMAGES && (
-                      <button
-                        type="button"
-                        onClick={() => imageInputRef.current?.click()}
-                        disabled={imageUploading}
-                        className="w-20 h-20 rounded-xl border-2 border-dashed border-slate-300 hover:border-[#1372e6] flex flex-col items-center justify-center gap-1 text-slate-400 hover:text-[#1372e6] transition flex-shrink-0 disabled:opacity-50"
-                      >
-                        {imageUploading ? (
-                          <RefreshCw size={16} className="animate-spin" />
-                        ) : (
-                          <>
-                            <ImagePlus size={18} />
-                            <span className="text-[9px] font-semibold">Add Photo</span>
-                          </>
-                        )}
-                      </button>
-                    )}
-                  </div>
-
-                  <input
-                    ref={imageInputRef}
-                    type="file"
-                    accept="image/*"
-                    multiple
-                    className="hidden"
-                    onChange={(e) => handleImageFiles(e.target.files)}
-                    onClick={(e) => { (e.target as HTMLInputElement).value = ""; }}
-                  />
-
-                  {formListed && formImages.length < 3 && (
-                    <p className="text-[10px] text-red-600 mt-1.5 flex items-center gap-1">
-                      <AlertCircle size={10} />
-                      Upload at least 3 photos to share on Marketplace
-                    </p>
-                  )}
-                  {!formListed && formImages.length === 0 && (
-                    <p className="text-[10px] text-slate-400 mt-1.5 flex items-center gap-1">
-                      <ImagePlus size={10} />
-                      Add photos if you plan to list this product on the Marketplace later
-                    </p>
-                  )}
-                </div>
-
-                {/* ── MARKETPLACE SHARE ──────────────────────────────────── */}
-                <div className="md:col-span-2">
-                  <div
-                    className={`rounded-xl border p-3.5 flex items-center justify-between gap-4 transition-colors cursor-pointer select-none ${
-                      formListed
-                        ? "border-[#1372e6] bg-[#EBF2FD]"
-                        : "border-slate-200 bg-slate-50 hover:bg-slate-100"
-                    }`}
-                    onClick={() => setFormListed((v) => !v)}
-                  >
-                    <div className="flex items-start gap-3">
-                      <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors ${formListed ? "bg-[#1372e6] text-white" : "bg-white text-slate-400 border border-slate-200"}`}>
-                        <Store size={16} />
-                      </div>
-                      <div>
-                        <p className={`text-sm font-bold leading-tight ${formListed ? "text-[#1372e6]" : "text-slate-700"}`}>
-                          Share on Marketplace
-                        </p>
-                        <p className={`text-[10px] mt-0.5 leading-snug ${formListed ? "text-[#1372e6]/70" : "text-slate-400"}`}>
-                          {formListed
-                            ? "This product will be visible to all shops on the marketplace"
-                            : "Make this product visible to other shops on the marketplace"}
-                        </p>
-                      </div>
-                    </div>
-                    {/* Toggle switch */}
-                    <div className={`w-11 h-6 rounded-full transition-colors relative flex-shrink-0 ${formListed ? "bg-[#1372e6]" : "bg-slate-300"}`}>
-                      <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${formListed ? "translate-x-5" : "translate-x-0.5"}`} />
-                    </div>
-                  </div>
-                </div>
               </div>
               <div className="flex justify-end gap-2.5 px-4 sm:px-6 py-4 border-t border-slate-100 shrink-0">
                 <button onClick={closeModal} className="px-4 py-2 rounded-lg border border-slate-200 text-slate-600 text-sm font-medium hover:bg-slate-50 transition">{t("common.cancel")}</button><button onClick={submitForm} disabled={submitting}
@@ -1188,19 +846,6 @@ export default function ItemManagementPage() {
           </div>
         )}
       </div>
-
-      {/* LOCATION PICKER */}
-      {showLocationPicker && (
-        <HigoMapPicker
-          initialLat={(() => { const m = formLocation.match(/\|Lat:([-\d.]+)/); return m ? parseFloat(m[1]) : null; })()}
-          initialLng={(() => { const m = formLocation.match(/\|Lng:([-\d.]+)/); return m ? parseFloat(m[1]) : null; })()}
-          onConfirm={(pos, label) => {
-            setFormLocation(`${label}|Lat:${pos.lat.toFixed(6)}|Lng:${pos.lng.toFixed(6)}`);
-            setShowLocationPicker(false);
-          }}
-          onClose={() => setShowLocationPicker(false)}
-        />
-      )}
 
       {/* IMPORT RESULTS MODAL */}
       {importResults && (

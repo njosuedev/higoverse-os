@@ -122,7 +122,7 @@ export default function AIFloatingWidget() {
     if (isShopUser) pingAdvisor();
   }, [isShopUser]);
 
-  if (pathname === "/advisor" || pathname === "/messages") return null;
+  if (pathname === "/advisor") return null;
   if (!ready || shopLoading) return null;   // avoid flash
   if (!isShopUser) return null;             // customers never see this
 

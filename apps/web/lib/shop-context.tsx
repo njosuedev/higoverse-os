@@ -21,10 +21,8 @@ export function ShopProvider({ children }: { children: ReactNode }) {
   const [rev,     setRev]     = useState(0);
 
   useEffect(() => {
-    // Anonymous visitors have no shop to fetch. `/api/v1/shop` requires auth,
-    // so this must never be called for logged-out visitors — the public
-    // marketplace (this provider is mounted on every public page) has to
-    // work without a token.
+    // `/api/v1/shop` requires auth — guard against firing before the
+    // auth context has resolved a token.
     if (!ready) return;
     if (!token) { setShop(null); setLoading(false); return; }
 
