@@ -50,6 +50,9 @@ def create_supplier(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user)
 ):
+    if not current_user["shop_id"]:
+        raise HTTPException(status_code=404, detail="No shop associated with this account")
+
     try:
         supplier = Supplier(
             shop_id=current_user["shop_id"],

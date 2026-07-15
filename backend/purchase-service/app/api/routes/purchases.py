@@ -113,6 +113,9 @@ def record_purchase(
     user: dict = Depends(get_current_user),
     authorization: str = Header(None),
 ):
+    if not user["shop_id"]:
+        raise HTTPException(status_code=404, detail="No shop associated with this account")
+
     token = _token(authorization)
 
     if not payload.product_id and not payload.product_name:

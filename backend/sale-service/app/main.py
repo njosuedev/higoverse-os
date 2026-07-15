@@ -1,7 +1,8 @@
 import hashlib
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from sqlalchemy import text
 
 from app.api.routes.sales import router as sale_router
@@ -11,12 +12,22 @@ from app.db.database import Base, engine
 
 app = FastAPI(title="Sale Service", version="1.0.0")
 
+_ALLOWED_ORIGINS = {
+    "http://localhost:3000",
+    "https://aandtconsultants.vercel.app",
+}
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    origin = request.headers.get("origin", "")
+    extra = {"Access-Control-Allow-Origin": origin} if origin in _ALLOWED_ORIGINS else {}
+    return JSONResponse(status_code=500, content={"detail": str(exc)}, headers=extra)
+
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "https://aandtconsultants.vercel.app",
-    ],
+    allow_origins=list(_ALLOWED_ORIGINS),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

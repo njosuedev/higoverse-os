@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
@@ -39,6 +39,8 @@ def get_settings(
     db: Session = Depends(get_db),
     user: dict = Depends(get_current_user),
 ):
+    if not user.get("shop_id"):
+        raise HTTPException(status_code=404, detail="No shop associated with this account")
     s = _get_or_create(db, user["shop_id"])
     return {"success": True, "data": _fmt(s)}
 
@@ -49,6 +51,8 @@ def update_settings(
     db: Session = Depends(get_db),
     user: dict = Depends(get_current_user),
 ):
+    if not user.get("shop_id"):
+        raise HTTPException(status_code=404, detail="No shop associated with this account")
     s = _get_or_create(db, user["shop_id"])
 
     for key, value in payload.model_dump(exclude_unset=True).items():
