@@ -206,8 +206,8 @@ export default function RegisterPage() {
 
         {/* Brand */}
         <div className="flex items-center gap-3">
-          <Image src="/higoverse.png" alt="Higoverse" width={36} height={36} className="rounded-xl" />
-          <span className="text-slate-800 font-bold text-lg tracking-tight">Higoverse</span>
+          <Image src="/logo.png" alt="A & T Consultants" width={36} height={36} className="rounded-xl" />
+          <span className="text-slate-800 font-bold text-lg tracking-tight">A & T Consultants</span>
         </div>
 
         {/* Headline + features */}
@@ -218,7 +218,7 @@ export default function RegisterPage() {
             <span className="text-blue-600">it&apos;s free.</span>
           </h1>
           <p className="text-slate-500 text-sm leading-relaxed max-w-sm mb-10">
-            Join Higoverse with a personal account to browse products and place orders in minutes.
+            Join A & T Consultants with a personal account to browse products and place orders in minutes.
           </p>
 
           <div className="grid grid-cols-2 gap-3 max-w-sm mb-10">
@@ -268,7 +268,7 @@ export default function RegisterPage() {
           </div>
         </div>
 
-        <p className="text-[11px] text-slate-400">© {new Date().getFullYear()} Higoverse · Secure · Private</p>
+        <p className="text-[11px] text-slate-400">© {new Date().getFullYear()} A & T Consultants · Secure · Private</p>
       </div>
 
       {/* ══ RIGHT PANEL ══ */}
@@ -277,8 +277,8 @@ export default function RegisterPage() {
 
           {/* Mobile brand */}
           <div className="flex lg:hidden items-center gap-2 mb-7">
-            <Image src="/higoverse.png" alt="Higoverse" width={30} height={30} className="rounded-lg" />
-            <span className="font-bold text-gray-900">Higoverse</span>
+            <Image src="/logo.png" alt="A & T Consultants" width={30} height={30} className="rounded-lg" />
+            <span className="font-bold text-gray-900">A & T Consultants</span>
           </div>
 
           {/* Progress bar */}
@@ -298,7 +298,7 @@ export default function RegisterPage() {
             <>
               <div className="mb-6">
                 <h2 className="text-2xl font-bold text-gray-900">Create your account</h2>
-                <p className="text-sm text-gray-500 mt-1">Join thousands of businesses on Higoverse</p>
+                <p className="text-sm text-gray-500 mt-1">Join thousands of businesses on A & T Consultants</p>
               </div>
 
               <div className="space-y-4">

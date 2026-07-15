@@ -23,7 +23,7 @@ def send_otp_email(to_email: str, otp: str) -> None:
         <!-- header -->
         <tr>
           <td style="background:linear-gradient(135deg,#1d4ed8,#4f46e5);padding:32px;text-align:center">
-            <div style="font-size:24px;font-weight:700;color:#fff;letter-spacing:1px">Higoverse</div>
+            <div style="font-size:24px;font-weight:700;color:#fff;letter-spacing:1px">A & T Consultants</div>
             <div style="color:#bfdbfe;font-size:13px;margin-top:4px">Business Management Platform</div>
           </td>
         </tr>
@@ -33,7 +33,7 @@ def send_otp_email(to_email: str, otp: str) -> None:
           <td style="padding:36px 40px">
             <h2 style="margin:0 0 8px;font-size:20px;color:#0f172a">Password Reset Request</h2>
             <p style="margin:0 0 24px;color:#64748b;font-size:14px;line-height:1.6">
-              We received a request to reset the password for your Higoverse account.
+              We received a request to reset the password for your A & T Consultants account.
               Use the code below — it expires in <strong>10 minutes</strong>.
             </p>
 
@@ -58,7 +58,7 @@ def send_otp_email(to_email: str, otp: str) -> None:
           <td style="background:#f8fafc;padding:20px 40px;text-align:center;
                      border-top:1px solid #e2e8f0">
             <div style="color:#94a3b8;font-size:11px">
-              &copy; {datetime.now(timezone.utc).year} Higoverse · This is an automated message, please do not reply.
+              &copy; {datetime.now(timezone.utc).year} A & T Consultants · This is an automated message, please do not reply.
             </div>
           </td>
         </tr>
@@ -71,7 +71,7 @@ def send_otp_email(to_email: str, otp: str) -> None:
 """
 
     msg = MIMEMultipart("alternative")
-    msg["Subject"] = f"Your Higoverse reset code: {otp}"
+    msg["Subject"] = f"Your A & T Consultants reset code: {otp}"
     msg["From"]    = settings.SMTP_FROM
     msg["To"]      = to_email
     msg.attach(MIMEText(html, "html"))

@@ -116,7 +116,7 @@ export default function SettingsPage() {
     try {
       const r = await fetch(
         `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&countrycodes=rw&format=json&limit=6&addressdetails=1`,
-        { headers: { "Accept-Language": "en", "User-Agent": "Higoverse/1.0" }, signal: ctrl.signal }
+        { headers: { "Accept-Language": "en", "User-Agent": "A & T Consultants/1.0" }, signal: ctrl.signal }
       );
       const d: NomResult[] = await r.json();
       setAddrResults(d ?? []);
@@ -730,7 +730,7 @@ export default function SettingsPage() {
         </div>
       )}
 
-      {/* Higoverse Map Picker modal */}
+      {/* A & T Consultants Map Picker modal */}
       {showMap && (
         <HigoMapPicker
           initialLat={pinLat}

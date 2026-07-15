@@ -174,8 +174,8 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
           <Link href="/" className="flex items-center gap-2.5 transition hover:opacity-80">
             {loading
               ? <div className="h-8 w-8 animate-pulse rounded-xl bg-slate-200" />
-              : <img src="/higoverse.png" alt="Higoverse" className="h-8 w-8 rounded-xl object-cover" />}
-            <span className="hidden text-[15px] font-bold tracking-tight text-slate-900 sm:inline">Higoverse</span>
+              : <img src="/logo.png" alt="A & T Consultants" className="h-8 w-8 rounded-xl object-cover" />}
+            <span className="hidden text-[15px] font-bold tracking-tight text-slate-900 sm:inline">A & T Consultants</span>
           </Link>
         </div>
 
@@ -325,8 +325,8 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
           <div className="absolute left-0 top-0 flex h-full w-72 max-w-[85vw] flex-col overflow-y-auto bg-white shadow-2xl">
             <div className="flex items-center justify-between border-b border-slate-100 px-4 py-4">
               <div className="flex items-center gap-2.5">
-                <img src="/higoverse.png" alt="Higoverse" className="h-8 w-8 rounded-xl object-cover" />
-                <span className="text-[15px] font-bold tracking-tight text-slate-900">Higoverse</span>
+                <img src="/logo.png" alt="A & T Consultants" className="h-8 w-8 rounded-xl object-cover" />
+                <span className="text-[15px] font-bold tracking-tight text-slate-900">A & T Consultants</span>
               </div>
               <button
                 type="button"

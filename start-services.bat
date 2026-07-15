@@ -1,5 +1,5 @@
 @echo off
-echo Starting all Higoverse microservices...
+echo Starting all A & T Consultants microservices...
 
 start "product-service (8001)" cmd /k "cd backend\product-service && pip install -r requirements.txt -q && uvicorn app.main:app --port 8001 --reload"
 timeout /t 2 /nobreak >nul

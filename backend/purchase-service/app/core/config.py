@@ -6,7 +6,7 @@ class Settings(BaseSettings):
     DATABASE_URL:           str = os.getenv("DATABASE_URL", "")
     SECRET_KEY:             str = os.getenv("SECRET_KEY") or os.getenv("AUTH_SERVICE_SECRET", "")
     AUTH_SERVICE_ALGORITHM: str = "HS256"
-    PRODUCT_SERVICE_URL:    str = "https://higoverse-products.vercel.app"
+    PRODUCT_SERVICE_URL:    str = "https://products-esys.vercel.app"
     SERVICE_NAME:           str = "purchase-service"
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")

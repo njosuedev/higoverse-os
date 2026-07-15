@@ -14,18 +14,18 @@ import { AuthProvider } from "@/lib/auth-context";
 import { QueryProvider } from "@/lib/query-provider";
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://higoverse-os.vercel.app"),
+  metadataBase: new URL("https://aandtconsultants.vercel.app"),
 
   title: {
-    default: "Higoverse | Business Technology Company",
-    template: "%s | Higoverse",
+    default: "A & T Consultants | Business Technology Company",
+    template: "%s | A & T Consultants",
   },
 
   description:
-    "Higoverse is a modern business technology platform that helps shops and enterprises manage products, suppliers, customers, purchases, sales, inventory, and business operations efficiently.",
+    "A & T Consultants is a modern business technology platform that helps shops and enterprises manage products, suppliers, customers, purchases, sales, inventory, and business operations efficiently.",
 
   keywords: [
-    "Higoverse",
+    "A & T Consultants",
     "business software",
     "inventory management",
     "shop management",
@@ -43,12 +43,12 @@ export const metadata: Metadata = {
 
   authors: [
     {
-      name: "Higoverse",
+      name: "A & T Consultants",
     },
   ],
 
-  creator: "Higoverse",
-  publisher: "Higoverse",
+  creator: "A & T Consultants",
+  publisher: "A & T Consultants",
 
   manifest: "/manifest.json",
 
@@ -65,20 +65,20 @@ export const metadata: Metadata = {
   },
 
   openGraph: {
-    title: "Higoverse | Business Technology Company",
+    title: "A & T Consultants | Business Technology Company",
     description:
       "Manage products, suppliers, customers, purchases, sales, and inventory from one powerful platform.",
 
-    url: "https://higoverse-os.vercel.app",
+    url: "https://aandtconsultants.vercel.app",
 
-    siteName: "Higoverse",
+    siteName: "A & T Consultants",
 
     images: [
       {
-        url: "/higoverse.png",
+        url: "/logo.png",
         width: 1200,
         height: 630,
-        alt: "Higoverse Business Platform",
+        alt: "A & T Consultants Business Platform",
       },
     ],
 
@@ -88,16 +88,16 @@ export const metadata: Metadata = {
 
   twitter: {
     card: "summary_large_image",
-    title: "Higoverse | Business Technology Company",
+    title: "A & T Consultants | Business Technology Company",
     description:
       "Modern inventory, sales, supplier, and customer management software for businesses.",
-    images: ["/higoverse.png"],
+    images: ["/logo.png"],
   },
 
   icons: {
     icon: "/favicon.ico",
     shortcut: "/favicon.ico",
-    apple: "/higoverse.png",
+    apple: "/logo.png",
   },
 
   category: "Business",

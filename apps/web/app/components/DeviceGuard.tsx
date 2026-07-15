@@ -55,7 +55,7 @@ export default function DeviceGuard({
             </div>
           </div>
           <small className="text-slate-600 leading-relaxed">
-            Thank you for your interest in Higoverse. To ensure the best performance,
+            Thank you for your interest in A & T Consultants. To ensure the best performance,
             security, and user experience, this platform is currently optimized for
             tablets, laptops, and desktop computers. Mobile phone access is not yet
             supported. Please use a larger-screen device to continue. If you need
@@ -72,7 +72,7 @@ export default function DeviceGuard({
           </small>
           {/* Footer */}
           <div className="mt-8 border-t pt-4 text-xs text-center text-slate-400">
-            ©2020–{new Date().getFullYear()} Higoverse. Business Technology Company
+            ©2020–{new Date().getFullYear()} A & T Consultants. Business Technology Company
           </div>
         </div>
       </main>

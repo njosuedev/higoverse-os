@@ -8,13 +8,13 @@ from app.api.routes.notifications import router as notif_router
 from app.core.events import set_event_loop
 from app.db.database import Base, engine
 
-app = FastAPI(title="Higoverse Notification Service", version="1.0.0")
+app = FastAPI(title="A & T Consultants Notification Service", version="1.0.0")
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:3000",
-        "https://higoverse-os.vercel.app",
+        "https://aandtconsultants.vercel.app",
     ],
     allow_credentials=True,
     allow_methods=["*"],

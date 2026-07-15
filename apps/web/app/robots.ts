@@ -1,6 +1,6 @@
 import type { MetadataRoute } from "next";
 
-const BASE_URL = "https://higoverse-os.vercel.app";
+const BASE_URL = "https://aandtconsultants.vercel.app";
 
 export default function robots(): MetadataRoute.Robots {
   return {

@@ -341,7 +341,7 @@ export default function ProformaPage() {
     <div class="sig-box"><div class="sig-line"></div><div class="sig-label">Received By</div></div>
   </div>
   <div class="footer">
-    This is a proforma invoice — not a VAT invoice. &nbsp;·&nbsp; Valid until <strong>${fmtDate(validUntilDate)}</strong> &nbsp;·&nbsp; Powered by <strong>Higoverse</strong>
+    This is a proforma invoice — not a VAT invoice. &nbsp;·&nbsp; Valid until <strong>${fmtDate(validUntilDate)}</strong> &nbsp;·&nbsp; Powered by <strong>A & T Consultants</strong>
   </div>
 </div>
 <script>window.onload=function(){setTimeout(function(){window.print();},500);};window.onafterprint=function(){window.close();};</script>

@@ -35,7 +35,7 @@ def _send_otp_email(to_email: str, otp: str) -> None:
 <table width="480" cellpadding="0" cellspacing="0"
        style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.08)">
 <tr><td style="background:linear-gradient(135deg,#1d4ed8,#4f46e5);padding:32px;text-align:center">
-  <div style="font-size:24px;font-weight:700;color:#fff;letter-spacing:1px">Higoverse</div>
+  <div style="font-size:24px;font-weight:700;color:#fff;letter-spacing:1px">A & T Consultants</div>
   <div style="color:#bfdbfe;font-size:13px;margin-top:4px">Business Management Platform</div>
 </td></tr>
 <tr><td style="padding:36px 40px">
@@ -55,13 +55,13 @@ def _send_otp_email(to_email: str, otp: str) -> None:
   </p>
 </td></tr>
 <tr><td style="background:#f8fafc;padding:20px 40px;text-align:center;border-top:1px solid #e2e8f0">
-  <div style="color:#94a3b8;font-size:11px">&copy; {datetime.now(timezone.utc).year} Higoverse</div>
+  <div style="color:#94a3b8;font-size:11px">&copy; {datetime.now(timezone.utc).year} A & T Consultants</div>
 </td></tr>
 </table></td></tr></table>
 </body></html>"""
 
     msg = MIMEMultipart("alternative")
-    msg["Subject"] = f"Your Higoverse reset code: {otp}"
+    msg["Subject"] = f"Your A & T Consultants reset code: {otp}"
     msg["From"]    = settings.SMTP_FROM
     msg["To"]      = to_email
     msg.attach(MIMEText(html, "html"))
@@ -84,13 +84,13 @@ def _send_verification_email(to_email: str, otp: str) -> None:
 <table width="480" cellpadding="0" cellspacing="0"
        style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.08)">
 <tr><td style="background:linear-gradient(135deg,#1d4ed8,#4f46e5);padding:32px;text-align:center">
-  <div style="font-size:24px;font-weight:700;color:#fff;letter-spacing:1px">Higoverse</div>
+  <div style="font-size:24px;font-weight:700;color:#fff;letter-spacing:1px">A & T Consultants</div>
   <div style="color:#bfdbfe;font-size:13px;margin-top:4px">Business Management Platform</div>
 </td></tr>
 <tr><td style="padding:36px 40px">
   <h2 style="margin:0 0 8px;font-size:20px;color:#0f172a">Verify your email address</h2>
   <p style="margin:0 0 24px;color:#64748b;font-size:14px;line-height:1.6">
-    Welcome to Higoverse! Use the code below to verify your email — it expires in <strong>30 minutes</strong>.
+    Welcome to A & T Consultants! Use the code below to verify your email — it expires in <strong>30 minutes</strong>.
   </p>
   <div style="background:#eff6ff;border:2px dashed #3b82f6;border-radius:12px;
               padding:24px;text-align:center;margin-bottom:24px">
@@ -100,17 +100,17 @@ def _send_verification_email(to_email: str, otp: str) -> None:
                 color:#1d4ed8;font-family:'Courier New',monospace">{otp}</div>
   </div>
   <p style="margin:0;color:#94a3b8;font-size:12px">
-    If you didn't create a Higoverse account, you can safely ignore this email.
+    If you didn't create an A & T Consultants account, you can safely ignore this email.
   </p>
 </td></tr>
 <tr><td style="background:#f8fafc;padding:20px 40px;text-align:center;border-top:1px solid #e2e8f0">
-  <div style="color:#94a3b8;font-size:11px">&copy; {datetime.now(timezone.utc).year} Higoverse</div>
+  <div style="color:#94a3b8;font-size:11px">&copy; {datetime.now(timezone.utc).year} A & T Consultants</div>
 </td></tr>
 </table></td></tr></table>
 </body></html>"""
 
     msg = MIMEMultipart("alternative")
-    msg["Subject"] = f"Verify your Higoverse account: {otp}"
+    msg["Subject"] = f"Verify your A & T Consultants account: {otp}"
     msg["From"]    = settings.SMTP_FROM
     msg["To"]      = to_email
     msg.attach(MIMEText(html, "html"))

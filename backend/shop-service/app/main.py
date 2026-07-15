@@ -6,7 +6,7 @@ from app.api.routes.shops import router as shops_router
 from app.db.database import Base, engine
 
 app = FastAPI(
-    title="Higoverse Shop Service",
+    title="A & T Consultants Shop Service",
     description="Manages shop profiles stored in auth_db.shops",
     version="1.0.0",
 )
@@ -15,7 +15,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:3000",
-        "https://higoverse-os.vercel.app",
+        "https://aandtconsultants.vercel.app",
     ],
     allow_credentials=True,
     allow_methods=["*"],

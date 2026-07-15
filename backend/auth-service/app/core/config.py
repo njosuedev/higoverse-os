@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     SMTP_PORT: int = int(os.getenv("SMTP_PORT", "587"))
     SMTP_USER: str = os.getenv("SMTP_USER", "")
     SMTP_PASS: str = os.getenv("SMTP_PASS", "")
-    SMTP_FROM: str = os.getenv("SMTP_FROM", "Higoverse <noreply@higoverse.com>")
+    SMTP_FROM: str = os.getenv("SMTP_FROM", "A & T Consultants <noreply@higoverse.com>")
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

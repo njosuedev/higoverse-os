@@ -4,14 +4,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.v1 import auth, shop
 
 app = FastAPI(
-    title="Higoverse Auth Service"
+    title="A & T Consultants Auth Service"
 )
 
 # CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "https://higoverse-os.vercel.app",
+        "https://aandtconsultants.vercel.app",
         "http://localhost:3000",
     ],
     allow_credentials=True,

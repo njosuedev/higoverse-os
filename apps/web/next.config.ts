@@ -14,7 +14,7 @@ const nextConfig: NextConfig = {
       { source: "/PartnerManagement",  destination: "/partners",  permanent: true },
       { source: "/PurchaseManagement", destination: "/purchases", permanent: true },
       { source: "/ExpenseManagement",  destination: "/expenses",  permanent: true },
-      // Higoverse dropped the public marketplace — old shared links now
+      // A & T Consultants dropped the public marketplace — old shared links now
       // land on the dashboard instead of 404ing.
       { source: "/marketplace",         destination: "/", permanent: true },
       { source: "/marketplace/:shopId", destination: "/", permanent: true },
@@ -27,7 +27,7 @@ const nextConfig: NextConfig = {
     return [
       {
         source: "/api/expenses/:path*",
-        destination: `${process.env.NEXT_PUBLIC_API_EXPENSES || "http://localhost:8005"}/:path*`,
+        destination: `${process.env.NEXT_PUBLIC_API_EXPENSES || "https://expenses-esys.vercel.app"}/:path*`,
       },
       {
         source: "/api/purchases/:path*",
