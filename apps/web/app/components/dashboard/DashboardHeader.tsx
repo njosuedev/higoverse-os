@@ -2,14 +2,13 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useLanguage } from "@/lib/language-context";
 import { useAuth } from "@/lib/auth-context";
 import { useShop } from "@/lib/shop-context";
 import { LANGUAGES } from "@/lib/i18n";
 import { settingsRequest } from "@/lib/settings-api";
 import { getEffectiveRole } from "@/lib/auth";
-import { getUnreadNotifCount, openNotifStream } from "@/lib/notifications-api";
 import {
   Home, Package, Truck, ShoppingCart, BarChart3,
   Users, FileText, ChevronDown, ShieldCheck, Receipt,
@@ -54,62 +53,7 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
 
   const [menuOpen, setMenuOpen]         = useState(false);
   const [mobileOpen, setMobileOpen]     = useState(false);
-  const [unreadNotifs, setUnreadNotifs] = useState(0);
   const menuRef = useRef<HTMLDivElement>(null);
-
-  // ── Sounds ─────────────────────────────────────────────────────────────────
-  function playNotifSound() {
-    try {
-      const Ctx = window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-      const ctx = new Ctx();
-      // Single rising note for notifications
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.connect(gain); gain.connect(ctx.destination);
-      osc.type = "sine"; osc.frequency.value = 880;
-      gain.gain.setValueAtTime(0, ctx.currentTime);
-      gain.gain.linearRampToValueAtTime(0.15, ctx.currentTime + 0.01);
-      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.3);
-      osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.3);
-      setTimeout(() => ctx.close(), 800);
-    } catch { /* AudioContext unavailable */ }
-  }
-
-  // ── Load initial badge counts ───────────────────────────────────────────────
-  const refreshBadges = useCallback(async () => {
-    try { setUnreadNotifs(await getUnreadNotifCount()); } catch { /* silent */ }
-  }, []);
-
-  // Initial load + 60s catch-up poll (SSE handles real-time)
-  useEffect(() => {
-    if (!user) return;
-    refreshBadges();
-    const t = setInterval(refreshBadges, 60_000);
-    return () => clearInterval(t);
-  }, [user, refreshBadges]);
-
-  // ── Notification SSE — real-time bell badge + sound ────────────────────────
-  useEffect(() => {
-    if (!user) return;
-    const ctrl = openNotifStream(
-      (evt) => {
-        if (evt.type === "new_notification") {
-          setUnreadNotifs((n) => n + 1);
-          playNotifSound();
-        }
-      },
-      () => { /* SSE unavailable — 60s poll handles recovery */ },
-    );
-    return () => ctrl.abort();
-  }, [user]);
-
-  // ── Request browser notification permission once (all users) ─────────────
-  useEffect(() => {
-    if (!user) return;
-    if ("Notification" in window && Notification.permission === "default") {
-      Notification.requestPermission().catch(() => {});
-    }
-  }, [user]);
 
   useEffect(() => {
     function onOutside(e: MouseEvent) {
@@ -133,14 +77,6 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
     setMenuOpen(false);
     logout();
     router.replace("/login");
-  }
-
-  function clearBadge(href: string) {
-    if (href === "/notifications") setUnreadNotifs(0);
-  }
-
-  function badgeFor(href: string) {
-    return href === "/notifications" ? unreadNotifs : 0;
   }
 
   const currentLang = LANGUAGES.find((l) => l.code === lang) ?? LANGUAGES[0];
@@ -188,12 +124,12 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
           ) : (
             <>
               {businessMenus.map((menu) => (
-                <NavLink key={menu.href} menu={menu} pathname={pathname} t={t} badge={badgeFor(menu.href)} onNavigate={() => clearBadge(menu.href)} />
+                <NavLink key={menu.href} menu={menu} pathname={pathname} t={t} />
               ))}
               {isAdmin && (
                 <>
                   <div aria-hidden="true" className="mx-1 my-auto h-6 w-px flex-shrink-0 bg-slate-200" />
-                  <NavLink menu={ADMIN_ITEM} pathname={pathname} t={t} badge={badgeFor(ADMIN_ITEM.href)} onNavigate={() => clearBadge(ADMIN_ITEM.href)} />
+                  <NavLink menu={ADMIN_ITEM} pathname={pathname} t={t} />
                 </>
               )}
             </>
@@ -340,12 +276,12 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
 
             <nav className="flex-1 space-y-1 p-3">
               {businessMenus.map((menu) => (
-                <MobileLink key={menu.href} menu={menu} pathname={pathname} t={t} badge={badgeFor(menu.href)} onNavigate={() => { clearBadge(menu.href); setMobileOpen(false); }} />
+                <MobileLink key={menu.href} menu={menu} pathname={pathname} t={t} onNavigate={() => setMobileOpen(false)} />
               ))}
               {isAdmin && (
                 <>
                   <div aria-hidden="true" className="my-2 border-t border-slate-100" />
-                  <MobileLink menu={ADMIN_ITEM} pathname={pathname} t={t} badge={badgeFor(ADMIN_ITEM.href)} onNavigate={() => { clearBadge(ADMIN_ITEM.href); setMobileOpen(false); }} />
+                  <MobileLink menu={ADMIN_ITEM} pathname={pathname} t={t} onNavigate={() => setMobileOpen(false)} />
                 </>
               )}
             </nav>
@@ -360,14 +296,12 @@ function NavLink({
   menu,
   pathname,
   t,
-  badge,
   onNavigate,
 }: {
   menu: NavItem;
   pathname: string;
   t: (key: string) => string;
-  badge: number;
-  onNavigate: () => void;
+  onNavigate?: () => void;
 }) {
   const Icon = menu.icon;
   const active = isActiveHref(pathname, menu.href);
@@ -384,14 +318,7 @@ function NavLink({
         active ? activeText : idleText
       }`}
     >
-      <span className="relative">
-        <Icon size={20} strokeWidth={active ? 2.5 : 1.8} />
-        {badge > 0 && (
-          <span className="absolute -top-1 -right-1.5 flex h-[14px] min-w-[14px] items-center justify-center rounded-full bg-red-500 px-0.5 text-[9px] font-black leading-none text-white">
-            {badge > 99 ? "99+" : badge}
-          </span>
-        )}
-      </span>
+      <Icon size={20} strokeWidth={active ? 2.5 : 1.8} />
       <span className="hidden text-[10px] font-semibold leading-none md:block">{t(menu.key)}</span>
       {active && <span className={`absolute bottom-0 left-1.5 right-1.5 h-[3px] rounded-t-full ${indicatorColor}`} />}
     </Link>
@@ -402,14 +329,12 @@ function MobileLink({
   menu,
   pathname,
   t,
-  badge,
   onNavigate,
 }: {
   menu: NavItem;
   pathname: string;
   t: (key: string) => string;
-  badge: number;
-  onNavigate: () => void;
+  onNavigate?: () => void;
 }) {
   const Icon = menu.icon;
   const active = isActiveHref(pathname, menu.href);
@@ -423,11 +348,6 @@ function MobileLink({
     >
       <Icon size={18} />
       <span className="flex-1">{t(menu.key)}</span>
-      {badge > 0 && (
-        <span className="flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-black leading-none text-white">
-          {badge > 99 ? "99+" : badge}
-        </span>
-      )}
     </Link>
   );
 }
