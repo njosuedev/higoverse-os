@@ -1,6 +1,9 @@
+import hashlib
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.core.config import settings
 from app.db.database import Base, engine
 from app.api.routes.suppliers import router as supplier_router
 
@@ -59,3 +62,13 @@ def root():
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+
+# TEMPORARY — remove after debugging the 401s across services.
+# Returns a fingerprint only, never the actual secret.
+@app.get("/debug/secret-fingerprint")
+def secret_fingerprint():
+    return {
+        "fingerprint": hashlib.sha256(settings.SECRET_KEY.encode()).hexdigest()[:12],
+        "length": len(settings.SECRET_KEY),
+    }
