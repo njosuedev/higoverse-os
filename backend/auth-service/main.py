@@ -1,7 +1,10 @@
+import hashlib
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.v1 import auth, shop
+from app.core.config import settings
 
 app = FastAPI(
     title="A & T Consultants Auth Service"
@@ -36,4 +39,14 @@ app.include_router(
 def root():
     return {
         "status": "auth-service running"
+    }
+
+
+# TEMPORARY — remove after debugging the product-service 401.
+# Returns a fingerprint only, never the actual secret.
+@app.get("/debug/secret-fingerprint")
+def secret_fingerprint():
+    return {
+        "fingerprint": hashlib.sha256(settings.SECRET_KEY.encode()).hexdigest()[:12],
+        "length": len(settings.SECRET_KEY),
     }
