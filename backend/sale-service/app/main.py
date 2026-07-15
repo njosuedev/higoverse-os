@@ -28,15 +28,23 @@ app.include_router(debt_router)
 
 @app.on_event("startup")
 def on_startup():
-    Base.metadata.create_all(bind=engine)
-    with engine.connect() as conn:
-        conn.execute(text(
-            "ALTER TABLE sales ADD COLUMN IF NOT EXISTS payment_method VARCHAR(20)"
-        ))
-        conn.execute(text(
-            "ALTER TABLE sales ADD COLUMN IF NOT EXISTS amount_paid NUMERIC(12, 2)"
-        ))
-        conn.commit()
+    # Guarded: a missing/unreachable DATABASE_URL must not crash the ASGI
+    # lifespan, which would otherwise take down every route instead of just
+    # the DB-dependent endpoints.
+    if not engine:
+        return
+    try:
+        Base.metadata.create_all(bind=engine)
+        with engine.connect() as conn:
+            conn.execute(text(
+                "ALTER TABLE sales ADD COLUMN IF NOT EXISTS payment_method VARCHAR(20)"
+            ))
+            conn.execute(text(
+                "ALTER TABLE sales ADD COLUMN IF NOT EXISTS amount_paid NUMERIC(12, 2)"
+            ))
+            conn.commit()
+    except Exception:
+        pass
 
 
 @app.get("/")

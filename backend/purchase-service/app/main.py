@@ -25,7 +25,15 @@ app.include_router(purchase_router)
 
 @app.on_event("startup")
 def on_startup():
-    Base.metadata.create_all(bind=engine)
+    # Guarded: a missing/unreachable DATABASE_URL must not crash the ASGI
+    # lifespan, which would otherwise take down every route instead of just
+    # the DB-dependent endpoints.
+    if not engine:
+        return
+    try:
+        Base.metadata.create_all(bind=engine)
+    except Exception:
+        pass
 
 
 @app.get("/")

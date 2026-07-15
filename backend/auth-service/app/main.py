@@ -1,4 +1,5 @@
 import hashlib
+import logging
 import os
 import re
 
@@ -6,6 +7,9 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("auth-service")
 
 from app.api.v1 import auth
 from app.api.v1 import shop
@@ -39,8 +43,18 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
     # CORSMiddleware never gets to add headers to a response built by an
     # exception handler, so an unhandled 500 needs them added here too —
     # otherwise the browser reports it as a CORS error, hiding the real 500.
+    # logger.exception (not just logging the message) captures the full
+    # traceback in Vercel's function logs, which str(exc) alone would drop.
+    logger.exception("Unhandled exception on %s %s", request.method, request.url.path)
     origin = request.headers.get("origin", "")
     extra = {"Access-Control-Allow-Origin": origin} if origin and _origin_matcher.match(origin) else {}
+
+    # A missing SHOP_DB_URL/DATABASE_URL surfaces here as a bare RuntimeError
+    # from get_db()/get_shop_db() — that's a config problem, not a server
+    # bug, so report it as 503 with an actionable message instead of a 500.
+    if isinstance(exc, RuntimeError) and "not configured" in str(exc):
+        return JSONResponse(status_code=503, content={"detail": str(exc)}, headers=extra)
+
     return JSONResponse(status_code=500, content={"detail": str(exc)}, headers=extra)
 
 # allow_credentials=False because auth here is a Bearer token in the
@@ -105,26 +119,37 @@ def root():
     return {"status": "auth-service running"}
 
 
+def _db_report(engine):
+    # Reports which DB host/name this deployment actually resolved a URL to
+    # (credentials stripped) — lets us confirm a Vercel env var change took
+    # effect, and that the expected tables actually exist, without exposing
+    # the password.
+    if engine is None:
+        return {"target": "unset", "tables": None}
+    url = engine.url
+    target = f"{url.host}/{url.database}"
+    try:
+        with engine.connect() as conn:
+            rows = conn.execute(text(
+                "SELECT table_name FROM information_schema.tables "
+                "WHERE table_schema='public' ORDER BY table_name"
+            ))
+            return {"target": target, "tables": [r[0] for r in rows]}
+    except Exception as e:
+        return {"target": target, "tables": f"query failed: {e}"}
+
+
 @app.get("/health")
 def health():
-    # Reports which DB host/name this deployment actually resolved
-    # DATABASE_URL to (credentials stripped) — lets us confirm a Vercel env
-    # var change actually took effect without exposing the password.
-    db_target = "unset"
-    tables = None
-    if auth_engine is not None:
-        url = auth_engine.url
-        db_target = f"{url.host}/{url.database}"
-        try:
-            with auth_engine.connect() as conn:
-                rows = conn.execute(text(
-                    "SELECT table_name FROM information_schema.tables "
-                    "WHERE table_schema='public' ORDER BY table_name"
-                ))
-                tables = [r[0] for r in rows]
-        except Exception as e:
-            tables = f"query failed: {e}"
-    return {"status": "ok", "db_target": db_target, "tables": tables}
+    auth_db = _db_report(auth_engine)
+    shop_db = _db_report(shop_engine)
+    return {
+        "status": "ok",
+        "db_target": auth_db["target"],
+        "tables": auth_db["tables"],
+        "shop_db_target": shop_db["target"],
+        "shop_db_tables": shop_db["tables"],
+    }
 
 
 # TEMPORARY — remove after debugging the 401s across services.
