@@ -1,6 +1,6 @@
 import { getToken } from "@/lib/auth";
 
-const SETTINGS_API = process.env.NEXT_PUBLIC_API_SETTINGS || "https://higoverse-settings.vercel.app";
+const SETTINGS_API = process.env.NEXT_PUBLIC_API_SETTINGS || "https://settings-esys.vercel.app";
 
 export async function settingsRequest(endpoint: string, options: RequestInit = {}) {
   const token = getToken();

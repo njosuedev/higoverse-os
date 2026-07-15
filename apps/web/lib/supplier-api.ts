@@ -1,6 +1,6 @@
 import { getToken } from "@/lib/auth";
 
-const SUPPLIER_API = process.env.NEXT_PUBLIC_API_SUPPLIERS || "https://higoverse-suppliers.vercel.app";
+const SUPPLIER_API = process.env.NEXT_PUBLIC_API_SUPPLIERS || "https://supplier-esys.vercel.app";
 
 export async function partnerRequest(
   endpoint: string,

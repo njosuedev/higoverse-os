@@ -31,7 +31,7 @@ const nextConfig: NextConfig = {
       },
       {
         source: "/api/purchases/:path*",
-        destination: `${process.env.NEXT_PUBLIC_API_PURCHASES || "https://higoverse-purchases.vercel.app"}/:path*`,
+        destination: `${process.env.NEXT_PUBLIC_API_PURCHASES || "https://purchase-esys.vercel.app"}/:path*`,
       },
     ];
   },
