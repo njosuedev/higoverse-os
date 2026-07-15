@@ -37,7 +37,15 @@ def on_startup():
     Auto-create DB tables (DEV ONLY).
     Use Alembic in production.
     """
-    Base.metadata.create_all(bind=engine)
+    # Guarded: a missing/unreachable DATABASE_URL must not crash the ASGI
+    # lifespan, which would otherwise take down every route (including
+    # CORS preflight handling) instead of just the DB-dependent endpoints.
+    if not engine:
+        return
+    try:
+        Base.metadata.create_all(bind=engine)
+    except Exception:
+        pass
 
 
 # -----------------------------
