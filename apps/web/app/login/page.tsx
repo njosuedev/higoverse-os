@@ -24,7 +24,6 @@ export default function LoginPage() {
 function LoginPageContent() {
   const router         = useRouter();
   const searchParams   = useSearchParams();
-  const justRegistered = searchParams.get("registered") === "1";
   // Where to send the user after a successful login — defaults to the dashboard.
   const nextPath = searchParams.get("next") || "/";
   const { login, user, ready } = useAuth();
@@ -77,7 +76,7 @@ function LoginPageContent() {
 
     // Reject scrambled/deleted emails immediately — these end in @removed.invalid
     if (email.endsWith("@removed.invalid") || email.startsWith("_deleted_")) {
-      return setFpError("This email address belongs to a deleted account. Please register a new account.");
+      return setFpError("This email address belongs to a deleted account. Contact your platform administrator.");
     }
 
     setFpLoading(true);
@@ -94,7 +93,7 @@ function LoginPageContent() {
       if (!res.ok) {
         const detail = (data?.detail ?? "").toLowerCase();
         if (detail.includes("not found") || detail.includes("no user") || detail.includes("does not exist")) {
-          return setFpError("No account found with this email address. Please register first.");
+          return setFpError("No account found with this email address. Contact your platform administrator.");
         }
         if (detail.includes("deleted") || detail.includes("inactive") || detail.includes("disabled")) {
           return setFpError("This account has been deactivated. Contact the A & T Consultants admin.");
@@ -207,15 +206,9 @@ function LoginPageContent() {
             <>
               <div className="mb-7">
                 <h2 className="text-2xl font-bold text-gray-900">Welcome back</h2>
-                <p className="text-sm text-gray-500 mt-1">Sign in to your A & T Consultants account</p>
+                <p className="text-sm text-gray-500 mt-1">Sign in to your A & T Consultants shop account</p>
               </div>
 
-              {justRegistered && (
-                <div className="mb-4 flex items-center gap-2 rounded-lg bg-green-50 border border-green-200 px-3 py-2.5 text-sm text-green-700">
-                  <CheckCircle2 size={14} className="shrink-0" />
-                  Account created — sign in to continue.
-                </div>
-              )}
               {error && (
                 <div className="mb-4 rounded-lg bg-red-50 border border-red-200 px-3 py-2.5 text-sm text-red-600">{error}</div>
               )}
@@ -253,19 +246,8 @@ function LoginPageContent() {
                 </button>
               </form>
 
-              <div className="flex items-center gap-3 my-6">
-                <hr className="flex-1 border-gray-200" />
-                <span className="text-xs text-gray-400">or</span>
-                <hr className="flex-1 border-gray-200" />
-              </div>
-
-              <a href="/register"
-                className="flex items-center justify-center w-full h-12 rounded-lg border border-gray-300 hover:bg-gray-50 text-sm font-semibold text-gray-700 transition">
-                Create an account
-              </a>
-
-              <p className="text-center text-xs text-gray-400 mt-4">
-                Free to join — no credit card required.
+              <p className="text-center text-xs text-gray-400 mt-6">
+                Shop accounts are created by your platform administrator.
               </p>
             </>
           )}

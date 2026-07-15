@@ -54,11 +54,36 @@ export interface AdminShop {
 export interface AdminUser {
   id: string;
   email: string;
+  name?: string | null;
   role: string;
+  permissions?: string[];
   is_active: boolean;
   shop_id: string | null;
   shop_name: string | null;
   created_at: string | null;
+}
+
+// Keep in sync with STAFF_ROLES in backend/auth-service/app/api/v1/admin.py
+export const STAFF_ROLES = ["admin", "owner", "manager", "cashier", "storekeeper", "accountant"] as const;
+export type StaffRole = (typeof STAFF_ROLES)[number];
+
+export interface CreateShopPayload {
+  shop_name: string;
+  owner_email: string;
+  owner_password: string;
+  owner_name?: string;
+  phone?: string;
+  address?: string;
+  description?: string;
+  logo_url?: string;
+}
+
+export async function createShop(payload: CreateShopPayload): Promise<{ shop_id: string; shop_name: string; owner_email: string }> {
+  const res = await adminRequest("/api/v1/admin/shops", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+  return res?.data;
 }
 
 export async function getAdminStats(): Promise<AdminStats> {

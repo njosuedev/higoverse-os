@@ -4,6 +4,7 @@ export interface User {
   shop_id?: string;
   role?: string;
   name?: string;
+  permissions?: string[];
 }
 
 export type AppRole = "GUEST" | "SHOP_OWNER" | "ADMIN";
@@ -17,17 +18,24 @@ export function getEffectiveRole(user: User | null): AppRole {
 }
 
 const TOKEN_KEY = "token";
+const REFRESH_TOKEN_KEY = "refresh_token";
 const USER_KEY = "user";
 
-export function setAuth(data: { access_token: string; user: User }) {
+export function setAuth(data: { access_token: string; refresh_token?: string; user: User }) {
   if (typeof window === "undefined") return;
   localStorage.setItem(TOKEN_KEY, data.access_token);
+  if (data.refresh_token) localStorage.setItem(REFRESH_TOKEN_KEY, data.refresh_token);
   localStorage.setItem(USER_KEY, JSON.stringify(data.user));
 }
 
 export function getToken(): string | null {
   if (typeof window === "undefined") return null;
   return localStorage.getItem(TOKEN_KEY);
+}
+
+export function getRefreshToken(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem(REFRESH_TOKEN_KEY);
 }
 
 export function getUser(): User | null {
@@ -59,6 +67,7 @@ export function getAuthHeaders(): Record<string, string> {
 export function clearAuth() {
   if (typeof window === "undefined") return;
   localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(REFRESH_TOKEN_KEY);
   localStorage.removeItem(USER_KEY);
   sessionStorage.clear();
 }
@@ -76,4 +85,3 @@ export function logout() {
 export function handleUnauthorized() {
   logout();
 }
-

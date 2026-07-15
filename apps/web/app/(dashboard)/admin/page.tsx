@@ -5,8 +5,8 @@ import { useAuth } from "@/lib/auth-context";
 import { useRouter } from "next/navigation";
 import {
   getAdminStats, getAdminShops, getAdminUsers,
-  toggleShop, deleteShop, toggleUser, updateUserRole, deleteUser,
-  type AdminStats, type AdminShop, type AdminUser,
+  toggleShop, deleteShop, toggleUser, updateUserRole, deleteUser, createShop,
+  STAFF_ROLES, type AdminStats, type AdminShop, type AdminUser, type CreateShopPayload,
 } from "@/lib/admin-api";
 import { decodeShopHumanInfo } from "@/lib/product-meta";
 import {
@@ -20,6 +20,7 @@ import {
   CheckCircle, XCircle,
   UserX,
   Receipt, Pencil, X, ChevronLeft,
+  Plus, Loader2, Lock, User as UserIcon,
 } from "lucide-react";
 import { expenseRequest } from "@/lib/expense-api";
 
@@ -130,9 +131,17 @@ export default function AdminPage() {
   const [shopFilter, setShopFilter]       = useState<"all" | "active" | "inactive">("all");
   const [shopSort, setShopSort]           = useState<ShopSort>("newest");
   const [userSearch, setUserSearch]       = useState("");
-  const [userRoleFilter, setUserRoleFilter] = useState<"all" | "admin" | "owner" | "staff">("all");
+  const [userRoleFilter, setUserRoleFilter] = useState<"all" | (typeof STAFF_ROLES)[number]>("all");
   const [expandedShop, setExpandedShop]   = useState<string | null>(null);
   const [lastUpdated, setLastUpdated]     = useState<Date | null>(null);
+
+  // Create-shop modal state
+  const [showCreateShop, setShowCreateShop] = useState(false);
+  const [createForm, setCreateForm]         = useState<CreateShopPayload>({
+    shop_name: "", owner_email: "", owner_password: "", owner_name: "", phone: "", address: "",
+  });
+  const [createError, setCreateError]       = useState<string | null>(null);
+  const [creatingShop, setCreatingShop]     = useState(false);
 
   // Expenses tab state
   const [expShopId, setExpShopId]           = useState<string | null>(null);
@@ -212,7 +221,7 @@ export default function AdminPage() {
 
   const userRoleData = [
     { name: "Owners", value: users.filter((u) => u.role === "owner").length, fill: LI_BLUE  },
-    { name: "Staff",  value: users.filter((u) => u.role === "staff").length, fill: LI_LIGHT },
+    { name: "Staff",  value: users.filter((u) => u.role !== "owner" && u.role !== "admin").length, fill: LI_LIGHT },
     { name: "Admins", value: users.filter((u) => u.role === "admin").length, fill: "#0D4DB8" },
   ];
 
