@@ -1,3 +1,4 @@
+import hashlib
 import os
 import re
 
@@ -9,6 +10,7 @@ from sqlalchemy import text
 from app.api.v1 import auth
 from app.api.v1 import shop
 from app.api.v1 import admin
+from app.core.config import settings
 from app.db.session import engine as auth_engine
 from app.db.shop_session import shop_engine
 from app.models.shop import Shop
@@ -123,3 +125,13 @@ def health():
         except Exception as e:
             tables = f"query failed: {e}"
     return {"status": "ok", "db_target": db_target, "tables": tables}
+
+
+# TEMPORARY — remove after debugging the 401s across services.
+# Returns a fingerprint only, never the actual secret.
+@app.get("/debug/secret-fingerprint")
+def secret_fingerprint():
+    return {
+        "fingerprint": hashlib.sha256(settings.SECRET_KEY.encode()).hexdigest()[:12],
+        "length": len(settings.SECRET_KEY),
+    }
