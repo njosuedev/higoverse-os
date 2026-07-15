@@ -1,5 +1,18 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr
 from typing import Optional
+
+
+# Platform admin provisions a shop + its first Owner staff member in one call —
+# shops are never created by self-registration.
+class AdminCreateShopRequest(BaseModel):
+    shop_name:    str
+    owner_email:  EmailStr
+    owner_password: str
+    owner_name:   Optional[str] = None
+    phone:        Optional[str] = None
+    address:      Optional[str] = None
+    description:  Optional[str] = None
+    logo_url:     Optional[str] = None
 
 
 class ShopUpdate(BaseModel):

@@ -1,26 +1,7 @@
 from pydantic import BaseModel, EmailStr
 
 
-# REGISTER — creates a customer account (no shop)
-class RegisterRequest(BaseModel):
-    name:     str
-    email:    EmailStr
-    password: str
-
-
-# LEGACY — kept for internal/admin use only
-class RegisterShopRequest(BaseModel):
-    shop_name:   str
-    email:       EmailStr
-    password:    str
-    phone:       str | None = None
-    address:     str | None = None
-    description: str | None = None
-    logo_url:    str | None = None
-    role:        str = "owner"
-
-
-# LOGIN
+# LOGIN — Shop Authentication (staff email + password)
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str
@@ -28,7 +9,16 @@ class LoginRequest(BaseModel):
 
 class TokenResponse(BaseModel):
     access_token: str
+    refresh_token: str
     token_type: str = "bearer"
+
+
+class RefreshRequest(BaseModel):
+    refresh_token: str
+
+
+class LogoutRequest(BaseModel):
+    refresh_token: str
 
 
 class ChangePasswordRequest(BaseModel):
@@ -45,10 +35,6 @@ class ResetPasswordRequest(BaseModel):
     otp: str
     new_password: str
 
-
-class VerifyRegistrationRequest(BaseModel):
-    email: EmailStr
-    otp: str
 
 class UpdateProfileRequest(BaseModel):
     name: str

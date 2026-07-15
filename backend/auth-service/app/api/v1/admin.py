@@ -1,12 +1,18 @@
+import uuid as _uuid
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.auth_bearer import get_current_user
+from app.core.permissions import default_permissions
+from app.core.security import hash_password
 from app.db.deps import get_db, get_shop_db
 from app.models.shop import Shop
 from app.models.user import User
+from app.schemas.shop import AdminCreateShopRequest
+
+STAFF_ROLES = {"admin", "owner", "manager", "cashier", "storekeeper", "accountant"}
 
 router = APIRouter()
 
@@ -37,13 +43,73 @@ def _fmt_shop(s: Shop, owner_email: str | None = None, user_count: int = 0) -> d
 
 def _fmt_user(u: User, shop_name: str | None = None) -> dict:
     return {
-        "id":         str(u.id),
-        "email":      u.email,
-        "role":       u.role,
-        "is_active":  u.is_active,
-        "shop_id":    str(u.shop_id) if u.shop_id else None,
-        "shop_name":  shop_name,
-        "created_at": u.created_at.isoformat() if u.created_at else None,
+        "id":          str(u.id),
+        "email":       u.email,
+        "name":        u.name,
+        "role":        u.role,
+        "permissions": u.permissions or default_permissions(u.role),
+        "is_active":   u.is_active,
+        "shop_id":     str(u.shop_id) if u.shop_id else None,
+        "shop_name":   shop_name,
+        "created_at":  u.created_at.isoformat() if u.created_at else None,
+    }
+
+
+# ── Create a shop + its first Owner staff member ──────────
+# The only way a shop comes into existence — there is no self-registration.
+@router.post("/shops")
+def admin_create_shop(
+    payload: AdminCreateShopRequest,
+    shop_db: Session = Depends(get_shop_db),
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin),
+):
+    if shop_db.query(Shop).filter(Shop.email == payload.owner_email).first():
+        raise HTTPException(status_code=400, detail="A shop with this email already exists")
+    if db.query(User).filter(User.email == payload.owner_email).first():
+        raise HTTPException(status_code=400, detail="A staff account with this email already exists")
+
+    shop_id = _uuid.uuid4()
+    now = datetime.now(timezone.utc)
+
+    shop_fields = dict(
+        name=payload.shop_name,
+        email=payload.owner_email,
+        phone=payload.phone,
+        address=payload.address,
+        description=payload.description,
+        logo_url=payload.logo_url,
+        is_active=True,
+    )
+
+    # Shop_db is the source of truth; the auth_db copy is a read-only mirror
+    # kept in sync so cross-DB queries (e.g. login's shop-active check) work
+    # without a cross-database FK.
+    shop_db.add(Shop(id=shop_id, created_at=now, **shop_fields))
+    db.add(Shop(id=shop_id, created_at=now, **shop_fields))
+
+    owner = User(
+        name=payload.owner_name,
+        email=payload.owner_email,
+        password_hash=hash_password(payload.owner_password),
+        shop_id=shop_id,
+        role="owner",
+        permissions=default_permissions("owner"),
+        is_active=True,
+    )
+    db.add(owner)
+
+    shop_db.commit()
+    db.commit()
+
+    return {
+        "success": True,
+        "message": "Shop created",
+        "data": {
+            "shop_id":     str(shop_id),
+            "shop_name":   payload.shop_name,
+            "owner_email": payload.owner_email,
+        },
     }
 
 
@@ -98,8 +164,7 @@ def admin_list_shops(
         if not sid:
             continue
         user_counts[sid] = user_counts.get(sid, 0) + 1
-        # Show owner/customer applicant email so admin can identify who applied
-        if u.role in ("owner", "admin", "customer") and sid not in owner_emails:
+        if u.role in ("owner", "admin") and sid not in owner_emails:
             owner_emails[sid] = u.email
 
     return {
@@ -142,7 +207,7 @@ def admin_patch_shop(
         db.commit()
 
     users = db.query(User).filter(User.shop_id == shop.id).all()
-    owner = next((u for u in users if u.role in ("owner", "admin", "customer")), None)
+    owner = next((u for u in users if u.role in ("owner", "admin")), None)
     return {"success": True, "data": _fmt_shop(shop, owner.email if owner else None, len(users))}
 
 
@@ -169,17 +234,9 @@ def admin_toggle_shop(
     if auth_shop:
         auth_shop.is_active = activating
         auth_shop.updated_at = shop.updated_at
+        db.commit()
 
     users = db.query(User).filter(User.shop_id == shop.id).all()
-
-    if activating:
-        # Promote any customer-role users attached to this shop to owner
-        for u in users:
-            if u.role == "customer":
-                u.role = "owner"
-
-    db.commit()
-
     user_count = len(users)
     owner = next((u for u in users if u.role in ("owner", "admin")), None)
     return {"success": True, "data": _fmt_shop(shop, owner.email if owner else None, user_count)}
@@ -293,14 +350,15 @@ def admin_update_user_role(
     current_admin: User = Depends(require_admin),
 ):
     new_role = payload.get("role", "").strip()
-    if new_role not in ("admin", "owner", "staff"):
-        raise HTTPException(status_code=422, detail="Role must be admin, owner, or staff")
+    if new_role not in STAFF_ROLES:
+        raise HTTPException(status_code=422, detail=f"Role must be one of: {', '.join(sorted(STAFF_ROLES))}")
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     if str(user.id) == str(current_admin.id):
         raise HTTPException(status_code=400, detail="Cannot change your own role")
     user.role = new_role
+    user.permissions = default_permissions(new_role)
     db.commit()
     db.refresh(user)
     return {"success": True, "data": _fmt_user(user)}

@@ -1,7 +1,7 @@
 from sqlalchemy import Column, String, Boolean, ForeignKey, DateTime
 from sqlalchemy.orm import relationship
 from app.db.base import Base
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import UUID, JSON
 import uuid
 from datetime import datetime, timezone
 
@@ -26,8 +26,14 @@ class User(Base):
 
     role_id = Column(UUID(as_uuid=True), ForeignKey("roles.id"), nullable=True)
 
-    # "customer" → browsing only | "owner" → shop approved | "admin" → platform admin
-    role = Column(String(50), default="customer")
+    # Staff role: owner | manager | cashier | storekeeper | accountant.
+    # "admin" is a platform admin (shop_id is NULL). Legacy "customer" rows from
+    # the removed self-registration flow may still exist but can no longer log in.
+    role = Column(String(50), default="owner")
+
+    # Fine-grained permission slugs (e.g. ["products", "sales", "reports"]).
+    # Defaulted from role at staff-creation time; nullable for legacy rows.
+    permissions = Column(JSON, nullable=True)
 
     created_at = Column(DateTime(timezone=True), default=_utcnow)
 
