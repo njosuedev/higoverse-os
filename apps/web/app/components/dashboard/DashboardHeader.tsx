@@ -18,24 +18,19 @@ import {
 
 type NavItem = { key: string; href: string; icon: typeof Home };
 
-// Business-owner IA, flat and ordered by frequency of use: daily-use items
-// first (Dashboard/Inventory/Sales), then finance/operations, then documents.
+// Business-owner IA, in the specific order requested by the shop owner.
 // Settings lives in the account menu only, not the primary nav. Admin is
 // visually separated (see the divider in the render below) since it's a
 // distinct, privileged section rather than a regular business menu.
-const OWNER_PRIMARY: NavItem[] = [
+const BUSINESS_MENUS: NavItem[] = [
   { key: "nav.dashboard", href: "/",          icon: Home         },
   { key: "nav.inventory", href: "/items",     icon: Package      },
+  { key: "nav.purchases", href: "/purchases", icon: Truck        },
+  { key: "nav.partners",  href: "/partners",  icon: Users        },
   { key: "nav.sales",     href: "/sales",     icon: ShoppingCart },
-];
-const FINANCE_MENUS: NavItem[] = [
-  { key: "nav.purchases", href: "/purchases", icon: Truck     },
-  { key: "nav.expenses",  href: "/expenses",  icon: Receipt   },
-  { key: "nav.reports",   href: "/reports",   icon: BarChart3 },
-  { key: "nav.partners",  href: "/partners",  icon: Users     },
-];
-const DOCUMENT_MENUS: NavItem[] = [
-  { key: "nav.proforma", href: "/proforma", icon: FileText },
+  { key: "nav.proforma",  href: "/proforma",  icon: FileText     },
+  { key: "nav.expenses",  href: "/expenses",  icon: Receipt      },
+  { key: "nav.reports",   href: "/reports",   icon: BarChart3    },
 ];
 const ADMIN_ITEM: NavItem = { key: "nav.admin", href: "/admin", icon: ShieldCheck };
 
@@ -89,7 +84,7 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
 
   // Regular business menus (everyone with dashboard access) vs. the
   // admin-only item, kept separate so the nav can render a divider between them.
-  const businessMenus: NavItem[] = [...OWNER_PRIMARY, ...FINANCE_MENUS, ...DOCUMENT_MENUS];
+  const businessMenus: NavItem[] = BUSINESS_MENUS;
 
   return (
     <>
