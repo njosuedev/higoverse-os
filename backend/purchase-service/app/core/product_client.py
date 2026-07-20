@@ -69,7 +69,7 @@ def create_product(
             "description": description,
         }
         res = requests.post(
-            f"{settings.PRODUCT_SERVICE_URL}/products",
+            f"{settings.PRODUCT_SERVICE_URL}/products/",
             json=payload,
             headers={
                 "Authorization": f"Bearer {token}",

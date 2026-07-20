@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { Suspense, useEffect, useState, useCallback } from "react";
+import { useSearchParams } from "next/navigation";
 import { useLanguage } from "@/lib/language-context";
 import { itemRequest } from "@/lib/product-api";
 import { settingsRequest } from "@/lib/settings-api";
@@ -51,7 +52,16 @@ function StatusBadge({ status }: { status: ProformaStatus }) {
 type PageView = "editor" | "history";
 
 export default function ProformaPage() {
+  return (
+    <Suspense fallback={null}>
+      <ProformaPageContent />
+    </Suspense>
+  );
+}
+
+function ProformaPageContent() {
   const { t } = useLanguage();
+  const searchParams = useSearchParams();
 
   const [loading, setLoading]     = useState(true);
   const [products, setProducts]   = useState<Product[]>([]);
@@ -114,6 +124,18 @@ export default function ProformaPage() {
   }, []);
 
   useEffect(() => { loadHistory(); }, [loadHistory]);
+
+  useEffect(() => {
+    if (searchParams.get("view") === "history") setView("history");
+  }, [searchParams]);
+
+  useEffect(() => {
+    const editId = searchParams.get("edit");
+    if (!editId || proformas.length === 0) return;
+    const p = proformas.find((x) => x.id === editId);
+    if (p) loadProforma(p);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, proformas]);
 
   function addLine() { setLines((p) => [...p, { id: genId(), product_name: "", qty: 1, unit_price: 0 }]); }
   function removeLine(id: string) { setLines((p) => p.filter((l) => l.id !== id)); }

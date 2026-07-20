@@ -1,4 +1,3 @@
-import hashlib
 import os
 import re
 
@@ -8,7 +7,6 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import text
 
 from app.api.routes.products import router as product_router
-from app.core.config import settings
 from app.db.database import Base, engine
 
 app = FastAPI(
@@ -105,13 +103,3 @@ def root():
 @app.get("/health")
 def health():
     return {"status": "ok"}
-
-
-# TEMPORARY — remove after debugging the 401 on /products/.
-# Returns a fingerprint only, never the actual secret.
-@app.get("/debug/secret-fingerprint")
-def secret_fingerprint():
-    return {
-        "fingerprint": hashlib.sha256(settings.SECRET_KEY.encode()).hexdigest()[:12],
-        "length": len(settings.SECRET_KEY),
-    }

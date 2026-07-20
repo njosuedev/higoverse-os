@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { itemRequest } from "@/lib/product-api";
 import { partnerRequest } from "@/lib/supplier-api";
 import { saleRequest } from "@/lib/sale-api";
 import { settingsRequest } from "@/lib/settings-api";
+import { listProformas, deleteProforma, type Proforma, type ProformaStatus } from "@/lib/proforma-api";
 import { useDebounce } from "@/lib/hooks";
 import { useLanguage } from "@/lib/language-context";
 import { useShop } from "@/lib/shop-context";
@@ -17,6 +19,13 @@ import {
   Wallet, AlertCircle, CheckCircle2, Phone, ChevronDown,
   Download, Upload, FileSpreadsheet, FileText,
 } from "lucide-react";
+
+const PROFORMA_STATUS_META: Record<ProformaStatus, { label: string; color: string }> = {
+  draft:    { label: "Draft",    color: "bg-slate-100 text-slate-600 border-slate-200" },
+  sent:     { label: "Sent",     color: "bg-blue-50 text-blue-600 border-blue-200" },
+  accepted: { label: "Accepted", color: "bg-green-50 text-green-700 border-green-200" },
+  expired:  { label: "Expired",  color: "bg-red-50 text-red-600 border-red-200" },
+};
 
 interface Sale {
   id: string; product_id: string; product_name?: string;
@@ -116,6 +125,11 @@ export default function SaleManagementPage() {
   const [showPayModal, setShowPayModal] = useState<Debt | null>(null);
   const [deletingDebtId, setDeletingDebtId] = useState("");
 
+  // Proforma state
+  const [proformas, setProformas] = useState<Proforma[]>([]);
+  const [proformasLoading, setProformasLoading] = useState(false);
+  const [deletingProformaId, setDeletingProformaId] = useState("");
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const loadDataRef = useRef<(soft?: boolean) => Promise<void>>(async () => {});
   useEffect(() => { loadDataRef.current = loadData; });
@@ -129,7 +143,7 @@ export default function SaleManagementPage() {
   const debouncedSearch = useDebounce(search, 350);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { loadData(); loadDebts(); }, []);
+  useEffect(() => { loadData(); loadDebts(); loadProformas(); }, []);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { if (!loading) loadData(true); }, [dateFrom, dateTo, page, pageSize]);
 
@@ -169,6 +183,25 @@ export default function SaleManagementPage() {
       setDebtsTotalOutstanding(res?.data?.total_outstanding || 0);
     } catch { /* non-fatal */ }
     finally { setDebtsLoading(false); }
+  }
+
+  async function loadProformas() {
+    try {
+      setProformasLoading(true);
+      const res = await listProformas({ limit: 10 });
+      setProformas(res.items || []);
+    } catch { /* non-fatal */ }
+    finally { setProformasLoading(false); }
+  }
+
+  async function handleDeleteProforma(id: string) {
+    if (!confirm("Delete this proforma?")) return;
+    try {
+      setDeletingProformaId(id);
+      await deleteProforma(id);
+      await loadProformas();
+    } catch { alert("Delete failed."); }
+    finally { setDeletingProformaId(""); }
   }
 
   function openCreateModal() {
@@ -952,6 +985,80 @@ ${paymentHtml}
                         className="flex items-center gap-1 text-xs font-semibold bg-red-50 hover:bg-red-100 text-red-600 px-2.5 py-1.5 rounded-lg transition disabled:opacity-40"
                       >
                         <Trash2 size={12} /> Delete
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* PROFORMA SECTION */}
+        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden mt-6">
+          <div className="flex justify-between items-center px-5 py-4 border-b border-slate-100">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-blue-50 rounded-lg"><FileText size={17} className="text-blue-500" /></div>
+              <div>
+                <h2 className="text-sm font-semibold text-slate-800">Proforma Invoices</h2>
+                <p className="text-xs text-slate-400 mt-0.5">{proformas.length} recent</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Link href="/proforma?view=history"
+                className="text-xs font-semibold text-slate-500 hover:text-blue-600 border border-slate-200 hover:border-blue-300 px-3 py-1.5 rounded-lg transition">
+                View All
+              </Link>
+              <Link href="/proforma"
+                className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg text-white transition hover:opacity-90" style={{ background: "#1372e6" }}>
+                <Plus size={13} /> New Proforma
+              </Link>
+            </div>
+          </div>
+
+          {proformasLoading ? (
+            <div className="px-5 py-8 text-center text-xs text-slate-400">Loading proformas…</div>
+          ) : proformas.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12 text-slate-400">
+              <FileText size={32} className="mb-2 text-slate-200" />
+              <p className="text-sm font-medium text-slate-500">No proformas yet</p>
+              <Link href="/proforma"
+                className="mt-3 flex items-center gap-1.5 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition hover:opacity-90" style={{ background: "#1372e6" }}>
+                <Plus size={12} /> Create Proforma
+              </Link>
+            </div>
+          ) : (
+            <div className="divide-y divide-slate-100">
+              {proformas.map((p) => {
+                const meta = PROFORMA_STATUS_META[p.status] ?? PROFORMA_STATUS_META.draft;
+                return (
+                  <div key={p.id} className="flex items-center gap-4 px-5 py-3 hover:bg-slate-50 transition group">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-mono font-semibold text-sm text-blue-700">{p.invoice_no}</span>
+                        <span className={`inline-flex items-center text-[10px] font-semibold px-2 py-0.5 rounded-full border ${meta.color}`}>{meta.label}</span>
+                      </div>
+                      <div className="flex items-center gap-3 mt-0.5 text-xs text-slate-500 flex-wrap">
+                        <span className="font-medium text-slate-700 truncate max-w-40">
+                          {p.customer || <span className="italic text-slate-300">No customer</span>}
+                        </span>
+                        <span className="flex items-center gap-1"><Calendar size={10} /> {p.date}</span>
+                      </div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <p className="font-bold text-slate-800 tabular-nums">
+                        {p.grand_total.toLocaleString()} <span className="text-xs font-normal text-slate-400">{p.currency}</span>
+                      </p>
+                      <p className="text-[10px] text-slate-400">{p.lines.length} item{p.lines.length !== 1 ? "s" : ""}</p>
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <Link href={`/proforma?edit=${p.id}`} title="Edit"
+                        className="p-1.5 rounded-lg hover:bg-blue-50 text-slate-400 hover:text-blue-600 transition">
+                        <Pencil size={14} />
+                      </Link>
+                      <button onClick={() => handleDeleteProforma(p.id)} disabled={deletingProformaId === p.id} title="Delete"
+                        className="p-1.5 rounded-lg hover:bg-red-50 text-slate-300 hover:text-red-400 transition disabled:opacity-40">
+                        <Trash2 size={14} />
                       </button>
                     </div>
                   </div>

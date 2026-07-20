@@ -35,3 +35,10 @@ class ExpenseUpdate(BaseModel):
     bank_name:      str | None = None
     bank_account:   str | None = None
     receiver_phone: str | None = None
+
+    @field_validator("payment_method")
+    @classmethod
+    def validate_payment_method(cls, v: str | None) -> str | None:
+        if v is not None and v not in VALID_PAYMENT_METHODS:
+            raise ValueError(f"payment_method must be one of: {', '.join(VALID_PAYMENT_METHODS)}")
+        return v

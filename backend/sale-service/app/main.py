@@ -1,5 +1,3 @@
-import hashlib
-
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -7,7 +5,7 @@ from sqlalchemy import text
 
 from app.api.routes.sales import router as sale_router
 from app.api.routes.debts import router as debt_router
-from app.core.config import settings
+from app.api.routes.proforma import router as proforma_router
 from app.db.database import Base, engine
 
 app = FastAPI(title="Sale Service", version="1.0.0")
@@ -35,6 +33,7 @@ app.add_middleware(
 
 app.include_router(sale_router)
 app.include_router(debt_router)
+app.include_router(proforma_router)
 
 
 @app.on_event("startup")
@@ -66,13 +65,3 @@ def root():
 @app.get("/health")
 def health():
     return {"status": "ok"}
-
-
-# TEMPORARY — remove after debugging the 401s across services.
-# Returns a fingerprint only, never the actual secret.
-@app.get("/debug/secret-fingerprint")
-def secret_fingerprint():
-    return {
-        "fingerprint": hashlib.sha256(settings.SECRET_KEY.encode()).hexdigest()[:12],
-        "length": len(settings.SECRET_KEY),
-    }
