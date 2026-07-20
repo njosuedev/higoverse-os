@@ -11,6 +11,7 @@ from app.db.deps import get_db, get_shop_db
 from app.models.shop import Shop
 from app.models.user import User
 from app.schemas.shop import AdminCreateShopRequest
+from app.schemas.user import AdminCreateUserRequest
 
 STAFF_ROLES = {"admin", "owner", "manager", "cashier", "storekeeper", "accountant"}
 
@@ -284,6 +285,42 @@ def admin_list_users(
         "success": True,
         "data": [_fmt_user(u, shops.get(str(u.shop_id))) for u in users],
     }
+
+
+# ── Register a staff member into an existing shop ─────────
+@router.post("/users")
+def admin_create_user(
+    payload: AdminCreateUserRequest,
+    db: Session = Depends(get_db),
+    shop_db: Session = Depends(get_shop_db),
+    _: User = Depends(require_admin),
+):
+    if payload.role not in STAFF_ROLES:
+        raise HTTPException(status_code=422, detail=f"Role must be one of: {', '.join(sorted(STAFF_ROLES))}")
+    if len(payload.password) < 8:
+        raise HTTPException(status_code=422, detail="Password must be at least 8 characters")
+
+    shop = shop_db.query(Shop).filter(Shop.id == payload.shop_id).first()
+    if not shop:
+        raise HTTPException(status_code=404, detail="Shop not found")
+
+    if db.query(User).filter(User.email == payload.email).first():
+        raise HTTPException(status_code=400, detail="A staff account with this email already exists")
+
+    user = User(
+        name=payload.name,
+        email=payload.email,
+        password_hash=hash_password(payload.password),
+        shop_id=shop.id,
+        role=payload.role,
+        permissions=default_permissions(payload.role),
+        is_active=True,
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+
+    return {"success": True, "message": "User created", "data": _fmt_user(user, shop.name)}
 
 
 # ── Update user fields (admin — e.g. scramble email) ─────
