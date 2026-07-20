@@ -4,3 +4,14 @@
 .env.development
 .env.production
 .env.test
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Node
+node_modules/
+.next/
+.claude/

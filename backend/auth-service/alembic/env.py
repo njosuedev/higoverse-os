@@ -21,8 +21,15 @@ if config.config_file_name is not None:
 
 from app.db.base import Base
 from app.models import user, shop  # IMPORTANT: import all models
+from app.core.config import settings
 
 target_metadata = Base.metadata
+
+# Prefer DATABASE_URL from the environment/.env (same source the app itself
+# uses) over whatever is checked into alembic.ini — the ini file previously
+# had a live production connection string committed to git.
+if settings.DATABASE_URL:
+    config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
 
 # other values from the config, defined by the needs of env.py,
 # can be acquired:
