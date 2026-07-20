@@ -5,8 +5,8 @@ import { useAuth } from "@/lib/auth-context";
 import { useRouter } from "next/navigation";
 import {
   getAdminStats, getAdminShops, getAdminUsers,
-  toggleShop, deleteShop, toggleUser, updateUserRole, deleteUser, createShop,
-  STAFF_ROLES, type AdminStats, type AdminShop, type AdminUser, type CreateShopPayload,
+  toggleShop, deleteShop, toggleUser, updateUserRole, deleteUser, createShop, createShopUser,
+  STAFF_ROLES, type AdminStats, type AdminShop, type AdminUser, type CreateShopPayload, type CreateShopUserPayload, type StaffRole,
 } from "@/lib/admin-api";
 import { decodeShopHumanInfo } from "@/lib/product-meta";
 import {
@@ -20,7 +20,7 @@ import {
   CheckCircle, XCircle,
   UserX,
   Receipt, Pencil, X, ChevronLeft,
-  Plus, Loader2, Lock, User as UserIcon,
+  Plus, Loader2, Lock, User as UserIcon, UserPlus,
 } from "lucide-react";
 import { expenseRequest } from "@/lib/expense-api";
 
@@ -142,6 +142,15 @@ export default function AdminPage() {
   });
   const [createError, setCreateError]       = useState<string | null>(null);
   const [creatingShop, setCreatingShop]     = useState(false);
+
+  // Create-shop-user (register staff) modal state
+  const [showCreateUser, setShowCreateUser] = useState(false);
+  const [createUserForm, setCreateUserForm] = useState<CreateShopUserPayload>({
+    shop_id: "", email: "", password: "", name: "", role: "cashier",
+  });
+  const [createUserError, setCreateUserError] = useState<string | null>(null);
+  const [creatingUser, setCreatingUser]       = useState(false);
+  const [showUserPassword, setShowUserPassword] = useState(false);
 
   // Expenses tab state
   const [expShopId, setExpShopId]           = useState<string | null>(null);
@@ -312,6 +321,33 @@ export default function AdminPage() {
     try { const updated = await toggleUser(id); setUsers((p) => p.map((u) => u.id === id ? updated : u)); }
     catch (e: unknown) { setError(e instanceof Error ? e.message : "Failed"); }
     finally { setActionId(null); }
+  };
+
+  const openCreateUser = (shopId?: string) => {
+    setCreateUserForm({
+      shop_id: shopId ?? activeShops[0]?.id ?? "",
+      email: "", password: "", name: "", role: "cashier",
+    });
+    setCreateUserError(null);
+    setShowUserPassword(false);
+    setShowCreateUser(true);
+  };
+
+  const handleCreateUser = async () => {
+    if (!createUserForm.shop_id) { setCreateUserError("Select a shop."); return; }
+    if (!createUserForm.email.trim()) { setCreateUserError("Email is required."); return; }
+    if (createUserForm.password.length < 8) { setCreateUserError("Password must be at least 8 characters."); return; }
+    setCreatingUser(true);
+    setCreateUserError(null);
+    try {
+      await createShopUser({ ...createUserForm, email: createUserForm.email.trim(), name: createUserForm.name?.trim() || undefined });
+      setShowCreateUser(false);
+      await loadAll(true);
+    } catch (e: unknown) {
+      setCreateUserError(e instanceof Error ? e.message : "Failed to register user");
+    } finally {
+      setCreatingUser(false);
+    }
   };
 
   const handleRoleChange = async () => {
@@ -800,9 +836,17 @@ export default function AdminPage() {
 
                             {/* Users */}
                             <div className="bg-white rounded-xl border border-gray-200 p-4">
-                              <p className="text-[10px] uppercase tracking-wider text-gray-400 font-semibold mb-3 flex items-center gap-1.5">
-                                Team Members <span className="font-bold text-gray-600 normal-case">{members.length}</span>
-                              </p>
+                              <div className="flex items-center justify-between mb-3">
+                                <p className="text-[10px] uppercase tracking-wider text-gray-400 font-semibold flex items-center gap-1.5">
+                                  Team Members <span className="font-bold text-gray-600 normal-case">{members.length}</span>
+                                </p>
+                                <button onClick={() => openCreateUser(shop.id)}
+                                  title="Register a user for this shop"
+                                  className="flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-lg hover:opacity-80 transition text-white"
+                                  style={{ background: LI_BLUE }}>
+                                  <UserPlus size={10} /> Add
+                                </button>
+                              </div>
                               {members.length === 0 ? (
                                 <p className="text-gray-400 text-xs py-3 text-center">No users assigned</p>
                               ) : (
@@ -857,6 +901,12 @@ export default function AdminPage() {
                   className="pl-7 pr-3 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-100 w-44" />
               </div>
               <span className="text-xs text-gray-400 shrink-0">{filteredUsers.length} / {users.length}</span>
+              <button onClick={() => openCreateUser()} disabled={activeShops.length === 0}
+                title={activeShops.length === 0 ? "No shops available yet" : "Register a new shop user"}
+                className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg text-white font-semibold transition disabled:opacity-40 shrink-0"
+                style={{ background: LI_BLUE }}>
+                <UserPlus size={12} /> Register User
+              </button>
             </div>
 
             {/* Header */}
@@ -1259,6 +1309,117 @@ export default function AdminPage() {
                 className="px-3 py-1 rounded-md text-[11px] font-semibold text-white transition disabled:opacity-60 hover:opacity-90"
                 style={{ background: LI_BLUE }}>
                 {editSaving ? "Saving…" : "Save Changes"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── REGISTER SHOP USER MODAL (admin) ──────────────────────────────────── */}
+      {showCreateUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col max-h-[90vh]">
+            {/* Header */}
+            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 shrink-0">
+              <div className="flex items-center gap-2">
+                <UserPlus size={14} style={{ color: LI_BLUE }} />
+                <p className="text-sm font-bold text-slate-800">Register Shop User</p>
+              </div>
+              <button onClick={() => setShowCreateUser(false)} className="p-1 rounded-md hover:bg-slate-100 text-slate-400 transition">
+                <X size={14} />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="px-4 py-3 grid gap-2.5 overflow-y-auto flex-1">
+              {createUserError && (
+                <div className="flex items-center gap-2 text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
+                  <AlertTriangle size={12} /> {createUserError}
+                </div>
+              )}
+
+              {/* Shop */}
+              <div>
+                <label className="block text-[11px] font-medium text-gray-500 mb-1">Shop <span className="text-red-400">*</span></label>
+                <div className="relative">
+                  <Store size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <select
+                    value={createUserForm.shop_id}
+                    onChange={(e) => setCreateUserForm({ ...createUserForm, shop_id: e.target.value })}
+                    className="w-full pl-8 pr-6 py-2 text-xs border border-slate-200 rounded-lg appearance-none bg-white text-gray-800 focus:outline-none focus:ring-1 focus:ring-[#1372e6]/30 focus:border-[#1372e6] transition">
+                    <option value="">Select a shop…</option>
+                    {activeShops.map((s) => (
+                      <option key={s.id} value={s.id}>{s.name}</option>
+                    ))}
+                  </select>
+                  <ChevronDown size={11} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                </div>
+              </div>
+
+              {/* Name */}
+              <div>
+                <label className="block text-[11px] font-medium text-gray-500 mb-1">Full Name</label>
+                <div className="relative">
+                  <UserIcon size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input value={createUserForm.name} onChange={(e) => setCreateUserForm({ ...createUserForm, name: e.target.value })}
+                    placeholder="Optional"
+                    className="w-full pl-8 pr-3 py-2 text-xs border border-slate-200 rounded-lg text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#1372e6]/30 focus:border-[#1372e6] transition" />
+                </div>
+              </div>
+
+              {/* Email */}
+              <div>
+                <label className="block text-[11px] font-medium text-gray-500 mb-1">Email <span className="text-red-400">*</span></label>
+                <div className="relative">
+                  <Mail size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input type="email" value={createUserForm.email} onChange={(e) => setCreateUserForm({ ...createUserForm, email: e.target.value })}
+                    placeholder="user@example.com"
+                    className="w-full pl-8 pr-3 py-2 text-xs border border-slate-200 rounded-lg text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#1372e6]/30 focus:border-[#1372e6] transition" />
+                </div>
+              </div>
+
+              {/* Password */}
+              <div>
+                <label className="block text-[11px] font-medium text-gray-500 mb-1">Password <span className="text-red-400">*</span></label>
+                <div className="relative">
+                  <Lock size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input type={showUserPassword ? "text" : "password"} value={createUserForm.password}
+                    onChange={(e) => setCreateUserForm({ ...createUserForm, password: e.target.value })}
+                    placeholder="At least 8 characters"
+                    className="w-full pl-8 pr-8 py-2 text-xs border border-slate-200 rounded-lg text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#1372e6]/30 focus:border-[#1372e6] transition" />
+                  <button type="button" onClick={() => setShowUserPassword((v) => !v)}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                    {showUserPassword ? <EyeOff size={12} /> : <Eye size={12} />}
+                  </button>
+                </div>
+              </div>
+
+              {/* Role */}
+              <div>
+                <label className="block text-[11px] font-medium text-gray-500 mb-1">Role <span className="text-red-400">*</span></label>
+                <div className="relative">
+                  <UserCog size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <select
+                    value={createUserForm.role}
+                    onChange={(e) => setCreateUserForm({ ...createUserForm, role: e.target.value as StaffRole })}
+                    className="w-full pl-8 pr-6 py-2 text-xs border border-slate-200 rounded-lg appearance-none bg-white text-gray-800 capitalize focus:outline-none focus:ring-1 focus:ring-[#1372e6]/30 focus:border-[#1372e6] transition">
+                    {STAFF_ROLES.map((r) => <option key={r} value={r} className="capitalize">{r}</option>)}
+                  </select>
+                  <ChevronDown size={11} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="flex justify-end gap-2 px-4 py-3 border-t border-slate-100 shrink-0">
+              <button onClick={() => setShowCreateUser(false)}
+                className="px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-medium text-slate-600 hover:bg-slate-50 transition">
+                Cancel
+              </button>
+              <button onClick={handleCreateUser} disabled={creatingUser}
+                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold text-white transition disabled:opacity-60 hover:opacity-90"
+                style={{ background: LI_BLUE }}>
+                {creatingUser ? <><Loader2 size={12} className="animate-spin" /> Registering…</> : <><UserPlus size={12} /> Register User</>}
               </button>
             </div>
           </div>

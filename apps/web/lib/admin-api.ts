@@ -116,6 +116,22 @@ export async function getAdminUsers(): Promise<AdminUser[]> {
   return res?.data ?? [];
 }
 
+export interface CreateShopUserPayload {
+  shop_id: string;
+  email: string;
+  password: string;
+  name?: string;
+  role: StaffRole;
+}
+
+export async function createShopUser(payload: CreateShopUserPayload): Promise<AdminUser> {
+  const res = await adminRequest("/api/v1/admin/users", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+  return res?.data;
+}
+
 export async function toggleUser(userId: string): Promise<AdminUser> {
   const res = await adminRequest(`/api/v1/admin/users/${userId}/toggle`, { method: "PATCH" });
   return res?.data;
