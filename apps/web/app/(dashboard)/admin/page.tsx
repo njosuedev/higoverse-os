@@ -131,7 +131,7 @@ export default function AdminPage() {
   const [shopFilter, setShopFilter]       = useState<"all" | "active" | "inactive">("all");
   const [shopSort, setShopSort]           = useState<ShopSort>("newest");
   const [userSearch, setUserSearch]       = useState("");
-  const [userRoleFilter, setUserRoleFilter] = useState<"all" | (typeof STAFF_ROLES)[number]>("all");
+  const [userRoleFilter, setUserRoleFilter] = useState<"all" | "admin" | "owner" | "staff">("all");
   const [expandedShop, setExpandedShop]   = useState<string | null>(null);
   const [lastUpdated, setLastUpdated]     = useState<Date | null>(null);
 
@@ -414,7 +414,11 @@ export default function AdminPage() {
     });
 
   const filteredUsers = users
-    .filter((u) => userRoleFilter === "all" || u.role === userRoleFilter)
+    .filter((u) => {
+      if (userRoleFilter === "all") return true;
+      if (userRoleFilter === "staff") return u.role !== "admin" && u.role !== "owner";
+      return u.role === userRoleFilter;
+    })
     .filter((u) => {
       if (!userSearch) return true;
       const q = userSearch.toLowerCase();
