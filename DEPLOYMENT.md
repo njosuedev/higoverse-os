@@ -510,7 +510,7 @@ map $http_upgrade $connection_upgrade {
 server {
     listen 80 default_server;
     listen [::]:80 default_server;
-    server_name _;
+    server_name atconsultants.rw;
 
     client_max_body_size 25m;
 
@@ -522,15 +522,19 @@ server {
     proxy_set_header Upgrade           $http_upgrade;
     proxy_set_header Connection        $connection_upgrade;
 
-    location /svc/auth/       { proxy_pass http://127.0.0.1:8000/; }
-    location /svc/products/   { proxy_pass http://127.0.0.1:8001/; }
-    location /svc/suppliers/  { proxy_pass http://127.0.0.1:8002/; }
-    location /svc/sales/      { proxy_pass http://127.0.0.1:8003/; }
-    location /svc/purchases/  { proxy_pass http://127.0.0.1:8004/; }
-    location /svc/expenses/   { proxy_pass http://127.0.0.1:8005/; }
-    location /svc/settings/   { proxy_pass http://127.0.0.1:8006/; }
-    location /svc/shops/      { proxy_pass http://127.0.0.1:8007/; }
-    location /svc/reports/    { proxy_pass http://127.0.0.1:8008/; }
+    # proxy_redirect re-adds the /svc/<name> prefix to any redirect the
+    # backend issues (e.g. FastAPI's trailing-slash 307) — without it the
+    # browser follows a same-origin redirect straight into the frontend's
+    # own router and 404s. See §8 for the full story.
+    location /svc/auth/       { proxy_pass http://127.0.0.1:8000/; proxy_redirect ~^(https?://[^/]+)(/.*)$ $1/svc/auth$2; }
+    location /svc/products/   { proxy_pass http://127.0.0.1:8001/; proxy_redirect ~^(https?://[^/]+)(/.*)$ $1/svc/products$2; }
+    location /svc/suppliers/  { proxy_pass http://127.0.0.1:8002/; proxy_redirect ~^(https?://[^/]+)(/.*)$ $1/svc/suppliers$2; }
+    location /svc/sales/      { proxy_pass http://127.0.0.1:8003/; proxy_redirect ~^(https?://[^/]+)(/.*)$ $1/svc/sales$2; }
+    location /svc/purchases/  { proxy_pass http://127.0.0.1:8004/; proxy_redirect ~^(https?://[^/]+)(/.*)$ $1/svc/purchases$2; }
+    location /svc/expenses/   { proxy_pass http://127.0.0.1:8005/; proxy_redirect ~^(https?://[^/]+)(/.*)$ $1/svc/expenses$2; }
+    location /svc/settings/   { proxy_pass http://127.0.0.1:8006/; proxy_redirect ~^(https?://[^/]+)(/.*)$ $1/svc/settings$2; }
+    location /svc/shops/      { proxy_pass http://127.0.0.1:8007/; proxy_redirect ~^(https?://[^/]+)(/.*)$ $1/svc/shops$2; }
+    location /svc/reports/    { proxy_pass http://127.0.0.1:8008/; proxy_redirect ~^(https?://[^/]+)(/.*)$ $1/svc/reports$2; }
 
     location / {
         proxy_pass http://127.0.0.1:3000;
@@ -541,7 +545,12 @@ server {
 ```bash
 rm -f /etc/nginx/sites-enabled/default
 ln -sf /etc/nginx/sites-available/aandt.conf /etc/nginx/sites-enabled/aandt.conf
-nginx -t && systemctl enable --now nginx && systemctl reload nginx
+nginx -t && systemctl enable --now nginx && systemctl restart nginx
+```
+
+Then get the TLS cert (see §10):
+```bash
+certbot --nginx -d atconsultants.rw --agree-tos --email <your-email> --non-interactive --redirect
 ```
 
 ### 5.13 Bootstrap the first admin user
@@ -628,6 +637,31 @@ since there is no public self-registration.
 
 ## 8. Notable things fixed/decided during setup (context for future-you)
 
+- **FastAPI's trailing-slash redirect breaks under a path-stripping proxy —
+  fixed with `proxy_redirect`.** 6 of the 8 backends (`products`,
+  `suppliers`, `sales`, `purchases`, `settings`, `shops`) define their list
+  endpoint as `@router.get("/")` under a prefix, so `GET /products` 307s to
+  `GET /products/`. Uvicorn (default `proxy_headers=True`, trusting
+  `127.0.0.1`) builds that `Location` header using the `Host`/`X-Forwarded-Proto`
+  nginx forwards — so it's correctly `https://atconsultants.rw/...` — but
+  the *path* it uses is what the backend itself saw, i.e. already stripped
+  of the `/svc/<name>` prefix nginx removed before proxying. The browser
+  then follows a same-origin redirect straight into the Next.js app's own
+  router (e.g. `https://atconsultants.rw/products/`), which 404s there —
+  this is exactly the "inventory data failed to load" symptom. Fixed with
+  a `proxy_redirect` on every `/svc/<name>/` location in
+  `/etc/nginx/sites-available/aandt.conf` that re-adds the stripped prefix
+  to any redirect the backend issues:
+  ```nginx
+  location /svc/products/ {
+      proxy_pass http://127.0.0.1:8001/;
+      proxy_redirect ~^(https?://[^/]+)(/.*)$ $1/svc/products$2;
+  }
+  ```
+  One line per location, prefix swapped in. **`nginx -s reload` did not pick
+  this up in testing — a full `systemctl restart nginx` was needed.** If you
+  add a new `/svc/<name>/` block, copy this pattern and restart (not just
+  reload) to be safe.
 - **Alembic history assumes tables already exist.** The very first
   migration (`87c6fa0c838b_init_tables`) does `ALTER TABLE users ADD COLUMN
   role` — it was generated against a database whose base tables were
