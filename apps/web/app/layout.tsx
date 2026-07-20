@@ -14,7 +14,7 @@ import { AuthProvider } from "@/lib/auth-context";
 import { QueryProvider } from "@/lib/query-provider";
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://aandtconsultants.vercel.app"),
+  metadataBase: new URL("https://atconsultants.rw"),
 
   title: {
     default: "A & T Consultants | Business Technology Company",
@@ -69,7 +69,7 @@ export const metadata: Metadata = {
     description:
       "Manage products, suppliers, customers, purchases, sales, and inventory from one powerful platform.",
 
-    url: "https://aandtconsultants.vercel.app",
+    url: "https://atconsultants.rw",
 
     siteName: "A & T Consultants",
 

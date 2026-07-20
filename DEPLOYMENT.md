@@ -2,10 +2,13 @@
 
 This document describes the production deployment of the Shops Network platform
 on a single Ubuntu VPS, how to operate it day-to-day, how to rebuild it from
-scratch, and how to switch on the real domain once it's purchased.
+scratch, and how the domain/TLS are set up.
 
 Current host: `sc-kgl-1-cpu1-ram2gb-40gb-ubu` (Ubuntu 24.04, 1 vCPU, 2GB RAM,
 40GB disk), public IP `102.202.208.195`.
+
+**Live URL:** https://atconsultants.rw (HTTP redirects to HTTPS; the bare IP
+over HTTP now 404s by certbot's design — see §10).
 
 ---
 
@@ -610,7 +613,7 @@ self-heals on next restart, or run the ALTER by hand against `authdb`/`shopdb`.
 
 ## 7. First login
 
-- URL: `http://102.202.208.195/login` (until the domain is live)
+- URL: `https://atconsultants.rw/login`
 - Email: `admin@aandtconsultants.rw`
 - Password: see `/etc/aandt/bootstrap_admin_password` on the VPS (also given
   to you once, out-of-band, when this was set up — change it after first
@@ -683,55 +686,54 @@ since there is no public self-registration.
 
 ---
 
-## 10. Adding the domain (next step, once purchased)
+## 10. Domain + TLS (done)
 
-Requested scheme: each backend service gets its own subdomain of the form
-`api.<service>.<domain>` (e.g. `api.auth.aandt.rw`, `api.sales.aandt.rw`),
-with the frontend at the bare domain (`aandt.rw` / `www.aandt.rw`).
+The domain is `atconsultants.rw`, purchased and pointed at this VPS
+(`A` record → `102.202.208.195`, already live via `ns4/ns5.aos.rw`). The
+subdomain-per-service scheme from the original plan was dropped in favor of
+the **path-based** routing this deployment already used from day one
+(`/svc/<name>/...`) — simpler, one DNS record, one certificate, and zero
+CORS changes since the frontend and every backend now share one origin.
 
-1. **DNS** — create these A records, all pointing at `102.202.208.195`:
-   `@` (or `www`), and one per service: `api.auth`, `api.products`,
-   `api.suppliers`, `api.sales`, `api.purchases`, `api.expenses`,
-   `api.settings`, `api.shops`, `api.reports`.
-2. **nginx** — add a `server {}` block per subdomain (9 backend blocks + 1
-   frontend block), each with its own `server_name` and the same
-   `proxy_pass` target it already has under `/svc/<name>/` today — just
-   drop the path prefix since the subdomain itself is now the routing key.
-   Keep the existing bare-IP `server_name _` block as a fallback during the
-   transition.
-3. **TLS** — once DNS has propagated:
+What was done:
+
+1. **nginx** (`/etc/nginx/sites-available/aandt.conf`) — set
+   `server_name atconsultants.rw;` on the existing `listen 80 default_server`
+   block (still catches bare-IP requests too), no other changes needed —
+   the `/svc/<name>/` locations and the frontend catch-all were already there.
+2. **TLS** — issued via:
    ```bash
-   certbot --nginx -d aandt.rw -d www.aandt.rw \
-     -d api.auth.aandt.rw -d api.products.aandt.rw -d api.suppliers.aandt.rw \
-     -d api.sales.aandt.rw -d api.purchases.aandt.rw -d api.expenses.aandt.rw \
-     -d api.settings.aandt.rw -d api.shops.aandt.rw -d api.reports.aandt.rw
+   certbot --nginx -d atconsultants.rw \
+     --agree-tos --email pacifiquemurangwa001@gmail.com \
+     --non-interactive --redirect
    ```
-   Certbot edits the nginx config in place to add the `listen 443 ssl`
-   blocks and redirects; it also sets up auto-renewal via a systemd timer
-   (`systemctl list-timers | grep certbot`).
-4. **Frontend rebuild** — switch `apps/web/.env.production`'s 6 relative
-   `NEXT_PUBLIC_*_API` paths to the new absolute HTTPS subdomain URLs (e.g.
-   `NEXT_PUBLIC_AUTH_API=https://api.auth.aandt.rw`), and the 2 internal
-   ones can stay as `http://127.0.0.1:PORT` (those are server-side only,
-   never exposed). Since these six become genuinely cross-origin once
-   they're on separate subdomains from the frontend, each backend's CORS
-   config needs to allow the frontend's new origin:
-   - `auth-service` and `product-service` already read
-     `CORS_ALLOWED_ORIGIN_REGEX` from `.env` — just add the new domain to
-     that regex.
-   - The other four (`purchase`, `sale`, `settings`, `supplier`, `expense`,
-     `shop`) hardcode `_ALLOWED_ORIGINS` as a Python set in each `main.py`
-     — add `"https://aandt.rw"` (and `www`) to that set in each file.
-   Then:
-   ```bash
-   cd apps/web && npm run build && systemctl restart aandt-web
-   for s in auth product purchase sale settings supplier expense shop; do
-     systemctl restart aandt-${s}-service
-   done
-   ```
-5. **Update `CORS_ALLOWED_ORIGIN_REGEX`** in `auth-service/.env` and
-   `product-service/.env` the same way, then restart those two as well.
+   Certbot rewrote `aandt.conf` itself: added a `listen 443 ssl` server
+   block with the cert/key paths, and turned the old port-80 block into an
+   HTTP→HTTPS redirect for `Host: atconsultants.rw` (anything else on port
+   80, e.g. the bare IP, now gets a plain `404` — that's certbot's default,
+   not something added manually). Auto-renewal runs via `certbot.timer`
+   (check with `systemctl list-timers | grep certbot`; cert expires
+   2026-10-18, renews automatically well before then).
+3. **No frontend rebuild was strictly required** for API calls to keep
+   working — `NEXT_PUBLIC_*_API` were already relative paths (`/svc/auth`,
+   etc.), so they're host-and-scheme-agnostic by construction. A rebuild
+   *was* done anyway to fix 4 leftover hardcoded references to the old
+   `aandtconsultants.vercel.app` domain in SEO/metadata code
+   (`app/layout.tsx`'s `metadataBase` and Open Graph `url`, `app/sitemap.ts`,
+   `app/robots.ts`) — cosmetic/SEO only, never affected app functionality,
+   but now correctly point at `https://atconsultants.rw`.
+4. **No CORS changes were needed** — everything (frontend + all 8 `/svc/*`
+   APIs) is genuinely same-origin under `https://atconsultants.rw` now, so
+   the browser never sends a cross-origin request in the first place.
 
-Until step 4/5 land, the bare-IP path-based setup (`/svc/<name>/`) keeps
-working exactly as it does today — nothing about adding the domain requires
-downtime, it's an additive rebuild-and-cutover.
+### If you ever do want per-service subdomains later
+
+Nothing above forecloses it — add `api.<service>.atconsultants.rw` A
+records, add a matching `server {}` block per subdomain proxying to the same
+internal port, re-run `certbot --nginx -d ... ` with the new hostnames, then
+switch the 6 browser-facing `NEXT_PUBLIC_*_API` values from relative paths
+to the new absolute URLs and rebuild — at that point (and only then) CORS
+starts to matter, because it becomes genuinely cross-origin: add the
+frontend's origin to `CORS_ALLOWED_ORIGIN_REGEX` (`auth-service`,
+`product-service`) and to the hardcoded `_ALLOWED_ORIGINS` set in the other
+six services' `main.py`.
