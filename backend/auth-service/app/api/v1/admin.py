@@ -26,19 +26,20 @@ def require_admin(current_user=Depends(get_current_user)):
 
 def _fmt_shop(s: Shop, owner_email: str | None = None, user_count: int = 0) -> dict:
     return {
-        "id":           str(s.id),
-        "name":         s.name,
-        "email":        s.email,
-        "phone":        s.phone,
-        "address":      s.address,
-        "description":  s.description,
-        "logo_url":     s.logo_url,
-        "is_active":    s.is_active,
-        "owner_email":  owner_email,
-        "user_count":   user_count,
-        "created_at":   s.created_at.isoformat() if s.created_at else None,
-        "updated_at":   s.updated_at.isoformat() if s.updated_at else None,
-        "last_seen_at": s.last_seen_at.isoformat() if s.last_seen_at else None,
+        "id":             str(s.id),
+        "name":           s.name,
+        "email":          s.email,
+        "phone":          s.phone,
+        "address":        s.address,
+        "description":    s.description,
+        "logo_url":       s.logo_url,
+        "is_active":      s.is_active,
+        "email_verified": bool(s.email_verified),
+        "owner_email":    owner_email,
+        "user_count":     user_count,
+        "created_at":     s.created_at.isoformat() if s.created_at else None,
+        "updated_at":     s.updated_at.isoformat() if s.updated_at else None,
+        "last_seen_at":   s.last_seen_at.isoformat() if s.last_seen_at else None,
     }
 
 
@@ -65,10 +66,13 @@ def admin_create_shop(
     db: Session = Depends(get_db),
     _: User = Depends(require_admin),
 ):
-    if shop_db.query(Shop).filter(Shop.email == payload.owner_email).first():
-        raise HTTPException(status_code=400, detail="A shop with this email already exists")
-    if db.query(User).filter(User.email == payload.owner_email).first():
-        raise HTTPException(status_code=400, detail="A staff account with this email already exists")
+    needs_account = payload.owner_email is not None
+
+    if needs_account:
+        if shop_db.query(Shop).filter(Shop.email == payload.owner_email).first():
+            raise HTTPException(status_code=400, detail="A shop with this email already exists")
+        if db.query(User).filter(User.email == payload.owner_email).first():
+            raise HTTPException(status_code=400, detail="A staff account with this email already exists")
 
     shop_id = _uuid.uuid4()
     now = datetime.now(timezone.utc)
@@ -81,6 +85,7 @@ def admin_create_shop(
         description=payload.description,
         logo_url=payload.logo_url,
         is_active=True,
+        email_verified=False,
     )
 
     # Shop_db is the source of truth; the auth_db copy is a read-only mirror
@@ -89,16 +94,17 @@ def admin_create_shop(
     shop_db.add(Shop(id=shop_id, created_at=now, **shop_fields))
     db.add(Shop(id=shop_id, created_at=now, **shop_fields))
 
-    owner = User(
-        name=payload.owner_name,
-        email=payload.owner_email,
-        password_hash=hash_password(payload.owner_password),
-        shop_id=shop_id,
-        role="owner",
-        permissions=default_permissions("owner"),
-        is_active=True,
-    )
-    db.add(owner)
+    if needs_account:
+        owner = User(
+            name=payload.owner_name,
+            email=payload.owner_email,
+            password_hash=hash_password(payload.owner_password),
+            shop_id=shop_id,
+            role="owner",
+            permissions=default_permissions("owner"),
+            is_active=True,
+        )
+        db.add(owner)
 
     shop_db.commit()
     db.commit()
@@ -234,6 +240,37 @@ def admin_toggle_shop(
     auth_shop = db.query(Shop).filter(Shop.id == shop_id).first()
     if auth_shop:
         auth_shop.is_active = activating
+        auth_shop.updated_at = shop.updated_at
+        db.commit()
+
+    users = db.query(User).filter(User.shop_id == shop.id).all()
+    user_count = len(users)
+    owner = next((u for u in users if u.role in ("owner", "admin")), None)
+    return {"success": True, "data": _fmt_shop(shop, owner.email if owner else None, user_count)}
+
+
+# ── Verify a shop's email (admin) ─────────────────────────
+@router.patch("/shops/{shop_id}/verify-email")
+def admin_verify_shop_email(
+    shop_id: str,
+    shop_db: Session = Depends(get_shop_db),
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin),
+):
+    shop = shop_db.query(Shop).filter(Shop.id == shop_id).first()
+    if not shop:
+        raise HTTPException(status_code=404, detail="Shop not found")
+    if not shop.email:
+        raise HTTPException(status_code=400, detail="Shop has no email to verify")
+
+    shop.email_verified = True
+    shop.updated_at = datetime.now(timezone.utc)
+    shop_db.commit()
+    shop_db.refresh(shop)
+
+    auth_shop = db.query(Shop).filter(Shop.id == shop_id).first()
+    if auth_shop:
+        auth_shop.email_verified = True
         auth_shop.updated_at = shop.updated_at
         db.commit()
 

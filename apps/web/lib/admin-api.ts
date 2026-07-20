@@ -17,7 +17,14 @@ async function adminRequest(endpoint: string, options: RequestInit = {}) {
   if (res.status === 403) throw new Error("Admin access required.");
   if (!res.ok) {
     const text = await res.text().catch(() => "");
-    throw new Error(`Admin API error: ${res.status} ${text}`);
+    let message = text;
+    try {
+      const body = JSON.parse(text);
+      const detail = body?.detail;
+      if (typeof detail === "string") message = detail;
+      else if (Array.isArray(detail) && detail[0]?.msg) message = detail.map((d) => d.msg).join("; ");
+    } catch { /* not JSON, use raw text */ }
+    throw new Error(message || `Admin API error: ${res.status}`);
   }
   if (res.status === 204 || res.headers.get("content-length") === "0") return null;
   const text = await res.text();
@@ -44,6 +51,7 @@ export interface AdminShop {
   description?: string;
   logo_url?: string;
   is_active: boolean;
+  email_verified: boolean;
   owner_email: string | null;
   user_count: number;
   created_at: string | null;
@@ -69,10 +77,10 @@ export type StaffRole = (typeof STAFF_ROLES)[number];
 
 export interface CreateShopPayload {
   shop_name: string;
-  owner_email: string;
-  owner_password: string;
+  phone: string;
+  owner_email?: string;
+  owner_password?: string;
   owner_name?: string;
-  phone?: string;
   address?: string;
   description?: string;
   logo_url?: string;
@@ -102,8 +110,29 @@ export async function getAdminShops(): Promise<AdminShop[]> {
   );
 }
 
+export interface UpdateShopPayload {
+  name?: string;
+  phone?: string;
+  address?: string;
+  description?: string;
+  logo_url?: string;
+}
+
+export async function updateShop(shopId: string, payload: UpdateShopPayload): Promise<AdminShop> {
+  const res = await adminRequest(`/api/v1/admin/shops/${shopId}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+  return res?.data;
+}
+
 export async function toggleShop(shopId: string): Promise<AdminShop> {
   const res = await adminRequest(`/api/v1/admin/shops/${shopId}/toggle`, { method: "PATCH" });
+  return res?.data;
+}
+
+export async function verifyShopEmail(shopId: string): Promise<AdminShop> {
+  const res = await adminRequest(`/api/v1/admin/shops/${shopId}/verify-email`, { method: "PATCH" });
   return res?.data;
 }
 

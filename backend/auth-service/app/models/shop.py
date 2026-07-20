@@ -23,6 +23,7 @@ class Shop(Base):
 
     logo_url     = Column(Text, nullable=True)
     is_active    = Column(Boolean, default=True)
+    email_verified = Column(Boolean, default=False, nullable=False, server_default="false")
 
     created_at   = Column(DateTime(timezone=True), default=_utcnow)
     updated_at   = Column(DateTime(timezone=True), onupdate=func.now())

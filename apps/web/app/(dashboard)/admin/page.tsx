@@ -5,7 +5,7 @@ import { useAuth } from "@/lib/auth-context";
 import { useRouter } from "next/navigation";
 import {
   getAdminStats, getAdminShops, getAdminUsers,
-  toggleShop, deleteShop, toggleUser, updateUserRole, deleteUser, createShop, createShopUser,
+  toggleShop, deleteShop, updateShop, verifyShopEmail, toggleUser, updateUserRole, deleteUser, createShop, createShopUser,
   STAFF_ROLES, type AdminStats, type AdminShop, type AdminUser, type CreateShopPayload, type CreateShopUserPayload, type StaffRole,
 } from "@/lib/admin-api";
 import { decodeShopHumanInfo } from "@/lib/product-meta";
@@ -21,6 +21,7 @@ import {
   UserX,
   Receipt, Pencil, X, ChevronLeft,
   Plus, Loader2, Lock, User as UserIcon, UserPlus,
+  LayoutDashboard, Users, Activity, Sparkles, TrendingUp,
 } from "lucide-react";
 import { expenseRequest } from "@/lib/expense-api";
 
@@ -86,18 +87,18 @@ function joinedThisWeek(s: string | null) {
 // ── Donut chart ───────────────────────────────────────────────────────────────
 function DonutChart({ data, total, label }: { data: { name: string; value: number; fill: string }[]; total: number; label: string }) {
   return (
-    <div className="relative shrink-0" style={{ width: 160, height: 160 }}>
-      <ResponsiveContainer width={160} height={160} debounce={50}>
-        <PieChart width={160} height={160}>
-          <Pie data={data} cx="50%" cy="50%" innerRadius={46} outerRadius={64}
+    <div className="relative shrink-0" style={{ width: 132, height: 132 }}>
+      <ResponsiveContainer width={132} height={132} debounce={50}>
+        <PieChart width={132} height={132}>
+          <Pie data={data} cx="50%" cy="50%" innerRadius={38} outerRadius={53}
             dataKey="value" paddingAngle={2} startAngle={90} endAngle={-270}>
             {data.map((d, i) => <Cell key={i} fill={d.fill} />)}
           </Pie>
         </PieChart>
       </ResponsiveContainer>
       <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-        <p className="text-2xl font-bold text-gray-900 leading-none">{total}</p>
-        <p className="text-xs text-gray-400 mt-0.5">{label}</p>
+        <p className="text-xl font-bold text-gray-900 leading-none">{total}</p>
+        <p className="text-[11px] text-gray-400 mt-0.5">{label}</p>
       </div>
     </div>
   );
@@ -142,6 +143,13 @@ export default function AdminPage() {
   });
   const [createError, setCreateError]       = useState<string | null>(null);
   const [creatingShop, setCreatingShop]     = useState(false);
+  const [showShopPassword, setShowShopPassword] = useState(false);
+  const [shopNeedsAccount, setShopNeedsAccount] = useState(true);
+
+  // Edit-shop modal state
+  const [editingShop, setEditingShop]       = useState<AdminShop | null>(null);
+  const [editShopForm, setEditShopForm]     = useState({ name: "", phone: "", address: "", description: "" });
+  const [editShopSaving, setEditShopSaving] = useState(false);
 
   // Create-shop-user (register staff) modal state
   const [showCreateUser, setShowCreateUser] = useState(false);
@@ -259,6 +267,15 @@ export default function AdminPage() {
     finally { setActionId(null); }
   };
 
+  const handleVerifyEmail = async (id: string) => {
+    setActionId(id);
+    try {
+      const updated = await verifyShopEmail(id);
+      setShops((p) => p.map((s) => s.id === id ? updated : s));
+    } catch (e: unknown) { setError(e instanceof Error ? e.message : "Failed to verify email"); }
+    finally { setActionId(null); }
+  };
+
   const handleDeleteShop = async (id: string) => {
     setActionId(id);
     setError(null);
@@ -321,6 +338,71 @@ export default function AdminPage() {
     try { const updated = await toggleUser(id); setUsers((p) => p.map((u) => u.id === id ? updated : u)); }
     catch (e: unknown) { setError(e instanceof Error ? e.message : "Failed"); }
     finally { setActionId(null); }
+  };
+
+  const openCreateShop = () => {
+    setCreateForm({ shop_name: "", owner_email: "", owner_password: "", owner_name: "", phone: "", address: "", description: "" });
+    setCreateError(null);
+    setShowShopPassword(false);
+    setShopNeedsAccount(true);
+    setShowCreateShop(true);
+  };
+
+  const handleCreateShop = async () => {
+    if (!createForm.shop_name.trim()) { setCreateError("Shop name is required."); return; }
+    if (!createForm.phone?.trim()) { setCreateError("Phone number is required."); return; }
+    if (shopNeedsAccount) {
+      if (!createForm.owner_email?.trim()) { setCreateError("Owner email is required to create a platform account."); return; }
+      if (!createForm.owner_password || createForm.owner_password.length < 8) { setCreateError("Password must be at least 8 characters."); return; }
+    }
+    setCreatingShop(true);
+    setCreateError(null);
+    try {
+      await createShop({
+        ...createForm,
+        shop_name: createForm.shop_name.trim(),
+        phone: createForm.phone.trim(),
+        owner_email: shopNeedsAccount ? createForm.owner_email?.trim() : undefined,
+        owner_password: shopNeedsAccount ? createForm.owner_password : undefined,
+        owner_name: shopNeedsAccount ? (createForm.owner_name?.trim() || undefined) : undefined,
+        address: createForm.address?.trim() || undefined,
+        description: createForm.description?.trim() || undefined,
+      });
+      setShowCreateShop(false);
+      await loadAll(true);
+    } catch (e: unknown) {
+      setCreateError(e instanceof Error ? e.message : "Failed to create shop");
+    } finally {
+      setCreatingShop(false);
+    }
+  };
+
+  const openEditShop = (shop: AdminShop) => {
+    setEditShopForm({
+      name: shop.name ?? "", phone: shop.phone ?? "",
+      address: shop.address ?? "", description: shop.description ?? "",
+    });
+    setEditingShop(shop);
+  };
+
+  const handleUpdateShop = async () => {
+    if (!editingShop) return;
+    if (!editShopForm.name.trim()) return;
+    setEditShopSaving(true);
+    try {
+      const updated = await updateShop(editingShop.id, {
+        name: editShopForm.name.trim(),
+        phone: editShopForm.phone.trim() || undefined,
+        address: editShopForm.address.trim() || undefined,
+        description: editShopForm.description.trim() || undefined,
+      });
+      setShops((p) => p.map((s) => s.id === editingShop.id ? { ...s, ...updated } : s));
+      setEditingShop(null);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Failed to update shop");
+    } finally {
+      setEditShopSaving(false);
+    }
   };
 
   const openCreateUser = (shopId?: string) => {
@@ -461,46 +543,59 @@ export default function AdminPage() {
       return u.email?.toLowerCase().includes(q) || u.shop_name?.toLowerCase().includes(q);
     });
 
-  const TABS: { key: Tab; label: string; count?: number; urgent?: boolean }[] = [
-    { key: "overview",      label: "Overview" },
-    { key: "shops",         label: "Active Shops",  count: activeShops.length },
-    { key: "users",         label: "Users",         count: users.length },
-    { key: "expenses",      label: "Shop Expenses" },
+  const TABS: { key: Tab; label: string; count?: number; urgent?: boolean; icon: typeof LayoutDashboard }[] = [
+    { key: "overview",      label: "Overview",      icon: LayoutDashboard },
+    { key: "shops",         label: "Active Shops",  count: activeShops.length, icon: Store },
+    { key: "users",         label: "Users",         count: users.length,      icon: Users },
+    { key: "expenses",      label: "Shop Expenses", icon: Receipt },
   ];
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen" style={{ background: "#F3F2EE" }}>
-      <main className="max-w-6xl mx-auto px-3 sm:px-5 py-3 sm:py-4 space-y-4">
+    <div className="min-h-screen bg-gradient-to-b from-slate-100 to-slate-50">
+      <main className="max-w-6xl mx-auto px-3 sm:px-4 py-2.5 sm:py-3 space-y-3">
 
-        {/* ── Top bar ─────────────────────────────────────────────────────── */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 px-5 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: "#EBF2FD" }}>
-              <ShieldCheck size={18} style={{ color: LI_BLUE }} />
+        {/* ── Hero header ─────────────────────────────────────────────────── */}
+        <div className="hgv-header-in relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 via-slate-800 to-blue-950 text-white px-4 sm:px-5 py-3.5 shadow-lg">
+          <div
+            className="pointer-events-none absolute inset-0 opacity-[0.06]"
+            style={{ backgroundImage: "radial-gradient(circle, #fff 1px, transparent 1px)", backgroundSize: "18px 18px" }}
+          />
+          <div className="hgv-header-glow pointer-events-none absolute -right-10 -top-16 h-56 w-56 rounded-full blur-3xl" style={{ background: LI_BLUE, opacity: 0.25 }} />
+
+          <div className="relative flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center bg-white/10 backdrop-blur-sm border border-white/10 shrink-0">
+                <ShieldCheck size={16} className="text-white" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h1 className="font-bold text-white text-sm leading-tight tracking-tight">Admin Control Panel</h1>
+                  <span className="hidden sm:inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-white/10 border border-white/15 text-white/80">
+                    <Sparkles size={9} /> Platform
+                  </span>
+                </div>
+                <p className="text-[11px] text-white/50 mt-0.5">{user.email}</p>
+              </div>
             </div>
-            <div>
-              <h1 className="font-semibold text-gray-900 text-base leading-tight">Admin Control Panel</h1>
-              <p className="text-xs text-gray-400">{user.email}</p>
+            <div className="flex items-center gap-2.5">
+              <div className="text-[11px] text-white/60 flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                {refreshing ? "Updating…" : `Refreshes in ${countdown}s`}
+                {lastUpdated && !refreshing && <span className="text-white/30">· {timeAgo(lastUpdated.toISOString())}</span>}
+              </div>
+              <button onClick={() => loadAll(true)} disabled={loading || refreshing}
+                className="flex items-center gap-1.5 text-[11px] px-3 py-1 rounded-full bg-white/10 border border-white/15 text-white hover:bg-white/20 transition disabled:opacity-40 font-medium backdrop-blur-sm">
+                <RefreshCw size={11} className={refreshing ? "animate-spin" : ""} />
+                Refresh
+              </button>
             </div>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="text-xs text-gray-400 flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-              {refreshing ? "Updating…" : `Refreshes in ${countdown}s`}
-              {lastUpdated && !refreshing && <span className="text-gray-300">· {timeAgo(lastUpdated.toISOString())}</span>}
-            </div>
-            <button onClick={() => loadAll(true)} disabled={loading || refreshing}
-              className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border border-gray-300 text-gray-600 hover:bg-gray-50 transition disabled:opacity-40 font-medium">
-              <RefreshCw size={12} className={refreshing ? "animate-spin" : ""} />
-              Refresh
-            </button>
           </div>
         </div>
 
         {/* ── Error ───────────────────────────────────────────────────────── */}
         {error && (
-          <div className="flex items-center gap-2 text-sm text-red-600 bg-white border border-red-200 rounded-xl px-4 py-3 shadow-sm">
+          <div className="flex items-center gap-2 text-sm text-red-600 bg-white border border-red-200 rounded-2xl px-4 py-3 shadow-sm">
             <AlertTriangle size={14} />
             {error}
             <button onClick={() => setError(null)} className="ml-auto text-red-300 hover:text-red-500">✕</button>
@@ -508,60 +603,74 @@ export default function AdminPage() {
         )}
 
         {/* ── Tabs ────────────────────────────────────────────────────────── */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 px-1 py-1 flex gap-1 w-fit">
-          {TABS.map((t) => (
-            <button key={t.key} onClick={() => setTab(t.key)}
-              className="relative px-4 py-2 rounded-lg text-sm font-medium transition-all"
-              style={tab === t.key
-                ? { background: t.urgent ? "#fff7e6" : "#EBF2FD", color: t.urgent ? "#fa8c16" : LI_BLUE }
-                : { color: "#666666" }}>
-              {t.label}
-              {t.count !== undefined && t.count > 0 && (
-                <span className="ml-1.5 text-xs font-bold px-1.5 py-0.5 rounded-full"
-                  style={{
-                    background: t.urgent ? "#fa8c16" : tab === t.key ? LI_BLUE : "#e8e8e8",
-                    color: t.urgent || tab === t.key ? "#fff" : "#888",
-                  }}>
-                  {t.count}
-                </span>
-              )}
-            </button>
-          ))}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 px-1 py-1 flex gap-1 w-fit overflow-x-auto max-w-full">
+          {TABS.map((t) => {
+            const active = tab === t.key;
+            return (
+              <button key={t.key} onClick={() => setTab(t.key)}
+                className={`relative flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all ${
+                  active ? "text-white shadow-sm" : "text-gray-500 hover:text-gray-800 hover:bg-gray-50"
+                }`}
+                style={active ? { background: `linear-gradient(135deg, ${LI_BLUE}, #0d4db8)` } : undefined}>
+                <t.icon size={12} className={active ? "text-white" : "text-gray-400"} />
+                {t.label}
+                {t.count !== undefined && t.count > 0 && (
+                  <span className="ml-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full"
+                    style={{
+                      background: active ? "rgba(255,255,255,0.2)" : "#eef2f6",
+                      color: active ? "#fff" : "#8a94a6",
+                    }}>
+                    {t.count}
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </div>
 
         {/* ══ OVERVIEW ════════════════════════════════════════════════════════ */}
         {tab === "overview" && (
-          <div className="space-y-4">
+          <div className="space-y-3">
             {loading ? (
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
                 {Array.from({ length: 8 }).map((_, i) => (
-                  <div key={i} className="h-24 bg-white animate-pulse rounded-xl border border-gray-200" />
+                  <div key={i} className="h-20 hgv-shimmer rounded-xl border border-gray-200" />
                 ))}
               </div>
             ) : stats ? (
               <>
                 {/* Pending applications callout */}
                 {/* KPI row */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
                   {[
-                    { label: "Active Shops",  value: stats.active_shops,   sub: `${stats.inactive_shops} inactive`,        color: LI_BLUE  },
-                    { label: "Total Users",   value: stats.total_users,    sub: `${stats.active_users} active`,           color: LI_BLUE  },
-                    { label: "Online Now",    value: onlineNow,            sub: "shops live",                             color: "#057642" },
-                    { label: "New This Week", value: newThisWeek,          sub: "new shops joined",                       color: LI_BLUE  },
+                    { label: "Active Shops",  value: stats.active_shops,   sub: `${stats.inactive_shops} inactive`,  color: LI_BLUE,    bg: "#EBF2FD", icon: Store    },
+                    { label: "Total Users",   value: stats.total_users,    sub: `${stats.active_users} active`,      color: LI_BLUE,    bg: "#EBF2FD", icon: Users    },
+                    { label: "Online Now",    value: onlineNow,            sub: "shops live",                        color: "#057642",  bg: "#E7F7EF", icon: Activity },
+                    { label: "New This Week", value: newThisWeek,          sub: "new shops joined",                  color: "#a35b00",  bg: "#FEF3E2", icon: Sparkles },
                   ].map((k) => (
-                    <div key={k.label} className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
-                      <p className="text-xs text-gray-400 font-medium">{k.label}</p>
-                      <p className="text-3xl font-bold mt-1" style={{ color: k.color }}>{k.value}</p>
-                      <p className="text-xs text-gray-400 mt-0.5">{k.sub}</p>
+                    <div key={k.label} className="hgv-card-hover bg-white rounded-xl shadow-sm border border-gray-200 p-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-[11px] text-gray-400 font-medium">{k.label}</p>
+                        <div className="w-6 h-6 rounded-lg flex items-center justify-center shrink-0" style={{ background: k.bg }}>
+                          <k.icon size={12} style={{ color: k.color }} />
+                        </div>
+                      </div>
+                      <p className="text-2xl font-bold" style={{ color: k.color }}>{k.value}</p>
+                      <p className="text-[11px] text-gray-400 mt-0.5">{k.sub}</p>
                     </div>
                   ))}
                 </div>
 
                 {/* Charts row 1 */}
-                <div className="grid md:grid-cols-2 gap-4">
-                  <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
-                    <h3 className="font-semibold text-gray-800 text-sm mb-4">Shop Status</h3>
-                    <div className="flex items-center gap-6">
+                <div className="grid md:grid-cols-2 gap-3">
+                  <div className="hgv-card-hover bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+                    <h3 className="font-semibold text-gray-800 text-xs mb-3 flex items-center gap-2">
+                      <span className="w-5 h-5 rounded-lg flex items-center justify-center" style={{ background: "#EBF2FD" }}>
+                        <Store size={10} style={{ color: LI_BLUE }} />
+                      </span>
+                      Shop Status
+                    </h3>
+                    <div className="flex items-center gap-4">
                       <DonutChart data={shopStatusData} total={stats.total_shops} label="total" />
                       <div className="space-y-3 flex-1">
                         {shopStatusData.map((d) => (
@@ -586,9 +695,14 @@ export default function AdminPage() {
                     </div>
                   </div>
 
-                  <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
-                    <h3 className="font-semibold text-gray-800 text-sm mb-4">Users by Role</h3>
-                    <div className="flex items-center gap-6">
+                  <div className="hgv-card-hover bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+                    <h3 className="font-semibold text-gray-800 text-xs mb-3 flex items-center gap-2">
+                      <span className="w-5 h-5 rounded-lg flex items-center justify-center" style={{ background: "#EBF2FD" }}>
+                        <Users size={10} style={{ color: LI_BLUE }} />
+                      </span>
+                      Users by Role
+                    </h3>
+                    <div className="flex items-center gap-4">
                       <DonutChart data={userRoleData} total={stats.total_users} label="users" />
                       <div className="space-y-3 flex-1">
                         {userRoleData.map((d) => (
@@ -612,13 +726,18 @@ export default function AdminPage() {
                 </div>
 
                 {/* Charts row 2 */}
-                <div className="grid md:grid-cols-2 gap-4">
-                  <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
-                    <h3 className="font-semibold text-gray-800 text-sm mb-4">Top Shops by Team Size</h3>
+                <div className="grid md:grid-cols-2 gap-3">
+                  <div className="hgv-card-hover bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+                    <h3 className="font-semibold text-gray-800 text-xs mb-3 flex items-center gap-2">
+                      <span className="w-5 h-5 rounded-lg flex items-center justify-center" style={{ background: "#EBF2FD" }}>
+                        <UserCog size={10} style={{ color: LI_BLUE }} />
+                      </span>
+                      Top Shops by Team Size
+                    </h3>
                     {topShopsData.length === 0 ? (
                       <p className="text-gray-400 text-xs py-8 text-center">No active shops yet</p>
                     ) : (
-                      <ResponsiveContainer width="100%" height={200}>
+                      <ResponsiveContainer width="100%" height={170}>
                         <BarChart data={topShopsData} layout="vertical" margin={{ left: 0, right: 16, top: 0, bottom: 0 }}>
                           <XAxis type="number" tick={{ fontSize: 10, fill: "#999" }} axisLine={false} tickLine={false} />
                           <YAxis type="category" dataKey="name" tick={{ fontSize: 11, fill: "#444" }} axisLine={false} tickLine={false} width={90} />
@@ -629,9 +748,14 @@ export default function AdminPage() {
                     )}
                   </div>
 
-                  <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
-                    <h3 className="font-semibold text-gray-800 text-sm mb-4">Shop Presence</h3>
-                    <ResponsiveContainer width="100%" height={200}>
+                  <div className="hgv-card-hover bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+                    <h3 className="font-semibold text-gray-800 text-xs mb-3 flex items-center gap-2">
+                      <span className="w-5 h-5 rounded-lg flex items-center justify-center" style={{ background: "#E7F7EF" }}>
+                        <Activity size={10} style={{ color: "#057642" }} />
+                      </span>
+                      Shop Presence
+                    </h3>
+                    <ResponsiveContainer width="100%" height={170}>
                       <BarChart data={presenceData} margin={{ left: 0, right: 16, top: 0, bottom: 0 }}>
                         <XAxis dataKey="name" tick={{ fontSize: 10, fill: "#999" }} axisLine={false} tickLine={false} />
                         <YAxis tick={{ fontSize: 10, fill: "#999" }} axisLine={false} tickLine={false} />
@@ -645,9 +769,14 @@ export default function AdminPage() {
                 </div>
 
                 {/* Platform health */}
-                <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
-                  <h3 className="font-semibold text-gray-800 text-sm mb-4">Platform Health</h3>
-                  <div className="grid sm:grid-cols-3 gap-5">
+                <div className="hgv-card-hover bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+                  <h3 className="font-semibold text-gray-800 text-xs mb-3 flex items-center gap-2">
+                    <span className="w-5 h-5 rounded-lg flex items-center justify-center" style={{ background: "#FEF3E2" }}>
+                      <TrendingUp size={10} style={{ color: "#a35b00" }} />
+                    </span>
+                    Platform Health
+                  </h3>
+                  <div className="grid sm:grid-cols-3 gap-4">
                     {[
                       { label: "Shop activation",  pct: stats.total_shops ? Math.round(stats.active_shops  / stats.total_shops  * 100) : 0, sub: `${stats.active_shops} of ${stats.total_shops}` },
                       { label: "User activation",  pct: stats.total_users ? Math.round(stats.active_users  / stats.total_users  * 100) : 0, sub: `${stats.active_users} of ${stats.total_users}` },
@@ -658,8 +787,8 @@ export default function AdminPage() {
                           <span className="text-gray-500 font-medium">{m.label}</span>
                           <span className="font-bold text-gray-900">{m.pct}%</span>
                         </div>
-                        <div className="h-2 rounded-full" style={{ background: "#F3F2EE" }}>
-                          <div className="h-full rounded-full transition-all" style={{ width: `${m.pct}%`, background: LI_BLUE }} />
+                        <div className="h-2 rounded-full overflow-hidden" style={{ background: "#F1F0EC" }}>
+                          <div className="h-full rounded-full transition-all" style={{ width: `${m.pct}%`, background: `linear-gradient(90deg, ${LI_BLUE}, #0d4db8)` }} />
                         </div>
                         <p className="text-xs text-gray-400 mt-1">{m.sub}</p>
                       </div>
@@ -675,19 +804,22 @@ export default function AdminPage() {
         {tab === "shops" && (
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
             {/* Toolbar */}
-            <div className="flex flex-col sm:flex-row sm:items-center gap-2 px-5 py-3.5 border-b border-gray-100">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2 px-4 py-2.5 border-b border-gray-100 bg-gradient-to-r from-slate-50/60 to-transparent">
               <div className="flex items-center gap-2 flex-wrap">
-                <select value={shopSort} onChange={(e) => setShopSort(e.target.value as ShopSort)}
-                  className="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 bg-white text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-100">
-                  <option value="newest">Newest first</option>
-                  <option value="lastActive">Last active</option>
-                  <option value="users">Most users</option>
-                  <option value="name">Name A–Z</option>
-                </select>
+                <div className="relative">
+                  <select value={shopSort} onChange={(e) => setShopSort(e.target.value as ShopSort)}
+                    className="text-xs border border-gray-200 rounded-lg pl-2.5 pr-6 py-1.5 bg-white text-gray-600 appearance-none focus:outline-none focus:ring-2 focus:ring-blue-100 cursor-pointer">
+                    <option value="newest">Newest first</option>
+                    <option value="lastActive">Last active</option>
+                    <option value="users">Most users</option>
+                    <option value="name">Name A–Z</option>
+                  </select>
+                  <ChevronDown size={10} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                </div>
                 <div className="flex text-xs rounded-lg overflow-hidden border border-gray-200">
                   {(["all", "active", "inactive"] as const).map((f) => (
                     <button key={f} onClick={() => setShopFilter(f)}
-                      className="px-2.5 py-1.5 capitalize border-r last:border-r-0 border-gray-200 transition"
+                      className="px-2.5 py-1.5 capitalize border-r last:border-r-0 border-gray-200 transition font-medium"
                       style={shopFilter === f ? { background: LI_BLUE, color: "#fff" } : { background: "#fff", color: "#666" }}>
                       {f}
                     </button>
@@ -700,17 +832,25 @@ export default function AdminPage() {
                   placeholder="Search shops…"
                   className="pl-7 pr-3 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-100 w-44" />
               </div>
-              <span className="text-xs text-gray-400 shrink-0">{filteredShops.length} / {activeShops.length}</span>
+              <span className="text-xs text-gray-400 shrink-0 font-medium">{filteredShops.length} / {activeShops.length}</span>
+              <button onClick={openCreateShop}
+                className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg text-white font-semibold transition shrink-0 shadow-sm hover:opacity-90"
+                style={{ background: `linear-gradient(135deg, ${LI_BLUE}, #0d4db8)` }}>
+                <Plus size={12} /> Add Shop
+              </button>
             </div>
 
             {loading ? (
               <div className="p-4 space-y-2">
                 {Array.from({ length: 5 }).map((_, i) => (
-                  <div key={i} className="h-14 rounded-lg animate-pulse" style={{ background: "#F3F2EE" }} />
+                  <div key={i} className="h-14 rounded-xl hgv-shimmer" />
                 ))}
               </div>
             ) : filteredShops.length === 0 ? (
-              <p className="text-gray-400 text-sm py-12 text-center">No shops found</p>
+              <div className="py-16 text-center">
+                <Store size={32} className="mx-auto mb-3 text-gray-200" />
+                <p className="text-sm font-semibold text-gray-400">No shops found</p>
+              </div>
             ) : (
               <div className="divide-y divide-gray-50">
                 {filteredShops.map((shop) => {
@@ -720,20 +860,25 @@ export default function AdminPage() {
                   const members  = shopUsers[shop.id] ?? [];
                   return (
                     <div key={shop.id}>
-                      <div className="flex items-center gap-3 px-5 py-3.5 hover:bg-gray-50 transition-colors">
+                      <div className="flex items-center gap-2.5 px-4 py-2.5 hover:bg-slate-50/70 transition-colors">
                         {/* Avatar */}
-                        <div className="w-10 h-10 rounded-full overflow-hidden flex items-center justify-center text-sm font-bold text-white shrink-0"
-                          style={{ background: shop.logo_url ? "transparent" : online ? "#057642" : LI_BLUE }}>
-                          {shop.logo_url
-                            // eslint-disable-next-line @next/next/no-img-element
-                            ? <img src={shop.logo_url} alt={shop.name} className="w-10 h-10 object-cover" />
-                            : (shop.name ?? "?")[0].toUpperCase()}
+                        <div className="relative shrink-0">
+                          <div className="w-8 h-8 rounded-full overflow-hidden flex items-center justify-center text-xs font-bold text-white ring-2 ring-white shadow-sm"
+                            style={{ background: shop.logo_url ? "transparent" : online ? "linear-gradient(135deg,#0ea672,#057642)" : `linear-gradient(135deg, ${LI_BLUE}, #0d4db8)` }}>
+                            {shop.logo_url
+                              // eslint-disable-next-line @next/next/no-img-element
+                              ? <img src={shop.logo_url} alt={shop.name} className="w-8 h-8 object-cover" />
+                              : (shop.name ?? "?")[0].toUpperCase()}
+                          </div>
+                          {online && (
+                            <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-500 ring-2 ring-white" />
+                          )}
                         </div>
 
                         {/* Info */}
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <span className="text-sm font-semibold text-gray-900">{shop.name}</span>
+                            <span className="text-[13px] font-semibold text-gray-900">{shop.name}</span>
                             {online && (
                               <span className="flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full text-white" style={{ background: "#057642" }}>
                                 <span className="w-1 h-1 rounded-full bg-white animate-pulse" /> LIVE
@@ -741,6 +886,21 @@ export default function AdminPage() {
                             )}
                             {joinedThisWeek(shop.created_at) && (
                               <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full text-white" style={{ background: LI_BLUE }}>NEW</span>
+                            )}
+                            {shop.owner_email ? (
+                              shop.email_verified ? (
+                                <span className="flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200">
+                                  <CheckCircle size={9} /> Verified
+                                </span>
+                              ) : (
+                                <button onClick={() => handleVerifyEmail(shop.id)} disabled={busy}
+                                  title="Confirm this shop's email is genuine"
+                                  className="flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-600 border border-amber-200 hover:bg-amber-100 transition disabled:opacity-40">
+                                  <AlertTriangle size={9} /> Unverified · Verify
+                                </button>
+                              )
+                            ) : (
+                              <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-gray-50 text-gray-400 border border-gray-200">No account</span>
                             )}
                           </div>
                           <div className="flex items-center gap-3 mt-0.5 flex-wrap">
@@ -751,10 +911,10 @@ export default function AdminPage() {
                         </div>
 
                         {/* Stats */}
-                        <div className="hidden md:flex items-center gap-5 shrink-0 text-xs text-gray-500">
+                        <div className="hidden md:flex items-center gap-4 shrink-0 text-xs text-gray-500">
                           <div className="text-center">
                             <p className="text-gray-400 text-[10px]">Users</p>
-                            <p className="font-bold text-gray-800 text-sm">{shop.user_count}</p>
+                            <p className="font-bold text-gray-800 text-xs">{shop.user_count}</p>
                           </div>
                           <div className="text-center">
                             <p className="text-gray-400 text-[10px]">Last seen</p>
@@ -772,6 +932,11 @@ export default function AdminPage() {
                             className="p-1.5 rounded-lg transition text-gray-400 hover:text-gray-700 hover:bg-gray-100">
                             {expanded ? <EyeOff size={14} /> : <Eye size={14} />}
                           </button>
+                          <button onClick={() => openEditShop(shop)}
+                            title="Edit shop details"
+                            className="p-1.5 rounded-lg transition text-gray-400 hover:text-blue-600 hover:bg-blue-50">
+                            <Pencil size={13} />
+                          </button>
                           <button onClick={() => handleToggleShop(shop.id)} disabled={busy}
                             className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-full border border-gray-300 text-gray-600 hover:border-gray-400 hover:bg-gray-50 transition disabled:opacity-40 font-medium">
                             {shop.is_active ? <><ToggleRight size={12} />Disable</> : <><ToggleLeft size={12} />Enable</>}
@@ -788,11 +953,11 @@ export default function AdminPage() {
 
                       {/* Expanded */}
                       {expanded && (
-                        <div className="px-5 pb-4 pt-1 border-t border-gray-100" style={{ background: "#F9F8F6" }}>
-                          <div className="grid sm:grid-cols-3 gap-3 mt-2">
+                        <div className="px-4 pb-3 pt-1 border-t border-gray-100" style={{ background: "#F9F8F6" }}>
+                          <div className="grid sm:grid-cols-3 gap-2.5 mt-2">
                             {/* Info */}
-                            <div className="bg-white rounded-xl border border-gray-200 p-4">
-                              <p className="text-[10px] uppercase tracking-wider text-gray-400 font-semibold mb-3">Shop Info</p>
+                            <div className="bg-white rounded-lg border border-gray-200 p-3">
+                              <p className="text-[10px] uppercase tracking-wider text-gray-400 font-semibold mb-2.5">Shop Info</p>
                               {shop.logo_url && (
                                 // eslint-disable-next-line @next/next/no-img-element
                                 <img src={shop.logo_url} alt={shop.name} className="w-16 h-16 rounded-xl object-cover mb-3 border border-gray-100" />
@@ -810,13 +975,27 @@ export default function AdminPage() {
                                     <span className="text-gray-700 font-medium break-all">{d.value}</span>
                                   </div>
                                 ))}
+                                {shop.owner_email && (
+                                  <div className="flex items-center gap-2 text-xs pt-1">
+                                    <span className="text-gray-300 mt-0.5 shrink-0"><ShieldCheck size={11} /></span>
+                                    <span className="text-gray-400 w-12 shrink-0">Email</span>
+                                    {shop.email_verified ? (
+                                      <span className="text-emerald-600 font-medium flex items-center gap-1"><CheckCircle size={11} /> Verified</span>
+                                    ) : (
+                                      <button onClick={() => handleVerifyEmail(shop.id)} disabled={actionId === shop.id}
+                                        className="text-amber-600 font-medium flex items-center gap-1 hover:underline disabled:opacity-40">
+                                        <AlertTriangle size={11} /> Unverified — click to verify
+                                      </button>
+                                    )}
+                                  </div>
+                                )}
                                 {(() => { const { desc } = decodeShopHumanInfo(shop.description); return desc ? <p className="text-xs text-gray-400 italic border-t border-gray-100 pt-2 mt-1">{desc}</p> : null; })()}
                               </div>
                             </div>
 
                             {/* Activity */}
-                            <div className="bg-white rounded-xl border border-gray-200 p-4">
-                              <p className="text-[10px] uppercase tracking-wider text-gray-400 font-semibold mb-3">Activity</p>
+                            <div className="bg-white rounded-lg border border-gray-200 p-3">
+                              <p className="text-[10px] uppercase tracking-wider text-gray-400 font-semibold mb-2.5">Activity</p>
                               <div className="space-y-2 text-xs">
                                 {[
                                   { label: "Status",       value: isOnline(shop.last_seen_at) ? "Online" : "Offline", highlight: isOnline(shop.last_seen_at) },
@@ -835,15 +1014,15 @@ export default function AdminPage() {
                             </div>
 
                             {/* Users */}
-                            <div className="bg-white rounded-xl border border-gray-200 p-4">
-                              <div className="flex items-center justify-between mb-3">
+                            <div className="bg-white rounded-lg border border-gray-200 p-3">
+                              <div className="flex items-center justify-between mb-2.5">
                                 <p className="text-[10px] uppercase tracking-wider text-gray-400 font-semibold flex items-center gap-1.5">
                                   Team Members <span className="font-bold text-gray-600 normal-case">{members.length}</span>
                                 </p>
                                 <button onClick={() => openCreateUser(shop.id)}
                                   title="Register a user for this shop"
-                                  className="flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-lg hover:opacity-80 transition text-white"
-                                  style={{ background: LI_BLUE }}>
+                                  className="flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-lg hover:opacity-90 transition text-white shadow-sm"
+                                  style={{ background: `linear-gradient(135deg, ${LI_BLUE}, #0d4db8)` }}>
                                   <UserPlus size={10} /> Add
                                 </button>
                               </div>
@@ -884,11 +1063,11 @@ export default function AdminPage() {
         {/* ══ USERS ═══════════════════════════════════════════════════════════ */}
         {tab === "users" && (
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-            <div className="flex flex-col sm:flex-row sm:items-center gap-2 px-5 py-3.5 border-b border-gray-100">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2 px-4 py-2.5 border-b border-gray-100 bg-gradient-to-r from-slate-50/60 to-transparent">
               <div className="flex text-xs rounded-lg overflow-hidden border border-gray-200">
                 {(["all", "admin", "owner", "staff"] as const).map((r) => (
                   <button key={r} onClick={() => setUserRoleFilter(r)}
-                    className="px-2.5 py-1.5 capitalize border-r last:border-r-0 border-gray-200 transition"
+                    className="px-2.5 py-1.5 capitalize border-r last:border-r-0 border-gray-200 transition font-medium"
                     style={userRoleFilter === r ? { background: LI_BLUE, color: "#fff" } : { background: "#fff", color: "#666" }}>
                     {r}
                   </button>
@@ -900,17 +1079,17 @@ export default function AdminPage() {
                   placeholder="Search users…"
                   className="pl-7 pr-3 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-100 w-44" />
               </div>
-              <span className="text-xs text-gray-400 shrink-0">{filteredUsers.length} / {users.length}</span>
+              <span className="text-xs text-gray-400 shrink-0 font-medium">{filteredUsers.length} / {users.length}</span>
               <button onClick={() => openCreateUser()} disabled={activeShops.length === 0}
                 title={activeShops.length === 0 ? "No shops available yet" : "Register a new shop user"}
-                className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg text-white font-semibold transition disabled:opacity-40 shrink-0"
-                style={{ background: LI_BLUE }}>
+                className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg text-white font-semibold transition disabled:opacity-40 shrink-0 shadow-sm hover:opacity-90"
+                style={{ background: `linear-gradient(135deg, ${LI_BLUE}, #0d4db8)` }}>
                 <UserPlus size={12} /> Register User
               </button>
             </div>
 
             {/* Header */}
-            <div className="grid grid-cols-[1fr_1fr_auto_auto_auto] gap-4 px-5 py-2 border-b border-gray-100" style={{ background: "#F9F8F6" }}>
+            <div className="hidden sm:grid grid-cols-[1fr_1fr_auto_auto_auto] gap-4 px-4 py-1.5 border-b border-gray-100" style={{ background: "#F9F8F6" }}>
               {["User", "Shop", "Role", "Status", "Actions"].map((h) => (
                 <span key={h} className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">{h}</span>
               ))}
@@ -919,11 +1098,14 @@ export default function AdminPage() {
             {loading ? (
               <div className="p-4 space-y-2">
                 {Array.from({ length: 5 }).map((_, i) => (
-                  <div key={i} className="h-12 rounded-lg animate-pulse" style={{ background: "#F3F2EE" }} />
+                  <div key={i} className="h-12 rounded-xl hgv-shimmer" />
                 ))}
               </div>
             ) : filteredUsers.length === 0 ? (
-              <p className="text-gray-400 text-sm py-12 text-center">No users found</p>
+              <div className="py-16 text-center">
+                <Users size={32} className="mx-auto mb-3 text-gray-200" />
+                <p className="text-sm font-semibold text-gray-400">No users found</p>
+              </div>
             ) : (
               <div className="divide-y divide-gray-50">
                 {filteredUsers.map((u) => {
@@ -931,14 +1113,14 @@ export default function AdminPage() {
                   const busy = actionId === u.id;
                   return (
                     <div key={u.id}
-                      className={`grid grid-cols-[1fr_1fr_auto_auto_auto] gap-4 items-center px-5 py-3 hover:bg-gray-50 transition ${!u.is_active ? "opacity-50" : ""}`}>
-                      <div className="min-w-0 flex items-center gap-2.5">
-                        <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0"
-                          style={{ background: LI_BLUE }}>
+                      className={`grid grid-cols-[1fr_1fr_auto_auto_auto] gap-4 items-center px-4 py-2 hover:bg-slate-50/70 transition ${!u.is_active ? "opacity-50" : ""}`}>
+                      <div className="min-w-0 flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold text-white shrink-0 ring-2 ring-white shadow-sm"
+                          style={{ background: `linear-gradient(135deg, ${LI_BLUE}, #0d4db8)` }}>
                           {u.email[0].toUpperCase()}
                         </div>
                         <div className="min-w-0">
-                          <p className="text-sm font-medium text-gray-900 truncate">{u.email}</p>
+                          <p className="text-xs font-medium text-gray-900 truncate">{u.email}</p>
                           <p className="text-[10px] text-gray-400">{fmtDate(u.created_at)}</p>
                         </div>
                       </div>
@@ -965,7 +1147,8 @@ export default function AdminPage() {
                             <button onClick={() => setRoleEdit(null)} className="text-xs text-gray-400 hover:text-gray-600 px-1">✕</button>
                           </div>
                         ) : (
-                          <span className="text-xs font-medium capitalize text-gray-600 border border-gray-200 px-2 py-0.5 rounded-full">{u.role}</span>
+                          <span className="text-xs font-semibold capitalize px-2 py-0.5 rounded-full"
+                            style={{ background: "#EBF2FD", color: LI_BLUE }}>{u.role}</span>
                         )}
                       </div>
                       <div className="flex items-center gap-1.5 shrink-0">
@@ -1012,9 +1195,11 @@ export default function AdminPage() {
             {/* Shop selector / back bar */}
             {!expShopId ? (
               <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-100">
+                <div className="flex items-center justify-between px-4 py-2.5 border-b border-gray-100 bg-gradient-to-r from-slate-50/60 to-transparent">
                   <h2 className="font-semibold text-gray-800 text-sm flex items-center gap-2">
-                    <Receipt size={14} style={{ color: LI_BLUE }} />
+                    <span className="w-5 h-5 rounded-lg flex items-center justify-center" style={{ background: "#EBF2FD" }}>
+                      <Receipt size={10} style={{ color: LI_BLUE }} />
+                    </span>
                     Select a Shop to View Expenses
                   </h2>
                   <div className="relative">
@@ -1027,7 +1212,7 @@ export default function AdminPage() {
                 {loading ? (
                   <div className="p-4 space-y-2">
                     {Array.from({ length: 5 }).map((_, i) => (
-                      <div key={i} className="h-12 rounded-lg animate-pulse" style={{ background: "#F3F2EE" }} />
+                      <div key={i} className="h-12 rounded-xl hgv-shimmer" />
                     ))}
                   </div>
                 ) : (
@@ -1036,16 +1221,16 @@ export default function AdminPage() {
                       .filter((s) => !expShopSearch || s.name?.toLowerCase().includes(expShopSearch.toLowerCase()) || s.owner_email?.toLowerCase().includes(expShopSearch.toLowerCase()))
                       .map((shop) => (
                         <button key={shop.id} onClick={() => selectExpShop(shop)}
-                          className="w-full flex items-center gap-3 px-5 py-3 hover:bg-[#EBF2FD] transition-colors text-left group">
-                          <div className="w-9 h-9 rounded-full overflow-hidden flex items-center justify-center text-sm font-bold text-white shrink-0"
+                          className="w-full flex items-center gap-2.5 px-4 py-2.5 hover:bg-[#EBF2FD] transition-colors text-left group">
+                          <div className="w-8 h-8 rounded-full overflow-hidden flex items-center justify-center text-xs font-bold text-white shrink-0"
                             style={{ background: shop.logo_url ? "transparent" : LI_BLUE }}>
                             {shop.logo_url
                               // eslint-disable-next-line @next/next/no-img-element
-                              ? <img src={shop.logo_url} alt={shop.name} className="w-9 h-9 object-cover" />
+                              ? <img src={shop.logo_url} alt={shop.name} className="w-8 h-8 object-cover" />
                               : (shop.name ?? "?")[0].toUpperCase()}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-semibold text-gray-900 group-hover:text-[#1372e6] transition-colors">{shop.name}</p>
+                            <p className="text-[13px] font-semibold text-gray-900 group-hover:text-[#1372e6] transition-colors">{shop.name}</p>
                             {shop.owner_email && <p className="text-[11px] text-gray-400 truncate">{shop.owner_email}</p>}
                           </div>
                           <div className="flex items-center gap-4 text-xs text-gray-400 shrink-0">
@@ -1065,14 +1250,16 @@ export default function AdminPage() {
             ) : (
               <>
                 {/* Back + shop header */}
-                <div className="bg-white rounded-xl shadow-sm border border-gray-200 px-4 py-3 flex items-center gap-3">
+                <div className="bg-white rounded-xl shadow-sm border border-gray-200 px-3.5 py-2.5 flex items-center gap-2.5">
                   <button onClick={() => { setExpShopId(null); setExpenseRows([]); }}
                     className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-800 font-medium transition border border-gray-200 rounded-lg px-2.5 py-1.5 hover:bg-gray-50 shrink-0">
                     <ChevronLeft size={12} /> All Shops
                   </button>
-                  <Receipt size={14} style={{ color: LI_BLUE }} className="shrink-0" />
+                  <span className="w-6 h-6 rounded-lg flex items-center justify-center shrink-0" style={{ background: "#EBF2FD" }}>
+                    <Receipt size={12} style={{ color: LI_BLUE }} />
+                  </span>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-gray-900">{expShopName}</p>
+                    <p className="text-[13px] font-semibold text-gray-900">{expShopName}</p>
                     <p className="text-[11px] text-gray-400">{expTotal.toLocaleString()} expense{expTotal !== 1 ? "s" : ""} total</p>
                   </div>
                   <button onClick={() => loadShopExpenses(expShopId, expPage)} disabled={expLoading}
@@ -1086,7 +1273,7 @@ export default function AdminPage() {
                   {expLoading ? (
                     <div className="p-4 space-y-2">
                       {Array.from({ length: 8 }).map((_, i) => (
-                        <div key={i} className="h-10 rounded-lg animate-pulse" style={{ background: "#F3F2EE" }} />
+                        <div key={i} className="h-10 rounded-lg hgv-shimmer" />
                       ))}
                     </div>
                   ) : expenseRows.length === 0 ? (
@@ -1202,15 +1389,20 @@ export default function AdminPage() {
       {/* ── EDIT EXPENSE MODAL (admin) ─────────────────────────────────────────── */}
       {editingExp && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col max-h-[90vh]">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col max-h-[90vh]">
             {/* Header */}
-            <div className="flex items-center justify-between px-4 py-2.5 border-b border-slate-100 shrink-0">
-              <div>
-                <p className="text-xs font-bold text-slate-800">Edit Expense</p>
-                <p className="text-[10px] text-slate-400">{expShopName} · {editingExp.id.slice(0,8)}</p>
+            <div className="flex items-center justify-between px-3.5 py-2.5 border-b border-slate-100 shrink-0 bg-gradient-to-r from-slate-50 to-white">
+              <div className="flex items-center gap-2.5">
+                <span className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{ background: `linear-gradient(135deg, ${LI_BLUE}, #0d4db8)` }}>
+                  <Pencil size={13} className="text-white" />
+                </span>
+                <div>
+                  <p className="text-sm font-bold text-slate-800">Edit Expense</p>
+                  <p className="text-[10px] text-slate-400">{expShopName} · {editingExp.id.slice(0,8)}</p>
+                </div>
               </div>
               <button onClick={() => setEditingExp(null)} className="p-1 rounded-md hover:bg-slate-100 text-slate-400 transition">
-                <X size={13} />
+                <X size={14} />
               </button>
             </div>
 
@@ -1306,9 +1498,228 @@ export default function AdminPage() {
                 Cancel
               </button>
               <button onClick={saveEditExp} disabled={editSaving || !editForm.title.trim() || !editForm.amount}
-                className="px-3 py-1 rounded-md text-[11px] font-semibold text-white transition disabled:opacity-60 hover:opacity-90"
-                style={{ background: LI_BLUE }}>
+                className="px-3 py-1 rounded-md text-[11px] font-semibold text-white transition disabled:opacity-60 hover:opacity-90 shadow-sm"
+                style={{ background: `linear-gradient(135deg, ${LI_BLUE}, #0d4db8)` }}>
                 {editSaving ? "Saving…" : "Save Changes"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── CREATE SHOP MODAL (admin) ──────────────────────────────────────────── */}
+      {showCreateShop && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col max-h-[90vh]">
+            {/* Header */}
+            <div className="flex items-center justify-between px-3.5 py-2.5 border-b border-slate-100 shrink-0 bg-gradient-to-r from-slate-50 to-white">
+              <div className="flex items-center gap-2.5">
+                <span className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{ background: `linear-gradient(135deg, ${LI_BLUE}, #0d4db8)` }}>
+                  <Store size={14} className="text-white" />
+                </span>
+                <div>
+                  <p className="text-sm font-bold text-slate-800">Register New Shop</p>
+                  <p className="text-[10px] text-slate-400">Phone required; login account optional</p>
+                </div>
+              </div>
+              <button onClick={() => setShowCreateShop(false)} className="p-1 rounded-md hover:bg-slate-100 text-slate-400 transition">
+                <X size={14} />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="px-3.5 py-2.5 grid gap-2 overflow-y-auto flex-1">
+              {createError && (
+                <div className="flex items-center gap-2 text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
+                  <AlertTriangle size={12} /> {createError}
+                </div>
+              )}
+
+              {/* Shop name */}
+              <div>
+                <label className="block text-[11px] font-medium text-gray-500 mb-1">Shop Name <span className="text-red-400">*</span></label>
+                <div className="relative">
+                  <Store size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input value={createForm.shop_name} onChange={(e) => setCreateForm({ ...createForm, shop_name: e.target.value })}
+                    placeholder="e.g. Kigali Electronics"
+                    className="w-full pl-8 pr-3 py-2 text-xs border border-slate-200 rounded-lg text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#1372e6]/30 focus:border-[#1372e6] transition" />
+                </div>
+              </div>
+
+              {/* Phone + Address */}
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[11px] font-medium text-gray-500 mb-1">Phone <span className="text-red-400">*</span></label>
+                  <div className="relative">
+                    <Phone size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                    <input value={createForm.phone} onChange={(e) => setCreateForm({ ...createForm, phone: e.target.value })}
+                      placeholder="07XX XXX XXX"
+                      className="w-full pl-8 pr-2 py-2 text-xs border border-slate-200 rounded-lg text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#1372e6]/30 focus:border-[#1372e6] transition" />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-[11px] font-medium text-gray-500 mb-1">Address</label>
+                  <div className="relative">
+                    <MapPin size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                    <input value={createForm.address} onChange={(e) => setCreateForm({ ...createForm, address: e.target.value })}
+                      placeholder="Optional"
+                      className="w-full pl-8 pr-2 py-2 text-xs border border-slate-200 rounded-lg text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#1372e6]/30 focus:border-[#1372e6] transition" />
+                  </div>
+                </div>
+              </div>
+
+              {/* Needs platform account toggle */}
+              <label className="flex items-center justify-between gap-2 border border-slate-200 rounded-lg px-2.5 py-2 cursor-pointer bg-slate-50/50">
+                <span className="text-[11px] font-medium text-gray-600">This shop needs a platform login account</span>
+                <button type="button" role="switch" aria-checked={shopNeedsAccount}
+                  onClick={() => setShopNeedsAccount((v) => !v)}
+                  className="relative w-8 h-[18px] rounded-full transition-colors shrink-0"
+                  style={{ background: shopNeedsAccount ? LI_BLUE : "#d1d5db" }}>
+                  <span className={`absolute top-0.5 w-3.5 h-3.5 rounded-full bg-white shadow transition-transform ${shopNeedsAccount ? "translate-x-4" : "translate-x-0.5"}`} />
+                </button>
+              </label>
+
+              {shopNeedsAccount && (
+                <>
+                  {/* Owner name */}
+                  <div>
+                    <label className="block text-[11px] font-medium text-gray-500 mb-1">Owner Full Name</label>
+                    <div className="relative">
+                      <UserIcon size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                      <input value={createForm.owner_name} onChange={(e) => setCreateForm({ ...createForm, owner_name: e.target.value })}
+                        placeholder="Optional"
+                        className="w-full pl-8 pr-3 py-2 text-xs border border-slate-200 rounded-lg text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#1372e6]/30 focus:border-[#1372e6] transition" />
+                    </div>
+                  </div>
+
+                  {/* Owner email */}
+                  <div>
+                    <label className="block text-[11px] font-medium text-gray-500 mb-1">Owner Email <span className="text-red-400">*</span></label>
+                    <div className="relative">
+                      <Mail size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                      <input type="email" value={createForm.owner_email} onChange={(e) => setCreateForm({ ...createForm, owner_email: e.target.value })}
+                        placeholder="owner@example.com"
+                        className="w-full pl-8 pr-3 py-2 text-xs border border-slate-200 rounded-lg text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#1372e6]/30 focus:border-[#1372e6] transition" />
+                    </div>
+                    <p className="text-[10px] text-amber-600 mt-1 flex items-center gap-1">
+                      <AlertTriangle size={9} /> New shop emails start unverified — verify from the shop list once confirmed.
+                    </p>
+                  </div>
+
+                  {/* Owner password */}
+                  <div>
+                    <label className="block text-[11px] font-medium text-gray-500 mb-1">Owner Password <span className="text-red-400">*</span></label>
+                    <div className="relative">
+                      <Lock size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                      <input type={showShopPassword ? "text" : "password"} value={createForm.owner_password}
+                        onChange={(e) => setCreateForm({ ...createForm, owner_password: e.target.value })}
+                        placeholder="At least 8 characters"
+                        className="w-full pl-8 pr-8 py-2 text-xs border border-slate-200 rounded-lg text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#1372e6]/30 focus:border-[#1372e6] transition" />
+                      <button type="button" onClick={() => setShowShopPassword((v) => !v)}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                        {showShopPassword ? <EyeOff size={12} /> : <Eye size={12} />}
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {/* Description */}
+              <div>
+                <label className="block text-[11px] font-medium text-gray-500 mb-1">Description</label>
+                <textarea value={createForm.description} onChange={(e) => setCreateForm({ ...createForm, description: e.target.value })}
+                  placeholder="Optional notes about this shop"
+                  rows={2}
+                  className="w-full px-2.5 py-2 text-xs border border-slate-200 rounded-lg text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#1372e6]/30 focus:border-[#1372e6] transition resize-none" />
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="flex justify-end gap-2 px-3.5 py-2.5 border-t border-slate-100 shrink-0">
+              <button onClick={() => setShowCreateShop(false)}
+                className="px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-medium text-slate-600 hover:bg-slate-50 transition">
+                Cancel
+              </button>
+              <button onClick={handleCreateShop} disabled={creatingShop}
+                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold text-white transition disabled:opacity-60 hover:opacity-90 shadow-sm"
+                style={{ background: `linear-gradient(135deg, ${LI_BLUE}, #0d4db8)` }}>
+                {creatingShop ? <><Loader2 size={12} className="animate-spin" /> Creating…</> : <><Plus size={12} /> Create Shop</>}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── EDIT SHOP MODAL (admin) ────────────────────────────────────────────── */}
+      {editingShop && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col max-h-[90vh]">
+            {/* Header */}
+            <div className="flex items-center justify-between px-3.5 py-2.5 border-b border-slate-100 shrink-0 bg-gradient-to-r from-slate-50 to-white">
+              <div className="flex items-center gap-2.5">
+                <span className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{ background: `linear-gradient(135deg, ${LI_BLUE}, #0d4db8)` }}>
+                  <Pencil size={13} className="text-white" />
+                </span>
+                <div>
+                  <p className="text-sm font-bold text-slate-800">Edit Shop</p>
+                  <p className="text-[10px] text-slate-400">{editingShop.owner_email ?? editingShop.id.slice(0, 8)}</p>
+                </div>
+              </div>
+              <button onClick={() => setEditingShop(null)} className="p-1 rounded-md hover:bg-slate-100 text-slate-400 transition">
+                <X size={14} />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="px-3.5 py-2.5 grid gap-2 overflow-y-auto flex-1">
+              <div>
+                <label className="block text-[11px] font-medium text-gray-500 mb-1">Shop Name <span className="text-red-400">*</span></label>
+                <div className="relative">
+                  <Store size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input value={editShopForm.name} onChange={(e) => setEditShopForm({ ...editShopForm, name: e.target.value })}
+                    className="w-full pl-8 pr-3 py-2 text-xs border border-slate-200 rounded-lg text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#1372e6]/30 focus:border-[#1372e6] transition" />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[11px] font-medium text-gray-500 mb-1">Phone</label>
+                  <div className="relative">
+                    <Phone size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                    <input value={editShopForm.phone} onChange={(e) => setEditShopForm({ ...editShopForm, phone: e.target.value })}
+                      placeholder="Optional"
+                      className="w-full pl-8 pr-2 py-2 text-xs border border-slate-200 rounded-lg text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#1372e6]/30 focus:border-[#1372e6] transition" />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-[11px] font-medium text-gray-500 mb-1">Address</label>
+                  <div className="relative">
+                    <MapPin size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                    <input value={editShopForm.address} onChange={(e) => setEditShopForm({ ...editShopForm, address: e.target.value })}
+                      placeholder="Optional"
+                      className="w-full pl-8 pr-2 py-2 text-xs border border-slate-200 rounded-lg text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#1372e6]/30 focus:border-[#1372e6] transition" />
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-medium text-gray-500 mb-1">Description</label>
+                <textarea value={editShopForm.description} onChange={(e) => setEditShopForm({ ...editShopForm, description: e.target.value })}
+                  rows={2}
+                  className="w-full px-2.5 py-2 text-xs border border-slate-200 rounded-lg text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#1372e6]/30 focus:border-[#1372e6] transition resize-none" />
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="flex justify-end gap-2 px-3.5 py-2.5 border-t border-slate-100 shrink-0">
+              <button onClick={() => setEditingShop(null)}
+                className="px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-medium text-slate-600 hover:bg-slate-50 transition">
+                Cancel
+              </button>
+              <button onClick={handleUpdateShop} disabled={editShopSaving || !editShopForm.name.trim()}
+                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold text-white transition disabled:opacity-60 hover:opacity-90 shadow-sm"
+                style={{ background: `linear-gradient(135deg, ${LI_BLUE}, #0d4db8)` }}>
+                {editShopSaving ? <><Loader2 size={12} className="animate-spin" /> Saving…</> : "Save Changes"}
               </button>
             </div>
           </div>
@@ -1318,12 +1729,17 @@ export default function AdminPage() {
       {/* ── REGISTER SHOP USER MODAL (admin) ──────────────────────────────────── */}
       {showCreateUser && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col max-h-[90vh]">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col max-h-[90vh]">
             {/* Header */}
-            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 shrink-0">
-              <div className="flex items-center gap-2">
-                <UserPlus size={14} style={{ color: LI_BLUE }} />
-                <p className="text-sm font-bold text-slate-800">Register Shop User</p>
+            <div className="flex items-center justify-between px-3.5 py-2.5 border-b border-slate-100 shrink-0 bg-gradient-to-r from-slate-50 to-white">
+              <div className="flex items-center gap-2.5">
+                <span className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{ background: `linear-gradient(135deg, ${LI_BLUE}, #0d4db8)` }}>
+                  <UserPlus size={14} className="text-white" />
+                </span>
+                <div>
+                  <p className="text-sm font-bold text-slate-800">Register Shop User</p>
+                  <p className="text-[10px] text-slate-400">Add staff to an existing shop</p>
+                </div>
               </div>
               <button onClick={() => setShowCreateUser(false)} className="p-1 rounded-md hover:bg-slate-100 text-slate-400 transition">
                 <X size={14} />
@@ -1331,7 +1747,7 @@ export default function AdminPage() {
             </div>
 
             {/* Body */}
-            <div className="px-4 py-3 grid gap-2.5 overflow-y-auto flex-1">
+            <div className="px-3.5 py-2.5 grid gap-2 overflow-y-auto flex-1">
               {createUserError && (
                 <div className="flex items-center gap-2 text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
                   <AlertTriangle size={12} /> {createUserError}
@@ -1411,14 +1827,14 @@ export default function AdminPage() {
             </div>
 
             {/* Footer */}
-            <div className="flex justify-end gap-2 px-4 py-3 border-t border-slate-100 shrink-0">
+            <div className="flex justify-end gap-2 px-3.5 py-2.5 border-t border-slate-100 shrink-0">
               <button onClick={() => setShowCreateUser(false)}
                 className="px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-medium text-slate-600 hover:bg-slate-50 transition">
                 Cancel
               </button>
               <button onClick={handleCreateUser} disabled={creatingUser}
-                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold text-white transition disabled:opacity-60 hover:opacity-90"
-                style={{ background: LI_BLUE }}>
+                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold text-white transition disabled:opacity-60 hover:opacity-90 shadow-sm"
+                style={{ background: `linear-gradient(135deg, ${LI_BLUE}, #0d4db8)` }}>
                 {creatingUser ? <><Loader2 size={12} className="animate-spin" /> Registering…</> : <><UserPlus size={12} /> Register User</>}
               </button>
             </div>
