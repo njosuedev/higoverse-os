@@ -14,6 +14,8 @@ const nextConfig: NextConfig = {
       { source: "/PartnerManagement",  destination: "/partners",  permanent: true },
       { source: "/PurchaseManagement", destination: "/purchases", permanent: true },
       { source: "/ExpenseManagement",  destination: "/expenses",  permanent: true },
+      // Dashboard now lives at the root URL, not /dashboard.
+      { source: "/dashboard",          destination: "/",          permanent: true },
       // A & T Consultants dropped the public marketplace — old shared links now
       // land on the dashboard instead of 404ing.
       { source: "/marketplace",         destination: "/", permanent: true },

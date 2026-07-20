@@ -24,7 +24,7 @@ type NavItem = { key: string; href: string; icon: typeof Home };
 // visually separated (see the divider in the render below) since it's a
 // distinct, privileged section rather than a regular business menu.
 const OWNER_PRIMARY: NavItem[] = [
-  { key: "nav.dashboard", href: "/dashboard", icon: Home         },
+  { key: "nav.dashboard", href: "/",          icon: Home         },
   { key: "nav.inventory", href: "/items",     icon: Package      },
   { key: "nav.sales",     href: "/sales",     icon: ShoppingCart },
 ];
