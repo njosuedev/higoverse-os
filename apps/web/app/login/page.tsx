@@ -96,7 +96,7 @@ function LoginPageContent() {
           return setFpError("No account found with this email address. Contact your platform administrator.");
         }
         if (detail.includes("deleted") || detail.includes("inactive") || detail.includes("disabled")) {
-          return setFpError("This account has been deactivated. Contact the A & T Consultants admin.");
+          return setFpError("This account has been deactivated. Contact the Higoverse admin.");
         }
         return setFpError(data?.detail || "Failed to send reset code. Please try again.");
       }
@@ -151,8 +151,8 @@ function LoginPageContent() {
       <div className="hidden lg:flex lg:w-[52%] bg-[#f0f4ff] flex-col justify-between px-16 py-12">
         {/* top: brand */}
         <div className="flex items-center gap-3">
-          <Image src="/logo.png" alt="A & T Consultants" width={36} height={36} className="rounded-xl" />
-          <span className="text-slate-800 font-bold text-lg tracking-tight">A & T Consultants</span>
+          <Image src="/logo.png" alt="Higoverse" width={36} height={36} className="rounded-xl" />
+          <span className="text-slate-800 font-bold text-lg tracking-tight">Higoverse</span>
         </div>
 
         {/* middle: headline */}
@@ -188,7 +188,7 @@ function LoginPageContent() {
         </div>
 
         {/* bottom: trust */}
-        <p className="text-[11px] text-slate-400">© {new Date().getFullYear()} A & T Consultants · Secure · Private</p>
+        <p className="text-[11px] text-slate-400">© {new Date().getFullYear()} Higoverse · Secure · Private</p>
       </div>
 
       {/* ══ RIGHT PANEL ══ */}
@@ -197,8 +197,8 @@ function LoginPageContent() {
 
           {/* mobile brand */}
           <div className="flex lg:hidden items-center gap-2 mb-8">
-            <Image src="/logo.png" alt="A & T Consultants" width={30} height={30} className="rounded-lg" />
-            <span className="font-bold text-gray-900">A & T Consultants</span>
+            <Image src="/logo.png" alt="Higoverse" width={30} height={30} className="rounded-lg" />
+            <span className="font-bold text-gray-900">Higoverse</span>
           </div>
 
           {/* ── login ── */}
@@ -206,7 +206,7 @@ function LoginPageContent() {
             <>
               <div className="mb-7">
                 <h2 className="text-2xl font-bold text-gray-900">Welcome back</h2>
-                <p className="text-sm text-gray-500 mt-1">Sign in to your A & T Consultants shop account</p>
+                <p className="text-sm text-gray-500 mt-1">Sign in to your Higoverse shop account</p>
               </div>
 
               {error && (

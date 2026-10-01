@@ -14,18 +14,18 @@ import { AuthProvider } from "@/lib/auth-context";
 import { QueryProvider } from "@/lib/query-provider";
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://atconsultants.rw"),
+  metadataBase: new URL("https://higoverse.com"),
 
   title: {
-    default: "A & T Consultants | Business Technology Company",
-    template: "%s | A & T Consultants",
+    default: "Higoverse | Business Records & Transactions Platform",
+    template: "%s | Higoverse",
   },
 
   description:
-    "A & T Consultants is a modern business technology platform that helps shops and enterprises manage products, suppliers, customers, purchases, sales, inventory, and business operations efficiently.",
+    "Higoverse is a modern business platform that helps shops and enterprises manage business records and transactions — products, suppliers, customers, purchases, sales, inventory, and business operations efficiently.",
 
   keywords: [
-    "A & T Consultants",
+    "Higoverse",
     "business software",
     "inventory management",
     "shop management",
@@ -43,12 +43,12 @@ export const metadata: Metadata = {
 
   authors: [
     {
-      name: "A & T Consultants",
+      name: "Higoverse",
     },
   ],
 
-  creator: "A & T Consultants",
-  publisher: "A & T Consultants",
+  creator: "Higoverse",
+  publisher: "Higoverse",
 
   manifest: "/manifest.json",
 
@@ -65,20 +65,20 @@ export const metadata: Metadata = {
   },
 
   openGraph: {
-    title: "A & T Consultants | Business Technology Company",
+    title: "Higoverse | Business Records & Transactions Platform",
     description:
-      "Manage products, suppliers, customers, purchases, sales, and inventory from one powerful platform.",
+      "Manage business records and transactions — products, suppliers, customers, purchases, sales, and inventory — from one powerful platform.",
 
-    url: "https://atconsultants.rw",
+    url: "https://higoverse.com",
 
-    siteName: "A & T Consultants",
+    siteName: "Higoverse",
 
     images: [
       {
         url: "/logo.png",
         width: 1200,
         height: 630,
-        alt: "A & T Consultants Business Platform",
+        alt: "Higoverse Business Platform",
       },
     ],
 
@@ -88,7 +88,7 @@ export const metadata: Metadata = {
 
   twitter: {
     card: "summary_large_image",
-    title: "A & T Consultants | Business Technology Company",
+    title: "Higoverse | Business Records & Transactions Platform",
     description:
       "Modern inventory, sales, supplier, and customer management software for businesses.",
     images: ["/logo.png"],

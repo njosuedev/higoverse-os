@@ -29,11 +29,11 @@ CORS_ORIGIN_REGEX = os.getenv(
     "CORS_ALLOWED_ORIGIN_REGEX",
     r"^https?://localhost(:\d+)?$"
     r"|^https?://127\.0\.0\.1(:\d+)?$"
-    r"|^https://aandtconsultants(-[\w-]+)?\.vercel\.app$",
+    r"|^https://higoverse(-[\w-]+)?\.vercel\.app$",
 )
 _origin_matcher = re.compile(CORS_ORIGIN_REGEX)
 
-app = FastAPI(title="A & T Consultants Auth Service", redirect_slashes=False)
+app = FastAPI(title="Higoverse Auth Service", redirect_slashes=False)
 
 
 @app.exception_handler(Exception)

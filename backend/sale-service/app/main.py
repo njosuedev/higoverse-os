@@ -12,7 +12,7 @@ app = FastAPI(title="Sale Service", version="1.0.0")
 
 _ALLOWED_ORIGINS = {
     "http://localhost:3000",
-    "https://aandtconsultants.vercel.app",
+    "https://higoverse.vercel.app",
 }
 
 

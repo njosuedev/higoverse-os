@@ -139,7 +139,7 @@ export default function ExpenseManagementPage() {
     const XLSX = await import("xlsx");
     const today = toDateStr(new Date());
     const ws = XLSX.utils.aoa_to_sheet([
-      ["A & T CONSULTANTS — Expense Import Template  |  Do not modify column headers  |  payment_method: mtn or bank  |  category: rent | utilities | salaries | supplies | maintenance | marketing | transport | taxes | other"],
+      ["HIGOVERSE — Expense Import Template  |  Do not modify column headers  |  payment_method: mtn or bank  |  category: rent | utilities | salaries | supplies | maintenance | marketing | transport | taxes | other"],
       [],
       ["title *", "category *", "amount *", "expense_date *", "payment_method *", "bank_name", "bank_account", "receiver_phone", "notes"],
       ["Monthly Office Rent", "rent",      200000, today, "bank", "BK Bank",     "001-200-456",  "",              "Q2 office space"],
@@ -438,7 +438,7 @@ export default function ExpenseManagementPage() {
         doc.setFontSize(6.5);
         doc.setTextColor(...C_WHITE);
         doc.setFont("helvetica", "normal");
-        doc.text("A & T Consultants — Expense Management System", 14, PH - 3.5);
+        doc.text("Higoverse — Expense Management System", 14, PH - 3.5);
         doc.text(`Page ${data.pageNumber}`, PW / 2, PH - 3.5, { align: "center" });
         doc.text(`Generated ${now.toLocaleDateString()}`, PW - 14, PH - 3.5, { align: "right" });
       },

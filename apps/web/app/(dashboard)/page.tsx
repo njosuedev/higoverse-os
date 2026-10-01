@@ -787,9 +787,9 @@ export default function DashboardPage() {
 
             {/* Brand */}
             <div className="flex items-center gap-2">
-              <img src="/logo.png" alt="A & T Consultants" className="w-7 h-7 rounded-lg object-cover" />
+              <img src="/logo.png" alt="Higoverse" className="w-7 h-7 rounded-lg object-cover" />
               <div>
-                <p className="text-xs font-bold text-slate-700">A & T Consultants</p>
+                <p className="text-xs font-bold text-slate-700">Higoverse</p>
                 <p className="text-[9px] text-slate-400">Rwanda's Business Platform</p>
               </div>
             </div>
@@ -825,7 +825,7 @@ export default function DashboardPage() {
 
             {/* Copyright + sync */}
             <div className="text-center sm:text-right">
-              <p className="text-[9px] text-slate-400 font-medium">© {new Date().getFullYear()} A & T Consultants</p>
+              <p className="text-[9px] text-slate-400 font-medium">© {new Date().getFullYear()} Higoverse</p>
               {lastUpdated && (
                 <p className="text-[9px] text-slate-300 mt-0.5">Synced {fmtTime(lastUpdated)}</p>
               )}

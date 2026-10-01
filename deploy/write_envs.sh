@@ -1,12 +1,12 @@
 #!/bin/bash
 set -euo pipefail
 
-ROOT=/root/projects/A-T-Consulatnts/backend
-JWT=$(cat /etc/aandt/jwt_secret)
-PGPASS=$(cat /etc/aandt/pg_app_password)
+ROOT=/root/projects/higoverse/backend
+JWT=$(cat /etc/higoverse/jwt_secret)
+PGPASS=$(cat /etc/higoverse/pg_app_password)
 
-AUTHDB="postgresql://aandt_app:${PGPASS}@127.0.0.1:5432/authdb"
-SHOPDB="postgresql://aandt_app:${PGPASS}@127.0.0.1:5432/shopdb"
+AUTHDB="postgresql://higoverse_app:${PGPASS}@127.0.0.1:5432/authdb"
+SHOPDB="postgresql://higoverse_app:${PGPASS}@127.0.0.1:5432/shopdb"
 
 write_env() {
   local dir="$1"; shift
@@ -32,7 +32,7 @@ write_env auth-service \
   "SMTP_PORT=587" \
   "SMTP_USER=" \
   "SMTP_PASS=" \
-  "SMTP_FROM=A & T Consultants <noreply@higoverse.com>"
+  "SMTP_FROM=Higoverse <noreply@higoverse.com>"
 
 write_env product-service \
   "DATABASE_URL=${SHOPDB}" \

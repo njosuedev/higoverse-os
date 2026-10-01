@@ -548,7 +548,7 @@ ${customerName ? `<div class="row"><span class="label">Customer</span><span styl
 ${paymentHtml}
 <hr class="dashed">
 <div class="footer-text" style="margin-top:12px">Thank you for your business!</div>
-<div class="footer-text">Powered by A & T Consultants</div>
+<div class="footer-text">Powered by Higoverse</div>
 <script>window.onload=function(){setTimeout(function(){window.print();},400);};window.onafterprint=function(){window.close();};</script>
 </body>
 </html>`;

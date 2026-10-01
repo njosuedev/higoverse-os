@@ -9,7 +9,7 @@ app = FastAPI(title="Expense Service", version="1.0.0", redirect_slashes=False)
 
 _ALLOWED_ORIGINS = {
     "http://localhost:3000",
-    "https://aandtconsultants.vercel.app",
+    "https://higoverse.vercel.app",
 }
 
 

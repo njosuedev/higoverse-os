@@ -18,9 +18,7 @@ from app.schemas.auth import (
 from app.services.auth_service import login_user, refresh_tokens, logout_user
 from app.utils.email import send_otp_email
 
-
 router = APIRouter()
-
 
 # ----------------------------
 # LOGIN
@@ -29,14 +27,12 @@ router = APIRouter()
 def login(data: LoginRequest, db: Session = Depends(get_db), shop_db: Session = Depends(get_shop_db)):
     return login_user(db, shop_db, data.email, data.password)
 
-
 # ----------------------------
 # REFRESH — exchange a valid refresh token for a new access token
 # ----------------------------
 @router.post("/refresh")
 def refresh(payload: RefreshRequest, db: Session = Depends(get_db), shop_db: Session = Depends(get_shop_db)):
     return refresh_tokens(db, shop_db, payload.refresh_token)
-
 
 # ----------------------------
 # LOGOUT — revoke the refresh token
@@ -45,7 +41,6 @@ def refresh(payload: RefreshRequest, db: Session = Depends(get_db), shop_db: Ses
 def logout(payload: LogoutRequest, db: Session = Depends(get_db)):
     logout_user(db, payload.refresh_token)
     return {"success": True, "message": "Logged out"}
-
 
 # ----------------------------
 # CHANGE PASSWORD (authenticated)
@@ -97,7 +92,6 @@ def forgot_password(payload: ForgotPasswordRequest, db: Session = Depends(get_db
 
     return {"success": True, "message": "OTP sent to your email address."}
 
-
 # ----------------------------
 # RESET PASSWORD — verify OTP + set new password
 # ----------------------------
@@ -126,7 +120,6 @@ def reset_password(payload: ResetPasswordRequest, db: Session = Depends(get_db))
     db.commit()
 
     return {"success": True, "message": "Password reset successfully. You can now sign in."}
-
 
 # ----------------------------
 # UPDATE PROFILE (authenticated)

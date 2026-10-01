@@ -1,14 +1,31 @@
-# A & T Consultants — VPS Deployment
+# Higoverse — VPS Deployment
 
-This document describes the production deployment of the Shops Network platform
-on a single Ubuntu VPS, how to operate it day-to-day, how to rebuild it from
-scratch, and how the domain/TLS are set up.
+This document describes the production deployment of the Higoverse platform
+(business records and transactions — shops, products, sales, purchases,
+suppliers, expenses, settings, debts, proformas, reporting) on a single
+Ubuntu VPS, how to operate it day-to-day, how to rebuild it from scratch, and
+how the domain/TLS are set up.
 
 Current host: `sc-kgl-1-cpu1-ram2gb-40gb-ubu` (Ubuntu 24.04, 1 vCPU, 2GB RAM,
-40GB disk), public IP `102.202.208.195`.
+40GB disk), public IP `102.202.208.190`.
 
-**Live URL:** https://atconsultants.rw (HTTP redirects to HTTPS; the bare IP
+> **Fresh VPS note:** this is a brand-new box provisioned for the Higoverse
+> rebrand (not an in-place migration of the old `atconsultants.rw` VPS at
+> `102.202.208.195`). Build it from zero following **§5** below — the old
+> box's §11 in-place-migration runbook doesn't apply here since there's
+> nothing to migrate on this host. Decommission the old VPS once
+> `higoverse.com` is confirmed live and stable here, so you're not paying
+> for/exposing both.
+
+**Live URL:** https://higoverse.com (HTTP redirects to HTTPS; the bare IP
 over HTTP now 404s by certbot's design — see §10).
+
+> **Rebrand note:** this platform was originally built and deployed as
+> "A & T Consultants" on `atconsultants.rw`. This document already reflects
+> the new "Higoverse" naming throughout (systemd units, secrets dir,
+> Postgres role, domain, etc.) as the *target* state. If the live VPS still
+> has the old names, it hasn't been migrated yet — run **§11 Rebrand
+> Migration Runbook** first, then the rest of this doc applies as-is.
 
 ---
 
@@ -28,7 +45,7 @@ over HTTP now 404s by certbot's design — see §10).
      │ Next.js frontend  │  │ 8 FastAPI backend services (localhost)  │
      │ 127.0.0.1:3000    │  │ auth:8000 products:8001 suppliers:8002  │
      │ (systemd:         │  │ sales:8003 purchases:8004 expenses:8005 │
-     │  aandt-web)       │  │ settings:8006 shops:8007 reports:8008   │
+     │  higoverse-web)   │  │ settings:8006 shops:8007 reports:8008   │
      └──────────┬────────┘  └───────────────────┬─────────────────────┘
                 │  (2 of them proxied via                │
                 │   Next's own server rewrite:            │
@@ -64,18 +81,18 @@ service that talks to both; everything else talks to one or the other.
 
 ### Port map
 
-| Service           | systemd unit                  | Port | DB       |
-|-------------------|--------------------------------|------|----------|
-| auth-service      | `aandt-auth-service`          | 8000 | authdb + shopdb |
-| product-service   | `aandt-product-service`       | 8001 | shopdb   |
-| supplier-service  | `aandt-supplier-service`      | 8002 | shopdb   |
-| sale-service      | `aandt-sale-service`          | 8003 | shopdb   |
-| purchase-service  | `aandt-purchase-service`      | 8004 | shopdb   |
-| expense-service   | `aandt-expense-service`       | 8005 | shopdb   |
-| settings-service  | `aandt-settings-service`      | 8006 | shopdb   |
-| shop-service      | `aandt-shop-service`          | 8007 | authdb   |
-| report-service    | `aandt-report-service`        | 8008 | none (calls sales/purchases/products over HTTP) |
-| web (Next.js)     | `aandt-web`                   | 3000 | —        |
+| Service           | systemd unit                       | Port | DB       |
+|-------------------|-------------------------------------|------|----------|
+| auth-service      | `higoverse-auth-service`           | 8000 | authdb + shopdb |
+| product-service   | `higoverse-product-service`        | 8001 | shopdb   |
+| supplier-service  | `higoverse-supplier-service`       | 8002 | shopdb   |
+| sale-service      | `higoverse-sale-service`           | 8003 | shopdb   |
+| purchase-service  | `higoverse-purchase-service`       | 8004 | shopdb   |
+| expense-service   | `higoverse-expense-service`        | 8005 | shopdb   |
+| settings-service  | `higoverse-settings-service`       | 8006 | shopdb   |
+| shop-service      | `higoverse-shop-service`           | 8007 | authdb   |
+| report-service    | `higoverse-report-service`         | 8008 | none (calls sales/purchases/products over HTTP) |
+| web (Next.js)     | `higoverse-web`                    | 3000 | —        |
 
 > **Note:** `shop-service` is deployed and healthy, but the current frontend
 > code doesn't call it — shop-profile reads/writes go through `auth-service`'s
@@ -88,25 +105,25 @@ service that talks to both; everything else talks to one or the other.
 
 ## 2. Where everything lives
 
-- **Code:** `/root/projects/A-T-Consulatnts` (this is both the git checkout
+- **Code:** `/root/projects/higoverse` (this is both the git checkout
   and the live deployment directory — there is no separate "build" copy).
 - **Backend venvs:** `backend/<service>/.venv/` (one per service, not shared).
 - **Backend secrets:** `backend/<service>/.env` (mode `600`, gitignored).
 - **Frontend build:** `apps/web/.next/` (produced by `npm run build`).
 - **Frontend public env:** `apps/web/.env.production` (build-time
   `NEXT_PUBLIC_*` values — not secret, just base URLs, but gitignored anyway).
-- **Systemd units:** `/etc/systemd/system/aandt-*.service`.
-- **nginx config:** `/etc/nginx/sites-available/aandt.conf` (symlinked into
+- **Systemd units:** `/etc/systemd/system/higoverse-*.service`.
+- **nginx config:** `/etc/nginx/sites-available/higoverse.conf` (symlinked into
   `sites-enabled/`; the default nginx site was removed).
-- **Shared secrets root:** `/etc/aandt/` (mode `700`, root-only):
+- **Shared secrets root:** `/etc/higoverse/` (mode `700`, root-only):
   - `jwt_secret` — the shared `SECRET_KEY` used by all 8 backend services to
     sign/verify JWTs (must be identical across all of them).
-  - `pg_app_password` — password for the `aandt_app` Postgres role.
+  - `pg_app_password` — password for the `higoverse_app` Postgres role.
   - `bootstrap_admin_password` — the first platform-admin login (see §7).
 
 None of these secret files are committed to git. `backend/*/.env` files are
-regenerated from `/etc/aandt/*` by the script kept at
-`/root/projects/A-T-Consulatnts/deploy/write_envs.sh` (see §5 for a copy of it).
+regenerated from `/etc/higoverse/*` by the script kept at
+`/root/projects/higoverse/deploy/write_envs.sh` (see §5 for a copy of it).
 
 ---
 
@@ -118,7 +135,7 @@ regenerated from `/etc/aandt/*` by the script kept at
 - **fail2ban:** watching sshd on ports 22 and 222, 5 attempts / 10 min → 1h ban.
 - **All app processes bind to `127.0.0.1` only** — never directly reachable
   from the internet, only through nginx.
-- **systemd sandboxing** on every `aandt-*` unit: `NoNewPrivileges=yes`,
+- **systemd sandboxing** on every `higoverse-*` unit: `NoNewPrivileges=yes`,
   `PrivateTmp=yes`, `ProtectSystem=strict` with a `ReadWritePaths=` exception
   for that service's own directory. (Do **not** add `ProtectHome=yes` — on
   this box the app lives under `/root`, and that directive hides `/root`
@@ -132,8 +149,8 @@ regenerated from `/etc/aandt/*` by the script kept at
   **The old leaked values still exist in git history** — see §9.
 - Services currently run as **root** (single-tenant box, small enough that a
   dedicated non-root service account wasn't worth the extra complexity yet).
-  A future hardening step would be to create a `svc-aandt` system user, chown
-  the tree, and switch `User=`/`Group=` in each unit.
+  A future hardening step would be to create a `svc-higoverse` system user,
+  chown the tree, and switch `User=`/`Group=` in each unit.
 
 ---
 
@@ -142,23 +159,23 @@ regenerated from `/etc/aandt/*` by the script kept at
 ### Check everything at a glance
 
 ```bash
-systemctl list-units 'aandt-*' --no-pager
+systemctl list-units 'higoverse-*' --no-pager
 ```
 
 ### Per-service control
 
 ```bash
-systemctl status  aandt-auth-service      # or any aandt-<service>, aandt-web
-systemctl restart aandt-auth-service
-systemctl stop    aandt-auth-service
-journalctl -u aandt-auth-service -f       # follow logs live
-journalctl -u aandt-auth-service -n 100   # last 100 lines
+systemctl status  higoverse-auth-service      # or any higoverse-<service>, higoverse-web
+systemctl restart higoverse-auth-service
+systemctl stop    higoverse-auth-service
+journalctl -u higoverse-auth-service -f       # follow logs live
+journalctl -u higoverse-auth-service -n 100   # last 100 lines
 ```
 
 ### Restart everything
 
 ```bash
-systemctl restart 'aandt-*'
+systemctl restart 'higoverse-*'
 ```
 
 ### Health checks
@@ -209,23 +226,23 @@ su - postgres -c "psql -d authdb"
 su - postgres -c "psql -d shopdb"
 ```
 
-Application role is `aandt_app`; password is in `/etc/aandt/pg_app_password`.
+Application role is `higoverse_app`; password is in `/etc/higoverse/pg_app_password`.
 
 ### Database backups
 
 Nothing automated is set up yet. Minimum viable backup, run as a daily cron:
 
 ```bash
-mkdir -p /var/backups/aandt
-pg_dump -U postgres authdb | gzip > /var/backups/aandt/authdb-$(date +%F).sql.gz
-pg_dump -U postgres shopdb | gzip > /var/backups/aandt/shopdb-$(date +%F).sql.gz
-find /var/backups/aandt -mtime +14 -delete   # keep 2 weeks
+mkdir -p /var/backups/higoverse
+pg_dump -U postgres authdb | gzip > /var/backups/higoverse/authdb-$(date +%F).sql.gz
+pg_dump -U postgres shopdb | gzip > /var/backups/higoverse/shopdb-$(date +%F).sql.gz
+find /var/backups/higoverse -mtime +14 -delete   # keep 2 weeks
 ```
 
 Add to root's crontab (`crontab -e`):
 ```
-0 3 * * * /usr/bin/pg_dump -U postgres authdb | gzip > /var/backups/aandt/authdb-$(date +\%F).sql.gz
-5 3 * * * /usr/bin/pg_dump -U postgres shopdb | gzip > /var/backups/aandt/shopdb-$(date +\%F).sql.gz
+0 3 * * * /usr/bin/pg_dump -U postgres authdb | gzip > /var/backups/higoverse/authdb-$(date +\%F).sql.gz
+5 3 * * * /usr/bin/pg_dump -U postgres shopdb | gzip > /var/backups/higoverse/shopdb-$(date +\%F).sql.gz
 ```
 Off-box copies (e.g. `rclone`/`scp` to another host or object storage) are
 strongly recommended once this holds real customer data — a single VPS disk
@@ -280,9 +297,13 @@ systemctl enable --now fail2ban
 
 ### 5.4 Get the code
 
+The git remote is still the original repo name (renaming it is a separate,
+optional follow-up — see §12); only the local checkout directory uses the
+new name:
+
 ```bash
-git clone https://github.com/nikuze2026/A-T-Consulatnts.git /root/projects/A-T-Consulatnts
-cd /root/projects/A-T-Consulatnts
+git clone https://github.com/nikuze2026/A-T-Consulatnts.git /root/projects/higoverse
+cd /root/projects/higoverse
 ```
 
 ### 5.5 PostgreSQL
@@ -290,21 +311,21 @@ cd /root/projects/A-T-Consulatnts
 ```bash
 systemctl enable --now postgresql
 PGPASS=$(openssl rand -base64 24 | tr -d '/+=' | head -c 32)
-mkdir -p /etc/aandt && chmod 700 /etc/aandt
-printf '%s' "$PGPASS" > /etc/aandt/pg_app_password && chmod 600 /etc/aandt/pg_app_password
+mkdir -p /etc/higoverse && chmod 700 /etc/higoverse
+printf '%s' "$PGPASS" > /etc/higoverse/pg_app_password && chmod 600 /etc/higoverse/pg_app_password
 
 su - postgres -c "psql -v ON_ERROR_STOP=1" << SQL
-CREATE ROLE aandt_app LOGIN PASSWORD '$PGPASS';
+CREATE ROLE higoverse_app LOGIN PASSWORD '$PGPASS';
 SQL
-su - postgres -c "createdb -O aandt_app authdb"
-su - postgres -c "createdb -O aandt_app shopdb"
+su - postgres -c "createdb -O higoverse_app authdb"
+su - postgres -c "createdb -O higoverse_app shopdb"
 ```
 
 ### 5.6 Shared JWT secret
 
 ```bash
-openssl rand -hex 32 > /etc/aandt/jwt_secret
-chmod 600 /etc/aandt/jwt_secret
+openssl rand -hex 32 > /etc/higoverse/jwt_secret
+chmod 600 /etc/higoverse/jwt_secret
 ```
 
 ### 5.7 Per-service `.env` files
@@ -317,11 +338,11 @@ service-to-service URLs:
 ```bash
 #!/bin/bash
 set -euo pipefail
-ROOT=/root/projects/A-T-Consulatnts/backend
-JWT=$(cat /etc/aandt/jwt_secret)
-PGPASS=$(cat /etc/aandt/pg_app_password)
-AUTHDB="postgresql://aandt_app:${PGPASS}@127.0.0.1:5432/authdb"
-SHOPDB="postgresql://aandt_app:${PGPASS}@127.0.0.1:5432/shopdb"
+ROOT=/root/projects/higoverse/backend
+JWT=$(cat /etc/higoverse/jwt_secret)
+PGPASS=$(cat /etc/higoverse/pg_app_password)
+AUTHDB="postgresql://higoverse_app:${PGPASS}@127.0.0.1:5432/authdb"
+SHOPDB="postgresql://higoverse_app:${PGPASS}@127.0.0.1:5432/shopdb"
 
 write_env() {
   local dir="$1"; shift
@@ -334,7 +355,7 @@ write_env auth-service \
   "ALGORITHM=HS256" "ACCESS_TOKEN_EXPIRE_MINUTES=60" "REFRESH_TOKEN_EXPIRE_DAYS=30" \
   "CORS_ALLOWED_ORIGIN_REGEX=^https?://localhost(:\d+)?\$|^https?://127\.0\.0\.1(:\d+)?\$" \
   "SMTP_HOST=smtp.gmail.com" "SMTP_PORT=587" "SMTP_USER=" "SMTP_PASS=" \
-  "SMTP_FROM=A & T Consultants <noreply@higoverse.com>"
+  "SMTP_FROM=Higoverse <noreply@higoverse.com>"
 
 write_env product-service   "DATABASE_URL=${SHOPDB}" "SECRET_KEY=${JWT}" "AUTH_SERVICE_ALGORITHM=HS256" "SUPPLIER_SERVICE_URL=http://127.0.0.1:8002"
 write_env supplier-service  "DATABASE_URL=${SHOPDB}" "SECRET_KEY=${JWT}" "AUTH_SERVICE_ALGORITHM=HS256"
@@ -352,7 +373,7 @@ Run it: `bash deploy/write_envs.sh`
 ### 5.8 Backend venvs + deps
 
 ```bash
-cd /root/projects/A-T-Consulatnts/backend
+cd /root/projects/higoverse/backend
 for svc in auth-service product-service supplier-service sale-service \
            purchase-service expense-service settings-service shop-service report-service; do
   python3 -m venv "$svc/.venv"
@@ -370,7 +391,7 @@ schema that already exists (see §8 for why). To create a fresh schema
 without starting the full service:
 
 ```bash
-cd /root/projects/A-T-Consulatnts/backend/auth-service
+cd /root/projects/higoverse/backend/auth-service
 set -a; source <(grep -v CORS_ALLOWED_ORIGIN_REGEX .env); set +a
 ./.venv/bin/python -c "from app.main import on_startup; on_startup()"
 ./.venv/bin/alembic stamp head
@@ -381,7 +402,7 @@ they start (next step) — no manual action needed for them.
 
 ### 5.10 systemd units (backend)
 
-For each service/port pair below, write `/etc/systemd/system/aandt-<svc>.service`:
+For each service/port pair below, write `/etc/systemd/system/higoverse-<svc>.service`:
 
 ```
 auth-service:8000  product-service:8001  supplier-service:8002  sale-service:8003
@@ -393,23 +414,23 @@ Template (substitute `<svc>` and `<port>`):
 
 ```ini
 [Unit]
-Description=A&T Consultants - <svc>
+Description=Higoverse - <svc>
 After=network.target postgresql.service
 Wants=postgresql.service
 
 [Service]
 Type=simple
-WorkingDirectory=/root/projects/A-T-Consulatnts/backend/<svc>
-EnvironmentFile=/root/projects/A-T-Consulatnts/backend/<svc>/.env
+WorkingDirectory=/root/projects/higoverse/backend/<svc>
+EnvironmentFile=/root/projects/higoverse/backend/<svc>/.env
 Environment=PYTHONUNBUFFERED=1
-ExecStart=/root/projects/A-T-Consulatnts/backend/<svc>/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port <port>
+ExecStart=/root/projects/higoverse/backend/<svc>/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port <port>
 Restart=on-failure
 RestartSec=3
 
 NoNewPrivileges=yes
 PrivateTmp=yes
 ProtectSystem=strict
-ReadWritePaths=/root/projects/A-T-Consulatnts/backend/<svc>
+ReadWritePaths=/root/projects/higoverse/backend/<svc>
 
 [Install]
 WantedBy=multi-user.target
@@ -423,7 +444,7 @@ Then:
 systemctl daemon-reload
 for svc in auth-service product-service supplier-service sale-service \
            purchase-service expense-service settings-service shop-service report-service; do
-  systemctl enable --now "aandt-${svc}"
+  systemctl enable --now "higoverse-${svc}"
 done
 ```
 
@@ -446,7 +467,7 @@ specific service and re-check after a few seconds.
 ### 5.11 Frontend
 
 ```bash
-cd /root/projects/A-T-Consulatnts/apps/web
+cd /root/projects/higoverse/apps/web
 npm install --no-audit --no-fund
 ```
 
@@ -467,18 +488,18 @@ NEXT_PUBLIC_API_PURCHASES=http://127.0.0.1:8004
 NODE_OPTIONS="--max-old-space-size=1536" npm run build
 ```
 
-systemd unit `/etc/systemd/system/aandt-web.service`:
+systemd unit `/etc/systemd/system/higoverse-web.service`:
 
 ```ini
 [Unit]
-Description=A&T Consultants - web frontend (Next.js)
+Description=Higoverse - web frontend (Next.js)
 After=network.target
 
 [Service]
 Type=simple
-WorkingDirectory=/root/projects/A-T-Consulatnts/apps/web
+WorkingDirectory=/root/projects/higoverse/apps/web
 Environment=NODE_ENV=production
-EnvironmentFile=/root/projects/A-T-Consulatnts/apps/web/.env.production
+EnvironmentFile=/root/projects/higoverse/apps/web/.env.production
 ExecStart=/usr/bin/npx next start -p 3000 -H 127.0.0.1
 Restart=on-failure
 RestartSec=3
@@ -486,7 +507,7 @@ RestartSec=3
 NoNewPrivileges=yes
 PrivateTmp=yes
 ProtectSystem=strict
-ReadWritePaths=/root/projects/A-T-Consulatnts/apps/web
+ReadWritePaths=/root/projects/higoverse/apps/web
 
 [Install]
 WantedBy=multi-user.target
@@ -494,12 +515,12 @@ WantedBy=multi-user.target
 
 ```bash
 systemctl daemon-reload
-systemctl enable --now aandt-web
+systemctl enable --now higoverse-web
 ```
 
 ### 5.12 nginx
 
-`/etc/nginx/sites-available/aandt.conf`:
+`/etc/nginx/sites-available/higoverse.conf`:
 
 ```nginx
 map $http_upgrade $connection_upgrade {
@@ -510,7 +531,7 @@ map $http_upgrade $connection_upgrade {
 server {
     listen 80 default_server;
     listen [::]:80 default_server;
-    server_name atconsultants.rw;
+    server_name higoverse.com;
 
     client_max_body_size 25m;
 
@@ -544,13 +565,13 @@ server {
 
 ```bash
 rm -f /etc/nginx/sites-enabled/default
-ln -sf /etc/nginx/sites-available/aandt.conf /etc/nginx/sites-enabled/aandt.conf
+ln -sf /etc/nginx/sites-available/higoverse.conf /etc/nginx/sites-enabled/higoverse.conf
 nginx -t && systemctl enable --now nginx && systemctl restart nginx
 ```
 
 Then get the TLS cert (see §10):
 ```bash
-certbot --nginx -d atconsultants.rw --agree-tos --email <your-email> --non-interactive --redirect
+certbot --nginx -d higoverse.com --agree-tos --email <your-email> --non-interactive --redirect
 ```
 
 ### 5.13 Bootstrap the first admin user
@@ -560,10 +581,10 @@ existing admin can create shops/staff via the API. So the very first admin
 has to be inserted straight into the database:
 
 ```bash
-cd /root/projects/A-T-Consulatnts/backend/auth-service
+cd /root/projects/higoverse/backend/auth-service
 ADMIN_PASS=$(openssl rand -base64 18 | tr -d '/+=' | head -c 20)
-printf '%s' "$ADMIN_PASS" > /etc/aandt/bootstrap_admin_password
-chmod 600 /etc/aandt/bootstrap_admin_password
+printf '%s' "$ADMIN_PASS" > /etc/higoverse/bootstrap_admin_password
+chmod 600 /etc/higoverse/bootstrap_admin_password
 
 set -a; source <(grep -v CORS_ALLOWED_ORIGIN_REGEX .env); set +a
 ./.venv/bin/python << 'PYEOF'
@@ -573,10 +594,10 @@ from app.db.session import SessionLocal
 from app.models.user import User
 from app.core.security import hash_password
 
-pw = open("/etc/aandt/bootstrap_admin_password").read().strip()
+pw = open("/etc/higoverse/bootstrap_admin_password").read().strip()
 db = SessionLocal()
 u = User(
-    id=uuid.uuid4(), name="Platform Admin", email="admin@aandtconsultants.rw",
+    id=uuid.uuid4(), name="Platform Admin", email="admin@higoverse.com",
     password_hash=hash_password(pw), role="admin", shop_id=None,
     is_active=True, created_at=datetime.now(timezone.utc),
 )
@@ -599,18 +620,18 @@ curl -s -o /dev/null -w "%{http_code}\n" http://127.0.0.1/
 ## 6. Deploying a code update
 
 ```bash
-cd /root/projects/A-T-Consulatnts
+cd /root/projects/higoverse
 git pull
 
 # Backend service(s) that changed:
 backend/<svc>/.venv/bin/pip install -r backend/<svc>/requirements.txt   # only if requirements.txt changed
-systemctl restart aandt-<svc>
+systemctl restart higoverse-<svc>
 
 # Frontend, if apps/web changed:
 cd apps/web
 npm install                          # only if package.json changed
 NODE_OPTIONS="--max-old-space-size=1536" npm run build
-systemctl restart aandt-web
+systemctl restart higoverse-web
 ```
 
 If a backend model changed in a way that needs a new column, either add it
@@ -622,9 +643,9 @@ self-heals on next restart, or run the ALTER by hand against `authdb`/`shopdb`.
 
 ## 7. First login
 
-- URL: `https://atconsultants.rw/login`
-- Email: `admin@aandtconsultants.rw`
-- Password: see `/etc/aandt/bootstrap_admin_password` on the VPS (also given
+- URL: `https://higoverse.com/login`
+- Email: `admin@higoverse.com`
+- Password: see `/etc/higoverse/bootstrap_admin_password` on the VPS (also given
   to you once, out-of-band, when this was set up — change it after first
   login via the profile/change-password flow, or by re-running the snippet
   in §5.13 with a new password).
@@ -643,14 +664,14 @@ since there is no public self-registration.
   endpoint as `@router.get("/")` under a prefix, so `GET /products` 307s to
   `GET /products/`. Uvicorn (default `proxy_headers=True`, trusting
   `127.0.0.1`) builds that `Location` header using the `Host`/`X-Forwarded-Proto`
-  nginx forwards — so it's correctly `https://atconsultants.rw/...` — but
+  nginx forwards — so it's correctly `https://higoverse.com/...` — but
   the *path* it uses is what the backend itself saw, i.e. already stripped
   of the `/svc/<name>` prefix nginx removed before proxying. The browser
   then follows a same-origin redirect straight into the Next.js app's own
-  router (e.g. `https://atconsultants.rw/products/`), which 404s there —
+  router (e.g. `https://higoverse.com/products/`), which 404s there —
   this is exactly the "inventory data failed to load" symptom. Fixed with
   a `proxy_redirect` on every `/svc/<name>/` location in
-  `/etc/nginx/sites-available/aandt.conf` that re-adds the stripped prefix
+  `/etc/nginx/sites-available/higoverse.conf` that re-adds the stripped prefix
   to any redirect the backend issues:
   ```nginx
   location /svc/products/ {
@@ -710,8 +731,7 @@ since there is no public self-registration.
   service is not configured" until you provide real SMTP credentials (a
   Gmail address + App Password, given the default host is `smtp.gmail.com`).
   Once you have them: fill in `backend/auth-service/.env` and
-  `systemctl restart aandt-auth-service`.
-- **No TLS yet** — everything is plain HTTP on the bare IP. See §10.
+  `systemctl restart higoverse-auth-service`.
 - **No automated backups yet** — see §4's backup section; nothing is
   scheduled by default.
 - **Single VPS, no redundancy.** Fine for now; if this becomes
@@ -720,49 +740,52 @@ since there is no public self-registration.
 
 ---
 
-## 10. Domain + TLS (done)
+## 10. Domain + TLS
 
-The domain is `atconsultants.rw`, purchased and pointed at this VPS
-(`A` record → `102.202.208.195`, already live via `ns4/ns5.aos.rw`). The
-subdomain-per-service scheme from the original plan was dropped in favor of
-the **path-based** routing this deployment already used from day one
-(`/svc/<name>/...`) — simpler, one DNS record, one certificate, and zero
-CORS changes since the frontend and every backend now share one origin.
+> This section describes the `higoverse.com` domain/TLS setup on the new,
+> from-scratch VPS (`102.202.208.190`) built via §5 — not an in-place
+> migration of the old `atconsultants.rw` box (§11 doesn't apply here).
 
-What was done:
+The domain is `higoverse.com`, pointed at this VPS (`A` record →
+`102.202.208.190`). The subdomain-per-service scheme from the original plan
+was dropped in favor of the **path-based** routing this deployment already
+used from day one (`/svc/<name>/...`) — simpler, one DNS record, one
+certificate, and zero CORS changes since the frontend and every backend now
+share one origin.
 
-1. **nginx** (`/etc/nginx/sites-available/aandt.conf`) — set
-   `server_name atconsultants.rw;` on the existing `listen 80 default_server`
-   block (still catches bare-IP requests too), no other changes needed —
-   the `/svc/<name>/` locations and the frontend catch-all were already there.
+What this involves:
+
+1. **nginx** (`/etc/nginx/sites-available/higoverse.conf`) — set
+   `server_name higoverse.com;` on the `listen 80 default_server` block
+   (still catches bare-IP requests too), no other changes needed — the
+   `/svc/<name>/` locations and the frontend catch-all were already there.
 2. **TLS** — issued via:
    ```bash
-   certbot --nginx -d atconsultants.rw \
+   certbot --nginx -d higoverse.com \
      --agree-tos --email pacifiquemurangwa001@gmail.com \
      --non-interactive --redirect
    ```
-   Certbot rewrote `aandt.conf` itself: added a `listen 443 ssl` server
-   block with the cert/key paths, and turned the old port-80 block into an
-   HTTP→HTTPS redirect for `Host: atconsultants.rw` (anything else on port
-   80, e.g. the bare IP, now gets a plain `404` — that's certbot's default,
-   not something added manually). Auto-renewal runs via `certbot.timer`
-   (check with `systemctl list-timers | grep certbot`; cert expires
-   2026-10-18, renews automatically well before then).
-3. **No frontend rebuild was strictly required** for API calls to keep
-   working — `NEXT_PUBLIC_*_API` were already relative paths (`/svc/auth`,
-   etc.), so they're host-and-scheme-agnostic by construction. A rebuild
-   *was* done anyway to fix 4 leftover hardcoded references to the old
-   `aandtconsultants.vercel.app` domain in SEO/metadata code
-   (`app/layout.tsx`'s `metadataBase` and Open Graph `url`, `app/sitemap.ts`,
-   `app/robots.ts`) — cosmetic/SEO only, never affected app functionality,
-   but now correctly point at `https://atconsultants.rw`.
-4. **No CORS changes were needed** — everything (frontend + all 8 `/svc/*`
-   APIs) is genuinely same-origin under `https://atconsultants.rw` now, so
-   the browser never sends a cross-origin request in the first place.
+   Certbot rewrites `higoverse.conf` itself: adds a `listen 443 ssl` server
+   block with the cert/key paths, and turns the old port-80 block into an
+   HTTP→HTTPS redirect for `Host: higoverse.com` (anything else on port 80,
+   e.g. the bare IP, gets a plain `404` — that's certbot's default, not
+   something added manually). Auto-renewal runs via `certbot.timer` (check
+   with `systemctl list-timers | grep certbot`; renews automatically well
+   before the cert's 90-day expiry).
+3. **No frontend rebuild is strictly required** for API calls to keep
+   working — `NEXT_PUBLIC_*_API` are relative paths (`/svc/auth`, etc.), so
+   they're host-and-scheme-agnostic by construction. A rebuild *is* still
+   needed to pick up the hardcoded `higoverse.com` references in
+   SEO/metadata code (`app/layout.tsx`'s `metadataBase` and Open Graph
+   `url`, `app/sitemap.ts`, `app/robots.ts`) — cosmetic/SEO only, never
+   affects app functionality.
+4. **No CORS changes are needed** — everything (frontend + all 8 `/svc/*`
+   APIs) is genuinely same-origin under `https://higoverse.com`, so the
+   browser never sends a cross-origin request in the first place.
 
 ### If you ever do want per-service subdomains later
 
-Nothing above forecloses it — add `api.<service>.atconsultants.rw` A
+Nothing above forecloses it — add `api.<service>.higoverse.com` A
 records, add a matching `server {}` block per subdomain proxying to the same
 internal port, re-run `certbot --nginx -d ... ` with the new hostnames, then
 switch the 6 browser-facing `NEXT_PUBLIC_*_API` values from relative paths
@@ -771,3 +794,138 @@ starts to matter, because it becomes genuinely cross-origin: add the
 frontend's origin to `CORS_ALLOWED_ORIGIN_REGEX` (`auth-service`,
 `product-service`) and to the hardcoded `_ALLOWED_ORIGINS` set in the other
 six services' `main.py`.
+
+---
+
+## 11. Rebrand Migration Runbook (A & T Consultants → Higoverse)
+
+> **Superseded for this deployment:** a brand-new VPS (`102.202.208.190`)
+> was provisioned instead of migrating the old `atconsultants.rw` box
+> (`102.202.208.195`) in place — see the fresh-VPS note near the top of
+> this document, and follow §5 instead. Kept here in case the old box
+> ever needs an in-place cutover
+> for some other reason (e.g. you decide to keep it as a second
+> environment).
+
+This is a **runbook, not something already executed.** It's for whoever has
+root on the live VPS, to actually cut the running deployment over from the
+old `atconsultants.rw` / `aandt-*` / `aandt_app` naming to the `higoverse.com`
+/ `higoverse-*` / `higoverse_app` naming this document now uses everywhere
+else. Run it deliberately, during a maintenance window — it touches
+systemd, the DB role, TLS, and DNS. Expect a few minutes of downtime between
+stopping the old units and bringing the renamed ones up.
+
+**Prerequisites:** `higoverse.com`'s DNS `A` record must already point at
+this VPS's IP (`102.202.208.195`) before you request the new TLS cert in
+step 7, or certbot's HTTP-01 challenge will fail.
+
+1. **Pull the rebranded code:**
+   ```bash
+   cd /root/projects/A-T-Consulatnts   # old checkout path, pre-migration
+   git pull
+   ```
+
+2. **Stop everything:**
+   ```bash
+   systemctl stop 'aandt-*'
+   ```
+
+3. **Rename the Postgres role** (in place — no data moves):
+   ```bash
+   su - postgres -c "psql -v ON_ERROR_STOP=1" << 'SQL'
+   ALTER ROLE aandt_app RENAME TO higoverse_app;
+   SQL
+   ```
+   The role's password is unchanged, so `pg_app_password` in the secrets
+   dir (moved in the next step) still matches.
+
+4. **Move the secrets dir:**
+   ```bash
+   mv /etc/aandt /etc/higoverse
+   ```
+
+5. **Move the checkout dir:**
+   ```bash
+   mv /root/projects/A-T-Consulatnts /root/projects/higoverse
+   cd /root/projects/higoverse
+   ```
+
+6. **Regenerate every backend `.env`** now that the secrets dir, DB role,
+   and checkout path have all changed (the already-rebranded
+   `deploy/write_envs.sh` writes the new `higoverse_app`/`/etc/higoverse`
+   values):
+   ```bash
+   bash deploy/write_envs.sh
+   ```
+
+7. **Swap the nginx config and re-issue TLS for the new domain:**
+   ```bash
+   rm -f /etc/nginx/sites-enabled/aandt.conf
+   cp deploy/nginx-higoverse.conf /etc/nginx/sites-available/higoverse.conf
+   ln -sf /etc/nginx/sites-available/higoverse.conf /etc/nginx/sites-enabled/higoverse.conf
+   nginx -t && systemctl restart nginx
+   certbot --nginx -d higoverse.com --agree-tos --email <your-email> --non-interactive --redirect
+   ```
+   (Leave the old `atconsultants.rw` cert/DNS alone until you're confident
+   in the cutover — certbot won't touch a domain you don't pass it.)
+
+8. **Rewrite the systemd units** — for each of the 10 old
+   `/etc/systemd/system/aandt-<svc>.service` / `aandt-web.service` files,
+   create the `higoverse-` equivalent with updated `WorkingDirectory=`,
+   `EnvironmentFile=`, `ExecStart=`, and `ReadWritePaths=` (all now under
+   `/root/projects/higoverse/...` — see the templates in §5.10/§5.11), then:
+   ```bash
+   rm -f /etc/systemd/system/aandt-*.service
+   systemctl daemon-reload
+   for svc in auth-service product-service supplier-service sale-service \
+              purchase-service expense-service settings-service shop-service report-service web; do
+     systemctl enable --now "higoverse-${svc}"
+   done
+   ```
+
+9. **Rebuild the frontend** (it has hardcoded `higoverse.com` SEO metadata
+   now baked in at build time):
+   ```bash
+   cd apps/web && npm install && NODE_OPTIONS="--max-old-space-size=1536" npm run build
+   cd /root/projects/higoverse
+   ```
+
+10. **Smoke test**, same as §5.14, then confirm externally: visit
+    `https://higoverse.com/login` in a browser and confirm the page loads
+    with the "Higoverse" branding and a valid cert.
+
+11. **Update the bootstrap/admin record** — the existing admin user's email
+    is still `admin@aandtconsultants.rw` from before the rebrand; either
+    update it in place or just note the old email still works for login
+    (email isn't tied to the domain):
+    ```bash
+    su - postgres -c "psql -d authdb -c \"UPDATE users SET email = 'admin@higoverse.com' WHERE email = 'admin@aandtconsultants.rw';\""
+    ```
+
+12. **Clean up, once confident:** remove the old `atconsultants.rw` nginx
+    site/cert (`certbot delete --cert-name atconsultants.rw`) and update the
+    DNS record/registrar notes to point people at `higoverse.com` going
+    forward. Keep `atconsultants.rw` pointed at the box for a grace period
+    if existing users/bookmarks might still hit it — nginx's `server_name`
+    can list both domains on the same server block if you want a transition
+    period rather than a hard cutover.
+
+---
+
+## 12. Optional follow-up: renaming the GitHub repo
+
+The git remote is still `github.com/nikuze2026/A-T-Consulatnts` (note: also
+still has the original typo in "Consultants"). This wasn't renamed as part
+of the rebrand because it's an external, consequential change — it breaks
+every existing clone's `git pull`/`git push` (they'd need to update their
+remote URL), any CI/webhook configured against the old URL, and any
+bookmarked links to the repo. If/when you're ready:
+
+```bash
+# On GitHub: Settings → repository name → rename to "higoverse" (or similar)
+# Then, on every existing checkout (including this VPS):
+git remote set-url origin https://github.com/nikuze2026/<new-name>.git
+```
+
+GitHub automatically redirects the old URL to the new one for a while, but
+don't rely on that indefinitely.
