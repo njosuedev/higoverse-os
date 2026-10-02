@@ -357,7 +357,7 @@ export default function PurchaseManagementPage() {
       <div className="max-w-7xl mx-auto px-3 sm:px-5 py-3 sm:py-4">
 
         {/* HEADER */}
-        <div className="relative rounded-2xl mb-2 overflow-hidden"
+        <div className="hgv-surface relative rounded-2xl mb-2 overflow-hidden"
           style={{ background: "linear-gradient(135deg, #0a66c2 0%, #004182 50%, #00376b 100%)" }}>
           <div style={{ position: "absolute", inset: 0, pointerEvents: "none",
             backgroundImage: "radial-gradient(circle, rgba(255,255,255,0.06) 1px, transparent 1px)",
@@ -787,7 +787,7 @@ function PurchasesSkeleton() {
     <div className="min-h-screen">
       <style>{`@keyframes pur-sh{0%{background-position:-200% 0}100%{background-position:200% 0}}.pur-sh{background:linear-gradient(90deg,#f1f5f9 25%,#e2e8f0 50%,#f1f5f9 75%);background-size:200% 100%;animation:pur-sh 1.4s infinite;border-radius:5px}.pur-sh-w{background:linear-gradient(90deg,rgba(255,255,255,.1) 25%,rgba(255,255,255,.22) 50%,rgba(255,255,255,.1) 75%);background-size:200% 100%;animation:pur-sh 1.4s infinite;border-radius:5px}`}</style>
       <div className="max-w-7xl mx-auto px-3 sm:px-5 py-3 sm:py-4">
-        <div className="relative rounded-2xl mb-2 overflow-hidden" style={{background:"linear-gradient(135deg,#0a66c2 0%,#004182 50%,#00376b 100%)"}}>
+        <div className="hgv-surface relative rounded-2xl mb-2 overflow-hidden" style={{background:"linear-gradient(135deg,#0a66c2 0%,#004182 50%,#00376b 100%)"}}>
           <div className="relative flex items-center gap-3 px-4 pt-3 pb-2">
             <div className="w-8 h-8 rounded-xl pur-sh-w shrink-0" />
             <div><div className="pur-sh-w h-2 w-14 mb-1 rounded" /><div className="pur-sh-w h-4 w-32 rounded" /></div>

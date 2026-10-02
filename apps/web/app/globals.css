@@ -166,3 +166,61 @@ input, textarea, select, button {
 /* ── SCROLLBAR ───────────────────────────────────────────── */
 .scrollbar-hide::-webkit-scrollbar { display: none; }
 .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* ══════════════════════════════════════════════════════════════════════
+   LIGHT SURFACE — LinkedIn never paints large areas blue. Banners, heroes
+   and panel headers that were built white-on-blue opt into this class to
+   render as a white card instead; the rules below remap their white-on-
+   blue text, chips and borders to the light palette. Blue stays for small
+   accents (icons, primary buttons, links). Unlayered on purpose so it
+   wins over Tailwind utilities; !important only where inline styles set
+   the old gradient background.
+   ══════════════════════════════════════════════════════════════════════ */
+.hgv-surface {
+  background: #ffffff !important;
+  color: var(--color-text) !important;
+  border: 1px solid var(--color-border);
+  box-shadow: none;
+}
+.hgv-surface .text-white,
+.hgv-surface .text-paper { color: var(--color-text); }
+.hgv-surface [class*="text-white/"],
+.hgv-surface [class*="text-paper/"],
+.hgv-surface [class*="text-blue-1"],
+.hgv-surface [class*="text-blue-2"],
+.hgv-surface [class*="text-blue-3"] { color: var(--color-text-muted); }
+.hgv-surface [class*="bg-white/"] { background-color: var(--color-paper); }
+.hgv-surface [class*="hover:bg-white/"]:hover { background-color: var(--color-paper-dim); }
+.hgv-surface [class*="border-white"],
+.hgv-surface [class*="ring-white"] { border-color: var(--color-border); --tw-ring-color: var(--color-border); }
+.hgv-surface .bg-ink { background-color: var(--color-ink-soft); color: var(--color-ink); }
+/* the old white-on-blue call-to-action becomes LinkedIn's blue pill */
+.hgv-surface .bg-white { background-color: var(--color-ink); color: #ffffff; box-shadow: none; }
+.hgv-surface .bg-white:hover { background-color: var(--color-ink-dark); }
+/* figures that were tinted light for contrast on blue */
+.hgv-surface .text-green-300,
+.hgv-surface .text-emerald-300,
+.hgv-surface [class*="text-[#8fd19e]"] { color: var(--color-success); }
+.hgv-surface .text-amber-300,
+.hgv-surface .text-yellow-300 { color: var(--color-warning); }
+.hgv-surface .text-red-300,
+.hgv-surface [class*="text-[#f0c2b3]"] { color: var(--color-accent); }
+.hgv-surface .hgv-header-glow { display: none; }
+/* skeleton shimmer placeholders that were translucent-white on blue */
+.hgv-surface [class*="-sh-w"] {
+  background: linear-gradient(90deg, var(--color-paper-dim) 25%, var(--color-paper-deep) 50%, var(--color-paper-dim) 75%) !important;
+  background-size: 700px 100% !important;
+}
+
+/* Browser autofill paints filled inputs light blue (#e8f0fe); keep them white. */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+textarea:-webkit-autofill,
+select:-webkit-autofill {
+  -webkit-box-shadow: 0 0 0 1000px #ffffff inset !important;
+  box-shadow: 0 0 0 1000px #ffffff inset !important;
+  -webkit-text-fill-color: var(--color-text) !important;
+  caret-color: var(--color-text);
+  transition: background-color 9999s ease-out 0s;
+}

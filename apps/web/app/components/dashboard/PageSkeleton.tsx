@@ -28,7 +28,7 @@ export default function PageSkeleton({
       <div className="max-w-7xl mx-auto px-3 sm:px-5 py-3 sm:py-4 space-y-3">
 
         {/* Banner */}
-        <div className="rounded-data bg-ink p-4 animate-pulse">
+        <div className="hgv-surface rounded-data p-4 animate-pulse">
           <div className="flex justify-between items-center">
             <div className="space-y-1.5">
               <div className="h-3 w-36 bg-white/25 rounded" />

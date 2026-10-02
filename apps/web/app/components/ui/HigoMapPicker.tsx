@@ -249,7 +249,7 @@ export default function HigoMapPicker({ initialLat, initialLng, onConfirm, onClo
         <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col overflow-hidden" style={{ maxHeight: "90vh" }}>
 
           {/* Header */}
-          <div className="flex items-center justify-between px-5 py-3.5" style={{ background: "linear-gradient(135deg,#0a66c2 0%,#0a58ca 100%)" }}>
+          <div className="hgv-surface !border-0 !border-b !border-border flex items-center justify-between px-5 py-3.5" style={{ background: "linear-gradient(135deg,#0a66c2 0%,#0a58ca 100%)" }}>
             <div className="flex items-center gap-3 text-white">
               <div className="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center">
                 <MapPin size={16} />

@@ -158,7 +158,7 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
               <div className="absolute right-0 top-full z-50 mt-2 w-[300px] overflow-hidden rounded-data border border-border bg-white shadow-[0_16px_40px_-12px_rgb(0_0_0_/_0.3)]">
 
                 {/* ── Profile header ── */}
-                <div className="bg-ink px-4 pb-5 pt-5">
+                <div className="hgv-surface !border-0 !border-b !border-border px-4 pb-5 pt-5">
                   <div className="flex items-center gap-3.5">
                     <div className="relative shrink-0">
                       {shop?.logo_url ? (

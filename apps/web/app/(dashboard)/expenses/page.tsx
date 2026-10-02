@@ -694,7 +694,7 @@ export default function ExpenseManagementPage() {
       <div className="max-w-7xl mx-auto px-3 sm:px-5 py-3 sm:py-4">
 
         {/* ── HEADER ─────────────────────────────────────────── */}
-        <div className="relative rounded-xl mb-2 overflow-hidden"
+        <div className="hgv-surface relative rounded-xl mb-2 overflow-hidden"
           style={{ background: "linear-gradient(135deg, #0a66c2 0%, #004182 50%, #00376b 100%)" }}>
           <div style={{ position: "absolute", inset: 0, pointerEvents: "none",
             backgroundImage: "radial-gradient(circle, rgba(255,255,255,0.05) 1px, transparent 1px)",
@@ -1286,7 +1286,7 @@ function ExpenseSkeleton() {
       <div className="max-w-7xl mx-auto px-3 sm:px-5 py-3 sm:py-4">
 
         {/* Banner */}
-        <div className="rounded-xl mb-2 overflow-hidden px-3 pt-2 pb-2"
+        <div className="hgv-surface rounded-xl mb-2 overflow-hidden px-3 pt-2 pb-2"
           style={{ background: "linear-gradient(135deg, #0a66c2 0%, #004182 50%, #00376b 100%)" }}>
           <div className="flex items-center gap-2 mb-1.5">
             <div className="exp-sh-blue w-3.5 h-3.5 rounded shrink-0" />

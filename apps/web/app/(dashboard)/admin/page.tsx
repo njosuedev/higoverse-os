@@ -558,7 +558,7 @@ export default function AdminPage() {
       <main className="max-w-6xl mx-auto px-3 sm:px-4 py-2.5 sm:py-3 space-y-3">
 
         {/* ── Hero header ─────────────────────────────────────────────────── */}
-        <div className="hgv-header-in relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 via-slate-800 to-blue-950 text-white px-4 sm:px-5 py-3.5 shadow-lg">
+        <div className="hgv-header-in relative overflow-hidden rounded-2xl hgv-surface px-4 sm:px-5 py-3.5">
           <div
             className="pointer-events-none absolute inset-0 opacity-[0.06]"
             style={{ backgroundImage: "radial-gradient(circle, #fff 1px, transparent 1px)", backgroundSize: "18px 18px" }}

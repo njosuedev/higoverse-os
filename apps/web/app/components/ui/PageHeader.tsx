@@ -81,7 +81,7 @@ export default function PageHeader({
   return (
     <div
       className={`hgv-header-in relative overflow-hidden rounded-2xl p-5 sm:p-6 ${
-        isGradient ? `${gradientClass} text-white` : "bg-white border border-slate-200"
+        isGradient ? `hgv-surface ${gradientClass}` : "bg-white border border-slate-200"
       } ${className}`}
     >
       {isGradient && (

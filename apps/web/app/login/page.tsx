@@ -170,7 +170,7 @@ function LoginPageContent() {
     <div className="flex flex-col lg:flex-row flex-1">
 
       {/* ══ LEFT PANEL — ink surface, ledger feature index ══ */}
-      <div className="hidden lg:flex lg:w-[48%] bg-ink text-paper flex-col justify-between px-14 py-12">
+      <div className="hgv-surface !border-0 !border-r !border-border hidden lg:flex lg:w-[48%] flex-col justify-between px-14 py-12">
         {/* top: brand */}
         <div className="flex items-center gap-3">
           <Image src="/higoverse-logo.png" alt="Higoverse" width={36} height={36} className="rounded-press" />
@@ -182,7 +182,7 @@ function LoginPageContent() {
           <p className="text-xs font-semibold text-paper/55 uppercase tracking-[0.14em] mb-4">{t("login.tagline")}</p>
           <h1 className="font-display text-4xl font-semibold leading-tight mb-5">
             {t("login.headline_1")}<br />{t("login.headline_2")}<br />
-            <span className="text-[#e8a893]">{t("login.headline_3")}</span>
+            <span className="text-ink">{t("login.headline_3")}</span>
           </h1>
           <p className="text-paper/60 text-sm leading-relaxed max-w-sm mb-10">
             {t("login.subheadline")}
@@ -290,7 +290,7 @@ function LoginPageContent() {
                 <ArrowLeft size={14} /> {t("login.back_to_signin")}
               </button>
 
-              <div className="w-10 h-10 rounded-press bg-ink-soft flex items-center justify-center mb-4">
+              <div className="w-10 h-10 rounded-press bg-paper flex items-center justify-center mb-4">
                 <KeyRound className="w-5 h-5 text-ink" />
               </div>
               <h2 className="font-display text-xl font-semibold text-text mb-1">{t("login.reset_password_title")}</h2>
