@@ -42,7 +42,7 @@ function isActiveHref(pathname: string, href: string) {
 export default function DashboardHeader({ loading = false }: { loading?: boolean }) {
   const pathname   = usePathname();
   const router     = useRouter();
-  const { lang, setLang, t } = useLanguage();
+  const { lang, setLang, t, layout } = useLanguage();
   const { user, logout, ready } = useAuth();
   const { shop } = useShop();
 
@@ -84,7 +84,10 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
 
   // Regular business menus (everyone with dashboard access) vs. the
   // admin-only item, kept separate so the nav can render a divider between them.
-  const businessMenus: NavItem[] = BUSINESS_MENUS;
+  // Car companies restock from Vehicles (stock in) — no Purchases page.
+  const businessMenus: NavItem[] = layout === "car"
+    ? BUSINESS_MENUS.filter((m) => m.href !== "/purchases")
+    : BUSINESS_MENUS;
 
   return (
     <>

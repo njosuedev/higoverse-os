@@ -1,3 +1,5 @@
+import json
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
@@ -7,6 +9,14 @@ from app.schemas.settings import SettingsUpdate
 from app.core.security import get_current_user
 
 router = APIRouter(prefix="/settings", tags=["Settings"])
+
+
+def _car_types(raw: str | None) -> list[str]:
+    try:
+        v = json.loads(raw) if raw else []
+    except ValueError:
+        return []
+    return [x for x in v if isinstance(x, str)] if isinstance(v, list) else []
 
 
 def _fmt(s: ShopSettings) -> dict:
@@ -20,6 +30,7 @@ def _fmt(s: ShopSettings) -> dict:
         "language": s.language,
         "low_stock_threshold": s.low_stock_threshold,
         "tax_rate": float(s.tax_rate) if s.tax_rate is not None else 0,
+        "car_types": _car_types(s.car_types),
         "updated_at": s.updated_at.isoformat() if s.updated_at else None,
     }
 
@@ -56,6 +67,8 @@ def update_settings(
     s = _get_or_create(db, user["shop_id"])
 
     for key, value in payload.model_dump(exclude_unset=True).items():
+        if key == "car_types":
+            value = json.dumps(value) if value else None
         setattr(s, key, value)
 
     db.commit()

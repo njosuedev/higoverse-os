@@ -1,6 +1,7 @@
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from sqlalchemy import text
 
 from app.api.routes.settings import router as settings_router
 from app.db.database import Base, engine
@@ -43,6 +44,9 @@ def on_startup():
         return
     try:
         Base.metadata.create_all(bind=engine)
+        # create_all doesn't add columns to an existing table.
+        with engine.begin() as conn:
+            conn.execute(text("ALTER TABLE shop_settings ADD COLUMN IF NOT EXISTS car_types TEXT"))
     except Exception:
         pass
 

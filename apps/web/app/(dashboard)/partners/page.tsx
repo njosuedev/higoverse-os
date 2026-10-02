@@ -45,8 +45,14 @@ const inputCls =
   "border border-slate-200 text-gray-800 placeholder:text-gray-400 rounded-lg px-3 py-2 w-full text-sm focus:outline-none focus:ring-2 focus:ring-[#0a66c2]/30 focus:border-[#0a66c2] transition";
 
 export default function PartnerManagementPage() {
-  const { t } = useLanguage();
-  const [partners, setPartners] = useState<Partner[]>([]);
+  const { t, layout } = useLanguage();
+  // Car companies don't track suppliers: this page is their customer list.
+  const isCar = layout === "car";
+  const [allPartners, setPartners] = useState<Partner[]>([]);
+  const partners = useMemo(
+    () => isCar ? allPartners.filter((p) => p.partnerType === "customer") : allPartners,
+    [allPartners, isCar],
+  );
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -93,7 +99,10 @@ export default function PartnerManagementPage() {
 
   async function downloadTemplate() {
     const XLSX = await import("xlsx");
-    const ws = XLSX.utils.aoa_to_sheet([
+    const ws = XLSX.utils.aoa_to_sheet(isCar ? [
+      ["name", "phone", "email", "address"],
+      ["John Doe", "0781234567", "john@example.com", "Musanze"],
+    ] : [
       ["name", "phone", "tin", "email", "address"],
       ["INYANGE Industries", "", "123456789", "inyange@example.com", "KN 5 Ave Kigali"],
       ["John Doe", "0781234567", "", "john@example.com", "Musanze"],
@@ -121,7 +130,7 @@ export default function PartnerManagementPage() {
               name: (row.name || row.Name || "").trim(),
               phone: (row.phone || row.Phone || "").trim() || null,
               email: (row.email || row.Email || "").trim() || null,
-              address: encodeAddress((row.tin || row.TIN || "").trim(), (row.address || row.Address || "").trim()) || null,
+              address: encodeAddress(isCar ? "" : (row.tin || row.TIN || "").trim(), (row.address || row.Address || "").trim()) || null,
             }),
           });
           imported++;
@@ -137,9 +146,9 @@ export default function PartnerManagementPage() {
     const XLSX = await import("xlsx");
     const data = filtered.map((p) => ({
       [t("common.name")]: p.name,
-      [t("common.type")]: p.partnerType === "supplier" ? t("partners.supplier_singular") : t("partners.customer_singular"),
+      ...(isCar ? {} : { [t("common.type")]: p.partnerType === "supplier" ? t("partners.supplier_singular") : t("partners.customer_singular") }),
       [t("common.phone")]: p.phone || "",
-      TIN: p.tin || "",
+      ...(isCar ? {} : { TIN: p.tin || "" }),
       [t("common.email")]: p.email || "",
       [t("common.address")]: p.realAddress || "",
     }));
@@ -157,8 +166,8 @@ export default function PartnerManagementPage() {
     doc.text("Partners", 14, 16);
     autoTable(doc, {
       startY: 22,
-      head: [["Name", "Type", "Phone", "TIN", "Email"]],
-      body: filtered.map((p) => [
+      head: [isCar ? ["Name", "Phone", "Email"] : ["Name", "Type", "Phone", "TIN", "Email"]],
+      body: filtered.map((p) => isCar ? [p.name, p.phone || "—", p.email || "—"] : [
         p.name,
         p.partnerType === "supplier" ? "Supplier" : "Customer",
         p.phone || "—",
@@ -194,13 +203,13 @@ export default function PartnerManagementPage() {
     else {
       if (tin && !/^\d{9}$/.test(tin)) err.tin = t("partners.err_tin_digits");
       else if (tin) {
-        const dup = partners.find((p) => p.tin === tin && p.id !== editingId);
+        const dup = allPartners.find((p) => p.tin === tin && p.id !== editingId);
         if (dup) err.tin = `${t("partners.err_tin_dup_prefix")} "${dup.name}"`;
       }
       if (phone && !/^\d{10}$/.test(phone.replace(/\s/g, ""))) err.phone = t("partners.err_phone_digits");
       else if (phone) {
         const norm = phone.replace(/\s/g, "");
-        const dup = partners.find((p) => p.phone?.replace(/\s/g, "") === norm && p.id !== editingId);
+        const dup = allPartners.find((p) => p.phone?.replace(/\s/g, "") === norm && p.id !== editingId);
         if (dup) err.phone = `${t("partners.err_phone_dup_prefix")} "${dup.name}"`;
       }
     }
@@ -337,7 +346,7 @@ export default function PartnerManagementPage() {
                 </button>
               )}
             </div>
-            <div className="flex items-center gap-1.5 bg-white/10 hover:bg-white/15 border border-white/10 rounded-xl px-2.5 py-2 transition-all">
+            {!isCar && <div className="flex items-center gap-1.5 bg-white/10 hover:bg-white/15 border border-white/10 rounded-xl px-2.5 py-2 transition-all">
               <Filter size={11} className="shrink-0 text-white/50" />
               <select value={typeFilter} onChange={(e) => { setTypeFilter(e.target.value); setPage(1); }}
                 className="bg-transparent outline-none text-xs text-white font-semibold appearance-none cursor-pointer">
@@ -346,19 +355,21 @@ export default function PartnerManagementPage() {
                 <option value="customer" className="text-gray-800">{t("partners.customers")}</option>
               </select>
               <ChevronDown size={10} className="text-white/35 shrink-0" />
-            </div>
+            </div>}
           </div>
         </div>
 
         {/* STAT CARDS */}
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5 mb-2">
-          {[
+          {(isCar ? [
+            { label: t("partners.total"),            value: stats.total,           color: "text-[#0a66c2]", dot: "bg-[#0a66c2]" },
+          ] : [
             { label: t("partners.total"),            value: stats.total,           color: "text-[#0a66c2]", dot: "bg-[#0a66c2]" },
             { label: t("partners.suppliers"),         value: stats.suppliers,       color: "text-blue-600",  dot: "bg-blue-500" },
             { label: t("partners.customers"),         value: stats.customers,       color: "text-slate-700", dot: "bg-slate-400" },
             { label: t("partners.active_suppliers"),  value: stats.activeSuppliers, color: "text-green-600", dot: "bg-green-500" },
             { label: t("partners.items_supplied"),    value: stats.itemsSupplied,   color: "text-amber-600", dot: "bg-amber-500" },
-          ].map((card) => (
+          ]).map((card) => (
             <div key={card.label} className="bg-white rounded-lg border border-slate-200 px-2.5 py-2">
               <div className="flex items-center gap-1 mb-1">
                 <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${card.dot}`} />
@@ -407,7 +418,10 @@ export default function PartnerManagementPage() {
             <table className="w-full">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200">
-                  {[t("common.name"), t("common.type"), t("common.phone"), "TIN", t("common.email"), t("partners.items_supplied"), ""].map((h) => (
+                  {(isCar
+                    ? [t("common.name"), t("common.phone"), t("common.email"), t("common.address"), ""]
+                    : [t("common.name"), t("common.type"), t("common.phone"), "TIN", t("common.email"), t("partners.items_supplied"), ""]
+                  ).map((h) => (
                     <th key={h} className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-500 whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
@@ -422,28 +436,30 @@ export default function PartnerManagementPage() {
                         <p className="font-semibold text-slate-800 text-xs leading-tight">{p.name}</p>
                         <p className="text-[10px] text-slate-400 font-mono">{p.id?.slice(0, 8)}</p>
                       </td>
-                      <td className="px-3 py-1.5">
+                      {!isCar && <td className="px-3 py-1.5">
                         <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${isSupplier ? "bg-[#D5E8FB] text-[#0a66c2]" : "bg-slate-100 text-slate-600"}`}>
                           {isSupplier ? <Building2 size={9} /> : <UserCheck size={9} />}
                           {isSupplier ? t("partners.suppliers") : t("partners.customers")}
                         </span>
-                      </td>
+                      </td>}
                       <td className="px-3 py-1.5">
                         {p.phone
                           ? <div className="flex items-center gap-1 text-xs text-slate-600"><Phone size={11} className="text-slate-400 shrink-0" />{p.phone}</div>
                           : <span className="text-slate-300 text-xs">—</span>}
                       </td>
-                      <td className="px-3 py-1.5">
+                      {!isCar && <td className="px-3 py-1.5">
                         {p.tin
                           ? <span className="font-mono text-[10px] bg-[#EBF2FD] text-[#0a66c2] px-1.5 py-0.5 rounded-md">{p.tin}</span>
                           : <span className="text-slate-300 text-xs">—</span>}
-                      </td>
+                      </td>}
                       <td className="px-3 py-1.5">
                         {p.email
                           ? <div className="flex items-center gap-1 text-xs text-slate-600"><Mail size={11} className="text-slate-400 shrink-0" /><span className="truncate max-w-32">{p.email}</span></div>
                           : <span className="text-slate-300 text-xs">—</span>}
                       </td>
-                      <td className="px-3 py-1.5">
+                      {isCar ? (
+                        <td className="px-3 py-1.5 text-xs text-slate-600 max-w-48 truncate">{p.realAddress || <span className="text-slate-300">—</span>}</td>
+                      ) : <td className="px-3 py-1.5">
                         {isSupplier ? (
                           <div className="flex items-center gap-1">
                             <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${itemCount && itemCount > 0 ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-400"}`}>
@@ -454,7 +470,7 @@ export default function PartnerManagementPage() {
                             )}
                           </div>
                         ) : <span className="text-[10px] text-slate-400 italic">{t("partners.customer_singular")}</span>}
-                      </td>
+                      </td>}
                       <td className="px-3 py-1.5">
                         <div className="flex items-center justify-center gap-1 opacity-60 group-hover:opacity-100 transition-opacity">
                           <button onClick={() => openEditModal(p)} title={t("common.edit")}
@@ -493,14 +509,14 @@ export default function PartnerManagementPage() {
               <div className="flex justify-between items-center px-4 sm:px-6 py-4 border-b border-slate-100 shrink-0">
                 <div>
                   <h2 className="text-base font-semibold text-slate-800">{modalMode === "edit" ? t("partners.edit_title") : t("partners.add_title")}</h2>
-                  {previewType && <p className="text-xs text-slate-400 mt-0.5">{t("partners.save_as_prefix")} <span className={`font-semibold ${previewType === "supplier" ? "text-[#0a66c2]" : "text-slate-600"}`}>{previewType === "supplier" ? t("partners.supplier_singular") : t("partners.customer_singular")}</span></p>}
+                  {!isCar && previewType && <p className="text-xs text-slate-400 mt-0.5">{t("partners.save_as_prefix")} <span className={`font-semibold ${previewType === "supplier" ? "text-[#0a66c2]" : "text-slate-600"}`}>{previewType === "supplier" ? t("partners.supplier_singular") : t("partners.customer_singular")}</span></p>}
                 </div>
                 <button onClick={closeModal} className="p-2 rounded-lg hover:bg-slate-100 text-slate-400 transition"><X size={17} /></button>
               </div>
               <div className="px-4 sm:px-6 py-4 sm:py-5 space-y-4 overflow-y-auto flex-1">
-                <div className="bg-slate-50 border border-slate-100 rounded-lg px-3 py-2 text-xs text-slate-500">
+                {!isCar && <div className="bg-slate-50 border border-slate-100 rounded-lg px-3 py-2 text-xs text-slate-500">
                   {t("partners.tin_supplier")} &nbsp;·&nbsp; {t("partners.phone_customer")}
-                </div>
+                </div>}
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">{t("common.name")} <span className="text-red-400">*</span></label>
                   <input name="name" placeholder={t("partners.name_placeholder")} value={form.name} className={inputCls} onChange={handleChange} />
@@ -512,11 +528,11 @@ export default function PartnerManagementPage() {
                     <input name="phone" placeholder="07XXXXXXXX" value={form.phone} maxLength={10} className={inputCls} onChange={handleChange} />
                     {errors.phone && <p className="text-red-500 text-xs mt-1">{errors.phone}</p>}
                   </div>
-                  <div>
+                  {!isCar && <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1"><span className="flex items-center gap-1"><Building2 size={12} /> TIN <span className="text-[#0a66c2]">({t("partners.supplier_singular")})</span></span></label>
                     <input name="tin" placeholder={t("partners.tin_placeholder")} value={form.tin} maxLength={9} className={`${inputCls} font-mono`} onChange={handleChange} />
                     {errors.tin && <p className="text-red-500 text-xs mt-1">{errors.tin}</p>}
-                  </div>
+                  </div>}
                 </div>
                 {errors.contact && <p className="text-red-500 text-xs">{errors.contact}</p>}
                 <div className="grid md:grid-cols-2 gap-4">

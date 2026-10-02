@@ -24,7 +24,7 @@ import {
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface StockAlert { id: string; name: string; quantity: number; selling_price: number; }
-interface Stats { products: number; partners: number; sales: number; revenue: number; lowStock: number; outOfStock: number; }
+interface Stats { products: number; partners: number; suppliers: number; sales: number; revenue: number; lowStock: number; outOfStock: number; }
 interface DailyRecord { day: string; revenue: number; profit: number; sales_count: number; }
 interface RecentSale { id: string; product_name?: string; total_amount: number; quantity: number; profit?: number; created_at?: string; }
 
@@ -103,9 +103,12 @@ function writeDashCache(data: DashCache) {
 // ─── Component ────────────────────────────────────────────────────────────────
 export default function DashboardPage() {
   const { user } = useAuth();
-  const { t } = useLanguage();
+  const { t, layout } = useLanguage();
+  const isCar = layout === "car";
+  // Car companies restock from Vehicles (stock in) — no Purchases page.
+  const restockHref = isCar ? "/items" : "/PurchaseManagement";
 
-  const SERVICES = [
+  const SERVICES_ALL = [
     { title: t("dash.items_inventory"), icon: Package,      href: "/items" },
     { title: t("nav.partners"),         icon: Users,        href: "/partners" },
     { title: t("nav.purchases"),        icon: Truck,        href: "/purchases" },
@@ -115,8 +118,10 @@ export default function DashboardPage() {
     { title: t("nav.proforma"),         icon: FileText,     href: "/proforma" },
     { title: t("nav.settings"),         icon: Settings,     href: "/settings" },
   ];
+  const SERVICES = isCar ? SERVICES_ALL.filter((x) => x.href !== "/purchases") : SERVICES_ALL;
 
-  const [stats, setStats]             = useState<Stats>({ products: 0, partners: 0, sales: 0, revenue: 0, lowStock: 0, outOfStock: 0 });
+  const [stats, setStats]             = useState<Stats>({ products: 0, partners: 0, suppliers: 0, sales: 0, revenue: 0, lowStock: 0, outOfStock: 0 });
+  const partnersShown = layout === "car" ? Math.max(0, stats.partners - stats.suppliers) : stats.partners;
   const [stockAlerts, setStockAlerts] = useState<StockAlert[]>([]);
   const [shops, setShops]             = useState<ShopInfo[]>([]);
   const [dailyData, setDailyData]     = useState<DailyRecord[]>([]);
@@ -190,6 +195,10 @@ export default function DashboardPage() {
       const partnerCount = partnersRes.status === "fulfilled"
         ? (Array.isArray(partnersRes.value?.data) ? partnersRes.value.data.length
             : (partnersRes.value?.data?.total ?? 0)) : 0;
+      // Suppliers are partners with a TIN; car companies don't count them.
+      const partnerRows: { address?: string | null }[] = partnersRes.status === "fulfilled"
+        ? (Array.isArray(partnersRes.value?.data) ? partnersRes.value.data : (partnersRes.value?.data?.items ?? [])) : [];
+      const supplierCount = partnerRows.filter((p) => p.address?.startsWith("TIN:")).length;
       const newShops: ShopInfo[] = shopsRes.status === "fulfilled" ? (shopsRes.value?.items ?? []) : [];
       const daily: DailyRecord[] = dailyRes.status === "fulfilled" ? (dailyRes.value?.data ?? []) : [];
       const expData = expenseRes.status === "fulfilled"
@@ -202,7 +211,7 @@ export default function DashboardPage() {
       const yRev = daily.length >= 2 ? (daily[daily.length - 2]?.revenue ?? 0) : 0;
 
       setStats((prev) => {
-        const next = { ...prev, products: productCount, partners: partnerCount };
+        const next = { ...prev, products: productCount, partners: partnerCount, suppliers: supplierCount };
         // Persist full snapshot for instant next-visit render
         writeDashCache({
           stats: next, stockAlerts: [], dailyData: daily, recentSales: [],
@@ -373,7 +382,7 @@ export default function DashboardPage() {
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:col-span-2 lg:grid-cols-5">
             <StatCard label={t("dash.products")} value={stats.products.toLocaleString()}
               icon={<Package size={15} strokeWidth={2} />} tone="blue" href="/items" subtitle={t("dash.in_your_shop")} />
-            <StatCard label={t("dash.partners")} value={stats.partners.toLocaleString()}
+            <StatCard label={t("dash.partners")} value={partnersShown.toLocaleString()}
               icon={<Users size={15} strokeWidth={2} />} tone="blue" href="/partners" subtitle={t("dash.suppliers_customers")} />
             <StatCard label={t("dash.sales_today")} value={stats.sales.toLocaleString()}
               icon={<ShoppingCart size={15} strokeWidth={2} />} tone="blue" href="/sales" subtitle={t("dash.transactions")} />
@@ -400,17 +409,17 @@ export default function DashboardPage() {
             </Link>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x divide-border border border-border rounded-data overflow-hidden">
+          <div className={`grid grid-cols-2 ${isCar ? "sm:grid-cols-3" : "sm:grid-cols-4"} divide-y sm:divide-y-0 sm:divide-x divide-border border border-border rounded-data overflow-hidden`}>
             <div className="p-3">
               <p className="text-[9px] text-text-faint uppercase tracking-wide font-medium">{t("dash.revenue_today")}</p>
               <p className="hgv-figure text-lg font-semibold text-success mt-0.5">{stats.revenue > 0 ? fmtCurrency(stats.revenue) : "—"}</p>
               <p className="text-[10px] text-text-faint mt-0.5">{stats.sales} {t("dash.sales_today")}</p>
             </div>
-            <div className="p-3">
+            {!isCar && <div className="p-3">
               <p className="text-[9px] text-text-faint uppercase tracking-wide font-medium">{t("nav.purchases")}</p>
               <p className="hgv-figure text-lg font-semibold text-text mt-0.5">{purchaseCostToday > 0 ? fmtCurrency(purchaseCostToday) : "—"}</p>
               <p className="text-[10px] text-text-faint mt-0.5">{t("dash.stock_cost")}</p>
-            </div>
+            </div>}
             <div className="p-3">
               <p className="text-[9px] text-text-faint uppercase tracking-wide font-medium">{t("nav.expenses")}</p>
               <p className="hgv-figure text-lg font-semibold text-warning mt-0.5">{expenseToday.total_expenses > 0 ? fmtCurrency(expenseToday.total_expenses) : "—"}</p>
@@ -435,9 +444,9 @@ export default function DashboardPage() {
                 {netPct      > 0 && <div className="bg-success flex-1" />}
               </div>
               <div className="flex flex-wrap items-center gap-3 mt-2">
-                <span className="flex items-center gap-1 text-[10px] text-text-muted">
+                {!isCar && <span className="flex items-center gap-1 text-[10px] text-text-muted">
                   <span className="w-2 h-1.5 rounded-sm bg-border-strong inline-block" /> {t("nav.purchases")} {purchasePct}%
-                </span>
+                </span>}
                 <span className="flex items-center gap-1 text-[10px] text-text-muted">
                   <span className="w-2 h-1.5 rounded-sm bg-warning inline-block" /> {t("nav.expenses")} {expensePct}%
                 </span>
@@ -676,7 +685,7 @@ export default function DashboardPage() {
                       </p>
                     </div>
                     <Link
-                      href="/PurchaseManagement"
+                      href={restockHref}
                       className="flex items-center gap-1 text-[10px] font-semibold text-accent-dark bg-accent-soft hover:bg-[#f9d6d8] px-2 py-1 rounded-press transition-colors duration-200"
                     >
                       <Plus size={10} /> {t("reports.restock")}
@@ -688,7 +697,7 @@ export default function DashboardPage() {
 
             {stockAlerts.length > 0 && (
               <div className="px-3.5 py-2.5 border-t border-border">
-                <Link href="/PurchaseManagement"
+                <Link href={restockHref}
                   className="w-full flex items-center justify-center gap-1.5 text-xs font-semibold text-ink bg-ink-soft hover:bg-[#d0e8ff] py-1.5 rounded-press transition-colors duration-200">
                   <Truck size={11} /> {t("items.go_purchases")}
                 </Link>
@@ -711,7 +720,7 @@ export default function DashboardPage() {
 
             <div className="border border-border rounded-data overflow-hidden">
               {[
-                { href: "/PurchaseManagement", icon: Truck,     label: t("dash.new_purchase"), desc: t("dash.new_purchase_desc") },
+                ...(isCar ? [] : [{ href: "/PurchaseManagement", icon: Truck, label: t("dash.new_purchase"), desc: t("dash.new_purchase_desc") }]),
                 { href: "/ExpenseManagement",  icon: Wallet,    label: t("nav.expenses"),       desc: t("dash.expenses_desc") },
                 { href: "/reports",            icon: BarChart3, label: t("dash.view_reports"),  desc: t("dash.charts_analytics") },
               ].map((a) => (
@@ -787,7 +796,7 @@ export default function DashboardPage() {
               </span>
               <span className="text-border-strong">·</span>
               <span className="flex items-center gap-1 font-medium">
-                <Users size={11} className="text-text-faint" /> {stats.partners} {t("dash.partners")}
+                <Users size={11} className="text-text-faint" /> {partnersShown} {t("dash.partners")}
               </span>
               <span className="text-border-strong">·</span>
               <span className="flex items-center gap-1 font-medium">

@@ -103,7 +103,9 @@ function PieLabel({ cx, cy, midAngle, innerRadius, outerRadius, percent, name }:
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function ReportsPage() {
-  const { t } = useLanguage();
+  const { t, layout } = useLanguage();
+  // Car companies restock from Vehicles (stock in) — no Purchases page.
+  const isCar = layout === "car";
   const [summary, setSummary] = useState<Summary | null>(null);
   const [daily, setDaily]     = useState<DayRow[]>([]);
   const [topItems, setTopItems] = useState<TopItem[]>([]);
@@ -688,7 +690,7 @@ export default function ReportsPage() {
                   {t("reports.stock_alerts")} — {stockAlerts.length} {t("nav.items").toLowerCase()}
                 </h2>
               </div>
-              <Link href="/PurchaseManagement"
+              <Link href={isCar ? "/items" : "/PurchaseManagement"}
                 className="flex items-center gap-1.5 text-xs font-semibold text-[#0a66c2] bg-[#EBF2FD] hover:bg-[#D5E8FB] px-3 py-1 rounded-lg transition">
                 <ArrowUpRight size={11} /> {t("purchases.add")}
               </Link>
@@ -719,7 +721,7 @@ export default function ReportsPage() {
                       <td className="px-3 py-1.5 text-slate-500 text-xs font-medium">{marginPct !== "—" ? `+${marginPct}%` : "—"}</td>
                       <td className="px-3 py-1.5">
                         <Link
-                          href={`/PurchaseManagement?name=${encodeURIComponent(item.name)}&cost=${item.cost_price}&selling=${item.selling_price}&supplierId=${item.supplier_id ?? ""}`}
+                          href={isCar ? "/items" : `/PurchaseManagement?name=${encodeURIComponent(item.name)}&cost=${item.cost_price}&selling=${item.selling_price}&supplierId=${item.supplier_id ?? ""}`}
                           className="text-xs font-semibold text-[#0a66c2] hover:underline flex items-center gap-0.5">
                           <ArrowUpRight size={11} /> {t("reports.restock")}
                         </Link>
@@ -740,7 +742,7 @@ export default function ReportsPage() {
         )}
 
         {/* ── RECENT PURCHASES ───────────────────────────────────────────────── */}
-        {recentPurchases.length > 0 && (
+        {!isCar && recentPurchases.length > 0 && (
           <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
             <div className="flex justify-between items-center px-4 py-2 border-b border-slate-100">
               <div className="flex items-center gap-2">
@@ -749,7 +751,7 @@ export default function ReportsPage() {
                   {t("reports.recent_purchases")} — <span className="text-[#0a66c2]">RWF {fmtRWF(purchaseTotalSpent)} {t("reports.spent_word")}</span>
                 </h2>
               </div>
-              <Link href="/PurchaseManagement"
+              <Link href={isCar ? "/items" : "/PurchaseManagement"}
                 className="flex items-center gap-1.5 text-xs font-semibold text-[#0a66c2] bg-[#EBF2FD] hover:bg-[#D5E8FB] px-3 py-1 rounded-lg transition">
                 <ArrowUpRight size={11} /> {t("dash.view_all")}
               </Link>
@@ -786,7 +788,7 @@ export default function ReportsPage() {
         {summary && (
           <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-1.5 pb-6">
             <StatMini label={t("reports.items_sold")}  value={fmtNum(summary.items_sold)}               sub={`${t("reports.to_word")} ${summary.unique_customers} ${t("reports.customers_word")}`} color="text-indigo-600" icon={<ShoppingCart size={14} />} />
-            <StatMini label={t("reports.spent_on_restocking")} value={`RWF ${fmtRWF(summary.total_spent)}`}   sub={`${recentPurchases.length} ${t("reports.purchase_records")}`} color="text-teal-600" icon={<Truck size={14} />} />
+            {!isCar && <StatMini label={t("reports.spent_on_restocking")} value={`RWF ${fmtRWF(summary.total_spent)}`}   sub={`${recentPurchases.length} ${t("reports.purchase_records")}`} color="text-teal-600" icon={<Truck size={14} />} />}
             <StatMini label={t("reports.business_expenses")}  value={expenseTotalPeriod > 0 ? `RWF ${fmtRWF(expenseTotalPeriod)}` : "—"} sub={`${expenseCount} ${t("reports.records_this_period")}`} color="text-orange-600" icon={<Receipt size={14} />} />
             <StatMini
               label={t("reports.net_profit_real")}

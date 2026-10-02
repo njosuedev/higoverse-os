@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { itemRequest } from "@/lib/product-api";
 import { partnerRequest } from "@/lib/supplier-api";
 import { purchaseRequest } from "@/lib/purchase-api";
@@ -37,7 +38,12 @@ function toDateStr(d: Date) {
 }
 
 export default function PurchaseManagementPage() {
-  const { t } = useLanguage();
+  const { t, layout } = useLanguage();
+  // Car companies don't use Purchases (they stock in from Vehicles); the
+  // supplier hiding below still applies if one lands here before the redirect.
+  const isCar = layout === "car";
+  const router = useRouter();
+  useEffect(() => { if (isCar) router.replace("/items"); }, [isCar, router]);
   const [tab, setTab] = useState<Tab>("inventory");
 
   const [products, setProducts] = useState<Product[]>([]);
@@ -143,7 +149,7 @@ export default function PurchaseManagementPage() {
       data = paginatedProducts.map((p) => ({
         Product: p.name,
         Description: p.description || "",
-        Supplier: supplierMap[p.supplier_id ?? ""]?.name || "",
+        ...(isCar ? {} : { Supplier: supplierMap[p.supplier_id ?? ""]?.name || "" }),
         "Cost Price": p.cost_price,
         "Selling Price": p.selling_price,
         Quantity: p.quantity,
@@ -152,7 +158,7 @@ export default function PurchaseManagementPage() {
       data = purchases.map((p) => ({
         Date: p.created_at ? new Date(p.created_at).toLocaleDateString() : "",
         Product: p.product_name,
-        Supplier: supplierMap[p.supplier_id ?? ""]?.name || "",
+        ...(isCar ? {} : { Supplier: supplierMap[p.supplier_id ?? ""]?.name || "" }),
         "Qty Added": p.quantity_added,
         "Cost Price": p.cost_price,
         "Total Cost": p.total_cost,
@@ -173,10 +179,10 @@ export default function PurchaseManagementPage() {
       doc.text("Inventory", 14, 16);
       autoTable(doc, {
         startY: 22,
-        head: [["Product", "Supplier", "Cost Price", "Selling Price", "Qty"]],
+        head: [isCar ? ["Product", "Cost Price", "Selling Price", "Qty"] : ["Product", "Supplier", "Cost Price", "Selling Price", "Qty"]],
         body: paginatedProducts.map((p) => [
           p.name,
-          supplierMap[p.supplier_id ?? ""]?.name || "—",
+          ...(isCar ? [] : [supplierMap[p.supplier_id ?? ""]?.name || "—"]),
           p.cost_price.toLocaleString(),
           p.selling_price.toLocaleString(),
           String(p.quantity),
@@ -188,11 +194,11 @@ export default function PurchaseManagementPage() {
       doc.text("Purchase History", 14, 16);
       autoTable(doc, {
         startY: 22,
-        head: [["Date", "Product", "Supplier", "Qty Added", "Cost Price", "Total"]],
+        head: [isCar ? ["Date", "Product", "Qty Added", "Cost Price", "Total"] : ["Date", "Product", "Supplier", "Qty Added", "Cost Price", "Total"]],
         body: purchases.map((p) => [
           p.created_at ? new Date(p.created_at).toLocaleDateString() : "—",
           p.product_name,
-          supplierMap[p.supplier_id ?? ""]?.name || "—",
+          ...(isCar ? [] : [supplierMap[p.supplier_id ?? ""]?.name || "—"]),
           String(p.quantity_added),
           p.cost_price.toLocaleString(),
           p.total_cost.toLocaleString(),
@@ -460,9 +466,9 @@ export default function PurchaseManagementPage() {
               {invStats.outStock > 0 && invStats.lowStock > 0 && " · "}
               {invStats.lowStock > 0 && <><span className="font-bold">{invStats.lowStock}</span> {t("items.low_stock")}</>}
             </p>
-            <Link href="/PartnerManagement" className="text-[10px] font-bold text-amber-700 bg-amber-100 hover:bg-amber-200 px-2 py-0.5 rounded-md shrink-0 transition">
+            {!isCar && <Link href="/PartnerManagement" className="text-[10px] font-bold text-amber-700 bg-amber-100 hover:bg-amber-200 px-2 py-0.5 rounded-md shrink-0 transition">
               {t("partners.suppliers")}
-            </Link>
+            </Link>}
           </div>
         )}
 
@@ -517,7 +523,7 @@ export default function PurchaseManagementPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200">
-                  {[t("items.col_product"), t("items.col_supplier"), t("items.cost_price"), t("items.selling_price"), t("items.col_margin"), t("items.col_qty"), t("common.status"), ""].map((h) => (
+                  {[t("items.col_product"), ...(isCar ? [] : [t("items.col_supplier")]), t("items.cost_price"), t("items.selling_price"), t("items.col_margin"), t("items.col_qty"), t("common.status"), ""].map((h) => (
                     <th key={h} className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-500 whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
@@ -533,11 +539,11 @@ export default function PurchaseManagementPage() {
                         <p className="font-semibold text-slate-800 text-xs">{p.name}</p>
                         <p className="text-[10px] text-slate-400 font-mono">{p.id?.slice(0, 8)}</p>
                       </td>
-                      <td className="px-3 py-1.5">
+                      {!isCar && <td className="px-3 py-1.5">
                         {supplier
                           ? <div><p className="font-medium text-slate-700 text-xs">{supplier.name}</p>{supplier.phone && <p className="text-[10px] text-slate-400">{supplier.phone}</p>}</div>
                           : <Link href="/PartnerManagement" className="text-[10px] text-[#0a66c2] hover:underline flex items-center gap-0.5"><Truck size={10} /> {t("common.add")}</Link>}
-                      </td>
+                      </td>}
                       <td className="px-3 py-1.5 text-slate-600 font-medium tabular-nums text-xs">{Number(p.cost_price).toLocaleString()}</td>
                       <td className="px-3 py-1.5 font-semibold text-green-600 tabular-nums text-xs">{Number(p.selling_price).toLocaleString()}</td>
                       <td className="px-3 py-1.5">
@@ -625,7 +631,7 @@ export default function PurchaseManagementPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200">
-                  {[t("purchases.col_date"), t("purchases.col_product"), t("purchases.col_supplier"), t("purchases.col_qty"), t("purchases.col_unit"), t("purchases.col_total"), ""].map((h) => (
+                  {[t("purchases.col_date"), t("purchases.col_product"), ...(isCar ? [] : [t("purchases.col_supplier")]), t("purchases.col_qty"), t("purchases.col_unit"), t("purchases.col_total"), ""].map((h) => (
                     <th key={h} className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-500 whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
@@ -648,11 +654,11 @@ export default function PurchaseManagementPage() {
                         <p className="font-semibold text-slate-800 text-xs">{p.product_name}</p>
                         {p.product_id && <p className="text-[10px] text-slate-400 font-mono">{p.product_id.slice(0, 8)}</p>}
                       </td>
-                      <td className="px-3 py-1.5">
+                      {!isCar && <td className="px-3 py-1.5">
                         {supplier
                           ? <div><p className="font-medium text-slate-700 text-xs">{supplier.name}</p>{supplier.phone && <p className="text-[10px] text-slate-400">{supplier.phone}</p>}</div>
                           : <span className="text-slate-300 text-xs italic">—</span>}
-                      </td>
+                      </td>}
                       <td className="px-3 py-1.5 font-medium text-slate-700 tabular-nums text-xs">{p.quantity_added}</td>
                       <td className="px-3 py-1.5 text-slate-600 tabular-nums text-xs">{p.cost_price.toLocaleString()}</td>
                       <td className="px-3 py-1.5 font-semibold text-slate-800 tabular-nums text-xs">{p.total_cost.toLocaleString()}</td>
@@ -751,7 +757,7 @@ export default function PurchaseManagementPage() {
                     </p>
                   )}
                 </div>
-                <div>
+                {!isCar && <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">{t("items.supplier")}</label>
                   <select className={inputCls} value={form.supplier_id} onChange={(e) => setForm({ ...form, supplier_id: e.target.value })}>
                     <option value="">{t("items.no_supplier")}</option>
@@ -762,7 +768,7 @@ export default function PurchaseManagementPage() {
                       <Link href="/PartnerManagement" className="hover:underline">{t("purchases.add_supplier_link")}</Link>
                     </p>
                   )}
-                </div>
+                </div>}
               </div>
               <div className="flex justify-end gap-2.5 px-4 sm:px-6 py-4 border-t border-slate-100 shrink-0">
                 <button onClick={() => { setShowModal(false); setForm(EMPTY_FORM); setIsRestocking(false); }}

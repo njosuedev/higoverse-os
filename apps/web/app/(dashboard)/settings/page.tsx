@@ -9,11 +9,12 @@ import { useLanguage } from "@/lib/language-context";
 import { useShop } from "@/lib/shop-context";
 import { type Lang } from "@/lib/i18n";
 import { parseShopAddress, decodeShopHumanInfo } from "@/lib/product-meta";
+import { CAR_TYPES, carTypeLabel } from "@/lib/business-layout";
 import PageSkeleton from "@/app/components/dashboard/PageSkeleton";
 import {
   Settings, Save, RefreshCw, Store, Phone, MapPin, DollarSign,
   AlertCircle, FileText, Lock, Eye, EyeOff, CheckCircle2, ChevronDown,
-  Globe, BarChart, ShieldCheck, Pencil, ImagePlus, X, Loader2, Target,
+  Globe, BarChart, ShieldCheck, Pencil, ImagePlus, X, Loader2, Target, Car, Plus,
 } from "lucide-react";
 
 const HigoMapPicker = dynamic(() => import("@/app/components/ui/HigoMapPicker"), { ssr: false });
@@ -68,7 +69,8 @@ function compressImage(file: File, maxPx = 256, quality = 0.85): Promise<string>
 type SectionStatus = "idle" | "saving" | "saved" | "error";
 
 export default function SettingsPage() {
-  const { t, setLang } = useLanguage();
+  const { t, setLang, layout } = useLanguage();
+  const isCar = layout === "car";
   const { shop, loading: shopLoading } = useShop();
 
   // Form state
@@ -88,6 +90,13 @@ export default function SettingsPage() {
   const [shopErr, setShopErr] = useState("");
   const [opsErr, setOpsErr]   = useState("");
   const [pwErr, setPwErr]     = useState("");
+
+  // Car companies: their own car types, on top of the built-in CAR_TYPES.
+  const [carTypes, setCarTypes]     = useState<string[]>([]);
+  const savedCarTypes               = useRef<string[]>([]);
+  const [newCarType, setNewCarType] = useState("");
+  const [carStatus, setCarStatus]   = useState<SectionStatus>("idle");
+  const [carErr, setCarErr]         = useState("");
 
   const [logoUrl, setLogoUrl]       = useState("");
   const savedLogoUrl                = useRef("");
@@ -151,8 +160,9 @@ export default function SettingsPage() {
   const shopDirty = !deepEq(shopForm, savedShop.current);
   const opsDirty  = !deepEq(opsForm,  savedOps.current);
   const pwDirty   = pwForm.current.length > 0 || pwForm.next.length > 0;
+  const carDirty  = isCar && !deepEq(carTypes, savedCarTypes.current);
 
-  const anyDirty = shopDirty || opsDirty || logoDirty;
+  const anyDirty = shopDirty || opsDirty || logoDirty || carDirty;
 
   // Wait for shop context to be ready before loading settings (avoids redundant getMyShop call)
   useEffect(() => {
@@ -190,6 +200,9 @@ export default function SettingsPage() {
       if (parsed.lat != null) newShop.address = newShop.address.replace(/\|Lat:[^|]+\|Lng:[^|]+$/, "").replace(/\|Lat:[^|]+$/, "");
       setShopForm(newShop);
       setOpsForm(newOps);
+      const types: string[] = Array.isArray(s?.car_types) ? s.car_types : [];
+      setCarTypes(types);
+      savedCarTypes.current = types;
       setLogoUrl(logo);
       savedShop.current    = { ...newShop };
       savedOps.current     = { ...newOps };
@@ -285,10 +298,39 @@ export default function SettingsPage() {
     }
   }
 
+  function addCarType() {
+    const name = newCarType.trim();
+    if (!name) return;
+    const taken = [...CAR_TYPES.map((c) => carTypeLabel(t, c)), ...carTypes].some((c) => c.toLowerCase() === name.toLowerCase());
+    if (taken) { setCarErr(t("settings.car_type_exists")); return; }
+    setCarTypes([...carTypes, name]);
+    setNewCarType(""); setCarErr("");
+  }
+
+  async function saveCarTypes() {
+    setCarStatus("saving"); setCarErr("");
+    try {
+      const res = await settingsRequest("/settings/", {
+        method: "PUT",
+        body: JSON.stringify({ car_types: carTypes }),
+      });
+      const saved: string[] = Array.isArray(res?.data?.car_types) ? res.data.car_types : carTypes;
+      setCarTypes(saved);
+      savedCarTypes.current = saved;
+      setCarStatus("saved");
+      setLastSaved(new Date());
+      statusTimer(setCarStatus);
+    } catch (err) {
+      setCarErr(err instanceof Error ? err.message : t("settings.err_save_settings_failed"));
+      setCarStatus("error");
+    }
+  }
+
   async function saveAll() {
     const ps: Promise<void>[] = [];
     if (shopDirty) ps.push(saveShop());
     if (opsDirty)  ps.push(saveOps());
+    if (carDirty)  ps.push(saveCarTypes());
     await Promise.allSettled(ps);
   }
 
@@ -559,6 +601,62 @@ export default function SettingsPage() {
           </div>
         </Section>
 
+        {/* ── CAR TYPES (car companies) ─── */}
+        {isCar && (
+          <Section
+            icon={<Car size={15} />}
+            title={t("settings.car_types")}
+            dirty={carDirty}
+            status={carStatus}
+            onSave={saveCarTypes}
+            saveLabel={t("settings.save")}
+          >
+            {carErr && <ErrorBanner msg={carErr} />}
+            <p className="text-xs text-slate-500 mb-3">{t("settings.car_types_hint")}</p>
+
+            <div className="flex flex-wrap gap-1.5 mb-3">
+              {CAR_TYPES.map((c) => (
+                <span key={c} className="px-2.5 py-1 rounded-full text-xs bg-slate-100 text-slate-500 border border-slate-200">
+                  {carTypeLabel(t, c)}
+                </span>
+              ))}
+              {carTypes.map((c) => (
+                <span key={c} className="flex items-center gap-1 pl-2.5 pr-1 py-1 rounded-full text-xs font-medium bg-[#EBF2FD] text-[#0a66c2] border border-[#0a66c2]/30">
+                  {c}
+                  <button
+                    type="button"
+                    onClick={() => setCarTypes(carTypes.filter((x) => x !== c))}
+                    title={t("common.delete")}
+                    aria-label={`${t("common.delete")} ${c}`}
+                    className="w-4 h-4 rounded-full flex items-center justify-center hover:bg-[#0a66c2]/15 transition"
+                  >
+                    <X size={10} />
+                  </button>
+                </span>
+              ))}
+            </div>
+
+            <div className="flex gap-2 max-w-md">
+              <input
+                className={inputCls}
+                maxLength={50}
+                placeholder={t("settings.car_type_placeholder")}
+                value={newCarType}
+                onChange={(e) => { setNewCarType(e.target.value); setCarErr(""); }}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCarType(); } }}
+              />
+              <button
+                type="button"
+                onClick={addCarType}
+                disabled={!newCarType.trim()}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-50 transition disabled:opacity-50 shrink-0"
+              >
+                <Plus size={13} /> {t("settings.car_type_add")}
+              </button>
+            </div>
+          </Section>
+        )}
+
         {/* ── LANGUAGE ─────────────────────────── */}
         <Section
           icon={<Globe size={15} />}
@@ -703,7 +801,7 @@ export default function SettingsPage() {
             <div className="flex items-center gap-2.5 text-sm text-slate-600">
               <Pencil size={14} className="text-amber-500" />
               <span>
-                {[shopDirty && t("settings.shop_profile_label"), opsDirty && t("settings.operational_settings_label")]
+                {[shopDirty && t("settings.shop_profile_label"), opsDirty && t("settings.operational_settings_label"), carDirty && t("settings.car_types")]
                   .filter(Boolean).join(" & ")} {t("settings.unsaved_suffix")}
               </span>
             </div>
@@ -712,6 +810,7 @@ export default function SettingsPage() {
                 onClick={() => {
                   setShopForm({ ...savedShop.current });
                   setOpsForm({ ...savedOps.current });
+                  setCarTypes(savedCarTypes.current);
                   setLogoUrl(savedLogoUrl.current);
                 }}
                 className="px-4 py-2 rounded-lg border border-slate-200 text-slate-600 text-sm font-medium hover:bg-slate-50 transition"
@@ -720,7 +819,7 @@ export default function SettingsPage() {
               </button>
               <button
                 onClick={saveAll}
-                disabled={shopStatus === "saving" || opsStatus === "saving"}
+                disabled={shopStatus === "saving" || opsStatus === "saving" || carStatus === "saving"}
                 className="flex items-center gap-2 px-5 py-2 rounded-lg bg-slate-800 text-white text-sm font-semibold hover:bg-slate-700 transition disabled:opacity-60"
               >
                 <Save size={14} />

@@ -6,12 +6,13 @@ import { itemRequest } from "@/lib/product-api";
 import { partnerRequest } from "@/lib/supplier-api";
 import { useDebounce } from "@/lib/hooks";
 import { useLanguage } from "@/lib/language-context";
-import { VEHICLE_FIELDS, parseAttributes, stringifyAttributes, type Attributes } from "@/lib/business-layout";
+import { VEHICLE_FIELDS, carTypeLabel, parseAttributes, stringifyAttributes, type Attributes } from "@/lib/business-layout";
+import { settingsRequest } from "@/lib/settings-api";
 import Pagination from "@/app/components/ui/Pagination";
 import {
   Package, AlertCircle, Search, Filter, Plus, Trash2, Pencil, X,
   Boxes, DollarSign, TrendingUp, TrendingDown, ShoppingBag, RefreshCw, BarChart3, ChevronDown,
-  FileSpreadsheet, FileText, Upload, Download, CheckCircle, XCircle, Car,
+  FileSpreadsheet, FileText, Upload, Download, CheckCircle, XCircle, Car, PackagePlus,
 } from "lucide-react";
 
 interface Product {
@@ -70,6 +71,11 @@ export default function ItemManagementPage() {
   const [deletingId, setDeletingId] = useState("");
   const [form, setForm] = useState(EMPTY_FORM);
 
+  // Stock in (car companies restock here; they have no Purchases page).
+  const [stockInItem, setStockInItem] = useState<Product | null>(null);
+  const [stockInQty, setStockInQty]   = useState("");
+  const [stockingIn, setStockingIn]   = useState(false);
+
   const [importLoading, setImportLoading] = useState(false);
   const [importResults, setImportResults] = useState<{
     success: number;
@@ -80,6 +86,15 @@ export default function ItemManagementPage() {
   const debouncedSearch = useDebounce(search, 350);
 
   useEffect(() => { loadData(); }, []);
+
+  // The company's own car types (Settings → Car types), offered after the built-in ones.
+  const [customCarTypes, setCustomCarTypes] = useState<string[]>([]);
+  useEffect(() => {
+    if (!isCar) return;
+    settingsRequest("/settings/")
+      .then((res) => setCustomCarTypes(Array.isArray(res?.data?.car_types) ? res.data.car_types : []))
+      .catch(() => {});
+  }, [isCar]);
   useEffect(() => { loadDataRef.current = loadData; });
   useEffect(() => {
     countdownRef.current = setInterval(() => setCountdown((c) => (c <= 1 ? 30 : c - 1)), 1000);
@@ -171,6 +186,23 @@ export default function ItemManagementPage() {
     } finally { setSubmitting(false); }
   }
 
+  async function submitStockIn() {
+    if (!stockInItem) return;
+    const add = Number(stockInQty);
+    if (!Number.isInteger(add) || add <= 0) { alert(t("items.stock_in_invalid")); return; }
+    try {
+      setStockingIn(true);
+      // Re-read the current quantity so a sale made meanwhile isn't overwritten.
+      const fresh = await itemRequest(`/products/${stockInItem.id}`);
+      const current = Number(fresh?.data?.quantity ?? stockInItem.quantity);
+      await itemRequest(`/products/${stockInItem.id}`, { method: "PUT", body: JSON.stringify({ quantity: current + add }) });
+      setStockInItem(null); setStockInQty("");
+      await loadData(true);
+    } catch (err) {
+      console.error(err); alert(t("items.update_failed"));
+    } finally { setStockingIn(false); }
+  }
+
   async function deleteProduct(id: string) {
     if (!confirm(t("items.confirm_delete"))) return;
     try {
@@ -224,7 +256,7 @@ export default function ItemManagementPage() {
       return {
         "#": i + 1,
         [t("items.name")]: p.name,
-        [t("vehicle.car_type")]: a.car_type ? t(`vehicle.car_type_${a.car_type}`) : "",
+        [t("vehicle.car_type")]: a.car_type ? carTypeLabel(t, a.car_type) : "",
         [t("vehicle.year")]: a.year ?? "",
         [t("vehicle.battery_range")]: a.battery_range ? Number(a.battery_range) : "",
         [t("vehicle.color")]: a.color ?? "",
@@ -407,6 +439,13 @@ export default function ItemManagementPage() {
   const inputCls =
     "border border-slate-200 text-gray-800 placeholder:text-gray-400 rounded-lg px-3 py-2 w-full text-sm focus:outline-none focus:ring-2 focus:ring-[#0a66c2]/30 focus:border-[#0a66c2] transition";
 
+  /** Built-in options + the company's own car types (+ the saved value, if since removed). */
+  function selectOptions(f: (typeof VEHICLE_FIELDS)[number]): string[] {
+    const opts = [...(f.options ?? []), ...(f.key === "car_type" ? customCarTypes : [])];
+    const current = form.attributes[f.key];
+    return current && !opts.includes(current) ? [...opts, current] : opts;
+  }
+
   function renderCarField(f: (typeof VEHICLE_FIELDS)[number]) {
     const value = form.attributes[f.key] ?? "";
     const set = (v: string) => setForm({ ...form, attributes: { ...form.attributes, [f.key]: v } });
@@ -419,7 +458,7 @@ export default function ItemManagementPage() {
         {f.type === "select" ? (
           <select className={inputCls} value={value} onChange={(e) => set(e.target.value)}>
             <option value="">—</option>
-            {f.options!.map((o) => <option key={o} value={o}>{t(`vehicle.${f.key}_${o}`)}</option>)}
+            {selectOptions(f).map((o) => <option key={o} value={o}>{carTypeLabel(t, o)}</option>)}
           </select>
         ) : (
           <input type={f.type} min={f.type === "number" ? "0" : undefined} className={inputCls}
@@ -580,10 +619,10 @@ export default function ItemManagementPage() {
               <span className="font-bold">{alertItems.length}</span> {t("items.restock_alert")} —{" "}
               <span className="text-amber-600">{alertItems.slice(0, 3).map((i) => i.name).join(", ")}{alertItems.length > 3 ? ` +${alertItems.length - 3} ${t("items.more")}` : ""}</span>
             </p>
-            <Link href="/PurchaseManagement"
+            {!isCar && <Link href="/PurchaseManagement"
               className="text-[10px] font-bold text-amber-700 bg-amber-100 hover:bg-amber-200 px-2 py-0.5 rounded-md shrink-0 transition">
               {t("items.purchase_short")}
-            </Link>
+            </Link>}
           </div>
         )}
 
@@ -642,7 +681,8 @@ export default function ItemManagementPage() {
               )}
               {/* Divider */}
               {(debouncedSearch || filter !== "all") && <span className="w-px h-3 bg-slate-200" />}
-              {/* Import buttons */}
+              {/* Import buttons (retail columns only) */}
+              {!isCar && <>
               <button
                 onClick={downloadTemplate}
                 title={t("common.download_template")}
@@ -660,6 +700,7 @@ export default function ItemManagementPage() {
                 {importLoading ? t("common.importing") : t("common.import")}
               </button>
               <span className="w-px h-3 bg-slate-200" />
+              </>}
               {/* Export buttons */}
               <button
                 onClick={exportExcel}
@@ -754,7 +795,7 @@ export default function ItemManagementPage() {
                       {isCar ? (() => {
                         const a = parseAttributes(p.attributes);
                         return (<>
-                          <td className="px-3 py-1.5 text-xs text-slate-700">{a.car_type ? t(`vehicle.car_type_${a.car_type}`) : "—"}</td>
+                          <td className="px-3 py-1.5 text-xs text-slate-700">{a.car_type ? carTypeLabel(t, a.car_type) : "—"}</td>
                           <td className="px-3 py-1.5 text-center text-xs text-slate-700 tabular-nums">{a.year || "—"}</td>
                           <td className="px-3 py-1.5 text-right text-xs text-slate-600 tabular-nums">{a.battery_range ? `${Number(a.battery_range).toLocaleString()} km` : "—"}</td>
                           <td className="px-3 py-1.5 text-xs text-slate-700">{a.color || "—"}</td>
@@ -856,7 +897,12 @@ export default function ItemManagementPage() {
                       {/* Actions */}
                       <td className="px-3 py-1.5">
                         <div className="flex items-center justify-center gap-1 opacity-60 group-hover:opacity-100 transition-opacity">
-                          {needsRestock && (
+                          {isCar ? (
+                            <button onClick={() => { setStockInItem(p); setStockInQty(""); }} title={t("items.stock_in")}
+                              className="p-1 rounded bg-green-50 hover:bg-green-100 text-green-700 transition">
+                              <PackagePlus size={11} />
+                            </button>
+                          ) : needsRestock && (
                             <Link href={restockUrl} title={t("purchases.restock")}
                               className="p-1 rounded bg-amber-50 hover:bg-amber-100 text-amber-600 transition">
                               <RefreshCw size={11} />
@@ -900,6 +946,40 @@ export default function ItemManagementPage() {
           <Pagination page={page} totalPages={totalPages} total={filtered.length}
             pageSize={pageSize} pageSizes={PAGE_SIZES} onPage={setPage} onPageSize={setPageSize} />
         </div>
+
+        {/* STOCK IN MODAL */}
+        {stockInItem && (
+          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl">
+              <div className="flex justify-between items-center px-5 py-4 border-b border-slate-100">
+                <div className="min-w-0">
+                  <h2 className="text-base font-semibold text-slate-800">{t("items.stock_in")}</h2>
+                  <p className="text-xs text-slate-400 mt-0.5 truncate">{stockInItem.name}</p>
+                </div>
+                <button onClick={() => setStockInItem(null)} className="p-2 rounded-lg hover:bg-slate-100 text-slate-400 transition"><X size={17} /></button>
+              </div>
+              <div className="px-5 py-4 space-y-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">{t("items.stock_in_qty")} <span className="text-red-400">*</span></label>
+                  <input type="number" min="1" step="1" autoFocus className={inputCls} placeholder="1" value={stockInQty}
+                    onChange={(e) => setStockInQty(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") submitStockIn(); }} />
+                </div>
+                <p className="text-xs text-slate-500">
+                  {t("items.stock_in_current")}: <span className="font-semibold tabular-nums">{stockInItem.quantity}</span>
+                  {Number(stockInQty) > 0 && <> → <span className="font-bold text-green-700 tabular-nums">{stockInItem.quantity + Number(stockInQty)}</span></>}
+                </p>
+              </div>
+              <div className="flex justify-end gap-2.5 px-5 py-4 border-t border-slate-100">
+                <button onClick={() => setStockInItem(null)} className="px-4 py-2 rounded-lg border border-slate-200 text-slate-600 text-sm font-medium hover:bg-slate-50 transition">{t("common.cancel")}</button>
+                <button onClick={submitStockIn} disabled={stockingIn || !(Number(stockInQty) > 0)}
+                  className="px-5 py-2 rounded-lg bg-green-600 text-white text-sm font-semibold hover:bg-green-700 transition disabled:opacity-60">
+                  {stockingIn ? t("common.saving") : t("items.stock_in")}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* MODAL */}
         {showModal && (
