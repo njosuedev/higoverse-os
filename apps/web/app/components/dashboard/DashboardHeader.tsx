@@ -105,7 +105,7 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
           <Link href="/" className="flex items-center gap-2.5 transition-opacity duration-200 hover:opacity-80">
             {loading
               ? <div className="h-8 w-8 animate-pulse rounded-press bg-paper-deep" />
-              : <img src="/logo.png" alt="Higoverse" className="h-8 w-8 rounded-press object-cover" />}
+              : <img src="/higoverse-logo.png" alt="Higoverse" className="h-8 w-8 rounded-press object-cover" />}
             <span className="hidden font-display text-[17px] font-semibold tracking-tight text-text sm:inline">Higoverse</span>
           </Link>
         </div>
@@ -254,7 +254,7 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
           <div className="absolute left-0 top-0 flex h-full w-72 max-w-[85vw] flex-col overflow-y-auto bg-white shadow-[0_0_40px_-8px_rgb(31_61_51_/_0.4)]">
             <div className="flex items-center justify-between border-b border-border px-4 py-4">
               <div className="flex items-center gap-2.5">
-                <img src="/logo.png" alt="Higoverse" className="h-8 w-8 rounded-press object-cover" />
+                <img src="/higoverse-logo.png" alt="Higoverse" className="h-8 w-8 rounded-press object-cover" />
                 <span className="font-display text-[16px] font-semibold tracking-tight text-text">Higoverse</span>
               </div>
               <button

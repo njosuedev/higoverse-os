@@ -773,7 +773,7 @@ export default function DashboardPage() {
 
             {/* Brand */}
             <div className="flex items-center gap-2">
-              <img src="/logo.png" alt="Higoverse" className="w-7 h-7 rounded-press object-cover" />
+              <img src="/higoverse-logo.png" alt="Higoverse" className="w-7 h-7 rounded-press object-cover" />
               <div>
                 <p className="font-display text-xs font-semibold text-text">Higoverse</p>
                 <p className="text-[9px] text-text-faint">{t("dash.footer_tagline")}</p>

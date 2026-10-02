@@ -173,7 +173,7 @@ function LoginPageContent() {
       <div className="hidden lg:flex lg:w-[48%] bg-ink text-paper flex-col justify-between px-14 py-12">
         {/* top: brand */}
         <div className="flex items-center gap-3">
-          <Image src="/logo.png" alt="Higoverse" width={36} height={36} className="rounded-press" />
+          <Image src="/higoverse-logo.png" alt="Higoverse" width={36} height={36} className="rounded-press" />
           <span className="font-display font-semibold text-lg tracking-tight">Higoverse</span>
         </div>
 
@@ -218,7 +218,7 @@ function LoginPageContent() {
           {/* mobile brand + condensed value prop (left panel is desktop-only) */}
           <div className="flex lg:hidden flex-col gap-2 mb-8">
             <div className="flex items-center gap-2">
-              <Image src="/logo.png" alt="Higoverse" width={30} height={30} className="rounded-press" />
+              <Image src="/higoverse-logo.png" alt="Higoverse" width={30} height={30} className="rounded-press" />
               <span className="font-display font-semibold text-text">Higoverse</span>
             </div>
             <p className="text-xs text-text-muted leading-relaxed">{t("login.subheadline")}</p>

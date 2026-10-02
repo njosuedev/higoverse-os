@@ -90,7 +90,7 @@ export const metadata: Metadata = {
 
     images: [
       {
-        url: "/logo.png",
+        url: "/higoverse-logo.png",
         width: 1200,
         height: 630,
         alt: "Higoverse Business Platform",
@@ -106,13 +106,13 @@ export const metadata: Metadata = {
     title: "Higoverse | Business Records & Transactions Platform",
     description:
       "Modern inventory, sales, supplier, and customer management software for businesses.",
-    images: ["/logo.png"],
+    images: ["/higoverse-logo.png"],
   },
 
   icons: {
-    icon: "/logo.png",
-    shortcut: "/logo.png",
-    apple: "/logo.png",
+    icon: "/higoverse-logo.png",
+    shortcut: "/higoverse-logo.png",
+    apple: "/higoverse-logo.png",
   },
 
   category: "Business",
