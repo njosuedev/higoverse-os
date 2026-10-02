@@ -2,6 +2,7 @@
 
 import React, { useEffect } from "react";
 import { X } from "lucide-react";
+import { useLanguage } from "@/lib/language-context";
 
 type Size = "sm" | "md" | "lg" | "xl";
 
@@ -23,6 +24,7 @@ const SIZE_MAP: Record<Size, string> = {
 
 /** Standardizes modal chrome only (backdrop, panel, header, footer). Callers own their own body state/handlers. */
 export default function Modal({ open, onClose, title, children, footer, size = "md" }: ModalProps) {
+  const { t } = useLanguage();
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
@@ -50,7 +52,7 @@ export default function Modal({ open, onClose, title, children, footer, size = "
               type="button"
               onClick={onClose}
               className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
-              aria-label="Close"
+              aria-label={t("common.close")}
             >
               <X className="h-5 w-5" />
             </button>

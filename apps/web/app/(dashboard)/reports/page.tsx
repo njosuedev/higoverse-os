@@ -52,14 +52,16 @@ const REFRESH_INTERVAL = 30; // seconds
 
 // ─── Custom Tooltip for Revenue Chart ─────────────────────────────────────────
 function RevenueTooltip({ active, payload, label }: { active?: boolean; payload?: Array<{ value: number; name: string; color: string }>; label?: string }) {
+  const { t } = useLanguage();
   if (!active || !payload?.length) return null;
+  const seriesLabel = (name: string) => name === "revenue" ? t("sales.revenue") : name === "profit" ? t("sales.profit") : name;
   return (
     <div className="bg-slate-900 text-white text-xs rounded-xl px-3 py-2.5 shadow-xl border border-slate-700">
       <p className="font-semibold mb-1.5 text-slate-300">{label}</p>
       {payload.map((p) => (
         <div key={p.name} className="flex items-center gap-2 mb-0.5">
           <span className="w-2 h-2 rounded-full" style={{ background: p.color }} />
-          <span className="capitalize text-slate-300">{p.name}:</span>
+          <span className="text-slate-300">{seriesLabel(p.name)}:</span>
           <span className="font-bold">{fmtNum(p.value)} RWF</span>
         </div>
       ))}
@@ -69,14 +71,15 @@ function RevenueTooltip({ active, payload, label }: { active?: boolean; payload?
 
 // ─── Custom Tooltip for Top Items Chart ───────────────────────────────────────
 function ItemTooltip({ active, payload }: { active?: boolean; payload?: Array<{ payload: TopItem; value: number; name: string }> }) {
+  const { t } = useLanguage();
   if (!active || !payload?.length) return null;
   const d = payload[0].payload;
   return (
     <div className="bg-slate-900 text-white text-xs rounded-xl px-3 py-2.5 shadow-xl border border-slate-700">
       <p className="font-semibold mb-1 text-slate-200">{d.product_name}</p>
-      <p>Revenue: <span className="font-bold">{fmtNum(d.revenue)} RWF</span></p>
-      <p>Profit: <span className="font-bold text-emerald-400">{fmtNum(d.profit)} RWF</span></p>
-      <p>Qty sold: <span className="font-bold">{d.qty_sold}</span></p>
+      <p>{t("sales.revenue")}: <span className="font-bold">{fmtNum(d.revenue)} RWF</span></p>
+      <p>{t("sales.profit")}: <span className="font-bold text-emerald-400">{fmtNum(d.profit)} RWF</span></p>
+      <p>{t("reports.qty_sold")}: <span className="font-bold">{d.qty_sold}</span></p>
     </div>
   );
 }
@@ -207,7 +210,7 @@ export default function ReportsPage() {
             out_of_stock: outOfStock, low_stock: lowStock, total_products: totalProducts,
           });
         }
-        setError(String(sumRes.reason?.message ?? "Could not load sales summary."));
+        setError(String(sumRes.reason?.message ?? t("reports.could_not_load_sales_summary")));
       }
 
       setDaily(dayRes.status    === "fulfilled" ? dayRes.value?.data    ?? [] : []);
@@ -221,7 +224,7 @@ export default function ReportsPage() {
       setStockAlerts(alertsFromProducts.length > 0 ? alertsFromProducts : alertsFromReports);
 
       setLastUpdated(new Date());
-    } catch (err) { setError("Failed to load reports."); console.error(err); }
+    } catch (err) { setError(t("reports.failed_to_load")); console.error(err); }
     finally { setLoading(false); setRefreshing(false); }
   }, [dateFrom, dateTo]);
 
@@ -319,7 +322,7 @@ export default function ReportsPage() {
                 <BarChart3 size={15} className="text-white" strokeWidth={2}/>
               </div>
               <div>
-                <p className="text-[10px] font-semibold text-blue-200 uppercase tracking-widest leading-none">Analytics</p>
+                <p className="text-[10px] font-semibold text-blue-200 uppercase tracking-widest leading-none">{t("reports.analytics_label")}</p>
                 <h1 className="text-base font-extrabold text-white leading-tight tracking-tight">{t("reports.title")}</h1>
               </div>
             </div>
@@ -346,8 +349,8 @@ export default function ReportsPage() {
               <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-green-400"/>
             </span>
             <p className="text-[10px] text-blue-100/70">
-              <span className="text-green-400 font-semibold">Live</span>
-              {lastUpdated && <span className="ml-1 text-blue-200/50">· Updated {lastUpdated.toLocaleTimeString()}</span>}
+              <span className="text-green-400 font-semibold">{t("reports.live_word")}</span>
+              {lastUpdated && <span className="ml-1 text-blue-200/50">· {t("common.updated")} {lastUpdated.toLocaleTimeString()}</span>}
             </p>
           </div>
 
@@ -369,9 +372,9 @@ export default function ReportsPage() {
           <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-xl px-3 py-2 text-sm text-red-700">
             <AlertCircle size={15} className="shrink-0 mt-0.5" />
             <div>
-              <p className="font-semibold">Could not load report data</p>
+              <p className="font-semibold">{t("reports.could_not_load")}</p>
               <p className="text-xs mt-0.5 text-red-600 font-mono">{error}</p>
-              <button onClick={() => loadData(true)} className="mt-2 text-xs font-semibold underline hover:no-underline">Retry</button>
+              <button onClick={() => loadData(true)} className="mt-2 text-xs font-semibold underline hover:no-underline">{t("reports.retry")}</button>
             </div>
           </div>
         )}
@@ -382,25 +385,25 @@ export default function ReportsPage() {
             {/* Row 1: Stock money summary */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5">
               <KpiCard
-                label="Stock Value"
+                label={t("reports.stock_value")}
                 value={`RWF ${fmtRWF(stockCost)}`}
-                detail={`How much you paid for all ${fmtNum(summary.total_products)} items in stock`}
+                detail={t("reports.detail_stock_value").replace("{n}", fmtNum(summary.total_products))}
                 icon={<Package size={18} />}
                 color="blue"
                 pulse
               />
               <KpiCard
-                label="If You Sell Everything"
+                label={t("reports.if_sell_everything")}
                 value={`RWF ${fmtRWF(stockRetail)}`}
-                detail="Total money you'd receive selling all your stock right now"
+                detail={t("reports.detail_sell_everything")}
                 icon={<DollarSign size={18} />}
                 color="blue"
                 pulse
               />
               <KpiCard
-                label="Profit You Can Make"
+                label={t("reports.profit_you_can_make")}
                 value={`RWF ${fmtRWF(summary.potential_profit)}`}
-                detail={`Extra money from selling all stock · ${stockCost > 0 ? ((summary.potential_profit / stockCost) * 100).toFixed(1) : 0}% return on what you paid`}
+                detail={t("reports.detail_profit_potential").replace("{pct}", String(stockCost > 0 ? ((summary.potential_profit / stockCost) * 100).toFixed(1) : 0))}
                 icon={<TrendingUp size={18} />}
                 color="blue"
                 pulse
@@ -409,46 +412,46 @@ export default function ReportsPage() {
             {/* Row 2: Stock health + sales + expenses + net profit */}
             <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-1.5">
               <KpiCard
-                label="Out of Stock"
+                label={t("reports.out_stock")}
                 value={String(summary.out_of_stock)}
-                detail={`Items with zero units left — buy more`}
+                detail={t("reports.detail_out_of_stock")}
                 icon={<AlertCircle size={18} />}
                 color={summary.out_of_stock > 0 ? "red" : "green"}
-                badge={summary.out_of_stock > 0 ? "BUY NOW" : "ALL GOOD"}
+                badge={summary.out_of_stock > 0 ? t("reports.badge_buy_now") : t("reports.badge_all_good")}
               />
               <KpiCard
-                label="Almost Finished"
+                label={t("reports.almost_finished")}
                 value={String(summary.low_stock)}
-                detail="Items with 10 or fewer units — restock soon"
+                detail={t("reports.detail_almost_finished")}
                 icon={<AlertTriangle size={18} />}
                 color={summary.low_stock > 0 ? "amber" : "green"}
-                badge={summary.low_stock > 0 ? "RESTOCK SOON" : "OK"}
+                badge={summary.low_stock > 0 ? t("reports.badge_restock_soon") : t("reports.badge_ok")}
               />
               <KpiCard
-                label="Revenue Earned"
+                label={t("reports.revenue_earned")}
                 value={`RWF ${fmtRWF(summary.revenue)}`}
-                detail={`Total from ${summary.sales_count} sales · ${summary.unique_customers} customers`}
+                detail={t("reports.detail_revenue").replace("{sales}", String(summary.sales_count)).replace("{customers}", String(summary.unique_customers))}
                 icon={<ShoppingCart size={18} />}
                 color="blue"
               />
               <KpiCard
-                label="Gross Profit (Sales)"
+                label={t("reports.gross_profit_sales")}
                 value={`RWF ${fmtRWF(summary.profit)}`}
-                detail={`${margin}% margin · after cost of goods sold only`}
+                detail={t("reports.detail_gross_profit").replace("{margin}", margin)}
                 icon={<TrendingUp size={18} />}
                 color="emerald"
               />
               <KpiCard
-                label="Business Expenses"
+                label={t("reports.business_expenses")}
                 value={expenseTotalPeriod > 0 ? `RWF ${fmtRWF(expenseTotalPeriod)}` : "—"}
-                detail={`${expenseCount} expense records in this period`}
+                detail={t("reports.detail_expense_records").replace("{count}", String(expenseCount))}
                 icon={<Receipt size={18} />}
                 color="orange"
               />
               <KpiCard
-                label="Net Profit (Real)"
+                label={t("reports.net_profit_real")}
                 value={`RWF ${fmtRWF(summary.profit - expenseTotalPeriod)}`}
-                detail={`After expenses · ${summary.profit - expenseTotalPeriod >= 0 ? "Profitable" : "At a loss"}`}
+                detail={t("reports.detail_net_profit").replace("{status}", summary.profit - expenseTotalPeriod >= 0 ? t("reports.profitable") : t("reports.at_loss"))}
                 icon={<DollarSign size={18} />}
                 color={summary.profit - expenseTotalPeriod >= 0 ? "blue" : "red"}
               />
@@ -462,16 +465,16 @@ export default function ReportsPage() {
             <div>
               <h2 className="text-sm font-semibold text-slate-800 flex items-center gap-2">
                 <Activity size={15} className="text-[#1372e6]" />
-                Daily Revenue &amp; Profit — Last 30 Days
+                {t("reports.daily_revenue_profit_30d")}
               </h2>
               <p className="text-xs text-slate-400 mt-0.5">
-                Avg daily revenue: <span className="font-semibold text-slate-600">RWF {fmtRWF(avgDailyRevenue)}</span>
-                &nbsp;·&nbsp;This week: <span className="font-semibold text-slate-600">RWF {fmtRWF(revenueThisWeek)}</span>
+                {t("reports.avg_daily_revenue")}: <span className="font-semibold text-slate-600">RWF {fmtRWF(avgDailyRevenue)}</span>
+                &nbsp;·&nbsp;{t("reports.this_week")}: <span className="font-semibold text-slate-600">RWF {fmtRWF(revenueThisWeek)}</span>
               </p>
             </div>
             <div className="flex items-center gap-4 text-xs">
-              <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-[#1372e6] inline-block" /> Revenue</span>
-              <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-emerald-500 inline-block" /> Profit</span>
+              <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-[#1372e6] inline-block" /> {t("sales.revenue")}</span>
+              <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-emerald-500 inline-block" /> {t("sales.profit")}</span>
             </div>
           </div>
 
@@ -507,15 +510,15 @@ export default function ReportsPage() {
 
             {/* Stock Health Pie */}
             <div className="bg-white rounded-xl border border-slate-200 p-3 shadow-sm">
-              <h2 className="text-sm font-semibold text-slate-800 mb-1">How Is Your Stock?</h2>
+              <h2 className="text-sm font-semibold text-slate-800 mb-1">{t("reports.how_is_your_stock")}</h2>
               <p className="text-xs text-slate-400 mb-2">
-                {summary.total_products} products total &mdash;&nbsp;
-                <span className="text-red-500 font-medium">{summary.out_of_stock} finished</span>,&nbsp;
-                <span className="text-amber-500 font-medium">{summary.low_stock} almost finished</span>
+                {summary.total_products} {t("reports.products_total")} &mdash;&nbsp;
+                <span className="text-red-500 font-medium">{summary.out_of_stock} {t("reports.finished_word").toLowerCase()}</span>,&nbsp;
+                <span className="text-amber-500 font-medium">{summary.low_stock} {t("reports.almost_finished").toLowerCase()}</span>
               </p>
 
               {stockPieData.length === 0 ? (
-                <div className="h-48 flex items-center justify-center text-slate-400 text-sm">No stock data</div>
+                <div className="h-48 flex items-center justify-center text-slate-400 text-sm">{t("reports.no_stock_data")}</div>
               ) : (
                 <ResponsiveContainer width="100%" height={150}>
                   <PieChart>
@@ -547,9 +550,9 @@ export default function ReportsPage() {
               {/* Legend pills */}
               <div className="grid grid-cols-3 gap-2 mt-1.5">
                 {[
-                  { label: "Good",             count: Math.max(0, summary.total_products - summary.out_of_stock - summary.low_stock), color: "bg-green-500", text: "text-green-700", bg: "bg-green-50" },
-                  { label: "Almost Finished", count: summary.low_stock,   color: "bg-amber-400", text: "text-amber-700", bg: "bg-amber-50" },
-                  { label: "Finished",         count: summary.out_of_stock, color: "bg-red-500",  text: "text-red-700",  bg: "bg-red-50" },
+                  { label: t("reports.good_word"),      count: Math.max(0, summary.total_products - summary.out_of_stock - summary.low_stock), color: "bg-green-500", text: "text-green-700", bg: "bg-green-50" },
+                  { label: t("reports.almost_finished"), count: summary.low_stock,   color: "bg-amber-400", text: "text-amber-700", bg: "bg-amber-50" },
+                  { label: t("reports.finished_word"),   count: summary.out_of_stock, color: "bg-red-500",  text: "text-red-700",  bg: "bg-red-50" },
                 ].map((s) => (
                   <div key={s.label} className={`${s.bg} rounded-lg p-2 text-center`}>
                     <p className={`text-sm font-bold ${s.text}`}>{s.count}</p>
@@ -561,47 +564,47 @@ export default function ReportsPage() {
 
             {/* Money Breakdown */}
             <div className="bg-white rounded-xl border border-slate-200 p-3 shadow-sm">
-              <h2 className="text-sm font-semibold text-slate-800 mb-0.5">Where Your Money Is</h2>
+              <h2 className="text-sm font-semibold text-slate-800 mb-0.5">{t("reports.where_your_money_is")}</h2>
               <p className="text-xs text-slate-400 mb-2">
-                Each bar shows how big that number is compared to the others
+                {t("reports.bar_chart_hint")}
               </p>
 
               <div className="space-y-2.5 mb-3">
                 <ValueBar
-                  label="What you paid for your stock"
-                  sublabel="The total cost of all items sitting in your shop right now"
+                  label={t("reports.vb_paid_label")}
+                  sublabel={t("reports.vb_paid_sub")}
                   value={stockCost}
                   max={Math.max(stockCost, stockRetail, summary.revenue, 1)}
                   color="bg-indigo-500"
                   textColor="text-indigo-700"
                 />
                 <ValueBar
-                  label="What you'd earn selling everything"
-                  sublabel="Total if every item in stock is sold at your selling price"
+                  label={t("reports.vb_earn_label")}
+                  sublabel={t("reports.vb_earn_sub")}
                   value={stockRetail}
                   max={Math.max(stockCost, stockRetail, summary.revenue, 1)}
                   color="bg-[#1372e6]"
                   textColor="text-[#1372e6]"
                 />
                 <ValueBar
-                  label="Profit waiting in your stock"
-                  sublabel="Extra money you'll make once all stock is sold"
+                  label={t("reports.vb_profit_label")}
+                  sublabel={t("reports.vb_profit_sub")}
                   value={summary.potential_profit}
                   max={Math.max(stockCost, stockRetail, summary.revenue, 1)}
                   color="bg-violet-500"
                   textColor="text-violet-700"
                 />
                 <ValueBar
-                  label={`Money earned from sales (${dateFrom} → ${dateTo})`}
-                  sublabel="Total payments received from customers in this period"
+                  label={`${t("reports.vb_sales_label")} (${dateFrom} → ${dateTo})`}
+                  sublabel={t("reports.vb_sales_sub")}
                   value={summary.revenue}
                   max={Math.max(stockCost, stockRetail, summary.revenue, 1)}
                   color="bg-teal-500"
                   textColor="text-teal-700"
                 />
                 <ValueBar
-                  label={`Gross profit from sales (${dateFrom} → ${dateTo})`}
-                  sublabel="After cost of goods sold — before business expenses"
+                  label={`${t("reports.vb_gross_profit_label")} (${dateFrom} → ${dateTo})`}
+                  sublabel={t("reports.vb_gross_profit_sub")}
                   value={summary.profit}
                   max={Math.max(stockCost, stockRetail, summary.revenue, 1)}
                   color="bg-emerald-500"
@@ -609,8 +612,8 @@ export default function ReportsPage() {
                 />
                 {expenseTotalPeriod > 0 && (
                   <ValueBar
-                    label={`Business expenses (${dateFrom} → ${dateTo})`}
-                    sublabel={`${expenseCount} records — rent, salaries, utilities, etc.`}
+                    label={`${t("reports.business_expenses")} (${dateFrom} → ${dateTo})`}
+                    sublabel={t("reports.vb_expenses_sub").replace("{count}", String(expenseCount))}
                     value={expenseTotalPeriod}
                     max={Math.max(stockCost, stockRetail, summary.revenue, 1)}
                     color="bg-orange-400"
@@ -618,8 +621,8 @@ export default function ReportsPage() {
                   />
                 )}
                 <ValueBar
-                  label={`Net profit — real money kept (${dateFrom} → ${dateTo})`}
-                  sublabel="Gross profit minus all business expenses"
+                  label={`${t("reports.vb_net_profit_label")} (${dateFrom} → ${dateTo})`}
+                  sublabel={t("reports.vb_net_profit_sub")}
                   value={Math.max(0, summary.profit - expenseTotalPeriod)}
                   max={Math.max(stockCost, stockRetail, summary.revenue, 1)}
                   color={summary.profit - expenseTotalPeriod >= 0 ? "bg-[#1372e6]" : "bg-red-400"}
@@ -630,18 +633,18 @@ export default function ReportsPage() {
               <div className="grid grid-cols-2 gap-2">
                 {stockCost > 0 && (
                   <div className="bg-[#EBF2FD] rounded-lg p-2">
-                    <p className="text-xs text-slate-500">Profit rate on stock</p>
+                    <p className="text-xs text-slate-500">{t("reports.profit_rate_stock")}</p>
                     <p className="text-sm font-bold text-[#1372e6] mt-0.5">
                       {((summary.potential_profit / stockCost) * 100).toFixed(1)}%
                     </p>
-                    <p className="text-[10px] text-slate-400 mt-0.5">For every 100 RWF you spent, you earn this extra</p>
+                    <p className="text-[10px] text-slate-400 mt-0.5">{t("reports.profit_rate_stock_hint")}</p>
                   </div>
                 )}
                 {summary.revenue > 0 && (
                   <div className="bg-emerald-50 rounded-lg p-2">
-                    <p className="text-xs text-slate-500">Profit rate on sales</p>
+                    <p className="text-xs text-slate-500">{t("reports.profit_rate_sales")}</p>
                     <p className="text-sm font-bold text-emerald-700 mt-0.5">{margin}%</p>
-                    <p className="text-[10px] text-slate-400 mt-0.5">For every 100 RWF sold, this is your profit</p>
+                    <p className="text-[10px] text-slate-400 mt-0.5">{t("reports.profit_rate_sales_hint")}</p>
                   </div>
                 )}
               </div>
@@ -655,11 +658,11 @@ export default function ReportsPage() {
             <div className="flex justify-between items-center mb-2">
               <div>
                 <h2 className="text-sm font-semibold text-slate-800">{t("reports.top_items")}</h2>
-                <p className="text-xs text-slate-400 mt-0.5">Revenue &amp; profit by product</p>
+                <p className="text-xs text-slate-400 mt-0.5">{t("reports.revenue_profit_by_product")}</p>
               </div>
               <div className="flex items-center gap-3 text-xs">
-                <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-slate-600 inline-block" /> Revenue</span>
-                <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-emerald-500 inline-block" /> Profit</span>
+                <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-slate-600 inline-block" /> {t("sales.revenue")}</span>
+                <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-emerald-500 inline-block" /> {t("sales.profit")}</span>
               </div>
             </div>
             <ResponsiveContainer width="100%" height={Math.max(160, topItemsChart.length * 32)}>
@@ -693,7 +696,7 @@ export default function ReportsPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-100">
-                  {[t("items.name"), "Qty Left", "You Paid", "You Sell For", "Profit %", "Action"].map((h) => (
+                  {[t("items.name"), t("reports.col_qty_left"), t("reports.col_you_paid"), t("reports.col_you_sell_for"), t("reports.col_profit_pct"), t("reports.col_action")].map((h) => (
                     <th key={h} className="px-3 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-500 whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
@@ -731,7 +734,7 @@ export default function ReportsPage() {
           summary && (
             <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-xl px-5 py-4 text-green-700 text-sm font-medium">
               <CheckCircle size={16} />
-              All stock is healthy — no alerts at this time.
+              {t("reports.stock_healthy_full")}
             </div>
           )
         )}
@@ -743,18 +746,18 @@ export default function ReportsPage() {
               <div className="flex items-center gap-2">
                 <Truck size={14} className="text-[#1372e6]" />
                 <h2 className="text-sm font-semibold text-slate-700">
-                  Recent Purchases — <span className="text-[#1372e6]">RWF {fmtRWF(purchaseTotalSpent)} spent</span>
+                  {t("reports.recent_purchases")} — <span className="text-[#1372e6]">RWF {fmtRWF(purchaseTotalSpent)} {t("reports.spent_word")}</span>
                 </h2>
               </div>
               <Link href="/PurchaseManagement"
                 className="flex items-center gap-1.5 text-xs font-semibold text-[#1372e6] bg-[#EBF2FD] hover:bg-[#D5E8FB] px-3 py-1 rounded-lg transition">
-                <ArrowUpRight size={11} /> View All
+                <ArrowUpRight size={11} /> {t("dash.view_all")}
               </Link>
             </div>
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-100">
-                  {["Date", "Product", "Qty Added", "Unit Cost", "Total Cost"].map((h) => (
+                  {[t("purchases.col_date"), t("purchases.col_product"), t("purchases.col_qty"), t("purchases.col_unit"), t("purchases.col_total")].map((h) => (
                     <th key={h} className="px-3 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-500 whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
@@ -782,13 +785,13 @@ export default function ReportsPage() {
         {/* ── SECONDARY STATS ROW ────────────────────────────────────────────── */}
         {summary && (
           <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-1.5 pb-6">
-            <StatMini label="Items Sold"         value={fmtNum(summary.items_sold)}               sub={`to ${summary.unique_customers} customers`} color="text-indigo-600" icon={<ShoppingCart size={14} />} />
-            <StatMini label="Spent on Restocking" value={`RWF ${fmtRWF(summary.total_spent)}`}   sub={`${recentPurchases.length} purchase records`} color="text-teal-600" icon={<Truck size={14} />} />
-            <StatMini label="Business Expenses"  value={expenseTotalPeriod > 0 ? `RWF ${fmtRWF(expenseTotalPeriod)}` : "—"} sub={`${expenseCount} records this period`} color="text-orange-600" icon={<Receipt size={14} />} />
+            <StatMini label={t("reports.items_sold")}  value={fmtNum(summary.items_sold)}               sub={`${t("reports.to_word")} ${summary.unique_customers} ${t("reports.customers_word")}`} color="text-indigo-600" icon={<ShoppingCart size={14} />} />
+            <StatMini label={t("reports.spent_on_restocking")} value={`RWF ${fmtRWF(summary.total_spent)}`}   sub={`${recentPurchases.length} ${t("reports.purchase_records")}`} color="text-teal-600" icon={<Truck size={14} />} />
+            <StatMini label={t("reports.business_expenses")}  value={expenseTotalPeriod > 0 ? `RWF ${fmtRWF(expenseTotalPeriod)}` : "—"} sub={`${expenseCount} ${t("reports.records_this_period")}`} color="text-orange-600" icon={<Receipt size={14} />} />
             <StatMini
-              label="Net Profit (Real)"
+              label={t("reports.net_profit_real")}
               value={`RWF ${fmtRWF(summary.profit - expenseTotalPeriod)}`}
-              sub={summary.profit - expenseTotalPeriod >= 0 ? "Profitable after all costs" : "Spending more than earning"}
+              sub={summary.profit - expenseTotalPeriod >= 0 ? t("reports.profitable_after_costs") : t("reports.spending_more")}
               color={summary.profit - expenseTotalPeriod >= 0 ? "text-[#1372e6]" : "text-red-600"}
               icon={<DollarSign size={14} />}
             />

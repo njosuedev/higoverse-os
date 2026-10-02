@@ -128,20 +128,20 @@ export default function PartnerManagementPage() {
         } catch { failed++; }
       }
       e.target.value = "";
-      alert(`Imported ${imported} partners${failed ? `, ${failed} failed` : ""}.`);
+      alert(`${t("partners.import_result_prefix")} ${imported} ${t("partners.import_result_suffix")}${failed ? `, ${failed} ${t("partners.import_failed_suffix")}` : ""}.`);
       await loadData(true);
-    } catch { alert("Failed to parse file."); }
+    } catch { alert(t("common.parse_file_failed")); }
   }
 
   async function exportExcel() {
     const XLSX = await import("xlsx");
     const data = filtered.map((p) => ({
-      Name: p.name,
-      Type: p.partnerType === "supplier" ? "Supplier" : "Customer",
-      Phone: p.phone || "",
+      [t("common.name")]: p.name,
+      [t("common.type")]: p.partnerType === "supplier" ? t("partners.supplier_singular") : t("partners.customer_singular"),
+      [t("common.phone")]: p.phone || "",
       TIN: p.tin || "",
-      Email: p.email || "",
-      Address: p.realAddress || "",
+      [t("common.email")]: p.email || "",
+      [t("common.address")]: p.realAddress || "",
     }));
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
@@ -189,22 +189,22 @@ export default function PartnerManagementPage() {
   function validate(data = form): boolean {
     const err: FormErrors = {};
     const tin = data.tin.trim(), phone = data.phone.trim();
-    if (!data.name.trim()) err.name = "Name required";
-    if (!tin && !phone) { err.contact = "Enter a phone (customer) or TIN (supplier)"; }
+    if (!data.name.trim()) err.name = t("partners.err_name_required");
+    if (!tin && !phone) { err.contact = t("partners.err_contact_required"); }
     else {
-      if (tin && !/^\d{9}$/.test(tin)) err.tin = "TIN must be exactly 9 digits";
+      if (tin && !/^\d{9}$/.test(tin)) err.tin = t("partners.err_tin_digits");
       else if (tin) {
         const dup = partners.find((p) => p.tin === tin && p.id !== editingId);
-        if (dup) err.tin = `TIN already registered to "${dup.name}"`;
+        if (dup) err.tin = `${t("partners.err_tin_dup_prefix")} "${dup.name}"`;
       }
-      if (phone && !/^\d{10}$/.test(phone.replace(/\s/g, ""))) err.phone = "Phone must be exactly 10 digits";
+      if (phone && !/^\d{10}$/.test(phone.replace(/\s/g, ""))) err.phone = t("partners.err_phone_digits");
       else if (phone) {
         const norm = phone.replace(/\s/g, "");
         const dup = partners.find((p) => p.phone?.replace(/\s/g, "") === norm && p.id !== editingId);
-        if (dup) err.phone = `Phone already registered to "${dup.name}"`;
+        if (dup) err.phone = `${t("partners.err_phone_dup_prefix")} "${dup.name}"`;
       }
     }
-    if (data.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email)) err.email = "Invalid email";
+    if (data.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email)) err.email = t("common.invalid_email");
     setErrors(err);
     return Object.keys(err).length === 0;
   }
@@ -229,21 +229,21 @@ export default function PartnerManagementPage() {
   async function createPartner() {
     if (!validate()) return;
     try { setSubmitting(true); await partnerRequest("/suppliers", { method: "POST", body: JSON.stringify(buildPayload()) }); closeModal(); await loadData(true); }
-    catch (err) { alert(`Failed to create: ${err instanceof Error ? err.message : "Unknown error"}`); }
+    catch (err) { alert(`${t("partners.err_create_prefix")} ${err instanceof Error ? err.message : t("common.unknown_error")}`); }
     finally { setSubmitting(false); }
   }
 
   async function updatePartner() {
     if (!validate() || !editingId) return;
     try { setSubmitting(true); await partnerRequest(`/suppliers/${editingId}`, { method: "PUT", body: JSON.stringify(buildPayload()) }); closeModal(); await loadData(true); }
-    catch (err) { alert(`Failed to update: ${err instanceof Error ? err.message : "Unknown error"}`); }
+    catch (err) { alert(`${t("partners.err_update_prefix")} ${err instanceof Error ? err.message : t("common.unknown_error")}`); }
     finally { setSubmitting(false); }
   }
 
   async function deletePartner(id: string) {
-    if (!confirm("Delete this partner?")) return;
+    if (!confirm(t("common.confirm_delete"))) return;
     try { setDeletingId(id); await partnerRequest(`/suppliers/${id}`, { method: "DELETE" }); await loadData(true); }
-    catch (err) { alert(`Delete failed: ${err instanceof Error ? err.message : "Unknown error"}`); }
+    catch (err) { alert(`${t("common.delete_failed_prefix")} ${err instanceof Error ? err.message : t("common.unknown_error")}`); }
     finally { setDeletingId(""); }
   }
 
@@ -296,12 +296,12 @@ export default function PartnerManagementPage() {
                 <Users size={15} className="text-white" strokeWidth={2} />
               </div>
               <div>
-                <p className="text-[10px] font-semibold text-blue-200 uppercase tracking-widest leading-none">Partners</p>
+                <p className="text-[10px] font-semibold text-blue-200 uppercase tracking-widest leading-none">{t("nav.partners")}</p>
                 <h1 className="text-base font-extrabold text-white leading-tight tracking-tight">{t("partners.title")}</h1>
               </div>
             </div>
             <div className="flex items-center gap-1.5 shrink-0">
-              <button onClick={manualRefresh} disabled={refreshing} title="Refresh"
+              <button onClick={manualRefresh} disabled={refreshing} title={t("common.refresh")}
                 className="w-7 h-7 rounded-lg bg-white/10 hover:bg-white/20 border border-white/15 flex items-center justify-center text-white transition-all disabled:opacity-40">
                 <RefreshCw size={12} className={refreshing ? "animate-spin" : ""} />
               </button>
@@ -319,8 +319,8 @@ export default function PartnerManagementPage() {
               <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-green-400" />
             </span>
             <p className="text-[10px] text-blue-100/70 flex-1">
-              Live · <span className="font-semibold text-white/80">{partners.length.toLocaleString()} partners</span>
-              {lastUpdated && <span className="ml-1 text-blue-200/50">· Updated {lastUpdated.toLocaleTimeString()}</span>}
+              {t("common.live")} · <span className="font-semibold text-white/80">{partners.length.toLocaleString()} {t("partners.count_label")}</span>
+              {lastUpdated && <span className="ml-1 text-blue-200/50">· {t("common.updated")} {lastUpdated.toLocaleTimeString()}</span>}
             </p>
             <span className="text-[10px] text-blue-200/50">↻ {countdown}s</span>
           </div>
@@ -374,28 +374,28 @@ export default function PartnerManagementPage() {
           {/* Toolbar */}
           <div className="flex items-center justify-between px-3 py-1.5 border-b border-slate-100 bg-slate-50/60">
             <p className="text-[10px] text-slate-500">
-              Showing <span className="font-semibold text-slate-700">{paginated.length}</span> of <span className="font-semibold text-slate-700">{filtered.length}</span> partners
+              {t("common.showing")} <span className="font-semibold text-slate-700">{paginated.length}</span> {t("common.of")} <span className="font-semibold text-slate-700">{filtered.length}</span> {t("partners.count_label")}
             </p>
             <div className="flex items-center gap-1.5">
               {(debouncedSearch || typeFilter !== "all") && (
                 <button onClick={() => { setSearch(""); setTypeFilter("all"); setPage(1); }}
                   className="flex items-center gap-1 text-[10px] text-slate-400 hover:text-slate-600 transition mr-1">
-                  <X size={10} /> Clear filters
+                  <X size={10} /> {t("common.clear_filters")}
                 </button>
               )}
-              <button onClick={downloadTemplate} title="Download import template"
+              <button onClick={downloadTemplate} title={t("common.download_template")}
                 className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium border border-violet-200 text-violet-600 bg-white hover:bg-violet-50 transition">
-                <Download size={10} /> Template
+                <Download size={10} /> {t("common.template")}
               </button>
-              <button onClick={() => fileInputRef.current?.click()} title="Import from CSV/Excel"
+              <button onClick={() => fileInputRef.current?.click()} title={t("partners.import_tooltip")}
                 className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium border border-violet-200 text-violet-600 bg-white hover:bg-violet-50 transition">
-                <Upload size={10} /> Import
+                <Upload size={10} /> {t("common.import")}
               </button>
-              <button onClick={exportExcel} title="Export to Excel"
+              <button onClick={exportExcel} title={t("common.export_excel")}
                 className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium border border-green-200 text-green-600 bg-white hover:bg-green-50 transition">
                 <FileSpreadsheet size={10} /> Excel
               </button>
-              <button onClick={exportPDF} title="Export to PDF"
+              <button onClick={exportPDF} title={t("common.export_pdf")}
                 className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium border border-red-200 text-red-600 bg-white hover:bg-red-50 transition">
                 <FileText size={10} /> PDF
               </button>
@@ -447,19 +447,19 @@ export default function PartnerManagementPage() {
                         {isSupplier ? (
                           <div className="flex items-center gap-1">
                             <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${itemCount && itemCount > 0 ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-400"}`}>
-                              <Package size={9} />{itemCount} item{itemCount !== 1 ? "s" : ""}
+                              <Package size={9} />{itemCount} {t("partners.item_word")}
                             </span>
                             {itemCount === 0 && (
-                              <Link href="/PurchaseManagement" className="text-[10px] text-[#1372e6] hover:underline flex items-center gap-0.5"><ShoppingCart size={10} /> Buy</Link>
+                              <Link href="/PurchaseManagement" className="text-[10px] text-[#1372e6] hover:underline flex items-center gap-0.5"><ShoppingCart size={10} /> {t("common.buy")}</Link>
                             )}
                           </div>
-                        ) : <span className="text-[10px] text-slate-400 italic">Customer</span>}
+                        ) : <span className="text-[10px] text-slate-400 italic">{t("partners.customer_singular")}</span>}
                       </td>
                       <td className="px-3 py-1.5">
                         <div className="flex items-center justify-center gap-1 opacity-60 group-hover:opacity-100 transition-opacity">
-                          <button onClick={() => openEditModal(p)} title="Edit"
+                          <button onClick={() => openEditModal(p)} title={t("common.edit")}
                             className="p-1 rounded bg-[#EBF2FD] hover:bg-[#D5E8FB] text-[#1372e6] transition"><Pencil size={11} /></button>
-                          <button onClick={() => deletePartner(p.id)} disabled={deletingId === p.id} title="Delete"
+                          <button onClick={() => deletePartner(p.id)} disabled={deletingId === p.id} title={t("common.delete")}
                             className="p-1 rounded bg-red-50 hover:bg-red-100 text-red-500 transition disabled:opacity-40"><Trash2 size={11} /></button>
                         </div>
                       </td>
@@ -474,7 +474,7 @@ export default function PartnerManagementPage() {
             <div className="flex flex-col items-center justify-center py-12 text-slate-400">
               <div className="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center mb-4"><Activity size={28} className="opacity-40" /></div>
               <p className="font-semibold text-slate-500 text-sm">{t("partners.no_partners")}</p>
-              <p className="text-xs mt-1.5 text-slate-400">{search || typeFilter !== "all" ? "Try adjusting your filters." : t("partners.add_first")}</p>
+              <p className="text-xs mt-1.5 text-slate-400">{search || typeFilter !== "all" ? t("common.try_adjust_filters") : t("partners.add_first")}</p>
               {!search && typeFilter === "all" && (
                 <button onClick={openCreateModal} className="mt-5 flex items-center gap-1.5 bg-[#1372e6] text-white text-sm font-semibold px-5 py-2.5 rounded-xl hover:opacity-90 transition">
                   <Plus size={14} /> {t("partners.add")}
@@ -493,7 +493,7 @@ export default function PartnerManagementPage() {
               <div className="flex justify-between items-center px-4 sm:px-6 py-4 border-b border-slate-100 shrink-0">
                 <div>
                   <h2 className="text-base font-semibold text-slate-800">{modalMode === "edit" ? t("partners.edit_title") : t("partners.add_title")}</h2>
-                  {previewType && <p className="text-xs text-slate-400 mt-0.5">Will be saved as a <span className={`font-semibold ${previewType === "supplier" ? "text-[#1372e6]" : "text-slate-600"}`}>{previewType === "supplier" ? "Supplier" : "Customer"}</span></p>}
+                  {previewType && <p className="text-xs text-slate-400 mt-0.5">{t("partners.save_as_prefix")} <span className={`font-semibold ${previewType === "supplier" ? "text-[#1372e6]" : "text-slate-600"}`}>{previewType === "supplier" ? t("partners.supplier_singular") : t("partners.customer_singular")}</span></p>}
                 </div>
                 <button onClick={closeModal} className="p-2 rounded-lg hover:bg-slate-100 text-slate-400 transition"><X size={17} /></button>
               </div>
@@ -503,31 +503,31 @@ export default function PartnerManagementPage() {
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">{t("common.name")} <span className="text-red-400">*</span></label>
-                  <input name="name" placeholder="e.g. INYANGE Industries" value={form.name} className={inputCls} onChange={handleChange} />
+                  <input name="name" placeholder={t("partners.name_placeholder")} value={form.name} className={inputCls} onChange={handleChange} />
                   {errors.name && <p className="text-red-500 text-xs mt-1">{errors.name}</p>}
                 </div>
                 <div className="grid md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1"><span className="flex items-center gap-1"><Phone size={12} /> Phone</span></label>
+                    <label className="block text-xs font-medium text-gray-600 mb-1"><span className="flex items-center gap-1"><Phone size={12} /> {t("common.phone")}</span></label>
                     <input name="phone" placeholder="07XXXXXXXX" value={form.phone} maxLength={10} className={inputCls} onChange={handleChange} />
                     {errors.phone && <p className="text-red-500 text-xs mt-1">{errors.phone}</p>}
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1"><span className="flex items-center gap-1"><Building2 size={12} /> TIN <span className="text-[#1372e6]">(Supplier)</span></span></label>
-                    <input name="tin" placeholder="9-digit TIN" value={form.tin} maxLength={9} className={`${inputCls} font-mono`} onChange={handleChange} />
+                    <label className="block text-xs font-medium text-gray-600 mb-1"><span className="flex items-center gap-1"><Building2 size={12} /> TIN <span className="text-[#1372e6]">({t("partners.supplier_singular")})</span></span></label>
+                    <input name="tin" placeholder={t("partners.tin_placeholder")} value={form.tin} maxLength={9} className={`${inputCls} font-mono`} onChange={handleChange} />
                     {errors.tin && <p className="text-red-500 text-xs mt-1">{errors.tin}</p>}
                   </div>
                 </div>
                 {errors.contact && <p className="text-red-500 text-xs">{errors.contact}</p>}
                 <div className="grid md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1"><span className="flex items-center gap-1"><Mail size={12} /> Email</span></label>
+                    <label className="block text-xs font-medium text-gray-600 mb-1"><span className="flex items-center gap-1"><Mail size={12} /> {t("common.email")}</span></label>
                     <input name="email" placeholder="email@example.com" value={form.email} className={inputCls} onChange={handleChange} />
                     {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email}</p>}
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1"><span className="flex items-center gap-1"><MapPin size={12} /> Address</span></label>
-                    <input name="address" placeholder="Optional address" value={form.address} className={inputCls} onChange={handleChange} />
+                    <label className="block text-xs font-medium text-gray-600 mb-1"><span className="flex items-center gap-1"><MapPin size={12} /> {t("common.address")}</span></label>
+                    <input name="address" placeholder={t("partners.address_placeholder")} value={form.address} className={inputCls} onChange={handleChange} />
                   </div>
                 </div>
               </div>

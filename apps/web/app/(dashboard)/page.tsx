@@ -46,11 +46,11 @@ function fmtShort(n: number) {
   if (n >= 1_000)     return `${(n / 1_000).toFixed(0)}K`;
   return String(n);
 }
-function timeAgo(d: Date) {
+function timeAgo(d: Date, t: (key: string) => string) {
   const s = Math.floor((Date.now() - d.getTime()) / 1000);
-  if (s < 60)   return `${s}s ago`;
-  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
-  return `${Math.floor(s / 3600)}h ago`;
+  if (s < 60)   return `${s}${t("dash.ago_sec")}`;
+  if (s < 3600) return `${Math.floor(s / 60)}${t("dash.ago_min")}`;
+  return `${Math.floor(s / 3600)}${t("dash.ago_hour")}`;
 }
 function parseUTC(ts: string | null | undefined): Date {
   if (!ts) return new Date(0);
@@ -297,13 +297,13 @@ export default function DashboardPage() {
           <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-lg px-3 py-1.5">
             <AlertTriangle size={11} className="text-red-500 shrink-0" />
             <p className="text-[10px] text-red-700 flex-1 min-w-0">
-              Couldn&apos;t load inventory data — the product service may be temporarily unavailable. Sales and other figures below are unaffected.
+              {t("dash.service_error")}
             </p>
             <button
               onClick={manualRefresh}
               className="text-[10px] font-bold text-red-700 bg-red-100 hover:bg-red-200 px-2 py-0.5 rounded-md shrink-0 transition"
             >
-              Retry
+              {t("common.retry")}
             </button>
           </div>
         )}
@@ -323,8 +323,8 @@ export default function DashboardPage() {
               )}
               <div>
                 <p className="text-blue-200 text-[10px] font-medium uppercase tracking-widest">{t("dash.welcome")}</p>
-                <h1 className="text-lg md:text-xl font-bold mt-0.5">{currentShop?.name || user.name || "My Shop"}</h1>
-                <p className="text-blue-200 text-[11px] mt-0.5">{user.name} · {user.role || "Owner"}</p>
+                <h1 className="text-lg md:text-xl font-bold mt-0.5">{currentShop?.name || user.name || t("dash.my_shop")}</h1>
+                <p className="text-blue-200 text-[11px] mt-0.5">{user.name} · {user.role || t("dash.owner_role")}</p>
               </div>
             </div>
 
@@ -367,7 +367,7 @@ export default function DashboardPage() {
               <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
               {t("dash.live_refresh")} {countdown}s
             </span>
-            {lastUpdated && <span>{t("dash.last_updated")} {timeAgo(lastUpdated)}</span>}
+            {lastUpdated && <span>{t("dash.last_updated")} {timeAgo(lastUpdated, t)}</span>}
           </div>
         </section>
 
@@ -381,7 +381,7 @@ export default function DashboardPage() {
             size="lg"
             href="/reports"
             delta={revDeltaPct !== null ? { value: `${Math.abs(revDeltaPct)}%`, direction: revDeltaPct >= 0 ? "up" : "down" } : undefined}
-            subtitle={yesterdayRevenue > 0 ? `Yesterday: ${fmtCurrency(yesterdayRevenue)}` : "First day of data"}
+            subtitle={yesterdayRevenue > 0 ? `${t("dash.yesterday")}: ${fmtCurrency(yesterdayRevenue)}` : t("dash.first_day_data")}
           />
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:col-span-2 lg:grid-cols-5">
             <StatCard label={t("dash.products")} value={stats.products.toLocaleString()}
@@ -392,10 +392,10 @@ export default function DashboardPage() {
               icon={<ShoppingCart size={16} strokeWidth={2.5} />} tone="blue" href="/sales" subtitle={t("dash.transactions")} />
             <StatCard label={t("items.low_stock")} value={stats.lowStock.toLocaleString()}
               icon={<AlertTriangle size={16} strokeWidth={2.5} />}
-              tone={stats.lowStock > 0 ? "amber" : "slate"} href="/items" subtitle="≤ 10 units" />
+              tone={stats.lowStock > 0 ? "amber" : "slate"} href="/items" subtitle={t("dash.le_10_units")} />
             <StatCard label={t("items.out_stock")} value={stats.outOfStock.toLocaleString()}
               icon={<Package size={16} strokeWidth={2.5} />}
-              tone={stats.outOfStock > 0 ? "red" : "slate"} href="/items" subtitle="zero units" />
+              tone={stats.outOfStock > 0 ? "red" : "slate"} href="/items" subtitle={t("dash.zero_units")} />
           </div>
         </section>
 
@@ -515,7 +515,7 @@ export default function DashboardPage() {
                 </div>
                 <div className="flex items-center justify-between text-[9px] text-slate-400">
                   <span>{t("dash.revenue_today")}: {fmtCurrency(stats.revenue)}</span>
-                  <span className={isGood ? "text-green-600 font-semibold" : ""}>{isGood ? "✓ Healthy" : margin < 0 ? "⚠ Loss" : "Fair"}</span>
+                  <span className={isGood ? "text-green-600 font-semibold" : ""}>{isGood ? t("dash.margin_healthy") : margin < 0 ? t("dash.margin_loss") : t("dash.margin_fair")}</span>
                 </div>
               </div>
             );
@@ -626,8 +626,8 @@ export default function DashboardPage() {
                     <div className="flex-1 min-w-0">
                       <p className="text-xs font-semibold text-slate-800 truncate">{sale.product_name || t("nav.sales")}</p>
                       <p className="text-[10px] text-slate-400">
-                        {sale.quantity} unit{sale.quantity !== 1 ? "s" : ""}
-                        {sale.created_at ? ` · ${timeAgo(parseUTC(sale.created_at))}` : ""}
+                        {sale.quantity} {sale.quantity !== 1 ? t("dash.unit_plural") : t("dash.unit_singular")}
+                        {sale.created_at ? ` · ${timeAgo(parseUTC(sale.created_at), t)}` : ""}
                       </p>
                     </div>
                     <div className="text-right shrink-0">
@@ -744,7 +744,7 @@ export default function DashboardPage() {
                 </div>
                 <div>
                   <p className="text-xs font-semibold text-slate-700">
-                    {stats.sales} sale{stats.sales !== 1 ? "s" : ""} · {fmtCurrency(stats.revenue)}
+                    {stats.sales} {stats.sales !== 1 ? t("dash.sale_plural") : t("dash.sale_singular")} · {fmtCurrency(stats.revenue)}
                   </p>
                   {revDeltaPct !== null && (
                     <p className={`text-[10px] font-medium mt-0.5 flex items-center gap-1 ${revDeltaPct >= 0 ? "text-green-600" : "text-red-500"}`}>
@@ -790,7 +790,7 @@ export default function DashboardPage() {
               <img src="/logo.png" alt="Higoverse" className="w-7 h-7 rounded-lg object-cover" />
               <div>
                 <p className="text-xs font-bold text-slate-700">Higoverse</p>
-                <p className="text-[9px] text-slate-400">Rwanda's Business Platform</p>
+                <p className="text-[9px] text-slate-400">{t("dash.footer_tagline")}</p>
               </div>
             </div>
 
@@ -818,7 +818,7 @@ export default function DashboardPage() {
               )}
               {stats.lowStock > 0 && (
                 <span className="flex items-center gap-1 text-[9px] font-semibold text-amber-700 bg-amber-50 px-2 py-1 rounded-full">
-                  <AlertTriangle size={10} /> {stats.lowStock} low stock
+                  <AlertTriangle size={10} /> {stats.lowStock} {t("dash.low_stock_label")}
                 </span>
               )}
             </div>
@@ -827,7 +827,7 @@ export default function DashboardPage() {
             <div className="text-center sm:text-right">
               <p className="text-[9px] text-slate-400 font-medium">© {new Date().getFullYear()} Higoverse</p>
               {lastUpdated && (
-                <p className="text-[9px] text-slate-300 mt-0.5">Synced {fmtTime(lastUpdated)}</p>
+                <p className="text-[9px] text-slate-300 mt-0.5">{t("dash.synced")} {fmtTime(lastUpdated)}</p>
               )}
             </div>
 

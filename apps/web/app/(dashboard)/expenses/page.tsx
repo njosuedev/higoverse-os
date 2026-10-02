@@ -119,7 +119,7 @@ export default function ExpenseManagementPage() {
     });
   }
 
-  function showConfirm(title: string, message: string, confirmLabel = "Confirm", danger = false): Promise<boolean> {
+  function showConfirm(title: string, message: string, confirmLabel = t("common.confirm"), danger = false): Promise<boolean> {
     return new Promise((resolve) => {
       setDialog({
         type: "confirm", title, message, confirmLabel, danger,
@@ -187,9 +187,12 @@ export default function ExpenseManagementPage() {
         } catch { failed++; }
       }
       e.target.value = "";
-      await showAlert("Import complete", `Imported ${imported} expense${imported !== 1 ? "s" : ""}${failed ? ` · ${failed} row${failed !== 1 ? "s" : ""} failed` : ""}.`);
+      await showAlert(
+        t("expenses.import_complete_title"),
+        `${t("expenses.import_summary_imported")} ${imported} ${t("expenses.import_summary_records")}${failed ? ` · ${failed} ${t("expenses.import_summary_failed")}` : ""}.`
+      );
       await loadAll(true);
-    } catch { await showAlert("Import failed", "Could not parse the file. Check that it is a valid CSV or Excel file."); }
+    } catch { await showAlert(t("expenses.import_failed_title"), t("expenses.import_failed_msg")); }
   }
 
   async function fetchAllForExport(): Promise<Expense[]> {
@@ -562,15 +565,15 @@ export default function ExpenseManagementPage() {
       const res = await expenseRequest(`/expenses/${expenseId}/proof`);
       const files: ProofFile[] = res?.data?.files || [];
       if (files.length) { setViewingProofs(files); setViewerIndex(0); }
-      else await showAlert("No proof", "No proof files are attached to this expense.");
-    } catch { await showAlert("Error", "Could not load the proof. Please try again."); }
+      else await showAlert(t("expenses.no_proof_title"), t("expenses.no_proof_msg"));
+    } catch { await showAlert(t("common.error_title"), t("expenses.load_proof_error")); }
   }
 
   async function submitForm() {
-    if (!form.title.trim()) { await showAlert("Missing field", t("expenses.title_field") + " is required."); return; }
-    if (!form.amount || Number(form.amount) <= 0) { await showAlert("Invalid amount", t("expenses.amount") + " must be greater than 0."); return; }
-    if (!form.expense_date) { await showAlert("Missing field", t("expenses.expense_date") + " is required."); return; }
-    if (!form.payment_method) { await showAlert("Missing field", "Payment method is required. Please select MTN MoMo or Bank."); return; }
+    if (!form.title.trim()) { await showAlert(t("common.missing_field"), t("expenses.title_field") + t("common.field_required_suffix")); return; }
+    if (!form.amount || Number(form.amount) <= 0) { await showAlert(t("common.invalid_amount"), t("expenses.amount") + t("common.must_be_greater_than_zero_suffix")); return; }
+    if (!form.expense_date) { await showAlert(t("common.missing_field"), t("expenses.expense_date") + t("common.field_required_suffix")); return; }
+    if (!form.payment_method) { await showAlert(t("common.missing_field"), t("expenses.payment_method_required")); return; }
 
     try {
       setSubmitting(true);
@@ -598,15 +601,15 @@ export default function ExpenseManagementPage() {
       setProofEntries([]);
       await loadAll(true);
     } catch (err: unknown) {
-      await showAlert("Error", err instanceof Error ? err.message : "Something went wrong. Please try again.");
+      await showAlert(t("common.error_title"), err instanceof Error ? err.message : t("common.something_wrong"));
     } finally { setSubmitting(false); }
   }
 
   async function deleteExpense(id: string) {
     const ok = await showConfirm(
-      "Delete expense",
-      "This expense record will be permanently removed. This action cannot be undone.",
-      "Delete",
+      t("expenses.delete_title"),
+      t("expenses.delete_confirm_msg"),
+      t("common.delete"),
       true,
     );
     if (!ok) return;
@@ -614,7 +617,7 @@ export default function ExpenseManagementPage() {
       setDeletingId(id);
       await expenseRequest(`/expenses/${id}`, { method: "DELETE" });
       await loadAll(true);
-    } catch { await showAlert("Error", "Could not delete the expense. Please try again."); }
+    } catch { await showAlert(t("common.error_title"), t("expenses.delete_error")); }
     finally { setDeletingId(""); }
   }
 
@@ -663,6 +666,23 @@ export default function ExpenseManagementPage() {
     if (dateFrom === yearStart  && dateTo === today)  return "This Year";
     if (dateFrom || dateTo) return "Period";
     return "All Time";
+  })();
+
+  // Localized counterpart of periodLabel for on-screen UI (periodLabel itself
+  // stays English — it's also embedded in the Excel/PDF export documents).
+  const periodLabelLocalized = (() => {
+    const today = toDateStr(new Date());
+    const now = new Date();
+    const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
+    const yearStart  = `${now.getFullYear()}-01-01`;
+    const weekAgo    = toDateStr(new Date(Date.now() - 6 * 86_400_000));
+    if (search) return t("common.search");
+    if (dateFrom === today  && dateTo === today)      return t("daterange.today");
+    if (dateFrom === weekAgo && dateTo === today)     return t("daterange.week");
+    if (dateFrom === monthStart && dateTo === today)  return t("daterange.month");
+    if (dateFrom === yearStart  && dateTo === today)  return t("daterange.year");
+    if (dateFrom || dateTo) return t("common.period");
+    return t("common.all_time");
   })();
 
   const inputCls = "border border-slate-200 text-gray-800 placeholder:text-gray-400 rounded-md px-2 py-1 w-full text-[11px] focus:outline-none focus:ring-1 focus:ring-[#1372e6]/30 focus:border-[#1372e6] transition";
@@ -736,13 +756,13 @@ export default function ExpenseManagementPage() {
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 mb-2">
           {[
             {
-              label: `Total · ${periodLabel}`,
+              label: `${t("common.total")} · ${periodLabelLocalized}`,
               value: displayTotal.toLocaleString(),
               sub: `${displayCount} ${t("expenses.records")}`,
               color: "text-[#1372e6]", dot: "bg-[#1372e6]",
             },
             {
-              label: `Records · ${periodLabel}`,
+              label: `${t("expenses.records")} · ${periodLabelLocalized}`,
               value: String(displayCount),
               sub: displayTotal.toLocaleString(),
               color: "text-blue-700", dot: "bg-blue-600",
@@ -777,25 +797,25 @@ export default function ExpenseManagementPage() {
           {/* toolbar */}
           <div className="flex items-center justify-between px-3 py-1.5 border-b border-slate-100 bg-slate-50/60">
             <p className="text-[11px] text-slate-500">
-              Showing <span className="font-semibold text-slate-700">{filteredExpenses.length.toLocaleString()}</span> of <span className="font-semibold text-slate-700">{total.toLocaleString()}</span> {t("expenses.records")}
+              {t("common.showing")} <span className="font-semibold text-slate-700">{filteredExpenses.length.toLocaleString()}</span> {t("common.of")} <span className="font-semibold text-slate-700">{total.toLocaleString()}</span> {t("expenses.records")}
             </p>
             <div className="flex items-center gap-1.5">
               {(search || catFilter) && (
-                <button onClick={() => { setSearch(""); setCatFilter(""); setPage(1); }} className="flex items-center gap-1 text-[11px] text-slate-400 hover:text-slate-600 transition mr-1"><X size={10} /> Clear</button>
+                <button onClick={() => { setSearch(""); setCatFilter(""); setPage(1); }} className="flex items-center gap-1 text-[11px] text-slate-400 hover:text-slate-600 transition mr-1"><X size={10} /> {t("daterange.clear")}</button>
               )}
-              <button onClick={downloadTemplate} title="Download import template"
+              <button onClick={downloadTemplate} title={t("expenses.download_template_title")}
                 className="flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium border border-violet-200 text-violet-600 bg-white hover:bg-violet-50 transition">
-                <Download size={10} /> Template
+                <Download size={10} /> {t("common.template")}
               </button>
-              <button onClick={() => fileInputRef.current?.click()} title="Import from CSV/Excel"
+              <button onClick={() => fileInputRef.current?.click()} title={t("expenses.import_title_hint")}
                 className="flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium border border-violet-200 text-violet-600 bg-white hover:bg-violet-50 transition">
-                <Upload size={10} /> Import
+                <Upload size={10} /> {t("common.import")}
               </button>
-              <button onClick={exportExcel} title="Export to Excel"
+              <button onClick={exportExcel} title={t("common.export_excel_title")}
                 className="flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium border border-green-200 text-green-600 bg-white hover:bg-green-50 transition">
                 <FileSpreadsheet size={10} /> Excel
               </button>
-              <button onClick={exportPDF} title="Export to PDF"
+              <button onClick={exportPDF} title={t("common.export_pdf_title")}
                 className="flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium border border-red-200 text-red-600 bg-white hover:bg-red-50 transition">
                 <FileText size={10} /> PDF
               </button>
@@ -824,12 +844,12 @@ export default function ExpenseManagementPage() {
                     t("expenses.col_title"),
                     t("expenses.col_category"),
                     t("expenses.col_amount"),
-                    "Payment",
-                    "Bank Name",
-                    "Account / Ref",
-                    "Receiver Phone",
+                    t("expenses.payment_method"),
+                    t("expenses.bank_name"),
+                    t("expenses.account_ref"),
+                    t("expenses.receiver_phone"),
                     t("expenses.col_notes"),
-                    "Proof",
+                    t("expenses.proof"),
                     "",
                   ].map((h) => (
                     <th key={h} className="px-2.5 py-1.5 text-left text-[9px] font-semibold uppercase tracking-wider text-slate-500 whitespace-nowrap">{h}</th>
@@ -868,7 +888,7 @@ export default function ExpenseManagementPage() {
                           <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-yellow-100 text-yellow-700">MTN MoMo</span>
                         )}
                         {e.payment_method === "bank" && (
-                          <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-blue-100 text-blue-700">Bank</span>
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-blue-100 text-blue-700">{t("common.bank")}</span>
                         )}
                         {!e.payment_method && <span className="text-slate-300 text-[10px]">—</span>}
                       </td>
@@ -889,9 +909,9 @@ export default function ExpenseManagementPage() {
                       </td>
                       <td className="px-2.5 py-1">
                         {e.has_proof ? (
-                          <button onClick={() => openProofViewer(e.id)} title="View proof"
+                          <button onClick={() => openProofViewer(e.id)} title={t("expenses.view_proof_title")}
                             className="flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-emerald-50 hover:bg-emerald-100 text-emerald-600 transition text-[10px] font-medium">
-                            <Paperclip size={9} /> View
+                            <Paperclip size={9} /> {t("common.view")}
                           </button>
                         ) : (
                           <span className="text-slate-300 text-[10px] italic">—</span>
@@ -984,19 +1004,19 @@ export default function ExpenseManagementPage() {
                 <div className="grid grid-cols-2 divide-x divide-gray-100">
                   <button onClick={dialog.onClose}
                     className="py-2.5 text-[13px] font-semibold text-gray-600 hover:bg-gray-50 transition-colors">
-                    Cancel
+                    {t("common.cancel")}
                   </button>
                   <button onClick={dialog.onConfirm}
                     className={`py-2.5 text-[13px] font-bold transition-colors ${dialog.danger ? "text-red-600 hover:bg-red-50" : "hover:bg-[#EBF2FD]"}`}
                     style={dialog.danger ? {} : { color: "#1372e6" }}>
-                    {dialog.confirmLabel ?? "Confirm"}
+                    {dialog.confirmLabel ?? t("common.confirm")}
                   </button>
                 </div>
               ) : (
                 <button onClick={dialog.onClose}
                   className="w-full py-2.5 text-[13px] font-bold hover:bg-[#EBF2FD] transition-colors"
                   style={{ color: "#1372e6" }}>
-                  OK
+                  {t("common.ok")}
                 </button>
               )}
             </div>
@@ -1016,7 +1036,7 @@ export default function ExpenseManagementPage() {
                 <div className="flex items-center justify-between px-5 py-3 border-b border-slate-100 shrink-0">
                   <div className="flex items-center gap-2 text-sm font-semibold text-slate-700">
                     <Paperclip size={14} className="text-emerald-500" />
-                    Expense Proof
+                    {t("expenses.proof_viewer_title")}
                     {viewingProofs.length > 1 && (
                       <span className="text-xs font-normal text-slate-400 ml-1">
                         {viewerIndex + 1} / {viewingProofs.length}
@@ -1026,7 +1046,7 @@ export default function ExpenseManagementPage() {
                   <div className="flex items-center gap-2">
                     <a href={current.data} download={current.name}
                       className="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-medium text-slate-600 hover:bg-slate-50 transition">
-                      <Download size={11} /> Download
+                      <Download size={11} /> {t("common.download")}
                     </a>
                     <button onClick={() => setViewingProofs([])}
                       className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 transition"><X size={16} /></button>
@@ -1082,7 +1102,7 @@ export default function ExpenseManagementPage() {
                   <label className="block text-[10px] font-medium text-gray-500 mb-0.5">
                     {t("expenses.title_field")} <span className="text-red-400">*</span>
                   </label>
-                  <input className={inputCls} placeholder="e.g. Monthly rent, Electricity bill"
+                  <input className={inputCls} placeholder={t("expenses.title_placeholder")}
                     value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
                 </div>
 
@@ -1119,14 +1139,14 @@ export default function ExpenseManagementPage() {
                   </div>
                   <div>
                     <label className="block text-[10px] font-medium text-gray-500 mb-0.5">{t("common.notes")}</label>
-                    <input className={inputCls} placeholder="Optional notes..."
+                    <input className={inputCls} placeholder={t("common.notes_placeholder")}
                       value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
                   </div>
                 </div>
 
                 {/* Payment method */}
                 <div className="border border-slate-100 rounded-lg p-2 bg-slate-50/50">
-                  <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Payment Method</p>
+                  <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1.5">{t("expenses.payment_method")}</p>
                   <div className="flex gap-1.5 mb-1.5">
                     {(["", "mtn", "bank"] as PaymentMethod[]).map((m) => (
                       <button key={m} type="button"
@@ -1139,7 +1159,7 @@ export default function ExpenseManagementPage() {
                             : "bg-white border-slate-200 text-slate-400 hover:border-slate-300"
                         }`}
                         style={form.payment_method === m && m === "bank" ? { background: "#1372e6" } : {}}>
-                        {m === "" ? "None" : m === "mtn" ? "MTN MoMo" : "Bank"}
+                        {m === "" ? t("common.none") : m === "mtn" ? "MTN MoMo" : t("common.bank")}
                       </button>
                     ))}
                   </div>
@@ -1147,16 +1167,16 @@ export default function ExpenseManagementPage() {
                   {form.payment_method === "bank" && (
                     <div className="grid grid-cols-2 gap-1.5 mb-1.5">
                       <div>
-                        <label className="block text-[10px] font-medium text-gray-500 mb-0.5">Bank Name</label>
+                        <label className="block text-[10px] font-medium text-gray-500 mb-0.5">{t("expenses.bank_name")}</label>
                         <select className={inputCls} value={form.bank_name}
                           onChange={(e) => setForm({ ...form, bank_name: e.target.value })}>
-                          <option value="">Select bank…</option>
+                          <option value="">{t("expenses.select_bank")}</option>
                           {BANK_NAMES.map((b) => <option key={b} value={b}>{b}</option>)}
                         </select>
                       </div>
                       <div>
-                        <label className="block text-[10px] font-medium text-gray-500 mb-0.5">Account / Ref.</label>
-                        <input className={inputCls} placeholder="Account no. or ref."
+                        <label className="block text-[10px] font-medium text-gray-500 mb-0.5">{t("expenses.account_ref")}</label>
+                        <input className={inputCls} placeholder={t("expenses.account_ref_placeholder")}
                           value={form.bank_account} onChange={(e) => setForm({ ...form, bank_account: e.target.value })} />
                       </div>
                     </div>
@@ -1165,7 +1185,7 @@ export default function ExpenseManagementPage() {
                   {form.payment_method !== "" && (
                     <div>
                       <label className="block text-[10px] font-medium text-gray-500 mb-0.5">
-                        {form.payment_method === "mtn" ? "Receiver Phone (MTN)" : "Receiver Phone"}
+                        {form.payment_method === "mtn" ? t("expenses.receiver_phone_mtn") : t("expenses.receiver_phone")}
                       </label>
                       <input className={inputCls} placeholder="+250 7XX XXX XXX"
                         value={form.receiver_phone} onChange={(e) => setForm({ ...form, receiver_phone: e.target.value })} />
@@ -1176,8 +1196,8 @@ export default function ExpenseManagementPage() {
                 {/* Proof upload */}
                 <div>
                   <label className="flex items-center gap-1 text-[10px] font-medium text-gray-500 mb-0.5">
-                    <Paperclip size={9} /> Proof
-                    <span className="text-slate-400 font-normal ml-1">up to 5 · image or PDF · max 5 MB</span>
+                    <Paperclip size={9} /> {t("expenses.proof")}
+                    <span className="text-slate-400 font-normal ml-1">{t("expenses.proof_hint")}</span>
                   </label>
                   <input ref={proofInputRef} type="file" accept="image/*,application/pdf"
                     multiple className="hidden" onChange={handleProofSelect} />
@@ -1207,7 +1227,7 @@ export default function ExpenseManagementPage() {
                     <button type="button" onClick={() => proofInputRef.current?.click()}
                       className="w-full border border-dashed border-slate-300 hover:border-[#1372e6] rounded-md px-2 py-1.5 flex items-center justify-center gap-1 text-[10px] text-slate-400 hover:text-[#1372e6] transition-colors">
                       <ImageIcon size={10} />
-                      {proofEntries.length === 0 ? "Attach receipts / documents" : `Add more (${5 - proofEntries.length} left)`}
+                      {proofEntries.length === 0 ? t("expenses.attach_receipts") : `${t("expenses.add_more")} (${5 - proofEntries.length})`}
                     </button>
                   )}
                 </div>

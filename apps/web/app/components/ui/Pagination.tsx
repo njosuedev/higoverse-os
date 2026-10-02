@@ -1,6 +1,7 @@
 "use client";
 
 import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react";
+import { useLanguage } from "@/lib/language-context";
 
 interface Props {
   page: number;
@@ -26,6 +27,8 @@ export default function Pagination({
   page, totalPages, total, pageSize, pageSizes = [25, 50, 100, 250],
   onPage, onPageSize,
 }: Props) {
+  const { t } = useLanguage();
+
   if (totalPages <= 1 && total <= pageSizes[0]) return null;
 
   const from = Math.min((page - 1) * pageSize + 1, total);
@@ -41,15 +44,15 @@ export default function Pagination({
       {/* record count */}
       <div className="flex items-center gap-3 text-xs text-slate-500">
         <span>
-          Showing <span className="font-semibold text-slate-700">{total === 0 ? 0 : from}–{to}</span> of{" "}
-          <span className="font-semibold text-slate-700">{total.toLocaleString()}</span> records
+          {t("common.showing")} <span className="font-semibold text-slate-700">{total === 0 ? 0 : from}–{to}</span> {t("common.of")}{" "}
+          <span className="font-semibold text-slate-700">{total.toLocaleString()}</span> {t("common.records")}
         </span>
         <select
           value={pageSize}
           onChange={(e) => { onPageSize(Number(e.target.value)); onPage(1); }}
           className="border border-slate-200 rounded-lg px-2 py-1 text-xs text-slate-600 focus:outline-none focus:ring-2 focus:ring-slate-300"
         >
-          {pageSizes.map((s) => <option key={s} value={s}>{s} per page</option>)}
+          {pageSizes.map((s) => <option key={s} value={s}>{s} {t("common.per_page")}</option>)}
         </select>
       </div>
 

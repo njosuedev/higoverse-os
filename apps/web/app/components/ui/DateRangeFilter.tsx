@@ -1,6 +1,7 @@
 "use client";
 
 import { Calendar, X } from "lucide-react";
+import { useLanguage } from "@/lib/language-context";
 
 interface Props {
   from: string;
@@ -26,6 +27,7 @@ function applyPreset(preset: Preset): { from: string; to: string } {
 }
 
 export default function DateRangeFilter({ from, to, onFrom, onTo, onClear, accentClass = "focus:ring-slate-500/30 focus:border-slate-400" }: Props) {
+  const { t } = useLanguage();
   const hasFilter = from || to;
   const inputCls = `bg-white/10 border border-white/20 text-white text-xs rounded-lg px-2.5 py-1.5 focus:outline-none ${accentClass} placeholder:text-white/40`;
 
@@ -52,13 +54,13 @@ export default function DateRangeFilter({ from, to, onFrom, onTo, onClear, accen
           onClick={() => preset(p)}
           className="text-xs px-2.5 py-1.5 rounded-lg bg-white/10 text-white/80 hover:bg-white/20 transition capitalize"
         >
-          {p === "today" ? "Today" : p === "week" ? "7 days" : p === "month" ? "This month" : "This year"}
+          {p === "today" ? t("daterange.today") : p === "week" ? t("daterange.week") : p === "month" ? t("daterange.month") : t("daterange.year")}
         </button>
       ))}
 
       {hasFilter && (
         <button onClick={onClear} className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg bg-white/20 text-white hover:bg-white/30 transition">
-          <X size={11} /> Clear
+          <X size={11} /> {t("daterange.clear")}
         </button>
       )}
     </div>

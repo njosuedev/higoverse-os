@@ -33,18 +33,26 @@ function fmtDate(s: string) {
   return d.toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" });
 }
 
-const STATUS_META: Record<ProformaStatus, { label: string; color: string; icon: React.ReactNode }> = {
-  draft:    { label: "Draft",    color: "bg-slate-100 text-slate-600 border-slate-200",   icon: <Pencil size={10} /> },
-  sent:     { label: "Sent",     color: "bg-blue-50 text-blue-600 border-blue-200",       icon: <Send size={10} /> },
-  accepted: { label: "Accepted", color: "bg-green-50 text-green-700 border-green-200",    icon: <CheckCircle2 size={10} /> },
-  expired:  { label: "Expired",  color: "bg-red-50 text-red-600 border-red-200",          icon: <AlertCircle size={10} /> },
+const STATUS_META: Record<ProformaStatus, { color: string; icon: React.ReactNode }> = {
+  draft:    { color: "bg-slate-100 text-slate-600 border-slate-200",   icon: <Pencil size={10} /> },
+  sent:     { color: "bg-blue-50 text-blue-600 border-blue-200",       icon: <Send size={10} /> },
+  accepted: { color: "bg-green-50 text-green-700 border-green-200",    icon: <CheckCircle2 size={10} /> },
+  expired:  { color: "bg-red-50 text-red-600 border-red-200",          icon: <AlertCircle size={10} /> },
+};
+
+const STATUS_LABEL_KEY: Record<ProformaStatus, string> = {
+  draft: "proforma.status_draft",
+  sent: "proforma.status_sent",
+  accepted: "proforma.status_accepted",
+  expired: "proforma.status_expired",
 };
 
 function StatusBadge({ status }: { status: ProformaStatus }) {
+  const { t } = useLanguage();
   const m = STATUS_META[status] ?? STATUS_META.draft;
   return (
     <span className={`inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full border ${m.color}`}>
-      {m.icon} {m.label}
+      {m.icon} {t(STATUS_LABEL_KEY[status] ?? STATUS_LABEL_KEY.draft)}
     </span>
   );
 }
@@ -73,7 +81,7 @@ function ProformaPageContent() {
   const [view, setView]           = useState<PageView>("editor");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [saving, setSaving]       = useState(false);
-  const [saveMsg, setSaveMsg]     = useState("");
+  const [saveMsg, setSaveMsg]     = useState<"" | "success" | "error">("");
 
   const [invoiceNo, setInvoiceNo]             = useState(genInvoiceNo);
   const [date, setDate]                       = useState(toDateStr(new Date()));
@@ -208,13 +216,13 @@ function ProformaPageContent() {
         if (saved) setEditingId(saved.id);
       }
       if (saved) {
-        setSaveMsg("Saved");
+        setSaveMsg("success");
         await loadHistory();
         if (andPrint) printPopup();
         setTimeout(() => setSaveMsg(""), 3000);
       }
     } catch {
-      setSaveMsg("Save failed");
+      setSaveMsg("error");
       setTimeout(() => setSaveMsg(""), 3000);
     } finally {
       setSaving(false);
@@ -222,7 +230,7 @@ function ProformaPageContent() {
   }
 
   async function handleDelete(id: string) {
-    if (!confirm("Delete this proforma?")) return;
+    if (!confirm(t("common.confirm_delete"))) return;
     setDeletingId(id);
     try {
       await deleteProforma(id);
@@ -403,7 +411,7 @@ function ProformaPageContent() {
               <div>
                 <h1 className="text-base font-semibold">{t("proforma.title")}</h1>
                 <p className="text-blue-200 text-xs mt-0.5">
-                  {editingId ? `Editing ${invoiceNo}` : "Create and save proforma invoices"}
+                  {editingId ? `${t("proforma.editing")} ${invoiceNo}` : t("proforma.create_hint")}
                 </p>
               </div>
             </div>
@@ -414,13 +422,13 @@ function ProformaPageContent() {
                   onClick={() => setView("editor")}
                   className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold transition ${view === "editor" ? "bg-white text-blue-700" : "text-white hover:bg-white/10"}`}
                 >
-                  <Pencil size={12} /> Editor
+                  <Pencil size={12} /> {t("proforma.tab_editor")}
                 </button>
                 <button
                   onClick={() => { setView("history"); loadHistory(); }}
                   className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold transition ${view === "history" ? "bg-white text-blue-700" : "text-white hover:bg-white/10"}`}
                 >
-                  <History size={12} /> History
+                  <History size={12} /> {t("proforma.tab_history")}
                   {proformas.length > 0 && (
                     <span className="bg-white/20 text-white rounded-full px-1.5 text-[10px]">{proformas.length}</span>
                   )}
@@ -429,12 +437,12 @@ function ProformaPageContent() {
 
               {view === "editor" && (
                 <>
-                  <button onClick={clearAll} title="New proforma" className="p-2 rounded-lg bg-white/10 hover:bg-white/20 text-white transition">
+                  <button onClick={clearAll} title={t("proforma.new_tooltip")} className="p-2 rounded-lg bg-white/10 hover:bg-white/20 text-white transition">
                     <RefreshCw size={14} />
                   </button>
                   <button onClick={addLine}
                     className="bg-white/10 hover:bg-white/20 text-white px-3.5 py-1.5 rounded-lg flex items-center gap-1.5 text-sm font-semibold transition border border-white/20">
-                    <Plus size={15} /> Add Line
+                    <Plus size={15} /> {t("proforma.add_line")}
                   </button>
                   <button
                     onClick={() => saveProforma(false)}
@@ -442,14 +450,14 @@ function ProformaPageContent() {
                     className="bg-white text-blue-700 px-3.5 py-1.5 rounded-lg flex items-center gap-1.5 text-sm font-semibold hover:bg-blue-50 transition disabled:opacity-40"
                   >
                     <Save size={15} />
-                    {saving ? "Saving…" : saveMsg || "Save"}
+                    {saving ? t("proforma.saving") : saveMsg === "success" ? t("proforma.saved_short") : saveMsg === "error" ? t("proforma.save_failed") : t("proforma.save")}
                   </button>
                   <button
                     onClick={() => saveProforma(true)}
                     disabled={!hasLines || saving}
                     className="bg-blue-800 hover:bg-blue-900 text-white px-3.5 py-1.5 rounded-lg flex items-center gap-1.5 text-sm font-semibold transition disabled:opacity-40"
                   >
-                    <Printer size={15} /> Save & Print
+                    <Printer size={15} /> {t("proforma.save_print")}
                   </button>
                 </>
               )}
@@ -466,10 +474,10 @@ function ProformaPageContent() {
                   onClick={() => setView("editor")}
                   className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-blue-600 border border-slate-200 hover:border-blue-300 px-2.5 py-1.5 rounded-lg transition"
                 >
-                  <ChevronRight size={12} className="rotate-180" /> Back
+                  <ChevronRight size={12} className="rotate-180" /> {t("common.back")}
                 </button>
                 <h2 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-                  <History size={15} className="text-blue-500" /> Saved Proformas
+                  <History size={15} className="text-blue-500" /> {t("proforma.saved_proformas")}
                   <span className="text-xs font-normal text-slate-400">({proformas.length})</span>
                 </h2>
               </div>
@@ -479,7 +487,7 @@ function ProformaPageContent() {
                   <input
                     value={histSearch}
                     onChange={(e) => setHistSearch(e.target.value)}
-                    placeholder="Search invoices…"
+                    placeholder={t("proforma.search_invoices")}
                     className="border border-slate-200 rounded-lg pl-8 pr-3 py-1.5 text-sm w-52 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition"
                   />
                 </div>
@@ -491,21 +499,21 @@ function ProformaPageContent() {
 
             {histLoading && proformas.length === 0 ? (
               <div className="flex items-center justify-center py-16 text-slate-400 text-sm">
-                <RefreshCw size={16} className="animate-spin mr-2" /> Loading…
+                <RefreshCw size={16} className="animate-spin mr-2" /> {t("common.loading")}
               </div>
             ) : filteredHistory.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-16 text-center">
                 <FileText size={32} className="text-slate-200 mb-3" />
                 <p className="text-slate-500 font-medium text-sm">
-                  {histSearch ? "No proformas match your search" : "No saved proformas yet"}
+                  {histSearch ? t("proforma.no_match_search") : t("proforma.no_saved_yet")}
                 </p>
                 <p className="text-slate-400 text-xs mt-1">
-                  {!histSearch && "Create and save a proforma to see it here"}
+                  {!histSearch && t("proforma.create_to_see")}
                 </p>
                 {!histSearch && (
                   <button onClick={() => setView("editor")}
                     className="mt-4 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-blue-700 transition flex items-center gap-2">
-                    <Plus size={14} /> Create Proforma
+                    <Plus size={14} /> {t("proforma.create_cta")}
                   </button>
                 )}
               </div>
@@ -520,20 +528,20 @@ function ProformaPageContent() {
                       </div>
                       <div className="flex items-center gap-3 mt-0.5 text-xs text-slate-500 flex-wrap">
                         <span className="font-medium text-slate-700 truncate max-w-40">
-                          {p.customer || <span className="italic text-slate-300">No customer</span>}
+                          {p.customer || <span className="italic text-slate-300">{t("proforma.no_customer")}</span>}
                         </span>
                         <span className="flex items-center gap-1"><Calendar size={10} /> {fmtDate(p.date)}</span>
-                        <span className="flex items-center gap-1"><Clock size={10} /> Valid until {fmtDate(p.valid_until)}</span>
+                        <span className="flex items-center gap-1"><Clock size={10} /> {t("proforma.valid_until_short")} {fmtDate(p.valid_until)}</span>
                       </div>
                     </div>
                     <div className="text-right shrink-0">
                       <p className="font-bold text-slate-800 tabular-nums">{p.grand_total.toLocaleString()} <span className="text-xs font-normal text-slate-400">{p.currency}</span></p>
-                      <p className="text-[10px] text-slate-400">{p.lines.length} item{p.lines.length !== 1 ? "s" : ""}</p>
+                      <p className="text-[10px] text-slate-400">{p.lines.length} {t("proforma.items_unit")}</p>
                     </div>
                     <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition">
                       <button
                         onClick={() => loadProforma(p)}
-                        title="Edit"
+                        title={t("common.edit")}
                         className="p-1.5 rounded-lg hover:bg-blue-50 text-slate-400 hover:text-blue-600 transition"
                       >
                         <Eye size={14} />
@@ -543,7 +551,7 @@ function ProformaPageContent() {
                           loadProforma(p);
                           setTimeout(() => printPopup(), 100);
                         }}
-                        title="Print"
+                        title={t("common.print")}
                         className="p-1.5 rounded-lg hover:bg-blue-50 text-slate-400 hover:text-blue-600 transition"
                       >
                         <Printer size={14} />
@@ -551,7 +559,7 @@ function ProformaPageContent() {
                       <button
                         onClick={() => handleDelete(p.id)}
                         disabled={deletingId === p.id}
-                        title="Delete"
+                        title={t("common.delete")}
                         className="p-1.5 rounded-lg hover:bg-red-50 text-slate-300 hover:text-red-400 transition disabled:opacity-40"
                       >
                         <Trash2 size={14} />
@@ -576,36 +584,36 @@ function ProformaPageContent() {
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-2">
                     <Hash size={15} className="text-blue-500" />
-                    <h2 className="text-sm font-semibold text-slate-700">Invoice Details</h2>
+                    <h2 className="text-sm font-semibold text-slate-700">{t("proforma.invoice_details")}</h2>
                   </div>
                   {/* Status picker */}
                   <div className="flex items-center gap-2">
-                    <span className="text-xs text-slate-400">Status:</span>
+                    <span className="text-xs text-slate-400">{t("common.status")}:</span>
                     <select
                       value={status}
                       onChange={(e) => setStatus(e.target.value as ProformaStatus)}
                       className="border border-slate-200 rounded-lg px-2 py-1 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition text-slate-700"
                     >
-                      <option value="draft">Draft</option>
-                      <option value="sent">Sent</option>
-                      <option value="accepted">Accepted</option>
-                      <option value="expired">Expired</option>
+                      <option value="draft">{t("proforma.status_draft")}</option>
+                      <option value="sent">{t("proforma.status_sent")}</option>
+                      <option value="accepted">{t("proforma.status_accepted")}</option>
+                      <option value="expired">{t("proforma.status_expired")}</option>
                     </select>
                   </div>
                 </div>
                 <div className="grid grid-cols-3 gap-4">
                   <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1.5">Invoice #</label>
+                    <label className="block text-xs font-medium text-gray-500 mb-1.5">{t("proforma.invoice_number_label")}</label>
                     <input className={inputCls} value={invoiceNo} onChange={(e) => setInvoiceNo(e.target.value)} />
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-gray-500 mb-1.5">
-                      <Calendar size={11} className="inline mr-1" />Issue Date
+                      <Calendar size={11} className="inline mr-1" />{t("proforma.issue_date")}
                     </label>
                     <input type="date" className={inputCls} value={date} onChange={(e) => setDate(e.target.value)} />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1.5">Valid Until</label>
+                    <label className="block text-xs font-medium text-gray-500 mb-1.5">{t("proforma.valid_until")}</label>
                     <input type="date" className={inputCls} value={validUntilDate} onChange={(e) => setValidUntilDate(e.target.value)} />
                   </div>
                 </div>
@@ -615,20 +623,20 @@ function ProformaPageContent() {
               <div className="bg-white rounded-xl border border-slate-200 p-5">
                 <div className="flex items-center gap-2 mb-4">
                   <User size={15} className="text-blue-500" />
-                  <h2 className="text-sm font-semibold text-slate-700">Bill To (Customer)</h2>
+                  <h2 className="text-sm font-semibold text-slate-700">{t("proforma.bill_to_customer")}</h2>
                 </div>
                 <div className="grid md:grid-cols-2 gap-4">
                   <div className="md:col-span-2">
-                    <label className="block text-xs font-medium text-gray-500 mb-1.5">Customer / Company Name</label>
-                    <input className={inputCls} placeholder="e.g. INYANGE Industries Ltd" value={customer} onChange={(e) => setCustomer(e.target.value)} />
+                    <label className="block text-xs font-medium text-gray-500 mb-1.5">{t("proforma.customer_company_name")}</label>
+                    <input className={inputCls} placeholder={t("proforma.customer_name_placeholder")} value={customer} onChange={(e) => setCustomer(e.target.value)} />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1.5">Phone</label>
+                    <label className="block text-xs font-medium text-gray-500 mb-1.5">{t("common.phone")}</label>
                     <input className={inputCls} placeholder="07XXXXXXXX" value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1.5">Address / Location</label>
-                    <input className={inputCls} placeholder="e.g. Kigali, Rwanda" value={customerAddress} onChange={(e) => setCustomerAddress(e.target.value)} />
+                    <label className="block text-xs font-medium text-gray-500 mb-1.5">{t("proforma.address_location")}</label>
+                    <input className={inputCls} placeholder={t("proforma.address_placeholder")} value={customerAddress} onChange={(e) => setCustomerAddress(e.target.value)} />
                   </div>
                 </div>
               </div>
@@ -638,16 +646,16 @@ function ProformaPageContent() {
                 <div className="bg-slate-50 border-b border-slate-200 px-5 py-3 flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Building2 size={15} className="text-blue-500" />
-                    <h2 className="text-sm font-semibold text-slate-700">Items / Services</h2>
+                    <h2 className="text-sm font-semibold text-slate-700">{t("proforma.items_services")}</h2>
                   </div>
                   <button onClick={addLine}
                     className="flex items-center gap-1 text-xs font-semibold text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 px-2.5 py-1 rounded-lg transition">
-                    <Plus size={12} /> Add Line
+                    <Plus size={12} /> {t("proforma.add_line")}
                   </button>
                 </div>
 
                 <div className="grid grid-cols-[1fr_80px_110px_100px_32px] gap-2 px-5 py-2.5 bg-slate-50 border-b border-slate-100 text-[10px] font-semibold uppercase text-slate-400 tracking-wide">
-                  <span>Description</span><span className="text-center">Qty</span><span className="text-center">Unit Price</span><span className="text-right">Subtotal</span><span />
+                  <span>{t("proforma.description_col")}</span><span className="text-center">{t("proforma.col_qty")}</span><span className="text-center">{t("proforma.col_price")}</span><span className="text-right">{t("proforma.subtotal")}</span><span />
                 </div>
 
                 <div className="divide-y divide-slate-100">
@@ -660,7 +668,7 @@ function ProformaPageContent() {
                             <input
                               value={line.product_name}
                               onChange={(e) => setLineField(line.id, "product_name", e.target.value)}
-                              placeholder="Product or service description…"
+                              placeholder={t("proforma.product_placeholder")}
                               className="border border-slate-200 text-gray-800 placeholder:text-gray-400 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition"
                             />
                             {products.length > 0 && (
@@ -669,7 +677,7 @@ function ProformaPageContent() {
                                 defaultValue=""
                                 onChange={(e) => { if (e.target.value) onProductPick(line.id, e.target.value); }}
                               >
-                                <option value="">— Pick from inventory —</option>
+                                <option value="">{t("proforma.pick_from_inventory")}</option>
                                 {products.map((p) => (
                                   <option key={p.id} value={p.id}>{p.name} ({p.selling_price.toLocaleString()} {currency})</option>
                                 ))}
@@ -697,17 +705,17 @@ function ProformaPageContent() {
                 <div className="px-5 py-4 bg-slate-50 border-t border-slate-200 flex justify-end">
                   <div className="w-60 space-y-2 text-sm">
                     <div className="flex justify-between text-slate-500">
-                      <span>Subtotal</span>
+                      <span>{t("proforma.subtotal")}</span>
                       <span className="tabular-nums font-medium text-slate-700">{subtotal2.toLocaleString()} {currency}</span>
                     </div>
                     {taxRate > 0 && (
                       <div className="flex justify-between text-slate-500">
-                        <span>Tax ({taxRate}%)</span>
+                        <span>{t("proforma.tax")} ({taxRate}%)</span>
                         <span className="tabular-nums font-medium">{taxAmt2.toLocaleString()} {currency}</span>
                       </div>
                     )}
                     <div className="flex justify-between pt-2 border-t-2 border-blue-700">
-                      <span className="font-bold text-slate-900">Grand Total</span>
+                      <span className="font-bold text-slate-900">{t("proforma.grand_total")}</span>
                       <span className="font-bold text-blue-700 text-base tabular-nums">{grandTotal2.toLocaleString()} {currency}</span>
                     </div>
                   </div>
@@ -716,9 +724,9 @@ function ProformaPageContent() {
 
               {/* Notes */}
               <div className="bg-white rounded-xl border border-slate-200 p-5">
-                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Notes / Terms & Conditions</label>
+                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">{t("proforma.notes")}</label>
                 <textarea value={notes} onChange={(e) => setNotes(e.target.value)}
-                  rows={3} placeholder="e.g. Payment due within 30 days. Prices subject to change."
+                  rows={3} placeholder={t("proforma.notes_placeholder_long")}
                   className={inputCls + " resize-none"} />
               </div>
 
@@ -729,7 +737,7 @@ function ProformaPageContent() {
 
               {/* Issued by */}
               <div className="bg-white rounded-xl border border-slate-200 p-4">
-                <h3 className="text-xs font-semibold uppercase text-slate-400 tracking-wide mb-3">Issued By</h3>
+                <h3 className="text-xs font-semibold uppercase text-slate-400 tracking-wide mb-3">{t("proforma.issued_by")}</h3>
                 <div className="flex items-start gap-2.5">
                   <div className="w-9 h-9 rounded-lg overflow-hidden shrink-0 flex items-center justify-center bg-blue-600 text-white font-bold text-sm">
                     {shop.logo_url
@@ -738,7 +746,7 @@ function ProformaPageContent() {
                       : (shop.name || "?")[0]?.toUpperCase()}
                   </div>
                   <div>
-                    <p className="font-semibold text-slate-800 text-sm">{shop.name || "Your Shop"}</p>
+                    <p className="font-semibold text-slate-800 text-sm">{shop.name || t("proforma.your_shop")}</p>
                     {shop.phone && <p className="text-xs text-slate-400 mt-0.5">{shop.phone}</p>}
                     {publicAddr && <p className="text-xs text-slate-400">{publicAddr}</p>}
                   </div>
@@ -747,46 +755,46 @@ function ProformaPageContent() {
 
               {/* Summary */}
               <div className="bg-white rounded-xl border border-slate-200 p-4">
-                <h3 className="text-xs font-semibold uppercase text-slate-400 tracking-wide mb-3">Invoice Summary</h3>
+                <h3 className="text-xs font-semibold uppercase text-slate-400 tracking-wide mb-3">{t("proforma.invoice_summary")}</h3>
                 <div className="space-y-2.5">
                   <div className="flex justify-between text-sm">
-                    <span className="text-slate-500">Number</span>
+                    <span className="text-slate-500">{t("proforma.number_label")}</span>
                     <span className="font-mono font-semibold text-blue-600">{invoiceNo}</span>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span className="text-slate-500">Status</span>
+                    <span className="text-slate-500">{t("common.status")}</span>
                     <StatusBadge status={status} />
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span className="text-slate-500">Date</span>
+                    <span className="text-slate-500">{t("common.date")}</span>
                     <span className="font-medium text-slate-700">{fmtDate(date) || "—"}</span>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span className="text-slate-500">Valid Until</span>
+                    <span className="text-slate-500">{t("proforma.valid_until")}</span>
                     <span className="font-medium text-slate-700">{fmtDate(validUntilDate) || "—"}</span>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span className="text-slate-500">Bill To</span>
-                    <span className="font-medium text-slate-700 text-right max-w-28 truncate">{customer || <span className="text-slate-300 italic">Not set</span>}</span>
+                    <span className="text-slate-500">{t("proforma.bill_to_label")}</span>
+                    <span className="font-medium text-slate-700 text-right max-w-28 truncate">{customer || <span className="text-slate-300 italic">{t("proforma.not_set")}</span>}</span>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span className="text-slate-500">Line Items</span>
+                    <span className="text-slate-500">{t("proforma.line_items_label")}</span>
                     <span className="font-medium text-slate-700">{lines.filter((l) => l.product_name.trim()).length}</span>
                   </div>
                   <div className="border-t border-slate-100 pt-2.5 mt-2.5">
                     <div className="flex justify-between">
-                      <span className="text-sm text-slate-500">Subtotal</span>
+                      <span className="text-sm text-slate-500">{t("proforma.subtotal")}</span>
                       <span className="font-medium text-slate-700 tabular-nums text-sm">{subtotal2.toLocaleString()}</span>
                     </div>
                     {taxRate > 0 && (
                       <div className="flex justify-between mt-1.5">
-                        <span className="text-sm text-slate-500">Tax ({taxRate}%)</span>
+                        <span className="text-sm text-slate-500">{t("proforma.tax")} ({taxRate}%)</span>
                         <span className="font-medium text-slate-700 tabular-nums text-sm">{taxAmt2.toLocaleString()}</span>
                       </div>
                     )}
                   </div>
                   <div className="bg-blue-600 rounded-lg px-3 py-3 flex justify-between items-center">
-                    <span className="text-blue-100 text-xs font-semibold uppercase tracking-wide">Grand Total</span>
+                    <span className="text-blue-100 text-xs font-semibold uppercase tracking-wide">{t("proforma.grand_total")}</span>
                     <span className="text-white font-bold tabular-nums">{grandTotal2.toLocaleString()} {currency}</span>
                   </div>
                 </div>
@@ -799,7 +807,7 @@ function ProformaPageContent() {
                 className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-white border-2 border-blue-600 text-blue-700 font-semibold hover:bg-blue-50 transition disabled:opacity-40 text-sm"
               >
                 <Save size={16} />
-                {saving ? "Saving…" : editingId ? "Update Proforma" : "Save Proforma"}
+                {saving ? t("proforma.saving") : editingId ? t("proforma.update_proforma") : t("proforma.save_proforma")}
               </button>
 
               <button
@@ -808,33 +816,33 @@ function ProformaPageContent() {
                 className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-blue-600 text-white font-semibold hover:bg-blue-700 transition disabled:opacity-40 text-sm"
               >
                 <Printer size={16} />
-                Save & Print PDF
+                {t("proforma.save_print_pdf")}
               </button>
 
               {saveMsg && (
-                <p className={`text-center text-xs font-semibold ${saveMsg === "Saved" ? "text-green-600" : "text-red-500"}`}>
-                  {saveMsg === "Saved" ? "✓ Proforma saved successfully" : "✗ " + saveMsg}
+                <p className={`text-center text-xs font-semibold ${saveMsg === "success" ? "text-green-600" : "text-red-500"}`}>
+                  {saveMsg === "success" ? `✓ ${t("proforma.saved_success")}` : `✗ ${t("proforma.save_failed")}`}
                 </p>
               )}
 
               {!hasLines && (
-                <p className="text-center text-xs text-slate-400">Add at least one item to save or print.</p>
+                <p className="text-center text-xs text-slate-400">{t("proforma.no_lines")}</p>
               )}
 
               <button onClick={clearAll}
                 className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-slate-200 text-slate-500 font-medium hover:bg-slate-50 transition text-sm">
                 <Trash2 size={14} />
-                {editingId ? "New Proforma" : "Clear All"}
+                {editingId ? t("proforma.new_proforma_btn") : t("proforma.clear")}
               </button>
 
               {/* Quick validity */}
               <div className="bg-white rounded-xl border border-slate-200 p-4">
-                <h3 className="text-xs font-semibold uppercase text-slate-400 tracking-wide mb-3">Quick Validity</h3>
+                <h3 className="text-xs font-semibold uppercase text-slate-400 tracking-wide mb-3">{t("proforma.quick_validity")}</h3>
                 <div className="flex flex-wrap gap-2">
                   {[7, 14, 30, 60, 90].map((d) => (
                     <button key={d} onClick={() => setValidUntilDate(addDays(d))}
                       className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-50 hover:bg-blue-50 text-xs font-medium text-slate-600 hover:text-blue-700 border border-slate-200 hover:border-blue-200 transition">
-                      <ChevronRight size={10} /> {d}d
+                      <ChevronRight size={10} /> {d}{t("proforma.days_unit")}
                     </button>
                   ))}
                 </div>
@@ -844,8 +852,8 @@ function ProformaPageContent() {
               {proformas.length > 0 && (
                 <div className="bg-white rounded-xl border border-slate-200 p-4">
                   <div className="flex items-center justify-between mb-3">
-                    <h3 className="text-xs font-semibold uppercase text-slate-400 tracking-wide">Recent</h3>
-                    <button onClick={() => setView("history")} className="text-xs text-blue-600 hover:underline">View all</button>
+                    <h3 className="text-xs font-semibold uppercase text-slate-400 tracking-wide">{t("proforma.recent")}</h3>
+                    <button onClick={() => setView("history")} className="text-xs text-blue-600 hover:underline">{t("dash.view_all")}</button>
                   </div>
                   <div className="space-y-2">
                     {proformas.slice(0, 4).map((p) => (
@@ -853,7 +861,7 @@ function ProformaPageContent() {
                         className="w-full text-left flex items-center justify-between gap-2 p-2 rounded-lg hover:bg-slate-50 transition group">
                         <div className="min-w-0">
                           <p className="font-mono text-xs font-semibold text-blue-700 truncate">{p.invoice_no}</p>
-                          <p className="text-[10px] text-slate-400 truncate">{p.customer || "No customer"}</p>
+                          <p className="text-[10px] text-slate-400 truncate">{p.customer || t("proforma.no_customer")}</p>
                         </div>
                         <div className="shrink-0 text-right">
                           <StatusBadge status={p.status} />

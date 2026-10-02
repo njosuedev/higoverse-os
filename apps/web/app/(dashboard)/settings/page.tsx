@@ -206,7 +206,7 @@ export default function SettingsPage() {
   }
 
   async function saveShop() {
-    if (!shopForm.address) { setShopErr("Please enter your business address."); return; }
+    if (!shopForm.address) { setShopErr(t("settings.err_address_required")); return; }
     setShopStatus("saving"); setShopErr("");
     // Encode GPS coords into address string if a pin was set
     const finalAddress = pinLat != null && pinLng != null
@@ -246,7 +246,7 @@ export default function SettingsPage() {
       setLastSaved(new Date());
       statusTimer(setShopStatus);
     } catch (err) {
-      setShopErr(err instanceof Error ? err.message : "Failed to save shop info.");
+      setShopErr(err instanceof Error ? err.message : t("settings.err_save_shop_failed"));
       setShopStatus("error");
     }
   }
@@ -280,7 +280,7 @@ export default function SettingsPage() {
       if (opsForm.language) setLang(opsForm.language as Lang);
       statusTimer(setOpsStatus);
     } catch (err) {
-      setOpsErr(err instanceof Error ? err.message : "Failed to save settings.");
+      setOpsErr(err instanceof Error ? err.message : t("settings.err_save_settings_failed"));
       setOpsStatus("error");
     }
   }
@@ -294,9 +294,9 @@ export default function SettingsPage() {
 
   async function savePassword() {
     setPwErr(""); setPwStatus("saving");
-    if (!pwForm.current) { setPwErr("Current password is required."); setPwStatus("error"); return; }
-    if (pwForm.next.length < 6) { setPwErr("New password must be at least 6 characters."); setPwStatus("error"); return; }
-    if (pwForm.next !== pwForm.confirm) { setPwErr("Passwords do not match."); setPwStatus("error"); return; }
+    if (!pwForm.current) { setPwErr(t("settings.err_current_password_required")); setPwStatus("error"); return; }
+    if (pwForm.next.length < 6) { setPwErr(t("settings.err_password_too_short")); setPwStatus("error"); return; }
+    if (pwForm.next !== pwForm.confirm) { setPwErr(t("settings.err_passwords_mismatch")); setPwStatus("error"); return; }
     try {
       await changePassword(pwForm.current, pwForm.next);
       setPwForm(PW_DEFAULTS);
@@ -304,9 +304,9 @@ export default function SettingsPage() {
       setPwOpen(false);
       statusTimer(setPwStatus);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Failed to change password.";
+      const msg = err instanceof Error ? err.message : t("settings.err_change_password_failed");
       setPwErr(msg.includes("400") || msg.toLowerCase().includes("incorrect")
-        ? "Current password is incorrect."
+        ? t("settings.err_current_password_incorrect")
         : msg);
       setPwStatus("error");
     }
@@ -326,7 +326,7 @@ export default function SettingsPage() {
             <div className="flex items-center gap-3">
               {logoUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={logoUrl} alt="Shop logo" className="w-10 h-10 rounded-xl object-cover border-2 border-white/20" />
+                <img src={logoUrl} alt={t("settings.shop_logo")} className="w-10 h-10 rounded-xl object-cover border-2 border-white/20" />
               ) : (
                 <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center">
                   <Settings size={19} />
@@ -336,15 +336,15 @@ export default function SettingsPage() {
                 <h1 className="text-base font-semibold">{t("settings.title")}</h1>
                 <p className="text-slate-400 text-xs mt-0.5">
                   {lastSaved
-                    ? `Last saved ${lastSaved.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
-                    : "Configure your shop preferences"}
+                    ? `${t("settings.last_saved")} ${lastSaved.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
+                    : t("settings.configure_subtitle")}
                 </p>
               </div>
             </div>
             <div className="flex items-center gap-2">
               {anyDirty && (
                 <span className="flex items-center gap-1.5 text-[11px] font-semibold text-amber-300 bg-amber-500/20 border border-amber-500/30 px-2.5 py-1 rounded-full">
-                  <Pencil size={10} /> Unsaved changes
+                  <Pencil size={10} /> {t("settings.unsaved_changes")}
                 </span>
               )}
               <button onClick={load} className="p-2 rounded-lg bg-white/10 hover:bg-white/20 transition">
@@ -361,7 +361,7 @@ export default function SettingsPage() {
           dirty={shopDirty || logoDirty}
           status={shopStatus}
           onSave={saveShop}
-          saveLabel="Save Profile"
+          saveLabel={t("settings.save_profile")}
         >
           {shopErr && <ErrorBanner msg={shopErr} />}
 
@@ -369,13 +369,13 @@ export default function SettingsPage() {
             {/* Logo */}
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-2">
-                Shop Logo <span className="text-slate-400">(optional)</span>
+                {t("settings.shop_logo")} <span className="text-slate-400">({t("common.optional")})</span>
               </label>
               <div className="flex items-center gap-4">
                 {logoUrl ? (
                   <div className="relative w-16 h-16 shrink-0">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={logoUrl} alt="Shop logo" className="w-16 h-16 rounded-xl object-cover border border-slate-200" />
+                    <img src={logoUrl} alt={t("settings.shop_logo")} className="w-16 h-16 rounded-xl object-cover border border-slate-200" />
                     <button
                       type="button"
                       onClick={() => setLogoUrl("")}
@@ -391,7 +391,7 @@ export default function SettingsPage() {
                 )}
                 <label className="cursor-pointer flex-1">
                   <div className="h-10 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 transition flex items-center justify-center gap-2 text-sm text-slate-500 font-medium">
-                    <ImagePlus size={14} /> {logoUrl ? "Change logo" : "Upload logo"}
+                    <ImagePlus size={14} /> {logoUrl ? t("settings.change_logo") : t("settings.upload_logo")}
                   </div>
                   <input
                     type="file" accept="image/*" className="hidden"
@@ -400,14 +400,14 @@ export default function SettingsPage() {
                 </label>
               </div>
               {logoDirty && !logoLoading && (
-                <p className="text-[11px] text-amber-600 mt-1.5">Logo has unsaved changes — click Save Profile to apply.</p>
+                <p className="text-[11px] text-amber-600 mt-1.5">{t("settings.logo_unsaved_hint")}</p>
               )}
             </div>
 
             <Field label={t("settings.shop_name")} required>
               <input
                 className={inputCls}
-                placeholder="e.g. Duka rya Kalisa"
+                placeholder={t("settings.shop_name_placeholder")}
                 value={shopForm.shop_name}
                 onChange={(e) => setShopForm({ ...shopForm, shop_name: e.target.value })}
               />
@@ -432,7 +432,7 @@ export default function SettingsPage() {
                       onChange={(e) => onAddrInput(e.target.value)}
                       onBlur={() => setTimeout(() => setAddrDropOpen(false), 150)}
                       onFocus={() => addrResults.length > 0 && setAddrDropOpen(true)}
-                      placeholder="Search in Rwanda — street, sector, district…"
+                      placeholder={t("settings.address_search_placeholder")}
                       autoComplete="off"
                       className={`${inputCls} pl-8 pr-8 ${!shopForm.address ? "border-red-300 focus:border-red-400 focus:ring-red-500/20" : ""}`}
                     />
@@ -473,7 +473,7 @@ export default function SettingsPage() {
                     }
                   >
                     <Target size={13} />
-                    {pinLat != null ? "Update Pin on Map" : "Pin Exact Location on Map"}
+                    {pinLat != null ? t("settings.update_pin") : t("settings.pin_location")}
                   </button>
                   {pinLat != null && (
                     <span className="text-[10px] font-mono text-slate-400">
@@ -483,22 +483,22 @@ export default function SettingsPage() {
                 </div>
                 {pinLat != null && (
                   <p className="text-[11px] text-emerald-600 mt-1 flex items-center gap-1">
-                    <MapPin size={10} /> GPS pinned — customers can navigate directly to your shop
+                    <MapPin size={10} /> {t("settings.gps_pinned_hint")}
                   </p>
                 )}
                 {!shopForm.address && (
                   <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
-                    <AlertCircle size={11} /> Address is required
+                    <AlertCircle size={11} /> {t("settings.address_required")}
                   </p>
                 )}
               </Field>
             </div>
 
-            <Field label={<><FileText size={11} className="inline mr-1" />About your shop</>}>
+            <Field label={<><FileText size={11} className="inline mr-1" />{t("settings.about_shop")}</>}>
               <textarea
                 rows={3}
                 className={inputCls + " resize-none"}
-                placeholder="Brief description of your business…"
+                placeholder={t("settings.about_shop_placeholder")}
                 value={shopForm.description}
                 onChange={(e) => setShopForm({ ...shopForm, description: e.target.value })}
               />
@@ -513,7 +513,7 @@ export default function SettingsPage() {
           dirty={opsDirty}
           status={opsStatus}
           onSave={saveOps}
-          saveLabel="Save Settings"
+          saveLabel={t("settings.save")}
         >
           {opsErr && <ErrorBanner msg={opsErr} />}
 
@@ -524,14 +524,14 @@ export default function SettingsPage() {
                 value={opsForm.currency}
                 onChange={(e) => setOpsForm({ ...opsForm, currency: e.target.value })}
               >
-                <option value="RWF">RWF — Rwandan Franc</option>
-                <option value="USD">USD — US Dollar</option>
-                <option value="EUR">EUR — Euro</option>
-                <option value="KES">KES — Kenyan Shilling</option>
-                <option value="UGX">UGX — Ugandan Shilling</option>
-                <option value="TZS">TZS — Tanzanian Shilling</option>
-                <option value="BIF">BIF — Burundian Franc</option>
-                <option value="CDF">CDF — Congolese Franc</option>
+                <option value="RWF">RWF — {t("settings.currency_rwf")}</option>
+                <option value="USD">USD — {t("settings.currency_usd")}</option>
+                <option value="EUR">EUR — {t("settings.currency_eur")}</option>
+                <option value="KES">KES — {t("settings.currency_kes")}</option>
+                <option value="UGX">UGX — {t("settings.currency_ugx")}</option>
+                <option value="TZS">TZS — {t("settings.currency_tzs")}</option>
+                <option value="BIF">BIF — {t("settings.currency_bif")}</option>
+                <option value="CDF">CDF — {t("settings.currency_cdf")}</option>
               </select>
             </Field>
 
@@ -543,7 +543,7 @@ export default function SettingsPage() {
                 value={opsForm.low_stock_threshold}
                 onChange={(e) => setOpsForm({ ...opsForm, low_stock_threshold: Number(e.target.value) })}
               />
-              <p className="text-[10px] text-slate-400 mt-1">Alert when stock falls below this number</p>
+              <p className="text-[10px] text-slate-400 mt-1">{t("settings.low_threshold_hint")}</p>
             </Field>
 
             <Field label={<>{t("settings.tax_rate")} (%)</>}>
@@ -554,7 +554,7 @@ export default function SettingsPage() {
                 value={opsForm.tax_rate}
                 onChange={(e) => setOpsForm({ ...opsForm, tax_rate: Number(e.target.value) })}
               />
-              <p className="text-[10px] text-slate-400 mt-1">Applied on proforma invoices</p>
+              <p className="text-[10px] text-slate-400 mt-1">{t("settings.tax_rate_hint")}</p>
             </Field>
           </div>
         </Section>
@@ -566,7 +566,7 @@ export default function SettingsPage() {
           dirty={opsDirty}
           status={opsStatus}
           onSave={saveOps}
-          saveLabel="Save Language"
+          saveLabel={t("settings.save")}
         >
           <div className="max-w-xs">
             <Field label={t("settings.language")}>
@@ -596,14 +596,14 @@ export default function SettingsPage() {
                 <ShieldCheck size={14} className="text-slate-500" />
               </div>
               <div>
-                <p className="text-sm font-semibold text-slate-700">Security — Change Password</p>
-                <p className="text-[11px] text-slate-400 mt-0.5">Update your account password</p>
+                <p className="text-sm font-semibold text-slate-700">{t("settings.security_title")}</p>
+                <p className="text-[11px] text-slate-400 mt-0.5">{t("settings.security_subtitle")}</p>
               </div>
             </div>
             <div className="flex items-center gap-2">
               {pwStatus === "saved" && (
                 <span className="flex items-center gap-1 text-[11px] text-green-600 font-medium">
-                  <CheckCircle2 size={12} /> Changed
+                  <CheckCircle2 size={12} /> {t("settings.changed")}
                 </span>
               )}
               <ChevronDown size={15} className={`text-slate-400 transition-transform ${pwOpen ? "rotate-180" : ""}`} />
@@ -616,16 +616,16 @@ export default function SettingsPage() {
                 {pwErr && <ErrorBanner msg={pwErr} />}
                 {pwStatus === "saved" && (
                   <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-lg px-3 py-2.5 text-sm text-green-700">
-                    <CheckCircle2 size={14} /> Password changed successfully.
+                    <CheckCircle2 size={14} /> {t("settings.password_changed")}
                   </div>
                 )}
 
-                <Field label="Current Password" required>
+                <Field label={t("settings.current_password")} required>
                   <div className="relative">
                     <input
                       type={showCurrent ? "text" : "password"}
                       className={inputCls + " pr-10"}
-                      placeholder="Your current password"
+                      placeholder={t("settings.current_password_placeholder")}
                       value={pwForm.current}
                       onChange={(e) => setPwForm({ ...pwForm, current: e.target.value })}
                     />
@@ -637,12 +637,12 @@ export default function SettingsPage() {
                 </Field>
 
                 <div className="grid md:grid-cols-2 gap-4">
-                  <Field label="New Password" required>
+                  <Field label={t("settings.new_password")} required>
                     <div className="relative">
                       <input
                         type={showNext ? "text" : "password"}
                         className={inputCls + " pr-10"}
-                        placeholder="Min. 6 characters"
+                        placeholder={t("settings.min_chars_placeholder")}
                         value={pwForm.next}
                         onChange={(e) => setPwForm({ ...pwForm, next: e.target.value })}
                       />
@@ -656,12 +656,12 @@ export default function SettingsPage() {
                     )}
                   </Field>
 
-                  <Field label="Confirm New Password" required>
+                  <Field label={t("settings.confirm_password")} required>
                     <div className="relative">
                       <input
                         type={showConfirm ? "text" : "password"}
                         className={inputCls + " pr-10" + (pwForm.confirm && pwForm.next !== pwForm.confirm ? " border-red-300 focus:border-red-400" : "")}
-                        placeholder="Repeat new password"
+                        placeholder={t("settings.repeat_password_placeholder")}
                         value={pwForm.confirm}
                         onChange={(e) => setPwForm({ ...pwForm, confirm: e.target.value })}
                       />
@@ -671,10 +671,10 @@ export default function SettingsPage() {
                       </button>
                     </div>
                     {pwForm.confirm && pwForm.next !== pwForm.confirm && (
-                      <p className="text-[11px] text-red-500 mt-1">Passwords do not match</p>
+                      <p className="text-[11px] text-red-500 mt-1">{t("settings.passwords_mismatch")}</p>
                     )}
                     {pwForm.confirm && pwForm.next === pwForm.confirm && pwForm.next.length >= 6 && (
-                      <p className="text-[11px] text-green-600 mt-1 flex items-center gap-1"><CheckCircle2 size={11} /> Match</p>
+                      <p className="text-[11px] text-green-600 mt-1 flex items-center gap-1"><CheckCircle2 size={11} /> {t("settings.match")}</p>
                     )}
                   </Field>
                 </div>
@@ -686,7 +686,7 @@ export default function SettingsPage() {
                     className="flex items-center gap-2 px-5 py-2 rounded-lg bg-slate-800 text-white text-sm font-semibold hover:bg-slate-700 transition disabled:opacity-50"
                   >
                     <Lock size={13} />
-                    {pwStatus === "saving" ? "Changing…" : "Change Password"}
+                    {pwStatus === "saving" ? t("settings.changing") : t("settings.change_password")}
                   </button>
                 </div>
               </div>
@@ -703,8 +703,8 @@ export default function SettingsPage() {
             <div className="flex items-center gap-2.5 text-sm text-slate-600">
               <Pencil size={14} className="text-amber-500" />
               <span>
-                {[shopDirty && "Shop profile", opsDirty && "Operational settings"]
-                  .filter(Boolean).join(" & ")} {shopDirty && opsDirty ? "have" : "has"} unsaved changes
+                {[shopDirty && t("settings.shop_profile_label"), opsDirty && t("settings.operational_settings_label")]
+                  .filter(Boolean).join(" & ")} {t("settings.unsaved_suffix")}
               </span>
             </div>
             <div className="flex items-center gap-2">
@@ -716,7 +716,7 @@ export default function SettingsPage() {
                 }}
                 className="px-4 py-2 rounded-lg border border-slate-200 text-slate-600 text-sm font-medium hover:bg-slate-50 transition"
               >
-                Discard
+                {t("common.discard")}
               </button>
               <button
                 onClick={saveAll}
@@ -724,7 +724,7 @@ export default function SettingsPage() {
                 className="flex items-center gap-2 px-5 py-2 rounded-lg bg-slate-800 text-white text-sm font-semibold hover:bg-slate-700 transition disabled:opacity-60"
               >
                 <Save size={14} />
-                {(shopStatus === "saving" || opsStatus === "saving") ? "Saving…" : "Save All Changes"}
+                {(shopStatus === "saving" || opsStatus === "saving") ? t("common.saving") : t("settings.save_all_changes")}
               </button>
             </div>
           </div>
@@ -763,6 +763,7 @@ function Section({
   saveLabel: string;
   children: React.ReactNode;
 }) {
+  const { t } = useLanguage();
   return (
     <div className={`bg-white rounded-xl border transition-all ${dirty ? "border-amber-300 ring-1 ring-amber-200" : "border-slate-200"}`}>
       <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
@@ -773,19 +774,19 @@ function Section({
           <h2 className="text-sm font-semibold text-slate-700">{title}</h2>
           {dirty && (
             <span className="text-[10px] font-semibold text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
-              Modified
+              {t("settings.modified")}
             </span>
           )}
         </div>
         <div className="flex items-center gap-2">
           {status === "saved" && (
             <span className="flex items-center gap-1 text-[11px] text-green-600 font-medium">
-              <CheckCircle2 size={12} /> Saved
+              <CheckCircle2 size={12} /> {t("settings.saved_status")}
             </span>
           )}
           {status === "error" && (
             <span className="flex items-center gap-1 text-[11px] text-red-500 font-medium">
-              <AlertCircle size={12} /> Failed
+              <AlertCircle size={12} /> {t("settings.failed_status")}
             </span>
           )}
           {dirty && (
@@ -795,7 +796,7 @@ function Section({
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 text-white text-xs font-semibold hover:bg-slate-700 transition disabled:opacity-60"
             >
               <Save size={12} />
-              {status === "saving" ? "Saving…" : saveLabel}
+              {status === "saving" ? t("common.saving") : saveLabel}
             </button>
           )}
         </div>
@@ -830,6 +831,7 @@ function ErrorBanner({ msg }: { msg: string }) {
 }
 
 function PasswordStrength({ pw }: { pw: string }) {
+  const { t } = useLanguage();
   const hasLower  = /[a-z]/.test(pw);
   const hasUpper  = /[A-Z]/.test(pw);
   const hasNumber = /\d/.test(pw);
@@ -837,7 +839,7 @@ function PasswordStrength({ pw }: { pw: string }) {
   const longEnough = pw.length >= 8;
 
   const score = [hasLower, hasUpper, hasNumber, hasSymbol, longEnough].filter(Boolean).length;
-  const label = score <= 2 ? "Weak" : score === 3 ? "Fair" : score === 4 ? "Good" : "Strong";
+  const label = score <= 2 ? t("settings.pw_weak") : score === 3 ? t("settings.pw_fair") : score === 4 ? t("settings.pw_good") : t("settings.pw_strong");
   const color = score <= 2 ? "bg-red-400" : score === 3 ? "bg-amber-400" : score === 4 ? "bg-blue-500" : "bg-green-500";
   const textColor = score <= 2 ? "text-red-500" : score === 3 ? "text-amber-600" : score === 4 ? "text-blue-600" : "text-green-600";
 
@@ -848,7 +850,7 @@ function PasswordStrength({ pw }: { pw: string }) {
           <div key={i} className={`h-1 flex-1 rounded-full transition-all ${i <= score ? color : "bg-slate-200"}`} />
         ))}
       </div>
-      <p className={`text-[10px] font-medium ${textColor}`}>{label} password</p>
+      <p className={`text-[10px] font-medium ${textColor}`}>{label} {t("settings.password_label")}</p>
     </div>
   );
 }

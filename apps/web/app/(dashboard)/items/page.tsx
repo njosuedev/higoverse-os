@@ -131,7 +131,7 @@ export default function ItemManagementPage() {
 
   async function submitForm() {
     if (!form.name.trim() || !form.cost_price || !form.selling_price || !form.quantity) {
-      alert("Name, cost price, selling price and quantity are required."); return;
+      alert(t("items.validation_required")); return;
     }
     const payload = {
       name: form.name.trim(), description: form.description.trim() || null,
@@ -147,17 +147,17 @@ export default function ItemManagementPage() {
       }
       closeModal(); await loadData(true);
     } catch (err) {
-      console.error(err); alert(`Failed to ${modalMode === "edit" ? "update" : "add"} item.`);
+      console.error(err); alert(modalMode === "edit" ? t("items.update_failed") : t("items.add_failed"));
     } finally { setSubmitting(false); }
   }
 
   async function deleteProduct(id: string) {
-    if (!confirm("Delete this item? This cannot be undone.")) return;
+    if (!confirm(t("items.confirm_delete"))) return;
     try {
       setDeletingId(id);
       await itemRequest(`/products/${id}`, { method: "DELETE" });
       await loadData(true);
-    } catch (err) { console.error(err); alert("Failed to delete item."); }
+    } catch (err) { console.error(err); alert(t("items.delete_failed")); }
     finally { setDeletingId(""); }
   }
 
@@ -298,7 +298,7 @@ export default function ItemManagementPage() {
       const ws = wb.Sheets[wb.SheetNames[0]];
       const rows = utils.sheet_to_json<unknown[]>(ws, { header: 1 }) as unknown[][];
 
-      if (rows.length < 2) { alert("No data rows found in the file."); return; }
+      if (rows.length < 2) { alert(t("items.import_no_rows")); return; }
 
       const supplierByName: Record<string, string> = {};
       suppliers.forEach((s) => { supplierByName[s.name.toLowerCase()] = s.id; });
@@ -310,10 +310,10 @@ export default function ItemManagementPage() {
           const [name, description, costPrice, sellingPrice, quantity, supplierName] = row as unknown[];
           const rowNum = i + 2;
           const nameStr = typeof name === "string" ? name.trim() : String(name ?? "").trim();
-          if (!nameStr) throw Object.assign(new Error("Name is required"), { rowNum, nameStr: nameStr || "(empty)" });
-          if (costPrice == null || costPrice === "") throw Object.assign(new Error("Cost price is required"), { rowNum, nameStr });
-          if (sellingPrice == null || sellingPrice === "") throw Object.assign(new Error("Selling price is required"), { rowNum, nameStr });
-          if (quantity == null || quantity === "") throw Object.assign(new Error("Quantity is required"), { rowNum, nameStr });
+          if (!nameStr) throw Object.assign(new Error(t("items.err_name_required")), { rowNum, nameStr: nameStr || "(empty)" });
+          if (costPrice == null || costPrice === "") throw Object.assign(new Error(t("items.err_cost_required")), { rowNum, nameStr });
+          if (sellingPrice == null || sellingPrice === "") throw Object.assign(new Error(t("items.err_selling_required")), { rowNum, nameStr });
+          if (quantity == null || quantity === "") throw Object.assign(new Error(t("items.err_qty_required")), { rowNum, nameStr });
 
           const payload = {
             name: nameStr,
@@ -343,7 +343,7 @@ export default function ItemManagementPage() {
       if (success > 0) await loadData(true);
     } catch (err) {
       console.error(err);
-      alert("Failed to parse file. Make sure it's a valid .xlsx file.");
+      alert(t("items.import_parse_failed"));
     } finally {
       setImportLoading(false);
       if (importInputRef.current) importInputRef.current.value = "";
@@ -380,7 +380,7 @@ export default function ItemManagementPage() {
                 <Package size={15} className="text-white" strokeWidth={2} />
               </div>
               <div>
-                <p className="text-[10px] font-semibold text-blue-200 uppercase tracking-widest leading-none">Inventory</p>
+                <p className="text-[10px] font-semibold text-blue-200 uppercase tracking-widest leading-none">{t("nav.inventory")}</p>
                 <h1 className="text-base font-extrabold text-white leading-tight tracking-tight">{t("items.title")}</h1>
               </div>
             </div>
@@ -410,7 +410,7 @@ export default function ItemManagementPage() {
               <button
                 onClick={manualRefresh}
                 disabled={refreshing}
-                title="Refresh"
+                title={t("common.refresh")}
                 className="w-7 h-7 rounded-lg bg-white/10 hover:bg-white/20 border border-white/15 flex items-center justify-center text-white transition-all disabled:opacity-40"
               >
                 <RefreshCw size={12} className={refreshing ? "animate-spin" : ""} />
@@ -419,7 +419,7 @@ export default function ItemManagementPage() {
                 onClick={openCreateModal}
                 className="flex items-center gap-1.5 bg-white text-[#1372e6] px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-blue-50 active:scale-95 transition-all shadow-lg shadow-black/20"
               >
-                <Plus size={12} strokeWidth={3} /> Add Item
+                <Plus size={12} strokeWidth={3} /> {t("items.add")}
               </button>
             </div>
           </div>
@@ -431,8 +431,8 @@ export default function ItemManagementPage() {
               <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-green-400" />
             </span>
             <p className="text-[10px] text-blue-100/70 flex-1">
-              Live · <span className="font-semibold text-white/80">{products.length.toLocaleString()} items</span>
-              {lastUpdated && <span className="ml-1 text-blue-200/50">· Updated {lastUpdated.toLocaleTimeString()}</span>}
+              {t("items.live_label")} · <span className="font-semibold text-white/80">{products.length.toLocaleString()} {t("items.count_suffix")}</span>
+              {lastUpdated && <span className="ml-1 text-blue-200/50">· {t("common.updated")} {lastUpdated.toLocaleTimeString()}</span>}
             </p>
             <span className="text-[10px] text-blue-200/50">↻ {countdown}s</span>
           </div>
@@ -485,13 +485,13 @@ export default function ItemManagementPage() {
           <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-lg px-3 py-1.5 mb-2">
             <AlertCircle size={11} className="text-red-500 shrink-0" />
             <p className="text-[10px] text-red-700 flex-1 min-w-0">
-              Couldn&apos;t load inventory — the product service may be temporarily unavailable.
+              {t("items.load_error")}
             </p>
             <button
               onClick={manualRefresh}
               className="text-[10px] font-bold text-red-700 bg-red-100 hover:bg-red-200 px-2 py-0.5 rounded-md shrink-0 transition"
             >
-              Retry
+              {t("common.retry")}
             </button>
           </div>
         )}
@@ -501,12 +501,12 @@ export default function ItemManagementPage() {
           <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5 mb-2">
             <AlertCircle size={11} className="text-amber-500 shrink-0" />
             <p className="text-[10px] text-amber-700 flex-1 min-w-0 truncate">
-              <span className="font-bold">{alertItems.length}</span> item{alertItems.length > 1 ? "s" : ""} need restock —{" "}
-              <span className="text-amber-600">{alertItems.slice(0, 3).map((i) => i.name).join(", ")}{alertItems.length > 3 ? ` +${alertItems.length - 3} more` : ""}</span>
+              <span className="font-bold">{alertItems.length}</span> {t("items.restock_alert")} —{" "}
+              <span className="text-amber-600">{alertItems.slice(0, 3).map((i) => i.name).join(", ")}{alertItems.length > 3 ? ` +${alertItems.length - 3} ${t("items.more")}` : ""}</span>
             </p>
             <Link href="/PurchaseManagement"
               className="text-[10px] font-bold text-amber-700 bg-amber-100 hover:bg-amber-200 px-2 py-0.5 rounded-md shrink-0 transition">
-              Purchase
+              {t("items.purchase_short")}
             </Link>
           </div>
         )}
@@ -546,13 +546,13 @@ export default function ItemManagementPage() {
           {/* Table toolbar */}
           <div className="flex items-center justify-between px-3 py-1.5 border-b border-slate-100 bg-slate-50/60">
             <p className="text-[10px] text-slate-500">
-              Showing{" "}
+              {t("common.showing")}{" "}
               <span className="font-semibold text-slate-700">{paginated.length.toLocaleString()}</span>{" "}
-              of{" "}
+              {t("common.of")}{" "}
               <span className="font-semibold text-slate-700">{filtered.length.toLocaleString()}</span>{" "}
-              items
+              {t("items.count_suffix")}
               {debouncedSearch && (
-                <> for &ldquo;<span className="font-semibold text-[#1372e6]">{debouncedSearch}</span>&rdquo;</>
+                <> {t("common.for")} &ldquo;<span className="font-semibold text-[#1372e6]">{debouncedSearch}</span>&rdquo;</>
               )}
             </p>
             <div className="flex items-center gap-2">
@@ -561,7 +561,7 @@ export default function ItemManagementPage() {
                   onClick={() => { setSearch(""); setFilter("all"); setPage(1); }}
                   className="flex items-center gap-1 text-[10px] text-slate-400 hover:text-slate-600 transition"
                 >
-                  <X size={10} /> Clear filters
+                  <X size={10} /> {t("common.clear_filters")}
                 </button>
               )}
               {/* Divider */}
@@ -569,32 +569,32 @@ export default function ItemManagementPage() {
               {/* Import buttons */}
               <button
                 onClick={downloadTemplate}
-                title="Download Excel template"
+                title={t("common.download_template")}
                 className="flex items-center gap-1 text-[10px] font-semibold text-violet-700 bg-violet-50 hover:bg-violet-100 border border-violet-200 px-2 py-0.5 rounded transition"
               >
-                <Download size={11} /> Template
+                <Download size={11} /> {t("common.template")}
               </button>
               <button
                 onClick={() => importInputRef.current?.click()}
                 disabled={importLoading}
-                title="Import products from Excel"
+                title={t("items.import_title_hint")}
                 className="flex items-center gap-1 text-[10px] font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 px-2 py-0.5 rounded transition disabled:opacity-50"
               >
                 {importLoading ? <RefreshCw size={11} className="animate-spin" /> : <Upload size={11} />}
-                {importLoading ? "Importing…" : "Import"}
+                {importLoading ? t("common.importing") : t("common.import")}
               </button>
               <span className="w-px h-3 bg-slate-200" />
               {/* Export buttons */}
               <button
                 onClick={exportExcel}
-                title="Export to Excel"
+                title={t("common.export_excel_hint")}
                 className="flex items-center gap-1 text-[10px] font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-2 py-0.5 rounded transition"
               >
                 <FileSpreadsheet size={11} /> Excel
               </button>
               <button
                 onClick={exportPDF}
-                title="Export to PDF"
+                title={t("common.export_pdf_hint")}
                 className="flex items-center gap-1 text-[10px] font-semibold text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 px-2 py-0.5 rounded transition"
               >
                 <FileText size={11} /> PDF
@@ -616,8 +616,8 @@ export default function ItemManagementPage() {
                   <th className="px-3 py-2 text-center text-[10px] font-semibold uppercase tracking-wider text-slate-500">{t("common.status")}</th>
                   <th className="px-3 py-2 text-right text-[10px] font-semibold uppercase tracking-wider text-slate-500">{t("items.col_unit_profit")}</th>
                   <th className="px-3 py-2 text-right text-[10px] font-semibold uppercase tracking-wider text-slate-500">{t("items.col_total_profit")}</th>
-                  <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-500">Added</th>
-                  <th className="px-3 py-2 text-center text-[10px] font-semibold uppercase tracking-wider text-slate-500">{t("common.actions") || "Actions"}</th>
+                  <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-500">{t("items.col_added")}</th>
+                  <th className="px-3 py-2 text-center text-[10px] font-semibold uppercase tracking-wider text-slate-500">{t("common.actions")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -706,7 +706,7 @@ export default function ItemManagementPage() {
                           {isProfit
                             ? <TrendingUp size={9} strokeWidth={2.5} />
                             : <TrendingDown size={9} strokeWidth={2.5} />}
-                          {isProfit ? t("dash.profit_label") : "Loss"}
+                          {isProfit ? t("dash.profit_label") : t("common.loss")}
                         </span>
                       </td>
 
@@ -744,16 +744,16 @@ export default function ItemManagementPage() {
                       <td className="px-3 py-1.5">
                         <div className="flex items-center justify-center gap-1 opacity-60 group-hover:opacity-100 transition-opacity">
                           {needsRestock && (
-                            <Link href={restockUrl} title="Restock"
+                            <Link href={restockUrl} title={t("purchases.restock")}
                               className="p-1 rounded bg-amber-50 hover:bg-amber-100 text-amber-600 transition">
                               <RefreshCw size={11} />
                             </Link>
                           )}
-                          <button onClick={() => openEditModal(p)} title="Edit"
+                          <button onClick={() => openEditModal(p)} title={t("common.edit")}
                             className="p-1 rounded bg-[#EBF2FD] hover:bg-[#D5E8FB] text-[#1372e6] transition">
                             <Pencil size={11} />
                           </button>
-                          <button onClick={() => deleteProduct(p.id)} disabled={deletingId === p.id} title="Delete"
+                          <button onClick={() => deleteProduct(p.id)} disabled={deletingId === p.id} title={t("common.delete")}
                             className="p-1 rounded bg-red-50 hover:bg-red-100 text-red-500 transition disabled:opacity-40">
                             <Trash2 size={11} />
                           </button>
@@ -773,7 +773,7 @@ export default function ItemManagementPage() {
               </div>
               <p className="font-semibold text-slate-500 text-sm">{t("items.no_items")}</p>
               <p className="text-xs mt-1.5 text-slate-400">
-                {search || filter !== "all" ? "Try adjusting your filters or search term." : t("items.add_first")}
+                {search || filter !== "all" ? t("common.try_adjust_filters") : t("items.add_first")}
               </p>
               {!search && filter === "all" && (
                 <button onClick={openCreateModal}
@@ -802,11 +802,11 @@ export default function ItemManagementPage() {
               <div className="px-4 sm:px-6 py-4 sm:py-5 grid md:grid-cols-2 gap-4 overflow-y-auto flex-1">
                 <div className="md:col-span-2">
                   <label className="block text-xs font-medium text-gray-600 mb-1">{t("items.name")} <span className="text-red-400">*</span></label>
-                  <input className={inputCls} placeholder="e.g. Sugar 1kg" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+                  <input className={inputCls} placeholder={t("items.name_placeholder")} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
                 </div>
                 <div className="md:col-span-2">
                   <label className="block text-xs font-medium text-gray-600 mb-1">{t("items.description")}</label>
-                  <input className={inputCls} placeholder="Optional description" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
+                  <input className={inputCls} placeholder={t("items.description_placeholder")} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">{t("items.cost_price")} <span className="text-red-400">*</span></label>
@@ -818,9 +818,9 @@ export default function ItemManagementPage() {
                 </div>
                 {form.cost_price && form.selling_price && (
                   <div className="md:col-span-2 bg-slate-50 rounded-lg px-3 py-2 text-xs text-slate-500">
-                    Margin: <span className={`font-bold ${Number(form.selling_price) >= Number(form.cost_price) ? "text-green-600" : "text-red-500"}`}>
+                    {t("items.margin_label")}: <span className={`font-bold ${Number(form.selling_price) >= Number(form.cost_price) ? "text-green-600" : "text-red-500"}`}>
                       {Number(form.cost_price) > 0 ? (((Number(form.selling_price) - Number(form.cost_price)) / Number(form.cost_price)) * 100).toFixed(1) : 0}%
-                    </span>{" · "}Unit profit: <span className="font-bold text-slate-700">{(Number(form.selling_price) - Number(form.cost_price)).toLocaleString()}</span>
+                    </span>{" · "}{t("items.col_unit_profit")}: <span className="font-bold text-slate-700">{(Number(form.selling_price) - Number(form.cost_price)).toLocaleString()}</span>
                   </div>
                 )}
                 <div>
@@ -853,9 +853,9 @@ export default function ItemManagementPage() {
           <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl max-h-[80vh] flex flex-col">
             <div className="flex justify-between items-center px-5 py-4 border-b border-slate-100 shrink-0">
               <div>
-                <h2 className="text-base font-semibold text-slate-800">Import Results</h2>
+                <h2 className="text-base font-semibold text-slate-800">{t("items.import_results")}</h2>
                 <p className="text-xs text-slate-400 mt-0.5">
-                  {importResults.success} added successfully · {importResults.failed.length} failed
+                  {importResults.success} {t("items.added_successfully")} · {importResults.failed.length} {t("common.failed")}
                 </p>
               </div>
               <button onClick={() => setImportResults(null)} className="p-2 rounded-lg hover:bg-slate-100 text-slate-400 transition">
@@ -868,7 +868,7 @@ export default function ItemManagementPage() {
                 <div className="flex items-center gap-2.5 bg-green-50 border border-green-200 rounded-lg px-3 py-2.5">
                   <CheckCircle size={16} className="text-green-500 shrink-0" />
                   <p className="text-sm font-semibold text-green-700">
-                    {importResults.success} product{importResults.success !== 1 ? "s" : ""} imported successfully
+                    {importResults.success} {t("items.import_success")}
                   </p>
                 </div>
               )}
@@ -878,13 +878,13 @@ export default function ItemManagementPage() {
                   <div className="flex items-center gap-2 mb-2">
                     <XCircle size={14} className="text-red-500 shrink-0" />
                     <p className="text-xs font-semibold text-red-600 uppercase tracking-wide">
-                      {importResults.failed.length} row{importResults.failed.length !== 1 ? "s" : ""} failed
+                      {importResults.failed.length} {t("items.rows_failed")}
                     </p>
                   </div>
                   <div className="space-y-1.5">
                     {importResults.failed.map((f) => (
                       <div key={`${f.row}-${f.name}`} className="flex items-start gap-2 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
-                        <span className="text-[10px] font-bold text-red-400 tabular-nums mt-0.5 shrink-0">Row {f.row}</span>
+                        <span className="text-[10px] font-bold text-red-400 tabular-nums mt-0.5 shrink-0">{t("common.row")} {f.row}</span>
                         <div className="min-w-0">
                           <p className="text-xs font-semibold text-slate-700 truncate">{f.name}</p>
                           <p className="text-[10px] text-red-500">{f.reason}</p>
@@ -896,7 +896,7 @@ export default function ItemManagementPage() {
               )}
 
               {importResults.success === 0 && importResults.failed.length === 0 && (
-                <p className="text-sm text-slate-400 text-center py-6">No rows were processed. Check your file has data rows below the header.</p>
+                <p className="text-sm text-slate-400 text-center py-6">{t("items.no_rows_processed")}</p>
               )}
             </div>
 
@@ -906,14 +906,14 @@ export default function ItemManagementPage() {
                   onClick={() => importInputRef.current?.click()}
                   className="px-3 py-1.5 rounded-lg border border-indigo-200 text-indigo-700 text-xs font-semibold hover:bg-indigo-50 transition"
                 >
-                  Re-import Fixed File
+                  {t("items.reimport")}
                 </button>
               )}
               <button
                 onClick={() => setImportResults(null)}
                 className="px-4 py-1.5 rounded-lg bg-[#1372e6] text-white text-xs font-semibold hover:opacity-90 transition"
               >
-                Done
+                {t("common.done")}
               </button>
             </div>
           </div>

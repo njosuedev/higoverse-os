@@ -20,11 +20,11 @@ import {
   Download, Upload, FileSpreadsheet, FileText,
 } from "lucide-react";
 
-const PROFORMA_STATUS_META: Record<ProformaStatus, { label: string; color: string }> = {
-  draft:    { label: "Draft",    color: "bg-slate-100 text-slate-600 border-slate-200" },
-  sent:     { label: "Sent",     color: "bg-blue-50 text-blue-600 border-blue-200" },
-  accepted: { label: "Accepted", color: "bg-green-50 text-green-700 border-green-200" },
-  expired:  { label: "Expired",  color: "bg-red-50 text-red-600 border-red-200" },
+const PROFORMA_STATUS_META: Record<ProformaStatus, { labelKey: string; color: string }> = {
+  draft:    { labelKey: "sales.status_draft",    color: "bg-slate-100 text-slate-600 border-slate-200" },
+  sent:     { labelKey: "sales.status_sent",     color: "bg-blue-50 text-blue-600 border-blue-200" },
+  accepted: { labelKey: "sales.status_accepted", color: "bg-green-50 text-green-700 border-green-200" },
+  expired:  { labelKey: "sales.status_expired",  color: "bg-red-50 text-red-600 border-red-200" },
 };
 
 interface Sale {
@@ -48,18 +48,18 @@ type PaymentMethod = "cash" | "mtn" | "airtel" | "bank" | "card" | "debt";
 
 const EMPTY_FORM = { product_id: "", customer_id: "", quantity: "", unit_price: "", notes: "" };
 const PAGE_SIZES = [25, 50, 100, 250];
-const PAYMENT_METHODS: { value: PaymentMethod; label: string; color: string }[] = [
-  { value: "cash",   label: "Cash",        color: "bg-green-100 text-green-700 border-green-200" },
-  { value: "mtn",    label: "MTN",         color: "bg-yellow-100 text-yellow-700 border-yellow-200" },
-  { value: "airtel", label: "Airtel",      color: "bg-red-100 text-red-700 border-red-200" },
-  { value: "bank",   label: "Bank",        color: "bg-blue-100 text-blue-700 border-blue-200" },
-  { value: "card",   label: "Debit Card",  color: "bg-purple-100 text-purple-700 border-purple-200" },
-  { value: "debt",   label: "Debt",        color: "bg-orange-100 text-orange-700 border-orange-200" },
+const PAYMENT_METHODS: { value: PaymentMethod; labelKey: string; color: string }[] = [
+  { value: "cash",   labelKey: "sales.pm_cash",   color: "bg-green-100 text-green-700 border-green-200" },
+  { value: "mtn",    labelKey: "sales.pm_mtn",    color: "bg-yellow-100 text-yellow-700 border-yellow-200" },
+  { value: "airtel", labelKey: "sales.pm_airtel", color: "bg-red-100 text-red-700 border-red-200" },
+  { value: "bank",   labelKey: "sales.pm_bank",   color: "bg-blue-100 text-blue-700 border-blue-200" },
+  { value: "card",   labelKey: "sales.pm_card",   color: "bg-purple-100 text-purple-700 border-purple-200" },
+  { value: "debt",   labelKey: "sales.pm_debt",   color: "bg-orange-100 text-orange-700 border-orange-200" },
 ];
 
-function paymentBadge(method?: string) {
+function paymentBadge(method: string | undefined, t: (key: string) => string) {
   const m = PAYMENT_METHODS.find((p) => p.value === method) || PAYMENT_METHODS[0];
-  return <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded border ${m.color}`}>{m.label}</span>;
+  return <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded border ${m.color}`}>{t(m.labelKey)}</span>;
 }
 
 function genId() { return Math.random().toString(36).slice(2, 9); }
@@ -69,7 +69,7 @@ function toDateStr(d: Date) {
 }
 
 export default function SaleManagementPage() {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const { shop } = useShop();
 
   const [sales, setSales] = useState<Sale[]>([]);
@@ -195,12 +195,12 @@ export default function SaleManagementPage() {
   }
 
   async function handleDeleteProforma(id: string) {
-    if (!confirm("Delete this proforma?")) return;
+    if (!confirm(t("sales.confirm_delete_proforma"))) return;
     try {
       setDeletingProformaId(id);
       await deleteProforma(id);
       await loadProformas();
-    } catch { alert("Delete failed."); }
+    } catch { alert(t("common.delete_failed")); }
     finally { setDeletingProformaId(""); }
   }
 
@@ -240,7 +240,7 @@ export default function SaleManagementPage() {
   async function submitForm() {
     if (modalMode === "edit" && editingId) {
       if (!form.product_id || !form.quantity || !form.unit_price) {
-        alert(t("sales.product") + ", " + t("sales.quantity") + " & " + t("sales.unit_price") + " required."); return;
+        alert(t("sales.sale_fields_required")); return;
       }
       const payload = {
         product_id: form.product_id, customer_id: form.customer_id || undefined,
@@ -251,14 +251,14 @@ export default function SaleManagementPage() {
         setSubmitting(true);
         await saleRequest(`/sales/${editingId}`, { method: "PUT", body: JSON.stringify(payload) });
         closeModal(); await loadData(true);
-      } catch (err: unknown) { alert(err instanceof Error ? err.message : "Error"); }
+      } catch (err: unknown) { alert(err instanceof Error ? err.message : t("common.error")); }
       finally { setSubmitting(false); }
       return;
     }
 
     const validLines = lineItems.filter((l) => l.product_id && l.quantity > 0 && l.unit_price >= 0);
-    if (validLines.length === 0) { alert("Add at least one item with a product selected."); return; }
-    if (paymentMethod === "debt" && !debtorName.trim()) { alert("Enter the debtor’s name."); return; }
+    if (validLines.length === 0) { alert(t("sales.need_one_item")); return; }
+    if (paymentMethod === "debt" && !debtorName.trim()) { alert(t("sales.need_debtor_name")); return; }
 
     const grandTotal = validLines.reduce((s, l) => s + l.quantity * l.unit_price, 0);
 
@@ -283,7 +283,7 @@ export default function SaleManagementPage() {
           });
           if (res?.data?.id) created.push(res.data);
         } catch (e) {
-          errors.push(e instanceof Error ? e.message : "Unknown error");
+          errors.push(e instanceof Error ? e.message : t("common.unknown_error"));
         }
       }
 
@@ -306,7 +306,7 @@ export default function SaleManagementPage() {
 
       closeModal();
       if (created.length > 0) setReceipts(created);
-      if (errors.length > 0) alert(`Some items failed:\n${errors.join("\n")}`);
+      if (errors.length > 0) alert(`${t("sales.some_items_failed")}\n${errors.join("\n")}`);
       await loadData(true);
     } finally { setSubmitting(false); }
   }
@@ -317,12 +317,12 @@ export default function SaleManagementPage() {
       setDeletingId(id);
       await saleRequest(`/sales/${id}`, { method: "DELETE" });
       await loadData(true);
-    } catch { alert("Delete failed."); }
+    } catch { alert(t("common.delete_failed")); }
     finally { setDeletingId(""); }
   }
 
   async function submitDebt() {
-    if (!debtForm.debtor_name.trim() || !debtForm.amount_owed) { alert("Name and amount owed are required."); return; }
+    if (!debtForm.debtor_name.trim() || !debtForm.amount_owed) { alert(t("sales.debt_fields_required")); return; }
     try {
       setDebtSubmitting(true);
       if (editingDebt) {
@@ -351,7 +351,7 @@ export default function SaleManagementPage() {
       setShowDebtModal(false); setEditingDebt(null);
       setDebtForm({ debtor_name: "", phone: "", amount_owed: "", amount_paid: "0", notes: "" });
       await loadDebts();
-    } catch (err: unknown) { alert(err instanceof Error ? err.message : "Error"); }
+    } catch (err: unknown) { alert(err instanceof Error ? err.message : t("common.error")); }
     finally { setDebtSubmitting(false); }
   }
 
@@ -366,17 +366,17 @@ export default function SaleManagementPage() {
       });
       setShowPayModal(null); setPaymentAmount("");
       await loadDebts();
-    } catch (err: unknown) { alert(err instanceof Error ? err.message : "Error"); }
+    } catch (err: unknown) { alert(err instanceof Error ? err.message : t("common.error")); }
     finally { setPayingDebtId(""); }
   }
 
   async function deleteDebt(id: string) {
-    if (!confirm("Delete this debt record?")) return;
+    if (!confirm(t("sales.confirm_delete_debt"))) return;
     try {
       setDeletingDebtId(id);
       await saleRequest(`/debts/${id}`, { method: "DELETE" });
       await loadDebts();
-    } catch { alert("Delete failed."); }
+    } catch { alert(t("common.delete_failed")); }
     finally { setDeletingDebtId(""); }
   }
 
@@ -421,9 +421,9 @@ export default function SaleManagementPage() {
         } catch { failed++; }
       }
       e.target.value = "";
-      alert(`Imported ${imported} sales${failed ? `, ${failed} failed` : ""}.`);
+      alert(`${imported} ${t("sales.import_success")}${failed ? `, ${failed} ${t("sales.import_partial_fail")}` : ""}`);
       await loadData(true);
-    } catch { alert("Failed to parse file."); }
+    } catch { alert(t("common.parse_failed")); }
   }
 
   async function exportSalesExcel() {
@@ -471,7 +471,7 @@ export default function SaleManagementPage() {
 
   function printReceiptPopup(salesToPrint: Sale[]) {
     const grandTotal = salesToPrint.reduce((s, x) => s + x.total_amount, 0);
-    const receiptNo = salesToPrint[0]?.id?.slice(0, 8)?.toUpperCase() || "SALE";
+    const receiptNo = salesToPrint[0]?.id?.slice(0, 8)?.toUpperCase() || t("sales.receipt_fallback_no");
     const dateStr = salesToPrint[0]?.created_at
       ? new Date(salesToPrint[0].created_at).toLocaleString([], { dateStyle: "medium", timeStyle: "short" })
       : new Date().toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
@@ -482,7 +482,7 @@ export default function SaleManagementPage() {
 
     const itemsHtml = salesToPrint.map((s) =>
       `<tr>
-        <td style="padding:6px 4px 6px 0;border-bottom:1px dotted #ddd;word-break:break-word;">${s.product_name || "Item"}</td>
+        <td style="padding:6px 4px 6px 0;border-bottom:1px dotted #ddd;word-break:break-word;">${s.product_name || t("sales.receipt_item")}</td>
         <td style="padding:6px 4px;border-bottom:1px dotted #ddd;text-align:center;white-space:nowrap;">${s.quantity}</td>
         <td style="padding:6px 4px;border-bottom:1px dotted #ddd;text-align:right;white-space:nowrap;">${s.unit_price.toLocaleString()}</td>
         <td style="padding:6px 0 6px 4px;border-bottom:1px dotted #ddd;text-align:right;font-weight:600;white-space:nowrap;">${s.total_amount.toLocaleString()}</td>
@@ -491,14 +491,14 @@ export default function SaleManagementPage() {
 
     const paymentHtml = pm ? `
       <hr class="dashed">
-      <div class="row"><span class="label">Payment</span><span style="font-weight:700;text-transform:uppercase">${pm}</span></div>
-      ${paid ? `<div class="row"><span class="label">Amount Paid</span><span>${paid.toLocaleString()} ${currency}</span></div>` : ""}
-      ${change > 0 ? `<div class="row" style="color:#16a34a"><span class="label">Change</span><span style="font-weight:700">${change.toLocaleString()} ${currency}</span></div>` : ""}
-      ${pm === "debt" ? `<div class="row" style="color:#dc2626"><span class="label">&#9888; ON CREDIT</span><span style="font-weight:700">${grandTotal.toLocaleString()} ${currency} OWED</span></div>` : ""}
+      <div class="row"><span class="label">${t("sales.payment")}</span><span style="font-weight:700;text-transform:uppercase">${pm}</span></div>
+      ${paid ? `<div class="row"><span class="label">${t("sales.amount_paid")}</span><span>${paid.toLocaleString()} ${currency}</span></div>` : ""}
+      ${change > 0 ? `<div class="row" style="color:#16a34a"><span class="label">${t("sales.change_label")}</span><span style="font-weight:700">${change.toLocaleString()} ${currency}</span></div>` : ""}
+      ${pm === "debt" ? `<div class="row" style="color:#dc2626"><span class="label">&#9888; ${t("sales.on_credit")}</span><span style="font-weight:700">${grandTotal.toLocaleString()} ${currency} ${t("sales.owed")}</span></div>` : ""}
     ` : "";
 
     const html = `<!DOCTYPE html>
-<html lang="en">
+<html lang="${lang}">
 <head>
 <meta charset="UTF-8">
 <title>Receipt #${receiptNo}</title>
@@ -524,31 +524,31 @@ export default function SaleManagementPage() {
   <div class="shop-name">${shop?.name || shopName}</div>
   ${formatPublicAddress(shop?.address) ? `<div style="color:#666;font-size:10px;margin-top:2px">${formatPublicAddress(shop?.address)}</div>` : ""}
   ${shop?.phone ? `<div style="color:#666;font-size:10px;margin-top:1px">${shop.phone}</div>` : ""}
-  <div style="color:#666;font-size:10px;margin-top:2px;text-transform:uppercase;letter-spacing:1px">Sales Receipt</div>
+  <div style="color:#666;font-size:10px;margin-top:2px;text-transform:uppercase;letter-spacing:1px">${t("sales.receipt_title")}</div>
 </div>
 <hr class="dashed">
-<div class="row"><span class="label">Receipt #</span><span style="font-weight:700">${receiptNo}</span></div>
-<div class="row"><span class="label">Date</span><span>${dateStr}</span></div>
-${customerName ? `<div class="row"><span class="label">Customer</span><span style="font-weight:600">${customerName}</span></div>` : ""}
+<div class="row"><span class="label">${t("sales.receipt_no")}</span><span style="font-weight:700">${receiptNo}</span></div>
+<div class="row"><span class="label">${t("common.date")}</span><span>${dateStr}</span></div>
+${customerName ? `<div class="row"><span class="label">${t("sales.col_customer")}</span><span style="font-weight:600">${customerName}</span></div>` : ""}
 <hr class="dashed">
 <table>
   <thead><tr>
-    <th style="text-align:left">Item</th>
-    <th style="text-align:center">Qty</th>
-    <th>Unit Price</th>
-    <th>Total</th>
+    <th style="text-align:left">${t("sales.receipt_item")}</th>
+    <th style="text-align:center">${t("sales.col_qty")}</th>
+    <th>${t("sales.unit_price")}</th>
+    <th>${t("common.total")}</th>
   </tr></thead>
   <tbody>${itemsHtml}</tbody>
 </table>
 <hr class="solid">
 <div class="row total-line">
-  <span>GRAND TOTAL</span>
+  <span>${t("sales.receipt_grand_total")}</span>
   <span>${grandTotal.toLocaleString()} ${currency}</span>
 </div>
 ${paymentHtml}
 <hr class="dashed">
-<div class="footer-text" style="margin-top:12px">Thank you for your business!</div>
-<div class="footer-text">Powered by Higoverse</div>
+<div class="footer-text" style="margin-top:12px">${t("sales.thank_you")}</div>
+<div class="footer-text">${t("sales.powered_by")} Higoverse</div>
 <script>window.onload=function(){setTimeout(function(){window.print();},400);};window.onafterprint=function(){window.close();};</script>
 </body>
 </html>`;
@@ -632,7 +632,7 @@ ${paymentHtml}
                 <ShoppingBag size={15} className="text-white" strokeWidth={2} />
               </div>
               <div>
-                <p className="text-[10px] font-semibold text-blue-200 uppercase tracking-widest leading-none">Sales</p>
+                <p className="text-[10px] font-semibold text-blue-200 uppercase tracking-widest leading-none">{t("nav.sales")}</p>
                 <h1 className="text-base font-extrabold text-white leading-tight tracking-tight">{t("sales.title")}</h1>
               </div>
             </div>
@@ -655,10 +655,10 @@ ${paymentHtml}
               <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-green-400" />
             </span>
             <p className="text-[10px] text-blue-100/70 flex-1">
-              Live · <span className="font-semibold text-white/80">{salesTotal.toLocaleString()} sales</span>
-              {lastUpdated && <span className="ml-1 text-blue-200/50">· Updated {lastUpdated.toLocaleTimeString()}</span>}
+              {t("sales.live_label")} · <span className="font-semibold text-white/80">{salesTotal.toLocaleString()} {t("sales.sales_word")}</span>
+              {lastUpdated && <span className="ml-1 text-blue-200/50">· {t("common.updated")} {lastUpdated.toLocaleTimeString()}</span>}
             </p>
-            <span className="text-[10px] text-blue-200/50">↻ {countdown}s</span>
+            <span className="text-[10px] text-blue-200/50">↻ {countdown}{t("common.seconds_abbr")}</span>
           </div>
 
           {/* Row 3: search + filter + date range */}
@@ -681,10 +681,10 @@ ${paymentHtml}
                   className="bg-transparent outline-none text-xs text-white font-semibold appearance-none cursor-pointer">
                   <option value="all" className="text-gray-800">{t("sales.all")}</option>
                   <option value="profit" className="text-gray-800">{t("sales.profit")}</option>
-                  <option value="loss" className="text-gray-800">Loss</option>
-                  <optgroup label="By payment" className="text-gray-600">
+                  <option value="loss" className="text-gray-800">{t("sales.loss")}</option>
+                  <optgroup label={t("sales.by_payment")} className="text-gray-600">
                     {PAYMENT_METHODS.map((m) => (
-                      <option key={m.value} value={`pay:${m.value}`} className="text-gray-800">{m.label} only</option>
+                      <option key={m.value} value={`pay:${m.value}`} className="text-gray-800">{t(m.labelKey)} {t("sales.only_suffix")}</option>
                     ))}
                   </optgroup>
                 </select>
@@ -708,7 +708,7 @@ ${paymentHtml}
             { label: t("sales.revenue"),       value: stats.revenue.toLocaleString(),                                         color: "text-green-600",  dot: "bg-green-500"  },
             { label: t("sales.profit"),        value: `${stats.profit >= 0 ? "+" : ""}${stats.profit.toLocaleString()}`,      color: stats.profit >= 0 ? "text-green-700" : "text-red-500", dot: stats.profit >= 0 ? "bg-green-500" : "bg-red-500" },
             { label: t("reports.customers"),   value: stats.uniqueCustomers,                                                  color: "text-[#1372e6]",  dot: "bg-blue-400"   },
-            { label: "Outstanding",            value: debtsTotalOutstanding.toLocaleString(),                                  color: "text-orange-500", dot: "bg-orange-400" },
+            { label: t("sales.outstanding"),   value: debtsTotalOutstanding.toLocaleString(),                                  color: "text-orange-500", dot: "bg-orange-400" },
           ].map((card) => (
             <div key={card.label} className="bg-white rounded-lg border border-slate-200 px-2.5 py-2">
               <div className="flex items-center gap-1 mb-1">
@@ -723,14 +723,14 @@ ${paymentHtml}
         {/* PAYMENT BREAKDOWN */}
         {sales.length > 0 && (
           <div className="bg-white rounded-xl border border-slate-200 px-3 py-1.5 mb-2 flex flex-wrap gap-2 items-center">
-            <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mr-1">Payments</span>
+            <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mr-1">{t("sales.payments_label")}</span>
             {PAYMENT_METHODS.filter((m) => (stats.payBreakdown[m.value]?.count ?? 0) > 0).map((m) => {
               const b = stats.payBreakdown[m.value];
               return (
                 <div key={m.value} className={`flex items-center gap-1 px-2 py-0.5 rounded-lg border text-[10px] ${m.color}`}>
-                  <span className="font-semibold">{m.label}</span>
+                  <span className="font-semibold">{t(m.labelKey)}</span>
                   <span className="opacity-60">·</span>
-                  <span>{b.count} {b.count === 1 ? "sale" : "sales"}</span>
+                  <span>{b.count} {b.count === 1 ? t("sales.sale_singular") : t("sales.sale_plural")}</span>
                   <span className="opacity-60">·</span>
                   <span className="font-semibold tabular-nums">{b.revenue.toLocaleString()}</span>
                 </div>
@@ -743,22 +743,22 @@ ${paymentHtml}
         <div className="bg-white rounded-xl border border-slate-200 overflow-hidden mb-6">
           <div className="flex items-center justify-between px-3 py-1.5 border-b border-slate-100 bg-slate-50/60">
             <p className="text-[10px] text-slate-500">
-              <span className="font-semibold text-slate-700">{filtered.length.toLocaleString()}</span> of <span className="font-semibold text-slate-700">{salesTotal.toLocaleString()}</span> sales
+              <span className="font-semibold text-slate-700">{filtered.length.toLocaleString()}</span> {t("common.of")} <span className="font-semibold text-slate-700">{salesTotal.toLocaleString()}</span> {t("sales.sales_word")}
             </p>
             <div className="flex items-center gap-1.5">
-              <button onClick={downloadTemplate} title="Download import template"
+              <button onClick={downloadTemplate} title={t("sales.download_template_tooltip")}
                 className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium border border-violet-200 text-violet-600 bg-white hover:bg-violet-50 transition">
-                <Download size={10} /> Template
+                <Download size={10} /> {t("common.template")}
               </button>
-              <button onClick={() => fileInputRef.current?.click()} title="Import from CSV/Excel"
+              <button onClick={() => fileInputRef.current?.click()} title={t("sales.import_tooltip")}
                 className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium border border-violet-200 text-violet-600 bg-white hover:bg-violet-50 transition">
-                <Upload size={10} /> Import
+                <Upload size={10} /> {t("common.import")}
               </button>
-              <button onClick={exportSalesExcel} title="Export to Excel"
+              <button onClick={exportSalesExcel} title={t("sales.export_excel_tooltip")}
                 className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium border border-green-200 text-green-600 bg-white hover:bg-green-50 transition">
                 <FileSpreadsheet size={10} /> Excel
               </button>
-              <button onClick={exportSalesPDF} title="Export to PDF"
+              <button onClick={exportSalesPDF} title={t("sales.export_pdf_tooltip")}
                 className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium border border-red-200 text-red-600 bg-white hover:bg-red-50 transition">
                 <FileText size={10} /> PDF
               </button>
@@ -768,14 +768,14 @@ ${paymentHtml}
           <div className="overflow-x-auto">
           {(debouncedSearch || filter !== "all") && (
             <div className="px-4 py-2.5 border-b border-slate-100 text-xs text-slate-500 bg-slate-50">
-              <span className="font-semibold text-slate-700">{filtered.length.toLocaleString()}</span> results
-              {debouncedSearch && <> for &ldquo;<span className="font-medium">{debouncedSearch}</span>&rdquo;</>}
+              <span className="font-semibold text-slate-700">{filtered.length.toLocaleString()}</span> {t("common.results")}
+              {debouncedSearch && <> {t("common.search_for")} &ldquo;<span className="font-medium">{debouncedSearch}</span>&rdquo;</>}
             </div>
           )}
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-200">
-                {[t("sales.col_date"), t("sales.col_product"), t("sales.col_customer"), "Payment", t("sales.col_qty"), t("sales.col_price"), t("sales.col_total"), "Profit / Margin", t("common.notes"), ""].map((h) => (
+                {[t("sales.col_date"), t("sales.col_product"), t("sales.col_customer"), t("sales.payment"), t("sales.col_qty"), t("sales.col_price"), t("sales.col_total"), t("sales.profit_margin_col"), t("common.notes"), ""].map((h) => (
                   <th key={h} className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-400 whitespace-nowrap">{h}</th>
                 ))}
               </tr>
@@ -809,7 +809,7 @@ ${paymentHtml}
                                 </p>
                               )}
                             </div>
-                          : <span className="text-slate-400 text-xs">Unknown product</span>;
+                          : <span className="text-slate-400 text-xs">{t("sales.unknown_product")}</span>;
                       })()}
                     </td>
                     <td className="px-3 py-2">
@@ -818,7 +818,7 @@ ${paymentHtml}
                         : <span className="text-slate-400 text-xs italic">—</span>}
                     </td>
                     <td className="px-3 py-2 whitespace-nowrap">
-                      {paymentBadge(s.payment_method)}
+                      {paymentBadge(s.payment_method, t)}
                     </td>
                     <td className="px-3 py-2 font-medium text-slate-700 tabular-nums">{s.quantity}</td>
                     <td className="px-3 py-2 text-slate-600 tabular-nums">{s.unit_price.toLocaleString()}</td>
@@ -827,14 +827,14 @@ ${paymentHtml}
                       <span className="font-semibold">{isProfit ? "+" : ""}{(s.profit || 0).toLocaleString()}</span>
                       {s.total_amount > 0 && (
                         <span className="block text-[10px] font-normal opacity-60">
-                          {Math.round(((s.profit || 0) / s.total_amount) * 100)}% margin
+                          {Math.round(((s.profit || 0) / s.total_amount) * 100)}% {t("sales.margin_suffix")}
                         </span>
                       )}
                     </td>
                     <td className="px-3 py-2 text-slate-400 text-xs max-w-28 truncate">{s.notes || <span className="text-slate-200">—</span>}</td>
                     <td className="px-3 py-2">
                       <div className="flex items-center gap-1.5">
-                        <button onClick={() => printReceiptPopup([s])} title="Print receipt"
+                        <button onClick={() => printReceiptPopup([s])} title={t("common.print")}
                           className="p-1.5 rounded-lg bg-slate-50 hover:bg-slate-100 text-slate-500 transition">
                           <Printer size={14} />
                         </button>
@@ -857,11 +857,11 @@ ${paymentHtml}
                 const fMargin = fRev > 0 ? (fProfit / fRev) * 100 : 0;
                 return (
                   <tr className="bg-slate-50 border-t-2 border-slate-200 text-xs font-semibold text-slate-500">
-                    <td className="px-4 py-2" colSpan={6}>Subtotal — {filtered.length} sales</td>
+                    <td className="px-4 py-2" colSpan={6}>{t("sales.subtotal_label")} — {filtered.length} {t("sales.sales_word")}</td>
                     <td className="px-4 py-2 tabular-nums text-slate-700">{fRev.toLocaleString()}</td>
                     <td className={`px-4 py-2 tabular-nums ${fProfit >= 0 ? "text-green-600" : "text-red-500"}`}>
                       {fProfit >= 0 ? "+" : ""}{fProfit.toLocaleString()}
-                      <span className="block text-[10px] font-normal opacity-70">{fMargin.toFixed(1)}% margin</span>
+                      <span className="block text-[10px] font-normal opacity-70">{fMargin.toFixed(1)}% {t("sales.margin_suffix")}</span>
                     </td>
                     <td colSpan={2} />
                   </tr>
@@ -893,10 +893,10 @@ ${paymentHtml}
             <div className="flex items-center gap-3">
               <div className="p-2 bg-orange-50 rounded-lg"><AlertCircle size={17} className="text-orange-500" /></div>
               <div>
-                <h2 className="text-sm font-semibold text-slate-800">Debts Tracker</h2>
+                <h2 className="text-sm font-semibold text-slate-800">{t("sales.debts_tracker")}</h2>
                 <p className="text-xs text-slate-400 mt-0.5">
-                  {pendingDebts.length} pending ·{" "}
-                  <span className="text-orange-600 font-semibold">{debtsTotalOutstanding.toLocaleString()} {currency}</span> outstanding
+                  {pendingDebts.length} {t("common.pending")} ·{" "}
+                  <span className="text-orange-600 font-semibold">{debtsTotalOutstanding.toLocaleString()} {currency}</span> {t("sales.outstanding").toLowerCase()}
                 </p>
               </div>
             </div>
@@ -905,16 +905,16 @@ ${paymentHtml}
               className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg text-white transition hover:opacity-90"
               style={{ background: "#1372e6" }}
             >
-              <Plus size={13} /> Add Debt
+              <Plus size={13} /> {t("sales.add_debt")}
             </button>
           </div>
 
           {debtsLoading ? (
-            <div className="px-5 py-8 text-center text-xs text-slate-400">Loading debts…</div>
+            <div className="px-5 py-8 text-center text-xs text-slate-400">{t("sales.loading_debts")}</div>
           ) : debts.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-slate-400">
               <CheckCircle2 size={32} className="mb-2 text-green-300" />
-              <p className="text-sm font-medium text-slate-500">No debts recorded</p>
+              <p className="text-sm font-medium text-slate-500">{t("sales.no_debts")}</p>
             </div>
           ) : (
             <div className="divide-y divide-slate-100">
@@ -928,8 +928,8 @@ ${paymentHtml}
                         <div className="flex items-center gap-2 flex-wrap">
                           <p className="font-semibold text-slate-800 text-sm">{d.debtor_name}</p>
                           {d.is_paid
-                            ? <span className="text-[10px] font-semibold bg-green-100 text-green-700 border border-green-200 px-1.5 py-0.5 rounded">PAID</span>
-                            : <span className="text-[10px] font-semibold bg-orange-100 text-orange-700 border border-orange-200 px-1.5 py-0.5 rounded">PENDING</span>
+                            ? <span className="text-[10px] font-semibold bg-green-100 text-green-700 border border-green-200 px-1.5 py-0.5 rounded">{t("sales.paid_badge")}</span>
+                            : <span className="text-[10px] font-semibold bg-orange-100 text-orange-700 border border-orange-200 px-1.5 py-0.5 rounded">{t("sales.pending_badge")}</span>
                           }
                         </div>
                         {d.phone && (
@@ -943,21 +943,21 @@ ${paymentHtml}
                           <div className="flex-1 bg-slate-100 rounded-full h-1.5 overflow-hidden">
                             <div className="h-full rounded-full bg-green-500 transition-all" style={{ width: `${pct}%` }} />
                           </div>
-                          <span className="text-[10px] text-slate-400 tabular-nums whitespace-nowrap">{Math.round(pct)}% paid</span>
+                          <span className="text-[10px] text-slate-400 tabular-nums whitespace-nowrap">{Math.round(pct)}% {t("sales.paid_suffix")}</span>
                         </div>
                       </div>
                       <div className="text-right shrink-0">
-                        <p className="text-xs text-slate-400">Owed</p>
+                        <p className="text-xs text-slate-400">{t("sales.owed_label")}</p>
                         <p className="font-bold text-slate-800 tabular-nums">{d.amount_owed.toLocaleString()}</p>
                         {d.amount_paid > 0 && (
                           <>
-                            <p className="text-xs text-slate-400 mt-0.5">Paid</p>
+                            <p className="text-xs text-slate-400 mt-0.5">{t("sales.paid_label")}</p>
                             <p className="text-green-600 font-semibold tabular-nums text-sm">{d.amount_paid.toLocaleString()}</p>
                           </>
                         )}
                         {!d.is_paid && (
                           <>
-                            <p className="text-xs text-slate-400 mt-0.5">Balance</p>
+                            <p className="text-xs text-slate-400 mt-0.5">{t("sales.balance_label")}</p>
                             <p className="text-orange-600 font-bold tabular-nums">{balance.toLocaleString()} {currency}</p>
                           </>
                         )}
@@ -970,21 +970,21 @@ ${paymentHtml}
                           disabled={payingDebtId === d.id}
                           className="flex items-center gap-1 text-xs font-semibold bg-green-50 hover:bg-green-100 text-green-700 px-2.5 py-1.5 rounded-lg transition disabled:opacity-40"
                         >
-                          <Wallet size={12} /> Record Payment
+                          <Wallet size={12} /> {t("sales.record_payment")}
                         </button>
                       )}
                       <button
                         onClick={() => { setEditingDebt(d); setDebtForm({ debtor_name: d.debtor_name, phone: d.phone || "", amount_owed: String(d.amount_owed), amount_paid: String(d.amount_paid), notes: d.notes || "" }); setShowDebtModal(true); }}
                         className="flex items-center gap-1 text-xs font-semibold bg-[#EBF2FD] hover:bg-[#D5E8FB] text-[#1372e6] px-2.5 py-1.5 rounded-lg transition"
                       >
-                        <Pencil size={12} /> Edit
+                        <Pencil size={12} /> {t("common.edit")}
                       </button>
                       <button
                         onClick={() => deleteDebt(d.id)}
                         disabled={deletingDebtId === d.id}
                         className="flex items-center gap-1 text-xs font-semibold bg-red-50 hover:bg-red-100 text-red-600 px-2.5 py-1.5 rounded-lg transition disabled:opacity-40"
                       >
-                        <Trash2 size={12} /> Delete
+                        <Trash2 size={12} /> {t("common.delete")}
                       </button>
                     </div>
                   </div>
@@ -1000,31 +1000,31 @@ ${paymentHtml}
             <div className="flex items-center gap-3">
               <div className="p-2 bg-blue-50 rounded-lg"><FileText size={17} className="text-blue-500" /></div>
               <div>
-                <h2 className="text-sm font-semibold text-slate-800">Proforma Invoices</h2>
-                <p className="text-xs text-slate-400 mt-0.5">{proformas.length} recent</p>
+                <h2 className="text-sm font-semibold text-slate-800">{t("sales.proforma_invoices")}</h2>
+                <p className="text-xs text-slate-400 mt-0.5">{proformas.length} {t("sales.recent_suffix")}</p>
               </div>
             </div>
             <div className="flex items-center gap-2">
               <Link href="/proforma?view=history"
                 className="text-xs font-semibold text-slate-500 hover:text-blue-600 border border-slate-200 hover:border-blue-300 px-3 py-1.5 rounded-lg transition">
-                View All
+                {t("dash.view_all")}
               </Link>
               <Link href="/proforma"
                 className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg text-white transition hover:opacity-90" style={{ background: "#1372e6" }}>
-                <Plus size={13} /> New Proforma
+                <Plus size={13} /> {t("sales.new_proforma")}
               </Link>
             </div>
           </div>
 
           {proformasLoading ? (
-            <div className="px-5 py-8 text-center text-xs text-slate-400">Loading proformas…</div>
+            <div className="px-5 py-8 text-center text-xs text-slate-400">{t("sales.loading_proformas")}</div>
           ) : proformas.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-slate-400">
               <FileText size={32} className="mb-2 text-slate-200" />
-              <p className="text-sm font-medium text-slate-500">No proformas yet</p>
+              <p className="text-sm font-medium text-slate-500">{t("sales.no_proformas")}</p>
               <Link href="/proforma"
                 className="mt-3 flex items-center gap-1.5 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition hover:opacity-90" style={{ background: "#1372e6" }}>
-                <Plus size={12} /> Create Proforma
+                <Plus size={12} /> {t("sales.create_proforma")}
               </Link>
             </div>
           ) : (
@@ -1036,11 +1036,11 @@ ${paymentHtml}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-mono font-semibold text-sm text-blue-700">{p.invoice_no}</span>
-                        <span className={`inline-flex items-center text-[10px] font-semibold px-2 py-0.5 rounded-full border ${meta.color}`}>{meta.label}</span>
+                        <span className={`inline-flex items-center text-[10px] font-semibold px-2 py-0.5 rounded-full border ${meta.color}`}>{t(meta.labelKey)}</span>
                       </div>
                       <div className="flex items-center gap-3 mt-0.5 text-xs text-slate-500 flex-wrap">
                         <span className="font-medium text-slate-700 truncate max-w-40">
-                          {p.customer || <span className="italic text-slate-300">No customer</span>}
+                          {p.customer || <span className="italic text-slate-300">{t("sales.no_customer")}</span>}
                         </span>
                         <span className="flex items-center gap-1"><Calendar size={10} /> {p.date}</span>
                       </div>
@@ -1049,14 +1049,14 @@ ${paymentHtml}
                       <p className="font-bold text-slate-800 tabular-nums">
                         {p.grand_total.toLocaleString()} <span className="text-xs font-normal text-slate-400">{p.currency}</span>
                       </p>
-                      <p className="text-[10px] text-slate-400">{p.lines.length} item{p.lines.length !== 1 ? "s" : ""}</p>
+                      <p className="text-[10px] text-slate-400">{p.lines.length} {t(p.lines.length !== 1 ? "common.item_plural" : "common.item_singular")}</p>
                     </div>
                     <div className="flex items-center gap-1 shrink-0">
-                      <Link href={`/proforma?edit=${p.id}`} title="Edit"
+                      <Link href={`/proforma?edit=${p.id}`} title={t("common.edit")}
                         className="p-1.5 rounded-lg hover:bg-blue-50 text-slate-400 hover:text-blue-600 transition">
                         <Pencil size={14} />
                       </Link>
-                      <button onClick={() => handleDeleteProforma(p.id)} disabled={deletingProformaId === p.id} title="Delete"
+                      <button onClick={() => handleDeleteProforma(p.id)} disabled={deletingProformaId === p.id} title={t("common.delete")}
                         className="p-1.5 rounded-lg hover:bg-red-50 text-slate-300 hover:text-red-400 transition disabled:opacity-40">
                         <Trash2 size={14} />
                       </button>
@@ -1075,7 +1075,7 @@ ${paymentHtml}
               <div className="flex justify-between items-center px-6 py-4 border-b border-slate-100 shrink-0">
                 <div>
                   <h2 className="text-base font-semibold text-slate-800">{t("sales.add_title")}</h2>
-                  <p className="text-xs text-slate-400 mt-0.5">Add one or more items to this sale</p>
+                  <p className="text-xs text-slate-400 mt-0.5">{t("sales.add_items_subtitle")}</p>
                 </div>
                 <button onClick={closeModal} className="p-2 rounded-lg hover:bg-slate-100 text-slate-400 transition"><X size={17} /></button>
               </div>
@@ -1087,13 +1087,13 @@ ${paymentHtml}
                   <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1.5">{t("sales.customer")}</label>
                     <select className={inputCls} value={saleCustomer} onChange={(e) => setSaleCustomer(e.target.value)}>
-                      <option value="">— Walk-in customer —</option>
+                      <option value="">{t("sales.walkin_customer")}</option>
                       {customers.map((c) => <option key={c.id} value={c.id}>{c.name}{c.phone ? ` — ${c.phone}` : ""}</option>)}
                     </select>
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1.5">{t("common.notes")}</label>
-                    <input className={inputCls} placeholder="Optional note for this sale..."
+                    <input className={inputCls} placeholder={t("sales.note_placeholder")}
                       value={saleNotes} onChange={(e) => setSaleNotes(e.target.value)} />
                   </div>
                 </div>
@@ -1101,7 +1101,7 @@ ${paymentHtml}
                 {/* Payment Method */}
                 <div className="mb-4 p-4 bg-slate-50 rounded-xl border border-slate-200">
                   <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide mb-2.5">
-                    Payment Method
+                    {t("sales.payment_method")}
                   </label>
                   <div className="flex flex-wrap gap-2 mb-3">
                     {PAYMENT_METHODS.map((m) => (
@@ -1115,7 +1115,7 @@ ${paymentHtml}
                             : "bg-white text-slate-500 border-slate-200 hover:border-slate-300"
                         }`}
                       >
-                        {m.label}
+                        {t(m.labelKey)}
                       </button>
                     ))}
                   </div>
@@ -1123,7 +1123,7 @@ ${paymentHtml}
                   {paymentMethod !== "debt" && (
                     <div>
                       <label className="block text-xs font-medium text-gray-600 mb-1">
-                        Amount Sent <span className="text-slate-400 font-normal">(optional — to calculate change)</span>
+                        {t("sales.amount_sent")} <span className="text-slate-400 font-normal">{t("sales.amount_sent_hint")}</span>
                       </label>
                       <div className="flex items-center gap-3">
                         <input
@@ -1134,7 +1134,7 @@ ${paymentHtml}
                         />
                         {changeAmount > 0 && (
                           <div className="shrink-0 bg-green-50 border border-green-200 rounded-lg px-3 py-2 text-sm whitespace-nowrap">
-                            Change: <span className="font-bold text-green-700">{changeAmount.toLocaleString()} {currency}</span>
+                            {t("sales.change_label")}: <span className="font-bold text-green-700">{changeAmount.toLocaleString()} {currency}</span>
                           </div>
                         )}
                       </div>
@@ -1145,22 +1145,22 @@ ${paymentHtml}
                     <div className="grid sm:grid-cols-2 gap-3">
                       <div>
                         <label className="block text-xs font-medium text-gray-600 mb-1">
-                          Debtor Name <span className="text-red-400">*</span>
+                          {t("sales.debtor_name")} <span className="text-red-400">*</span>
                         </label>
                         <input
-                          className={inputCls} placeholder="Full name of debtor"
+                          className={inputCls} placeholder={t("sales.debtor_name_placeholder")}
                           value={debtorName} onChange={(e) => setDebtorName(e.target.value)}
                         />
                       </div>
                       <div>
-                        <label className="block text-xs font-medium text-gray-600 mb-1">Phone (optional)</label>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">{t("sales.phone_optional")}</label>
                         <input
                           className={inputCls} placeholder="+250 7XX XXX XXX"
                           value={debtorPhone} onChange={(e) => setDebtorPhone(e.target.value)}
                         />
                       </div>
                       <div className="sm:col-span-2 bg-orange-50 border border-orange-200 rounded-lg px-3 py-2 text-xs text-orange-700">
-                        &#9888; This sale will be recorded as credit. The debtor will appear in the Debts Tracker below.
+                        &#9888; {t("sales.debt_warning")}
                       </div>
                     </div>
                   )}
@@ -1169,15 +1169,15 @@ ${paymentHtml}
                 {/* Line items */}
                 <div className="border border-slate-200 rounded-xl overflow-hidden mb-4">
                   <div className="bg-slate-50 px-4 py-2.5 border-b border-slate-200 flex justify-between items-center">
-                    <span className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Items</span>
+                    <span className="text-xs font-semibold text-slate-600 uppercase tracking-wide">{t("nav.items")}</span>
                     <button onClick={addLine}
                       className="flex items-center gap-1 text-xs font-semibold text-[#1372e6] bg-[#EBF2FD] hover:bg-[#D5E8FB] px-2.5 py-1 rounded-lg transition">
-                      <Plus size={12} /> Add Item
+                      <Plus size={12} /> {t("items.add")}
                     </button>
                   </div>
 
                   <div className="grid grid-cols-[2fr_80px_100px_90px_32px] gap-2 px-4 py-2 bg-slate-50 border-b border-slate-100 text-[10px] font-semibold uppercase text-slate-400 tracking-wide">
-                    <span>Product</span><span className="text-center">Qty</span><span className="text-center">Unit Price</span><span className="text-right">Subtotal</span><span />
+                    <span>{t("sales.product")}</span><span className="text-center">{t("sales.col_qty")}</span><span className="text-center">{t("sales.unit_price")}</span><span className="text-right">{t("proforma.subtotal")}</span><span />
                   </div>
 
                   <div className="divide-y divide-slate-100">
@@ -1193,10 +1193,10 @@ ${paymentHtml}
                               value={line.product_id}
                               onChange={(e) => setLineProduct(line.id, e.target.value)}
                             >
-                              <option value="">Select product…</option>
+                              <option value="">{t("sales.select_product")}</option>
                               {products.map((prod) => (
                                 <option key={prod.id} value={prod.id} disabled={prod.quantity === 0}>
-                                  {prod.name} ({prod.quantity} left)
+                                  {prod.name} ({prod.quantity} {t("sales.left_suffix")})
                                 </option>
                               ))}
                             </select>
@@ -1219,9 +1219,9 @@ ${paymentHtml}
                           </div>
                           {p && (
                             <div className="flex gap-3 mt-1.5 text-[10px] text-slate-400">
-                              <span>Cost: <span className="font-medium">{p.cost_price.toLocaleString()}</span></span>
-                              <span>Sell: <span className="font-medium text-green-600">{p.selling_price.toLocaleString()}</span></span>
-                              <span className={p.quantity <= 10 ? "text-amber-500 font-medium" : ""}>Stock: {p.quantity}</span>
+                              <span>{t("items.col_cost")}: <span className="font-medium">{p.cost_price.toLocaleString()}</span></span>
+                              <span>{t("items.col_selling")}: <span className="font-medium text-green-600">{p.selling_price.toLocaleString()}</span></span>
+                              <span className={p.quantity <= 10 ? "text-amber-500 font-medium" : ""}>{t("sales.stock_label")}: {p.quantity}</span>
                             </div>
                           )}
                         </div>
@@ -1231,11 +1231,11 @@ ${paymentHtml}
 
                   <div className="px-3 py-2 bg-slate-50 border-t border-slate-200 flex justify-end gap-6">
                     <div className="text-right">
-                      <p className="text-[10px] text-slate-400 uppercase tracking-wide">Grand Total</p>
+                      <p className="text-[10px] text-slate-400 uppercase tracking-wide">{t("proforma.grand_total")}</p>
                       <p className="font-bold text-lg text-slate-800 tabular-nums">{createGrandTotal.toLocaleString()} <span className="text-xs font-normal text-slate-400">{currency}</span></p>
                     </div>
                     <div className="text-right">
-                      <p className="text-[10px] text-slate-400 uppercase tracking-wide">Est. Profit</p>
+                      <p className="text-[10px] text-slate-400 uppercase tracking-wide">{t("sales.est_profit")}</p>
                       <p className={`font-bold text-lg tabular-nums ${createGrandProfit >= 0 ? "text-green-600" : "text-red-500"}`}>
                         {createGrandProfit >= 0 ? "+" : ""}{createGrandProfit.toLocaleString()}
                       </p>
@@ -1246,13 +1246,13 @@ ${paymentHtml}
 
               <div className="flex justify-between items-center gap-2.5 px-6 py-4 border-t border-slate-100 shrink-0">
                 <span className="text-xs text-slate-400">
-                  {lineItems.filter((l) => l.product_id).length} of {lineItems.length} item{lineItems.length !== 1 ? "s" : ""} selected
+                  {lineItems.filter((l) => l.product_id).length} {t("common.of")} {lineItems.length} {t(lineItems.length !== 1 ? "common.item_plural" : "common.item_singular")} {t("common.selected")}
                 </span>
                 <div className="flex gap-2.5">
                   <button onClick={closeModal} className="px-4 py-2 rounded-lg border border-slate-200 text-slate-600 text-sm font-medium hover:bg-slate-50 transition">{t("common.cancel")}</button>
                   <button onClick={submitForm} disabled={submitting}
                     className="px-5 py-2 rounded-lg text-white text-sm font-semibold transition disabled:opacity-60 hover:opacity-90" style={{ background: "#1372e6" }}>
-                    {submitting ? t("common.saving") : `Record Sale${lineItems.filter((l) => l.product_id).length > 1 ? ` (${lineItems.filter((l) => l.product_id).length} items)` : ""}`}
+                    {submitting ? t("common.saving") : `${t("sales.add")}${lineItems.filter((l) => l.product_id).length > 1 ? ` (${lineItems.filter((l) => l.product_id).length} ${t("common.item_plural")})` : ""}`}
                   </button>
                 </div>
               </div>
@@ -1338,43 +1338,43 @@ ${paymentHtml}
           <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl">
               <div className="flex justify-between items-center px-5 py-4 border-b border-slate-100">
-                <h2 className="text-sm font-semibold text-slate-800">{editingDebt ? "Edit Debt" : "Add Debt"}</h2>
+                <h2 className="text-sm font-semibold text-slate-800">{editingDebt ? t("sales.edit_debt") : t("sales.add_debt")}</h2>
                 <button onClick={() => { setShowDebtModal(false); setEditingDebt(null); }} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 transition"><X size={16} /></button>
               </div>
               <div className="px-5 py-4 space-y-3">
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Debtor Name <span className="text-red-400">*</span></label>
-                  <input className={inputCls} placeholder="Full name"
+                  <label className="block text-xs font-medium text-gray-600 mb-1">{t("sales.debtor_name")} <span className="text-red-400">*</span></label>
+                  <input className={inputCls} placeholder={t("sales.debtor_name_placeholder")}
                     value={debtForm.debtor_name} onChange={(e) => setDebtForm({ ...debtForm, debtor_name: e.target.value })} />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Phone</label>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">{t("common.phone")}</label>
                   <input className={inputCls} placeholder="+250 7XX XXX XXX"
                     value={debtForm.phone} onChange={(e) => setDebtForm({ ...debtForm, phone: e.target.value })} />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Amount Owed <span className="text-red-400">*</span></label>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">{t("sales.amount_owed")} <span className="text-red-400">*</span></label>
                     <input type="number" min="0" className={inputCls} placeholder="0"
                       value={debtForm.amount_owed} onChange={(e) => setDebtForm({ ...debtForm, amount_owed: e.target.value })} />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Amount Paid So Far</label>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">{t("sales.amount_paid_so_far")}</label>
                     <input type="number" min="0" className={inputCls} placeholder="0"
                       value={debtForm.amount_paid} onChange={(e) => setDebtForm({ ...debtForm, amount_paid: e.target.value })} />
                   </div>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Notes</label>
-                  <input className={inputCls} placeholder="Optional"
+                  <label className="block text-xs font-medium text-gray-600 mb-1">{t("common.notes")}</label>
+                  <input className={inputCls} placeholder={t("common.optional")}
                     value={debtForm.notes} onChange={(e) => setDebtForm({ ...debtForm, notes: e.target.value })} />
                 </div>
               </div>
               <div className="flex justify-end gap-2.5 px-5 py-4 border-t border-slate-100">
-                <button onClick={() => { setShowDebtModal(false); setEditingDebt(null); }} className="px-4 py-2 rounded-lg border border-slate-200 text-slate-600 text-sm font-medium hover:bg-slate-50 transition">Cancel</button>
+                <button onClick={() => { setShowDebtModal(false); setEditingDebt(null); }} className="px-4 py-2 rounded-lg border border-slate-200 text-slate-600 text-sm font-medium hover:bg-slate-50 transition">{t("common.cancel")}</button>
                 <button onClick={submitDebt} disabled={debtSubmitting}
                   className="px-5 py-2 rounded-lg text-white text-sm font-semibold transition disabled:opacity-60 hover:opacity-90" style={{ background: "#1372e6" }}>
-                  {debtSubmitting ? "Saving…" : (editingDebt ? "Save Changes" : "Add Debt")}
+                  {debtSubmitting ? t("common.saving") : (editingDebt ? t("common.save") : t("sales.add_debt"))}
                 </button>
               </div>
             </div>
@@ -1386,15 +1386,15 @@ ${paymentHtml}
           <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl">
               <div className="flex justify-between items-center px-5 py-4 border-b border-slate-100">
-                <h2 className="text-sm font-semibold text-slate-800">Record Payment</h2>
+                <h2 className="text-sm font-semibold text-slate-800">{t("sales.record_payment")}</h2>
                 <button onClick={() => setShowPayModal(null)} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 transition"><X size={16} /></button>
               </div>
               <div className="px-5 py-4">
                 <p className="text-xs text-slate-500 mb-3">
-                  <span className="font-semibold text-slate-700">{showPayModal.debtor_name}</span> owes{" "}
+                  <span className="font-semibold text-slate-700">{showPayModal.debtor_name}</span> {t("sales.owes_word")}{" "}
                   <span className="font-bold text-orange-600">{showPayModal.balance.toLocaleString()} {currency}</span>
                 </p>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Amount Being Paid Now <span className="text-red-400">*</span></label>
+                <label className="block text-xs font-medium text-gray-600 mb-1">{t("sales.amount_paying_now")} <span className="text-red-400">*</span></label>
                 <input
                   type="number" min="0" max={showPayModal.balance}
                   className={inputCls} placeholder="0" autoFocus
@@ -1402,14 +1402,14 @@ ${paymentHtml}
                   onChange={(e) => setPaymentAmount(e.target.value)}
                 />
                 {paymentAmount && Number(paymentAmount) >= showPayModal.balance && (
-                  <p className="mt-2 text-xs text-green-600 font-medium">This will fully settle the debt.</p>
+                  <p className="mt-2 text-xs text-green-600 font-medium">{t("sales.fully_settle")}</p>
                 )}
               </div>
               <div className="flex justify-end gap-2.5 px-5 py-4 border-t border-slate-100">
-                <button onClick={() => setShowPayModal(null)} className="px-4 py-2 rounded-lg border border-slate-200 text-slate-600 text-sm font-medium hover:bg-slate-50 transition">Cancel</button>
+                <button onClick={() => setShowPayModal(null)} className="px-4 py-2 rounded-lg border border-slate-200 text-slate-600 text-sm font-medium hover:bg-slate-50 transition">{t("common.cancel")}</button>
                 <button onClick={recordPayment} disabled={!paymentAmount || payingDebtId === showPayModal.id}
                   className="px-5 py-2 rounded-lg text-white text-sm font-semibold transition disabled:opacity-60 hover:opacity-90" style={{ background: "#1372e6" }}>
-                  {payingDebtId === showPayModal.id ? "Saving…" : "Confirm Payment"}
+                  {payingDebtId === showPayModal.id ? t("common.saving") : t("sales.confirm_payment")}
                 </button>
               </div>
             </div>
@@ -1423,7 +1423,7 @@ ${paymentHtml}
               <div className="flex justify-between items-center px-5 py-3 border-b border-slate-100">
                 <div className="flex items-center gap-2 text-slate-700">
                   <ReceiptText size={15} />
-                  <span className="font-semibold text-sm">Sale Complete — Receipt Preview</span>
+                  <span className="font-semibold text-sm">{t("sales.receipt_preview_title")}</span>
                 </div>
                 <button onClick={() => setReceipts([])} className="text-slate-400 hover:text-slate-600 transition"><X size={16} /></button>
               </div>
@@ -1433,27 +1433,27 @@ ${paymentHtml}
                   <p className="font-bold text-base text-slate-900 uppercase tracking-widest">{shop?.name || shopName}</p>
                   {formatPublicAddress(shop?.address) && <p className="text-xs text-slate-500 mt-0.5">{formatPublicAddress(shop?.address)}</p>}
                   {shop?.phone && <p className="text-xs text-slate-500 mt-0.5">{shop.phone}</p>}
-                  <p className="text-xs text-slate-400 mt-0.5 uppercase tracking-wider">Sales Receipt</p>
+                  <p className="text-xs text-slate-400 mt-0.5 uppercase tracking-wider">{t("sales.receipt_title")}</p>
                 </div>
                 <div className="border-t border-dashed border-slate-300 my-3" />
                 <div className="space-y-1.5 text-xs text-slate-600 mb-3">
                   <div className="flex justify-between">
-                    <span className="text-slate-400">Receipt #</span>
+                    <span className="text-slate-400">{t("sales.receipt_no")}</span>
                     <span className="font-semibold">{receipts[0]?.id?.slice(0, 8)?.toUpperCase()}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-slate-400">Date</span>
+                    <span className="text-slate-400">{t("common.date")}</span>
                     <span>{receipts[0]?.created_at ? new Date(receipts[0].created_at).toLocaleString([], { dateStyle: "medium", timeStyle: "short" }) : new Date().toLocaleString([], { dateStyle: "medium", timeStyle: "short" })}</span>
                   </div>
                   {receipts[0]?.customer_id && customerMap[receipts[0].customer_id] && (
                     <div className="flex justify-between">
-                      <span className="text-slate-400">Customer</span>
+                      <span className="text-slate-400">{t("sales.col_customer")}</span>
                       <span className="font-medium">{customerMap[receipts[0].customer_id].name}</span>
                     </div>
                   )}
                   {receipts[0]?.payment_method && (
                     <div className="flex justify-between">
-                      <span className="text-slate-400">Payment</span>
+                      <span className="text-slate-400">{t("sales.payment")}</span>
                       <span className="font-semibold uppercase">{receipts[0].payment_method}</span>
                     </div>
                   )}
@@ -1462,7 +1462,7 @@ ${paymentHtml}
                 <div className="space-y-2 mb-3">
                   {receipts.map((s) => (
                     <div key={s.id}>
-                      <p className="font-bold text-slate-800 text-xs">{s.product_name || "Item"}</p>
+                      <p className="font-bold text-slate-800 text-xs">{s.product_name || t("sales.receipt_item")}</p>
                       <div className="flex justify-between text-xs text-slate-600 mt-0.5">
                         <span>{s.quantity} × {s.unit_price.toLocaleString()} {currency}</span>
                         <span className="font-semibold">{s.total_amount.toLocaleString()} {currency}</span>
@@ -1472,42 +1472,42 @@ ${paymentHtml}
                 </div>
                 <div className="border-t border-slate-300 my-3" />
                 <div className="flex justify-between font-bold text-base text-slate-900">
-                  <span>TOTAL</span>
+                  <span>{t("common.total")}</span>
                   <span>{receipts.reduce((s, x) => s + x.total_amount, 0).toLocaleString()} {currency}</span>
                 </div>
                 {receipts[0]?.amount_paid != null && receipts[0].amount_paid > 0 && (
                   <>
                     <div className="flex justify-between text-xs text-slate-600 mt-1.5">
-                      <span>Amount Paid</span>
+                      <span>{t("sales.amount_paid")}</span>
                       <span>{receipts[0].amount_paid.toLocaleString()} {currency}</span>
                     </div>
                     {receipts[0].amount_paid > receipts.reduce((s, x) => s + x.total_amount, 0) && (
                       <div className="flex justify-between text-xs text-green-600 font-semibold mt-0.5">
-                        <span>Change</span>
+                        <span>{t("sales.change_label")}</span>
                         <span>{(receipts[0].amount_paid - receipts.reduce((s, x) => s + x.total_amount, 0)).toLocaleString()} {currency}</span>
                       </div>
                     )}
                   </>
                 )}
                 {receipts[0]?.payment_method === "debt" && (
-                  <div className="mt-2 text-xs text-orange-600 font-semibold text-center border border-orange-200 rounded-lg py-1">&#9888; ON CREDIT — Amount owed</div>
+                  <div className="mt-2 text-xs text-orange-600 font-semibold text-center border border-orange-200 rounded-lg py-1">&#9888; {t("sales.on_credit_amount_owed")}</div>
                 )}
                 <div className="border-t border-dashed border-slate-300 my-3" />
-                <p className="text-center text-xs text-slate-400">Thank you for your business!</p>
+                <p className="text-center text-xs text-slate-400">{t("sales.thank_you")}</p>
               </div>
 
               <div className="flex gap-2 px-3 py-2 border-t border-slate-100 bg-slate-50">
                 <button onClick={() => { setReceipts([]); openCreateModal(); }}
                   className="flex-1 px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-600 text-xs font-medium hover:bg-slate-100 transition">
-                  New Sale
+                  {t("dash.new_sale")}
                 </button>
                 <button onClick={() => setReceipts([])}
                   className="flex-1 px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-600 text-xs font-medium hover:bg-slate-100 transition">
-                  Close
+                  {t("common.close")}
                 </button>
                 <button onClick={() => printReceiptPopup(receipts)}
                   className="flex-1 px-3 py-2 rounded-lg text-white text-xs font-semibold transition flex items-center justify-center gap-1.5 hover:opacity-90" style={{ background: "#1372e6" }}>
-                  <Printer size={13} /> Print
+                  <Printer size={13} /> {t("common.print")}
                 </button>
               </div>
             </div>

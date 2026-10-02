@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { useAuth } from "@/lib/auth-context";
+import { useLanguage } from "@/lib/language-context";
 import { useRouter } from "next/navigation";
 import {
   getAdminStats, getAdminShops, getAdminUsers,
@@ -65,14 +66,14 @@ function fmtDate(s: string | null) {
   if (!s) return "—";
   return parseUTC(s).toLocaleDateString([], { year: "numeric", month: "short", day: "numeric" });
 }
-function timeAgo(s: string | null) {
-  if (!s) return "Never";
+function timeAgo(s: string | null, t: (key: string) => string) {
+  if (!s) return t("admin.never");
   const secs = Math.floor((Date.now() - parseUTC(s).getTime()) / 1000);
-  if (secs < 5)     return "Just now";
-  if (secs < 60)    return `${secs}s ago`;
-  if (secs < 3600)  return `${Math.floor(secs / 60)}m ago`;
-  if (secs < 86400) return `${Math.floor(secs / 3600)}h ago`;
-  return `${Math.floor(secs / 86400)}d ago`;
+  if (secs < 5)     return t("admin.just_now");
+  if (secs < 60)    return `${secs}${t("admin.ago_suffix_s")}`;
+  if (secs < 3600)  return `${Math.floor(secs / 60)}${t("admin.ago_suffix_m")}`;
+  if (secs < 86400) return `${Math.floor(secs / 3600)}${t("admin.ago_suffix_h")}`;
+  return `${Math.floor(secs / 86400)}${t("admin.ago_suffix_d")}`;
 }
 function isOnline(s: string | null) {
   return !!s && (Date.now() - parseUTC(s).getTime()) / 1000 < 300;
@@ -116,6 +117,7 @@ interface ConfirmState {
 // ── Component ─────────────────────────────────────────────────────────────────
 export default function AdminPage() {
   const { user, ready } = useAuth();
+  const { t } = useLanguage();
   const router = useRouter();
 
   const [tab, setTab]                     = useState<Tab>("overview");
@@ -191,9 +193,9 @@ export default function AdminPage() {
       countdownRef.current = POLL_INTERVAL;
       setCountdown(POLL_INTERVAL);
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Failed to load admin data");
+      setError(e instanceof Error ? e.message : t("admin.err_load"));
     } finally { setLoading(false); setRefreshing(false); }
-  }, []);
+  }, [t]);
 
   useEffect(() => { if (user?.role === "admin") loadAll(); }, [user, loadAll]);
 
@@ -231,15 +233,15 @@ export default function AdminPage() {
 
   // ── Chart data ────────────────────────────────────────────────────────────
   const shopStatusData = stats ? [
-    { name: "Active",      value: stats.active_shops,    fill: LI_BLUE  },
-    { name: "Inactive",    value: stats.inactive_shops,  fill: LI_GRAY  },
-    { name: "Online now",  value: onlineNow,             fill: "#057642" },
+    { name: t("admin.status_active"),      value: stats.active_shops,    fill: LI_BLUE  },
+    { name: t("admin.status_inactive"),    value: stats.inactive_shops,  fill: LI_GRAY  },
+    { name: t("admin.status_online_now"),  value: onlineNow,             fill: "#057642" },
   ] : [];
 
   const userRoleData = [
-    { name: "Owners", value: users.filter((u) => u.role === "owner").length, fill: LI_BLUE  },
-    { name: "Staff",  value: users.filter((u) => u.role !== "owner" && u.role !== "admin").length, fill: LI_LIGHT },
-    { name: "Admins", value: users.filter((u) => u.role === "admin").length, fill: "#0D4DB8" },
+    { name: t("admin.role_owners"), value: users.filter((u) => u.role === "owner").length, fill: LI_BLUE  },
+    { name: t("admin.role_staff"),  value: users.filter((u) => u.role !== "owner" && u.role !== "admin").length, fill: LI_LIGHT },
+    { name: t("admin.role_admins"), value: users.filter((u) => u.role === "admin").length, fill: "#0D4DB8" },
   ];
 
   const topShopsData = [...activeShops]
@@ -251,9 +253,9 @@ export default function AdminPage() {
     }));
 
   const presenceData = [
-    { name: "Online now",   value: onlineNow,   fill: "#057642" },
-    { name: "Active today", value: onlineToday, fill: LI_BLUE   },
-    { name: "Never seen",   value: neverOnline, fill: LI_GRAY   },
+    { name: t("admin.status_online_now"),   value: onlineNow,   fill: "#057642" },
+    { name: t("admin.status_active_today"), value: onlineToday, fill: LI_BLUE   },
+    { name: t("dash.never_seen"),           value: neverOnline, fill: LI_GRAY   },
   ];
 
   // ── Actions ───────────────────────────────────────────────────────────────
@@ -263,7 +265,7 @@ export default function AdminPage() {
       setShops((p) => p.map((s) => s.id === id ? { ...s, is_active: !s.is_active } : s));
       const updated = await toggleShop(id);
       setShops((p) => p.map((s) => s.id === id ? updated : s));
-    } catch (e: unknown) { setError(e instanceof Error ? e.message : "Failed"); }
+    } catch (e: unknown) { setError(e instanceof Error ? e.message : t("admin.err_generic")); }
     finally { setActionId(null); }
   };
 
@@ -272,7 +274,7 @@ export default function AdminPage() {
     try {
       const updated = await verifyShopEmail(id);
       setShops((p) => p.map((s) => s.id === id ? updated : s));
-    } catch (e: unknown) { setError(e instanceof Error ? e.message : "Failed to verify email"); }
+    } catch (e: unknown) { setError(e instanceof Error ? e.message : t("admin.err_verify_email")); }
     finally { setActionId(null); }
   };
 
@@ -305,7 +307,7 @@ export default function AdminPage() {
       // Reload from backend so UI reflects true server state
       await loadAll(true);
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Failed to delete shop. Please try again.");
+      setError(e instanceof Error ? e.message : t("admin.err_delete_shop"));
       await loadAll(true);
     } finally {
       setActionId(null);
@@ -325,7 +327,7 @@ export default function AdminPage() {
       // Reload from backend — scrambled records are now filtered out
       await loadAll(true);
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Failed to delete account. Please try again.");
+      setError(e instanceof Error ? e.message : t("admin.err_delete_account"));
       await loadAll(true);
     } finally {
       setActionId(null);
@@ -336,7 +338,7 @@ export default function AdminPage() {
   const handleToggleUser = async (id: string) => {
     setActionId(id);
     try { const updated = await toggleUser(id); setUsers((p) => p.map((u) => u.id === id ? updated : u)); }
-    catch (e: unknown) { setError(e instanceof Error ? e.message : "Failed"); }
+    catch (e: unknown) { setError(e instanceof Error ? e.message : t("admin.err_generic")); }
     finally { setActionId(null); }
   };
 
@@ -349,11 +351,11 @@ export default function AdminPage() {
   };
 
   const handleCreateShop = async () => {
-    if (!createForm.shop_name.trim()) { setCreateError("Shop name is required."); return; }
-    if (!createForm.phone?.trim()) { setCreateError("Phone number is required."); return; }
+    if (!createForm.shop_name.trim()) { setCreateError(t("admin.err_shop_name_required")); return; }
+    if (!createForm.phone?.trim()) { setCreateError(t("admin.err_phone_required")); return; }
     if (shopNeedsAccount) {
-      if (!createForm.owner_email?.trim()) { setCreateError("Owner email is required to create a platform account."); return; }
-      if (!createForm.owner_password || createForm.owner_password.length < 8) { setCreateError("Password must be at least 8 characters."); return; }
+      if (!createForm.owner_email?.trim()) { setCreateError(t("admin.err_owner_email_required")); return; }
+      if (!createForm.owner_password || createForm.owner_password.length < 8) { setCreateError(t("admin.err_password_min")); return; }
     }
     setCreatingShop(true);
     setCreateError(null);
@@ -371,7 +373,7 @@ export default function AdminPage() {
       setShowCreateShop(false);
       await loadAll(true);
     } catch (e: unknown) {
-      setCreateError(e instanceof Error ? e.message : "Failed to create shop");
+      setCreateError(e instanceof Error ? e.message : t("admin.err_create_shop"));
     } finally {
       setCreatingShop(false);
     }
@@ -399,7 +401,7 @@ export default function AdminPage() {
       setShops((p) => p.map((s) => s.id === editingShop.id ? { ...s, ...updated } : s));
       setEditingShop(null);
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Failed to update shop");
+      setError(e instanceof Error ? e.message : t("admin.err_update_shop"));
     } finally {
       setEditShopSaving(false);
     }
@@ -416,9 +418,9 @@ export default function AdminPage() {
   };
 
   const handleCreateUser = async () => {
-    if (!createUserForm.shop_id) { setCreateUserError("Select a shop."); return; }
-    if (!createUserForm.email.trim()) { setCreateUserError("Email is required."); return; }
-    if (createUserForm.password.length < 8) { setCreateUserError("Password must be at least 8 characters."); return; }
+    if (!createUserForm.shop_id) { setCreateUserError(t("admin.err_select_shop")); return; }
+    if (!createUserForm.email.trim()) { setCreateUserError(t("admin.err_email_required")); return; }
+    if (createUserForm.password.length < 8) { setCreateUserError(t("admin.err_password_min")); return; }
     setCreatingUser(true);
     setCreateUserError(null);
     try {
@@ -426,7 +428,7 @@ export default function AdminPage() {
       setShowCreateUser(false);
       await loadAll(true);
     } catch (e: unknown) {
-      setCreateUserError(e instanceof Error ? e.message : "Failed to register user");
+      setCreateUserError(e instanceof Error ? e.message : t("admin.err_register_user"));
     } finally {
       setCreatingUser(false);
     }
@@ -439,7 +441,7 @@ export default function AdminPage() {
       const updated = await updateUserRole(roleEdit.id, roleEdit.role);
       setUsers((p) => p.map((u) => u.id === roleEdit.id ? updated : u));
       setRoleEdit(null);
-    } catch (e: unknown) { setError(e instanceof Error ? e.message : "Failed"); }
+    } catch (e: unknown) { setError(e instanceof Error ? e.message : t("admin.err_generic")); }
     finally { setActionId(null); }
   };
 
@@ -544,10 +546,10 @@ export default function AdminPage() {
     });
 
   const TABS: { key: Tab; label: string; count?: number; urgent?: boolean; icon: typeof LayoutDashboard }[] = [
-    { key: "overview",      label: "Overview",      icon: LayoutDashboard },
-    { key: "shops",         label: "Active Shops",  count: activeShops.length, icon: Store },
-    { key: "users",         label: "Users",         count: users.length,      icon: Users },
-    { key: "expenses",      label: "Shop Expenses", icon: Receipt },
+    { key: "overview",      label: t("admin.tab_overview"),  icon: LayoutDashboard },
+    { key: "shops",         label: t("admin.tab_shops"),     count: activeShops.length, icon: Store },
+    { key: "users",         label: t("admin.tab_users"),     count: users.length,      icon: Users },
+    { key: "expenses",      label: t("admin.tab_expenses"),  icon: Receipt },
   ];
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -570,9 +572,9 @@ export default function AdminPage() {
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <h1 className="font-bold text-white text-sm leading-tight tracking-tight">Admin Control Panel</h1>
+                  <h1 className="font-bold text-white text-sm leading-tight tracking-tight">{t("admin.panel_title")}</h1>
                   <span className="hidden sm:inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-white/10 border border-white/15 text-white/80">
-                    <Sparkles size={9} /> Platform
+                    <Sparkles size={9} /> {t("admin.platform_badge")}
                   </span>
                 </div>
                 <p className="text-[11px] text-white/50 mt-0.5">{user.email}</p>
@@ -581,13 +583,13 @@ export default function AdminPage() {
             <div className="flex items-center gap-2.5">
               <div className="text-[11px] text-white/60 flex items-center gap-1.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                {refreshing ? "Updating…" : `Refreshes in ${countdown}s`}
-                {lastUpdated && !refreshing && <span className="text-white/30">· {timeAgo(lastUpdated.toISOString())}</span>}
+                {refreshing ? t("admin.updating") : `${t("admin.refreshes_in")} ${countdown}s`}
+                {lastUpdated && !refreshing && <span className="text-white/30">· {timeAgo(lastUpdated.toISOString(), t)}</span>}
               </div>
               <button onClick={() => loadAll(true)} disabled={loading || refreshing}
                 className="flex items-center gap-1.5 text-[11px] px-3 py-1 rounded-full bg-white/10 border border-white/15 text-white hover:bg-white/20 transition disabled:opacity-40 font-medium backdrop-blur-sm">
                 <RefreshCw size={11} className={refreshing ? "animate-spin" : ""} />
-                Refresh
+                {t("common.refresh")}
               </button>
             </div>
           </div>
@@ -643,10 +645,10 @@ export default function AdminPage() {
                 {/* KPI row */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
                   {[
-                    { label: "Active Shops",  value: stats.active_shops,   sub: `${stats.inactive_shops} inactive`,  color: LI_BLUE,    bg: "#EBF2FD", icon: Store    },
-                    { label: "Total Users",   value: stats.total_users,    sub: `${stats.active_users} active`,      color: LI_BLUE,    bg: "#EBF2FD", icon: Users    },
-                    { label: "Online Now",    value: onlineNow,            sub: "shops live",                        color: "#057642",  bg: "#E7F7EF", icon: Activity },
-                    { label: "New This Week", value: newThisWeek,          sub: "new shops joined",                  color: "#a35b00",  bg: "#FEF3E2", icon: Sparkles },
+                    { label: t("admin.tab_shops"),      value: stats.active_shops,   sub: `${stats.inactive_shops} ${t("admin.inactive_suffix")}`, color: LI_BLUE,    bg: "#EBF2FD", icon: Store    },
+                    { label: t("admin.total_users"),    value: stats.total_users,    sub: `${stats.active_users} ${t("common.active")}`,            color: LI_BLUE,    bg: "#EBF2FD", icon: Users    },
+                    { label: t("admin.online_now"),     value: onlineNow,            sub: t("admin.shops_live_sub"),                                color: "#057642",  bg: "#E7F7EF", icon: Activity },
+                    { label: t("admin.new_this_week"),  value: newThisWeek,          sub: t("admin.new_shops_joined_sub"),                          color: "#a35b00",  bg: "#FEF3E2", icon: Sparkles },
                   ].map((k) => (
                     <div key={k.label} className="hgv-card-hover bg-white rounded-xl shadow-sm border border-gray-200 p-3">
                       <div className="flex items-center justify-between mb-2">
@@ -668,10 +670,10 @@ export default function AdminPage() {
                       <span className="w-5 h-5 rounded-lg flex items-center justify-center" style={{ background: "#EBF2FD" }}>
                         <Store size={10} style={{ color: LI_BLUE }} />
                       </span>
-                      Shop Status
+                      {t("admin.chart_shop_status")}
                     </h3>
                     <div className="flex items-center gap-4">
-                      <DonutChart data={shopStatusData} total={stats.total_shops} label="total" />
+                      <DonutChart data={shopStatusData} total={stats.total_shops} label={t("admin.donut_total")} />
                       <div className="space-y-3 flex-1">
                         {shopStatusData.map((d) => (
                           <div key={d.name}>
@@ -689,7 +691,7 @@ export default function AdminPage() {
                           </div>
                         ))}
                         <p className="text-xs text-gray-400 pt-1">
-                          {stats.total_shops ? Math.round(stats.active_shops / stats.total_shops * 100) : 0}% activation rate
+                          {stats.total_shops ? Math.round(stats.active_shops / stats.total_shops * 100) : 0}% {t("admin.activation_rate_suffix")}
                         </p>
                       </div>
                     </div>
@@ -700,10 +702,10 @@ export default function AdminPage() {
                       <span className="w-5 h-5 rounded-lg flex items-center justify-center" style={{ background: "#EBF2FD" }}>
                         <Users size={10} style={{ color: LI_BLUE }} />
                       </span>
-                      Users by Role
+                      {t("admin.chart_users_by_role")}
                     </h3>
                     <div className="flex items-center gap-4">
-                      <DonutChart data={userRoleData} total={stats.total_users} label="users" />
+                      <DonutChart data={userRoleData} total={stats.total_users} label={t("admin.donut_users")} />
                       <div className="space-y-3 flex-1">
                         {userRoleData.map((d) => (
                           <div key={d.name}>
@@ -732,16 +734,16 @@ export default function AdminPage() {
                       <span className="w-5 h-5 rounded-lg flex items-center justify-center" style={{ background: "#EBF2FD" }}>
                         <UserCog size={10} style={{ color: LI_BLUE }} />
                       </span>
-                      Top Shops by Team Size
+                      {t("admin.chart_top_shops")}
                     </h3>
                     {topShopsData.length === 0 ? (
-                      <p className="text-gray-400 text-xs py-8 text-center">No active shops yet</p>
+                      <p className="text-gray-400 text-xs py-8 text-center">{t("admin.no_active_shops")}</p>
                     ) : (
                       <ResponsiveContainer width="100%" height={170}>
                         <BarChart data={topShopsData} layout="vertical" margin={{ left: 0, right: 16, top: 0, bottom: 0 }}>
                           <XAxis type="number" tick={{ fontSize: 10, fill: "#999" }} axisLine={false} tickLine={false} />
                           <YAxis type="category" dataKey="name" tick={{ fontSize: 11, fill: "#444" }} axisLine={false} tickLine={false} width={90} />
-                          <Tooltip contentStyle={{ fontSize: 12, border: "1px solid #e5e7eb", borderRadius: 8 }} formatter={(v: unknown) => [String(v), "Users"]} />
+                          <Tooltip contentStyle={{ fontSize: 12, border: "1px solid #e5e7eb", borderRadius: 8 }} formatter={(v: unknown) => [String(v), t("admin.users_label")]} />
                           <Bar dataKey="users" radius={[0, 4, 4, 0]} fill={LI_BLUE} />
                         </BarChart>
                       </ResponsiveContainer>
@@ -753,7 +755,7 @@ export default function AdminPage() {
                       <span className="w-5 h-5 rounded-lg flex items-center justify-center" style={{ background: "#E7F7EF" }}>
                         <Activity size={10} style={{ color: "#057642" }} />
                       </span>
-                      Shop Presence
+                      {t("admin.chart_shop_presence")}
                     </h3>
                     <ResponsiveContainer width="100%" height={170}>
                       <BarChart data={presenceData} margin={{ left: 0, right: 16, top: 0, bottom: 0 }}>
@@ -774,13 +776,13 @@ export default function AdminPage() {
                     <span className="w-5 h-5 rounded-lg flex items-center justify-center" style={{ background: "#FEF3E2" }}>
                       <TrendingUp size={10} style={{ color: "#a35b00" }} />
                     </span>
-                    Platform Health
+                    {t("admin.platform_health")}
                   </h3>
                   <div className="grid sm:grid-cols-3 gap-4">
                     {[
-                      { label: "Shop activation",  pct: stats.total_shops ? Math.round(stats.active_shops  / stats.total_shops  * 100) : 0, sub: `${stats.active_shops} of ${stats.total_shops}` },
-                      { label: "User activation",  pct: stats.total_users ? Math.round(stats.active_users  / stats.total_users  * 100) : 0, sub: `${stats.active_users} of ${stats.total_users}` },
-                      { label: "Daily engagement", pct: activeShops.length ? Math.round(onlineToday / activeShops.length * 100) : 0, sub: `${onlineToday} shops active today` },
+                      { label: t("admin.shop_activation"),  pct: stats.total_shops ? Math.round(stats.active_shops  / stats.total_shops  * 100) : 0, sub: `${stats.active_shops} ${t("common.of")} ${stats.total_shops}` },
+                      { label: t("admin.user_activation"),  pct: stats.total_users ? Math.round(stats.active_users  / stats.total_users  * 100) : 0, sub: `${stats.active_users} ${t("common.of")} ${stats.total_users}` },
+                      { label: t("admin.daily_engagement"), pct: activeShops.length ? Math.round(onlineToday / activeShops.length * 100) : 0, sub: `${onlineToday} ${t("admin.shops_active_today_suffix")}` },
                     ].map((m) => (
                       <div key={m.label}>
                         <div className="flex justify-between text-xs mb-1.5">
@@ -809,10 +811,10 @@ export default function AdminPage() {
                 <div className="relative">
                   <select value={shopSort} onChange={(e) => setShopSort(e.target.value as ShopSort)}
                     className="text-xs border border-gray-200 rounded-lg pl-2.5 pr-6 py-1.5 bg-white text-gray-600 appearance-none focus:outline-none focus:ring-2 focus:ring-blue-100 cursor-pointer">
-                    <option value="newest">Newest first</option>
-                    <option value="lastActive">Last active</option>
-                    <option value="users">Most users</option>
-                    <option value="name">Name A–Z</option>
+                    <option value="newest">{t("admin.sort_newest")}</option>
+                    <option value="lastActive">{t("admin.sort_last_active")}</option>
+                    <option value="users">{t("admin.sort_most_users")}</option>
+                    <option value="name">{t("admin.sort_name_az")}</option>
                   </select>
                   <ChevronDown size={10} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
                 </div>
@@ -821,7 +823,7 @@ export default function AdminPage() {
                     <button key={f} onClick={() => setShopFilter(f)}
                       className="px-2.5 py-1.5 capitalize border-r last:border-r-0 border-gray-200 transition font-medium"
                       style={shopFilter === f ? { background: LI_BLUE, color: "#fff" } : { background: "#fff", color: "#666" }}>
-                      {f}
+                      {f === "all" ? t("common.all") : f === "active" ? t("admin.status_active") : t("admin.status_inactive")}
                     </button>
                   ))}
                 </div>
@@ -829,14 +831,14 @@ export default function AdminPage() {
               <div className="relative ml-auto">
                 <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
                 <input value={shopSearch} onChange={(e) => setShopSearch(e.target.value)}
-                  placeholder="Search shops…"
+                  placeholder={t("admin.search_shops_placeholder")}
                   className="pl-7 pr-3 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-100 w-44" />
               </div>
               <span className="text-xs text-gray-400 shrink-0 font-medium">{filteredShops.length} / {activeShops.length}</span>
               <button onClick={openCreateShop}
                 className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg text-white font-semibold transition shrink-0 shadow-sm hover:opacity-90"
                 style={{ background: `linear-gradient(135deg, ${LI_BLUE}, #0d4db8)` }}>
-                <Plus size={12} /> Add Shop
+                <Plus size={12} /> {t("admin.add_shop")}
               </button>
             </div>
 
@@ -849,7 +851,7 @@ export default function AdminPage() {
             ) : filteredShops.length === 0 ? (
               <div className="py-16 text-center">
                 <Store size={32} className="mx-auto mb-3 text-gray-200" />
-                <p className="text-sm font-semibold text-gray-400">No shops found</p>
+                <p className="text-sm font-semibold text-gray-400">{t("admin.no_shops_found")}</p>
               </div>
             ) : (
               <div className="divide-y divide-gray-50">
@@ -881,26 +883,26 @@ export default function AdminPage() {
                             <span className="text-[13px] font-semibold text-gray-900">{shop.name}</span>
                             {online && (
                               <span className="flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full text-white" style={{ background: "#057642" }}>
-                                <span className="w-1 h-1 rounded-full bg-white animate-pulse" /> LIVE
+                                <span className="w-1 h-1 rounded-full bg-white animate-pulse" /> {t("admin.live")}
                               </span>
                             )}
                             {joinedThisWeek(shop.created_at) && (
-                              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full text-white" style={{ background: LI_BLUE }}>NEW</span>
+                              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full text-white" style={{ background: LI_BLUE }}>{t("admin.new_badge")}</span>
                             )}
                             {shop.owner_email ? (
                               shop.email_verified ? (
                                 <span className="flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200">
-                                  <CheckCircle size={9} /> Verified
+                                  <CheckCircle size={9} /> {t("admin.verified")}
                                 </span>
                               ) : (
                                 <button onClick={() => handleVerifyEmail(shop.id)} disabled={busy}
-                                  title="Confirm this shop's email is genuine"
+                                  title={t("admin.confirm_email_title")}
                                   className="flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-600 border border-amber-200 hover:bg-amber-100 transition disabled:opacity-40">
-                                  <AlertTriangle size={9} /> Unverified · Verify
+                                  <AlertTriangle size={9} /> {t("admin.unverified_verify")}
                                 </button>
                               )
                             ) : (
-                              <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-gray-50 text-gray-400 border border-gray-200">No account</span>
+                              <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-gray-50 text-gray-400 border border-gray-200">{t("admin.no_account")}</span>
                             )}
                           </div>
                           <div className="flex items-center gap-3 mt-0.5 flex-wrap">
@@ -913,15 +915,15 @@ export default function AdminPage() {
                         {/* Stats */}
                         <div className="hidden md:flex items-center gap-4 shrink-0 text-xs text-gray-500">
                           <div className="text-center">
-                            <p className="text-gray-400 text-[10px]">Users</p>
+                            <p className="text-gray-400 text-[10px]">{t("admin.users_label")}</p>
                             <p className="font-bold text-gray-800 text-xs">{shop.user_count}</p>
                           </div>
                           <div className="text-center">
-                            <p className="text-gray-400 text-[10px]">Last seen</p>
-                            <p className="font-semibold text-gray-800">{online ? "Online" : timeAgo(shop.last_seen_at)}</p>
+                            <p className="text-gray-400 text-[10px]">{t("dash.last_seen")}</p>
+                            <p className="font-semibold text-gray-800">{online ? t("common.online") : timeAgo(shop.last_seen_at, t)}</p>
                           </div>
                           <div className="text-center">
-                            <p className="text-gray-400 text-[10px]">Joined</p>
+                            <p className="text-gray-400 text-[10px]">{t("admin.joined")}</p>
                             <p className="font-semibold text-gray-800">{fmtDate(shop.created_at)}</p>
                           </div>
                         </div>
@@ -933,18 +935,18 @@ export default function AdminPage() {
                             {expanded ? <EyeOff size={14} /> : <Eye size={14} />}
                           </button>
                           <button onClick={() => openEditShop(shop)}
-                            title="Edit shop details"
+                            title={t("admin.edit_shop_title")}
                             className="p-1.5 rounded-lg transition text-gray-400 hover:text-blue-600 hover:bg-blue-50">
                             <Pencil size={13} />
                           </button>
                           <button onClick={() => handleToggleShop(shop.id)} disabled={busy}
                             className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-full border border-gray-300 text-gray-600 hover:border-gray-400 hover:bg-gray-50 transition disabled:opacity-40 font-medium">
-                            {shop.is_active ? <><ToggleRight size={12} />Disable</> : <><ToggleLeft size={12} />Enable</>}
+                            {shop.is_active ? <><ToggleRight size={12} />{t("admin.disable")}</> : <><ToggleLeft size={12} />{t("admin.enable")}</>}
                           </button>
                           <button
-                            onClick={() => setConfirm({ type: "delete-shop", id: shop.id, label: shop.name ?? "this shop", extra: shop.owner_email ?? undefined })}
+                            onClick={() => setConfirm({ type: "delete-shop", id: shop.id, label: shop.name ?? t("admin.this_shop"), extra: shop.owner_email ?? undefined })}
                             disabled={busy}
-                            title="Permanently delete shop and all its data"
+                            title={t("admin.delete_shop_title")}
                             className="p-1.5 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition disabled:opacity-40">
                             <Trash2 size={13} />
                           </button>
@@ -957,17 +959,17 @@ export default function AdminPage() {
                           <div className="grid sm:grid-cols-3 gap-2.5 mt-2">
                             {/* Info */}
                             <div className="bg-white rounded-lg border border-gray-200 p-3">
-                              <p className="text-[10px] uppercase tracking-wider text-gray-400 font-semibold mb-2.5">Shop Info</p>
+                              <p className="text-[10px] uppercase tracking-wider text-gray-400 font-semibold mb-2.5">{t("admin.shop_info")}</p>
                               {shop.logo_url && (
                                 // eslint-disable-next-line @next/next/no-img-element
                                 <img src={shop.logo_url} alt={shop.name} className="w-16 h-16 rounded-xl object-cover mb-3 border border-gray-100" />
                               )}
                               <div className="space-y-2">
                                 {[
-                                  { icon: <Store size={11} />,  label: "Name",    value: shop.name },
-                                  { icon: <Mail size={11} />,   label: "Email",   value: shop.email ?? "—" },
-                                  { icon: <Phone size={11} />,  label: "Phone",   value: shop.phone ?? "—" },
-                                  { icon: <MapPin size={11} />, label: "Address", value: shop.address ?? "—" },
+                                  { icon: <Store size={11} />,  label: t("common.name"),    value: shop.name },
+                                  { icon: <Mail size={11} />,   label: t("common.email"),   value: shop.email ?? "—" },
+                                  { icon: <Phone size={11} />,  label: t("common.phone"),   value: shop.phone ?? "—" },
+                                  { icon: <MapPin size={11} />, label: t("common.address"), value: shop.address ?? "—" },
                                 ].map((d) => (
                                   <div key={d.label} className="flex items-start gap-2 text-xs">
                                     <span className="text-gray-300 mt-0.5 shrink-0">{d.icon}</span>
@@ -978,13 +980,13 @@ export default function AdminPage() {
                                 {shop.owner_email && (
                                   <div className="flex items-center gap-2 text-xs pt-1">
                                     <span className="text-gray-300 mt-0.5 shrink-0"><ShieldCheck size={11} /></span>
-                                    <span className="text-gray-400 w-12 shrink-0">Email</span>
+                                    <span className="text-gray-400 w-12 shrink-0">{t("common.email")}</span>
                                     {shop.email_verified ? (
-                                      <span className="text-emerald-600 font-medium flex items-center gap-1"><CheckCircle size={11} /> Verified</span>
+                                      <span className="text-emerald-600 font-medium flex items-center gap-1"><CheckCircle size={11} /> {t("admin.verified")}</span>
                                     ) : (
                                       <button onClick={() => handleVerifyEmail(shop.id)} disabled={actionId === shop.id}
                                         className="text-amber-600 font-medium flex items-center gap-1 hover:underline disabled:opacity-40">
-                                        <AlertTriangle size={11} /> Unverified — click to verify
+                                        <AlertTriangle size={11} /> {t("admin.unverified_click_verify")}
                                       </button>
                                     )}
                                   </div>
@@ -995,15 +997,15 @@ export default function AdminPage() {
 
                             {/* Activity */}
                             <div className="bg-white rounded-lg border border-gray-200 p-3">
-                              <p className="text-[10px] uppercase tracking-wider text-gray-400 font-semibold mb-2.5">Activity</p>
+                              <p className="text-[10px] uppercase tracking-wider text-gray-400 font-semibold mb-2.5">{t("admin.activity")}</p>
                               <div className="space-y-2 text-xs">
                                 {[
-                                  { label: "Status",       value: isOnline(shop.last_seen_at) ? "Online" : "Offline", highlight: isOnline(shop.last_seen_at) },
-                                  { label: "Last seen",    value: timeAgo(shop.last_seen_at) },
-                                  { label: "Exact time",   value: shop.last_seen_at ? parseUTC(shop.last_seen_at).toLocaleString() : "Never" },
-                                  { label: "Active today", value: wasActiveToday(shop.last_seen_at) ? "Yes" : "No", highlight: wasActiveToday(shop.last_seen_at) },
-                                  { label: "Joined",       value: fmtDate(shop.created_at) },
-                                  { label: "Updated",      value: fmtDate(shop.updated_at) },
+                                  { label: t("common.status"),      value: isOnline(shop.last_seen_at) ? t("common.online") : t("admin.offline"), highlight: isOnline(shop.last_seen_at) },
+                                  { label: t("dash.last_seen"),     value: timeAgo(shop.last_seen_at, t) },
+                                  { label: t("admin.exact_time"),   value: shop.last_seen_at ? parseUTC(shop.last_seen_at).toLocaleString() : t("admin.never") },
+                                  { label: t("admin.active_today"), value: wasActiveToday(shop.last_seen_at) ? t("common.yes") : t("common.no"), highlight: wasActiveToday(shop.last_seen_at) },
+                                  { label: t("admin.joined"),       value: fmtDate(shop.created_at) },
+                                  { label: t("common.updated"),     value: fmtDate(shop.updated_at) },
                                 ].map((r) => (
                                   <div key={r.label} className="flex justify-between gap-2">
                                     <span className="text-gray-400">{r.label}</span>
@@ -1017,17 +1019,17 @@ export default function AdminPage() {
                             <div className="bg-white rounded-lg border border-gray-200 p-3">
                               <div className="flex items-center justify-between mb-2.5">
                                 <p className="text-[10px] uppercase tracking-wider text-gray-400 font-semibold flex items-center gap-1.5">
-                                  Team Members <span className="font-bold text-gray-600 normal-case">{members.length}</span>
+                                  {t("admin.team_members")} <span className="font-bold text-gray-600 normal-case">{members.length}</span>
                                 </p>
                                 <button onClick={() => openCreateUser(shop.id)}
-                                  title="Register a user for this shop"
+                                  title={t("admin.register_user_for_shop_title")}
                                   className="flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-lg hover:opacity-90 transition text-white shadow-sm"
                                   style={{ background: `linear-gradient(135deg, ${LI_BLUE}, #0d4db8)` }}>
-                                  <UserPlus size={10} /> Add
+                                  <UserPlus size={10} /> {t("common.add")}
                                 </button>
                               </div>
                               {members.length === 0 ? (
-                                <p className="text-gray-400 text-xs py-3 text-center">No users assigned</p>
+                                <p className="text-gray-400 text-xs py-3 text-center">{t("admin.no_users_assigned")}</p>
                               ) : (
                                 <div className="space-y-2">
                                   {members.map((m) => (
@@ -1040,7 +1042,7 @@ export default function AdminPage() {
                                       <span className="text-gray-400 capitalize shrink-0">{m.role}</span>
                                       <button
                                         onClick={() => setConfirm({ type: "delete-user", id: m.id, label: m.email })}
-                                        title="Delete this user permanently"
+                                        title={t("admin.delete_user_title")}
                                         className="p-0.5 rounded text-red-400 hover:text-red-600 hover:bg-red-50 transition">
                                         <UserX size={11} />
                                       </button>
@@ -1069,28 +1071,28 @@ export default function AdminPage() {
                   <button key={r} onClick={() => setUserRoleFilter(r)}
                     className="px-2.5 py-1.5 capitalize border-r last:border-r-0 border-gray-200 transition font-medium"
                     style={userRoleFilter === r ? { background: LI_BLUE, color: "#fff" } : { background: "#fff", color: "#666" }}>
-                    {r}
+                    {r === "all" ? t("common.all") : r === "admin" ? t("nav.admin") : r === "owner" ? t("admin.role_owner") : t("admin.role_staff")}
                   </button>
                 ))}
               </div>
               <div className="relative ml-auto">
                 <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
                 <input value={userSearch} onChange={(e) => setUserSearch(e.target.value)}
-                  placeholder="Search users…"
+                  placeholder={t("admin.search_users_placeholder")}
                   className="pl-7 pr-3 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-100 w-44" />
               </div>
               <span className="text-xs text-gray-400 shrink-0 font-medium">{filteredUsers.length} / {users.length}</span>
               <button onClick={() => openCreateUser()} disabled={activeShops.length === 0}
-                title={activeShops.length === 0 ? "No shops available yet" : "Register a new shop user"}
+                title={activeShops.length === 0 ? t("admin.no_shops_available_title") : t("admin.register_new_shop_user_title")}
                 className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg text-white font-semibold transition disabled:opacity-40 shrink-0 shadow-sm hover:opacity-90"
                 style={{ background: `linear-gradient(135deg, ${LI_BLUE}, #0d4db8)` }}>
-                <UserPlus size={12} /> Register User
+                <UserPlus size={12} /> {t("admin.register_user")}
               </button>
             </div>
 
             {/* Header */}
             <div className="hidden sm:grid grid-cols-[1fr_1fr_auto_auto_auto] gap-4 px-4 py-1.5 border-b border-gray-100" style={{ background: "#F9F8F6" }}>
-              {["User", "Shop", "Role", "Status", "Actions"].map((h) => (
+              {[t("common.user"), t("admin.shop_label"), t("admin.role_label"), t("common.status"), t("common.actions")].map((h) => (
                 <span key={h} className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">{h}</span>
               ))}
             </div>
@@ -1104,7 +1106,7 @@ export default function AdminPage() {
             ) : filteredUsers.length === 0 ? (
               <div className="py-16 text-center">
                 <Users size={32} className="mx-auto mb-3 text-gray-200" />
-                <p className="text-sm font-semibold text-gray-400">No users found</p>
+                <p className="text-sm font-semibold text-gray-400">{t("admin.no_users_found")}</p>
               </div>
             ) : (
               <div className="divide-y divide-gray-50">
@@ -1127,7 +1129,7 @@ export default function AdminPage() {
                       <div className="min-w-0">
                         {u.shop_name
                           ? <p className="text-xs text-gray-600 truncate">{u.shop_name}</p>
-                          : <p className="text-xs text-gray-300 italic">No shop</p>}
+                          : <p className="text-xs text-gray-300 italic">{t("admin.no_shop")}</p>}
                       </div>
                       <div className="shrink-0">
                         {roleEdit?.id === u.id ? (
@@ -1135,50 +1137,52 @@ export default function AdminPage() {
                             <div className="relative">
                               <select value={roleEdit.role} onChange={(e) => setRoleEdit({ id: u.id, role: e.target.value })}
                                 className="text-xs border border-gray-300 rounded-lg px-2 py-1 pr-5 appearance-none focus:outline-none bg-white">
-                                <option value="admin">admin</option>
-                                <option value="owner">owner</option>
-                                <option value="staff">staff</option>
+                                <option value="admin">{t("nav.admin")}</option>
+                                <option value="owner">{t("admin.role_owner")}</option>
+                                <option value="staff">{t("admin.role_staff")}</option>
                               </select>
                               <ChevronDown size={9} className="absolute right-1 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
                             </div>
                             <button onClick={handleRoleChange} disabled={busy}
                               className="text-xs px-2 py-1 rounded-lg text-white font-medium transition disabled:opacity-40"
-                              style={{ background: LI_BLUE }}>Save</button>
+                              style={{ background: LI_BLUE }}>{t("admin.save")}</button>
                             <button onClick={() => setRoleEdit(null)} className="text-xs text-gray-400 hover:text-gray-600 px-1">✕</button>
                           </div>
                         ) : (
                           <span className="text-xs font-semibold capitalize px-2 py-0.5 rounded-full"
-                            style={{ background: "#EBF2FD", color: LI_BLUE }}>{u.role}</span>
+                            style={{ background: "#EBF2FD", color: LI_BLUE }}>
+                            {u.role === "admin" ? t("nav.admin") : u.role === "owner" ? t("admin.role_owner") : t("admin.role_staff")}
+                          </span>
                         )}
                       </div>
                       <div className="flex items-center gap-1.5 shrink-0">
                         {u.is_active
                           ? <CheckCircle size={13} className="text-green-500" />
                           : <XCircle size={13} className="text-gray-300" />}
-                        <span className="text-xs text-gray-500">{u.is_active ? "Active" : "Inactive"}</span>
+                        <span className="text-xs text-gray-500">{u.is_active ? t("admin.status_active") : t("admin.status_inactive")}</span>
                       </div>
                       <div className="flex items-center gap-1 shrink-0">
                         {!isMe ? (
                           <>
                             <button onClick={() => handleToggleUser(u.id)} disabled={busy}
                               className="flex items-center gap-0.5 text-xs px-2.5 py-1 rounded-full border border-gray-300 text-gray-600 hover:border-gray-400 font-medium transition disabled:opacity-40">
-                              {u.is_active ? <><ToggleRight size={11} />Disable</> : <><ToggleLeft size={11} />Enable</>}
+                              {u.is_active ? <><ToggleRight size={11} />{t("admin.disable")}</> : <><ToggleLeft size={11} />{t("admin.enable")}</>}
                             </button>
                             <button onClick={() => setRoleEdit({ id: u.id, role: u.role })} disabled={busy || roleEdit?.id === u.id}
                               className="p-1.5 rounded-lg text-gray-300 hover:text-gray-600 hover:bg-gray-100 transition disabled:opacity-40"
-                              title="Change role">
+                              title={t("admin.change_role_title")}>
                               <UserCog size={12} />
                             </button>
                             <button
                               onClick={() => setConfirm({ type: "delete-user", id: u.id, label: u.email, extra: u.shop_name ?? undefined, shopId: u.shop_id ?? undefined })}
                               disabled={busy}
-                              title="Permanently delete this user and their shop"
+                              title={t("admin.delete_user_shop_title")}
                               className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg bg-red-50 text-red-500 hover:bg-red-500 hover:text-white font-medium border border-red-200 hover:border-red-500 transition disabled:opacity-40">
-                              <UserX size={11} /> Delete
+                              <UserX size={11} /> {t("common.delete")}
                             </button>
                           </>
                         ) : (
-                          <span className="text-xs text-gray-300 italic">you</span>
+                          <span className="text-xs text-gray-300 italic">{t("admin.you")}</span>
                         )}
                       </div>
                     </div>
@@ -1200,12 +1204,12 @@ export default function AdminPage() {
                     <span className="w-5 h-5 rounded-lg flex items-center justify-center" style={{ background: "#EBF2FD" }}>
                       <Receipt size={10} style={{ color: LI_BLUE }} />
                     </span>
-                    Select a Shop to View Expenses
+                    {t("admin.select_shop_expenses")}
                   </h2>
                   <div className="relative">
                     <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
                     <input value={expShopSearch} onChange={(e) => setExpShopSearch(e.target.value)}
-                      placeholder="Search shops…"
+                      placeholder={t("admin.search_shops_placeholder")}
                       className="pl-7 pr-3 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-100 w-44" />
                   </div>
                 </div>
@@ -1234,10 +1238,10 @@ export default function AdminPage() {
                             {shop.owner_email && <p className="text-[11px] text-gray-400 truncate">{shop.owner_email}</p>}
                           </div>
                           <div className="flex items-center gap-4 text-xs text-gray-400 shrink-0">
-                            <span>{shop.user_count} users</span>
+                            <span>{shop.user_count} {t("admin.users_suffix")}</span>
                             {isOnline(shop.last_seen_at) && (
                               <span className="flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full text-white" style={{ background: "#057642" }}>
-                                <span className="w-1 h-1 rounded-full bg-white animate-pulse" />LIVE
+                                <span className="w-1 h-1 rounded-full bg-white animate-pulse" />{t("admin.live")}
                               </span>
                             )}
                             <Receipt size={13} style={{ color: LI_BLUE }} className="opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -1253,18 +1257,18 @@ export default function AdminPage() {
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 px-3.5 py-2.5 flex items-center gap-2.5">
                   <button onClick={() => { setExpShopId(null); setExpenseRows([]); }}
                     className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-800 font-medium transition border border-gray-200 rounded-lg px-2.5 py-1.5 hover:bg-gray-50 shrink-0">
-                    <ChevronLeft size={12} /> All Shops
+                    <ChevronLeft size={12} /> {t("admin.all_shops")}
                   </button>
                   <span className="w-6 h-6 rounded-lg flex items-center justify-center shrink-0" style={{ background: "#EBF2FD" }}>
                     <Receipt size={12} style={{ color: LI_BLUE }} />
                   </span>
                   <div className="flex-1 min-w-0">
                     <p className="text-[13px] font-semibold text-gray-900">{expShopName}</p>
-                    <p className="text-[11px] text-gray-400">{expTotal.toLocaleString()} expense{expTotal !== 1 ? "s" : ""} total</p>
+                    <p className="text-[11px] text-gray-400">{expTotal.toLocaleString()} {t("admin.expenses_total")}</p>
                   </div>
                   <button onClick={() => loadShopExpenses(expShopId, expPage)} disabled={expLoading}
                     className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 transition disabled:opacity-40 shrink-0">
-                    <RefreshCw size={11} className={expLoading ? "animate-spin" : ""} /> Refresh
+                    <RefreshCw size={11} className={expLoading ? "animate-spin" : ""} /> {t("common.refresh")}
                   </button>
                 </div>
 
@@ -1279,15 +1283,15 @@ export default function AdminPage() {
                   ) : expenseRows.length === 0 ? (
                     <div className="py-16 text-center">
                       <Receipt size={32} className="mx-auto mb-3 text-gray-200" />
-                      <p className="text-sm font-semibold text-gray-400">No expenses recorded</p>
-                      <p className="text-xs text-gray-300 mt-0.5">This shop has not added any expenses yet.</p>
+                      <p className="text-sm font-semibold text-gray-400">{t("expenses.no_expenses")}</p>
+                      <p className="text-xs text-gray-300 mt-0.5">{t("admin.shop_no_expenses_sub")}</p>
                     </div>
                   ) : (
                     <div className="overflow-x-auto">
                       <table className="w-full">
                         <thead>
                           <tr className="bg-slate-50 border-b border-slate-100">
-                            {["Date","Title","Category","Amount","Payment","Bank Name","Account / Ref","Receiver Phone","Notes",""].map((h) => (
+                            {[t("common.date"),t("expenses.title_field"),t("expenses.category"),t("expenses.amount"),t("admin.col_payment"),t("admin.col_bank_name"),t("admin.col_account_ref"),t("admin.col_receiver_phone"),t("common.notes"),""].map((h) => (
                               <th key={h} className="px-3 py-2 text-left text-[9px] font-semibold uppercase tracking-wider text-slate-400 whitespace-nowrap">{h}</th>
                             ))}
                           </tr>
@@ -1313,7 +1317,7 @@ export default function AdminPage() {
                                 </td>
                                 {/* Category */}
                                 <td className="px-3 py-1.5">
-                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-blue-100 text-blue-700 capitalize">{e.category}</span>
+                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-blue-100 text-blue-700 capitalize">{t(`expenses.cat.${e.category}`)}</span>
                                 </td>
                                 {/* Amount */}
                                 <td className="px-3 py-1.5 text-xs font-bold tabular-nums" style={{ color: LI_BLUE }}>
@@ -1322,10 +1326,10 @@ export default function AdminPage() {
                                 {/* Payment Method */}
                                 <td className="px-3 py-1.5 whitespace-nowrap">
                                   {e.payment_method === "mtn" && (
-                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-yellow-100 text-yellow-700">MTN MoMo</span>
+                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-yellow-100 text-yellow-700">{t("admin.payment_mtn")}</span>
                                   )}
                                   {e.payment_method === "bank" && (
-                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-blue-100 text-blue-700">Bank</span>
+                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-blue-100 text-blue-700">{t("admin.payment_bank")}</span>
                                   )}
                                   {!e.payment_method && <span className="text-slate-300 text-[10px]">—</span>}
                                 </td>
@@ -1347,7 +1351,7 @@ export default function AdminPage() {
                                 </td>
                                 {/* Edit */}
                                 <td className="px-3 py-1.5">
-                                  <button onClick={() => openEditExp(e)} title="Edit expense"
+                                  <button onClick={() => openEditExp(e)} title={t("admin.edit_expense_title")}
                                     className="p-1.5 rounded-md hover:bg-[#EBF2FD] text-gray-300 hover:text-[#1372e6] transition">
                                     <Pencil size={12} />
                                   </button>
@@ -1364,16 +1368,16 @@ export default function AdminPage() {
                   {expTotal > 50 && (
                     <div className="flex items-center justify-between px-4 py-2 border-t border-slate-100 bg-slate-50/50">
                       <p className="text-[11px] text-slate-500">
-                        Page <span className="font-semibold">{expPage}</span> · {expTotal.toLocaleString()} total
+                        {t("admin.page")} <span className="font-semibold">{expPage}</span> · {expTotal.toLocaleString()} {t("common.total")}
                       </p>
                       <div className="flex gap-1">
                         <button disabled={expPage <= 1 || expLoading} onClick={() => loadShopExpenses(expShopId, expPage - 1)}
                           className="px-2.5 py-1 rounded-md text-[11px] border border-slate-200 text-slate-500 hover:bg-slate-100 disabled:opacity-30 transition">
-                          ← Prev
+                          ← {t("admin.prev")}
                         </button>
                         <button disabled={expPage * 50 >= expTotal || expLoading} onClick={() => loadShopExpenses(expShopId, expPage + 1)}
                           className="px-2.5 py-1 rounded-md text-[11px] border border-slate-200 text-slate-500 hover:bg-slate-100 disabled:opacity-30 transition">
-                          Next →
+                          {t("admin.next")} →
                         </button>
                       </div>
                     </div>
@@ -1397,7 +1401,7 @@ export default function AdminPage() {
                   <Pencil size={13} className="text-white" />
                 </span>
                 <div>
-                  <p className="text-sm font-bold text-slate-800">Edit Expense</p>
+                  <p className="text-sm font-bold text-slate-800">{t("admin.edit_expense")}</p>
                   <p className="text-[10px] text-slate-400">{expShopName} · {editingExp.id.slice(0,8)}</p>
                 </div>
               </div>
@@ -1410,7 +1414,7 @@ export default function AdminPage() {
             <div className="px-4 py-3 grid gap-2 overflow-y-auto flex-1">
               {/* Title */}
               <div>
-                <label className="block text-[10px] font-medium text-gray-500 mb-0.5">Title <span className="text-red-400">*</span></label>
+                <label className="block text-[10px] font-medium text-gray-500 mb-0.5">{t("expenses.title_field")} <span className="text-red-400">*</span></label>
                 <input className="border border-slate-200 rounded-md px-2 py-1 w-full text-[11px] text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#1372e6]/30 focus:border-[#1372e6] transition"
                   value={editForm.title} onChange={(e) => setEditForm({ ...editForm, title: e.target.value })} />
               </div>
@@ -1418,14 +1422,14 @@ export default function AdminPage() {
               {/* Category + Amount */}
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-[10px] font-medium text-gray-500 mb-0.5">Category</label>
+                  <label className="block text-[10px] font-medium text-gray-500 mb-0.5">{t("expenses.category")}</label>
                   <select className="border border-slate-200 rounded-md px-2 py-1 w-full text-[11px] text-gray-800 focus:outline-none focus:ring-1 focus:ring-[#1372e6]/30 focus:border-[#1372e6] transition"
                     value={editForm.category} onChange={(e) => setEditForm({ ...editForm, category: e.target.value })}>
-                    {EXP_CATEGORIES.map((c) => <option key={c} value={c} className="capitalize">{c}</option>)}
+                    {EXP_CATEGORIES.map((c) => <option key={c} value={c} className="capitalize">{t(`expenses.cat.${c}`)}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className="block text-[10px] font-medium text-gray-500 mb-0.5">Amount <span className="text-red-400">*</span></label>
+                  <label className="block text-[10px] font-medium text-gray-500 mb-0.5">{t("expenses.amount")} <span className="text-red-400">*</span></label>
                   <input type="number" min="0" className="border border-slate-200 rounded-md px-2 py-1 w-full text-[11px] text-gray-800 focus:outline-none focus:ring-1 focus:ring-[#1372e6]/30 focus:border-[#1372e6] transition"
                     value={editForm.amount} onChange={(e) => setEditForm({ ...editForm, amount: e.target.value })} />
                 </div>
@@ -1434,20 +1438,20 @@ export default function AdminPage() {
               {/* Date + Notes */}
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-[10px] font-medium text-gray-500 mb-0.5">Date</label>
+                  <label className="block text-[10px] font-medium text-gray-500 mb-0.5">{t("common.date")}</label>
                   <input type="date" className="border border-slate-200 rounded-md px-2 py-1 w-full text-[11px] text-gray-800 focus:outline-none focus:ring-1 focus:ring-[#1372e6]/30 focus:border-[#1372e6] transition"
                     value={editForm.expense_date} onChange={(e) => setEditForm({ ...editForm, expense_date: e.target.value })} />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-medium text-gray-500 mb-0.5">Notes</label>
+                  <label className="block text-[10px] font-medium text-gray-500 mb-0.5">{t("common.notes")}</label>
                   <input className="border border-slate-200 rounded-md px-2 py-1 w-full text-[11px] text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#1372e6]/30 focus:border-[#1372e6] transition"
-                    placeholder="Optional…" value={editForm.notes} onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })} />
+                    placeholder={`${t("common.optional")}…`} value={editForm.notes} onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })} />
                 </div>
               </div>
 
               {/* Payment method */}
               <div className="border border-slate-100 rounded-lg p-2 bg-slate-50/50">
-                <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Payment Method</p>
+                <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">{t("admin.payment_method")}</p>
                 <div className="flex gap-1.5 mb-1.5">
                   {(["","mtn","bank"] as const).map((m) => (
                     <button key={m} type="button"
@@ -1460,30 +1464,30 @@ export default function AdminPage() {
                           : "bg-white border-slate-200 text-slate-400 hover:border-slate-300"
                       }`}
                       style={editForm.payment_method === m && m === "bank" ? { background: LI_BLUE } : {}}>
-                      {m === "" ? "None" : m === "mtn" ? "MTN MoMo" : "Bank"}
+                      {m === "" ? t("admin.payment_none") : m === "mtn" ? t("admin.payment_mtn") : t("admin.payment_bank")}
                     </button>
                   ))}
                 </div>
                 {editForm.payment_method === "bank" && (
                   <div className="grid grid-cols-2 gap-1.5 mb-1.5">
                     <div>
-                      <label className="block text-[10px] font-medium text-gray-500 mb-0.5">Bank Name</label>
+                      <label className="block text-[10px] font-medium text-gray-500 mb-0.5">{t("admin.col_bank_name")}</label>
                       <select className="border border-slate-200 rounded-md px-2 py-1 w-full text-[11px] text-gray-800 focus:outline-none focus:ring-1 focus:ring-[#1372e6]/30 focus:border-[#1372e6] transition"
                         value={editForm.bank_name} onChange={(e) => setEditForm({ ...editForm, bank_name: e.target.value })}>
-                        <option value="">Select bank…</option>
+                        <option value="">{t("admin.select_bank_placeholder")}</option>
                         {BANK_NAMES.map((b) => <option key={b} value={b}>{b}</option>)}
                       </select>
                     </div>
                     <div>
-                      <label className="block text-[10px] font-medium text-gray-500 mb-0.5">Account / Ref.</label>
+                      <label className="block text-[10px] font-medium text-gray-500 mb-0.5">{t("admin.col_account_ref")}</label>
                       <input className="border border-slate-200 rounded-md px-2 py-1 w-full text-[11px] text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#1372e6]/30 focus:border-[#1372e6] transition"
-                        placeholder="Account no. or ref." value={editForm.bank_account} onChange={(e) => setEditForm({ ...editForm, bank_account: e.target.value })} />
+                        placeholder={t("admin.account_ref_placeholder")} value={editForm.bank_account} onChange={(e) => setEditForm({ ...editForm, bank_account: e.target.value })} />
                     </div>
                   </div>
                 )}
                 {editForm.payment_method !== "" && (
                   <div>
-                    <label className="block text-[10px] font-medium text-gray-500 mb-0.5">Receiver Phone</label>
+                    <label className="block text-[10px] font-medium text-gray-500 mb-0.5">{t("admin.col_receiver_phone")}</label>
                     <input className="border border-slate-200 rounded-md px-2 py-1 w-full text-[11px] text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#1372e6]/30 focus:border-[#1372e6] transition"
                       placeholder="+250 7XX XXX XXX" value={editForm.receiver_phone} onChange={(e) => setEditForm({ ...editForm, receiver_phone: e.target.value })} />
                   </div>
@@ -1495,12 +1499,12 @@ export default function AdminPage() {
             <div className="flex justify-end gap-1.5 px-4 py-2.5 border-t border-slate-100 shrink-0">
               <button onClick={() => setEditingExp(null)}
                 className="px-3 py-1 rounded-md border border-slate-200 text-[11px] font-medium text-slate-600 hover:bg-slate-50 transition">
-                Cancel
+                {t("common.cancel")}
               </button>
               <button onClick={saveEditExp} disabled={editSaving || !editForm.title.trim() || !editForm.amount}
                 className="px-3 py-1 rounded-md text-[11px] font-semibold text-white transition disabled:opacity-60 hover:opacity-90 shadow-sm"
                 style={{ background: `linear-gradient(135deg, ${LI_BLUE}, #0d4db8)` }}>
-                {editSaving ? "Saving…" : "Save Changes"}
+                {editSaving ? t("common.saving") : t("common.save")}
               </button>
             </div>
           </div>
@@ -1518,8 +1522,8 @@ export default function AdminPage() {
                   <Store size={14} className="text-white" />
                 </span>
                 <div>
-                  <p className="text-sm font-bold text-slate-800">Register New Shop</p>
-                  <p className="text-[10px] text-slate-400">Phone required; login account optional</p>
+                  <p className="text-sm font-bold text-slate-800">{t("admin.register_new_shop")}</p>
+                  <p className="text-[10px] text-slate-400">{t("admin.register_shop_sub")}</p>
                 </div>
               </div>
               <button onClick={() => setShowCreateShop(false)} className="p-1 rounded-md hover:bg-slate-100 text-slate-400 transition">
@@ -1537,11 +1541,11 @@ export default function AdminPage() {
 
               {/* Shop name */}
               <div>
-                <label className="block text-[11px] font-medium text-gray-500 mb-1">Shop Name <span className="text-red-400">*</span></label>
+                <label className="block text-[11px] font-medium text-gray-500 mb-1">{t("settings.shop_name")} <span className="text-red-400">*</span></label>
                 <div className="relative">
                   <Store size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
                   <input value={createForm.shop_name} onChange={(e) => setCreateForm({ ...createForm, shop_name: e.target.value })}
-                    placeholder="e.g. Kigali Electronics"
+                    placeholder={t("admin.shop_name_placeholder")}
                     className="w-full pl-8 pr-3 py-2 text-xs border border-slate-200 rounded-lg text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#1372e6]/30 focus:border-[#1372e6] transition" />
                 </div>
               </div>
@@ -1549,7 +1553,7 @@ export default function AdminPage() {
               {/* Phone + Address */}
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-[11px] font-medium text-gray-500 mb-1">Phone <span className="text-red-400">*</span></label>
+                  <label className="block text-[11px] font-medium text-gray-500 mb-1">{t("common.phone")} <span className="text-red-400">*</span></label>
                   <div className="relative">
                     <Phone size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
                     <input value={createForm.phone} onChange={(e) => setCreateForm({ ...createForm, phone: e.target.value })}
@@ -1558,11 +1562,11 @@ export default function AdminPage() {
                   </div>
                 </div>
                 <div>
-                  <label className="block text-[11px] font-medium text-gray-500 mb-1">Address</label>
+                  <label className="block text-[11px] font-medium text-gray-500 mb-1">{t("common.address")}</label>
                   <div className="relative">
                     <MapPin size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
                     <input value={createForm.address} onChange={(e) => setCreateForm({ ...createForm, address: e.target.value })}
-                      placeholder="Optional"
+                      placeholder={t("common.optional")}
                       className="w-full pl-8 pr-2 py-2 text-xs border border-slate-200 rounded-lg text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#1372e6]/30 focus:border-[#1372e6] transition" />
                   </div>
                 </div>
@@ -1570,7 +1574,7 @@ export default function AdminPage() {
 
               {/* Needs platform account toggle */}
               <label className="flex items-center justify-between gap-2 border border-slate-200 rounded-lg px-2.5 py-2 cursor-pointer bg-slate-50/50">
-                <span className="text-[11px] font-medium text-gray-600">This shop needs a platform login account</span>
+                <span className="text-[11px] font-medium text-gray-600">{t("admin.needs_account_toggle")}</span>
                 <button type="button" role="switch" aria-checked={shopNeedsAccount}
                   onClick={() => setShopNeedsAccount((v) => !v)}
                   className="relative w-8 h-[18px] rounded-full transition-colors shrink-0"
@@ -1583,18 +1587,18 @@ export default function AdminPage() {
                 <>
                   {/* Owner name */}
                   <div>
-                    <label className="block text-[11px] font-medium text-gray-500 mb-1">Owner Full Name</label>
+                    <label className="block text-[11px] font-medium text-gray-500 mb-1">{t("admin.owner_full_name")}</label>
                     <div className="relative">
                       <UserIcon size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
                       <input value={createForm.owner_name} onChange={(e) => setCreateForm({ ...createForm, owner_name: e.target.value })}
-                        placeholder="Optional"
+                        placeholder={t("common.optional")}
                         className="w-full pl-8 pr-3 py-2 text-xs border border-slate-200 rounded-lg text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#1372e6]/30 focus:border-[#1372e6] transition" />
                     </div>
                   </div>
 
                   {/* Owner email */}
                   <div>
-                    <label className="block text-[11px] font-medium text-gray-500 mb-1">Owner Email <span className="text-red-400">*</span></label>
+                    <label className="block text-[11px] font-medium text-gray-500 mb-1">{t("admin.owner_email")} <span className="text-red-400">*</span></label>
                     <div className="relative">
                       <Mail size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
                       <input type="email" value={createForm.owner_email} onChange={(e) => setCreateForm({ ...createForm, owner_email: e.target.value })}
@@ -1602,18 +1606,18 @@ export default function AdminPage() {
                         className="w-full pl-8 pr-3 py-2 text-xs border border-slate-200 rounded-lg text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#1372e6]/30 focus:border-[#1372e6] transition" />
                     </div>
                     <p className="text-[10px] text-amber-600 mt-1 flex items-center gap-1">
-                      <AlertTriangle size={9} /> New shop emails start unverified — verify from the shop list once confirmed.
+                      <AlertTriangle size={9} /> {t("admin.new_shop_email_warning")}
                     </p>
                   </div>
 
                   {/* Owner password */}
                   <div>
-                    <label className="block text-[11px] font-medium text-gray-500 mb-1">Owner Password <span className="text-red-400">*</span></label>
+                    <label className="block text-[11px] font-medium text-gray-500 mb-1">{t("admin.owner_password")} <span className="text-red-400">*</span></label>
                     <div className="relative">
                       <Lock size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
                       <input type={showShopPassword ? "text" : "password"} value={createForm.owner_password}
                         onChange={(e) => setCreateForm({ ...createForm, owner_password: e.target.value })}
-                        placeholder="At least 8 characters"
+                        placeholder={t("admin.min_8_chars")}
                         className="w-full pl-8 pr-8 py-2 text-xs border border-slate-200 rounded-lg text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#1372e6]/30 focus:border-[#1372e6] transition" />
                       <button type="button" onClick={() => setShowShopPassword((v) => !v)}
                         className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
@@ -1626,9 +1630,9 @@ export default function AdminPage() {
 
               {/* Description */}
               <div>
-                <label className="block text-[11px] font-medium text-gray-500 mb-1">Description</label>
+                <label className="block text-[11px] font-medium text-gray-500 mb-1">{t("items.description")}</label>
                 <textarea value={createForm.description} onChange={(e) => setCreateForm({ ...createForm, description: e.target.value })}
-                  placeholder="Optional notes about this shop"
+                  placeholder={t("admin.shop_desc_placeholder")}
                   rows={2}
                   className="w-full px-2.5 py-2 text-xs border border-slate-200 rounded-lg text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#1372e6]/30 focus:border-[#1372e6] transition resize-none" />
               </div>
@@ -1638,12 +1642,12 @@ export default function AdminPage() {
             <div className="flex justify-end gap-2 px-3.5 py-2.5 border-t border-slate-100 shrink-0">
               <button onClick={() => setShowCreateShop(false)}
                 className="px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-medium text-slate-600 hover:bg-slate-50 transition">
-                Cancel
+                {t("common.cancel")}
               </button>
               <button onClick={handleCreateShop} disabled={creatingShop}
                 className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold text-white transition disabled:opacity-60 hover:opacity-90 shadow-sm"
                 style={{ background: `linear-gradient(135deg, ${LI_BLUE}, #0d4db8)` }}>
-                {creatingShop ? <><Loader2 size={12} className="animate-spin" /> Creating…</> : <><Plus size={12} /> Create Shop</>}
+                {creatingShop ? <><Loader2 size={12} className="animate-spin" /> {t("admin.creating")}</> : <><Plus size={12} /> {t("admin.create_shop")}</>}
               </button>
             </div>
           </div>
@@ -1661,7 +1665,7 @@ export default function AdminPage() {
                   <Pencil size={13} className="text-white" />
                 </span>
                 <div>
-                  <p className="text-sm font-bold text-slate-800">Edit Shop</p>
+                  <p className="text-sm font-bold text-slate-800">{t("admin.edit_shop")}</p>
                   <p className="text-[10px] text-slate-400">{editingShop.owner_email ?? editingShop.id.slice(0, 8)}</p>
                 </div>
               </div>
@@ -1673,7 +1677,7 @@ export default function AdminPage() {
             {/* Body */}
             <div className="px-3.5 py-2.5 grid gap-2 overflow-y-auto flex-1">
               <div>
-                <label className="block text-[11px] font-medium text-gray-500 mb-1">Shop Name <span className="text-red-400">*</span></label>
+                <label className="block text-[11px] font-medium text-gray-500 mb-1">{t("settings.shop_name")} <span className="text-red-400">*</span></label>
                 <div className="relative">
                   <Store size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
                   <input value={editShopForm.name} onChange={(e) => setEditShopForm({ ...editShopForm, name: e.target.value })}
@@ -1683,27 +1687,27 @@ export default function AdminPage() {
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-[11px] font-medium text-gray-500 mb-1">Phone</label>
+                  <label className="block text-[11px] font-medium text-gray-500 mb-1">{t("common.phone")}</label>
                   <div className="relative">
                     <Phone size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
                     <input value={editShopForm.phone} onChange={(e) => setEditShopForm({ ...editShopForm, phone: e.target.value })}
-                      placeholder="Optional"
+                      placeholder={t("common.optional")}
                       className="w-full pl-8 pr-2 py-2 text-xs border border-slate-200 rounded-lg text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#1372e6]/30 focus:border-[#1372e6] transition" />
                   </div>
                 </div>
                 <div>
-                  <label className="block text-[11px] font-medium text-gray-500 mb-1">Address</label>
+                  <label className="block text-[11px] font-medium text-gray-500 mb-1">{t("common.address")}</label>
                   <div className="relative">
                     <MapPin size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
                     <input value={editShopForm.address} onChange={(e) => setEditShopForm({ ...editShopForm, address: e.target.value })}
-                      placeholder="Optional"
+                      placeholder={t("common.optional")}
                       className="w-full pl-8 pr-2 py-2 text-xs border border-slate-200 rounded-lg text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#1372e6]/30 focus:border-[#1372e6] transition" />
                   </div>
                 </div>
               </div>
 
               <div>
-                <label className="block text-[11px] font-medium text-gray-500 mb-1">Description</label>
+                <label className="block text-[11px] font-medium text-gray-500 mb-1">{t("items.description")}</label>
                 <textarea value={editShopForm.description} onChange={(e) => setEditShopForm({ ...editShopForm, description: e.target.value })}
                   rows={2}
                   className="w-full px-2.5 py-2 text-xs border border-slate-200 rounded-lg text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#1372e6]/30 focus:border-[#1372e6] transition resize-none" />
@@ -1714,12 +1718,12 @@ export default function AdminPage() {
             <div className="flex justify-end gap-2 px-3.5 py-2.5 border-t border-slate-100 shrink-0">
               <button onClick={() => setEditingShop(null)}
                 className="px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-medium text-slate-600 hover:bg-slate-50 transition">
-                Cancel
+                {t("common.cancel")}
               </button>
               <button onClick={handleUpdateShop} disabled={editShopSaving || !editShopForm.name.trim()}
                 className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold text-white transition disabled:opacity-60 hover:opacity-90 shadow-sm"
                 style={{ background: `linear-gradient(135deg, ${LI_BLUE}, #0d4db8)` }}>
-                {editShopSaving ? <><Loader2 size={12} className="animate-spin" /> Saving…</> : "Save Changes"}
+                {editShopSaving ? <><Loader2 size={12} className="animate-spin" /> {t("common.saving")}</> : t("common.save")}
               </button>
             </div>
           </div>
@@ -1737,8 +1741,8 @@ export default function AdminPage() {
                   <UserPlus size={14} className="text-white" />
                 </span>
                 <div>
-                  <p className="text-sm font-bold text-slate-800">Register Shop User</p>
-                  <p className="text-[10px] text-slate-400">Add staff to an existing shop</p>
+                  <p className="text-sm font-bold text-slate-800">{t("admin.register_shop_user")}</p>
+                  <p className="text-[10px] text-slate-400">{t("admin.add_staff_sub")}</p>
                 </div>
               </div>
               <button onClick={() => setShowCreateUser(false)} className="p-1 rounded-md hover:bg-slate-100 text-slate-400 transition">
@@ -1756,14 +1760,14 @@ export default function AdminPage() {
 
               {/* Shop */}
               <div>
-                <label className="block text-[11px] font-medium text-gray-500 mb-1">Shop <span className="text-red-400">*</span></label>
+                <label className="block text-[11px] font-medium text-gray-500 mb-1">{t("admin.shop_label")} <span className="text-red-400">*</span></label>
                 <div className="relative">
                   <Store size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
                   <select
                     value={createUserForm.shop_id}
                     onChange={(e) => setCreateUserForm({ ...createUserForm, shop_id: e.target.value })}
                     className="w-full pl-8 pr-6 py-2 text-xs border border-slate-200 rounded-lg appearance-none bg-white text-gray-800 focus:outline-none focus:ring-1 focus:ring-[#1372e6]/30 focus:border-[#1372e6] transition">
-                    <option value="">Select a shop…</option>
+                    <option value="">{t("admin.select_shop_placeholder")}</option>
                     {activeShops.map((s) => (
                       <option key={s.id} value={s.id}>{s.name}</option>
                     ))}
@@ -1774,18 +1778,18 @@ export default function AdminPage() {
 
               {/* Name */}
               <div>
-                <label className="block text-[11px] font-medium text-gray-500 mb-1">Full Name</label>
+                <label className="block text-[11px] font-medium text-gray-500 mb-1">{t("admin.full_name")}</label>
                 <div className="relative">
                   <UserIcon size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
                   <input value={createUserForm.name} onChange={(e) => setCreateUserForm({ ...createUserForm, name: e.target.value })}
-                    placeholder="Optional"
+                    placeholder={t("common.optional")}
                     className="w-full pl-8 pr-3 py-2 text-xs border border-slate-200 rounded-lg text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#1372e6]/30 focus:border-[#1372e6] transition" />
                 </div>
               </div>
 
               {/* Email */}
               <div>
-                <label className="block text-[11px] font-medium text-gray-500 mb-1">Email <span className="text-red-400">*</span></label>
+                <label className="block text-[11px] font-medium text-gray-500 mb-1">{t("common.email")} <span className="text-red-400">*</span></label>
                 <div className="relative">
                   <Mail size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
                   <input type="email" value={createUserForm.email} onChange={(e) => setCreateUserForm({ ...createUserForm, email: e.target.value })}
@@ -1796,12 +1800,12 @@ export default function AdminPage() {
 
               {/* Password */}
               <div>
-                <label className="block text-[11px] font-medium text-gray-500 mb-1">Password <span className="text-red-400">*</span></label>
+                <label className="block text-[11px] font-medium text-gray-500 mb-1">{t("admin.password_label")} <span className="text-red-400">*</span></label>
                 <div className="relative">
                   <Lock size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
                   <input type={showUserPassword ? "text" : "password"} value={createUserForm.password}
                     onChange={(e) => setCreateUserForm({ ...createUserForm, password: e.target.value })}
-                    placeholder="At least 8 characters"
+                    placeholder={t("admin.min_8_chars")}
                     className="w-full pl-8 pr-8 py-2 text-xs border border-slate-200 rounded-lg text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#1372e6]/30 focus:border-[#1372e6] transition" />
                   <button type="button" onClick={() => setShowUserPassword((v) => !v)}
                     className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
@@ -1812,7 +1816,7 @@ export default function AdminPage() {
 
               {/* Role */}
               <div>
-                <label className="block text-[11px] font-medium text-gray-500 mb-1">Role <span className="text-red-400">*</span></label>
+                <label className="block text-[11px] font-medium text-gray-500 mb-1">{t("admin.role_label")} <span className="text-red-400">*</span></label>
                 <div className="relative">
                   <UserCog size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
                   <select
@@ -1830,12 +1834,12 @@ export default function AdminPage() {
             <div className="flex justify-end gap-2 px-3.5 py-2.5 border-t border-slate-100 shrink-0">
               <button onClick={() => setShowCreateUser(false)}
                 className="px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-medium text-slate-600 hover:bg-slate-50 transition">
-                Cancel
+                {t("common.cancel")}
               </button>
               <button onClick={handleCreateUser} disabled={creatingUser}
                 className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold text-white transition disabled:opacity-60 hover:opacity-90 shadow-sm"
                 style={{ background: `linear-gradient(135deg, ${LI_BLUE}, #0d4db8)` }}>
-                {creatingUser ? <><Loader2 size={12} className="animate-spin" /> Registering…</> : <><UserPlus size={12} /> Register User</>}
+                {creatingUser ? <><Loader2 size={12} className="animate-spin" /> {t("admin.registering")}</> : <><UserPlus size={12} /> {t("admin.register_user")}</>}
               </button>
             </div>
           </div>
@@ -1853,52 +1857,52 @@ export default function AdminPage() {
               </div>
               <div>
                 <h3 className="font-bold text-gray-900 text-sm">
-                  {confirm.type === "delete-shop" && "Delete Shop Permanently"}
-                  {confirm.type === "delete-user" && "Delete User Permanently"}
+                  {confirm.type === "delete-shop" && t("admin.delete_shop_permanently")}
+                  {confirm.type === "delete-user" && t("admin.delete_user_permanently")}
                 </h3>
-                <p className="text-xs text-gray-400 mt-0.5">This action cannot be undone.</p>
+                <p className="text-xs text-gray-400 mt-0.5">{t("admin.cannot_undo")}</p>
               </div>
             </div>
 
             {/* Body */}
             <div className="px-5 pb-4 space-y-3">
               <div className="p-3 bg-red-50 border border-red-100 rounded-xl text-xs text-red-700 space-y-1.5">
-                <p><strong className="text-red-800">&ldquo;{confirm.label}&rdquo;</strong> will be permanently deleted.</p>
+                <p><strong className="text-red-800">&ldquo;{confirm.label}&rdquo;</strong> {t("admin.will_be_permanently_deleted")}</p>
                 {confirm.type === "delete-shop" && (
                   <>
-                    <p>• All user accounts linked to this shop will be <strong>permanently deleted</strong> and their emails freed.</p>
-                    <p>• The shop owner account will also be deleted so the email can be re-registered.</p>
-                    <p>• All shop data, products, and settings will be removed from the server.</p>
-                    {confirm.extra && <p>• Owner: <strong>{confirm.extra}</strong></p>}
+                    <p>• {t("admin.delete_shop_bullet1")}</p>
+                    <p>• {t("admin.delete_shop_bullet2")}</p>
+                    <p>• {t("admin.delete_shop_bullet3")}</p>
+                    {confirm.extra && <p>• {t("admin.owner_label")} <strong>{confirm.extra}</strong></p>}
                   </>
                 )}
                 {confirm.type === "delete-user" && (
                   <>
-                    <p>• The user account will be <strong>permanently deleted</strong> from the server and database.</p>
-                    <p>• Their email will be freed immediately for re-registration.</p>
+                    <p>• {t("admin.delete_user_bullet1")}</p>
+                    <p>• {t("admin.delete_user_bullet2")}</p>
                     {confirm.extra && confirm.shopId && (
-                      <p>• Their shop <strong>&ldquo;{confirm.extra}&rdquo;</strong> and all its data will also be <strong>permanently deleted</strong>.</p>
+                      <p>• {t("admin.their_shop_prefix")} <strong>&ldquo;{confirm.extra}&rdquo;</strong> {t("admin.and_data_deleted")}</p>
                     )}
                     {confirm.extra && !confirm.shopId && (
-                      <p>• Previously linked to shop: <strong>{confirm.extra}</strong>.</p>
+                      <p>• {t("admin.previously_linked")} <strong>{confirm.extra}</strong>.</p>
                     )}
-                    <p>• This cannot be undone.</p>
+                    <p>• {t("admin.cannot_undo")}</p>
                   </>
                 )}
               </div>
-              <p className="text-xs text-gray-500 text-center">Are you absolutely sure you want to proceed?</p>
+              <p className="text-xs text-gray-500 text-center">{t("admin.confirm_proceed")}</p>
             </div>
 
             {/* Footer */}
             <div className="flex gap-2.5 px-5 pb-5">
               <button onClick={() => setConfirm(null)}
                 className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition">
-                Cancel
+                {t("common.cancel")}
               </button>
               <button onClick={execConfirm} disabled={!!actionId}
                 className="flex-1 py-2.5 rounded-xl text-sm font-bold text-white flex items-center justify-center gap-2 transition disabled:opacity-50"
                 style={{ background: "#dc2626" }}>
-                {actionId ? "Deleting…" : <><Trash2 size={13} /> Yes, Delete Permanently</>}
+                {actionId ? t("common.deleting") : <><Trash2 size={13} /> {t("admin.yes_delete_permanently")}</>}
               </button>
             </div>
           </div>

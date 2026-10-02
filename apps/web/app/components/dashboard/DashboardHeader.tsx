@@ -98,7 +98,7 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
             type="button"
             onClick={() => setMobileOpen((o) => !o)}
             className="flex h-9 w-9 items-center justify-center rounded-xl text-slate-500 hover:bg-slate-100 md:hidden"
-            aria-label="Open menu"
+            aria-label={t("nav.open_menu")}
           >
             <Menu size={20} />
           </button>
@@ -173,19 +173,19 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
 
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-[13px] font-bold leading-snug text-white">
-                        {user?.name ?? shop?.name ?? "User"}
+                        {user?.name ?? shop?.name ?? t("common.user")}
                       </p>
                       <p className="mt-0.5 truncate text-[11px] text-white/60">{user?.email ?? ""}</p>
                       <div className="mt-2">
                         {isAdmin ? (
                           <span className="inline-flex items-center gap-1 rounded-full border border-red-400/30 bg-red-500/20 px-2 py-0.5 text-[10px] font-bold text-red-200">
                             <span className="inline-block h-1.5 w-1.5 rounded-full bg-red-300" />
-                            Admin
+                            {t("nav.admin")}
                           </span>
                         ) : (
                           <span className="inline-flex items-center gap-1 rounded-full border border-green-400/30 bg-green-500/20 px-2 py-0.5 text-[10px] font-bold text-green-200">
                             <span className="inline-block h-1.5 w-1.5 rounded-full bg-green-300" />
-                            Shop Owner
+                            {t("common.shop_owner")}
                           </span>
                         )}
                       </div>
@@ -201,7 +201,7 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
                     <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-500">
                       <Globe size={15} />
                     </div>
-                    <span className="text-sm font-medium text-slate-700">Language</span>
+                    <span className="text-sm font-medium text-slate-700">{t("settings.language_section")}</span>
                     <div className="relative ml-auto shrink-0">
                       <select
                         value={lang}
@@ -225,8 +225,8 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
                       <Settings size={15} />
                     </div>
                     <div className="min-w-0">
-                      <p className="text-sm font-medium text-slate-700">Settings</p>
-                      <p className="text-[10px] leading-snug text-slate-400">Shop, profile & preferences</p>
+                      <p className="text-sm font-medium text-slate-700">{t("nav.settings")}</p>
+                      <p className="text-[10px] leading-snug text-slate-400">{t("nav.settings_hint")}</p>
                     </div>
                     <ChevronDown size={13} className="ml-auto shrink-0 -rotate-90 text-slate-300 transition group-hover:text-slate-400" />
                   </Link>
@@ -239,7 +239,7 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
                     <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-red-50 text-red-400 transition group-hover:bg-red-100">
                       <LogOut size={15} />
                     </div>
-                    <span className="text-sm font-semibold text-red-500 transition group-hover:text-red-600">Log Out</span>
+                    <span className="text-sm font-semibold text-red-500 transition group-hover:text-red-600">{t("common.logout")}</span>
                   </button>
                 </div>
 
@@ -263,7 +263,7 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
                 type="button"
                 onClick={() => setMobileOpen(false)}
                 className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100"
-                aria-label="Close menu"
+                aria-label={t("nav.close_menu")}
               >
                 <X size={18} />
               </button>

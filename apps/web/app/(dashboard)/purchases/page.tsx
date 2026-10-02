@@ -131,9 +131,9 @@ export default function PurchaseManagementPage() {
         } catch { failed++; }
       }
       e.target.value = "";
-      alert(`Imported ${imported} records${failed ? `, ${failed} failed` : ""}.`);
+      alert(`${t("purchases.import_result_prefix")} ${imported} ${t("common.records")}${failed ? `, ${failed} ${t("purchases.import_result_failed")}` : ""}.`);
       await loadAll(true);
-    } catch { alert("Failed to parse file."); }
+    } catch { alert(t("purchases.import_parse_error")); }
   }
 
   async function exportExcel() {
@@ -277,9 +277,9 @@ export default function PurchaseManagementPage() {
     const qty = Number(form.quantity);
     const cost = Number(form.cost_price);
     if ((!isRestocking && !form.product_name.trim()) || !form.quantity || !form.cost_price) {
-      alert(t("purchases.product_name") + ", " + t("purchases.qty_added") + " & " + t("purchases.cost_price") + " required."); return;
+      alert(t("purchases.product_name") + ", " + t("purchases.qty_added") + " " + t("common.and") + " " + t("purchases.cost_price") + " " + t("common.is_required") + "."); return;
     }
-    if (qty <= 0 || cost <= 0) { alert("Qty and cost must be > 0."); return; }
+    if (qty <= 0 || cost <= 0) { alert(t("purchases.qty_cost_positive")); return; }
 
     const payload: Record<string, unknown> = {
       cost_price: cost, selling_price: form.selling_price ? Number(form.selling_price) : undefined,
@@ -294,7 +294,7 @@ export default function PurchaseManagementPage() {
       setShowModal(false); setForm(EMPTY_FORM); setIsRestocking(false);
       await loadAll(true);
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : "Error");
+      alert(err instanceof Error ? err.message : t("common.error"));
     } finally { setSubmitting(false); }
   }
 
@@ -304,7 +304,7 @@ export default function PurchaseManagementPage() {
       setDeletingId(id);
       await purchaseRequest(`/purchases/${id}`, { method: "DELETE" });
       await loadHistory(true);
-    } catch { alert("Delete failed."); }
+    } catch { alert(t("common.delete_failed")); }
     finally { setDeletingId(""); }
   }
 
@@ -370,7 +370,7 @@ export default function PurchaseManagementPage() {
                 <ShoppingCart size={15} className="text-white" strokeWidth={2} />
               </div>
               <div>
-                <p className="text-[10px] font-semibold text-blue-200 uppercase tracking-widest leading-none">Purchases</p>
+                <p className="text-[10px] font-semibold text-blue-200 uppercase tracking-widest leading-none">{t("nav.purchases")}</p>
                 <h1 className="text-base font-extrabold text-white leading-tight tracking-tight">{t("purchases.title")}</h1>
               </div>
             </div>
@@ -403,8 +403,8 @@ export default function PurchaseManagementPage() {
               <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-green-400" />
             </span>
             <p className="text-[10px] text-blue-100/70 flex-1">
-              Live · <span className="font-semibold text-white/80">{productsTotal.toLocaleString()} items</span>
-              {lastUpdated && <span className="ml-1 text-blue-200/50">· Updated {lastUpdated.toLocaleTimeString()}</span>}
+              {t("common.live")} · <span className="font-semibold text-white/80">{productsTotal.toLocaleString()} {t("purchases.items_unit")}</span>
+              {lastUpdated && <span className="ml-1 text-blue-200/50">· {t("common.updated")} {lastUpdated.toLocaleTimeString()}</span>}
             </p>
             <span className="text-[10px] text-blue-200/50">↻ {countdown}s</span>
           </div>
@@ -469,12 +469,12 @@ export default function PurchaseManagementPage() {
         {/* STAT CARDS */}
         <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5 mb-2">
           {[
-            { label: "Total Products",   value: productsTotal,                         color: "text-[#1372e6]", dot: "bg-[#1372e6]" },
-            { label: "What You Paid",    value: invStats.costValue.toLocaleString(),    color: "text-[#1372e6]", dot: "bg-blue-500" },
-            { label: "If You Sell All",  value: invStats.retailValue.toLocaleString(),  color: "text-[#1372e6]", dot: "bg-indigo-500" },
-            { label: "Profit to Make",   value: invStats.grossProfit.toLocaleString(),  color: "text-green-600", dot: "bg-green-500" },
-            { label: "Almost Finished",  value: invStats.lowStock,                      color: "text-amber-500", dot: "bg-amber-400" },
-            { label: "Finished / Empty", value: invStats.outStock,                      color: "text-red-600",   dot: "bg-red-500" },
+            { label: t("purchases.stat_total_products"),   value: productsTotal,                         color: "text-[#1372e6]", dot: "bg-[#1372e6]" },
+            { label: t("purchases.stat_what_you_paid"),    value: invStats.costValue.toLocaleString(),    color: "text-[#1372e6]", dot: "bg-blue-500" },
+            { label: t("purchases.stat_if_sell_all"),      value: invStats.retailValue.toLocaleString(),  color: "text-[#1372e6]", dot: "bg-indigo-500" },
+            { label: t("purchases.stat_profit_to_make"),   value: invStats.grossProfit.toLocaleString(),  color: "text-green-600", dot: "bg-green-500" },
+            { label: t("purchases.stat_almost_finished"),  value: invStats.lowStock,                      color: "text-amber-500", dot: "bg-amber-400" },
+            { label: t("purchases.stat_finished_empty"),   value: invStats.outStock,                      color: "text-red-600",   dot: "bg-red-500" },
           ].map((card) => (
             <div key={card.label} className="bg-white rounded-lg border border-slate-200 px-2.5 py-2">
               <div className="flex items-center gap-1 mb-1">
@@ -491,24 +491,24 @@ export default function PurchaseManagementPage() {
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
             <div className="flex items-center justify-between px-3 py-1.5 border-b border-slate-100 bg-slate-50/60">
               <p className="text-[10px] text-slate-500">
-                <span className="font-semibold text-slate-700">{paginatedProducts.length}</span> of <span className="font-semibold text-slate-700">{filteredProducts.length}</span> products
+                <span className="font-semibold text-slate-700">{paginatedProducts.length}</span> {t("common.of")} <span className="font-semibold text-slate-700">{filteredProducts.length}</span> {t("purchases.products_word")}
               </p>
               <div className="flex items-center gap-1.5">
-                <button onClick={downloadTemplate} title="Download import template"
+                <button onClick={downloadTemplate} title={t("common.download_template_title")}
                   className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium border border-violet-200 text-violet-600 bg-white hover:bg-violet-50 transition">
-                  <Download size={10} /> Template
+                  <Download size={10} /> {t("common.template")}
                 </button>
-                <button onClick={() => fileInputRef.current?.click()} title="Import from CSV/Excel"
+                <button onClick={() => fileInputRef.current?.click()} title={t("common.import_title")}
                   className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium border border-violet-200 text-violet-600 bg-white hover:bg-violet-50 transition">
-                  <Upload size={10} /> Import
+                  <Upload size={10} /> {t("common.import")}
                 </button>
-                <button onClick={exportExcel} title="Export to Excel"
+                <button onClick={exportExcel} title={t("common.export_excel_title")}
                   className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium border border-green-200 text-green-600 bg-white hover:bg-green-50 transition">
-                  <FileSpreadsheet size={10} /> Excel
+                  <FileSpreadsheet size={10} /> {t("common.excel")}
                 </button>
-                <button onClick={exportPDF} title="Export to PDF"
+                <button onClick={exportPDF} title={t("common.export_pdf_title")}
                   className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium border border-red-200 text-red-600 bg-white hover:bg-red-50 transition">
-                  <FileText size={10} /> PDF
+                  <FileText size={10} /> {t("common.pdf")}
                 </button>
               </div>
             </div>
@@ -589,24 +589,24 @@ export default function PurchaseManagementPage() {
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
             <div className="flex items-center justify-between px-3 py-1.5 border-b border-slate-100 bg-slate-50/60">
               <p className="text-[10px] text-slate-500">
-                <span className="font-semibold text-slate-700">{purchases.length}</span> of <span className="font-semibold text-slate-700">{purchasesTotal}</span> records
+                <span className="font-semibold text-slate-700">{purchases.length}</span> {t("common.of")} <span className="font-semibold text-slate-700">{purchasesTotal}</span> {t("common.records")}
               </p>
               <div className="flex items-center gap-1.5">
-                <button onClick={downloadTemplate} title="Download import template"
+                <button onClick={downloadTemplate} title={t("common.download_template_title")}
                   className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium border border-violet-200 text-violet-600 bg-white hover:bg-violet-50 transition">
-                  <Download size={10} /> Template
+                  <Download size={10} /> {t("common.template")}
                 </button>
-                <button onClick={() => fileInputRef.current?.click()} title="Import from CSV/Excel"
+                <button onClick={() => fileInputRef.current?.click()} title={t("common.import_title")}
                   className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium border border-violet-200 text-violet-600 bg-white hover:bg-violet-50 transition">
-                  <Upload size={10} /> Import
+                  <Upload size={10} /> {t("common.import")}
                 </button>
-                <button onClick={exportExcel} title="Export to Excel"
+                <button onClick={exportExcel} title={t("common.export_excel_title")}
                   className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium border border-green-200 text-green-600 bg-white hover:bg-green-50 transition">
-                  <FileSpreadsheet size={10} /> Excel
+                  <FileSpreadsheet size={10} /> {t("common.excel")}
                 </button>
-                <button onClick={exportPDF} title="Export to PDF"
+                <button onClick={exportPDF} title={t("common.export_pdf_title")}
                   className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium border border-red-200 text-red-600 bg-white hover:bg-red-50 transition">
-                  <FileText size={10} /> PDF
+                  <FileText size={10} /> {t("common.pdf")}
                 </button>
               </div>
             </div>
@@ -712,14 +712,14 @@ export default function PurchaseManagementPage() {
                   <label className="block text-xs font-medium text-gray-600 mb-1">
                     {t("purchases.product_name")} {!isRestocking && <span className="text-red-400">*</span>}
                   </label>
-                  <input className={inputCls} placeholder="e.g. Sugar 1kg"
+                  <input className={inputCls} placeholder={t("purchases.placeholder_product_name")}
                     value={form.product_name} onChange={(e) => setForm({ ...form, product_name: e.target.value })}
                     disabled={isRestocking} />
                 </div>
                 {!isRestocking && (
                   <div className="md:col-span-2">
                     <label className="block text-xs font-medium text-gray-600 mb-1">{t("items.description")}</label>
-                    <input className={inputCls} placeholder="Optional"
+                    <input className={inputCls} placeholder={t("common.optional")}
                       value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
                   </div>
                 )}
@@ -735,8 +735,8 @@ export default function PurchaseManagementPage() {
                 </div>
                 {margin !== null && (
                   <div className="md:col-span-2 bg-slate-50 rounded-lg px-3 py-2 text-xs text-slate-500">
-                    Margin: <span className={`font-bold ${Number(margin) >= 0 ? "text-green-600" : "text-red-500"}`}>{Number(margin) >= 0 ? "+" : ""}{margin}%</span>
-                    {" · "}Unit profit: <span className="font-bold text-slate-700">{(Number(form.selling_price) - Number(form.cost_price)).toLocaleString()}</span>
+                    {t("purchases.margin_label")}: <span className={`font-bold ${Number(margin) >= 0 ? "text-green-600" : "text-red-500"}`}>{Number(margin) >= 0 ? "+" : ""}{margin}%</span>
+                    {" · "}{t("purchases.unit_profit_label")}: <span className="font-bold text-slate-700">{(Number(form.selling_price) - Number(form.cost_price)).toLocaleString()}</span>
                   </div>
                 )}
                 <div>
@@ -759,7 +759,7 @@ export default function PurchaseManagementPage() {
                   </select>
                   {suppliers.length === 0 && (
                     <p className="text-xs text-[#1372e6] mt-1">
-                      <Link href="/PartnerManagement" className="hover:underline">{t("common.add")} supplier →</Link>
+                      <Link href="/PartnerManagement" className="hover:underline">{t("purchases.add_supplier_link")}</Link>
                     </p>
                   )}
                 </div>
