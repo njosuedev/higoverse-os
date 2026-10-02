@@ -3,6 +3,8 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from "react";
 import { getMyShop, clearMyShopCache, type Shop } from "@/lib/shop-api";
 import { useAuth } from "@/lib/auth-context";
+import { useLanguage } from "@/lib/language-context";
+import { normalizeLayout } from "@/lib/business-layout";
 
 interface ShopCtx {
   shop:    Shop | null;
@@ -19,6 +21,10 @@ export function ShopProvider({ children }: { children: ReactNode }) {
   const [shop,    setShop]    = useState<Shop | null>(null);
   const [loading, setLoading] = useState(true);
   const [rev,     setRev]     = useState(0);
+  const { setLayout } = useLanguage();
+
+  // The shop's admin-assigned layout drives layout-specific wording app-wide.
+  useEffect(() => { setLayout(normalizeLayout(shop?.layout)); }, [shop?.layout, setLayout]);
 
   useEffect(() => {
     // `/api/v1/shop` requires auth — guard against firing before the

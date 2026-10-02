@@ -39,6 +39,8 @@ export interface Shop {
   address?: string;
   description?: string;
   logo_url?: string;
+  /** Admin-assigned UI template — see lib/business-layout.ts. */
+  layout?: string;
   is_active: boolean;
   created_at: string | null;
   updated_at: string | null;

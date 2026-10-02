@@ -4,23 +4,30 @@ import React, { createContext, useContext, useEffect, useState } from "react";
 import { translate, type Lang } from "./i18n";
 import { isAuthenticated } from "./auth";
 import { settingsRequest } from "./settings-api";
+import { layoutTerm, type BusinessLayout } from "./business-layout";
 
 interface LanguageContextValue {
   lang: Lang;
   setLang: (l: Lang) => void;
   t: (key: string) => string;
+  /** Business layout of the signed-in shop — switches layout-specific wording. */
+  layout: BusinessLayout;
+  setLayout: (l: BusinessLayout) => void;
 }
 
 const LanguageContext = createContext<LanguageContextValue>({
   lang: "en",
   setLang: () => {},
   t: (key) => key,
+  layout: "retail",
+  setLayout: () => {},
 });
 
 const VALID: Lang[] = ["en", "rw", "fr", "sw", "zh"];
 
 export function LanguageProvider({ children }: { children: React.ReactNode }) {
   const [lang, setLangState] = useState<Lang>("en");
+  const [layout, setLayout] = useState<BusinessLayout>("retail");
 
   useEffect(() => {
     const stored = localStorage.getItem("app_lang") as Lang | null;
@@ -45,7 +52,10 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <LanguageContext.Provider value={{ lang, setLang, t: (key) => translate(lang, key) }}>
+    <LanguageContext.Provider value={{
+      lang, setLang, layout, setLayout,
+      t: (key) => layoutTerm(layout, lang, key) ?? translate(lang, key),
+    }}>
       {children}
     </LanguageContext.Provider>
   );

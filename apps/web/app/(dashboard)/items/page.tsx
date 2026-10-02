@@ -6,11 +6,12 @@ import { itemRequest } from "@/lib/product-api";
 import { partnerRequest } from "@/lib/supplier-api";
 import { useDebounce } from "@/lib/hooks";
 import { useLanguage } from "@/lib/language-context";
+import { VEHICLE_FIELDS, parseAttributes, stringifyAttributes, type Attributes } from "@/lib/business-layout";
 import Pagination from "@/app/components/ui/Pagination";
 import {
   Package, AlertCircle, Search, Filter, Plus, Trash2, Pencil, X,
   Boxes, DollarSign, TrendingUp, TrendingDown, ShoppingBag, RefreshCw, BarChart3, ChevronDown,
-  FileSpreadsheet, FileText, Upload, Download, CheckCircle, XCircle,
+  FileSpreadsheet, FileText, Upload, Download, CheckCircle, XCircle, Car,
 } from "lucide-react";
 
 interface Product {
@@ -21,6 +22,8 @@ interface Product {
   selling_price: number;
   quantity: number;
   supplier_id?: string | null;
+  /** JSON text of layout-specific fields (car layout: make, model, VIN…). */
+  attributes?: string | null;
   profit_status?: "profit" | "loss";
   profit_money?: number;
   created_at?: string;
@@ -31,12 +34,19 @@ type ModalMode = "create" | "edit";
 
 const EMPTY_FORM = {
   name: "", description: "", cost_price: "", selling_price: "", quantity: "", supplier_id: "",
+  attributes: {} as Attributes,
 };
+
+/** "Plate RAC 123 A · Chassis …" line under a car's name. */
+function carIds(a: Attributes): string {
+  return [a.plate_no && `Plate ${a.plate_no}`, a.chassis_no && `Chassis ${a.chassis_no}`].filter(Boolean).join(" · ");
+}
 
 const PAGE_SIZES = [25, 50, 100, 250];
 
 export default function ItemManagementPage() {
-  const { t } = useLanguage();
+  const { t, layout } = useLanguage();
+  const isCar = layout === "car";
   const [products, setProducts] = useState<Product[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(true);
@@ -121,6 +131,7 @@ export default function ItemManagementPage() {
       name: p.name, description: p.description || "",
       cost_price: String(p.cost_price), selling_price: String(p.selling_price),
       quantity: String(p.quantity), supplier_id: p.supplier_id || "",
+      attributes: parseAttributes(p.attributes),
     });
     setEditingId(p.id); setModalMode("edit"); setShowModal(true);
   }
@@ -130,13 +141,22 @@ export default function ItemManagementPage() {
   }
 
   async function submitForm() {
-    if (!form.name.trim() || !form.cost_price || !form.selling_price || !form.quantity) {
+    if (isCar) {
+      const missing = VEHICLE_FIELDS.some((f) => f.required && !String(form.attributes[f.key] ?? "").trim());
+      if (!form.name.trim() || !form.selling_price || !form.quantity || missing) {
+        alert(t("vehicle.err_required")); return;
+      }
+    } else if (!form.name.trim() || !form.cost_price || !form.selling_price || !form.quantity) {
       alert(t("items.validation_required")); return;
     }
     const payload = {
       name: form.name.trim(), description: form.description.trim() || null,
-      cost_price: Number(form.cost_price), selling_price: Number(form.selling_price),
+      // Car companies don't track cost; the API requires one, so store the
+      // price as cost (profit then reads as zero rather than a fake margin).
+      cost_price: Number(isCar ? form.selling_price : form.cost_price), selling_price: Number(form.selling_price),
       quantity: Number(form.quantity), supplier_id: form.supplier_id || null,
+      // Only car shops edit attributes; leave other layouts' rows untouched.
+      ...(isCar ? { attributes: stringifyAttributes(form.attributes) } : {}),
     };
     try {
       setSubmitting(true);
@@ -170,14 +190,15 @@ export default function ItemManagementPage() {
   const filtered = useMemo(() => {
     const q = debouncedSearch.toLowerCase();
     return products
-      .filter((p) => p.name?.toLowerCase().includes(q) || p.id?.toLowerCase().includes(q))
+      .filter((p) => p.name?.toLowerCase().includes(q) || p.id?.toLowerCase().includes(q)
+        || (isCar && (p.attributes ?? "").toLowerCase().includes(q)))
       .filter((p) => {
         if (filter === "in_stock") return p.quantity > 10;
         if (filter === "low_stock") return p.quantity > 0 && p.quantity <= 10;
         if (filter === "out_stock") return p.quantity === 0;
         return true;
       });
-  }, [products, debouncedSearch, filter]);
+  }, [products, debouncedSearch, filter, isCar]);
 
   const totalPages = Math.ceil(filtered.length / pageSize);
   const paginated = filtered.slice((page - 1) * pageSize, page * pageSize);
@@ -196,6 +217,25 @@ export default function ItemManagementPage() {
   }, [products]);
 
   const alertItems = products.filter((p) => p.quantity <= 10);
+
+  function buildCarExportRows(): Record<string, string | number>[] {
+    return filtered.map((p, i) => {
+      const a = parseAttributes(p.attributes);
+      return {
+        "#": i + 1,
+        [t("items.name")]: p.name,
+        [t("vehicle.car_type")]: a.car_type ? t(`vehicle.car_type_${a.car_type}`) : "",
+        [t("vehicle.year")]: a.year ?? "",
+        [t("vehicle.battery_range")]: a.battery_range ? Number(a.battery_range) : "",
+        [t("vehicle.color")]: a.color ?? "",
+        [t("vehicle.chassis_no")]: a.chassis_no ?? "",
+        [t("vehicle.plate_no")]: a.plate_no ?? "",
+        [t("items.quantity")]: p.quantity,
+        [t("items.selling_price")]: Number(p.selling_price || 0),
+        "Date Added": p.created_at ? new Date(p.created_at).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : "",
+      };
+    });
+  }
 
   function buildExportRows() {
     return filtered.map((p, i) => {
@@ -224,7 +264,7 @@ export default function ItemManagementPage() {
 
   function exportExcel() {
     import("xlsx").then(({ utils, writeFile }) => {
-      const rows = buildExportRows();
+      const rows = isCar ? buildCarExportRows() : buildExportRows();
       const ws = utils.json_to_sheet(rows);
       ws["!cols"] = [4, 28, 24, 20, 14, 14, 12, 10, 14, 14, 14, 22].map((w) => ({ wch: w }));
       const wb = utils.book_new();
@@ -250,6 +290,20 @@ export default function ItemManagementPage() {
     doc.setTextColor(120);
     doc.text(`Exported on ${new Date().toLocaleString()} · ${rows.length} items`, 40, 56);
     doc.setTextColor(0);
+
+    if (isCar) {
+      const carRows = buildCarExportRows();
+      autoTable(doc, {
+        startY: 68,
+        head: [Object.keys(carRows[0] ?? {})],
+        body: carRows.map((r) => Object.values(r).map((v) => typeof v === "number" ? v.toLocaleString() : v)),
+        styles: { fontSize: 7, cellPadding: 4 },
+        headStyles: { fillColor: [10, 102, 194], textColor: 255, fontStyle: "bold", fontSize: 7 },
+        alternateRowStyles: { fillColor: [245, 247, 250] },
+      });
+      doc.save(`inventory_${new Date().toISOString().slice(0, 10)}.pdf`);
+      return;
+    }
 
     autoTable(doc, {
       startY: 68,
@@ -352,6 +406,28 @@ export default function ItemManagementPage() {
 
   const inputCls =
     "border border-slate-200 text-gray-800 placeholder:text-gray-400 rounded-lg px-3 py-2 w-full text-sm focus:outline-none focus:ring-2 focus:ring-[#0a66c2]/30 focus:border-[#0a66c2] transition";
+
+  function renderCarField(f: (typeof VEHICLE_FIELDS)[number]) {
+    const value = form.attributes[f.key] ?? "";
+    const set = (v: string) => setForm({ ...form, attributes: { ...form.attributes, [f.key]: v } });
+    return (
+      <div key={f.key}>
+        <label className="block text-xs font-medium text-gray-600 mb-1">
+          {t(`vehicle.${f.key}`)}{" "}
+          {f.required ? <span className="text-red-400">*</span> : <span className="text-gray-400 font-normal">({t("common.optional")})</span>}
+        </label>
+        {f.type === "select" ? (
+          <select className={inputCls} value={value} onChange={(e) => set(e.target.value)}>
+            <option value="">—</option>
+            {f.options!.map((o) => <option key={o} value={o}>{t(`vehicle.${f.key}_${o}`)}</option>)}
+          </select>
+        ) : (
+          <input type={f.type} min={f.type === "number" ? "0" : undefined} className={inputCls}
+            placeholder={f.placeholder} value={value} onChange={(e) => set(e.target.value)} />
+        )}
+      </div>
+    );
+  }
 
   if (loading) return <ItemsSkeleton />;
 
@@ -519,7 +595,7 @@ export default function ItemManagementPage() {
             { label: t("items.low_stock"),   value: stats.lowStock,                         color: "text-amber-500", dot: "bg-amber-400" },
             { label: t("items.out_stock"),   value: stats.outStock,                         color: "text-red-600",   dot: "bg-red-500"   },
             { label: t("items.stock_value"), value: stats.stockValue.toLocaleString(),      color: "text-slate-700", dot: "bg-slate-400" },
-            { label: t("items.pot_profit"),  value: stats.potentialProfit.toLocaleString(), color: "text-green-700", dot: "bg-green-600" },
+            ...(isCar ? [] : [{ label: t("items.pot_profit"),  value: stats.potentialProfit.toLocaleString(), color: "text-green-700", dot: "bg-green-600" }]),
           ].map((card) => (
             <div key={card.label} className="bg-white rounded-lg border border-slate-200 px-2.5 py-2">
               <div className="flex items-center gap-1 mb-1">
@@ -605,6 +681,20 @@ export default function ItemManagementPage() {
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
+                {isCar ? (
+                <tr className="border-b border-slate-200 bg-slate-50">
+                  <th className="w-8 px-3 py-2 text-left text-[10px] font-semibold text-slate-400">#</th>
+                  <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-500">{t("items.col_product")}</th>
+                  <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-500">{t("vehicle.car_type")}</th>
+                  <th className="px-3 py-2 text-center text-[10px] font-semibold uppercase tracking-wider text-slate-500">{t("vehicle.year")}</th>
+                  <th className="px-3 py-2 text-right text-[10px] font-semibold uppercase tracking-wider text-slate-500">{t("vehicle.battery_range")}</th>
+                  <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-500">{t("vehicle.color")}</th>
+                  <th className="px-3 py-2 text-right text-[10px] font-semibold uppercase tracking-wider text-slate-500">{t("items.col_selling")}</th>
+                  <th className="px-3 py-2 text-center text-[10px] font-semibold uppercase tracking-wider text-slate-500">{t("items.col_qty")}</th>
+                  <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-500">{t("items.col_added")}</th>
+                  <th className="px-3 py-2 text-center text-[10px] font-semibold uppercase tracking-wider text-slate-500">{t("common.actions")}</th>
+                </tr>
+                ) : (
                 <tr className="border-b border-slate-200 bg-slate-50">
                   <th className="w-8 px-3 py-2 text-left text-[10px] font-semibold text-slate-400">#</th>
                   <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-500">{t("items.col_product")}</th>
@@ -619,6 +709,7 @@ export default function ItemManagementPage() {
                   <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-500">{t("items.col_added")}</th>
                   <th className="px-3 py-2 text-center text-[10px] font-semibold uppercase tracking-wider text-slate-500">{t("common.actions")}</th>
                 </tr>
+                )}
               </thead>
               <tbody>
                 {paginated.map((p, idx) => {
@@ -644,19 +735,40 @@ export default function ItemManagementPage() {
                       <td className="px-3 py-1.5">
                         <div className="flex items-center gap-2">
                           <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center flex-shrink-0">
-                            <Package size={12} className="text-slate-300" />
+                            {isCar ? <Car size={12} className="text-slate-400" /> : <Package size={12} className="text-slate-300" />}
                           </div>
                           <div className="min-w-0">
                             <div className="flex items-center gap-1.5 flex-wrap">
                               <p className="font-semibold text-slate-800 text-xs leading-tight">{p.name}</p>
                             </div>
-                            {p.description && (
+                            {isCar && carIds(parseAttributes(p.attributes)) && (
+                              <p className="text-[10px] text-slate-500 max-w-[240px] truncate">{carIds(parseAttributes(p.attributes))}</p>
+                            )}
+                            {!isCar && p.description && (
                               <p className="text-[10px] text-slate-400 max-w-[160px] truncate">{p.description}</p>
                             )}
                           </div>
                         </div>
                       </td>
 
+                      {isCar ? (() => {
+                        const a = parseAttributes(p.attributes);
+                        return (<>
+                          <td className="px-3 py-1.5 text-xs text-slate-700">{a.car_type ? t(`vehicle.car_type_${a.car_type}`) : "—"}</td>
+                          <td className="px-3 py-1.5 text-center text-xs text-slate-700 tabular-nums">{a.year || "—"}</td>
+                          <td className="px-3 py-1.5 text-right text-xs text-slate-600 tabular-nums">{a.battery_range ? `${Number(a.battery_range).toLocaleString()} km` : "—"}</td>
+                          <td className="px-3 py-1.5 text-xs text-slate-700">{a.color || "—"}</td>
+                          <td className="px-3 py-1.5 text-right">
+                            <span className="text-xs font-semibold text-slate-800 tabular-nums">{Number(p.selling_price || 0).toLocaleString()}</span>
+                          </td>
+                          <td className="px-3 py-1.5 text-center">
+                            <span className={`inline-flex items-center justify-center min-w-[1.5rem] px-1.5 py-0.5 rounded text-[10px] font-bold tabular-nums
+                              ${isOutOfStock ? "bg-red-100 text-red-700" : needsRestock ? "bg-amber-100 text-amber-700" : "bg-green-100 text-green-700"}`}>
+                              {p.quantity}
+                            </span>
+                          </td>
+                        </>);
+                      })() : (<>
                       {/* Supplier */}
                       <td className="px-3 py-1.5">
                         {supplier
@@ -723,6 +835,7 @@ export default function ItemManagementPage() {
                           {isProfit ? "+" : ""}{totalProfit.toLocaleString()}
                         </span>
                       </td>
+                      </>)}
 
                       {/* Date added */}
                       <td className="px-3 py-1.5 whitespace-nowrap">
@@ -804,6 +917,18 @@ export default function ItemManagementPage() {
                   <label className="block text-xs font-medium text-gray-600 mb-1">{t("items.name")} <span className="text-red-400">*</span></label>
                   <input className={inputCls} placeholder={t("items.name_placeholder")} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
                 </div>
+                {isCar ? (<>
+                  {VEHICLE_FIELDS.filter((f) => f.required).map(renderCarField)}
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">{t("items.quantity")} <span className="text-red-400">*</span></label>
+                    <input type="number" min="0" className={inputCls} placeholder="0" value={form.quantity} onChange={(e) => setForm({ ...form, quantity: e.target.value })} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">{t("items.selling_price")} <span className="text-red-400">*</span></label>
+                    <input type="number" min="0" className={inputCls} placeholder="0" value={form.selling_price} onChange={(e) => setForm({ ...form, selling_price: e.target.value })} />
+                  </div>
+                  {VEHICLE_FIELDS.filter((f) => !f.required).map(renderCarField)}
+                </>) : (<>
                 <div className="md:col-span-2">
                   <label className="block text-xs font-medium text-gray-600 mb-1">{t("items.description")}</label>
                   <input className={inputCls} placeholder={t("items.description_placeholder")} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
@@ -834,7 +959,7 @@ export default function ItemManagementPage() {
                     {suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
                   </select>
                 </div>
-
+                </>)}
               </div>
               <div className="flex justify-end gap-2.5 px-4 sm:px-6 py-4 border-t border-slate-100 shrink-0">
                 <button onClick={closeModal} className="px-4 py-2 rounded-lg border border-slate-200 text-slate-600 text-sm font-medium hover:bg-slate-50 transition">{t("common.cancel")}</button><button onClick={submitForm} disabled={submitting}

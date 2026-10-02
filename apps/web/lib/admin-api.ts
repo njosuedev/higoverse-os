@@ -1,3 +1,4 @@
+import type { BusinessLayout } from "@/lib/business-layout";
 import { getToken, handleUnauthorized } from "@/lib/auth";
 
 const AUTH_API = process.env.NEXT_PUBLIC_AUTH_API || "https://auth-esys.vercel.app";
@@ -50,6 +51,7 @@ export interface AdminShop {
   address?: string;
   description?: string;
   logo_url?: string;
+  layout?: string;
   is_active: boolean;
   email_verified: boolean;
   owner_email: string | null;
@@ -84,6 +86,7 @@ export interface CreateShopPayload {
   address?: string;
   description?: string;
   logo_url?: string;
+  layout?: BusinessLayout;
 }
 
 export async function createShop(payload: CreateShopPayload): Promise<{ shop_id: string; shop_name: string; owner_email: string }> {
@@ -116,6 +119,7 @@ export interface UpdateShopPayload {
   address?: string;
   description?: string;
   logo_url?: string;
+  layout?: BusinessLayout;
 }
 
 export async function updateShop(shopId: string, payload: UpdateShopPayload): Promise<AdminShop> {

@@ -22,9 +22,11 @@ import {
   UserX,
   Receipt, Pencil, X, ChevronLeft,
   Plus, Loader2, Lock, User as UserIcon, UserPlus,
-  LayoutDashboard, Users, Activity, Sparkles, TrendingUp,
+  LayoutDashboard, Users, Activity, Sparkles, TrendingUp, Car,
 } from "lucide-react";
 import { expenseRequest } from "@/lib/expense-api";
+import LayoutPicker from "@/app/components/admin/LayoutPicker";
+import { normalizeLayout, type BusinessLayout } from "@/lib/business-layout";
 
 type Tab = "overview" | "shops" | "users" | "expenses";
 type ShopSort = "newest" | "lastActive" | "name" | "users";
@@ -141,7 +143,7 @@ export default function AdminPage() {
   // Create-shop modal state
   const [showCreateShop, setShowCreateShop] = useState(false);
   const [createForm, setCreateForm]         = useState<CreateShopPayload>({
-    shop_name: "", owner_email: "", owner_password: "", owner_name: "", phone: "", address: "",
+    shop_name: "", owner_email: "", owner_password: "", owner_name: "", phone: "", address: "", layout: "retail",
   });
   const [createError, setCreateError]       = useState<string | null>(null);
   const [creatingShop, setCreatingShop]     = useState(false);
@@ -150,7 +152,7 @@ export default function AdminPage() {
 
   // Edit-shop modal state
   const [editingShop, setEditingShop]       = useState<AdminShop | null>(null);
-  const [editShopForm, setEditShopForm]     = useState({ name: "", phone: "", address: "", description: "" });
+  const [editShopForm, setEditShopForm]     = useState({ name: "", phone: "", address: "", description: "", layout: "retail" as BusinessLayout });
   const [editShopSaving, setEditShopSaving] = useState(false);
 
   // Create-shop-user (register staff) modal state
@@ -343,7 +345,7 @@ export default function AdminPage() {
   };
 
   const openCreateShop = () => {
-    setCreateForm({ shop_name: "", owner_email: "", owner_password: "", owner_name: "", phone: "", address: "", description: "" });
+    setCreateForm({ shop_name: "", owner_email: "", owner_password: "", owner_name: "", phone: "", address: "", description: "", layout: "retail" });
     setCreateError(null);
     setShowShopPassword(false);
     setShopNeedsAccount(true);
@@ -383,6 +385,7 @@ export default function AdminPage() {
     setEditShopForm({
       name: shop.name ?? "", phone: shop.phone ?? "",
       address: shop.address ?? "", description: shop.description ?? "",
+      layout: normalizeLayout(shop.layout),
     });
     setEditingShop(shop);
   };
@@ -397,6 +400,7 @@ export default function AdminPage() {
         phone: editShopForm.phone.trim() || undefined,
         address: editShopForm.address.trim() || undefined,
         description: editShopForm.description.trim() || undefined,
+        layout: editShopForm.layout,
       });
       setShops((p) => p.map((s) => s.id === editingShop.id ? { ...s, ...updated } : s));
       setEditingShop(null);
@@ -888,6 +892,11 @@ export default function AdminPage() {
                             )}
                             {joinedThisWeek(shop.created_at) && (
                               <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full text-white" style={{ background: LI_BLUE }}>{t("admin.new_badge")}</span>
+                            )}
+                            {normalizeLayout(shop.layout) === "car" && (
+                              <span className="flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
+                                <Car size={9} /> {t("layout.car")}
+                              </span>
                             )}
                             {shop.owner_email ? (
                               shop.email_verified ? (
@@ -1628,6 +1637,8 @@ export default function AdminPage() {
                 </>
               )}
 
+              <LayoutPicker value={normalizeLayout(createForm.layout)} onChange={(l) => setCreateForm({ ...createForm, layout: l })} />
+
               {/* Description */}
               <div>
                 <label className="block text-[11px] font-medium text-gray-500 mb-1">{t("items.description")}</label>
@@ -1705,6 +1716,8 @@ export default function AdminPage() {
                   </div>
                 </div>
               </div>
+
+              <LayoutPicker value={editShopForm.layout} onChange={(l) => setEditShopForm({ ...editShopForm, layout: l })} />
 
               <div>
                 <label className="block text-[11px] font-medium text-gray-500 mb-1">{t("items.description")}</label>

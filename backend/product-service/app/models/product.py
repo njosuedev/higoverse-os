@@ -105,6 +105,13 @@ class Product(Base):
         nullable=True
     )
 
+    # JSON-encoded dict of layout-specific fields (e.g. a car business's
+    # make/model/year/VIN) — keeps the table generic across business types.
+    attributes = Column(
+        Text,
+        nullable=True
+    )
+
     # =====================================
     # AUDIT
     # =====================================

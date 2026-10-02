@@ -20,6 +20,7 @@ def _fmt(s: Shop) -> dict:
         "address":      s.address,
         "description":  s.description,
         "logo_url":     s.logo_url,
+        "layout":       s.layout or "retail",
         "is_active":    s.is_active,
         "created_at":   s.created_at.isoformat() if s.created_at else None,
         "updated_at":   s.updated_at.isoformat() if s.updated_at else None,

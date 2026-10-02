@@ -22,6 +22,9 @@ class Shop(Base):
     description = Column(Text)
 
     logo_url     = Column(Text, nullable=True)
+    # UI template the platform admin assigned to this business — see
+    # BUSINESS_LAYOUTS in app/schemas/shop.py.
+    layout       = Column(String(32), nullable=False, default="retail", server_default="retail")
     is_active    = Column(Boolean, default=True)
     email_verified = Column(Boolean, default=False, nullable=False, server_default="false")
 

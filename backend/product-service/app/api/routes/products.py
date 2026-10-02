@@ -146,6 +146,7 @@ def get_products(
             "quantity": p.quantity,
             "category": p.category,
             "images": p.images,
+            "attributes": p.attributes,
             "profit_status": "profit" if profit >= 0 else "loss",
             "profit_money": float(profit),
             "profit_percent": percent
@@ -195,6 +196,7 @@ def create_product(
             barcode=payload.barcode,
             category=payload.category,
             images=payload.images,
+            attributes=payload.attributes,
         )
 
         db.add(product)
@@ -254,6 +256,7 @@ def get_product(
             "description": product.description,
             "category": product.category,
             "images": product.images,
+            "attributes": product.attributes,
             "cost_price": float(product.cost_price),
             "selling_price": float(product.selling_price),
             "quantity": product.quantity,

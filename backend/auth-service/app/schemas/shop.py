@@ -1,6 +1,11 @@
 from pydantic import BaseModel, EmailStr, field_validator, model_validator
 from typing import Optional
 
+# UI templates a business can be assigned. Only the platform admin sets this
+# (admin create/patch); shop owners can't change it from their own settings.
+# Keep in sync with BUSINESS_LAYOUTS in apps/web/lib/business-layout.ts.
+BUSINESS_LAYOUTS = ("retail", "car")
+
 
 # Platform admin provisions a shop, optionally with a first Owner staff member,
 # in one call — shops are never created by self-registration. Phone is always
@@ -15,6 +20,14 @@ class AdminCreateShopRequest(BaseModel):
     address:        Optional[str] = None
     description:    Optional[str] = None
     logo_url:       Optional[str] = None
+    layout:         str = "retail"
+
+    @field_validator("layout")
+    @classmethod
+    def layout_known(cls, v: str) -> str:
+        if v not in BUSINESS_LAYOUTS:
+            raise ValueError(f"Unknown layout: {v}")
+        return v
 
     @field_validator("phone")
     @classmethod

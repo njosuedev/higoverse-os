@@ -10,7 +10,7 @@ from app.core.security import hash_password
 from app.db.deps import get_db, get_shop_db
 from app.models.shop import Shop
 from app.models.user import User
-from app.schemas.shop import AdminCreateShopRequest
+from app.schemas.shop import AdminCreateShopRequest, BUSINESS_LAYOUTS
 from app.schemas.user import AdminCreateUserRequest
 
 STAFF_ROLES = {"admin", "owner", "manager", "cashier", "storekeeper", "accountant"}
@@ -33,6 +33,7 @@ def _fmt_shop(s: Shop, owner_email: str | None = None, user_count: int = 0) -> d
         "address":        s.address,
         "description":    s.description,
         "logo_url":       s.logo_url,
+        "layout":         s.layout or "retail",
         "is_active":      s.is_active,
         "email_verified": bool(s.email_verified),
         "owner_email":    owner_email,
@@ -84,6 +85,7 @@ def admin_create_shop(
         address=payload.address,
         description=payload.description,
         logo_url=payload.logo_url,
+        layout=payload.layout,
         is_active=True,
         email_verified=False,
     )
@@ -196,7 +198,9 @@ def admin_patch_shop(
     if not shop:
         raise HTTPException(status_code=404, detail="Shop not found")
 
-    allowed = {"name", "phone", "address", "description", "logo_url", "is_active"}
+    allowed = {"name", "phone", "address", "description", "logo_url", "is_active", "layout"}
+    if "layout" in payload and payload["layout"] not in BUSINESS_LAYOUTS:
+        raise HTTPException(status_code=400, detail="Unknown layout")
     for field, value in payload.items():
         if field in allowed:
             setattr(shop, field, value)

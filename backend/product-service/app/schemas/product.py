@@ -21,6 +21,7 @@ class ProductCreate(BaseModel):
 
     category: str | None = Field(None, max_length=100)
     images: str | None = None  # JSON-encoded list of base64 strings
+    attributes: str | None = None  # JSON-encoded dict, layout-specific fields
 
 
 # =====================================
@@ -42,6 +43,7 @@ class ProductUpdate(BaseModel):
 
     category: str | None = Field(None, max_length=100)
     images: str | None = None
+    attributes: str | None = None
 
 
 # =====================================
@@ -70,6 +72,7 @@ class ProductResponse(BaseModel):
 
     category: str | None = None
     images: str | None = None
+    attributes: str | None = None
 
 
 # =====================================
@@ -92,3 +95,4 @@ class ProductListItem(BaseModel):
 
     category: str | None = None
     images: str | None = None
+    attributes: str | None = None
