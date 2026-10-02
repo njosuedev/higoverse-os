@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Header
 from starlette.exceptions import HTTPException as StarletteHTTPException
-from sqlalchemy import func
+from sqlalchemy import case, func
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
@@ -62,8 +62,8 @@ def get_summary(
         func.coalesce(func.sum(Product.selling_price * Product.quantity), 0).label("stock_value"),
         func.coalesce(func.sum((Product.selling_price - Product.cost_price) * Product.quantity), 0).label("potential_profit"),
         func.count(Product.id).label("total_products"),
-        func.sum(func.case((Product.quantity == 0, 1), else_=0)).label("out_of_stock"),
-        func.sum(func.case(((Product.quantity > 0) & (Product.quantity <= 10), 1), else_=0)).label("low_stock"),
+        func.sum(case((Product.quantity == 0, 1), else_=0)).label("out_of_stock"),
+        func.sum(case(((Product.quantity > 0) & (Product.quantity <= 10), 1), else_=0)).label("low_stock"),
     ).one()
 
     return {
