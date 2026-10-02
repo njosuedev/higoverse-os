@@ -206,6 +206,8 @@ input, textarea, select, button {
 .hgv-surface .text-red-300,
 .hgv-surface [class*="text-[#f0c2b3]"] { color: var(--color-accent); }
 .hgv-surface .hgv-header-glow { display: none; }
+/* same light remapping, on the warm-grey page colour instead of white */
+.hgv-surface.hgv-surface--paper { background: var(--color-paper) !important; }
 /* skeleton shimmer placeholders that were translucent-white on blue */
 .hgv-surface [class*="-sh-w"] {
   background: linear-gradient(90deg, var(--color-paper-dim) 25%, var(--color-paper-deep) 50%, var(--color-paper-dim) 75%) !important;

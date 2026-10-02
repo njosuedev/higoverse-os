@@ -170,7 +170,7 @@ function LoginPageContent() {
     <div className="flex flex-col lg:flex-row flex-1">
 
       {/* ══ LEFT PANEL — ink surface, ledger feature index ══ */}
-      <div className="hgv-surface !border-0 !border-r !border-border hidden lg:flex lg:w-[48%] flex-col justify-between px-14 py-12">
+      <div className="hgv-surface hgv-surface--paper !border-0 !border-r !border-border hidden lg:flex lg:w-[48%] flex-col justify-between px-14 py-12">
         {/* top: brand */}
         <div className="flex items-center gap-3">
           <Image src="/higoverse-logo.png" alt="Higoverse" width={36} height={36} className="rounded-press" />
