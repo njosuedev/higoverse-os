@@ -17,7 +17,7 @@ const LanguageContext = createContext<LanguageContextValue>({
   t: (key) => key,
 });
 
-const VALID: Lang[] = ["en", "rw", "fr", "sw"];
+const VALID: Lang[] = ["en", "rw", "fr", "sw", "zh"];
 
 export function LanguageProvider({ children }: { children: React.ReactNode }) {
   const [lang, setLangState] = useState<Lang>("en");

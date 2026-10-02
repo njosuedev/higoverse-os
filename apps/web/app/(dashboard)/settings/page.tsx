@@ -579,6 +579,7 @@ export default function SettingsPage() {
                 <option value="rw">🇷🇼 Kinyarwanda</option>
                 <option value="fr">🇫🇷 Français</option>
                 <option value="sw">🇹🇿 Kiswahili</option>
+                <option value="zh">🇨🇳 中文</option>
               </select>
             </Field>
           </div>
