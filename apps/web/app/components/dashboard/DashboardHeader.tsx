@@ -90,23 +90,23 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
     <>
       <div className="h-[60px]" />
 
-      <header className="fixed top-0 left-0 right-0 z-50 flex h-[60px] items-center justify-between border-b border-slate-200 bg-white shadow-sm px-3 sm:px-4">
+      <header className="fixed top-0 left-0 right-0 z-50 flex h-[60px] items-center justify-between border-b border-border bg-paper px-3 sm:px-4">
 
         {/* ── LEFT: Logo + mobile hamburger ── */}
         <div className="flex items-center gap-1">
           <button
             type="button"
             onClick={() => setMobileOpen((o) => !o)}
-            className="flex h-9 w-9 items-center justify-center rounded-xl text-slate-500 hover:bg-slate-100 md:hidden"
+            className="flex h-9 w-9 items-center justify-center rounded-press text-text-muted hover:bg-paper-dim md:hidden"
             aria-label={t("nav.open_menu")}
           >
             <Menu size={20} />
           </button>
-          <Link href="/" className="flex items-center gap-2.5 transition hover:opacity-80">
+          <Link href="/" className="flex items-center gap-2.5 transition-opacity duration-200 hover:opacity-80">
             {loading
-              ? <div className="h-8 w-8 animate-pulse rounded-xl bg-slate-200" />
-              : <img src="/logo.png" alt="Higoverse" className="h-8 w-8 rounded-xl object-cover" />}
-            <span className="hidden text-[15px] font-bold tracking-tight text-slate-900 sm:inline">Higoverse</span>
+              ? <div className="h-8 w-8 animate-pulse rounded-press bg-paper-deep" />
+              : <img src="/logo.png" alt="Higoverse" className="h-8 w-8 rounded-press object-cover" />}
+            <span className="hidden font-display text-[17px] font-semibold tracking-tight text-text sm:inline">Higoverse</span>
           </Link>
         </div>
 
@@ -114,7 +114,7 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
         <nav className="hidden flex-1 items-stretch justify-center md:flex">
           {(loading || isResolving) ? (
             Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className="mx-1 my-auto h-8 w-16 flex-shrink-0 animate-pulse rounded-lg bg-slate-100" />
+              <div key={i} className="mx-1 my-auto h-8 w-16 flex-shrink-0 animate-pulse rounded-press bg-paper-dim" />
             ))
           ) : (
             <>
@@ -123,7 +123,7 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
               ))}
               {isAdmin && (
                 <>
-                  <div aria-hidden="true" className="mx-1 my-auto h-6 w-px flex-shrink-0 bg-slate-200" />
+                  <div aria-hidden="true" className="mx-1 my-auto h-6 w-px flex-shrink-0 bg-border" />
                   <NavLink menu={ADMIN_ITEM} pathname={pathname} t={t} />
                 </>
               )}
@@ -139,52 +139,50 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
             {/* Trigger */}
             <button
               onClick={() => setMenuOpen((o) => !o)}
-              className={`flex items-center gap-2 rounded-xl px-2 py-1.5 transition ${menuOpen ? "bg-slate-100" : "hover:bg-slate-100"}`}
+              className={`flex items-center gap-2 rounded-press px-2 py-1.5 transition-colors duration-200 ${menuOpen ? "bg-paper-dim" : "hover:bg-paper-dim"}`}
             >
               {loading ? (
-                <div className="h-8 w-8 animate-pulse rounded-full bg-slate-200" />
+                <div className="h-8 w-8 animate-pulse rounded-full bg-paper-deep" />
               ) : shop?.logo_url ? (
-                <img src={shop.logo_url} alt={shop.name} className="h-8 w-8 rounded-full border border-slate-200 object-cover" />
+                <img src={shop.logo_url} alt={shop.name} className="h-8 w-8 rounded-full border border-border object-cover" />
               ) : (
-                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-600 text-xs font-bold text-white">
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-ink font-display text-xs font-semibold text-paper">
                   {user?.name?.[0]?.toUpperCase() ?? shop?.name?.[0]?.toUpperCase() ?? "H"}
                 </div>
               )}
-              <ChevronDown size={14} className={`hidden text-slate-500 transition-transform sm:block ${menuOpen ? "rotate-180" : ""}`} />
+              <ChevronDown size={14} className={`hidden text-text-muted transition-transform duration-200 sm:block ${menuOpen ? "rotate-180" : ""}`} />
             </button>
 
             {/* Dropdown */}
             {menuOpen && (
-              <div className="absolute right-0 top-full z-50 mt-2 w-[300px] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+              <div className="absolute right-0 top-full z-50 mt-2 w-[300px] overflow-hidden rounded-data border border-border bg-white shadow-[0_16px_40px_-12px_rgb(31_61_51_/_0.3)]">
 
                 {/* ── Profile header ── */}
-                <div className="bg-gradient-to-br from-blue-600 to-blue-800 px-4 pb-5 pt-5">
+                <div className="bg-ink px-4 pb-5 pt-5">
                   <div className="flex items-center gap-3.5">
                     <div className="relative shrink-0">
                       {shop?.logo_url ? (
-                        <img src={shop.logo_url} alt={shop.name} className="h-[52px] w-[52px] rounded-2xl object-cover ring-2 ring-white/40" />
+                        <img src={shop.logo_url} alt={shop.name} className="h-[52px] w-[52px] rounded-data object-cover ring-2 ring-white/30" />
                       ) : (
-                        <div className="flex h-[52px] w-[52px] items-center justify-center rounded-2xl bg-white/20 text-xl font-bold text-white ring-2 ring-white/30">
+                        <div className="flex h-[52px] w-[52px] items-center justify-center rounded-data bg-white/15 font-display text-xl font-semibold text-paper ring-2 ring-white/25">
                           {(user?.name?.[0] ?? shop?.name?.[0] ?? "H").toUpperCase()}
                         </div>
                       )}
-                      <span className="absolute -bottom-1 -right-1 h-[14px] w-[14px] rounded-full border-2 border-blue-600 bg-green-400" />
+                      <span className="absolute -bottom-1 -right-1 h-[14px] w-[14px] rounded-full border-2 border-ink bg-success" />
                     </div>
 
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-[13px] font-bold leading-snug text-white">
+                      <p className="truncate text-[13px] font-semibold leading-snug text-paper">
                         {user?.name ?? shop?.name ?? t("common.user")}
                       </p>
-                      <p className="mt-0.5 truncate text-[11px] text-white/60">{user?.email ?? ""}</p>
+                      <p className="mt-0.5 truncate text-[11px] text-paper/60">{user?.email ?? ""}</p>
                       <div className="mt-2">
                         {isAdmin ? (
-                          <span className="inline-flex items-center gap-1 rounded-full border border-red-400/30 bg-red-500/20 px-2 py-0.5 text-[10px] font-bold text-red-200">
-                            <span className="inline-block h-1.5 w-1.5 rounded-full bg-red-300" />
+                          <span className="hgv-stamp text-[9px] text-accent border-accent/60">
                             {t("nav.admin")}
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1 rounded-full border border-green-400/30 bg-green-500/20 px-2 py-0.5 text-[10px] font-bold text-green-200">
-                            <span className="inline-block h-1.5 w-1.5 rounded-full bg-green-300" />
+                          <span className="hgv-stamp text-[9px] text-paper/85 border-paper/40">
                             {t("common.shop_owner")}
                           </span>
                         )}
@@ -197,16 +195,16 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
                 <div className="p-2">
 
                   {/* Language */}
-                  <div className="flex items-center gap-3 rounded-xl px-3 py-2.5 transition hover:bg-slate-50">
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-500">
+                  <div className="flex items-center gap-3 rounded-press px-3 py-2.5 transition-colors duration-200 hover:bg-paper-dim">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-press bg-paper-dim text-text-muted">
                       <Globe size={15} />
                     </div>
-                    <span className="text-sm font-medium text-slate-700">{t("settings.language_section")}</span>
+                    <span className="text-sm font-medium text-text">{t("settings.language_section")}</span>
                     <div className="relative ml-auto shrink-0">
                       <select
                         value={lang}
                         onChange={(e) => changeLang(e.target.value as typeof lang)}
-                        className="cursor-pointer appearance-none rounded-lg border-0 bg-slate-100 py-1.5 pl-2 pr-6 text-[11px] font-semibold text-slate-700 outline-none transition hover:bg-slate-200"
+                        className="cursor-pointer appearance-none rounded-press border-0 bg-paper-dim py-1.5 pl-2 pr-6 text-[11px] font-semibold text-text outline-none transition-colors duration-200 hover:bg-paper-deep"
                       >
                         {LANGUAGES.map((l) => (
                           <option key={l.code} value={l.code}>
@@ -214,32 +212,32 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
                           </option>
                         ))}
                       </select>
-                      <ChevronDown size={11} className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                      <ChevronDown size={11} className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 text-text-faint" />
                     </div>
                   </div>
 
                   {/* Settings — accessible to everyone */}
                   <Link href="/settings" onClick={() => setMenuOpen(false)}
-                    className="group flex items-center gap-3 rounded-xl px-3 py-2.5 transition hover:bg-slate-50">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 text-slate-500 transition group-hover:bg-slate-200">
+                    className="group flex items-center gap-3 rounded-press px-3 py-2.5 transition-colors duration-200 hover:bg-paper-dim">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-press bg-paper-dim text-text-muted transition-colors duration-200 group-hover:bg-paper-deep">
                       <Settings size={15} />
                     </div>
                     <div className="min-w-0">
-                      <p className="text-sm font-medium text-slate-700">{t("nav.settings")}</p>
-                      <p className="text-[10px] leading-snug text-slate-400">{t("nav.settings_hint")}</p>
+                      <p className="text-sm font-medium text-text">{t("nav.settings")}</p>
+                      <p className="text-[10px] leading-snug text-text-faint">{t("nav.settings_hint")}</p>
                     </div>
-                    <ChevronDown size={13} className="ml-auto shrink-0 -rotate-90 text-slate-300 transition group-hover:text-slate-400" />
+                    <ChevronDown size={13} className="ml-auto shrink-0 -rotate-90 text-text-faint transition-colors duration-200 group-hover:text-text-muted" />
                   </Link>
                 </div>
 
                 {/* ── Logout ── */}
-                <div className="border-t border-slate-100 px-2 pb-2 pt-1">
+                <div className="border-t border-border px-2 pb-2 pt-1">
                   <button onClick={handleLogout}
-                    className="group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 transition hover:bg-red-50">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-red-50 text-red-400 transition group-hover:bg-red-100">
+                    className="group flex w-full items-center gap-3 rounded-press px-3 py-2.5 transition-colors duration-200 hover:bg-accent-soft">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-press bg-accent-soft text-accent-dark transition-colors duration-200 group-hover:bg-[#efd6cb]">
                       <LogOut size={15} />
                     </div>
-                    <span className="text-sm font-semibold text-red-500 transition group-hover:text-red-600">{t("common.logout")}</span>
+                    <span className="text-sm font-semibold text-accent-dark">{t("common.logout")}</span>
                   </button>
                 </div>
 
@@ -252,17 +250,17 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
       {/* ── Mobile drawer ── */}
       {mobileOpen && (
         <div className="fixed inset-0 z-[60] md:hidden">
-          <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => setMobileOpen(false)} />
-          <div className="absolute left-0 top-0 flex h-full w-72 max-w-[85vw] flex-col overflow-y-auto bg-white shadow-2xl">
-            <div className="flex items-center justify-between border-b border-slate-100 px-4 py-4">
+          <div className="absolute inset-0 bg-ink-dark/45" onClick={() => setMobileOpen(false)} />
+          <div className="absolute left-0 top-0 flex h-full w-72 max-w-[85vw] flex-col overflow-y-auto bg-white shadow-[0_0_40px_-8px_rgb(31_61_51_/_0.4)]">
+            <div className="flex items-center justify-between border-b border-border px-4 py-4">
               <div className="flex items-center gap-2.5">
-                <img src="/logo.png" alt="Higoverse" className="h-8 w-8 rounded-xl object-cover" />
-                <span className="text-[15px] font-bold tracking-tight text-slate-900">Higoverse</span>
+                <img src="/logo.png" alt="Higoverse" className="h-8 w-8 rounded-press object-cover" />
+                <span className="font-display text-[16px] font-semibold tracking-tight text-text">Higoverse</span>
               </div>
               <button
                 type="button"
                 onClick={() => setMobileOpen(false)}
-                className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100"
+                className="flex h-8 w-8 items-center justify-center rounded-press text-text-faint hover:bg-paper-dim"
                 aria-label={t("nav.close_menu")}
               >
                 <X size={18} />
@@ -275,7 +273,7 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
               ))}
               {isAdmin && (
                 <>
-                  <div aria-hidden="true" className="my-2 border-t border-slate-100" />
+                  <div aria-hidden="true" className="my-2 border-t border-border" />
                   <MobileLink menu={ADMIN_ITEM} pathname={pathname} t={t} onNavigate={() => setMobileOpen(false)} />
                 </>
               )}
@@ -301,21 +299,21 @@ function NavLink({
   const Icon = menu.icon;
   const active = isActiveHref(pathname, menu.href);
   const isAdminItem = menu.href === "/admin";
-  const indicatorColor = isAdminItem ? "bg-red-500" : "bg-blue-600";
-  const activeText = isAdminItem ? "text-red-600" : "text-blue-600";
-  const idleText = "text-slate-600 hover:text-slate-900 hover:bg-slate-50";
+  const activeText = isAdminItem ? "text-accent-dark" : "text-ink";
+  const underlineColor = isAdminItem ? "bg-accent" : "bg-ink";
+  const idleText = "text-text-muted hover:text-text hover:bg-paper-dim";
 
   return (
     <Link
       href={menu.href}
       onClick={onNavigate}
-      className={`relative flex flex-shrink-0 flex-col items-center justify-center gap-0.5 px-3 py-1.5 min-w-[56px] lg:px-4 transition-colors ${
+      className={`relative flex flex-shrink-0 flex-col items-center justify-center gap-0.5 px-3 py-1.5 min-w-[56px] lg:px-4 transition-colors duration-200 ${
         active ? activeText : idleText
       }`}
     >
-      <Icon size={20} strokeWidth={active ? 2.5 : 1.8} />
+      <Icon size={20} strokeWidth={active ? 2.25 : 1.75} />
       <span className="hidden text-[10px] font-semibold leading-none md:block">{t(menu.key)}</span>
-      {active && <span className={`absolute bottom-0 left-1.5 right-1.5 h-[3px] rounded-t-full ${indicatorColor}`} />}
+      {active && <span className={`absolute bottom-0 left-2.5 right-2.5 h-[2px] ${underlineColor}`} />}
     </Link>
   );
 }
@@ -337,8 +335,8 @@ function MobileLink({
     <Link
       href={menu.href}
       onClick={onNavigate}
-      className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${
-        active ? "bg-blue-50 text-blue-700" : "text-slate-600 hover:bg-slate-50"
+      className={`flex items-center gap-3 rounded-press px-3 py-2.5 text-sm font-medium transition-colors duration-200 ${
+        active ? "bg-ink-soft text-ink" : "text-text-muted hover:bg-paper-dim"
       }`}
     >
       <Icon size={18} />

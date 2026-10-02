@@ -25,7 +25,7 @@ export default function Card({
 }: CardProps) {
   return (
     <div
-      className={`bg-white rounded-2xl border border-slate-200 shadow-sm ${PADDING_MAP[padding]} ${
+      className={`bg-white rounded-data border border-border ${PADDING_MAP[padding]} ${
         hoverable ? "hgv-card-hover" : ""
       } ${className}`}
       {...rest}

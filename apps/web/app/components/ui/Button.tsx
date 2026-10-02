@@ -21,25 +21,25 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
 
 const SIZE_MAP: Record<Size, string> = {
   sm: "h-9 px-3 text-sm gap-1.5",
-  md: "h-10 px-4 text-sm gap-2",
+  md: "h-11 px-4 text-sm gap-2",
   lg: "h-12 px-6 text-base gap-2",
 };
 
 function variantClasses(variant: Variant, tone: Tone): string {
   if (variant === "danger") {
-    return "bg-red-600 text-white hover:bg-red-700 shadow-sm hover:shadow-md";
+    return "bg-accent-dark text-paper hover:bg-[#7e2e1f]";
   }
   if (variant === "ghost") {
-    return "bg-transparent text-slate-600 hover:bg-slate-100";
+    return "bg-transparent text-text-muted hover:bg-paper-dim hover:text-text";
   }
   if (tone === "orange") {
     return variant === "primary"
-      ? "bg-orange-500 text-white hover:bg-orange-600 shadow-sm hover:shadow-md"
-      : "bg-orange-50 text-orange-700 border border-orange-100 hover:bg-orange-100";
+      ? "bg-accent text-paper hover:bg-accent-dark"
+      : "bg-accent-soft text-accent-dark border border-accent/25 hover:bg-[#efd6cb]";
   }
   return variant === "primary"
-    ? "bg-blue-600 text-white hover:bg-blue-700 shadow-sm hover:shadow-md"
-    : "bg-blue-50 text-blue-700 border border-blue-100 hover:bg-blue-100";
+    ? "bg-ink text-paper hover:bg-ink-dark"
+    : "bg-ink-soft text-ink border border-ink/20 hover:bg-[#dbe5df]";
 }
 
 export default function Button({
@@ -56,7 +56,7 @@ export default function Button({
   disabled,
   ...rest
 }: ButtonProps) {
-  const classes = `inline-flex items-center justify-center rounded-xl font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed ${SIZE_MAP[size]} ${variantClasses(
+  const classes = `inline-flex items-center justify-center rounded-press font-semibold tracking-[-0.01em] transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${SIZE_MAP[size]} ${variantClasses(
     variant,
     tone
   )} ${fullWidth ? "w-full" : ""} ${className}`;

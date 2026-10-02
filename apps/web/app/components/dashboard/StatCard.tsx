@@ -19,15 +19,16 @@ interface StatCardProps {
 }
 
 const TONE_MAP: Record<Tone, string> = {
-  blue: "bg-blue-50 text-blue-600",
-  orange: "bg-orange-50 text-orange-600",
-  green: "bg-emerald-50 text-emerald-600",
-  red: "bg-red-50 text-red-600",
-  amber: "bg-amber-50 text-amber-600",
-  slate: "bg-slate-100 text-slate-600",
+  blue: "text-ink",
+  orange: "text-accent-dark",
+  green: "text-success",
+  red: "text-accent-dark",
+  amber: "text-warning",
+  slate: "text-text-muted",
 };
 
-/** Shared KPI tile. Pass size="lg" for the hero metric (e.g. Revenue) in a stat row. */
+/** Shared KPI tile. Pass size="lg" for the hero metric (e.g. Revenue) in a stat row.
+ *  No icon-in-colored-box chrome — the number does the work, set in the display face. */
 export default function StatCard({
   label,
   value,
@@ -43,29 +44,25 @@ export default function StatCard({
 
   const body = (
     <div
-      className={`hgv-card-hover flex h-full flex-col justify-between rounded-2xl border border-slate-200 bg-white shadow-sm ${
+      className={`hgv-card-hover flex h-full flex-col justify-between border border-border bg-white rounded-data ${
         isLg ? "p-6" : "p-5"
       } ${className}`}
     >
-      <div className="flex items-start justify-between">
-        <p className={`font-medium text-slate-500 ${isLg ? "text-sm" : "text-xs"}`}>{label}</p>
+      <div className="flex items-start justify-between gap-2">
+        <p className={`font-medium uppercase tracking-wide text-text-muted ${isLg ? "text-xs" : "text-[11px]"}`}>{label}</p>
         {icon && (
-          <div
-            className={`flex shrink-0 items-center justify-center rounded-xl ${TONE_MAP[tone]} ${
-              isLg ? "h-12 w-12" : "h-10 w-10"
-            }`}
-          >
+          <span className={`shrink-0 ${TONE_MAP[tone]} ${isLg ? "[&>svg]:h-5 [&>svg]:w-5" : "[&>svg]:h-4 [&>svg]:w-4"}`}>
             {icon}
-          </div>
+          </span>
         )}
       </div>
 
       <div className="mt-3 flex items-end justify-between gap-2">
-        <h3 className={`font-bold text-slate-900 ${isLg ? "text-4xl" : "text-2xl"}`}>{value}</h3>
+        <h3 className={`hgv-figure font-display font-semibold text-text ${isLg ? "text-4xl" : "text-[1.75rem]"}`}>{value}</h3>
         {delta && (
           <span
-            className={`mb-1 flex shrink-0 items-center gap-0.5 text-xs font-semibold ${
-              delta.direction === "up" ? "text-emerald-600" : "text-red-500"
+            className={`hgv-figure mb-1 flex shrink-0 items-center gap-0.5 text-xs font-semibold ${
+              delta.direction === "up" ? "text-success" : "text-accent-dark"
             }`}
           >
             {delta.direction === "up" ? "▲" : "▼"} {delta.value}
@@ -73,7 +70,7 @@ export default function StatCard({
         )}
       </div>
 
-      {subtitle && <p className="mt-1 text-xs text-slate-400">{subtitle}</p>}
+      {subtitle && <p className="mt-1 text-xs text-text-faint">{subtitle}</p>}
     </div>
   );
 

@@ -38,20 +38,20 @@ export default function Modal({ open, onClose, title, children, footer, size = "
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-ink-dark/45 p-4"
       onClick={onClose}
     >
       <div
-        className={`w-full ${SIZE_MAP[size]} max-h-[90vh] overflow-y-auto rounded-2xl bg-white shadow-2xl`}
+        className={`w-full ${SIZE_MAP[size]} max-h-[90vh] overflow-y-auto rounded-data bg-white border border-border shadow-[0_16px_48px_-12px_rgb(31_61_51_/_0.35)]`}
         onClick={(e) => e.stopPropagation()}
       >
         {title && (
-          <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
-            <h2 className="text-lg font-semibold text-slate-900">{title}</h2>
+          <div className="flex items-center justify-between border-b border-border px-6 py-4">
+            <h2 className="font-display text-lg font-semibold text-text">{title}</h2>
             <button
               type="button"
               onClick={onClose}
-              className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+              className="rounded-press p-1.5 text-text-faint transition-colors duration-200 hover:bg-paper-dim hover:text-text"
               aria-label={t("common.close")}
             >
               <X className="h-5 w-5" />
@@ -60,7 +60,7 @@ export default function Modal({ open, onClose, title, children, footer, size = "
         )}
         <div className="px-6 py-5">{children}</div>
         {footer && (
-          <div className="flex items-center justify-end gap-2 border-t border-slate-100 px-6 py-4">{footer}</div>
+          <div className="flex items-center justify-end gap-2 border-t border-border px-6 py-4">{footer}</div>
         )}
       </div>
     </div>

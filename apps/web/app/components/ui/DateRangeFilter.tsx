@@ -9,7 +9,7 @@ interface Props {
   onFrom: (v: string) => void;
   onTo: (v: string) => void;
   onClear: () => void;
-  accentClass?: string; // e.g. "focus:ring-orange-500/30 focus:border-orange-400"
+  accentClass?: string;
 }
 
 type Preset = "today" | "week" | "month" | "year";
@@ -26,10 +26,9 @@ function applyPreset(preset: Preset): { from: string; to: string } {
   return { from: `${now.getFullYear()}-01-01`, to };
 }
 
-export default function DateRangeFilter({ from, to, onFrom, onTo, onClear, accentClass = "focus:ring-slate-500/30 focus:border-slate-400" }: Props) {
+export default function DateRangeFilter({ from, to, onFrom, onTo, onClear }: Props) {
   const { t } = useLanguage();
   const hasFilter = from || to;
-  const inputCls = `bg-white/10 border border-white/20 text-white text-xs rounded-lg px-2.5 py-1.5 focus:outline-none ${accentClass} placeholder:text-white/40`;
 
   function preset(p: Preset) {
     const { from: f, to: t } = applyPreset(p);
@@ -38,28 +37,28 @@ export default function DateRangeFilter({ from, to, onFrom, onTo, onClear, accen
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-2 mt-2.5">
-      <div className="flex items-center gap-1.5 bg-white/10 rounded-lg px-2.5 py-1.5">
-        <Calendar size={13} className="text-white/60 shrink-0" />
+    <div className="flex flex-wrap items-center gap-2">
+      <div className="flex items-center gap-1.5 bg-white border border-border rounded-press px-2.5 py-1.5">
+        <Calendar size={13} className="text-text-faint shrink-0" />
         <input type="date" value={from} onChange={(e) => onFrom(e.target.value)}
-          className="bg-transparent text-white text-xs focus:outline-none w-28 cursor-pointer" />
-        <span className="text-white/40 text-xs">→</span>
+          className="hgv-figure bg-transparent text-text text-xs focus:outline-none w-28 cursor-pointer" />
+        <span className="text-text-faint text-xs">→</span>
         <input type="date" value={to} onChange={(e) => onTo(e.target.value)}
-          className="bg-transparent text-white text-xs focus:outline-none w-28 cursor-pointer" />
+          className="hgv-figure bg-transparent text-text text-xs focus:outline-none w-28 cursor-pointer" />
       </div>
 
       {(["today", "week", "month", "year"] as Preset[]).map((p) => (
         <button
           key={p}
           onClick={() => preset(p)}
-          className="text-xs px-2.5 py-1.5 rounded-lg bg-white/10 text-white/80 hover:bg-white/20 transition capitalize"
+          className="text-xs px-2.5 py-1.5 rounded-press border border-border bg-white text-text-muted hover:bg-paper-dim hover:text-text transition-colors duration-200"
         >
           {p === "today" ? t("daterange.today") : p === "week" ? t("daterange.week") : p === "month" ? t("daterange.month") : t("daterange.year")}
         </button>
       ))}
 
       {hasFilter && (
-        <button onClick={onClear} className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg bg-white/20 text-white hover:bg-white/30 transition">
+        <button onClick={onClear} className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-press bg-accent-soft text-accent-dark hover:bg-[#efd6cb] transition-colors duration-200">
           <X size={11} /> {t("daterange.clear")}
         </button>
       )}

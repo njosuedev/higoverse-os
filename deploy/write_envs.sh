@@ -5,8 +5,16 @@ ROOT=/root/projects/higoverse/backend
 JWT=$(cat /etc/higoverse/jwt_secret)
 PGPASS=$(cat /etc/higoverse/pg_app_password)
 
-AUTHDB="postgresql://higoverse_app:${PGPASS}@127.0.0.1:5432/authdb"
-SHOPDB="postgresql://higoverse_app:${PGPASS}@127.0.0.1:5432/shopdb"
+# Driver is pinned explicitly (+psycopg2) rather than left as bare
+# "postgresql://": SQLAlchemy 2.1 changed the default driver for an
+# unqualified postgresql:// URL from psycopg2 to psycopg (v3), which isn't
+# installed anywhere in this repo (every service's requirements.txt pins
+# psycopg2-binary, not psycopg) — only auth-service pins SQLAlchemy==2.0.50
+# and so was unaffected; the other 7 services have an unpinned `sqlalchemy`
+# in requirements.txt and pulled 2.1.x, which crashed on startup with
+# "ModuleNotFoundError: No module named 'psycopg'" until this was added.
+AUTHDB="postgresql+psycopg2://higoverse_app:${PGPASS}@127.0.0.1:5432/authdb"
+SHOPDB="postgresql+psycopg2://higoverse_app:${PGPASS}@127.0.0.1:5432/shopdb"
 
 write_env() {
   local dir="$1"; shift

@@ -34,23 +34,23 @@ export default function Pagination({
   const from = Math.min((page - 1) * pageSize + 1, total);
   const to   = Math.min(page * pageSize, total);
 
-  const btn = "w-8 h-8 flex items-center justify-center rounded-lg text-sm transition";
-  const active = "bg-[#1372e6] text-white font-semibold";
-  const inactive = "text-slate-500 hover:bg-slate-100";
-  const disabled = "text-slate-300 cursor-not-allowed";
+  const btn = "w-9 h-9 flex items-center justify-center rounded-press text-sm transition-colors duration-200";
+  const active = "bg-ink text-paper font-semibold";
+  const inactive = "text-text-muted hover:bg-paper-dim";
+  const disabled = "text-text-faint cursor-not-allowed";
 
   return (
-    <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-3 border-t border-slate-100 bg-white rounded-b-xl">
+    <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-3 border-t border-border bg-white">
       {/* record count */}
-      <div className="flex items-center gap-3 text-xs text-slate-500">
+      <div className="flex items-center gap-3 text-xs text-text-muted">
         <span>
-          {t("common.showing")} <span className="font-semibold text-slate-700">{total === 0 ? 0 : from}–{to}</span> {t("common.of")}{" "}
-          <span className="font-semibold text-slate-700">{total.toLocaleString()}</span> {t("common.records")}
+          {t("common.showing")} <span className="hgv-figure font-semibold text-text">{total === 0 ? 0 : from}–{to}</span> {t("common.of")}{" "}
+          <span className="hgv-figure font-semibold text-text">{total.toLocaleString()}</span> {t("common.records")}
         </span>
         <select
           value={pageSize}
           onChange={(e) => { onPageSize(Number(e.target.value)); onPage(1); }}
-          className="border border-slate-200 rounded-lg px-2 py-1 text-xs text-slate-600 focus:outline-none focus:ring-2 focus:ring-slate-300"
+          className="border border-border rounded-press px-2 py-1 text-xs text-text-muted focus:outline-none"
         >
           {pageSizes.map((s) => <option key={s} value={s}>{s} {t("common.per_page")}</option>)}
         </select>
@@ -67,9 +67,9 @@ export default function Pagination({
           </button>
           {pages(page, totalPages).map((p, i) =>
             p === "…" ? (
-              <span key={`ellipsis-${i}`} className="w-8 text-center text-slate-400 text-sm">…</span>
+              <span key={`ellipsis-${i}`} className="w-9 text-center text-text-faint text-sm">…</span>
             ) : (
-              <button key={p} onClick={() => onPage(p as number)} className={`${btn} ${p === page ? active : inactive}`}>
+              <button key={p} onClick={() => onPage(p as number)} className={`${btn} hgv-figure ${p === page ? active : inactive}`}>
                 {p}
               </button>
             )

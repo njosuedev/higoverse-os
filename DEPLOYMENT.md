@@ -9,23 +9,28 @@ how the domain/TLS are set up.
 Current host: `sc-kgl-1-cpu1-ram2gb-40gb-ubu` (Ubuntu 24.04, 1 vCPU, 2GB RAM,
 40GB disk), public IP `102.202.208.190`.
 
-> **Fresh VPS note:** this is a brand-new box provisioned for the Higoverse
-> rebrand (not an in-place migration of the old `atconsultants.rw` VPS at
-> `102.202.208.195`). Build it from zero following **§5** below — the old
-> box's §11 in-place-migration runbook doesn't apply here since there's
-> nothing to migrate on this host. Decommission the old VPS once
-> `higoverse.com` is confirmed live and stable here, so you're not paying
-> for/exposing both.
+> **Status: deployed and live (2026-10-01).** This box was built from a
+> completely blank Ubuntu 24.04 image by following **§5** below end to end —
+> nothing was pre-installed, no code was checked out, nothing was listening
+> on 80/443 beforehand. Everything in this document now describes the
+> actual running system, not an aspirational target. See **§13** for a
+> point-in-time snapshot of what was verified working at deploy time, and
+> **§8** for real bugs hit (and fixed) during the build.
 
 **Live URL:** https://higoverse.com (HTTP redirects to HTTPS; the bare IP
-over HTTP now 404s by certbot's design — see §10).
+over HTTP now 404s by certbot's design — see §10). DNS is proxied through
+**Cloudflare** (orange-cloud, not a plain A-record) — see §10 for what that
+changes about TLS and troubleshooting.
 
-> **Rebrand note:** this platform was originally built and deployed as
-> "A & T Consultants" on `atconsultants.rw`. This document already reflects
-> the new "Higoverse" naming throughout (systemd units, secrets dir,
-> Postgres role, domain, etc.) as the *target* state. If the live VPS still
-> has the old names, it hasn't been migrated yet — run **§11 Rebrand
-> Migration Runbook** first, then the rest of this doc applies as-is.
+> **Rebrand history:** this platform was originally built and deployed as
+> "A & T Consultants" on `atconsultants.rw` (VPS `102.202.208.195`, still
+> running as of this writing — see §9 for decommissioning it). Rather than
+> migrate that box in place, a brand-new VPS (`102.202.208.190`) was
+> provisioned and built from scratch with the "Higoverse" naming throughout
+> (systemd units, secrets dir, Postgres role, domain, etc.) — this document
+> reflects that new box, which never had the old names on it. **§11's
+> in-place-migration runbook was not used and does not apply here**; it's
+> kept only in case the *old* box ever needs the same treatment.
 
 ---
 
@@ -297,14 +302,37 @@ systemctl enable --now fail2ban
 
 ### 5.4 Get the code
 
-The git remote is still the original repo name (renaming it is a separate,
-optional follow-up — see §12); only the local checkout directory uses the
-new name:
+The repo now lives at `github.com/njosuedev/higoverse-os` and is **public**
+— a plain `git clone` works with no credentials of any kind:
 
 ```bash
-git clone https://github.com/nikuze2026/A-T-Consulatnts.git /root/projects/higoverse
+git clone https://github.com/njosuedev/higoverse-os.git /root/projects/higoverse
 cd /root/projects/higoverse
 ```
+
+> **History:** the code originally lived in a *private* repo
+> (`github.com/nikuze2026/A-T-Consulatnts`, note the typo in
+> "Consultants"). A bare `git clone` over HTTPS on a box with no stored
+> credentials fails non-interactively with `fatal: could not read Username
+> for 'https://github.com': No such device or address` — that's exactly
+> what happened during the 2026-10-01 deploy, since the public
+> `njosuedev/higoverse-os` repo didn't exist yet. The workaround used that
+> day was streaming the git-tracked files directly over SSH instead of
+> cloning:
+> ```bash
+> git ls-files -z | tar --null -T - -czf - | \
+>   ssh -p 222 root@102.202.208.190 \
+>   "mkdir -p /root/projects/higoverse && tar -xzf - -C /root/projects/higoverse"
+> ```
+> That only copies tracked files (no `.venv`, `node_modules`, `.next`,
+> `.env`), and it's a one-shot copy, not a clone — no `.git` directory
+> afterward, so `git pull` (§6) doesn't work until `git init` + `git remote
+> add origin https://github.com/njosuedev/higoverse-os.git` + `git fetch` +
+> `git reset --hard origin/main` turns it back into a real checkout (see
+> §9's deploy-key follow-up for the exact commands — as of this writing
+> that conversion is still pending on the live VPS). None of this applies
+> to a *fresh* deploy today: the repo is public now, so a plain `git clone`
+> (above) just works and none of this workaround is needed.
 
 ### 5.5 PostgreSQL
 
@@ -341,8 +369,8 @@ set -euo pipefail
 ROOT=/root/projects/higoverse/backend
 JWT=$(cat /etc/higoverse/jwt_secret)
 PGPASS=$(cat /etc/higoverse/pg_app_password)
-AUTHDB="postgresql://higoverse_app:${PGPASS}@127.0.0.1:5432/authdb"
-SHOPDB="postgresql://higoverse_app:${PGPASS}@127.0.0.1:5432/shopdb"
+AUTHDB="postgresql+psycopg2://higoverse_app:${PGPASS}@127.0.0.1:5432/authdb"
+SHOPDB="postgresql+psycopg2://higoverse_app:${PGPASS}@127.0.0.1:5432/shopdb"
 
 write_env() {
   local dir="$1"; shift
@@ -392,10 +420,24 @@ without starting the full service:
 
 ```bash
 cd /root/projects/higoverse/backend/auth-service
-set -a; source <(grep -v CORS_ALLOWED_ORIGIN_REGEX .env); set +a
-./.venv/bin/python -c "from app.main import on_startup; on_startup()"
+./.venv/bin/python -c "
+from dotenv import load_dotenv
+load_dotenv()
+from app.main import on_startup
+on_startup()
+"
 ./.venv/bin/alembic stamp head
 ```
+
+> **Don't `source <(grep -v CORS_ALLOWED_ORIGIN_REGEX .env)`** — that was the
+> original plan here, but it breaks: `.env`'s `SMTP_FROM=Higoverse
+> <noreply@higoverse.com>` has an unescaped, unquoted `<`, which bash parses
+> as a redirection when the line is sourced, failing with `syntax error near
+> unexpected token 'newline'`. `write_envs.sh` doesn't quote any values, so
+> bash-sourcing the raw `.env` is fragile for any service whose env has a
+> value containing shell metacharacters. Loading it through Python's
+> `python-dotenv` (already a dependency, used above) sidesteps the whole
+> problem — it reads `KEY=value` pairs without ever handing them to a shell.
 
 The other 7 services create their own tables automatically the first time
 they start (next step) — no manual action needed for them.
@@ -586,25 +628,44 @@ ADMIN_PASS=$(openssl rand -base64 18 | tr -d '/+=' | head -c 20)
 printf '%s' "$ADMIN_PASS" > /etc/higoverse/bootstrap_admin_password
 chmod 600 /etc/higoverse/bootstrap_admin_password
 
-set -a; source <(grep -v CORS_ALLOWED_ORIGIN_REGEX .env); set +a
 ./.venv/bin/python << 'PYEOF'
 import uuid
 from datetime import datetime, timezone
+from dotenv import load_dotenv
+load_dotenv(dotenv_path=".env")   # see note below on why the path is explicit
 from app.db.session import SessionLocal
 from app.models.user import User
 from app.core.security import hash_password
 
 pw = open("/etc/higoverse/bootstrap_admin_password").read().strip()
 db = SessionLocal()
-u = User(
-    id=uuid.uuid4(), name="Platform Admin", email="admin@higoverse.com",
-    password_hash=hash_password(pw), role="admin", shop_id=None,
-    is_active=True, created_at=datetime.now(timezone.utc),
-)
-db.add(u); db.commit(); db.close()
-print("admin created:", u.email)
+existing = db.query(User).filter(User.email == "admin@higoverse.com").first()
+if existing:
+    print("admin already exists:", existing.email)
+else:
+    u = User(
+        id=uuid.uuid4(), name="Platform Admin", email="admin@higoverse.com",
+        password_hash=hash_password(pw), role="admin", shop_id=None,
+        is_active=True, created_at=datetime.now(timezone.utc),
+    )
+    db.add(u); db.commit()
+    print("admin created:", u.email)
+db.close()
 PYEOF
 ```
+
+> Same `source <(...)` pitfall as §5.9 — use `python-dotenv` instead. One
+> more gotcha specific to this heredoc form: `load_dotenv()` with **no**
+> argument auto-discovers `.env` by walking up from the caller's source
+> file, using stack-frame introspection (`find_dotenv()` inspects
+> `frame.f_back`). A script piped into `python <<'PYEOF'` has no source
+> file, so that introspection hits `frame.f_back is None` and raises
+> `AssertionError` before your code ever runs. Passing the path explicitly
+> (`load_dotenv(dotenv_path=".env")`) skips the discovery walk entirely and
+> works from any invocation style. The script above is also written to be
+> safely re-runnable (checks for an existing `admin@higoverse.com` first)
+> since you may re-run it later with a new password via §5.13's own
+> instructions.
 
 ### 5.14 Smoke test
 
@@ -706,6 +767,24 @@ since there is no public self-registration.
   so `execve()` fails with `203/EXEC`. Removed from all units; the rest of
   the sandboxing (`ProtectSystem=strict`, `NoNewPrivileges`, `PrivateTmp`,
   scoped `ReadWritePaths`) is unaffected.
+- **An unpinned `sqlalchemy` in 7 of 8 backend `requirements.txt` files
+  resolved to an incompatible version and crash-looped every service that
+  touches a database, on first deploy.** `auth-service/requirements.txt`
+  pins `SQLAlchemy==2.0.50`; `product-service`, `supplier-service`,
+  `sale-service`, `purchase-service`, `expense-service`,
+  `settings-service`, and `shop-service` just say `sqlalchemy` with no
+  version, so `pip install` picked up the current latest, `2.1.1`. SQLAlchemy
+  2.1 changed the **default driver** for a bare `postgresql://` URL from
+  `psycopg2` to `psycopg` (v3) — but every service here (`auth-service`
+  included) only has `psycopg2-binary` installed, not `psycopg`. Every
+  affected service died on startup with `ModuleNotFoundError: No module
+  named 'psycopg'`, restarted, died again, forever (`systemctl` showed them
+  `activating (auto-restart)`). Fixed by making the driver explicit instead
+  of relying on SQLAlchemy's default: `write_envs.sh` now builds
+  `postgresql+psycopg2://...` URLs (see §5.7), which pins the driver
+  regardless of which SQLAlchemy version a future `pip install` resolves.
+  The unpinned-`sqlalchemy` requirements files themselves were left as-is —
+  pinning them too is a worthwhile follow-up, see §9.
 - **Two live secrets were found committed to git** and rotated as part of
   this deployment (new values generated, never written back to the repo):
   1. `backend/auth-service/.env` — a real Neon Postgres URL (commented out)
@@ -719,13 +798,59 @@ since there is no public self-registration.
 
 ## 9. Outstanding follow-ups (not blocking, but worth doing)
 
-- **Git history still contains both old leaked secrets.** Removing the
-  files in a new commit (done) does not remove them from history. If this
-  repo is ever made public, or if the old Neon databases/JWT key are still
-  in active use by the previous Vercel deployment, those credentials should
-  be rotated at the source (Neon console) and the git history scrubbed
-  (`git filter-repo` + force-push) — that's a destructive operation, do it
-  deliberately and only when you're ready, not as a reflex.
+- **Pin `sqlalchemy` in the 7 backend `requirements.txt` files that
+  currently leave it unversioned** (`product-service`, `supplier-service`,
+  `sale-service`, `purchase-service`, `expense-service`,
+  `settings-service`, `shop-service` — only `auth-service` pins it). The
+  `+psycopg2` fix in §5.7/§8 makes the *current* deploy driver-version-proof,
+  but an unpinned transitive dependency is still a live landmine for the
+  next `pip install` on a fresh venv (§5.8) — pin to `SQLAlchemy==2.0.50` to
+  match `auth-service`, or deliberately upgrade everything together and
+  test, rather than letting it drift silently per-service.
+- **No deploy key needed anymore, but the VPS checkout still isn't a real
+  git clone.** The repo moved from a private `nikuze2026/A-T-Consulatnts`
+  to the public `njosuedev/higoverse-os` (§12), so a deploy key is now
+  moot — a plain `git clone`/`git pull` needs no credentials at all. But
+  the VPS's `/root/projects/higoverse` was populated by the one-shot
+  `tar`-over-SSH copy (§5.4) before the public repo existed, so it still
+  has no `.git` directory and `git pull` (§6) won't work there yet. Turn it
+  into a real checkout once the pending local fixes (§13's "pending as of
+  this writing" entry) are committed and pushed to `main` — otherwise a
+  `git reset --hard origin/main` on the VPS would overwrite the
+  already-applied `write_envs.sh` fix with the pre-fix version still on
+  `main`:
+  ```bash
+  cd /root/projects/higoverse
+  git init -q
+  git remote add origin https://github.com/njosuedev/higoverse-os.git
+  git fetch -q origin
+  git reset --hard origin/main   # only after origin/main has the write_envs.sh fix
+  ```
+- **🔴 URGENT — git history contains two previously-leaked credentials, and
+  the repo is now public.** This was written as a hypothetical ("if this
+  repo is ever made public") when the repo was still private; as of
+  2026-10-01 it is **public** (`github.com/njosuedev/higoverse-os`), so the
+  exposure is live, not theoretical. The repo's history (every commit,
+  going back to `7181c83`) still contains the original `backend/auth-service/.env`
+  (a real Neon Postgres connection string, commented out, plus the live JWT
+  `SECRET_KEY` used before rotation) and `backend/auth-service/alembic.ini`
+  (a second, different live Neon connection string hardcoded as
+  `sqlalchemy.url`). Removing the files in a later commit did **not** remove
+  them from history — anyone can `git log -p` or `git show` an old commit
+  and read them right now. Two separate actions needed, and the first one
+  is time-sensitive:
+  1. **Rotate those specific credentials at the source (Neon console)
+     immediately**, regardless of whether the old Vercel deployment is
+     still live — a public repo means this is no longer "if," assume
+     they're compromised. (This is independent of the *new*,
+     never-committed secrets this VPS deployment uses — see §3 — which are
+     not affected.)
+  2. **Scrub the git history** (`git filter-repo` to strip those two files
+     from every commit, then force-push) so the credentials stop being
+     visible to new clones/forks. This is destructive to repo history
+     (rewrites every commit SHA, breaks any existing fork/clone's ability
+     to fast-forward) — do it deliberately, coordinate with anyone else
+     with a clone, and only after step 1, not instead of it.
 - **SMTP is not configured** (`SMTP_USER`/`SMTP_PASS` are blank in
   `auth-service/.env`), so "forgot password" emails will 503 with "Email
   service is not configured" until you provide real SMTP credentials (a
@@ -752,6 +877,45 @@ was dropped in favor of the **path-based** routing this deployment already
 used from day one (`/svc/<name>/...`) — simpler, one DNS record, one
 certificate, and zero CORS changes since the frontend and every backend now
 share one origin.
+
+### DNS is managed in Cloudflare, proxied
+
+`higoverse.com`'s nameservers point at Cloudflare (dashboard shows "DNS
+Setup: Full", meaning Cloudflare is authoritative, not just hosting a CNAME).
+Two records exist, both **proxied** (orange cloud, not "DNS only"):
+
+| Name              | Type  | Content           | Proxy    |
+|-------------------|-------|-------------------|----------|
+| `higoverse.com`   | A     | `102.202.208.190` | Proxied  |
+| `www.higoverse.com` | CNAME | `higoverse.com` | Proxied  |
+
+What proxied means in practice here:
+
+- Public DNS for `higoverse.com` resolves to **Cloudflare's edge IPs**, not
+  `102.202.208.190` directly — `dig`/`nslookup` from outside will show
+  Cloudflare anycast addresses, not the origin. This is expected; don't
+  "fix" it.
+- Cloudflare terminates the visitor-facing TLS connection itself, then opens
+  its own connection to the origin (this VPS) on port 80 or 443 depending on
+  Cloudflare's **SSL/TLS encryption mode** (dashboard → SSL/TLS →
+  Overview). With a valid Let's Encrypt cert on the origin (see below), set
+  this to **Full** or **Full (strict)** — *not* "Flexible". Flexible means
+  Cloudflare talks HTTP to the origin, which collides with nginx's own
+  HTTP→HTTPS redirect (the certbot-managed block in `higoverse.conf`) and
+  can produce a redirect loop visitors see as `ERR_TOO_MANY_REDIRECTS`.
+- **Certbot's HTTP-01 challenge still works through the proxy** — Cloudflare
+  forwards `/.well-known/acme-challenge/*` requests to the origin on port 80
+  like any other path, so `certbot --nginx` (§5.12 below) needs no special
+  handling. This was confirmed working during the 2026-10-01 deploy with the
+  proxy already on.
+- Cloudflare's own dashboard surfaces "Recommendations" (e.g. "Visitors
+  cannot reach higoverse.com") based on whether it can actually reach the
+  origin — if nginx isn't running yet, or the box is mid-rebuild, expect to
+  see these until the origin actually answers on 80/443. They're a live
+  reachability check, not a one-time DNS propagation warning.
+- Renewal (`certbot.timer`, see below) will also go through the proxy the
+  same way — no reconfiguration needed as long as the A record stays
+  proxied and pointed at this origin.
 
 What this involves:
 
@@ -799,13 +963,15 @@ six services' `main.py`.
 
 ## 11. Rebrand Migration Runbook (A & T Consultants → Higoverse)
 
-> **Superseded for this deployment:** a brand-new VPS (`102.202.208.190`)
-> was provisioned instead of migrating the old `atconsultants.rw` box
-> (`102.202.208.195`) in place — see the fresh-VPS note near the top of
-> this document, and follow §5 instead. Kept here in case the old box
-> ever needs an in-place cutover
-> for some other reason (e.g. you decide to keep it as a second
-> environment).
+> **Not used for this deployment — confirmed historical as of 2026-10-01.**
+> A brand-new VPS (`102.202.208.190`) was provisioned instead of migrating
+> the old `atconsultants.rw` box (`102.202.208.195`) in place; it was built
+> from a blank Ubuntu image by following §5, and is now the live
+> `higoverse.com` deployment (see §13). None of the steps below ran against
+> either box. This runbook is kept only in case the *old* box (`.195`,
+> still running `aandt-*` units as of this writing) ever needs the same
+> in-place rename treatment — e.g. if you decide to keep it around as a
+> second environment rather than decommissioning it per §9.
 
 This is a **runbook, not something already executed.** It's for whoever has
 root on the live VPS, to actually cut the running deployment over from the
@@ -912,20 +1078,77 @@ step 7, or certbot's HTTP-01 challenge will fail.
 
 ---
 
-## 12. Optional follow-up: renaming the GitHub repo
+## 12. GitHub repo: done — now `njosuedev/higoverse-os`
 
-The git remote is still `github.com/nikuze2026/A-T-Consulatnts` (note: also
-still has the original typo in "Consultants"). This wasn't renamed as part
-of the rebrand because it's an external, consequential change — it breaks
-every existing clone's `git pull`/`git push` (they'd need to update their
-remote URL), any CI/webhook configured against the old URL, and any
-bookmarked links to the repo. If/when you're ready:
+**Resolved.** The code now lives permanently at
+`github.com/njosuedev/higoverse-os` (**public**) — the old private repo,
+`github.com/nikuze2026/A-T-Consulatnts` (note the typo in "Consultants"
+that had been there from the start), is no longer the repo of record. Every
+checkout should point at the new URL:
 
 ```bash
-# On GitHub: Settings → repository name → rename to "higoverse" (or similar)
-# Then, on every existing checkout (including this VPS):
-git remote set-url origin https://github.com/nikuze2026/<new-name>.git
+git remote set-url origin https://github.com/njosuedev/higoverse-os.git
+git remote -v   # confirm
 ```
 
-GitHub automatically redirects the old URL to the new one for a while, but
-don't rely on that indefinitely.
+This local working copy and the VPS checkout (§13) were both switched over
+on 2026-10-01. If you find any other clone (a laptop, CI, a bookmark) still
+pointed at the old `nikuze2026/A-T-Consulatnts` URL, repoint it the same
+way — GitHub does not redirect between unrelated repos (this isn't a rename
+of the old repo, it's a different repo entirely), so stale remotes will
+simply fail to push/pull against it going forward rather than silently
+redirecting.
+
+---
+
+## 13. Deployment history / verified-working snapshot
+
+A point-in-time record of what was actually built and confirmed working,
+for comparison when something looks wrong later ("was this always like
+this, or did it break?"). Update this section after any deploy that changes
+the shape of the system (new service, schema change, infra move) — it's
+meant to stay a living snapshot, not a frozen changelog entry.
+
+### 2026-10-01 — initial production deploy
+
+Executed end-to-end via §5 against a completely blank Ubuntu 24.04 image —
+confirmed beforehand that nothing was installed, no code was checked out,
+and ports 80/443 refused connections. Notable deviations from the plan as
+originally written, all folded into the sections above:
+
+- Code arrived via `tar`-over-SSH (§5.4), not `git clone` — the GitHub repo
+  is private and the box had no credentials.
+- `write_envs.sh` needed the `+psycopg2` driver fix (§5.7/§8) after 7 of 9
+  backend services crash-looped on an unpinned `sqlalchemy` resolving to an
+  incompatible version.
+- §5.9 and §5.13's `source <(grep ...)` snippets were replaced with
+  `python-dotenv` loading — the original form breaks on `SMTP_FROM`'s
+  unescaped `<` in the auth-service `.env` (§5.9's note has the full
+  explanation).
+- DNS/TLS runs through a Cloudflare proxy that wasn't part of the original
+  §10 write-up — see §10's new "DNS is managed in Cloudflare, proxied"
+  subsection. Certbot's HTTP-01 challenge worked through it with no special
+  handling needed.
+
+**Verified working at completion:**
+
+| Check | Result |
+|---|---|
+| All 9 backend systemd units | `active (running)` |
+| `higoverse-web` (Next.js) | `active (running)` |
+| `authdb` tables | `alembic_version, password_resets, refresh_tokens, roles, shops, users` (6) |
+| `shopdb` tables | `debts, expenses, password_resets, products, proformas, purchases, refresh_tokens, roles, sales, shop_settings, shops, suppliers, users` (13) |
+| `nginx -t` | syntax OK |
+| TLS cert | issued, expires 2026-12-30, `certbot.timer` enabled for auto-renewal |
+| `https://higoverse.com/` | 200 (confirmed from outside the VPS, through Cloudflare) |
+| `https://higoverse.com/login` | 200 |
+| `https://higoverse.com/svc/auth/health` | `{"status":"ok", ...}` with the table lists above |
+| `ufw status` | active; 22, 222, 80, 443 allowed (plus the pre-existing 60124/udp console-agent rule) |
+| `fail2ban-client status sshd` | active and already banned one unrelated scanning IP during setup — confirms it's functioning |
+| Admin user | `admin@higoverse.com` created, password in `/etc/higoverse/bootstrap_admin_password` |
+| Memory at completion | ~741Mi used + ~443Mi swap, of 1.9Gi total + 2Gi swap — some headroom, not a lot (§4's resource-monitoring guidance applies) |
+
+**Not done as part of this deploy** (see §9 for the full outstanding list):
+SMTP credentials, automated DB backups, pinning the unpinned `sqlalchemy`
+requirement, a `git` deploy key for future `git pull`s, decommissioning the
+old `atconsultants.rw` VPS.
