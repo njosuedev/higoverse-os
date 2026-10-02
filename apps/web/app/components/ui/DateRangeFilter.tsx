@@ -58,7 +58,7 @@ export default function DateRangeFilter({ from, to, onFrom, onTo, onClear }: Pro
       ))}
 
       {hasFilter && (
-        <button onClick={onClear} className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-press bg-accent-soft text-accent-dark hover:bg-[#efd6cb] transition-colors duration-200">
+        <button onClick={onClear} className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-press bg-accent-soft text-accent-dark hover:bg-[#f9d6d8] transition-colors duration-200">
           <X size={11} /> {t("daterange.clear")}
         </button>
       )}

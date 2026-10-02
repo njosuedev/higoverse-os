@@ -42,7 +42,7 @@ const EMPTY_FORM = { name: "", phone: "", tin: "", email: "", address: "" };
 const PAGE_SIZES = [25, 50, 100, 250];
 
 const inputCls =
-  "border border-slate-200 text-gray-800 placeholder:text-gray-400 rounded-lg px-3 py-2 w-full text-sm focus:outline-none focus:ring-2 focus:ring-[#1372e6]/30 focus:border-[#1372e6] transition";
+  "border border-slate-200 text-gray-800 placeholder:text-gray-400 rounded-lg px-3 py-2 w-full text-sm focus:outline-none focus:ring-2 focus:ring-[#0a66c2]/30 focus:border-[#0a66c2] transition";
 
 export default function PartnerManagementPage() {
   const { t } = useLanguage();
@@ -285,7 +285,7 @@ export default function PartnerManagementPage() {
         {/* HEADER BANNER */}
         <div
           className="relative rounded-2xl mb-2 overflow-hidden"
-          style={{ background: "linear-gradient(135deg, #1372e6 0%, #1168d6 50%, #0a47a0 100%)" }}
+          style={{ background: "linear-gradient(135deg, #0a66c2 0%, #004182 50%, #00376b 100%)" }}
         >
           <div style={{ position: "absolute", inset: 0, pointerEvents: "none", backgroundImage: "radial-gradient(circle, rgba(255,255,255,0.06) 1px, transparent 1px)", backgroundSize: "20px 20px" }} />
 
@@ -306,7 +306,7 @@ export default function PartnerManagementPage() {
                 <RefreshCw size={12} className={refreshing ? "animate-spin" : ""} />
               </button>
               <button onClick={openCreateModal}
-                className="flex items-center gap-1.5 bg-white text-[#1372e6] px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-blue-50 active:scale-95 transition-all shadow-lg shadow-black/20">
+                className="flex items-center gap-1.5 bg-white text-[#0a66c2] px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-blue-50 active:scale-95 transition-all shadow-lg shadow-black/20">
                 <Plus size={12} strokeWidth={3} /> {t("partners.add")}
               </button>
             </div>
@@ -353,7 +353,7 @@ export default function PartnerManagementPage() {
         {/* STAT CARDS */}
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5 mb-2">
           {[
-            { label: t("partners.total"),            value: stats.total,           color: "text-[#1372e6]", dot: "bg-[#1372e6]" },
+            { label: t("partners.total"),            value: stats.total,           color: "text-[#0a66c2]", dot: "bg-[#0a66c2]" },
             { label: t("partners.suppliers"),         value: stats.suppliers,       color: "text-blue-600",  dot: "bg-blue-500" },
             { label: t("partners.customers"),         value: stats.customers,       color: "text-slate-700", dot: "bg-slate-400" },
             { label: t("partners.active_suppliers"),  value: stats.activeSuppliers, color: "text-green-600", dot: "bg-green-500" },
@@ -423,7 +423,7 @@ export default function PartnerManagementPage() {
                         <p className="text-[10px] text-slate-400 font-mono">{p.id?.slice(0, 8)}</p>
                       </td>
                       <td className="px-3 py-1.5">
-                        <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${isSupplier ? "bg-[#D5E8FB] text-[#1372e6]" : "bg-slate-100 text-slate-600"}`}>
+                        <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${isSupplier ? "bg-[#D5E8FB] text-[#0a66c2]" : "bg-slate-100 text-slate-600"}`}>
                           {isSupplier ? <Building2 size={9} /> : <UserCheck size={9} />}
                           {isSupplier ? t("partners.suppliers") : t("partners.customers")}
                         </span>
@@ -435,7 +435,7 @@ export default function PartnerManagementPage() {
                       </td>
                       <td className="px-3 py-1.5">
                         {p.tin
-                          ? <span className="font-mono text-[10px] bg-[#EBF2FD] text-[#1372e6] px-1.5 py-0.5 rounded-md">{p.tin}</span>
+                          ? <span className="font-mono text-[10px] bg-[#EBF2FD] text-[#0a66c2] px-1.5 py-0.5 rounded-md">{p.tin}</span>
                           : <span className="text-slate-300 text-xs">—</span>}
                       </td>
                       <td className="px-3 py-1.5">
@@ -450,7 +450,7 @@ export default function PartnerManagementPage() {
                               <Package size={9} />{itemCount} {t("partners.item_word")}
                             </span>
                             {itemCount === 0 && (
-                              <Link href="/PurchaseManagement" className="text-[10px] text-[#1372e6] hover:underline flex items-center gap-0.5"><ShoppingCart size={10} /> {t("common.buy")}</Link>
+                              <Link href="/PurchaseManagement" className="text-[10px] text-[#0a66c2] hover:underline flex items-center gap-0.5"><ShoppingCart size={10} /> {t("common.buy")}</Link>
                             )}
                           </div>
                         ) : <span className="text-[10px] text-slate-400 italic">{t("partners.customer_singular")}</span>}
@@ -458,7 +458,7 @@ export default function PartnerManagementPage() {
                       <td className="px-3 py-1.5">
                         <div className="flex items-center justify-center gap-1 opacity-60 group-hover:opacity-100 transition-opacity">
                           <button onClick={() => openEditModal(p)} title={t("common.edit")}
-                            className="p-1 rounded bg-[#EBF2FD] hover:bg-[#D5E8FB] text-[#1372e6] transition"><Pencil size={11} /></button>
+                            className="p-1 rounded bg-[#EBF2FD] hover:bg-[#D5E8FB] text-[#0a66c2] transition"><Pencil size={11} /></button>
                           <button onClick={() => deletePartner(p.id)} disabled={deletingId === p.id} title={t("common.delete")}
                             className="p-1 rounded bg-red-50 hover:bg-red-100 text-red-500 transition disabled:opacity-40"><Trash2 size={11} /></button>
                         </div>
@@ -476,7 +476,7 @@ export default function PartnerManagementPage() {
               <p className="font-semibold text-slate-500 text-sm">{t("partners.no_partners")}</p>
               <p className="text-xs mt-1.5 text-slate-400">{search || typeFilter !== "all" ? t("common.try_adjust_filters") : t("partners.add_first")}</p>
               {!search && typeFilter === "all" && (
-                <button onClick={openCreateModal} className="mt-5 flex items-center gap-1.5 bg-[#1372e6] text-white text-sm font-semibold px-5 py-2.5 rounded-xl hover:opacity-90 transition">
+                <button onClick={openCreateModal} className="mt-5 flex items-center gap-1.5 bg-[#0a66c2] text-white text-sm font-semibold px-5 py-2.5 rounded-xl hover:opacity-90 transition">
                   <Plus size={14} /> {t("partners.add")}
                 </button>
               )}
@@ -493,7 +493,7 @@ export default function PartnerManagementPage() {
               <div className="flex justify-between items-center px-4 sm:px-6 py-4 border-b border-slate-100 shrink-0">
                 <div>
                   <h2 className="text-base font-semibold text-slate-800">{modalMode === "edit" ? t("partners.edit_title") : t("partners.add_title")}</h2>
-                  {previewType && <p className="text-xs text-slate-400 mt-0.5">{t("partners.save_as_prefix")} <span className={`font-semibold ${previewType === "supplier" ? "text-[#1372e6]" : "text-slate-600"}`}>{previewType === "supplier" ? t("partners.supplier_singular") : t("partners.customer_singular")}</span></p>}
+                  {previewType && <p className="text-xs text-slate-400 mt-0.5">{t("partners.save_as_prefix")} <span className={`font-semibold ${previewType === "supplier" ? "text-[#0a66c2]" : "text-slate-600"}`}>{previewType === "supplier" ? t("partners.supplier_singular") : t("partners.customer_singular")}</span></p>}
                 </div>
                 <button onClick={closeModal} className="p-2 rounded-lg hover:bg-slate-100 text-slate-400 transition"><X size={17} /></button>
               </div>
@@ -513,7 +513,7 @@ export default function PartnerManagementPage() {
                     {errors.phone && <p className="text-red-500 text-xs mt-1">{errors.phone}</p>}
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1"><span className="flex items-center gap-1"><Building2 size={12} /> TIN <span className="text-[#1372e6]">({t("partners.supplier_singular")})</span></span></label>
+                    <label className="block text-xs font-medium text-gray-600 mb-1"><span className="flex items-center gap-1"><Building2 size={12} /> TIN <span className="text-[#0a66c2]">({t("partners.supplier_singular")})</span></span></label>
                     <input name="tin" placeholder={t("partners.tin_placeholder")} value={form.tin} maxLength={9} className={`${inputCls} font-mono`} onChange={handleChange} />
                     {errors.tin && <p className="text-red-500 text-xs mt-1">{errors.tin}</p>}
                   </div>
@@ -550,7 +550,7 @@ function PartnersSkeleton() {
     <div className="min-h-screen">
       <style>{`@keyframes ptr-sh{0%{background-position:-200% 0}100%{background-position:200% 0}}.ptr-sh{background:linear-gradient(90deg,#f1f5f9 25%,#e2e8f0 50%,#f1f5f9 75%);background-size:200% 100%;animation:ptr-sh 1.4s infinite;border-radius:5px}.ptr-sh-w{background:linear-gradient(90deg,rgba(255,255,255,.1) 25%,rgba(255,255,255,.22) 50%,rgba(255,255,255,.1) 75%);background-size:200% 100%;animation:ptr-sh 1.4s infinite;border-radius:5px}`}</style>
       <div className="max-w-7xl mx-auto px-3 sm:px-5 py-3 sm:py-4">
-        <div className="relative rounded-2xl mb-2 overflow-hidden" style={{background:"linear-gradient(135deg,#1372e6 0%,#1168d6 50%,#0a47a0 100%)"}}>
+        <div className="relative rounded-2xl mb-2 overflow-hidden" style={{background:"linear-gradient(135deg,#0a66c2 0%,#004182 50%,#00376b 100%)"}}>
           <div className="relative flex items-center gap-3 px-4 pt-3 pb-2">
             <div className="w-8 h-8 rounded-xl ptr-sh-w shrink-0" />
             <div><div className="ptr-sh-w h-2 w-14 mb-1 rounded" /><div className="ptr-sh-w h-4 w-32 rounded" /></div>

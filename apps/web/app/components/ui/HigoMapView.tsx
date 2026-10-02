@@ -15,9 +15,9 @@ const PIN_HTML = `
   <div style="position:relative;width:32px;height:44px;filter:drop-shadow(0 3px 6px rgba(0,0,0,0.35));">
     <svg viewBox="0 0 32 44" xmlns="http://www.w3.org/2000/svg" width="32" height="44">
       <path d="M16 0C7.163 0 0 7.163 0 16c0 10.5 16 28 16 28S32 26.5 32 16C32 7.163 24.837 0 16 0z"
-            fill="#1372e6" stroke="#fff" stroke-width="2"/>
+            fill="#0a66c2" stroke="#fff" stroke-width="2"/>
       <circle cx="16" cy="16" r="6" fill="#fff"/>
-      <circle cx="16" cy="16" r="3.5" fill="#1372e6"/>
+      <circle cx="16" cy="16" r="3.5" fill="#0a66c2"/>
     </svg>
   </div>`;
 

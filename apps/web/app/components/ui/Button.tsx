@@ -27,19 +27,19 @@ const SIZE_MAP: Record<Size, string> = {
 
 function variantClasses(variant: Variant, tone: Tone): string {
   if (variant === "danger") {
-    return "bg-accent-dark text-paper hover:bg-[#7e2e1f]";
+    return "bg-accent text-white hover:bg-accent-dark";
   }
   if (variant === "ghost") {
     return "bg-transparent text-text-muted hover:bg-paper-dim hover:text-text";
   }
   if (tone === "orange") {
     return variant === "primary"
-      ? "bg-accent text-paper hover:bg-accent-dark"
-      : "bg-accent-soft text-accent-dark border border-accent/25 hover:bg-[#efd6cb]";
+      ? "bg-accent text-white hover:bg-accent-dark"
+      : "bg-accent-soft text-accent-dark border border-accent/25 hover:bg-[#f9d6d8]";
   }
   return variant === "primary"
-    ? "bg-ink text-paper hover:bg-ink-dark"
-    : "bg-ink-soft text-ink border border-ink/20 hover:bg-[#dbe5df]";
+    ? "bg-ink text-white hover:bg-ink-dark"
+    : "bg-white text-ink border border-ink hover:bg-ink-soft hover:shadow-[inset_0_0_0_1px_var(--color-ink)]";
 }
 
 export default function Button({
@@ -56,7 +56,7 @@ export default function Button({
   disabled,
   ...rest
 }: ButtonProps) {
-  const classes = `inline-flex items-center justify-center rounded-press font-semibold tracking-[-0.01em] transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${SIZE_MAP[size]} ${variantClasses(
+  const classes = `inline-flex items-center justify-center rounded-full font-semibold transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${SIZE_MAP[size]} ${variantClasses(
     variant,
     tone
   )} ${fullWidth ? "w-full" : ""} ${className}`;

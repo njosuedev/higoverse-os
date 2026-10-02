@@ -155,7 +155,7 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
 
             {/* Dropdown */}
             {menuOpen && (
-              <div className="absolute right-0 top-full z-50 mt-2 w-[300px] overflow-hidden rounded-data border border-border bg-white shadow-[0_16px_40px_-12px_rgb(31_61_51_/_0.3)]">
+              <div className="absolute right-0 top-full z-50 mt-2 w-[300px] overflow-hidden rounded-data border border-border bg-white shadow-[0_16px_40px_-12px_rgb(0_0_0_/_0.3)]">
 
                 {/* ── Profile header ── */}
                 <div className="bg-ink px-4 pb-5 pt-5">
@@ -234,7 +234,7 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
                 <div className="border-t border-border px-2 pb-2 pt-1">
                   <button onClick={handleLogout}
                     className="group flex w-full items-center gap-3 rounded-press px-3 py-2.5 transition-colors duration-200 hover:bg-accent-soft">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-press bg-accent-soft text-accent-dark transition-colors duration-200 group-hover:bg-[#efd6cb]">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-press bg-accent-soft text-accent-dark transition-colors duration-200 group-hover:bg-[#f9d6d8]">
                       <LogOut size={15} />
                     </div>
                     <span className="text-sm font-semibold text-accent-dark">{t("common.logout")}</span>
@@ -251,7 +251,7 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
       {mobileOpen && (
         <div className="fixed inset-0 z-[60] md:hidden">
           <div className="absolute inset-0 bg-ink-dark/45" onClick={() => setMobileOpen(false)} />
-          <div className="absolute left-0 top-0 flex h-full w-72 max-w-[85vw] flex-col overflow-y-auto bg-white shadow-[0_0_40px_-8px_rgb(31_61_51_/_0.4)]">
+          <div className="absolute left-0 top-0 flex h-full w-72 max-w-[85vw] flex-col overflow-y-auto bg-white shadow-[0_0_40px_-8px_rgb(0_0_0_/_0.4)]">
             <div className="flex items-center justify-between border-b border-border px-4 py-4">
               <div className="flex items-center gap-2.5">
                 <img src="/higoverse-logo.png" alt="Higoverse" className="h-8 w-8 rounded-press object-cover" />

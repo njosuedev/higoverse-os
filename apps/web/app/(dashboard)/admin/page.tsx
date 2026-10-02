@@ -29,7 +29,7 @@ import { expenseRequest } from "@/lib/expense-api";
 type Tab = "overview" | "shops" | "users" | "expenses";
 type ShopSort = "newest" | "lastActive" | "name" | "users";
 
-const LI_BLUE  = "#1372e6";
+const LI_BLUE  = "#0a66c2";
 const LI_LIGHT = "#5B9DF3";
 const LI_GRAY  = "#C9CDD2";
 const POLL_INTERVAL = 30;
@@ -241,7 +241,7 @@ export default function AdminPage() {
   const userRoleData = [
     { name: t("admin.role_owners"), value: users.filter((u) => u.role === "owner").length, fill: LI_BLUE  },
     { name: t("admin.role_staff"),  value: users.filter((u) => u.role !== "owner" && u.role !== "admin").length, fill: LI_LIGHT },
-    { name: t("admin.role_admins"), value: users.filter((u) => u.role === "admin").length, fill: "#0D4DB8" },
+    { name: t("admin.role_admins"), value: users.filter((u) => u.role === "admin").length, fill: "#004182" },
   ];
 
   const topShopsData = [...activeShops]
@@ -613,7 +613,7 @@ export default function AdminPage() {
                 className={`relative flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all ${
                   active ? "text-white shadow-sm" : "text-gray-500 hover:text-gray-800 hover:bg-gray-50"
                 }`}
-                style={active ? { background: `linear-gradient(135deg, ${LI_BLUE}, #0d4db8)` } : undefined}>
+                style={active ? { background: `linear-gradient(135deg, ${LI_BLUE}, #004182)` } : undefined}>
                 <t.icon size={12} className={active ? "text-white" : "text-gray-400"} />
                 {t.label}
                 {t.count !== undefined && t.count > 0 && (
@@ -648,7 +648,7 @@ export default function AdminPage() {
                     { label: t("admin.tab_shops"),      value: stats.active_shops,   sub: `${stats.inactive_shops} ${t("admin.inactive_suffix")}`, color: LI_BLUE,    bg: "#EBF2FD", icon: Store    },
                     { label: t("admin.total_users"),    value: stats.total_users,    sub: `${stats.active_users} ${t("common.active")}`,            color: LI_BLUE,    bg: "#EBF2FD", icon: Users    },
                     { label: t("admin.online_now"),     value: onlineNow,            sub: t("admin.shops_live_sub"),                                color: "#057642",  bg: "#E7F7EF", icon: Activity },
-                    { label: t("admin.new_this_week"),  value: newThisWeek,          sub: t("admin.new_shops_joined_sub"),                          color: "#a35b00",  bg: "#FEF3E2", icon: Sparkles },
+                    { label: t("admin.new_this_week"),  value: newThisWeek,          sub: t("admin.new_shops_joined_sub"),                          color: "#915907",  bg: "#FEF3E2", icon: Sparkles },
                   ].map((k) => (
                     <div key={k.label} className="hgv-card-hover bg-white rounded-xl shadow-sm border border-gray-200 p-3">
                       <div className="flex items-center justify-between mb-2">
@@ -774,7 +774,7 @@ export default function AdminPage() {
                 <div className="hgv-card-hover bg-white rounded-xl shadow-sm border border-gray-200 p-4">
                   <h3 className="font-semibold text-gray-800 text-xs mb-3 flex items-center gap-2">
                     <span className="w-5 h-5 rounded-lg flex items-center justify-center" style={{ background: "#FEF3E2" }}>
-                      <TrendingUp size={10} style={{ color: "#a35b00" }} />
+                      <TrendingUp size={10} style={{ color: "#915907" }} />
                     </span>
                     {t("admin.platform_health")}
                   </h3>
@@ -790,7 +790,7 @@ export default function AdminPage() {
                           <span className="font-bold text-gray-900">{m.pct}%</span>
                         </div>
                         <div className="h-2 rounded-full overflow-hidden" style={{ background: "#F1F0EC" }}>
-                          <div className="h-full rounded-full transition-all" style={{ width: `${m.pct}%`, background: `linear-gradient(90deg, ${LI_BLUE}, #0d4db8)` }} />
+                          <div className="h-full rounded-full transition-all" style={{ width: `${m.pct}%`, background: `linear-gradient(90deg, ${LI_BLUE}, #004182)` }} />
                         </div>
                         <p className="text-xs text-gray-400 mt-1">{m.sub}</p>
                       </div>
@@ -837,7 +837,7 @@ export default function AdminPage() {
               <span className="text-xs text-gray-400 shrink-0 font-medium">{filteredShops.length} / {activeShops.length}</span>
               <button onClick={openCreateShop}
                 className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg text-white font-semibold transition shrink-0 shadow-sm hover:opacity-90"
-                style={{ background: `linear-gradient(135deg, ${LI_BLUE}, #0d4db8)` }}>
+                style={{ background: `linear-gradient(135deg, ${LI_BLUE}, #004182)` }}>
                 <Plus size={12} /> {t("admin.add_shop")}
               </button>
             </div>
@@ -866,7 +866,7 @@ export default function AdminPage() {
                         {/* Avatar */}
                         <div className="relative shrink-0">
                           <div className="w-8 h-8 rounded-full overflow-hidden flex items-center justify-center text-xs font-bold text-white ring-2 ring-white shadow-sm"
-                            style={{ background: shop.logo_url ? "transparent" : online ? "linear-gradient(135deg,#0ea672,#057642)" : `linear-gradient(135deg, ${LI_BLUE}, #0d4db8)` }}>
+                            style={{ background: shop.logo_url ? "transparent" : online ? "linear-gradient(135deg,#0ea672,#057642)" : `linear-gradient(135deg, ${LI_BLUE}, #004182)` }}>
                             {shop.logo_url
                               // eslint-disable-next-line @next/next/no-img-element
                               ? <img src={shop.logo_url} alt={shop.name} className="w-8 h-8 object-cover" />
@@ -1024,7 +1024,7 @@ export default function AdminPage() {
                                 <button onClick={() => openCreateUser(shop.id)}
                                   title={t("admin.register_user_for_shop_title")}
                                   className="flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-lg hover:opacity-90 transition text-white shadow-sm"
-                                  style={{ background: `linear-gradient(135deg, ${LI_BLUE}, #0d4db8)` }}>
+                                  style={{ background: `linear-gradient(135deg, ${LI_BLUE}, #004182)` }}>
                                   <UserPlus size={10} /> {t("common.add")}
                                 </button>
                               </div>
@@ -1085,7 +1085,7 @@ export default function AdminPage() {
               <button onClick={() => openCreateUser()} disabled={activeShops.length === 0}
                 title={activeShops.length === 0 ? t("admin.no_shops_available_title") : t("admin.register_new_shop_user_title")}
                 className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg text-white font-semibold transition disabled:opacity-40 shrink-0 shadow-sm hover:opacity-90"
-                style={{ background: `linear-gradient(135deg, ${LI_BLUE}, #0d4db8)` }}>
+                style={{ background: `linear-gradient(135deg, ${LI_BLUE}, #004182)` }}>
                 <UserPlus size={12} /> {t("admin.register_user")}
               </button>
             </div>
@@ -1118,7 +1118,7 @@ export default function AdminPage() {
                       className={`grid grid-cols-[1fr_1fr_auto_auto_auto] gap-4 items-center px-4 py-2 hover:bg-slate-50/70 transition ${!u.is_active ? "opacity-50" : ""}`}>
                       <div className="min-w-0 flex items-center gap-2">
                         <div className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold text-white shrink-0 ring-2 ring-white shadow-sm"
-                          style={{ background: `linear-gradient(135deg, ${LI_BLUE}, #0d4db8)` }}>
+                          style={{ background: `linear-gradient(135deg, ${LI_BLUE}, #004182)` }}>
                           {u.email[0].toUpperCase()}
                         </div>
                         <div className="min-w-0">
@@ -1234,7 +1234,7 @@ export default function AdminPage() {
                               : (shop.name ?? "?")[0].toUpperCase()}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="text-[13px] font-semibold text-gray-900 group-hover:text-[#1372e6] transition-colors">{shop.name}</p>
+                            <p className="text-[13px] font-semibold text-gray-900 group-hover:text-[#0a66c2] transition-colors">{shop.name}</p>
                             {shop.owner_email && <p className="text-[11px] text-gray-400 truncate">{shop.owner_email}</p>}
                           </div>
                           <div className="flex items-center gap-4 text-xs text-gray-400 shrink-0">
@@ -1352,7 +1352,7 @@ export default function AdminPage() {
                                 {/* Edit */}
                                 <td className="px-3 py-1.5">
                                   <button onClick={() => openEditExp(e)} title={t("admin.edit_expense_title")}
-                                    className="p-1.5 rounded-md hover:bg-[#EBF2FD] text-gray-300 hover:text-[#1372e6] transition">
+                                    className="p-1.5 rounded-md hover:bg-[#EBF2FD] text-gray-300 hover:text-[#0a66c2] transition">
                                     <Pencil size={12} />
                                   </button>
                                 </td>
@@ -1397,7 +1397,7 @@ export default function AdminPage() {
             {/* Header */}
             <div className="flex items-center justify-between px-3.5 py-2.5 border-b border-slate-100 shrink-0 bg-gradient-to-r from-slate-50 to-white">
               <div className="flex items-center gap-2.5">
-                <span className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{ background: `linear-gradient(135deg, ${LI_BLUE}, #0d4db8)` }}>
+                <span className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{ background: `linear-gradient(135deg, ${LI_BLUE}, #004182)` }}>
                   <Pencil size={13} className="text-white" />
                 </span>
                 <div>
@@ -1415,7 +1415,7 @@ export default function AdminPage() {
               {/* Title */}
               <div>
                 <label className="block text-[10px] font-medium text-gray-500 mb-0.5">{t("expenses.title_field")} <span className="text-red-400">*</span></label>
-                <input className="border border-slate-200 rounded-md px-2 py-1 w-full text-[11px] text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#1372e6]/30 focus:border-[#1372e6] transition"
+                <input className="border border-slate-200 rounded-md px-2 py-1 w-full text-[11px] text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#0a66c2]/30 focus:border-[#0a66c2] transition"
                   value={editForm.title} onChange={(e) => setEditForm({ ...editForm, title: e.target.value })} />
               </div>
 
@@ -1423,14 +1423,14 @@ export default function AdminPage() {
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <label className="block text-[10px] font-medium text-gray-500 mb-0.5">{t("expenses.category")}</label>
-                  <select className="border border-slate-200 rounded-md px-2 py-1 w-full text-[11px] text-gray-800 focus:outline-none focus:ring-1 focus:ring-[#1372e6]/30 focus:border-[#1372e6] transition"
+                  <select className="border border-slate-200 rounded-md px-2 py-1 w-full text-[11px] text-gray-800 focus:outline-none focus:ring-1 focus:ring-[#0a66c2]/30 focus:border-[#0a66c2] transition"
                     value={editForm.category} onChange={(e) => setEditForm({ ...editForm, category: e.target.value })}>
                     {EXP_CATEGORIES.map((c) => <option key={c} value={c} className="capitalize">{t(`expenses.cat.${c}`)}</option>)}
                   </select>
                 </div>
                 <div>
                   <label className="block text-[10px] font-medium text-gray-500 mb-0.5">{t("expenses.amount")} <span className="text-red-400">*</span></label>
-                  <input type="number" min="0" className="border border-slate-200 rounded-md px-2 py-1 w-full text-[11px] text-gray-800 focus:outline-none focus:ring-1 focus:ring-[#1372e6]/30 focus:border-[#1372e6] transition"
+                  <input type="number" min="0" className="border border-slate-200 rounded-md px-2 py-1 w-full text-[11px] text-gray-800 focus:outline-none focus:ring-1 focus:ring-[#0a66c2]/30 focus:border-[#0a66c2] transition"
                     value={editForm.amount} onChange={(e) => setEditForm({ ...editForm, amount: e.target.value })} />
                 </div>
               </div>
@@ -1439,12 +1439,12 @@ export default function AdminPage() {
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <label className="block text-[10px] font-medium text-gray-500 mb-0.5">{t("common.date")}</label>
-                  <input type="date" className="border border-slate-200 rounded-md px-2 py-1 w-full text-[11px] text-gray-800 focus:outline-none focus:ring-1 focus:ring-[#1372e6]/30 focus:border-[#1372e6] transition"
+                  <input type="date" className="border border-slate-200 rounded-md px-2 py-1 w-full text-[11px] text-gray-800 focus:outline-none focus:ring-1 focus:ring-[#0a66c2]/30 focus:border-[#0a66c2] transition"
                     value={editForm.expense_date} onChange={(e) => setEditForm({ ...editForm, expense_date: e.target.value })} />
                 </div>
                 <div>
                   <label className="block text-[10px] font-medium text-gray-500 mb-0.5">{t("common.notes")}</label>
-                  <input className="border border-slate-200 rounded-md px-2 py-1 w-full text-[11px] text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#1372e6]/30 focus:border-[#1372e6] transition"
+                  <input className="border border-slate-200 rounded-md px-2 py-1 w-full text-[11px] text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#0a66c2]/30 focus:border-[#0a66c2] transition"
                     placeholder={`${t("common.optional")}…`} value={editForm.notes} onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })} />
                 </div>
               </div>
@@ -1459,7 +1459,7 @@ export default function AdminPage() {
                       className={`flex-1 py-1 rounded-md text-[10px] font-semibold border transition-all ${
                         editForm.payment_method === m
                           ? m === "mtn"  ? "bg-yellow-400 border-yellow-400 text-white"
-                          : m === "bank" ? "border-[#1372e6] text-white"
+                          : m === "bank" ? "border-[#0a66c2] text-white"
                           : "bg-slate-200 border-slate-200 text-slate-700"
                           : "bg-white border-slate-200 text-slate-400 hover:border-slate-300"
                       }`}
@@ -1472,7 +1472,7 @@ export default function AdminPage() {
                   <div className="grid grid-cols-2 gap-1.5 mb-1.5">
                     <div>
                       <label className="block text-[10px] font-medium text-gray-500 mb-0.5">{t("admin.col_bank_name")}</label>
-                      <select className="border border-slate-200 rounded-md px-2 py-1 w-full text-[11px] text-gray-800 focus:outline-none focus:ring-1 focus:ring-[#1372e6]/30 focus:border-[#1372e6] transition"
+                      <select className="border border-slate-200 rounded-md px-2 py-1 w-full text-[11px] text-gray-800 focus:outline-none focus:ring-1 focus:ring-[#0a66c2]/30 focus:border-[#0a66c2] transition"
                         value={editForm.bank_name} onChange={(e) => setEditForm({ ...editForm, bank_name: e.target.value })}>
                         <option value="">{t("admin.select_bank_placeholder")}</option>
                         {BANK_NAMES.map((b) => <option key={b} value={b}>{b}</option>)}
@@ -1480,7 +1480,7 @@ export default function AdminPage() {
                     </div>
                     <div>
                       <label className="block text-[10px] font-medium text-gray-500 mb-0.5">{t("admin.col_account_ref")}</label>
-                      <input className="border border-slate-200 rounded-md px-2 py-1 w-full text-[11px] text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#1372e6]/30 focus:border-[#1372e6] transition"
+                      <input className="border border-slate-200 rounded-md px-2 py-1 w-full text-[11px] text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#0a66c2]/30 focus:border-[#0a66c2] transition"
                         placeholder={t("admin.account_ref_placeholder")} value={editForm.bank_account} onChange={(e) => setEditForm({ ...editForm, bank_account: e.target.value })} />
                     </div>
                   </div>
@@ -1488,7 +1488,7 @@ export default function AdminPage() {
                 {editForm.payment_method !== "" && (
                   <div>
                     <label className="block text-[10px] font-medium text-gray-500 mb-0.5">{t("admin.col_receiver_phone")}</label>
-                    <input className="border border-slate-200 rounded-md px-2 py-1 w-full text-[11px] text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#1372e6]/30 focus:border-[#1372e6] transition"
+                    <input className="border border-slate-200 rounded-md px-2 py-1 w-full text-[11px] text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#0a66c2]/30 focus:border-[#0a66c2] transition"
                       placeholder="+250 7XX XXX XXX" value={editForm.receiver_phone} onChange={(e) => setEditForm({ ...editForm, receiver_phone: e.target.value })} />
                   </div>
                 )}
@@ -1503,7 +1503,7 @@ export default function AdminPage() {
               </button>
               <button onClick={saveEditExp} disabled={editSaving || !editForm.title.trim() || !editForm.amount}
                 className="px-3 py-1 rounded-md text-[11px] font-semibold text-white transition disabled:opacity-60 hover:opacity-90 shadow-sm"
-                style={{ background: `linear-gradient(135deg, ${LI_BLUE}, #0d4db8)` }}>
+                style={{ background: `linear-gradient(135deg, ${LI_BLUE}, #004182)` }}>
                 {editSaving ? t("common.saving") : t("common.save")}
               </button>
             </div>
@@ -1518,7 +1518,7 @@ export default function AdminPage() {
             {/* Header */}
             <div className="flex items-center justify-between px-3.5 py-2.5 border-b border-slate-100 shrink-0 bg-gradient-to-r from-slate-50 to-white">
               <div className="flex items-center gap-2.5">
-                <span className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{ background: `linear-gradient(135deg, ${LI_BLUE}, #0d4db8)` }}>
+                <span className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{ background: `linear-gradient(135deg, ${LI_BLUE}, #004182)` }}>
                   <Store size={14} className="text-white" />
                 </span>
                 <div>
@@ -1546,7 +1546,7 @@ export default function AdminPage() {
                   <Store size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
                   <input value={createForm.shop_name} onChange={(e) => setCreateForm({ ...createForm, shop_name: e.target.value })}
                     placeholder={t("admin.shop_name_placeholder")}
-                    className="w-full pl-8 pr-3 py-2 text-xs border border-slate-200 rounded-lg text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#1372e6]/30 focus:border-[#1372e6] transition" />
+                    className="w-full pl-8 pr-3 py-2 text-xs border border-slate-200 rounded-lg text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#0a66c2]/30 focus:border-[#0a66c2] transition" />
                 </div>
               </div>
 
@@ -1558,7 +1558,7 @@ export default function AdminPage() {
                     <Phone size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
                     <input value={createForm.phone} onChange={(e) => setCreateForm({ ...createForm, phone: e.target.value })}
                       placeholder="07XX XXX XXX"
-                      className="w-full pl-8 pr-2 py-2 text-xs border border-slate-200 rounded-lg text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#1372e6]/30 focus:border-[#1372e6] transition" />
+                      className="w-full pl-8 pr-2 py-2 text-xs border border-slate-200 rounded-lg text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#0a66c2]/30 focus:border-[#0a66c2] transition" />
                   </div>
                 </div>
                 <div>
@@ -1567,7 +1567,7 @@ export default function AdminPage() {
                     <MapPin size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
                     <input value={createForm.address} onChange={(e) => setCreateForm({ ...createForm, address: e.target.value })}
                       placeholder={t("common.optional")}
-                      className="w-full pl-8 pr-2 py-2 text-xs border border-slate-200 rounded-lg text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#1372e6]/30 focus:border-[#1372e6] transition" />
+                      className="w-full pl-8 pr-2 py-2 text-xs border border-slate-200 rounded-lg text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#0a66c2]/30 focus:border-[#0a66c2] transition" />
                   </div>
                 </div>
               </div>
@@ -1592,7 +1592,7 @@ export default function AdminPage() {
                       <UserIcon size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
                       <input value={createForm.owner_name} onChange={(e) => setCreateForm({ ...createForm, owner_name: e.target.value })}
                         placeholder={t("common.optional")}
-                        className="w-full pl-8 pr-3 py-2 text-xs border border-slate-200 rounded-lg text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#1372e6]/30 focus:border-[#1372e6] transition" />
+                        className="w-full pl-8 pr-3 py-2 text-xs border border-slate-200 rounded-lg text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#0a66c2]/30 focus:border-[#0a66c2] transition" />
                     </div>
                   </div>
 
@@ -1603,7 +1603,7 @@ export default function AdminPage() {
                       <Mail size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
                       <input type="email" value={createForm.owner_email} onChange={(e) => setCreateForm({ ...createForm, owner_email: e.target.value })}
                         placeholder="owner@example.com"
-                        className="w-full pl-8 pr-3 py-2 text-xs border border-slate-200 rounded-lg text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#1372e6]/30 focus:border-[#1372e6] transition" />
+                        className="w-full pl-8 pr-3 py-2 text-xs border border-slate-200 rounded-lg text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#0a66c2]/30 focus:border-[#0a66c2] transition" />
                     </div>
                     <p className="text-[10px] text-amber-600 mt-1 flex items-center gap-1">
                       <AlertTriangle size={9} /> {t("admin.new_shop_email_warning")}
@@ -1618,7 +1618,7 @@ export default function AdminPage() {
                       <input type={showShopPassword ? "text" : "password"} value={createForm.owner_password}
                         onChange={(e) => setCreateForm({ ...createForm, owner_password: e.target.value })}
                         placeholder={t("admin.min_8_chars")}
-                        className="w-full pl-8 pr-8 py-2 text-xs border border-slate-200 rounded-lg text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#1372e6]/30 focus:border-[#1372e6] transition" />
+                        className="w-full pl-8 pr-8 py-2 text-xs border border-slate-200 rounded-lg text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#0a66c2]/30 focus:border-[#0a66c2] transition" />
                       <button type="button" onClick={() => setShowShopPassword((v) => !v)}
                         className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
                         {showShopPassword ? <EyeOff size={12} /> : <Eye size={12} />}
@@ -1634,7 +1634,7 @@ export default function AdminPage() {
                 <textarea value={createForm.description} onChange={(e) => setCreateForm({ ...createForm, description: e.target.value })}
                   placeholder={t("admin.shop_desc_placeholder")}
                   rows={2}
-                  className="w-full px-2.5 py-2 text-xs border border-slate-200 rounded-lg text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#1372e6]/30 focus:border-[#1372e6] transition resize-none" />
+                  className="w-full px-2.5 py-2 text-xs border border-slate-200 rounded-lg text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#0a66c2]/30 focus:border-[#0a66c2] transition resize-none" />
               </div>
             </div>
 
@@ -1646,7 +1646,7 @@ export default function AdminPage() {
               </button>
               <button onClick={handleCreateShop} disabled={creatingShop}
                 className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold text-white transition disabled:opacity-60 hover:opacity-90 shadow-sm"
-                style={{ background: `linear-gradient(135deg, ${LI_BLUE}, #0d4db8)` }}>
+                style={{ background: `linear-gradient(135deg, ${LI_BLUE}, #004182)` }}>
                 {creatingShop ? <><Loader2 size={12} className="animate-spin" /> {t("admin.creating")}</> : <><Plus size={12} /> {t("admin.create_shop")}</>}
               </button>
             </div>
@@ -1661,7 +1661,7 @@ export default function AdminPage() {
             {/* Header */}
             <div className="flex items-center justify-between px-3.5 py-2.5 border-b border-slate-100 shrink-0 bg-gradient-to-r from-slate-50 to-white">
               <div className="flex items-center gap-2.5">
-                <span className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{ background: `linear-gradient(135deg, ${LI_BLUE}, #0d4db8)` }}>
+                <span className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{ background: `linear-gradient(135deg, ${LI_BLUE}, #004182)` }}>
                   <Pencil size={13} className="text-white" />
                 </span>
                 <div>
@@ -1681,7 +1681,7 @@ export default function AdminPage() {
                 <div className="relative">
                   <Store size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
                   <input value={editShopForm.name} onChange={(e) => setEditShopForm({ ...editShopForm, name: e.target.value })}
-                    className="w-full pl-8 pr-3 py-2 text-xs border border-slate-200 rounded-lg text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#1372e6]/30 focus:border-[#1372e6] transition" />
+                    className="w-full pl-8 pr-3 py-2 text-xs border border-slate-200 rounded-lg text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#0a66c2]/30 focus:border-[#0a66c2] transition" />
                 </div>
               </div>
 
@@ -1692,7 +1692,7 @@ export default function AdminPage() {
                     <Phone size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
                     <input value={editShopForm.phone} onChange={(e) => setEditShopForm({ ...editShopForm, phone: e.target.value })}
                       placeholder={t("common.optional")}
-                      className="w-full pl-8 pr-2 py-2 text-xs border border-slate-200 rounded-lg text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#1372e6]/30 focus:border-[#1372e6] transition" />
+                      className="w-full pl-8 pr-2 py-2 text-xs border border-slate-200 rounded-lg text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#0a66c2]/30 focus:border-[#0a66c2] transition" />
                   </div>
                 </div>
                 <div>
@@ -1701,7 +1701,7 @@ export default function AdminPage() {
                     <MapPin size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
                     <input value={editShopForm.address} onChange={(e) => setEditShopForm({ ...editShopForm, address: e.target.value })}
                       placeholder={t("common.optional")}
-                      className="w-full pl-8 pr-2 py-2 text-xs border border-slate-200 rounded-lg text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#1372e6]/30 focus:border-[#1372e6] transition" />
+                      className="w-full pl-8 pr-2 py-2 text-xs border border-slate-200 rounded-lg text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#0a66c2]/30 focus:border-[#0a66c2] transition" />
                   </div>
                 </div>
               </div>
@@ -1710,7 +1710,7 @@ export default function AdminPage() {
                 <label className="block text-[11px] font-medium text-gray-500 mb-1">{t("items.description")}</label>
                 <textarea value={editShopForm.description} onChange={(e) => setEditShopForm({ ...editShopForm, description: e.target.value })}
                   rows={2}
-                  className="w-full px-2.5 py-2 text-xs border border-slate-200 rounded-lg text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#1372e6]/30 focus:border-[#1372e6] transition resize-none" />
+                  className="w-full px-2.5 py-2 text-xs border border-slate-200 rounded-lg text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#0a66c2]/30 focus:border-[#0a66c2] transition resize-none" />
               </div>
             </div>
 
@@ -1722,7 +1722,7 @@ export default function AdminPage() {
               </button>
               <button onClick={handleUpdateShop} disabled={editShopSaving || !editShopForm.name.trim()}
                 className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold text-white transition disabled:opacity-60 hover:opacity-90 shadow-sm"
-                style={{ background: `linear-gradient(135deg, ${LI_BLUE}, #0d4db8)` }}>
+                style={{ background: `linear-gradient(135deg, ${LI_BLUE}, #004182)` }}>
                 {editShopSaving ? <><Loader2 size={12} className="animate-spin" /> {t("common.saving")}</> : t("common.save")}
               </button>
             </div>
@@ -1737,7 +1737,7 @@ export default function AdminPage() {
             {/* Header */}
             <div className="flex items-center justify-between px-3.5 py-2.5 border-b border-slate-100 shrink-0 bg-gradient-to-r from-slate-50 to-white">
               <div className="flex items-center gap-2.5">
-                <span className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{ background: `linear-gradient(135deg, ${LI_BLUE}, #0d4db8)` }}>
+                <span className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{ background: `linear-gradient(135deg, ${LI_BLUE}, #004182)` }}>
                   <UserPlus size={14} className="text-white" />
                 </span>
                 <div>
@@ -1766,7 +1766,7 @@ export default function AdminPage() {
                   <select
                     value={createUserForm.shop_id}
                     onChange={(e) => setCreateUserForm({ ...createUserForm, shop_id: e.target.value })}
-                    className="w-full pl-8 pr-6 py-2 text-xs border border-slate-200 rounded-lg appearance-none bg-white text-gray-800 focus:outline-none focus:ring-1 focus:ring-[#1372e6]/30 focus:border-[#1372e6] transition">
+                    className="w-full pl-8 pr-6 py-2 text-xs border border-slate-200 rounded-lg appearance-none bg-white text-gray-800 focus:outline-none focus:ring-1 focus:ring-[#0a66c2]/30 focus:border-[#0a66c2] transition">
                     <option value="">{t("admin.select_shop_placeholder")}</option>
                     {activeShops.map((s) => (
                       <option key={s.id} value={s.id}>{s.name}</option>
@@ -1783,7 +1783,7 @@ export default function AdminPage() {
                   <UserIcon size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
                   <input value={createUserForm.name} onChange={(e) => setCreateUserForm({ ...createUserForm, name: e.target.value })}
                     placeholder={t("common.optional")}
-                    className="w-full pl-8 pr-3 py-2 text-xs border border-slate-200 rounded-lg text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#1372e6]/30 focus:border-[#1372e6] transition" />
+                    className="w-full pl-8 pr-3 py-2 text-xs border border-slate-200 rounded-lg text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#0a66c2]/30 focus:border-[#0a66c2] transition" />
                 </div>
               </div>
 
@@ -1794,7 +1794,7 @@ export default function AdminPage() {
                   <Mail size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
                   <input type="email" value={createUserForm.email} onChange={(e) => setCreateUserForm({ ...createUserForm, email: e.target.value })}
                     placeholder="user@example.com"
-                    className="w-full pl-8 pr-3 py-2 text-xs border border-slate-200 rounded-lg text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#1372e6]/30 focus:border-[#1372e6] transition" />
+                    className="w-full pl-8 pr-3 py-2 text-xs border border-slate-200 rounded-lg text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#0a66c2]/30 focus:border-[#0a66c2] transition" />
                 </div>
               </div>
 
@@ -1806,7 +1806,7 @@ export default function AdminPage() {
                   <input type={showUserPassword ? "text" : "password"} value={createUserForm.password}
                     onChange={(e) => setCreateUserForm({ ...createUserForm, password: e.target.value })}
                     placeholder={t("admin.min_8_chars")}
-                    className="w-full pl-8 pr-8 py-2 text-xs border border-slate-200 rounded-lg text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#1372e6]/30 focus:border-[#1372e6] transition" />
+                    className="w-full pl-8 pr-8 py-2 text-xs border border-slate-200 rounded-lg text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#0a66c2]/30 focus:border-[#0a66c2] transition" />
                   <button type="button" onClick={() => setShowUserPassword((v) => !v)}
                     className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
                     {showUserPassword ? <EyeOff size={12} /> : <Eye size={12} />}
@@ -1822,7 +1822,7 @@ export default function AdminPage() {
                   <select
                     value={createUserForm.role}
                     onChange={(e) => setCreateUserForm({ ...createUserForm, role: e.target.value as StaffRole })}
-                    className="w-full pl-8 pr-6 py-2 text-xs border border-slate-200 rounded-lg appearance-none bg-white text-gray-800 capitalize focus:outline-none focus:ring-1 focus:ring-[#1372e6]/30 focus:border-[#1372e6] transition">
+                    className="w-full pl-8 pr-6 py-2 text-xs border border-slate-200 rounded-lg appearance-none bg-white text-gray-800 capitalize focus:outline-none focus:ring-1 focus:ring-[#0a66c2]/30 focus:border-[#0a66c2] transition">
                     {STAFF_ROLES.map((r) => <option key={r} value={r} className="capitalize">{r}</option>)}
                   </select>
                   <ChevronDown size={11} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
@@ -1838,7 +1838,7 @@ export default function AdminPage() {
               </button>
               <button onClick={handleCreateUser} disabled={creatingUser}
                 className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold text-white transition disabled:opacity-60 hover:opacity-90 shadow-sm"
-                style={{ background: `linear-gradient(135deg, ${LI_BLUE}, #0d4db8)` }}>
+                style={{ background: `linear-gradient(135deg, ${LI_BLUE}, #004182)` }}>
                 {creatingUser ? <><Loader2 size={12} className="animate-spin" /> {t("admin.registering")}</> : <><UserPlus size={12} /> {t("admin.register_user")}</>}
               </button>
             </div>

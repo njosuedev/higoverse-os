@@ -1,40 +1,40 @@
 @import "tailwindcss";
 
 /* ══════════════════════════════════════════════════════════════════════
-   LEDGER — design tokens
-   A ledger/paper metaphor: warm paper neutrals, ink-green as the primary
-   brand color, a stamp-red accent reserved for status marks and
-   highlights. Single light theme — no dark mode (see color-scheme below).
+   Design tokens — LinkedIn-style palette and type
+   Warm-grey page, white cards, LinkedIn blue (#0a66c2) as the primary,
+   LinkedIn red reserved for danger/alerts. Single light theme — no dark
+   mode (see color-scheme below).
    ══════════════════════════════════════════════════════════════════════ */
 @theme {
-  /* type */
-  --font-sans: var(--font-plex-sans), ui-sans-serif, system-ui, sans-serif;
-  --font-display: var(--font-fraunces), Georgia, "Times New Roman", serif;
-  --font-mono: var(--font-plex-mono), ui-monospace, "SFMono-Regular", Menlo, monospace;
+  /* type — LinkedIn's system font stack (Segoe UI on Windows, SF on Apple) */
+  --font-sans: -apple-system, system-ui, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", "Fira Sans", Ubuntu, Oxygen, "Oxygen Sans", Cantarell, "Droid Sans", "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Lucida Grande", Helvetica, Arial, sans-serif;
+  --font-display: var(--font-sans);
+  --font-mono: var(--font-sans);
 
-  /* color */
-  --color-ink: #1f3d33;
-  --color-ink-dark: #142820;
-  --color-ink-soft: #e7ede9;
-  --color-paper: #faf7f0;
-  --color-paper-dim: #f2eee3;
-  --color-paper-deep: #e9e3d3;
-  --color-border: #e2dac6;
-  --color-border-strong: #cdc2a3;
-  --color-text: #221e17;
-  --color-text-muted: #6e6656;
-  --color-text-faint: #9a9280;
-  --color-accent: #bd4932;
-  --color-accent-dark: #9c3b28;
-  --color-accent-soft: #f4e3dc;
-  --color-success: #4c7a52;
-  --color-success-soft: #e4ede2;
-  --color-warning: #c78a2e;
-  --color-warning-soft: #f6e9d3;
+  /* color — LinkedIn palette */
+  --color-ink: #0a66c2;
+  --color-ink-dark: #004182;
+  --color-ink-soft: #e8f3ff;
+  --color-paper: #f4f2ee;
+  --color-paper-dim: #ebe9e5;
+  --color-paper-deep: #e0dfdc;
+  --color-border: #e0dfdc;
+  --color-border-strong: #c3c1bd;
+  --color-text: #191919;
+  --color-text-muted: #666666;
+  --color-text-faint: #8c8c8c;
+  --color-accent: #cc1016;
+  --color-accent-dark: #a30d12;
+  --color-accent-soft: #fdeced;
+  --color-success: #057642;
+  --color-success-soft: #e6f4ec;
+  --color-warning: #915907;
+  --color-warning-soft: #fcf0d9;
 
-  /* radius — two-tier, intentional (not uniform everywhere) */
-  --radius-data: 2px;
-  --radius-press: 6px;
+  /* radius — LinkedIn-style soft corners; buttons are pills (see Button.tsx) */
+  --radius-data: 8px;
+  --radius-press: 8px;
 }
 
 /* ── FORCE LIGHT MODE — ignore OS dark preference ───────── */
@@ -65,7 +65,7 @@ input, textarea, select, button {
 
 /* Visible, on-brand focus ring everywhere — WCAG AA, no element opts out. */
 :focus-visible {
-  outline: 2px solid var(--color-accent);
+  outline: 2px solid var(--color-ink);
   outline-offset: 2px;
   border-radius: 2px;
 }
@@ -139,7 +139,7 @@ input, textarea, select, button {
   transition: box-shadow 200ms ease, border-color 200ms ease;
 }
 .hgv-card-hover:hover {
-  box-shadow: 0 4px 16px -6px rgb(31 61 51 / 0.16);
+  box-shadow: 0 4px 16px -6px rgb(0 0 0 / 0.12);
   border-color: var(--color-border-strong);
 }
 

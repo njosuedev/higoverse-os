@@ -685,7 +685,7 @@ export default function ExpenseManagementPage() {
     return t("common.all_time");
   })();
 
-  const inputCls = "border border-slate-200 text-gray-800 placeholder:text-gray-400 rounded-md px-2 py-1 w-full text-[11px] focus:outline-none focus:ring-1 focus:ring-[#1372e6]/30 focus:border-[#1372e6] transition";
+  const inputCls = "border border-slate-200 text-gray-800 placeholder:text-gray-400 rounded-md px-2 py-1 w-full text-[11px] focus:outline-none focus:ring-1 focus:ring-[#0a66c2]/30 focus:border-[#0a66c2] transition";
 
   if (loading) return <ExpenseSkeleton />;
 
@@ -695,7 +695,7 @@ export default function ExpenseManagementPage() {
 
         {/* ── HEADER ─────────────────────────────────────────── */}
         <div className="relative rounded-xl mb-2 overflow-hidden"
-          style={{ background: "linear-gradient(135deg, #1372e6 0%, #1168d6 50%, #0a47a0 100%)" }}>
+          style={{ background: "linear-gradient(135deg, #0a66c2 0%, #004182 50%, #00376b 100%)" }}>
           <div style={{ position: "absolute", inset: 0, pointerEvents: "none",
             backgroundImage: "radial-gradient(circle, rgba(255,255,255,0.05) 1px, transparent 1px)",
             backgroundSize: "18px 18px" }} />
@@ -716,7 +716,7 @@ export default function ExpenseManagementPage() {
               <RefreshCw size={12} className={refreshing ? "animate-spin" : ""} />
             </button>
             <button onClick={openModal}
-              className="flex items-center gap-1.5 bg-white text-[#1372e6] px-3 py-1.5 rounded-lg text-sm font-bold hover:bg-blue-50 active:scale-95 transition-all shadow shadow-black/20">
+              className="flex items-center gap-1.5 bg-white text-[#0a66c2] px-3 py-1.5 rounded-lg text-sm font-bold hover:bg-blue-50 active:scale-95 transition-all shadow shadow-black/20">
               <Plus size={12} strokeWidth={3} /> {t("expenses.add")}
             </button>
           </div>
@@ -747,7 +747,7 @@ export default function ExpenseManagementPage() {
               onFrom={(v) => { setDateFrom(v); setPage(1); }}
               onTo={(v) => { setDateTo(v); setPage(1); }}
               onClear={() => { setDateFrom(""); setDateTo(""); setPage(1); }}
-              accentClass="focus:ring-[#1372e6]/30 focus:border-[#1372e6]"
+              accentClass="focus:ring-[#0a66c2]/30 focus:border-[#0a66c2]"
             />
           </div>
         </div>
@@ -759,7 +759,7 @@ export default function ExpenseManagementPage() {
               label: `${t("common.total")} · ${periodLabelLocalized}`,
               value: displayTotal.toLocaleString(),
               sub: `${displayCount} ${t("expenses.records")}`,
-              color: "text-[#1372e6]", dot: "bg-[#1372e6]",
+              color: "text-[#0a66c2]", dot: "bg-[#0a66c2]",
             },
             {
               label: `${t("expenses.records")} · ${periodLabelLocalized}`,
@@ -824,14 +824,14 @@ export default function ExpenseManagementPage() {
           <input ref={fileInputRef} type="file" accept=".csv,.xlsx,.xls" className="hidden" onChange={handleImport} />
 
           {hasDateFilter && (
-            <div className="flex items-center gap-2 px-4 py-1.5 border-b border-slate-100 text-xs bg-[#EBF2FD]" style={{ color: "#1372e6" }}>
+            <div className="flex items-center gap-2 px-4 py-1.5 border-b border-slate-100 text-xs bg-[#EBF2FD]" style={{ color: "#0a66c2" }}>
               <Calendar size={13} />
               <span>
                 {dateFrom && <> {t("common.date")}: <span className="font-semibold">{dateFrom}</span></>}
                 {dateTo   && <> → <span className="font-semibold">{dateTo}</span></>}
                 {" "}· <span className="font-semibold">{total.toLocaleString()}</span> {t("expenses.records")}
               </span>
-              <button onClick={() => { setDateFrom(""); setDateTo(""); setPage(1); }} className="ml-auto hover:opacity-70" style={{ color: "#1372e6" }}><X size={13} /></button>
+              <button onClick={() => { setDateFrom(""); setDateTo(""); setPage(1); }} className="ml-auto hover:opacity-70" style={{ color: "#0a66c2" }}><X size={13} /></button>
             </div>
           )}
 
@@ -879,7 +879,7 @@ export default function ExpenseManagementPage() {
                           {t(`expenses.cat.${e.category}`)}
                         </span>
                       </td>
-                      <td className="px-2.5 py-1 font-bold tabular-nums text-xs" style={{ color: "#1372e6" }}>
+                      <td className="px-2.5 py-1 font-bold tabular-nums text-xs" style={{ color: "#0a66c2" }}>
                         {Number(e.amount).toLocaleString()}
                       </td>
                       {/* Payment Method */}
@@ -938,7 +938,7 @@ export default function ExpenseManagementPage() {
               <p className="font-semibold text-slate-500 text-xs">{t("expenses.no_expenses")}</p>
               {!search && !catFilter && (
                 <button onClick={openModal}
-                  className="mt-3 flex items-center gap-1.5 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition hover:opacity-90" style={{ background: "#1372e6" }}>
+                  className="mt-3 flex items-center gap-1.5 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition hover:opacity-90" style={{ background: "#0a66c2" }}>
                   <Plus size={11} /> {t("expenses.add")}
                 </button>
               )}
@@ -953,7 +953,7 @@ export default function ExpenseManagementPage() {
         {byCategory.length > 0 && (
           <div className="mt-2 bg-white rounded-xl border border-slate-200 px-3 py-2">
             <h2 className="text-xs font-semibold text-slate-700 mb-1.5 flex items-center gap-1.5">
-              <BarChart3 size={13} style={{ color: "#1372e6" }} />
+              <BarChart3 size={13} style={{ color: "#0a66c2" }} />
               {t("expenses.breakdown_title")}
             </h2>
             <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-9 gap-1.5">
@@ -992,7 +992,7 @@ export default function ExpenseManagementPage() {
                 <div className={`w-10 h-10 rounded-full mx-auto mb-3 flex items-center justify-center ${dialog.danger ? "bg-red-100" : "bg-[#EBF2FD]"}`}>
                   {dialog.danger
                     ? <Trash2 size={18} className="text-red-500" />
-                    : <AlertCircle size={18} style={{ color: "#1372e6" }} />}
+                    : <AlertCircle size={18} style={{ color: "#0a66c2" }} />}
                 </div>
                 <p className="text-[13px] font-bold text-gray-900 leading-snug mb-1">{dialog.title}</p>
                 <p className="text-[12px] text-gray-500 leading-relaxed">{dialog.message}</p>
@@ -1008,14 +1008,14 @@ export default function ExpenseManagementPage() {
                   </button>
                   <button onClick={dialog.onConfirm}
                     className={`py-2.5 text-[13px] font-bold transition-colors ${dialog.danger ? "text-red-600 hover:bg-red-50" : "hover:bg-[#EBF2FD]"}`}
-                    style={dialog.danger ? {} : { color: "#1372e6" }}>
+                    style={dialog.danger ? {} : { color: "#0a66c2" }}>
                     {dialog.confirmLabel ?? t("common.confirm")}
                   </button>
                 </div>
               ) : (
                 <button onClick={dialog.onClose}
                   className="w-full py-2.5 text-[13px] font-bold hover:bg-[#EBF2FD] transition-colors"
-                  style={{ color: "#1372e6" }}>
+                  style={{ color: "#0a66c2" }}>
                   {t("common.ok")}
                 </button>
               )}
@@ -1067,7 +1067,7 @@ export default function ExpenseManagementPage() {
                   <div className="flex gap-2 px-4 py-3 border-t border-slate-100 overflow-x-auto shrink-0 bg-slate-50/60">
                     {viewingProofs.map((f, i) => (
                       <button key={i} onClick={() => setViewerIndex(i)}
-                        className={`shrink-0 w-14 h-14 rounded-lg border-2 overflow-hidden flex items-center justify-center transition ${i === viewerIndex ? "border-[#1372e6] shadow" : "border-slate-200 hover:border-slate-400"}`}>
+                        className={`shrink-0 w-14 h-14 rounded-lg border-2 overflow-hidden flex items-center justify-center transition ${i === viewerIndex ? "border-[#0a66c2] shadow" : "border-slate-200 hover:border-slate-400"}`}>
                         {f.type === "application/pdf" ? (
                           <FileIcon size={20} className="text-red-400" />
                         ) : (
@@ -1154,11 +1154,11 @@ export default function ExpenseManagementPage() {
                         className={`flex-1 py-1 rounded-md text-[10px] font-semibold border transition-all ${
                           form.payment_method === m
                             ? m === "mtn"  ? "bg-yellow-400 border-yellow-400 text-white"
-                            : m === "bank" ? "border-[#1372e6] text-white"
+                            : m === "bank" ? "border-[#0a66c2] text-white"
                             : "bg-slate-200 border-slate-200 text-slate-700"
                             : "bg-white border-slate-200 text-slate-400 hover:border-slate-300"
                         }`}
-                        style={form.payment_method === m && m === "bank" ? { background: "#1372e6" } : {}}>
+                        style={form.payment_method === m && m === "bank" ? { background: "#0a66c2" } : {}}>
                         {m === "" ? t("common.none") : m === "mtn" ? "MTN MoMo" : t("common.bank")}
                       </button>
                     ))}
@@ -1225,7 +1225,7 @@ export default function ExpenseManagementPage() {
 
                   {proofEntries.length < 5 && (
                     <button type="button" onClick={() => proofInputRef.current?.click()}
-                      className="w-full border border-dashed border-slate-300 hover:border-[#1372e6] rounded-md px-2 py-1.5 flex items-center justify-center gap-1 text-[10px] text-slate-400 hover:text-[#1372e6] transition-colors">
+                      className="w-full border border-dashed border-slate-300 hover:border-[#0a66c2] rounded-md px-2 py-1.5 flex items-center justify-center gap-1 text-[10px] text-slate-400 hover:text-[#0a66c2] transition-colors">
                       <ImageIcon size={10} />
                       {proofEntries.length === 0 ? t("expenses.attach_receipts") : `${t("expenses.add_more")} (${5 - proofEntries.length})`}
                     </button>
@@ -1234,7 +1234,7 @@ export default function ExpenseManagementPage() {
 
                 {/* Summary hint */}
                 {form.amount && Number(form.amount) > 0 && (
-                  <div className="rounded-md px-2 py-1 text-[10px] bg-[#EBF2FD]" style={{ color: "#1372e6" }}>
+                  <div className="rounded-md px-2 py-1 text-[10px] bg-[#EBF2FD]" style={{ color: "#0a66c2" }}>
                     {t("expenses.recording")}: <span className="font-bold">{Number(form.amount).toLocaleString()}</span>
                     {" "}{t("expenses.under")} <span className="font-bold">{t(`expenses.cat.${form.category}`)}</span>
                   </div>
@@ -1248,7 +1248,7 @@ export default function ExpenseManagementPage() {
                   {t("common.cancel")}
                 </button>
                 <button onClick={submitForm} disabled={submitting}
-                  className="px-3 py-1 rounded-md text-white text-[11px] font-semibold transition disabled:opacity-60 hover:opacity-90 flex items-center gap-1" style={{ background: "#1372e6" }}>
+                  className="px-3 py-1 rounded-md text-white text-[11px] font-semibold transition disabled:opacity-60 hover:opacity-90 flex items-center gap-1" style={{ background: "#0a66c2" }}>
                   {proofEntries.length > 0 && !submitting && <Paperclip size={9} />}
                   {submitting ? t("common.saving") : t("expenses.add")}
                 </button>
@@ -1287,7 +1287,7 @@ function ExpenseSkeleton() {
 
         {/* Banner */}
         <div className="rounded-xl mb-2 overflow-hidden px-3 pt-2 pb-2"
-          style={{ background: "linear-gradient(135deg, #1372e6 0%, #1168d6 50%, #0a47a0 100%)" }}>
+          style={{ background: "linear-gradient(135deg, #0a66c2 0%, #004182 50%, #00376b 100%)" }}>
           <div className="flex items-center gap-2 mb-1.5">
             <div className="exp-sh-blue w-3.5 h-3.5 rounded shrink-0" />
             <div className="exp-sh-blue h-2.5 w-28 rounded flex-1" />

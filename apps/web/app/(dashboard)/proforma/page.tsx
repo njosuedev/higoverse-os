@@ -404,7 +404,7 @@ function ProformaPageContent() {
       <div className="max-w-5xl mx-auto px-3 sm:px-5 py-3 sm:py-4">
 
         {/* PAGE HEADER */}
-        <div className="text-white rounded-2xl p-5 mb-6" style={{ background: "#1372e6" }}>
+        <div className="text-white rounded-2xl p-5 mb-6" style={{ background: "#0a66c2" }}>
           <div className="flex justify-between items-center flex-wrap gap-3">
             <div className="flex items-center gap-2.5">
               <FileText size={20} />
@@ -892,7 +892,7 @@ function ProformaSkeleton() {
       `}</style>
       <div className="min-h-screen">
         <div className="max-w-5xl mx-auto px-3 sm:px-5 py-3 sm:py-4">
-          <div className="rounded-2xl p-5 mb-6" style={{ background: "#1372e6" }}>
+          <div className="rounded-2xl p-5 mb-6" style={{ background: "#0a66c2" }}>
             <div className="flex justify-between items-center">
               <div className="flex items-center gap-2.5">
                 <div className="w-5 h-5 pf-sh-w rounded" />

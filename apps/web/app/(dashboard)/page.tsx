@@ -558,25 +558,25 @@ export default function DashboardPage() {
               <AreaChart data={chartData} margin={{ top: 6, right: 4, bottom: 0, left: -20 }}>
                 <defs>
                   <linearGradient id="revFill" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%"  stopColor="#1f3d33" stopOpacity={0.2} />
-                    <stop offset="95%" stopColor="#1f3d33" stopOpacity={0} />
+                    <stop offset="5%"  stopColor="#0a66c2" stopOpacity={0.2} />
+                    <stop offset="95%" stopColor="#0a66c2" stopOpacity={0} />
                   </linearGradient>
                   <linearGradient id="profFill" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%"  stopColor="#4c7a52" stopOpacity={0.18} />
-                    <stop offset="95%" stopColor="#4c7a52" stopOpacity={0} />
+                    <stop offset="5%"  stopColor="#057642" stopOpacity={0.18} />
+                    <stop offset="95%" stopColor="#057642" stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <XAxis dataKey="day" tick={{ fontSize: 9, fill: "#9a9280" }} tickLine={false} axisLine={false} />
+                <XAxis dataKey="day" tick={{ fontSize: 9, fill: "#8c8c8c" }} tickLine={false} axisLine={false} />
                 <YAxis hide />
                 <Tooltip
-                  contentStyle={{ fontSize: 10, borderRadius: 2, border: "1px solid #e2dac6", boxShadow: "0 2px 8px rgba(31,61,51,.1)" }}
+                  contentStyle={{ fontSize: 10, borderRadius: 2, border: "1px solid #e0dfdc", boxShadow: "0 2px 8px rgba(0,0,0,.1)" }}
                   formatter={(v: unknown, name: unknown) => [
                     fmtCurrency(typeof v === "number" ? v : 0),
                     name === "revenue" ? t("dash.revenue_label") : t("dash.profit_label"),
                   ]}
                 />
-                <Area type="monotone" dataKey="revenue" stroke="#1f3d33" fill="url(#revFill)" strokeWidth={2} dot={false} />
-                <Area type="monotone" dataKey="profit"  stroke="#4c7a52" fill="url(#profFill)" strokeWidth={1.5} dot={false} strokeDasharray="4 2" />
+                <Area type="monotone" dataKey="revenue" stroke="#0a66c2" fill="url(#revFill)" strokeWidth={2} dot={false} />
+                <Area type="monotone" dataKey="profit"  stroke="#057642" fill="url(#profFill)" strokeWidth={1.5} dot={false} strokeDasharray="4 2" />
               </AreaChart>
             </ResponsiveContainer>
             <div className="flex items-center gap-3 mt-1.5">
@@ -677,7 +677,7 @@ export default function DashboardPage() {
                     </div>
                     <Link
                       href="/PurchaseManagement"
-                      className="flex items-center gap-1 text-[10px] font-semibold text-accent-dark bg-accent-soft hover:bg-[#efd6cb] px-2 py-1 rounded-press transition-colors duration-200"
+                      className="flex items-center gap-1 text-[10px] font-semibold text-accent-dark bg-accent-soft hover:bg-[#f9d6d8] px-2 py-1 rounded-press transition-colors duration-200"
                     >
                       <Plus size={10} /> {t("reports.restock")}
                     </Link>
@@ -689,7 +689,7 @@ export default function DashboardPage() {
             {stockAlerts.length > 0 && (
               <div className="px-3.5 py-2.5 border-t border-border">
                 <Link href="/PurchaseManagement"
-                  className="w-full flex items-center justify-center gap-1.5 text-xs font-semibold text-ink bg-ink-soft hover:bg-[#dbe5df] py-1.5 rounded-press transition-colors duration-200">
+                  className="w-full flex items-center justify-center gap-1.5 text-xs font-semibold text-ink bg-ink-soft hover:bg-[#d0e8ff] py-1.5 rounded-press transition-colors duration-200">
                   <Truck size={11} /> {t("items.go_purchases")}
                 </Link>
               </div>
@@ -846,7 +846,7 @@ function HomeSkeleton() {
           100% { background-position:  700px 0; }
         }
         .home-sh {
-          background: linear-gradient(90deg, #f2eee3 25%, #e9e3d3 50%, #f2eee3 75%);
+          background: linear-gradient(90deg, #ebe9e5 25%, #e0dfdc 50%, #ebe9e5 75%);
           background-size: 700px 100%;
           animation: home-sh 1.4s infinite linear;
           border-radius: 2px;

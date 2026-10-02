@@ -438,7 +438,7 @@ export default function SettingsPage() {
                     />
                     <div className="absolute right-2.5 top-1/2 -translate-y-1/2">
                       {addrSearching
-                        ? <Loader2 size={13} className="animate-spin text-[#1372e6]" />
+                        ? <Loader2 size={13} className="animate-spin text-[#0a66c2]" />
                         : shopForm.address
                           ? <button type="button" onClick={() => { setShopForm(f=>({...f,address:""})); setAddrResults([]); setAddrDropOpen(false); }}
                               className="text-slate-300 hover:text-slate-500 transition"><X size={13} /></button>
@@ -453,7 +453,7 @@ export default function SettingsPage() {
                       {addrResults.map((r, i) => (
                         <button key={i} type="button" onMouseDown={() => selectAddr(r)}
                           className="w-full text-left px-3.5 py-2.5 hover:bg-blue-50 text-xs text-slate-700 border-b border-slate-50 last:border-0 transition flex items-start gap-2">
-                          <MapPin size={11} className="text-[#1372e6] mt-0.5 shrink-0" />
+                          <MapPin size={11} className="text-[#0a66c2] mt-0.5 shrink-0" />
                           <span className="line-clamp-2">{r.display_name}</span>
                         </button>
                       ))}
@@ -468,7 +468,7 @@ export default function SettingsPage() {
                     onClick={() => setShowMap(true)}
                     className="flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-semibold transition"
                     style={pinLat != null
-                      ? { background: "#e8f1fd", borderColor: "#1372e6", color: "#1372e6" }
+                      ? { background: "#e8f1fd", borderColor: "#0a66c2", color: "#0a66c2" }
                       : { background: "#f8fafc", borderColor: "#e2e8f0", color: "#475569" }
                     }
                   >

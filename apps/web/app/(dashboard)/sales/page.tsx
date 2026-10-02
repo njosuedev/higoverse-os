@@ -608,7 +608,7 @@ ${paymentHtml}
   const selectedProduct = products.find((p) => p.id === form.product_id);
   const hasDateFilter = dateFrom || dateTo;
 
-  const inputCls = "border border-slate-200 text-gray-800 placeholder:text-gray-400 rounded-lg px-3 py-2 w-full text-sm focus:outline-none focus:ring-2 focus:ring-[#1372e6]/30 focus:border-[#1372e6] transition";
+  const inputCls = "border border-slate-200 text-gray-800 placeholder:text-gray-400 rounded-lg px-3 py-2 w-full text-sm focus:outline-none focus:ring-2 focus:ring-[#0a66c2]/30 focus:border-[#0a66c2] transition";
 
   const pendingDebts = debts.filter((d) => !d.is_paid);
 
@@ -620,7 +620,7 @@ ${paymentHtml}
 
         {/* HEADER */}
         <div className="relative rounded-2xl mb-2 overflow-hidden"
-          style={{ background: "linear-gradient(135deg, #1372e6 0%, #1168d6 50%, #0a47a0 100%)" }}>
+          style={{ background: "linear-gradient(135deg, #0a66c2 0%, #004182 50%, #00376b 100%)" }}>
           <div style={{ position:"absolute",inset:0,pointerEvents:"none",
             backgroundImage:"radial-gradient(circle, rgba(255,255,255,0.06) 1px, transparent 1px)",
             backgroundSize:"20px 20px" }} />
@@ -642,7 +642,7 @@ ${paymentHtml}
                 <RefreshCw size={12} className={refreshing ? "animate-spin" : ""} />
               </button>
               <button onClick={openCreateModal}
-                className="flex items-center gap-1.5 bg-white text-[#1372e6] px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-blue-50 active:scale-95 transition-all shadow-lg shadow-black/20">
+                className="flex items-center gap-1.5 bg-white text-[#0a66c2] px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-blue-50 active:scale-95 transition-all shadow-lg shadow-black/20">
                 <Plus size={12} strokeWidth={3} /> {t("sales.add")}
               </button>
             </div>
@@ -696,7 +696,7 @@ ${paymentHtml}
               onFrom={(v) => { setDateFrom(v); setPage(1); }}
               onTo={(v) => { setDateTo(v); setPage(1); }}
               onClear={() => { setDateFrom(""); setDateTo(""); setPage(1); }}
-              accentClass="focus:ring-[#1372e6]/30 focus:border-[#1372e6]"
+              accentClass="focus:ring-[#0a66c2]/30 focus:border-[#0a66c2]"
             />
           </div>
         </div>
@@ -704,10 +704,10 @@ ${paymentHtml}
         {/* STAT CARDS */}
         <div className="grid grid-cols-3 sm:grid-cols-5 gap-1.5 mb-2">
           {[
-            { label: t("sales.count"),        value: stats.total,                                                            color: "text-[#1372e6]",  dot: "bg-[#1372e6]"  },
+            { label: t("sales.count"),        value: stats.total,                                                            color: "text-[#0a66c2]",  dot: "bg-[#0a66c2]"  },
             { label: t("sales.revenue"),       value: stats.revenue.toLocaleString(),                                         color: "text-green-600",  dot: "bg-green-500"  },
             { label: t("sales.profit"),        value: `${stats.profit >= 0 ? "+" : ""}${stats.profit.toLocaleString()}`,      color: stats.profit >= 0 ? "text-green-700" : "text-red-500", dot: stats.profit >= 0 ? "bg-green-500" : "bg-red-500" },
-            { label: t("reports.customers"),   value: stats.uniqueCustomers,                                                  color: "text-[#1372e6]",  dot: "bg-blue-400"   },
+            { label: t("reports.customers"),   value: stats.uniqueCustomers,                                                  color: "text-[#0a66c2]",  dot: "bg-blue-400"   },
             { label: t("sales.outstanding"),   value: debtsTotalOutstanding.toLocaleString(),                                  color: "text-orange-500", dot: "bg-orange-400" },
           ].map((card) => (
             <div key={card.label} className="bg-white rounded-lg border border-slate-200 px-2.5 py-2">
@@ -839,7 +839,7 @@ ${paymentHtml}
                           <Printer size={14} />
                         </button>
                         <button onClick={() => openEditModal(s)}
-                          className="p-1.5 rounded-lg bg-[#EBF2FD] hover:bg-[#D5E8FB] text-[#1372e6] transition">
+                          className="p-1.5 rounded-lg bg-[#EBF2FD] hover:bg-[#D5E8FB] text-[#0a66c2] transition">
                           <Pencil size={14} />
                         </button>
                         <button onClick={() => deleteSale(s.id)} disabled={deletingId === s.id}
@@ -876,7 +876,7 @@ ${paymentHtml}
               <div className="p-4 bg-slate-100 rounded-2xl mb-3"><ShoppingBag size={32} className="opacity-40" /></div>
               <p className="font-medium text-slate-500 text-sm">{t("sales.no_sales")}</p>
               {!search && filter === "all" && !hasDateFilter && (
-                <button onClick={openCreateModal} className="mt-4 flex items-center gap-1.5 text-white text-sm font-semibold px-4 py-2 rounded-lg transition hover:opacity-90" style={{ background: "#1372e6" }}>
+                <button onClick={openCreateModal} className="mt-4 flex items-center gap-1.5 text-white text-sm font-semibold px-4 py-2 rounded-lg transition hover:opacity-90" style={{ background: "#0a66c2" }}>
                   <Plus size={14} /> {t("sales.add")}
                 </button>
               )}
@@ -903,7 +903,7 @@ ${paymentHtml}
             <button
               onClick={() => { setEditingDebt(null); setDebtForm({ debtor_name: "", phone: "", amount_owed: "", amount_paid: "0", notes: "" }); setShowDebtModal(true); }}
               className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg text-white transition hover:opacity-90"
-              style={{ background: "#1372e6" }}
+              style={{ background: "#0a66c2" }}
             >
               <Plus size={13} /> {t("sales.add_debt")}
             </button>
@@ -975,7 +975,7 @@ ${paymentHtml}
                       )}
                       <button
                         onClick={() => { setEditingDebt(d); setDebtForm({ debtor_name: d.debtor_name, phone: d.phone || "", amount_owed: String(d.amount_owed), amount_paid: String(d.amount_paid), notes: d.notes || "" }); setShowDebtModal(true); }}
-                        className="flex items-center gap-1 text-xs font-semibold bg-[#EBF2FD] hover:bg-[#D5E8FB] text-[#1372e6] px-2.5 py-1.5 rounded-lg transition"
+                        className="flex items-center gap-1 text-xs font-semibold bg-[#EBF2FD] hover:bg-[#D5E8FB] text-[#0a66c2] px-2.5 py-1.5 rounded-lg transition"
                       >
                         <Pencil size={12} /> {t("common.edit")}
                       </button>
@@ -1010,7 +1010,7 @@ ${paymentHtml}
                 {t("dash.view_all")}
               </Link>
               <Link href="/proforma"
-                className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg text-white transition hover:opacity-90" style={{ background: "#1372e6" }}>
+                className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg text-white transition hover:opacity-90" style={{ background: "#0a66c2" }}>
                 <Plus size={13} /> {t("sales.new_proforma")}
               </Link>
             </div>
@@ -1023,7 +1023,7 @@ ${paymentHtml}
               <FileText size={32} className="mb-2 text-slate-200" />
               <p className="text-sm font-medium text-slate-500">{t("sales.no_proformas")}</p>
               <Link href="/proforma"
-                className="mt-3 flex items-center gap-1.5 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition hover:opacity-90" style={{ background: "#1372e6" }}>
+                className="mt-3 flex items-center gap-1.5 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition hover:opacity-90" style={{ background: "#0a66c2" }}>
                 <Plus size={12} /> {t("sales.create_proforma")}
               </Link>
             </div>
@@ -1171,7 +1171,7 @@ ${paymentHtml}
                   <div className="bg-slate-50 px-4 py-2.5 border-b border-slate-200 flex justify-between items-center">
                     <span className="text-xs font-semibold text-slate-600 uppercase tracking-wide">{t("nav.items")}</span>
                     <button onClick={addLine}
-                      className="flex items-center gap-1 text-xs font-semibold text-[#1372e6] bg-[#EBF2FD] hover:bg-[#D5E8FB] px-2.5 py-1 rounded-lg transition">
+                      className="flex items-center gap-1 text-xs font-semibold text-[#0a66c2] bg-[#EBF2FD] hover:bg-[#D5E8FB] px-2.5 py-1 rounded-lg transition">
                       <Plus size={12} /> {t("items.add")}
                     </button>
                   </div>
@@ -1189,7 +1189,7 @@ ${paymentHtml}
                         <div key={line.id} className="px-3 py-2">
                           <div className="grid grid-cols-[2fr_80px_100px_90px_32px] gap-2 items-center">
                             <select
-                              className="border border-slate-200 text-gray-800 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1372e6]/30 focus:border-[#1372e6] transition"
+                              className="border border-slate-200 text-gray-800 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#0a66c2]/30 focus:border-[#0a66c2] transition"
                               value={line.product_id}
                               onChange={(e) => setLineProduct(line.id, e.target.value)}
                             >
@@ -1202,10 +1202,10 @@ ${paymentHtml}
                             </select>
                             <input type="number" min="1" max={p?.quantity} value={line.quantity}
                               onChange={(e) => setLineQty(line.id, Number(e.target.value))}
-                              className="border border-slate-200 text-gray-800 rounded-lg px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-[#1372e6]/30 focus:border-[#1372e6] transition w-full" />
+                              className="border border-slate-200 text-gray-800 rounded-lg px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-[#0a66c2]/30 focus:border-[#0a66c2] transition w-full" />
                             <input type="number" min="0" value={line.unit_price}
                               onChange={(e) => setLinePrice(line.id, Number(e.target.value))}
-                              className="border border-slate-200 text-gray-800 rounded-lg px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-[#1372e6]/30 focus:border-[#1372e6] transition w-full" />
+                              className="border border-slate-200 text-gray-800 rounded-lg px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-[#0a66c2]/30 focus:border-[#0a66c2] transition w-full" />
                             <div className="text-right">
                               <p className="font-semibold text-slate-800 text-sm tabular-nums">{subtotal.toLocaleString()}</p>
                               {p && <p className={`text-[10px] tabular-nums ${profit >= 0 ? "text-green-500" : "text-red-400"}`}>
@@ -1251,7 +1251,7 @@ ${paymentHtml}
                 <div className="flex gap-2.5">
                   <button onClick={closeModal} className="px-4 py-2 rounded-lg border border-slate-200 text-slate-600 text-sm font-medium hover:bg-slate-50 transition">{t("common.cancel")}</button>
                   <button onClick={submitForm} disabled={submitting}
-                    className="px-5 py-2 rounded-lg text-white text-sm font-semibold transition disabled:opacity-60 hover:opacity-90" style={{ background: "#1372e6" }}>
+                    className="px-5 py-2 rounded-lg text-white text-sm font-semibold transition disabled:opacity-60 hover:opacity-90" style={{ background: "#0a66c2" }}>
                     {submitting ? t("common.saving") : `${t("sales.add")}${lineItems.filter((l) => l.product_id).length > 1 ? ` (${lineItems.filter((l) => l.product_id).length} ${t("common.item_plural")})` : ""}`}
                   </button>
                 </div>
@@ -1325,7 +1325,7 @@ ${paymentHtml}
               <div className="flex justify-end gap-2.5 px-4 sm:px-6 py-4 border-t border-slate-100 shrink-0">
                 <button onClick={closeModal} className="px-4 py-2 rounded-lg border border-slate-200 text-slate-600 text-sm font-medium hover:bg-slate-50 transition">{t("common.cancel")}</button>
                 <button onClick={submitForm} disabled={submitting}
-                  className="px-5 py-2 rounded-lg text-white text-sm font-semibold transition disabled:opacity-60 hover:opacity-90" style={{ background: "#1372e6" }}>
+                  className="px-5 py-2 rounded-lg text-white text-sm font-semibold transition disabled:opacity-60 hover:opacity-90" style={{ background: "#0a66c2" }}>
                   {submitting ? t("common.saving") : t("common.save")}
                 </button>
               </div>
@@ -1373,7 +1373,7 @@ ${paymentHtml}
               <div className="flex justify-end gap-2.5 px-5 py-4 border-t border-slate-100">
                 <button onClick={() => { setShowDebtModal(false); setEditingDebt(null); }} className="px-4 py-2 rounded-lg border border-slate-200 text-slate-600 text-sm font-medium hover:bg-slate-50 transition">{t("common.cancel")}</button>
                 <button onClick={submitDebt} disabled={debtSubmitting}
-                  className="px-5 py-2 rounded-lg text-white text-sm font-semibold transition disabled:opacity-60 hover:opacity-90" style={{ background: "#1372e6" }}>
+                  className="px-5 py-2 rounded-lg text-white text-sm font-semibold transition disabled:opacity-60 hover:opacity-90" style={{ background: "#0a66c2" }}>
                   {debtSubmitting ? t("common.saving") : (editingDebt ? t("common.save") : t("sales.add_debt"))}
                 </button>
               </div>
@@ -1408,7 +1408,7 @@ ${paymentHtml}
               <div className="flex justify-end gap-2.5 px-5 py-4 border-t border-slate-100">
                 <button onClick={() => setShowPayModal(null)} className="px-4 py-2 rounded-lg border border-slate-200 text-slate-600 text-sm font-medium hover:bg-slate-50 transition">{t("common.cancel")}</button>
                 <button onClick={recordPayment} disabled={!paymentAmount || payingDebtId === showPayModal.id}
-                  className="px-5 py-2 rounded-lg text-white text-sm font-semibold transition disabled:opacity-60 hover:opacity-90" style={{ background: "#1372e6" }}>
+                  className="px-5 py-2 rounded-lg text-white text-sm font-semibold transition disabled:opacity-60 hover:opacity-90" style={{ background: "#0a66c2" }}>
                   {payingDebtId === showPayModal.id ? t("common.saving") : t("sales.confirm_payment")}
                 </button>
               </div>
@@ -1506,7 +1506,7 @@ ${paymentHtml}
                   {t("common.close")}
                 </button>
                 <button onClick={() => printReceiptPopup(receipts)}
-                  className="flex-1 px-3 py-2 rounded-lg text-white text-xs font-semibold transition flex items-center justify-center gap-1.5 hover:opacity-90" style={{ background: "#1372e6" }}>
+                  className="flex-1 px-3 py-2 rounded-lg text-white text-xs font-semibold transition flex items-center justify-center gap-1.5 hover:opacity-90" style={{ background: "#0a66c2" }}>
                   <Printer size={13} /> {t("common.print")}
                 </button>
               </div>
@@ -1524,7 +1524,7 @@ function SalesSkeleton() {
     <div className="min-h-screen">
       <style>{`@keyframes sal-sh{0%{background-position:-200% 0}100%{background-position:200% 0}}.sal-sh{background:linear-gradient(90deg,#f1f5f9 25%,#e2e8f0 50%,#f1f5f9 75%);background-size:200% 100%;animation:sal-sh 1.4s infinite;border-radius:5px}.sal-sh-w{background:linear-gradient(90deg,rgba(255,255,255,.1) 25%,rgba(255,255,255,.22) 50%,rgba(255,255,255,.1) 75%);background-size:200% 100%;animation:sal-sh 1.4s infinite;border-radius:5px}`}</style>
       <div className="max-w-7xl mx-auto px-3 sm:px-5 py-3 sm:py-4">
-        <div className="relative rounded-2xl mb-2 overflow-hidden" style={{background:"linear-gradient(135deg,#1372e6 0%,#1168d6 50%,#0a47a0 100%)"}}>
+        <div className="relative rounded-2xl mb-2 overflow-hidden" style={{background:"linear-gradient(135deg,#0a66c2 0%,#004182 50%,#00376b 100%)"}}>
           <div className="relative flex items-center gap-3 px-4 pt-3 pb-2">
             <div className="w-8 h-8 rounded-xl sal-sh-w shrink-0" />
             <div><div className="sal-sh-w h-2 w-10 mb-1 rounded" /><div className="sal-sh-w h-4 w-28 rounded" /></div>

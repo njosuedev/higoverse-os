@@ -351,7 +351,7 @@ export default function ItemManagementPage() {
   }
 
   const inputCls =
-    "border border-slate-200 text-gray-800 placeholder:text-gray-400 rounded-lg px-3 py-2 w-full text-sm focus:outline-none focus:ring-2 focus:ring-[#1372e6]/30 focus:border-[#1372e6] transition";
+    "border border-slate-200 text-gray-800 placeholder:text-gray-400 rounded-lg px-3 py-2 w-full text-sm focus:outline-none focus:ring-2 focus:ring-[#0a66c2]/30 focus:border-[#0a66c2] transition";
 
   if (loading) return <ItemsSkeleton />;
 
@@ -362,7 +362,7 @@ export default function ItemManagementPage() {
         {/* HEADER BANNER */}
         <div
           className="relative rounded-2xl mb-2 overflow-hidden"
-          style={{ background: "linear-gradient(135deg, #1372e6 0%, #1168d6 50%, #0a47a0 100%)" }}
+          style={{ background: "linear-gradient(135deg, #0a66c2 0%, #004182 50%, #00376b 100%)" }}
         >
           {/* Dot-grid texture */}
           <div style={{
@@ -417,7 +417,7 @@ export default function ItemManagementPage() {
               </button>
               <button
                 onClick={openCreateModal}
-                className="flex items-center gap-1.5 bg-white text-[#1372e6] px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-blue-50 active:scale-95 transition-all shadow-lg shadow-black/20"
+                className="flex items-center gap-1.5 bg-white text-[#0a66c2] px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-blue-50 active:scale-95 transition-all shadow-lg shadow-black/20"
               >
                 <Plus size={12} strokeWidth={3} /> {t("items.add")}
               </button>
@@ -514,7 +514,7 @@ export default function ItemManagementPage() {
         {/* STAT CARDS */}
         <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5 mb-2">
           {[
-            { label: t("items.total"),       value: stats.total,                            color: "text-[#1372e6]", dot: "bg-[#1372e6]" },
+            { label: t("items.total"),       value: stats.total,                            color: "text-[#0a66c2]", dot: "bg-[#0a66c2]" },
             { label: t("items.in_stock"),    value: stats.inStock,                          color: "text-green-600", dot: "bg-green-500" },
             { label: t("items.low_stock"),   value: stats.lowStock,                         color: "text-amber-500", dot: "bg-amber-400" },
             { label: t("items.out_stock"),   value: stats.outStock,                         color: "text-red-600",   dot: "bg-red-500"   },
@@ -552,7 +552,7 @@ export default function ItemManagementPage() {
               <span className="font-semibold text-slate-700">{filtered.length.toLocaleString()}</span>{" "}
               {t("items.count_suffix")}
               {debouncedSearch && (
-                <> {t("common.for")} &ldquo;<span className="font-semibold text-[#1372e6]">{debouncedSearch}</span>&rdquo;</>
+                <> {t("common.for")} &ldquo;<span className="font-semibold text-[#0a66c2]">{debouncedSearch}</span>&rdquo;</>
               )}
             </p>
             <div className="flex items-center gap-2">
@@ -682,7 +682,7 @@ export default function ItemManagementPage() {
                       <td className="px-3 py-1.5 text-center">
                         <span className={`inline-block text-[10px] font-bold px-1.5 py-0.5 rounded tabular-nums
                           ${margin >= 20 ? "bg-green-100 text-green-700"
-                          : margin >= 0  ? "bg-blue-50 text-[#1372e6]"
+                          : margin >= 0  ? "bg-blue-50 text-[#0a66c2]"
                           :               "bg-red-100 text-red-600"}`}>
                           {margin >= 0 ? "+" : ""}{margin.toFixed(1)}%
                         </span>
@@ -750,7 +750,7 @@ export default function ItemManagementPage() {
                             </Link>
                           )}
                           <button onClick={() => openEditModal(p)} title={t("common.edit")}
-                            className="p-1 rounded bg-[#EBF2FD] hover:bg-[#D5E8FB] text-[#1372e6] transition">
+                            className="p-1 rounded bg-[#EBF2FD] hover:bg-[#D5E8FB] text-[#0a66c2] transition">
                             <Pencil size={11} />
                           </button>
                           <button onClick={() => deleteProduct(p.id)} disabled={deletingId === p.id} title={t("common.delete")}
@@ -777,7 +777,7 @@ export default function ItemManagementPage() {
               </p>
               {!search && filter === "all" && (
                 <button onClick={openCreateModal}
-                  className="mt-5 flex items-center gap-1.5 bg-[#1372e6] text-white text-sm font-semibold px-5 py-2.5 rounded-xl hover:opacity-90 transition">
+                  className="mt-5 flex items-center gap-1.5 bg-[#0a66c2] text-white text-sm font-semibold px-5 py-2.5 rounded-xl hover:opacity-90 transition">
                   <Plus size={14} /> {t("items.add")}
                 </button>
               )}
@@ -838,7 +838,7 @@ export default function ItemManagementPage() {
               </div>
               <div className="flex justify-end gap-2.5 px-4 sm:px-6 py-4 border-t border-slate-100 shrink-0">
                 <button onClick={closeModal} className="px-4 py-2 rounded-lg border border-slate-200 text-slate-600 text-sm font-medium hover:bg-slate-50 transition">{t("common.cancel")}</button><button onClick={submitForm} disabled={submitting}
-                  className="px-5 py-2 rounded-lg bg-[#1372e6] text-white text-sm font-semibold hover:bg-[#1372e6] transition disabled:opacity-60">
+                  className="px-5 py-2 rounded-lg bg-[#0a66c2] text-white text-sm font-semibold hover:bg-[#0a66c2] transition disabled:opacity-60">
                   {submitting ? (modalMode === "edit" ? t("common.saving") : t("common.adding")) : (modalMode === "edit" ? t("common.save") : t("items.add"))}
                 </button>
               </div>
@@ -911,7 +911,7 @@ export default function ItemManagementPage() {
               )}
               <button
                 onClick={() => setImportResults(null)}
-                className="px-4 py-1.5 rounded-lg bg-[#1372e6] text-white text-xs font-semibold hover:opacity-90 transition"
+                className="px-4 py-1.5 rounded-lg bg-[#0a66c2] text-white text-xs font-semibold hover:opacity-90 transition"
               >
                 {t("common.done")}
               </button>
@@ -928,7 +928,7 @@ function ItemsSkeleton() {
     <div className="min-h-screen">
       <style>{`@keyframes itm-sh{0%{background-position:-200% 0}100%{background-position:200% 0}}.itm-sh{background:linear-gradient(90deg,#f1f5f9 25%,#e2e8f0 50%,#f1f5f9 75%);background-size:200% 100%;animation:itm-sh 1.4s infinite;border-radius:5px}.itm-sh-w{background:linear-gradient(90deg,rgba(255,255,255,.1) 25%,rgba(255,255,255,.22) 50%,rgba(255,255,255,.1) 75%);background-size:200% 100%;animation:itm-sh 1.4s infinite;border-radius:5px}`}</style>
       <div className="max-w-7xl mx-auto px-3 sm:px-5 py-3 sm:py-4">
-        <div className="relative rounded-2xl mb-2 overflow-hidden" style={{background:"linear-gradient(135deg,#1372e6 0%,#1168d6 50%,#0a47a0 100%)"}}>
+        <div className="relative rounded-2xl mb-2 overflow-hidden" style={{background:"linear-gradient(135deg,#0a66c2 0%,#004182 50%,#00376b 100%)"}}>
           <div className="relative flex items-center gap-3 px-4 pt-3 pb-2">
             <div className="w-8 h-8 rounded-xl itm-sh-w shrink-0" />
             <div><div className="itm-sh-w h-2 w-14 mb-1 rounded" /><div className="itm-sh-w h-4 w-28 rounded" /></div>

@@ -26,9 +26,9 @@ const PIN_HTML = `
   <div style="filter:drop-shadow(0 3px 6px rgba(0,0,0,0.35));">
     <svg viewBox="0 0 32 44" xmlns="http://www.w3.org/2000/svg" width="36" height="50">
       <path d="M16 0C7.163 0 0 7.163 0 16c0 10.5 16 28 16 28S32 26.5 32 16C32 7.163 24.837 0 16 0z"
-            fill="#1372e6" stroke="#fff" stroke-width="2"/>
+            fill="#0a66c2" stroke="#fff" stroke-width="2"/>
       <circle cx="16" cy="16" r="6" fill="#fff"/>
-      <circle cx="16" cy="16" r="3.5" fill="#1372e6"/>
+      <circle cx="16" cy="16" r="3.5" fill="#0a66c2"/>
     </svg>
   </div>`;
 
@@ -210,7 +210,7 @@ export default function HigoMapPicker({ initialLat, initialLng, onConfirm, onClo
         } else if (leafMap.current) {
           circleRef.current = L.circle([lat, lng], {
             radius: accuracy,
-            color: "#1372e6", fillColor: "#1372e6",
+            color: "#0a66c2", fillColor: "#0a66c2",
             fillOpacity: 0.08, weight: 1.5,
           }).addTo(leafMap.current);
         }
@@ -249,7 +249,7 @@ export default function HigoMapPicker({ initialLat, initialLng, onConfirm, onClo
         <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col overflow-hidden" style={{ maxHeight: "90vh" }}>
 
           {/* Header */}
-          <div className="flex items-center justify-between px-5 py-3.5" style={{ background: "linear-gradient(135deg,#1372e6 0%,#0a58ca 100%)" }}>
+          <div className="flex items-center justify-between px-5 py-3.5" style={{ background: "linear-gradient(135deg,#0a66c2 0%,#0a58ca 100%)" }}>
             <div className="flex items-center gap-3 text-white">
               <div className="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center">
                 <MapPin size={16} />
@@ -269,7 +269,7 @@ export default function HigoMapPicker({ initialLat, initialLng, onConfirm, onClo
             <div className="flex gap-2">
               <div className="relative flex-1">
                 {searching
-                  ? <Loader2 size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#1372e6] animate-spin" />
+                  ? <Loader2 size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#0a66c2] animate-spin" />
                   : <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                 }
                 <input
@@ -297,7 +297,7 @@ export default function HigoMapPicker({ initialLat, initialLng, onConfirm, onClo
               >
                 {geoLoading
                   ? <><Loader2 size={13} className="animate-spin text-blue-500" /> {t("map.locating")}</>
-                  : <><Navigation size={13} className="text-[#1372e6]" /> {t("map.my_location")}</>
+                  : <><Navigation size={13} className="text-[#0a66c2]" /> {t("map.my_location")}</>
                 }
               </button>
             </div>
@@ -324,7 +324,7 @@ export default function HigoMapPicker({ initialLat, initialLng, onConfirm, onClo
                 {results.map((r, i) => (
                   <button key={i} onClick={() => flyTo(r)}
                     className="w-full text-left px-4 py-2.5 hover:bg-blue-50 text-sm text-slate-700 border-b border-slate-50 last:border-0 transition flex items-start gap-2.5">
-                    <MapPin size={13} className="text-[#1372e6] mt-0.5 shrink-0" />
+                    <MapPin size={13} className="text-[#0a66c2] mt-0.5 shrink-0" />
                     <span className="line-clamp-1">{r.display_name}</span>
                   </button>
                 ))}
@@ -340,7 +340,7 @@ export default function HigoMapPicker({ initialLat, initialLng, onConfirm, onClo
             <div ref={mapRef} style={{ width: "100%", height: "100%", minHeight: 320 }} />
             {!pinSet && (
               <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-white/95 backdrop-blur border border-slate-200 rounded-full px-4 py-2 text-xs font-semibold text-slate-600 shadow-lg pointer-events-none flex items-center gap-2 whitespace-nowrap">
-                <MapPin size={11} className="text-[#1372e6]" /> {t("map.click_to_place")}
+                <MapPin size={11} className="text-[#0a66c2]" /> {t("map.click_to_place")}
               </div>
             )}
           </div>
@@ -349,7 +349,7 @@ export default function HigoMapPicker({ initialLat, initialLng, onConfirm, onClo
           <div className="px-5 py-3.5 border-t border-slate-100">
             {pinSet && (
               <div className="mb-3 flex items-start gap-2.5 bg-[#EBF2FD] border border-blue-100 rounded-xl px-3.5 py-2.5">
-                <MapPin size={14} className="text-[#1372e6] mt-0.5 shrink-0" />
+                <MapPin size={14} className="text-[#0a66c2] mt-0.5 shrink-0" />
                 <div className="flex-1 min-w-0">
                   <p className="text-[10px] text-slate-500 font-semibold uppercase tracking-wide mb-0.5">{t("map.pinned_location")}</p>
                   <p className="text-xs font-bold text-slate-800 line-clamp-2">{label || t("map.location_selected")}</p>
@@ -366,7 +366,7 @@ export default function HigoMapPicker({ initialLat, initialLng, onConfirm, onClo
                 onClick={() => { if (pinSet) onConfirm(pos, label); }}
                 disabled={!pinSet}
                 className="px-5 py-2 rounded-xl text-white text-sm font-bold transition flex items-center gap-2 disabled:opacity-40"
-                style={{ background: "#1372e6" }}>
+                style={{ background: "#0a66c2" }}>
                 <Check size={14} /> {t("map.confirm_location")}
               </button>
             </div>

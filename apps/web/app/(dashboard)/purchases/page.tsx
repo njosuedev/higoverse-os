@@ -348,7 +348,7 @@ export default function PurchaseManagementPage() {
   const margin = form.cost_price && form.selling_price && Number(form.cost_price) > 0
     ? (((Number(form.selling_price) - Number(form.cost_price)) / Number(form.cost_price)) * 100).toFixed(1) : null;
 
-  const inputCls = "border border-slate-200 text-gray-800 placeholder:text-gray-400 rounded-lg px-3 py-2 w-full text-sm focus:outline-none focus:ring-2 focus:ring-[#1372e6]/30 focus:border-[#1372e6] transition";
+  const inputCls = "border border-slate-200 text-gray-800 placeholder:text-gray-400 rounded-lg px-3 py-2 w-full text-sm focus:outline-none focus:ring-2 focus:ring-[#0a66c2]/30 focus:border-[#0a66c2] transition";
 
   if (loading) return <PurchasesSkeleton />;
 
@@ -358,7 +358,7 @@ export default function PurchaseManagementPage() {
 
         {/* HEADER */}
         <div className="relative rounded-2xl mb-2 overflow-hidden"
-          style={{ background: "linear-gradient(135deg, #1372e6 0%, #1168d6 50%, #0a47a0 100%)" }}>
+          style={{ background: "linear-gradient(135deg, #0a66c2 0%, #004182 50%, #00376b 100%)" }}>
           <div style={{ position: "absolute", inset: 0, pointerEvents: "none",
             backgroundImage: "radial-gradient(circle, rgba(255,255,255,0.06) 1px, transparent 1px)",
             backgroundSize: "20px 20px" }} />
@@ -376,11 +376,11 @@ export default function PurchaseManagementPage() {
             </div>
             <div className="hidden sm:flex items-center gap-1">
               <button onClick={() => setTab("inventory")}
-                className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold transition ${tab === "inventory" ? "bg-white text-[#1372e6]" : "bg-white/10 text-white hover:bg-white/20"}`}>
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold transition ${tab === "inventory" ? "bg-white text-[#0a66c2]" : "bg-white/10 text-white hover:bg-white/20"}`}>
                 <LayoutGrid size={11} /> {t("purchases.inventory")}
               </button>
               <button onClick={() => setTab("history")}
-                className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold transition ${tab === "history" ? "bg-white text-[#1372e6]" : "bg-white/10 text-white hover:bg-white/20"}`}>
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold transition ${tab === "history" ? "bg-white text-[#0a66c2]" : "bg-white/10 text-white hover:bg-white/20"}`}>
                 <History size={11} /> {t("purchases.history")} ({purchasesTotal.toLocaleString()})
               </button>
             </div>
@@ -390,7 +390,7 @@ export default function PurchaseManagementPage() {
                 <RefreshCw size={12} className={refreshing ? "animate-spin" : ""} />
               </button>
               <button onClick={openCreateModal}
-                className="flex items-center gap-1.5 bg-white text-[#1372e6] px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-blue-50 active:scale-95 transition-all shadow-lg shadow-black/20">
+                className="flex items-center gap-1.5 bg-white text-[#0a66c2] px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-blue-50 active:scale-95 transition-all shadow-lg shadow-black/20">
                 <Plus size={12} strokeWidth={3} /> {t("purchases.add")}
               </button>
             </div>
@@ -413,11 +413,11 @@ export default function PurchaseManagementPage() {
           <div className="relative px-4 pb-3 space-y-2">
             <div className="flex sm:hidden gap-1">
               <button onClick={() => setTab("inventory")}
-                className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold transition ${tab === "inventory" ? "bg-white text-[#1372e6]" : "bg-white/10 text-white"}`}>
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold transition ${tab === "inventory" ? "bg-white text-[#0a66c2]" : "bg-white/10 text-white"}`}>
                 <LayoutGrid size={11} /> {t("purchases.inventory")}
               </button>
               <button onClick={() => setTab("history")}
-                className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold transition ${tab === "history" ? "bg-white text-[#1372e6]" : "bg-white/10 text-white"}`}>
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold transition ${tab === "history" ? "bg-white text-[#0a66c2]" : "bg-white/10 text-white"}`}>
                 <History size={11} /> {t("purchases.history")}
               </button>
             </div>
@@ -426,7 +426,7 @@ export default function PurchaseManagementPage() {
                 onFrom={(v) => { setDateFrom(v); setHistPage(1); }}
                 onTo={(v) => { setDateTo(v); setHistPage(1); }}
                 onClear={() => { setDateFrom(""); setDateTo(""); setHistPage(1); }}
-                accentClass="focus:ring-[#1372e6]/30 focus:border-[#1372e6]" />
+                accentClass="focus:ring-[#0a66c2]/30 focus:border-[#0a66c2]" />
             )}
             {tab === "inventory" && (
               <div className="flex gap-2">
@@ -469,9 +469,9 @@ export default function PurchaseManagementPage() {
         {/* STAT CARDS */}
         <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5 mb-2">
           {[
-            { label: t("purchases.stat_total_products"),   value: productsTotal,                         color: "text-[#1372e6]", dot: "bg-[#1372e6]" },
-            { label: t("purchases.stat_what_you_paid"),    value: invStats.costValue.toLocaleString(),    color: "text-[#1372e6]", dot: "bg-blue-500" },
-            { label: t("purchases.stat_if_sell_all"),      value: invStats.retailValue.toLocaleString(),  color: "text-[#1372e6]", dot: "bg-indigo-500" },
+            { label: t("purchases.stat_total_products"),   value: productsTotal,                         color: "text-[#0a66c2]", dot: "bg-[#0a66c2]" },
+            { label: t("purchases.stat_what_you_paid"),    value: invStats.costValue.toLocaleString(),    color: "text-[#0a66c2]", dot: "bg-blue-500" },
+            { label: t("purchases.stat_if_sell_all"),      value: invStats.retailValue.toLocaleString(),  color: "text-[#0a66c2]", dot: "bg-indigo-500" },
             { label: t("purchases.stat_profit_to_make"),   value: invStats.grossProfit.toLocaleString(),  color: "text-green-600", dot: "bg-green-500" },
             { label: t("purchases.stat_almost_finished"),  value: invStats.lowStock,                      color: "text-amber-500", dot: "bg-amber-400" },
             { label: t("purchases.stat_finished_empty"),   value: invStats.outStock,                      color: "text-red-600",   dot: "bg-red-500" },
@@ -536,7 +536,7 @@ export default function PurchaseManagementPage() {
                       <td className="px-3 py-1.5">
                         {supplier
                           ? <div><p className="font-medium text-slate-700 text-xs">{supplier.name}</p>{supplier.phone && <p className="text-[10px] text-slate-400">{supplier.phone}</p>}</div>
-                          : <Link href="/PartnerManagement" className="text-[10px] text-[#1372e6] hover:underline flex items-center gap-0.5"><Truck size={10} /> {t("common.add")}</Link>}
+                          : <Link href="/PartnerManagement" className="text-[10px] text-[#0a66c2] hover:underline flex items-center gap-0.5"><Truck size={10} /> {t("common.add")}</Link>}
                       </td>
                       <td className="px-3 py-1.5 text-slate-600 font-medium tabular-nums text-xs">{Number(p.cost_price).toLocaleString()}</td>
                       <td className="px-3 py-1.5 font-semibold text-green-600 tabular-nums text-xs">{Number(p.selling_price).toLocaleString()}</td>
@@ -558,7 +558,7 @@ export default function PurchaseManagementPage() {
                       <td className="px-3 py-1.5">
                         <button
                           onClick={() => { setForm({ product_id: p.id, product_name: p.name, description: p.description || "", cost_price: String(p.cost_price), selling_price: String(p.selling_price), quantity: "", supplier_id: p.supplier_id || "" }); setIsRestocking(true); setShowModal(true); }}
-                          className="px-2 py-0.5 rounded bg-[#EBF2FD] hover:bg-[#D5E8FB] text-[#1372e6] text-[10px] font-semibold transition">
+                          className="px-2 py-0.5 rounded bg-[#EBF2FD] hover:bg-[#D5E8FB] text-[#0a66c2] text-[10px] font-semibold transition">
                           + {t("purchases.restock")}
                         </button>
                       </td>
@@ -573,7 +573,7 @@ export default function PurchaseManagementPage() {
                 <div className="p-4 bg-slate-100 rounded-2xl mb-3"><Package size={28} className="opacity-40" /></div>
                 <p className="font-medium text-slate-500 text-sm">{t("items.no_items")}</p>
                 {!invSearch && invFilter === "all" && (
-                  <button onClick={openCreateModal} className="mt-4 flex items-center gap-1.5 text-white text-sm font-semibold px-4 py-2 rounded-lg transition hover:opacity-90" style={{ background: "#1372e6" }}>
+                  <button onClick={openCreateModal} className="mt-4 flex items-center gap-1.5 text-white text-sm font-semibold px-4 py-2 rounded-lg transition hover:opacity-90" style={{ background: "#0a66c2" }}>
                     <Plus size={14} /> {t("purchases.add")}
                   </button>
                 )}
@@ -611,14 +611,14 @@ export default function PurchaseManagementPage() {
               </div>
             </div>
             {hasDateFilter && (
-              <div className="flex items-center gap-2 px-4 py-1.5 border-b border-slate-100 text-[10px] text-[#1372e6] bg-[#EBF2FD]">
+              <div className="flex items-center gap-2 px-4 py-1.5 border-b border-slate-100 text-[10px] text-[#0a66c2] bg-[#EBF2FD]">
                 <Calendar size={12} />
                 <span>
                   {dateFrom && <> {t("common.date")}: <span className="font-semibold">{dateFrom}</span></>}
                   {dateTo && <> → <span className="font-semibold">{dateTo}</span></>}
                   {" "}· <span className="font-semibold">{purchasesTotal.toLocaleString()}</span>
                 </span>
-                <button onClick={() => { setDateFrom(""); setDateTo(""); setHistPage(1); }} className="ml-auto hover:opacity-70" style={{ color: "#1372e6" }}><X size={12} /></button>
+                <button onClick={() => { setDateFrom(""); setDateTo(""); setHistPage(1); }} className="ml-auto hover:opacity-70" style={{ color: "#0a66c2" }}><X size={12} /></button>
               </div>
             )}
             <div className="overflow-x-auto">
@@ -703,7 +703,7 @@ export default function PurchaseManagementPage() {
                   </div>
                 )}
                 {isRestocking && selectedProduct && (
-                  <div className="md:col-span-2 bg-[#EBF2FD] rounded-lg px-3 py-2 text-xs text-[#1372e6]">
+                  <div className="md:col-span-2 bg-[#EBF2FD] rounded-lg px-3 py-2 text-xs text-[#0a66c2]">
                     {t("purchases.restock")}: <span className="font-semibold">{selectedProduct.name}</span>
                     {" "}· {t("items.col_qty")}: <span className="font-bold">{selectedProduct.quantity}</span>
                   </div>
@@ -746,7 +746,7 @@ export default function PurchaseManagementPage() {
                   <input type="number" min="1" className={inputCls} placeholder="0"
                     value={form.quantity} onChange={(e) => setForm({ ...form, quantity: e.target.value })} />
                   {isRestocking && selectedProduct && form.quantity && (
-                    <p className="text-xs mt-1 text-[#1372e6]">
+                    <p className="text-xs mt-1 text-[#0a66c2]">
                       {selectedProduct.quantity} + {form.quantity} = <span className="font-bold">{selectedProduct.quantity + Number(form.quantity)}</span>
                     </p>
                   )}
@@ -758,7 +758,7 @@ export default function PurchaseManagementPage() {
                     {suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
                   </select>
                   {suppliers.length === 0 && (
-                    <p className="text-xs text-[#1372e6] mt-1">
+                    <p className="text-xs text-[#0a66c2] mt-1">
                       <Link href="/PartnerManagement" className="hover:underline">{t("purchases.add_supplier_link")}</Link>
                     </p>
                   )}
@@ -770,7 +770,7 @@ export default function PurchaseManagementPage() {
                   {t("common.cancel")}
                 </button>
                 <button onClick={submitForm} disabled={submitting}
-                  className="px-5 py-2 rounded-lg text-white text-sm font-semibold transition disabled:opacity-60 hover:opacity-90" style={{ background: "#1372e6" }}>
+                  className="px-5 py-2 rounded-lg text-white text-sm font-semibold transition disabled:opacity-60 hover:opacity-90" style={{ background: "#0a66c2" }}>
                   {submitting ? t("common.saving") : isRestocking ? t("purchases.restock") : t("purchases.new_product")}
                 </button>
               </div>
@@ -787,7 +787,7 @@ function PurchasesSkeleton() {
     <div className="min-h-screen">
       <style>{`@keyframes pur-sh{0%{background-position:-200% 0}100%{background-position:200% 0}}.pur-sh{background:linear-gradient(90deg,#f1f5f9 25%,#e2e8f0 50%,#f1f5f9 75%);background-size:200% 100%;animation:pur-sh 1.4s infinite;border-radius:5px}.pur-sh-w{background:linear-gradient(90deg,rgba(255,255,255,.1) 25%,rgba(255,255,255,.22) 50%,rgba(255,255,255,.1) 75%);background-size:200% 100%;animation:pur-sh 1.4s infinite;border-radius:5px}`}</style>
       <div className="max-w-7xl mx-auto px-3 sm:px-5 py-3 sm:py-4">
-        <div className="relative rounded-2xl mb-2 overflow-hidden" style={{background:"linear-gradient(135deg,#1372e6 0%,#1168d6 50%,#0a47a0 100%)"}}>
+        <div className="relative rounded-2xl mb-2 overflow-hidden" style={{background:"linear-gradient(135deg,#0a66c2 0%,#004182 50%,#00376b 100%)"}}>
           <div className="relative flex items-center gap-3 px-4 pt-3 pb-2">
             <div className="w-8 h-8 rounded-xl pur-sh-w shrink-0" />
             <div><div className="pur-sh-w h-2 w-14 mb-1 rounded" /><div className="pur-sh-w h-4 w-32 rounded" /></div>

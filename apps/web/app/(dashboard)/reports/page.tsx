@@ -311,7 +311,7 @@ export default function ReportsPage() {
 
         {/* ── HEADER ─────────────────────────────────────────────────────────── */}
         <div className="relative rounded-2xl mb-2 overflow-hidden"
-          style={{ background: "linear-gradient(135deg, #1372e6 0%, #1168d6 50%, #0a47a0 100%)" }}>
+          style={{ background: "linear-gradient(135deg, #0a66c2 0%, #004182 50%, #00376b 100%)" }}>
           <div style={{ position:"absolute",inset:0,pointerEvents:"none",
             backgroundImage:"radial-gradient(circle, rgba(255,255,255,0.06) 1px, transparent 1px)",
             backgroundSize:"20px 20px" }} />
@@ -337,7 +337,7 @@ export default function ReportsPage() {
                 <RefreshCw size={12} className={refreshing ? "animate-spin" : ""}/>
               </button>
               <button onClick={() => window.print()}
-                className="flex items-center gap-1.5 bg-white text-[#1372e6] px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-blue-50 active:scale-95 transition-all shadow-lg shadow-black/20">
+                className="flex items-center gap-1.5 bg-white text-[#0a66c2] px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-blue-50 active:scale-95 transition-all shadow-lg shadow-black/20">
                 <Download size={12}/> {t("reports.export")}
               </button>
             </div>
@@ -464,7 +464,7 @@ export default function ReportsPage() {
           <div className="flex flex-wrap justify-between items-start gap-2 mb-3">
             <div>
               <h2 className="text-sm font-semibold text-slate-800 flex items-center gap-2">
-                <Activity size={15} className="text-[#1372e6]" />
+                <Activity size={15} className="text-[#0a66c2]" />
                 {t("reports.daily_revenue_profit_30d")}
               </h2>
               <p className="text-xs text-slate-400 mt-0.5">
@@ -473,7 +473,7 @@ export default function ReportsPage() {
               </p>
             </div>
             <div className="flex items-center gap-4 text-xs">
-              <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-[#1372e6] inline-block" /> {t("sales.revenue")}</span>
+              <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-[#0a66c2] inline-block" /> {t("sales.revenue")}</span>
               <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-emerald-500 inline-block" /> {t("sales.profit")}</span>
             </div>
           </div>
@@ -485,8 +485,8 @@ export default function ReportsPage() {
               <AreaChart data={dailyChartData} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
                 <defs>
                   <linearGradient id="gradRevenue" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%"  stopColor="#1372e6" stopOpacity={0.25} />
-                    <stop offset="95%" stopColor="#1372e6" stopOpacity={0.02} />
+                    <stop offset="5%"  stopColor="#0a66c2" stopOpacity={0.25} />
+                    <stop offset="95%" stopColor="#0a66c2" stopOpacity={0.02} />
                   </linearGradient>
                   <linearGradient id="gradProfit" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%"  stopColor="#10b981" stopOpacity={0.25} />
@@ -497,7 +497,7 @@ export default function ReportsPage() {
                 <XAxis dataKey="label" tick={{ fontSize: 10, fill: "#94a3b8" }} tickLine={false} axisLine={false} interval="preserveStartEnd" />
                 <YAxis tickFormatter={fmtRWF} tick={{ fontSize: 10, fill: "#94a3b8" }} tickLine={false} axisLine={false} width={44} />
                 <Tooltip content={<RevenueTooltip />} />
-                <Area type="monotone" dataKey="revenue" name="revenue" stroke="#1372e6" strokeWidth={2} fill="url(#gradRevenue)" dot={false} activeDot={{ r: 4, fill: "#1372e6" }} />
+                <Area type="monotone" dataKey="revenue" name="revenue" stroke="#0a66c2" strokeWidth={2} fill="url(#gradRevenue)" dot={false} activeDot={{ r: 4, fill: "#0a66c2" }} />
                 <Area type="monotone" dataKey="profit"  name="profit"  stroke="#10b981" strokeWidth={2} fill="url(#gradProfit)"  dot={false} activeDot={{ r: 4, fill: "#10b981" }} />
               </AreaChart>
             </ResponsiveContainer>
@@ -583,8 +583,8 @@ export default function ReportsPage() {
                   sublabel={t("reports.vb_earn_sub")}
                   value={stockRetail}
                   max={Math.max(stockCost, stockRetail, summary.revenue, 1)}
-                  color="bg-[#1372e6]"
-                  textColor="text-[#1372e6]"
+                  color="bg-[#0a66c2]"
+                  textColor="text-[#0a66c2]"
                 />
                 <ValueBar
                   label={t("reports.vb_profit_label")}
@@ -625,8 +625,8 @@ export default function ReportsPage() {
                   sublabel={t("reports.vb_net_profit_sub")}
                   value={Math.max(0, summary.profit - expenseTotalPeriod)}
                   max={Math.max(stockCost, stockRetail, summary.revenue, 1)}
-                  color={summary.profit - expenseTotalPeriod >= 0 ? "bg-[#1372e6]" : "bg-red-400"}
-                  textColor={summary.profit - expenseTotalPeriod >= 0 ? "text-[#1372e6]" : "text-red-600"}
+                  color={summary.profit - expenseTotalPeriod >= 0 ? "bg-[#0a66c2]" : "bg-red-400"}
+                  textColor={summary.profit - expenseTotalPeriod >= 0 ? "text-[#0a66c2]" : "text-red-600"}
                 />
               </div>
 
@@ -634,7 +634,7 @@ export default function ReportsPage() {
                 {stockCost > 0 && (
                   <div className="bg-[#EBF2FD] rounded-lg p-2">
                     <p className="text-xs text-slate-500">{t("reports.profit_rate_stock")}</p>
-                    <p className="text-sm font-bold text-[#1372e6] mt-0.5">
+                    <p className="text-sm font-bold text-[#0a66c2] mt-0.5">
                       {((summary.potential_profit / stockCost) * 100).toFixed(1)}%
                     </p>
                     <p className="text-[10px] text-slate-400 mt-0.5">{t("reports.profit_rate_stock_hint")}</p>
@@ -689,7 +689,7 @@ export default function ReportsPage() {
                 </h2>
               </div>
               <Link href="/PurchaseManagement"
-                className="flex items-center gap-1.5 text-xs font-semibold text-[#1372e6] bg-[#EBF2FD] hover:bg-[#D5E8FB] px-3 py-1 rounded-lg transition">
+                className="flex items-center gap-1.5 text-xs font-semibold text-[#0a66c2] bg-[#EBF2FD] hover:bg-[#D5E8FB] px-3 py-1 rounded-lg transition">
                 <ArrowUpRight size={11} /> {t("purchases.add")}
               </Link>
             </div>
@@ -720,7 +720,7 @@ export default function ReportsPage() {
                       <td className="px-3 py-1.5">
                         <Link
                           href={`/PurchaseManagement?name=${encodeURIComponent(item.name)}&cost=${item.cost_price}&selling=${item.selling_price}&supplierId=${item.supplier_id ?? ""}`}
-                          className="text-xs font-semibold text-[#1372e6] hover:underline flex items-center gap-0.5">
+                          className="text-xs font-semibold text-[#0a66c2] hover:underline flex items-center gap-0.5">
                           <ArrowUpRight size={11} /> {t("reports.restock")}
                         </Link>
                       </td>
@@ -744,13 +744,13 @@ export default function ReportsPage() {
           <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
             <div className="flex justify-between items-center px-4 py-2 border-b border-slate-100">
               <div className="flex items-center gap-2">
-                <Truck size={14} className="text-[#1372e6]" />
+                <Truck size={14} className="text-[#0a66c2]" />
                 <h2 className="text-sm font-semibold text-slate-700">
-                  {t("reports.recent_purchases")} — <span className="text-[#1372e6]">RWF {fmtRWF(purchaseTotalSpent)} {t("reports.spent_word")}</span>
+                  {t("reports.recent_purchases")} — <span className="text-[#0a66c2]">RWF {fmtRWF(purchaseTotalSpent)} {t("reports.spent_word")}</span>
                 </h2>
               </div>
               <Link href="/PurchaseManagement"
-                className="flex items-center gap-1.5 text-xs font-semibold text-[#1372e6] bg-[#EBF2FD] hover:bg-[#D5E8FB] px-3 py-1 rounded-lg transition">
+                className="flex items-center gap-1.5 text-xs font-semibold text-[#0a66c2] bg-[#EBF2FD] hover:bg-[#D5E8FB] px-3 py-1 rounded-lg transition">
                 <ArrowUpRight size={11} /> {t("dash.view_all")}
               </Link>
             </div>
@@ -792,7 +792,7 @@ export default function ReportsPage() {
               label={t("reports.net_profit_real")}
               value={`RWF ${fmtRWF(summary.profit - expenseTotalPeriod)}`}
               sub={summary.profit - expenseTotalPeriod >= 0 ? t("reports.profitable_after_costs") : t("reports.spending_more")}
-              color={summary.profit - expenseTotalPeriod >= 0 ? "text-[#1372e6]" : "text-red-600"}
+              color={summary.profit - expenseTotalPeriod >= 0 ? "text-[#0a66c2]" : "text-red-600"}
               icon={<DollarSign size={14} />}
             />
           </div>
@@ -814,10 +814,10 @@ export default function ReportsPage() {
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
 const kpiColors: Record<string, { bg: string; text: string; badge: string }> = {
-  indigo:  { bg: "bg-[#EBF2FD]",   text: "text-[#1372e6]",   badge: "bg-[#D5E8FB] text-[#1372e6]"     },
-  blue:    { bg: "bg-[#EBF2FD]",   text: "text-[#1372e6]",   badge: "bg-[#D5E8FB] text-[#1372e6]"     },
-  violet:  { bg: "bg-[#EBF2FD]",   text: "text-[#1372e6]",   badge: "bg-[#D5E8FB] text-[#1372e6]"     },
-  teal:    { bg: "bg-[#EBF2FD]",   text: "text-[#1372e6]",   badge: "bg-[#D5E8FB] text-[#1372e6]"     },
+  indigo:  { bg: "bg-[#EBF2FD]",   text: "text-[#0a66c2]",   badge: "bg-[#D5E8FB] text-[#0a66c2]"     },
+  blue:    { bg: "bg-[#EBF2FD]",   text: "text-[#0a66c2]",   badge: "bg-[#D5E8FB] text-[#0a66c2]"     },
+  violet:  { bg: "bg-[#EBF2FD]",   text: "text-[#0a66c2]",   badge: "bg-[#D5E8FB] text-[#0a66c2]"     },
+  teal:    { bg: "bg-[#EBF2FD]",   text: "text-[#0a66c2]",   badge: "bg-[#D5E8FB] text-[#0a66c2]"     },
   emerald: { bg: "bg-emerald-50",  text: "text-emerald-600",  badge: "bg-emerald-100 text-emerald-700" },
   red:     { bg: "bg-red-50",      text: "text-red-600",      badge: "bg-red-100 text-red-700"         },
   amber:   { bg: "bg-amber-50",    text: "text-amber-600",    badge: "bg-amber-100 text-amber-700"     },
@@ -835,7 +835,7 @@ function KpiCard({ label, value, detail, icon, color, pulse, badge }: {
       {pulse && (
         <span className="absolute top-3 right-3 flex h-2 w-2">
           <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75" />
-          <span className="relative inline-flex rounded-full h-2 w-2 bg-[#1372e6]" />
+          <span className="relative inline-flex rounded-full h-2 w-2 bg-[#0a66c2]" />
         </span>
       )}
       <div className={`w-7 h-7 rounded-lg ${c.bg} ${c.text} flex items-center justify-center mb-2`}>
@@ -897,7 +897,7 @@ function ReportsSkeleton() {
       <style>{`@keyframes rep-sh{0%{background-position:-200% 0}100%{background-position:200% 0}}.rep-sh{background:linear-gradient(90deg,#f1f5f9 25%,#e2e8f0 50%,#f1f5f9 75%);background-size:200% 100%;animation:rep-sh 1.4s infinite;border-radius:5px}.rep-sh-w{background:linear-gradient(90deg,rgba(255,255,255,.1) 25%,rgba(255,255,255,.22) 50%,rgba(255,255,255,.1) 75%);background-size:200% 100%;animation:rep-sh 1.4s infinite;border-radius:5px}`}</style>
       <div className="max-w-7xl mx-auto px-3 sm:px-5 py-3 sm:py-4 space-y-3">
         {/* Header */}
-        <div className="relative rounded-2xl overflow-hidden" style={{background:"linear-gradient(135deg,#1372e6 0%,#1168d6 50%,#0a47a0 100%)"}}>
+        <div className="relative rounded-2xl overflow-hidden" style={{background:"linear-gradient(135deg,#0a66c2 0%,#004182 50%,#00376b 100%)"}}>
           <div className="relative flex items-center gap-3 px-4 pt-3 pb-2">
             <div className="w-8 h-8 rounded-xl rep-sh-w shrink-0" />
             <div><div className="rep-sh-w h-2 w-16 mb-1 rounded" /><div className="rep-sh-w h-4 w-28 rounded" /></div>
