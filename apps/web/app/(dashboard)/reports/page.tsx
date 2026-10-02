@@ -11,6 +11,7 @@ import { itemRequest } from "@/lib/product-api";
 import { purchaseRequest } from "@/lib/purchase-api";
 import { expenseRequest } from "@/lib/expense-api";
 import { useLanguage } from "@/lib/language-context";
+import { useShopSettings } from "@/lib/shop-settings-context";
 import DateRangeFilter from "@/app/components/ui/DateRangeFilter";
 import {
   BarChart3, TrendingUp, DollarSign, Package,
@@ -53,6 +54,7 @@ const REFRESH_INTERVAL = 30; // seconds
 // ─── Custom Tooltip for Revenue Chart ─────────────────────────────────────────
 function RevenueTooltip({ active, payload, label }: { active?: boolean; payload?: Array<{ value: number; name: string; color: string }>; label?: string }) {
   const { t } = useLanguage();
+  const { currency } = useShopSettings();
   if (!active || !payload?.length) return null;
   const seriesLabel = (name: string) => name === "revenue" ? t("sales.revenue") : name === "profit" ? t("sales.profit") : name;
   return (
@@ -62,7 +64,7 @@ function RevenueTooltip({ active, payload, label }: { active?: boolean; payload?
         <div key={p.name} className="flex items-center gap-2 mb-0.5">
           <span className="w-2 h-2 rounded-full" style={{ background: p.color }} />
           <span className="text-slate-300">{seriesLabel(p.name)}:</span>
-          <span className="font-bold">{fmtNum(p.value)} RWF</span>
+          <span className="font-bold">{fmtNum(p.value)} {currency}</span>
         </div>
       ))}
     </div>
@@ -72,13 +74,14 @@ function RevenueTooltip({ active, payload, label }: { active?: boolean; payload?
 // ─── Custom Tooltip for Top Items Chart ───────────────────────────────────────
 function ItemTooltip({ active, payload }: { active?: boolean; payload?: Array<{ payload: TopItem; value: number; name: string }> }) {
   const { t } = useLanguage();
+  const { currency } = useShopSettings();
   if (!active || !payload?.length) return null;
   const d = payload[0].payload;
   return (
     <div className="bg-slate-900 text-white text-xs rounded-xl px-3 py-2.5 shadow-xl border border-slate-700">
       <p className="font-semibold mb-1 text-slate-200">{d.product_name}</p>
-      <p>{t("sales.revenue")}: <span className="font-bold">{fmtNum(d.revenue)} RWF</span></p>
-      <p>{t("sales.profit")}: <span className="font-bold text-emerald-400">{fmtNum(d.profit)} RWF</span></p>
+      <p>{t("sales.revenue")}: <span className="font-bold">{fmtNum(d.revenue)} {currency}</span></p>
+      <p>{t("sales.profit")}: <span className="font-bold text-emerald-400">{fmtNum(d.profit)} {currency}</span></p>
       <p>{t("reports.qty_sold")}: <span className="font-bold">{d.qty_sold}</span></p>
     </div>
   );
@@ -106,6 +109,8 @@ export default function ReportsPage() {
   const { t, layout } = useLanguage();
   // Car companies restock from Vehicles (stock in) — no Purchases page.
   const isCar = layout === "car";
+  // Settings → currency and low stock threshold.
+  const { currency, lowStock } = useShopSettings();
   const [summary, setSummary] = useState<Summary | null>(null);
   const [daily, setDaily]     = useState<DayRow[]>([]);
   const [topItems, setTopItems] = useState<TopItem[]>([]);
@@ -137,6 +142,7 @@ export default function ReportsPage() {
       const dateParams = new URLSearchParams({
         ...(dateFrom && { from_date: dateFrom }),
         ...(dateTo   && { to_date: dateTo }),
+        threshold: String(lowStock),
       });
       const purchaseParams = new URLSearchParams({
         limit: "500",
@@ -149,7 +155,7 @@ export default function ReportsPage() {
         reportRequest(`/reports/summary?${dateParams}`),
         reportRequest("/reports/daily?days=30"),
         reportRequest(`/reports/top-items?limit=10&${dateParams}`),
-        reportRequest("/reports/stock-alerts"),
+        reportRequest(`/reports/stock-alerts?threshold=${lowStock}`),
         itemRequest("/products?limit=1000"),
         purchaseRequest(`/purchases?${purchaseParams}`),
         expenseRequest(`/expenses/summary?${dateParams}`),
@@ -166,7 +172,7 @@ export default function ReportsPage() {
       // Accounting: gross profit on stock = retail − cost (all items, not just positive margin)
       const potentialProfit = retailValue - costValue;
       const outOfStock  = products.filter((p) => p.quantity === 0).length;
-      const lowStock    = products.filter((p) => p.quantity > 0 && p.quantity <= 10).length;
+      const lowCount    = products.filter((p) => p.quantity > 0 && p.quantity <= lowStock).length;
       const totalProducts = products.length;
       setStockCost(costValue);
       setStockRetail(retailValue);
@@ -199,7 +205,7 @@ export default function ReportsPage() {
           stock_value:      costValue,
           potential_profit: potentialProfit,
           out_of_stock:     outOfStock,
-          low_stock:        lowStock,
+          low_stock:        lowCount,
           total_products:   totalProducts,
         });
       } else {
@@ -209,7 +215,7 @@ export default function ReportsPage() {
             revenue: 0, profit: 0, items_sold: 0, sales_count: 0,
             unique_customers: 0, total_spent: totalSpentFromPurchases,
             stock_value: costValue, potential_profit: potentialProfit,
-            out_of_stock: outOfStock, low_stock: lowStock, total_products: totalProducts,
+            out_of_stock: outOfStock, low_stock: lowCount, total_products: totalProducts,
           });
         }
         setError(String(sumRes.reason?.message ?? t("reports.could_not_load_sales_summary")));
@@ -220,7 +226,7 @@ export default function ReportsPage() {
 
       // Use stock alerts from products service (more reliable), fall back to reports service
       const alertsFromProducts: StockAlert[] = products
-        .filter((p) => p.quantity <= 10)
+        .filter((p) => p.quantity <= lowStock)
         .map((p) => ({ id: p.id, name: p.name, quantity: p.quantity, cost_price: p.cost_price, selling_price: p.selling_price, supplier_id: p.supplier_id ?? undefined }));
       const alertsFromReports: StockAlert[] = alertRes.status === "fulfilled" ? (alertRes.value?.data ?? []) : [];
       setStockAlerts(alertsFromProducts.length > 0 ? alertsFromProducts : alertsFromReports);
@@ -228,7 +234,7 @@ export default function ReportsPage() {
       setLastUpdated(new Date());
     } catch (err) { setError(t("reports.failed_to_load")); console.error(err); }
     finally { setLoading(false); setRefreshing(false); }
-  }, [dateFrom, dateTo]);
+  }, [dateFrom, dateTo, lowStock]);
 
   // Initial load
   useEffect(() => { loadData(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -238,7 +244,7 @@ export default function ReportsPage() {
   useEffect(() => {
     if (isFirstRender.current) { isFirstRender.current = false; return; }
     loadData(true);
-  }, [dateFrom, dateTo]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [dateFrom, dateTo, lowStock]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-refresh + countdown
   useEffect(() => {
@@ -388,7 +394,7 @@ export default function ReportsPage() {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5">
               <KpiCard
                 label={t("reports.stock_value")}
-                value={`RWF ${fmtRWF(stockCost)}`}
+                value={`${currency} ${fmtRWF(stockCost)}`}
                 detail={t("reports.detail_stock_value").replace("{n}", fmtNum(summary.total_products))}
                 icon={<Package size={18} />}
                 color="blue"
@@ -396,7 +402,7 @@ export default function ReportsPage() {
               />
               <KpiCard
                 label={t("reports.if_sell_everything")}
-                value={`RWF ${fmtRWF(stockRetail)}`}
+                value={`${currency} ${fmtRWF(stockRetail)}`}
                 detail={t("reports.detail_sell_everything")}
                 icon={<DollarSign size={18} />}
                 color="blue"
@@ -404,7 +410,7 @@ export default function ReportsPage() {
               />
               <KpiCard
                 label={t("reports.profit_you_can_make")}
-                value={`RWF ${fmtRWF(summary.potential_profit)}`}
+                value={`${currency} ${fmtRWF(summary.potential_profit)}`}
                 detail={t("reports.detail_profit_potential").replace("{pct}", String(stockCost > 0 ? ((summary.potential_profit / stockCost) * 100).toFixed(1) : 0))}
                 icon={<TrendingUp size={18} />}
                 color="blue"
@@ -431,28 +437,28 @@ export default function ReportsPage() {
               />
               <KpiCard
                 label={t("reports.revenue_earned")}
-                value={`RWF ${fmtRWF(summary.revenue)}`}
+                value={`${currency} ${fmtRWF(summary.revenue)}`}
                 detail={t("reports.detail_revenue").replace("{sales}", String(summary.sales_count)).replace("{customers}", String(summary.unique_customers))}
                 icon={<ShoppingCart size={18} />}
                 color="blue"
               />
               <KpiCard
                 label={t("reports.gross_profit_sales")}
-                value={`RWF ${fmtRWF(summary.profit)}`}
+                value={`${currency} ${fmtRWF(summary.profit)}`}
                 detail={t("reports.detail_gross_profit").replace("{margin}", margin)}
                 icon={<TrendingUp size={18} />}
                 color="emerald"
               />
               <KpiCard
                 label={t("reports.business_expenses")}
-                value={expenseTotalPeriod > 0 ? `RWF ${fmtRWF(expenseTotalPeriod)}` : "—"}
+                value={expenseTotalPeriod > 0 ? `${currency} ${fmtRWF(expenseTotalPeriod)}` : "—"}
                 detail={t("reports.detail_expense_records").replace("{count}", String(expenseCount))}
                 icon={<Receipt size={18} />}
                 color="orange"
               />
               <KpiCard
                 label={t("reports.net_profit_real")}
-                value={`RWF ${fmtRWF(summary.profit - expenseTotalPeriod)}`}
+                value={`${currency} ${fmtRWF(summary.profit - expenseTotalPeriod)}`}
                 detail={t("reports.detail_net_profit").replace("{status}", summary.profit - expenseTotalPeriod >= 0 ? t("reports.profitable") : t("reports.at_loss"))}
                 icon={<DollarSign size={18} />}
                 color={summary.profit - expenseTotalPeriod >= 0 ? "blue" : "red"}
@@ -470,8 +476,8 @@ export default function ReportsPage() {
                 {t("reports.daily_revenue_profit_30d")}
               </h2>
               <p className="text-xs text-slate-400 mt-0.5">
-                {t("reports.avg_daily_revenue")}: <span className="font-semibold text-slate-600">RWF {fmtRWF(avgDailyRevenue)}</span>
-                &nbsp;·&nbsp;{t("reports.this_week")}: <span className="font-semibold text-slate-600">RWF {fmtRWF(revenueThisWeek)}</span>
+                {t("reports.avg_daily_revenue")}: <span className="font-semibold text-slate-600">{currency} {fmtRWF(avgDailyRevenue)}</span>
+                &nbsp;·&nbsp;{t("reports.this_week")}: <span className="font-semibold text-slate-600">{currency} {fmtRWF(revenueThisWeek)}</span>
               </p>
             </div>
             <div className="flex items-center gap-4 text-xs">
@@ -748,7 +754,7 @@ export default function ReportsPage() {
               <div className="flex items-center gap-2">
                 <Truck size={14} className="text-[#0a66c2]" />
                 <h2 className="text-sm font-semibold text-slate-700">
-                  {t("reports.recent_purchases")} — <span className="text-[#0a66c2]">RWF {fmtRWF(purchaseTotalSpent)} {t("reports.spent_word")}</span>
+                  {t("reports.recent_purchases")} — <span className="text-[#0a66c2]">{currency} {fmtRWF(purchaseTotalSpent)} {t("reports.spent_word")}</span>
                 </h2>
               </div>
               <Link href={isCar ? "/items" : "/PurchaseManagement"}
@@ -788,11 +794,11 @@ export default function ReportsPage() {
         {summary && (
           <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-1.5 pb-6">
             <StatMini label={t("reports.items_sold")}  value={fmtNum(summary.items_sold)}               sub={`${t("reports.to_word")} ${summary.unique_customers} ${t("reports.customers_word")}`} color="text-indigo-600" icon={<ShoppingCart size={14} />} />
-            {!isCar && <StatMini label={t("reports.spent_on_restocking")} value={`RWF ${fmtRWF(summary.total_spent)}`}   sub={`${recentPurchases.length} ${t("reports.purchase_records")}`} color="text-teal-600" icon={<Truck size={14} />} />}
-            <StatMini label={t("reports.business_expenses")}  value={expenseTotalPeriod > 0 ? `RWF ${fmtRWF(expenseTotalPeriod)}` : "—"} sub={`${expenseCount} ${t("reports.records_this_period")}`} color="text-orange-600" icon={<Receipt size={14} />} />
+            {!isCar && <StatMini label={t("reports.spent_on_restocking")} value={`${currency} ${fmtRWF(summary.total_spent)}`}   sub={`${recentPurchases.length} ${t("reports.purchase_records")}`} color="text-teal-600" icon={<Truck size={14} />} />}
+            <StatMini label={t("reports.business_expenses")}  value={expenseTotalPeriod > 0 ? `${currency} ${fmtRWF(expenseTotalPeriod)}` : "—"} sub={`${expenseCount} ${t("reports.records_this_period")}`} color="text-orange-600" icon={<Receipt size={14} />} />
             <StatMini
               label={t("reports.net_profit_real")}
-              value={`RWF ${fmtRWF(summary.profit - expenseTotalPeriod)}`}
+              value={`${currency} ${fmtRWF(summary.profit - expenseTotalPeriod)}`}
               sub={summary.profit - expenseTotalPeriod >= 0 ? t("reports.profitable_after_costs") : t("reports.spending_more")}
               color={summary.profit - expenseTotalPeriod >= 0 ? "text-[#0a66c2]" : "text-red-600"}
               icon={<DollarSign size={14} />}
@@ -858,6 +864,7 @@ function KpiCard({ label, value, detail, icon, color, pulse, badge }: {
 function ValueBar({ label, sublabel, value, max, color, textColor }: {
   label: string; sublabel?: string; value: number; max: number; color: string; textColor: string;
 }) {
+  const { currency } = useShopSettings();
   const pct = max > 0 ? Math.min((value / max) * 100, 100) : 0;
   return (
     <div>
@@ -866,7 +873,7 @@ function ValueBar({ label, sublabel, value, max, color, textColor }: {
           <span className="text-xs font-medium text-slate-700 block">{label}</span>
           {sublabel && <span className="text-[10px] text-slate-400 leading-tight">{sublabel}</span>}
         </div>
-        <span className={`text-sm font-bold ${textColor} shrink-0`}>RWF {fmtRWF(value)}</span>
+        <span className={`text-sm font-bold ${textColor} shrink-0`}>{currency} {fmtRWF(value)}</span>
       </div>
       <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
         <div

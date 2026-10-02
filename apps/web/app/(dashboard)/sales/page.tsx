@@ -9,6 +9,7 @@ import { settingsRequest } from "@/lib/settings-api";
 import { listProformas, deleteProforma, type Proforma, type ProformaStatus } from "@/lib/proforma-api";
 import { useDebounce } from "@/lib/hooks";
 import { useLanguage } from "@/lib/language-context";
+import { useShopSettings } from "@/lib/shop-settings-context";
 import { useShop } from "@/lib/shop-context";
 import { formatPublicAddress } from "@/lib/product-meta";
 import Pagination from "@/app/components/ui/Pagination";
@@ -70,6 +71,7 @@ function toDateStr(d: Date) {
 
 export default function SaleManagementPage() {
   const { t, lang } = useLanguage();
+  const { lowStock } = useShopSettings();
   const { shop } = useShop();
 
   const [sales, setSales] = useState<Sale[]>([]);
@@ -1221,7 +1223,7 @@ ${paymentHtml}
                             <div className="flex gap-3 mt-1.5 text-[10px] text-slate-400">
                               <span>{t("items.col_cost")}: <span className="font-medium">{p.cost_price.toLocaleString()}</span></span>
                               <span>{t("items.col_selling")}: <span className="font-medium text-green-600">{p.selling_price.toLocaleString()}</span></span>
-                              <span className={p.quantity <= 10 ? "text-amber-500 font-medium" : ""}>{t("sales.stock_label")}: {p.quantity}</span>
+                              <span className={p.quantity <= lowStock ? "text-amber-500 font-medium" : ""}>{t("sales.stock_label")}: {p.quantity}</span>
                             </div>
                           )}
                         </div>
@@ -1283,7 +1285,7 @@ ${paymentHtml}
                     <div className="mt-1.5 flex gap-3 text-xs text-slate-500">
                       <span>{t("items.cost_price")}: <span className="font-medium text-slate-700">{selectedProduct.cost_price.toLocaleString()}</span></span>
                       <span>{t("items.selling_price")}: <span className="font-medium text-green-600">{selectedProduct.selling_price.toLocaleString()}</span></span>
-                      <span className={`font-medium ${selectedProduct.quantity <= 10 ? "text-amber-600" : "text-slate-700"}`}>{t("items.col_qty")}: {selectedProduct.quantity}</span>
+                      <span className={`font-medium ${selectedProduct.quantity <= lowStock ? "text-amber-600" : "text-slate-700"}`}>{t("items.col_qty")}: {selectedProduct.quantity}</span>
                     </div>
                   )}
                 </div>

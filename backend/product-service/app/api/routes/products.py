@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Header
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from sqlalchemy import case, func
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, defer
 
 from app.db.database import get_db
 from app.models.product import Product
@@ -48,6 +48,7 @@ def calculate_profit(cost_price: float, selling_price: float):
 def get_summary(
     db: Session = Depends(get_db),
     user: dict = Depends(get_current_user),
+    threshold: int = 10,  # the shop's Settings → low stock threshold
 ):
     if not user["shop_id"]:
         return {
@@ -63,7 +64,7 @@ def get_summary(
         func.coalesce(func.sum((Product.selling_price - Product.cost_price) * Product.quantity), 0).label("potential_profit"),
         func.count(Product.id).label("total_products"),
         func.sum(case((Product.quantity == 0, 1), else_=0)).label("out_of_stock"),
-        func.sum(case(((Product.quantity > 0) & (Product.quantity <= 10), 1), else_=0)).label("low_stock"),
+        func.sum(case(((Product.quantity > 0) & (Product.quantity <= threshold), 1), else_=0)).label("low_stock"),
     ).one()
 
     return {
@@ -129,6 +130,8 @@ def get_products(
     query = db.query(Product).filter(Product.shop_id == user["shop_id"])
 
     total = query.count()
+    # Full images can be several MB per product — lists only send the thumbnail.
+    query = query.options(defer(Product.images))
     products = query.offset(offset).limit(limit).all()
 
     items = []
@@ -145,7 +148,7 @@ def get_products(
             "selling_price": float(p.selling_price),
             "quantity": p.quantity,
             "category": p.category,
-            "images": p.images,
+            "thumbnail": p.thumbnail,
             "attributes": p.attributes,
             "profit_status": "profit" if profit >= 0 else "loss",
             "profit_money": float(profit),
@@ -196,6 +199,7 @@ def create_product(
             barcode=payload.barcode,
             category=payload.category,
             images=payload.images,
+            thumbnail=payload.thumbnail,
             attributes=payload.attributes,
         )
 
@@ -256,6 +260,7 @@ def get_product(
             "description": product.description,
             "category": product.category,
             "images": product.images,
+            "thumbnail": product.thumbnail,
             "attributes": product.attributes,
             "cost_price": float(product.cost_price),
             "selling_price": float(product.selling_price),

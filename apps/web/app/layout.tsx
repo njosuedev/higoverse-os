@@ -1,48 +1,43 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 import { LanguageProvider } from "@/lib/language-context";
 import { AuthProvider } from "@/lib/auth-context";
 import { QueryProvider } from "@/lib/query-provider";
+import { SITE } from "@/lib/site";
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://higoverse.com"),
+  metadataBase: new URL(SITE.url),
+  applicationName: SITE.name,
 
   title: {
-    default: "Higoverse | Business Records & Transactions Platform",
-    template: "%s | Higoverse",
+    default: SITE.title,
+    template: `%s | ${SITE.name}`,
   },
-
-  description:
-    "Higoverse is a modern business platform that helps shops and enterprises manage business records and transactions — products, suppliers, customers, purchases, sales, inventory, and business operations efficiently.",
+  description: SITE.description,
 
   keywords: [
     "Higoverse",
-    "business software",
+    "shop management software",
     "inventory management",
-    "shop management",
-    "supplier management",
-    "customer management",
-    "sales management",
-    "purchase management",
     "stock management",
-    "business platform",
+    "point of sale",
+    "sales tracking",
+    "purchase management",
+    "expense tracking",
+    "customer debt tracking",
+    "proforma invoice",
+    "business reports",
+    "small business software",
     "retail software",
-    "enterprise software",
-    "Rwanda technology",
-    "Africa technology",
+    "Rwanda business software",
+    "Africa business software",
   ],
 
-  authors: [
-    {
-      name: "Higoverse",
-    },
-  ],
-
-  creator: "Higoverse",
-  publisher: "Higoverse",
-
-  manifest: "/manifest.json",
+  authors: [{ name: SITE.name, url: SITE.url }],
+  creator: SITE.name,
+  publisher: SITE.name,
+  category: "Business",
 
   robots: {
     index: true,
@@ -56,43 +51,44 @@ export const metadata: Metadata = {
     },
   },
 
+  // og:image / twitter fallback come from app/opengraph-image.tsx (1200×630).
   openGraph: {
-    title: "Higoverse | Business Records & Transactions Platform",
-    description:
-      "Manage business records and transactions — products, suppliers, customers, purchases, sales, and inventory — from one powerful platform.",
-
-    url: "https://higoverse.com",
-
-    siteName: "Higoverse",
-
-    images: [
-      {
-        url: "/higoverse-logo.png",
-        width: 1200,
-        height: 630,
-        alt: "Higoverse Business Platform",
-      },
-    ],
-
-    locale: "en_US",
     type: "website",
+    siteName: SITE.name,
+    title: SITE.title,
+    description: SITE.description,
+    url: "/",
+    locale: SITE.locale,
   },
-
   twitter: {
     card: "summary_large_image",
-    title: "Higoverse | Business Records & Transactions Platform",
-    description:
-      "Modern inventory, sales, supplier, and customer management software for businesses.",
-    images: ["/higoverse-logo.png"],
+    title: SITE.title,
+    description: SITE.description,
   },
+
+  appleWebApp: { capable: true, title: SITE.name, statusBarStyle: "default" },
+  formatDetection: { telephone: false, email: false, address: false },
 
   icons: {
-    icon: "/higoverse-logo.png",
-    shortcut: "/higoverse-logo.png",
-    apple: "/higoverse-logo.png",
+    icon: SITE.logo,
+    shortcut: SITE.logo,
+    apple: SITE.logo,
   },
 
-  category: "Business",
+  // Paste the token from Google Search Console / Bing Webmaster Tools into
+  // these env vars to verify ownership of higoverse.com.
+  verification: {
+    google: process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION,
+    other: process.env.NEXT_PUBLIC_BING_SITE_VERIFICATION
+      ? { "msvalidate.01": process.env.NEXT_PUBLIC_BING_SITE_VERIFICATION }
+      : undefined,
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: SITE.themeColor,
+  width: "device-width",
+  initialScale: 1,
 };
 
 export default function RootLayout({
@@ -102,7 +98,6 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <head />
       <body>
         <AuthProvider>
           <LanguageProvider>

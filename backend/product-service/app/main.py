@@ -80,6 +80,7 @@ def on_startup():
                 "ALTER TABLE products ADD COLUMN IF NOT EXISTS category VARCHAR(100)",
                 "ALTER TABLE products ADD COLUMN IF NOT EXISTS images TEXT",
                 "ALTER TABLE products ADD COLUMN IF NOT EXISTS attributes TEXT",
+                "ALTER TABLE products ADD COLUMN IF NOT EXISTS thumbnail TEXT",
                 # Trigram index backs ILIKE '%term%' search on product name at scale.
                 "CREATE EXTENSION IF NOT EXISTS pg_trgm",
                 "CREATE INDEX IF NOT EXISTS ix_products_name_trgm ON products USING gin (name gin_trgm_ops)",

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { expenseRequest, expenseUploadProof } from "@/lib/expense-api";
 import { useLanguage } from "@/lib/language-context";
+import { useShopSettings } from "@/lib/shop-settings-context";
 import Pagination from "@/app/components/ui/Pagination";
 import DateRangeFilter from "@/app/components/ui/DateRangeFilter";
 import {
@@ -82,6 +83,7 @@ function toDateStr(d: Date) {
 
 export default function ExpenseManagementPage() {
   const { t } = useLanguage();
+  const { currency } = useShopSettings();
 
   const [expenses, setExpenses]       = useState<Expense[]>([]);
   const [total, setTotal]             = useState(0);
@@ -221,7 +223,7 @@ export default function ExpenseManagementPage() {
     const now  = new Date();
 
     const headers = [
-      "Date", "Title", "Category", "Amount (RWF)",
+      "Date", "Title", "Category", `Amount (${currency})`,
       "Payment Method", "Bank Name", "Account / Ref", "Receiver Phone", "Notes",
     ];
 
@@ -283,7 +285,7 @@ export default function ExpenseManagementPage() {
       ["EXPENSE SUMMARY BY CATEGORY"],
       [`Generated: ${now.toLocaleString()}`],
       [],
-      ["Category", "Total (RWF)", "Records", "% of Total"],
+      ["Category", `Total (${currency})`, "Records", "% of Total"],
       ...catRows,
       [],
       ["GRAND TOTAL", grandTotal, rows.length, "100%"],
@@ -354,7 +356,7 @@ export default function ExpenseManagementPage() {
     doc.text(grandTotal.toLocaleString(), PW - 14, 14, { align: "right" });
     doc.setFont("helvetica", "normal");
     doc.setFontSize(8);
-    doc.text("RWF  TOTAL EXPENSES", PW - 14, 20, { align: "right" });
+    doc.text(`${currency}  TOTAL EXPENSES`, PW - 14, 20, { align: "right" });
     doc.text(`${rows.length} records  ·  ${periodLabel}`, PW - 14, 26, { align: "right" });
 
     // ── Summary cards ────────────────────────────────────────────────────────
@@ -364,9 +366,9 @@ export default function ExpenseManagementPage() {
     const cardW = (PW - 28 - gap * 3) / 4;
 
     const summaryCards = [
-      { label: "TOTAL AMOUNT",   value: grandTotal.toLocaleString(), sub: "RWF",                          accent: C_BLUE   },
+      { label: "TOTAL AMOUNT",   value: grandTotal.toLocaleString(), sub: currency,                          accent: C_BLUE   },
       { label: "TOTAL RECORDS",  value: String(rows.length),         sub: "expenses",                     accent: C_GREEN  },
-      { label: "TOP CATEGORY",   value: topCat ? topCat[0].toUpperCase() : "—", sub: topCat ? `${topCat[1].total.toLocaleString()} RWF` : "", accent: C_ORANGE },
+      { label: "TOP CATEGORY",   value: topCat ? topCat[0].toUpperCase() : "—", sub: topCat ? `${topCat[1].total.toLocaleString()} ${currency}` : "", accent: C_ORANGE },
       { label: "CATEGORIES",     value: String(catEntries.length),   sub: `of ${ALL_CATEGORIES.length}`,  accent: C_PURPLE },
     ];
 
@@ -404,7 +406,7 @@ export default function ExpenseManagementPage() {
 
     autoTable(doc, {
       startY: curY,
-      head: [["Date", "Title", "Category", "Amount (RWF)", "Payment", "Bank Name", "Account / Ref", "Receiver Phone", "Notes"]],
+      head: [["Date", "Title", "Category", `Amount (${currency})`, "Payment", "Bank Name", "Account / Ref", "Receiver Phone", "Notes"]],
       body: rows.map((e) => {
         const d = e.expense_date ? new Date(e.expense_date) : null;
         return [
@@ -462,7 +464,7 @@ export default function ExpenseManagementPage() {
 
     autoTable(doc, {
       startY: breakY + 2,
-      head: [["Category", "Total (RWF)", "Records", "% of Total"]],
+      head: [["Category", `Total (${currency})`, "Records", "% of Total"]],
       body: catEntries.map(([cat, s]) => [
         cat.charAt(0).toUpperCase() + cat.slice(1),
         s.total.toLocaleString(),

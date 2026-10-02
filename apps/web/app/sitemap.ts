@@ -1,9 +1,9 @@
 import type { MetadataRoute } from "next";
+import { SITE } from "@/lib/site";
 
-const BASE_URL = "https://higoverse.com";
-
+// Only indexable pages belong here — the dashboard is private and noindex.
 export default function sitemap(): MetadataRoute.Sitemap {
   return [
-    { url: `${BASE_URL}/login`, changeFrequency: "monthly", priority: 0.5 },
+    { url: `${SITE.url}/login`, lastModified: new Date(), changeFrequency: "monthly", priority: 1 },
   ];
 }

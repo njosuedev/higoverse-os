@@ -1,5 +1,38 @@
+import json
 from decimal import Decimal
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+MAX_IMAGES = 7
+MAX_IMAGE_CHARS = 2_000_000      # one base64 data-URL (~1.5 MB of JPEG)
+MAX_THUMBNAIL_CHARS = 100_000
+
+
+def _check_images(v: str | None) -> str | None:
+    """`images` is a JSON list of up to 7 base64 image data-URLs."""
+    if v is None or v == "":
+        return None
+    try:
+        imgs = json.loads(v)
+    except ValueError:
+        raise ValueError("images must be a JSON list")
+    if not isinstance(imgs, list):
+        raise ValueError("images must be a JSON list")
+    if len(imgs) > MAX_IMAGES:
+        raise ValueError(f"At most {MAX_IMAGES} images")
+    for img in imgs:
+        if not isinstance(img, str) or not img.startswith("data:image/"):
+            raise ValueError("Each image must be an image data URL")
+        if len(img) > MAX_IMAGE_CHARS:
+            raise ValueError("An image is too large")
+    return json.dumps(imgs) if imgs else None
+
+
+def _check_thumbnail(v: str | None) -> str | None:
+    if v is None or v == "":
+        return None
+    if not v.startswith("data:image/") or len(v) > MAX_THUMBNAIL_CHARS:
+        raise ValueError("Invalid thumbnail")
+    return v
 
 
 # =====================================
@@ -21,7 +54,18 @@ class ProductCreate(BaseModel):
 
     category: str | None = Field(None, max_length=100)
     images: str | None = None  # JSON-encoded list of base64 strings
+    thumbnail: str | None = None  # small data-URL of the first image
     attributes: str | None = None  # JSON-encoded dict, layout-specific fields
+
+    @field_validator("images")
+    @classmethod
+    def valid_images(cls, v: str | None) -> str | None:
+        return _check_images(v)
+
+    @field_validator("thumbnail")
+    @classmethod
+    def valid_thumbnail(cls, v: str | None) -> str | None:
+        return _check_thumbnail(v)
 
 
 # =====================================
@@ -43,7 +87,18 @@ class ProductUpdate(BaseModel):
 
     category: str | None = Field(None, max_length=100)
     images: str | None = None
+    thumbnail: str | None = None
     attributes: str | None = None
+
+    @field_validator("images")
+    @classmethod
+    def valid_images(cls, v: str | None) -> str | None:
+        return _check_images(v)
+
+    @field_validator("thumbnail")
+    @classmethod
+    def valid_thumbnail(cls, v: str | None) -> str | None:
+        return _check_thumbnail(v)
 
 
 # =====================================

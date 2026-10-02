@@ -10,6 +10,8 @@ import { useShop } from "@/lib/shop-context";
 import { type Lang } from "@/lib/i18n";
 import { parseShopAddress, decodeShopHumanInfo } from "@/lib/product-meta";
 import { CAR_TYPES, carTypeLabel } from "@/lib/business-layout";
+import { useShopSettings } from "@/lib/shop-settings-context";
+import { compressImage } from "@/lib/image";
 import PageSkeleton from "@/app/components/dashboard/PageSkeleton";
 import {
   Settings, Save, RefreshCw, Store, Phone, MapPin, DollarSign,
@@ -45,33 +47,15 @@ const PW_DEFAULTS: PwForm = { current: "", next: "", confirm: "" };
 
 function deepEq<T>(a: T, b: T) { return JSON.stringify(a) === JSON.stringify(b); }
 
-function compressImage(file: File, maxPx = 256, quality = 0.85): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onerror = reject;
-    reader.onload = (e) => {
-      const img = new window.Image();
-      img.onerror = reject;
-      img.onload = () => {
-        const scale = Math.min(1, maxPx / Math.max(img.width, img.height));
-        const canvas = document.createElement("canvas");
-        canvas.width  = Math.round(img.width  * scale);
-        canvas.height = Math.round(img.height * scale);
-        canvas.getContext("2d")!.drawImage(img, 0, 0, canvas.width, canvas.height);
-        resolve(canvas.toDataURL("image/jpeg", quality));
-      };
-      img.src = e.target!.result as string;
-    };
-    reader.readAsDataURL(file);
-  });
-}
 
 type SectionStatus = "idle" | "saving" | "saved" | "error";
 
 export default function SettingsPage() {
   const { t, setLang, layout } = useLanguage();
   const isCar = layout === "car";
-  const { shop, loading: shopLoading } = useShop();
+  const { shop, loading: shopLoading, reload: reloadShop } = useShop();
+  // Saved values are pushed here so every page picks them up without a reload.
+  const { apply: applySettings } = useShopSettings();
 
   // Form state
   const [shopForm, setShopForm]   = useState<ShopForm>(SHOP_DEFAULTS);
@@ -255,6 +239,7 @@ export default function SettingsPage() {
       }).catch(() => {}); // best-effort
       savedShop.current    = { ...shopForm };
       savedLogoUrl.current = logoUrl;
+      reloadShop();
       setShopStatus("saved");
       setLastSaved(new Date());
       statusTimer(setShopStatus);
@@ -276,9 +261,13 @@ export default function SettingsPage() {
   }
 
   async function saveOps() {
+    const threshold = Number(opsForm.low_stock_threshold);
+    const tax = Number(opsForm.tax_rate);
+    if (!Number.isInteger(threshold) || threshold < 0) { setOpsErr(t("settings.err_threshold")); setOpsStatus("error"); return; }
+    if (!Number.isFinite(tax) || tax < 0 || tax > 100) { setOpsErr(t("settings.err_tax_rate")); setOpsStatus("error"); return; }
     setOpsStatus("saving"); setOpsErr("");
     try {
-      await settingsRequest("/settings/", {
+      const res = await settingsRequest("/settings/", {
         method: "PUT",
         body: JSON.stringify({
           currency:            opsForm.currency,
@@ -287,7 +276,10 @@ export default function SettingsPage() {
           tax_rate:            opsForm.tax_rate,
         }),
       });
+      // settingsRequest returns null instead of throwing on 401/network errors.
+      if (!res?.success) throw new Error(t("settings.err_save_settings_failed"));
       savedOps.current = { ...opsForm };
+      applySettings({ currency: opsForm.currency, lowStock: threshold, taxRate: tax });
       setOpsStatus("saved");
       setLastSaved(new Date());
       if (opsForm.language) setLang(opsForm.language as Lang);
@@ -314,7 +306,9 @@ export default function SettingsPage() {
         method: "PUT",
         body: JSON.stringify({ car_types: carTypes }),
       });
+      if (!res?.success) throw new Error(t("settings.err_save_settings_failed"));
       const saved: string[] = Array.isArray(res?.data?.car_types) ? res.data.car_types : carTypes;
+      applySettings({ carTypes: saved });
       setCarTypes(saved);
       savedCarTypes.current = saved;
       setCarStatus("saved");

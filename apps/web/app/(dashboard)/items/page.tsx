@@ -7,7 +7,10 @@ import { partnerRequest } from "@/lib/supplier-api";
 import { useDebounce } from "@/lib/hooks";
 import { useLanguage } from "@/lib/language-context";
 import { VEHICLE_FIELDS, carTypeLabel, parseAttributes, stringifyAttributes, type Attributes } from "@/lib/business-layout";
-import { settingsRequest } from "@/lib/settings-api";
+import { useShopSettings } from "@/lib/shop-settings-context";
+import { parseImages, shrinkDataUrl } from "@/lib/image";
+import CarImagesPicker from "@/app/components/items/CarImagesPicker";
+import CarGallery from "@/app/components/items/CarGallery";
 import Pagination from "@/app/components/ui/Pagination";
 import {
   Package, AlertCircle, Search, Filter, Plus, Trash2, Pencil, X,
@@ -25,6 +28,8 @@ interface Product {
   supplier_id?: string | null;
   /** JSON text of layout-specific fields (car layout: make, model, VIN…). */
   attributes?: string | null;
+  /** Small data-URL of the first photo (lists don't carry full images). */
+  thumbnail?: string | null;
   profit_status?: "profit" | "loss";
   profit_money?: number;
   created_at?: string;
@@ -36,6 +41,7 @@ type ModalMode = "create" | "edit";
 const EMPTY_FORM = {
   name: "", description: "", cost_price: "", selling_price: "", quantity: "", supplier_id: "",
   attributes: {} as Attributes,
+  images: [] as string[],
 };
 
 /** "Plate RAC 123 A · Chassis …" line under a car's name. */
@@ -87,14 +93,11 @@ export default function ItemManagementPage() {
 
   useEffect(() => { loadData(); }, []);
 
-  // The company's own car types (Settings → Car types), offered after the built-in ones.
-  const [customCarTypes, setCustomCarTypes] = useState<string[]>([]);
-  useEffect(() => {
-    if (!isCar) return;
-    settingsRequest("/settings/")
-      .then((res) => setCustomCarTypes(Array.isArray(res?.data?.car_types) ? res.data.car_types : []))
-      .catch(() => {});
-  }, [isCar]);
+  // Settings → low stock threshold, and the company's own car types
+  // (offered after the built-in ones).
+  const { lowStock, carTypes: customCarTypes } = useShopSettings();
+  const [galleryFor, setGalleryFor] = useState<Product | null>(null);
+  const [loadingEdit, setLoadingEdit] = useState(false);
   useEffect(() => { loadDataRef.current = loadData; });
   useEffect(() => {
     countdownRef.current = setInterval(() => setCountdown((c) => (c <= 1 ? 30 : c - 1)), 1000);
@@ -142,13 +145,23 @@ export default function ItemManagementPage() {
   }
 
   function openEditModal(p: Product) {
-    setForm({
-      name: p.name, description: p.description || "",
-      cost_price: String(p.cost_price), selling_price: String(p.selling_price),
-      quantity: String(p.quantity), supplier_id: p.supplier_id || "",
-      attributes: parseAttributes(p.attributes),
+    const fill = (x: Product & { images?: string | null }) => setForm({
+      name: x.name, description: x.description || "",
+      cost_price: String(x.cost_price), selling_price: String(x.selling_price),
+      quantity: String(x.quantity), supplier_id: x.supplier_id || "",
+      attributes: parseAttributes(x.attributes),
+      images: parseImages(x.images),
     });
+    fill(p);
     setEditingId(p.id); setModalMode("edit"); setShowModal(true);
+    if (isCar) {
+      // Lists don't carry photos — fetch this car in full (also gets the latest quantity).
+      setLoadingEdit(true);
+      itemRequest(`/products/${p.id}`)
+        .then((res) => { if (res?.data) fill({ ...p, ...res.data }); })
+        .catch(() => {})
+        .finally(() => setLoadingEdit(false));
+    }
   }
 
   function closeModal() {
@@ -161,9 +174,13 @@ export default function ItemManagementPage() {
       if (!form.name.trim() || !form.selling_price || !form.quantity || missing) {
         alert(t("vehicle.err_required")); return;
       }
+      if (!(Number(form.selling_price) > 0) || !(Number(form.quantity) >= 0)) {
+        alert(t("vehicle.err_price")); return;
+      }
     } else if (!form.name.trim() || !form.cost_price || !form.selling_price || !form.quantity) {
       alert(t("items.validation_required")); return;
     }
+    const thumbnail = isCar && form.images[0] ? await shrinkDataUrl(form.images[0]).catch(() => "") : "";
     const payload = {
       name: form.name.trim(), description: form.description.trim() || null,
       // Car companies don't track cost; the API requires one, so store the
@@ -171,7 +188,12 @@ export default function ItemManagementPage() {
       cost_price: Number(isCar ? form.selling_price : form.cost_price), selling_price: Number(form.selling_price),
       quantity: Number(form.quantity), supplier_id: form.supplier_id || null,
       // Only car shops edit attributes; leave other layouts' rows untouched.
-      ...(isCar ? { attributes: stringifyAttributes(form.attributes) } : {}),
+      ...(isCar ? {
+        attributes: stringifyAttributes(form.attributes),
+        // "" clears them when every photo was removed.
+        images: form.images.length ? JSON.stringify(form.images) : "",
+        thumbnail,
+      } : {}),
     };
     try {
       setSubmitting(true);
@@ -225,30 +247,30 @@ export default function ItemManagementPage() {
       .filter((p) => p.name?.toLowerCase().includes(q) || p.id?.toLowerCase().includes(q)
         || (isCar && (p.attributes ?? "").toLowerCase().includes(q)))
       .filter((p) => {
-        if (filter === "in_stock") return p.quantity > 10;
-        if (filter === "low_stock") return p.quantity > 0 && p.quantity <= 10;
+        if (filter === "in_stock") return p.quantity > lowStock;
+        if (filter === "low_stock") return p.quantity > 0 && p.quantity <= lowStock;
         if (filter === "out_stock") return p.quantity === 0;
         return true;
       });
-  }, [products, debouncedSearch, filter, isCar]);
+  }, [products, debouncedSearch, filter, isCar, lowStock]);
 
   const totalPages = Math.ceil(filtered.length / pageSize);
   const paginated = filtered.slice((page - 1) * pageSize, page * pageSize);
 
 
   const stats = useMemo(() => {
-    const inStock = products.filter((p) => p.quantity > 10).length;
-    const lowStock = products.filter((p) => p.quantity > 0 && p.quantity <= 10).length;
+    const inStock = products.filter((p) => p.quantity > lowStock).length;
+    const lowCount = products.filter((p) => p.quantity > 0 && p.quantity <= lowStock).length;
     const outStock = products.filter((p) => p.quantity === 0).length;
     const stockValue = products.reduce((s, p) => s + (p.cost_price || 0) * (p.quantity || 0), 0);
     const potentialProfit = products.reduce((s, p) => {
       const m = (p.selling_price || 0) - (p.cost_price || 0);
       return s + (m > 0 ? m * (p.quantity || 0) : 0);
     }, 0);
-    return { total: products.length, inStock, lowStock, outStock, stockValue, potentialProfit };
-  }, [products]);
+    return { total: products.length, inStock, lowStock: lowCount, outStock, stockValue, potentialProfit };
+  }, [products, lowStock]);
 
-  const alertItems = products.filter((p) => p.quantity <= 10);
+  const alertItems = products.filter((p) => p.quantity <= lowStock);
 
   function buildCarExportRows(): Record<string, string | number>[] {
     return filtered.map((p, i) => {
@@ -276,7 +298,7 @@ export default function ItemManagementPage() {
       const sell = Number(p.selling_price || 0);
       const margin = cost > 0 ? ((sell - cost) / cost) * 100 : 0;
       const totalProfit = (sell - cost) * (p.quantity || 0);
-      const status = p.quantity === 0 ? "Out of Stock" : p.quantity <= 10 ? "Low Stock" : "In Stock";
+      const status = p.quantity === 0 ? "Out of Stock" : p.quantity <= lowStock ? "Low Stock" : "In Stock";
       return {
         "#": i + 1,
         "Product Name": p.name,
@@ -758,7 +780,7 @@ export default function ItemManagementPage() {
                   const totalProfit = Number(p.profit_money || 0) * Number(p.quantity || 0);
                   const isProfit    = p.profit_status === "profit";
                   const margin      = p.cost_price > 0 ? ((p.selling_price - p.cost_price) / p.cost_price) * 100 : 0;
-                  const needsRestock = p.quantity <= 10;
+                  const needsRestock = p.quantity <= lowStock;
                   const isOutOfStock = p.quantity === 0;
                   const restockUrl  = `/PurchaseManagement?name=${encodeURIComponent(p.name)}&cost=${p.cost_price}&selling=${p.selling_price}&supplierId=${p.supplier_id || ""}`;
                   const rowNum      = (page - 1) * pageSize + idx + 1;
@@ -775,9 +797,19 @@ export default function ItemManagementPage() {
                       {/* Product */}
                       <td className="px-3 py-1.5">
                         <div className="flex items-center gap-2">
+                          {isCar ? (
+                            <button type="button" onClick={() => setGalleryFor(p)} title={t("vehicle.view_photos")}
+                              className="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center flex-shrink-0 overflow-hidden hover:ring-2 hover:ring-[#0a66c2]/40 transition">
+                              {p.thumbnail
+                                // eslint-disable-next-line @next/next/no-img-element
+                                ? <img src={p.thumbnail} alt={p.name} className="w-full h-full object-cover" />
+                                : <Car size={14} className="text-slate-400" />}
+                            </button>
+                          ) : (
                           <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center flex-shrink-0">
-                            {isCar ? <Car size={12} className="text-slate-400" /> : <Package size={12} className="text-slate-300" />}
+                            <Package size={12} className="text-slate-300" />
                           </div>
+                          )}
                           <div className="min-w-0">
                             <div className="flex items-center gap-1.5 flex-wrap">
                               <p className="font-semibold text-slate-800 text-xs leading-tight">{p.name}</p>
@@ -947,6 +979,10 @@ export default function ItemManagementPage() {
             pageSize={pageSize} pageSizes={PAGE_SIZES} onPage={setPage} onPageSize={setPageSize} />
         </div>
 
+        {galleryFor && (
+          <CarGallery productId={galleryFor.id} title={galleryFor.name} onClose={() => setGalleryFor(null)} />
+        )}
+
         {/* STOCK IN MODAL */}
         {stockInItem && (
           <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
@@ -1008,6 +1044,11 @@ export default function ItemManagementPage() {
                     <input type="number" min="0" className={inputCls} placeholder="0" value={form.selling_price} onChange={(e) => setForm({ ...form, selling_price: e.target.value })} />
                   </div>
                   {VEHICLE_FIELDS.filter((f) => !f.required).map(renderCarField)}
+                  <div className="md:col-span-2">
+                    {loadingEdit
+                      ? <p className="text-xs text-slate-400 flex items-center gap-1.5"><RefreshCw size={11} className="animate-spin" /> {t("vehicle.loading_photos")}</p>
+                      : <CarImagesPicker images={form.images} onChange={(images) => setForm((f) => ({ ...f, images }))} />}
+                  </div>
                 </>) : (<>
                 <div className="md:col-span-2">
                   <label className="block text-xs font-medium text-gray-600 mb-1">{t("items.description")}</label>
@@ -1042,7 +1083,7 @@ export default function ItemManagementPage() {
                 </>)}
               </div>
               <div className="flex justify-end gap-2.5 px-4 sm:px-6 py-4 border-t border-slate-100 shrink-0">
-                <button onClick={closeModal} className="px-4 py-2 rounded-lg border border-slate-200 text-slate-600 text-sm font-medium hover:bg-slate-50 transition">{t("common.cancel")}</button><button onClick={submitForm} disabled={submitting}
+                <button onClick={closeModal} className="px-4 py-2 rounded-lg border border-slate-200 text-slate-600 text-sm font-medium hover:bg-slate-50 transition">{t("common.cancel")}</button><button onClick={submitForm} disabled={submitting || loadingEdit}
                   className="px-5 py-2 rounded-lg bg-[#0a66c2] text-white text-sm font-semibold hover:bg-[#0a66c2] transition disabled:opacity-60">
                   {submitting ? (modalMode === "edit" ? t("common.saving") : t("common.adding")) : (modalMode === "edit" ? t("common.save") : t("items.add"))}
                 </button>

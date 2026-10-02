@@ -1,5 +1,5 @@
 from decimal import Decimal
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator
 
 
 class SettingsUpdate(BaseModel):
@@ -8,8 +8,8 @@ class SettingsUpdate(BaseModel):
     address: str | None = None
     currency: str | None = None
     language: str | None = None
-    low_stock_threshold: int | None = None
-    tax_rate: Decimal | None = None
+    low_stock_threshold: int | None = Field(None, ge=0)
+    tax_rate: Decimal | None = Field(None, ge=0, le=100)
     car_types: list[str] | None = None
 
     @field_validator("car_types")

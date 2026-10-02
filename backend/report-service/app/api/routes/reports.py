@@ -51,6 +51,7 @@ def get_summary(
     user: dict = Depends(get_current_user),
     from_date: str | None = None,
     to_date: str | None = None,
+    threshold: int = 10,  # the shop's Settings → low stock threshold
 ):
     token = user["_token"]
     date_params = {}
@@ -63,7 +64,7 @@ def get_summary(
     sales, purchases, products = _parallel(
         (_call, f"{settings.SALE_SERVICE_URL}/sales/summary", token, date_params),
         (_call, f"{settings.PURCHASE_SERVICE_URL}/purchases/summary", token, date_params),
-        (_call, f"{settings.PRODUCT_SERVICE_URL}/products/summary", token, None),
+        (_call, f"{settings.PRODUCT_SERVICE_URL}/products/summary", token, {"threshold": threshold}),
     )
 
     return {
@@ -127,7 +128,8 @@ def get_top_items(
 @router.get("/stock-alerts")
 def get_stock_alerts(
     user: dict = Depends(get_current_user),
+    threshold: int = 10,  # the shop's Settings → low stock threshold
 ):
     token = user["_token"]
-    data = _call(f"{settings.PRODUCT_SERVICE_URL}/products/stock-alerts", token)
+    data = _call(f"{settings.PRODUCT_SERVICE_URL}/products/stock-alerts", token, {"threshold": threshold})
     return {"success": True, "data": data if isinstance(data, list) else []}

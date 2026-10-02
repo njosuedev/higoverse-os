@@ -1,7 +1,7 @@
 "use client";
 
-import { Suspense, useEffect, useState, useCallback } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
@@ -32,19 +32,17 @@ const PLATFORM_LINKS = [
 const AUTH_URL = process.env.NEXT_PUBLIC_AUTH_API || "https://auth-esys.vercel.app";
 type Step = "login" | "forgot" | "otp" | "success";
 
-export default function LoginPage() {
-  return (
-    <Suspense fallback={null}>
-      <LoginPageContent />
-    </Suspense>
-  );
+// Where to send the user after a successful login — defaults to the dashboard.
+// Read from window.location at call time instead of useSearchParams(): that
+// hook forces a Suspense boundary which made the prerendered HTML empty, so
+// crawlers and link previews saw a blank page.
+function getNextPath() {
+  if (typeof window === "undefined") return "/";
+  return new URLSearchParams(window.location.search).get("next") || "/";
 }
 
-function LoginPageContent() {
+export default function LoginPage() {
   const router         = useRouter();
-  const searchParams   = useSearchParams();
-  // Where to send the user after a successful login — defaults to the dashboard.
-  const nextPath = searchParams.get("next") || "/";
   const { login, user, ready } = useAuth();
   const { t, lang, setLang } = useLanguage();
 
@@ -63,7 +61,7 @@ function LoginPageContent() {
   const [fpError,     setFpError]     = useState("");
   const [resendTimer, setResendTimer] = useState(0);
 
-  useEffect(() => { if (ready && user) router.replace(nextPath); }, [ready, user, router, nextPath]);
+  useEffect(() => { if (ready && user) router.replace(getNextPath()); }, [ready, user, router]);
   useEffect(() => {
     if (resendTimer <= 0) return;
     const timer = setTimeout(() => setResendTimer((s) => s - 1), 1000);
@@ -84,7 +82,7 @@ function LoginPageContent() {
       });
       const data = await res.json();
       if (!res.ok) return setError(data?.detail || t("login.err_incorrect_credentials"));
-      login(data); router.replace(nextPath);
+      login(data); router.replace(getNextPath());
     } catch { setError(t("login.err_network")); }
     finally  { setLoading(false); }
   }, [email, password, login, router, t]);

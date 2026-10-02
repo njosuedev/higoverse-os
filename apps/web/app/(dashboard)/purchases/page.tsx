@@ -8,6 +8,7 @@ import { partnerRequest } from "@/lib/supplier-api";
 import { purchaseRequest } from "@/lib/purchase-api";
 import { useDebounce } from "@/lib/hooks";
 import { useLanguage } from "@/lib/language-context";
+import { useShopSettings } from "@/lib/shop-settings-context";
 import Pagination from "@/app/components/ui/Pagination";
 import DateRangeFilter from "@/app/components/ui/DateRangeFilter";
 import {
@@ -42,6 +43,7 @@ export default function PurchaseManagementPage() {
   // Car companies don't use Purchases (they stock in from Vehicles); the
   // supplier hiding below still applies if one lands here before the redirect.
   const isCar = layout === "car";
+  const { lowStock } = useShopSettings();
   const router = useRouter();
   useEffect(() => { if (isCar) router.replace("/items"); }, [isCar, router]);
   const [tab, setTab] = useState<Tab>("inventory");
@@ -325,12 +327,12 @@ export default function PurchaseManagementPage() {
     return products
       .filter((p) => p.name?.toLowerCase().includes(q) || supplierMap[p.supplier_id ?? ""]?.name?.toLowerCase().includes(q))
       .filter((p) => {
-        if (invFilter === "in_stock") return p.quantity > 10;
-        if (invFilter === "low_stock") return p.quantity > 0 && p.quantity <= 10;
+        if (invFilter === "in_stock") return p.quantity > lowStock;
+        if (invFilter === "low_stock") return p.quantity > 0 && p.quantity <= lowStock;
         if (invFilter === "out_stock") return p.quantity === 0;
         return true;
       });
-  }, [products, debouncedInvSearch, invFilter, supplierMap]);
+  }, [products, debouncedInvSearch, invFilter, supplierMap, lowStock]);
 
   const invTotalPages = Math.ceil(filteredProducts.length / invPageSize);
   const paginatedProducts = filteredProducts.slice((invPage - 1) * invPageSize, invPage * invPageSize);
@@ -344,10 +346,10 @@ export default function PurchaseManagementPage() {
     const retailValue = products.reduce((s, p) => s + (p.selling_price || 0) * (p.quantity || 0), 0);
     // Accounting: gross profit on stock = unrealized margin locked in inventory
     const grossProfit = retailValue - costValue;
-    const lowStock    = products.filter((p) => p.quantity > 0 && p.quantity <= 10).length;
+    const lowCount    = products.filter((p) => p.quantity > 0 && p.quantity <= lowStock).length;
     const outStock    = products.filter((p) => p.quantity === 0).length;
-    return { costValue, retailValue, grossProfit, lowStock, outStock, totalSpent };
-  }, [products, purchases]);
+    return { costValue, retailValue, grossProfit, lowStock: lowCount, outStock, totalSpent };
+  }, [products, purchases, lowStock]);
 
   const selectedProduct = isRestocking ? products.find((p) => p.id === form.product_id) : null;
   const hasDateFilter = dateFrom || dateTo;
@@ -532,7 +534,7 @@ export default function PurchaseManagementPage() {
                 {paginatedProducts.map((p) => {
                   const supplier = supplierMap[p.supplier_id ?? ""];
                   const margin2 = p.cost_price > 0 ? ((p.selling_price - p.cost_price) / p.cost_price) * 100 : 0;
-                  const needsRestock = p.quantity <= 10;
+                  const needsRestock = p.quantity <= lowStock;
                   return (
                     <tr key={p.id} className={`hover:bg-slate-50/60 transition-colors ${p.quantity === 0 ? "bg-red-50/20" : needsRestock ? "bg-amber-50/20" : ""}`}>
                       <td className="px-3 py-1.5">
@@ -552,13 +554,13 @@ export default function PurchaseManagementPage() {
                         </span>
                       </td>
                       <td className="px-3 py-1.5">
-                        <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${p.quantity === 0 ? "bg-red-100 text-red-700" : p.quantity <= 10 ? "bg-amber-100 text-amber-700" : "bg-green-100 text-green-700"}`}>
+                        <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${p.quantity === 0 ? "bg-red-100 text-red-700" : p.quantity <= lowStock ? "bg-amber-100 text-amber-700" : "bg-green-100 text-green-700"}`}>
                           {p.quantity}
                         </span>
                       </td>
                       <td className="px-3 py-1.5">
-                        <span className={`inline-flex px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${p.quantity === 0 ? "bg-red-100 text-red-700" : p.quantity <= 10 ? "bg-amber-100 text-amber-700" : "bg-green-100 text-green-700"}`}>
-                          {p.quantity === 0 ? t("items.out_stock") : p.quantity <= 10 ? t("items.low_stock") : t("items.in_stock")}
+                        <span className={`inline-flex px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${p.quantity === 0 ? "bg-red-100 text-red-700" : p.quantity <= lowStock ? "bg-amber-100 text-amber-700" : "bg-green-100 text-green-700"}`}>
+                          {p.quantity === 0 ? t("items.out_stock") : p.quantity <= lowStock ? t("items.low_stock") : t("items.in_stock")}
                         </span>
                       </td>
                       <td className="px-3 py-1.5">

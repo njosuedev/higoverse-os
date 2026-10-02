@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
 import { useLanguage } from "@/lib/language-context";
+import { useShopSettings } from "@/lib/shop-settings-context";
 import { itemRequest } from "@/lib/product-api";
 import { partnerRequest } from "@/lib/supplier-api";
 import { saleRequest } from "@/lib/sale-api";
@@ -38,8 +39,12 @@ function fmtTime(d: Date) {
 function fmtDate(d: Date) {
   return d.toLocaleDateString([], { weekday: "long", year: "numeric", month: "long", day: "numeric" });
 }
-function fmtCurrency(n: number) {
-  return new Intl.NumberFormat("en-RW", { style: "currency", currency: "RWF", maximumFractionDigits: 0 }).format(n);
+function fmtMoney(n: number, currency: string) {
+  try {
+    return new Intl.NumberFormat("en-RW", { style: "currency", currency, maximumFractionDigits: 0 }).format(n);
+  } catch {
+    return `${Math.round(n).toLocaleString()} ${currency}`;
+  }
 }
 function fmtShort(n: number) {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
@@ -105,6 +110,11 @@ export default function DashboardPage() {
   const { user } = useAuth();
   const { t, layout } = useLanguage();
   const isCar = layout === "car";
+  // Settings → currency and low stock threshold.
+  const { currency, lowStock, loaded: settingsLoaded } = useShopSettings();
+  const fmtCurrency = (n: number) => fmtMoney(n, currency);
+  const lowStockRef = useRef(lowStock);
+  lowStockRef.current = lowStock;
   // Car companies restock from Vehicles (stock in) — no Purchases page.
   const restockHref = isCar ? "/items" : "/PurchaseManagement";
 
@@ -159,7 +169,7 @@ export default function DashboardPage() {
     try {
       const [salesRes, stockRes, recentRes] = await Promise.allSettled([
         saleRequest(`/sales/summary?from_date=${today}&to_date=${today}`),
-        itemRequest("/products/stock-alerts?threshold=10"),
+        itemRequest(`/products/stock-alerts?threshold=${lowStockRef.current}`),
         saleRequest("/sales?page=1&limit=8"),
       ]);
 
@@ -260,6 +270,11 @@ export default function DashboardPage() {
     };
   }, [user?.shop_id]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Re-fetch stock alerts once the shop's own low-stock threshold is known/changed.
+  useEffect(() => {
+    if (user && settingsLoaded) loadAll(true);
+  }, [lowStock, settingsLoaded]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const chartData = useMemo(() => {
     const byDay: Record<string, DailyRecord> = {};
     dailyData.forEach((d) => { if (d.day) byDay[d.day] = d; });
@@ -332,7 +347,7 @@ export default function DashboardPage() {
               <div className="bg-white/8 px-3 py-1.5 rounded-press text-center">
                 <p className="text-paper/55 text-[9px] uppercase tracking-wider">{t("dash.revenue_today")}</p>
                 <p className="hgv-figure text-sm font-semibold text-[#8fd19e]">
-                  {stats.revenue > 0 ? `RWF ${fmtShort(stats.revenue)}` : "—"}
+                  {stats.revenue > 0 ? `${currency} ${fmtShort(stats.revenue)}` : "—"}
                 </p>
               </div>
               {(stats.lowStock > 0 || stats.outOfStock > 0) && (
