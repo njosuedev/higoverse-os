@@ -12,5 +12,5 @@ export const SITE = {
   themeColor: "#0a66c2",
   background: "#f4f2ee",
   /** Public contact for privacy and account questions (privacy policy, app stores). */
-  contactEmail: "admin@higoverse.com",
+  contactEmail: "higoverse@gmail.com",
 } as const;

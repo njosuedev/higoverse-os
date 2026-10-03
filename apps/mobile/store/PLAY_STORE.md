@@ -72,7 +72,7 @@ administrator. If your business doesn't have one yet, contact us.
 ```
 
 **Category**: Business · **Tags**: Inventory, Point of sale, Business management
-**Contact email**: the address you want shown publicly (the privacy page uses `admin@higoverse.com`)
+**Contact email**: higoverse@gmail.com
 **Website**: https://higoverse.com · **Privacy policy**: https://higoverse.com/privacy
 
 ## 4. App content (Policy → App content)
