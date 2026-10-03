@@ -459,7 +459,7 @@ export default function PurchaseManagementPage() {
         )}
 
         {/* STAT CARDS */}
-        <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5 mb-2">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-1.5 mb-2">
           {[
             { label: t("purchases.stat_total_products"),   value: productsTotal,                         color: "text-[#0a66c2]", dot: "bg-[#0a66c2]" },
             { label: t("purchases.stat_what_you_paid"),    value: invStats.costValue.toLocaleString(),    color: "text-[#0a66c2]", dot: "bg-blue-500" },
@@ -481,11 +481,11 @@ export default function PurchaseManagementPage() {
         {/* INVENTORY TABLE */}
         {tab === "inventory" && (
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-            <div className="flex items-center justify-between px-3 py-1.5 border-b border-slate-100 bg-slate-50/60">
+            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 px-3 py-1.5 border-b border-slate-100 bg-slate-50/60">
               <p className="text-[10px] text-slate-500">
                 <span className="font-semibold text-slate-700">{paginatedProducts.length}</span> {t("common.of")} <span className="font-semibold text-slate-700">{filteredProducts.length}</span> {t("purchases.products_word")}
               </p>
-              <div className="flex items-center gap-1.5">
+              <div className="flex flex-wrap items-center gap-1.5">
                 <button onClick={downloadTemplate} title={t("common.download_template_title")}
                   className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium border border-violet-200 text-violet-600 bg-white hover:bg-violet-50 transition">
                   <Download size={10} /> {t("common.template")}
@@ -579,11 +579,11 @@ export default function PurchaseManagementPage() {
         {/* HISTORY TABLE */}
         {tab === "history" && (
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-            <div className="flex items-center justify-between px-3 py-1.5 border-b border-slate-100 bg-slate-50/60">
+            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 px-3 py-1.5 border-b border-slate-100 bg-slate-50/60">
               <p className="text-[10px] text-slate-500">
                 <span className="font-semibold text-slate-700">{purchases.length}</span> {t("common.of")} <span className="font-semibold text-slate-700">{purchasesTotal}</span> {t("common.records")}
               </p>
-              <div className="flex items-center gap-1.5">
+              <div className="flex flex-wrap items-center gap-1.5">
                 <button onClick={downloadTemplate} title={t("common.download_template_title")}
                   className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium border border-violet-200 text-violet-600 bg-white hover:bg-violet-50 transition">
                   <Download size={10} /> {t("common.template")}
@@ -787,7 +787,7 @@ function PurchasesSkeleton() {
           <div className="px-4 pb-3 flex gap-2"><div className="pur-sh-w flex-1 h-9 rounded-xl" /><div className="pur-sh-w h-9 w-28 rounded-xl" /></div>
         </div>
         <div className="pur-sh h-7 rounded-lg mb-2" />
-        <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5 mb-2">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-1.5 mb-2">
           {Array.from({length:6}).map((_,i)=>(
             <div key={i} className="bg-white rounded-lg border border-slate-200 px-2.5 py-2">
               <div className="pur-sh h-2 w-14 mb-2 rounded" /><div className="pur-sh h-6 w-10 rounded" />

@@ -367,11 +367,11 @@ export default function PartnerManagementPage() {
         {/* TABLE */}
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
           {/* Toolbar */}
-          <div className="flex items-center justify-between px-3 py-1.5 border-b border-slate-100 bg-slate-50/60">
+          <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 px-3 py-1.5 border-b border-slate-100 bg-slate-50/60">
             <p className="text-[10px] text-slate-500">
               {t("common.showing")} <span className="font-semibold text-slate-700">{paginated.length}</span> {t("common.of")} <span className="font-semibold text-slate-700">{filtered.length}</span> {t("partners.count_label")}
             </p>
-            <div className="flex items-center gap-1.5">
+            <div className="flex flex-wrap items-center gap-1.5">
               {(debouncedSearch || typeFilter !== "all") && (
                 <button onClick={() => { setSearch(""); setTypeFilter("all"); setPage(1); }}
                   className="flex items-center gap-1 text-[10px] text-slate-400 hover:text-slate-600 transition mr-1">

@@ -757,7 +757,7 @@ export default function ItemManagementPage() {
         {!isCar && alertItems.length > 0 && (
           <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5 mb-2">
             <AlertCircle size={11} className="text-amber-500 shrink-0" />
-            <p className="text-[10px] text-amber-700 flex-1 min-w-0 truncate">
+            <p className="text-[10px] text-amber-700 flex-1 min-w-0 sm:truncate">
               <span className="font-bold">{alertItems.length}</span> {t("items.restock_alert")} ·{" "}
               <span className="text-amber-600">{alertItems.slice(0, 3).map((i) => i.name).join(", ")}{alertItems.length > 3 ? ` +${alertItems.length - 3} ${t("items.more")}` : ""}</span>
             </p>
@@ -769,7 +769,7 @@ export default function ItemManagementPage() {
         )}
 
         {/* STAT CARDS */}
-        <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5 mb-2">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-1.5 mb-2">
           {(isCar ? [
             { label: t("items.total"),              value: stats.total,         color: "text-[#0a66c2]", dot: "bg-[#0a66c2]" },
             { label: t("vehicle.status_available"), value: Math.max(0, stats.total - stats.outStock - stats.pending), color: "text-green-600", dot: "bg-green-500" },
@@ -842,7 +842,7 @@ export default function ItemManagementPage() {
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
 
           {/* Table toolbar */}
-          <div className="flex items-center justify-between px-3 py-1.5 border-b border-slate-100 bg-slate-50/60">
+          <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 px-3 py-1.5 border-b border-slate-100 bg-slate-50/60">
             <p className="text-[10px] text-slate-500">
               {t("common.showing")}{" "}
               <span className="font-semibold text-slate-700">{paginated.length.toLocaleString()}</span>{" "}
@@ -853,7 +853,7 @@ export default function ItemManagementPage() {
                 <> {t("common.for")} &ldquo;<span className="font-semibold text-[#0a66c2]">{debouncedSearch}</span>&rdquo;</>
               )}
             </p>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               {(debouncedSearch || filter !== "all") && (
                 <button
                   onClick={() => { setSearch(""); setFilter("all"); setPage(1); }}
@@ -1357,7 +1357,7 @@ function ItemsSkeleton() {
           <div className="px-4 pb-3 flex gap-2"><div className="itm-sh-w flex-1 h-9 rounded-xl" /><div className="itm-sh-w h-9 w-28 rounded-xl" /></div>
         </div>
         <div className="itm-sh h-7 rounded-lg mb-2" />
-        <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5 mb-2">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-1.5 mb-2">
           {Array.from({length:6}).map((_,i)=>(
             <div key={i} className="bg-white rounded-lg border border-slate-200 px-2.5 py-2">
               <div className="itm-sh h-2 w-14 mb-2 rounded" /><div className="itm-sh h-6 w-10 rounded" />

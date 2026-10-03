@@ -800,7 +800,7 @@ ${paymentHtml}
         </div>
 
         {/* STAT CARDS */}
-        <div className="grid grid-cols-3 sm:grid-cols-5 gap-1.5 mb-2">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-1.5 mb-2">
           {[
             { label: t("sales.count"),        value: stats.total,                                                            color: "text-[#0a66c2]",  dot: "bg-[#0a66c2]"  },
             ...(!fin ? [] : [{ label: t("sales.revenue"),       value: stats.revenue.toLocaleString(),                                         color: "text-green-600",  dot: "bg-green-500"  },
@@ -839,11 +839,11 @@ ${paymentHtml}
 
         {/* TABLE */}
         <div className="bg-white rounded-xl border border-slate-200 overflow-hidden mb-6">
-          <div className="flex items-center justify-between px-3 py-1.5 border-b border-slate-100 bg-slate-50/60">
+          <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 px-3 py-1.5 border-b border-slate-100 bg-slate-50/60">
             <p className="text-[10px] text-slate-500">
               <span className="font-semibold text-slate-700">{filtered.length.toLocaleString()}</span> {t("common.of")} <span className="font-semibold text-slate-700">{salesTotal.toLocaleString()}</span> {t("sales.sales_word")}
             </p>
-            <div className="flex items-center gap-1.5">
+            <div className="flex flex-wrap items-center gap-1.5">
               <button onClick={downloadTemplate} title={t("sales.download_template_tooltip")}
                 className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium border border-violet-200 text-violet-600 bg-white hover:bg-violet-50 transition">
                 <Download size={10} /> {t("common.template")}
@@ -1673,7 +1673,7 @@ function SalesSkeleton() {
             <div className="sal-sh-w h-9 w-full rounded-xl" />
           </div>
         </div>
-        <div className="grid grid-cols-3 sm:grid-cols-5 gap-1.5 mb-2">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-1.5 mb-2">
           {Array.from({length:5}).map((_,i)=>(
             <div key={i} className="bg-white rounded-lg border border-slate-200 px-2.5 py-2">
               <div className="sal-sh h-2 w-14 mb-2 rounded" /><div className="sal-sh h-6 w-12 rounded" />

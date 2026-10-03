@@ -340,3 +340,43 @@ select:-webkit-autofill {
 :lang(zh) body { letter-spacing: 0.01em; }
 /* uppercase + wide tracking is a Latin style; it only spreads Chinese out */
 :lang(zh) .uppercase { letter-spacing: 0.02em; }
+
+/* ── PHONES & TOUCH ─────────────────────────────────────────────
+   Search gets the full width on small screens (the filter goes
+   under it), and small buttons inside tables get a finger-sized
+   tap area on touch screens. */
+@media (max-width: 639px) {
+  :where(div):has(> .hgv-search) { flex-wrap: wrap; }
+  .hgv-search { flex: 1 1 100%; }
+  .hgv-filter { flex: 1 1 auto; }
+}
+@media (pointer: coarse) {
+  td button,
+  td a {
+    min-width: 32px;
+    min-height: 32px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+}
+
+/* Wide tables scroll sideways on small screens; their last column (row
+   actions such as Edit/Delete) stays pinned to the right edge so it is
+   always reachable. */
+@media (max-width: 1023px) {
+  .overflow-x-auto > table tr > th:last-child:empty,
+  .overflow-x-auto > table tr > td:last-child:has(button, a) {
+    position: sticky;
+    right: 0;
+    z-index: 1;
+    background-color: #ffffff;
+    box-shadow: -8px 0 8px -8px rgb(0 0 0 / 0.18);
+  }
+  .overflow-x-auto > table thead tr > th:last-child {
+    position: sticky;
+    right: 0;
+    z-index: 1;
+    background-color: #f8fafc;
+  }
+}

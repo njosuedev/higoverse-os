@@ -796,11 +796,11 @@ export default function ExpenseManagementPage() {
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
 
           {/* toolbar */}
-          <div className="flex items-center justify-between px-3 py-1.5 border-b border-slate-100 bg-slate-50/60">
+          <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 px-3 py-1.5 border-b border-slate-100 bg-slate-50/60">
             <p className="text-[11px] text-slate-500">
               {t("common.showing")} <span className="font-semibold text-slate-700">{filteredExpenses.length.toLocaleString()}</span> {t("common.of")} <span className="font-semibold text-slate-700">{total.toLocaleString()}</span> {t("expenses.records")}
             </p>
-            <div className="flex items-center gap-1.5">
+            <div className="flex flex-wrap items-center gap-1.5">
               {(search || catFilter) && (
                 <button onClick={() => { setSearch(""); setCatFilter(""); setPage(1); }} className="flex items-center gap-1 text-[11px] text-slate-400 hover:text-slate-600 transition mr-1"><X size={10} /> {t("daterange.clear")}</button>
               )}
@@ -957,7 +957,7 @@ export default function ExpenseManagementPage() {
               <BarChart3 size={13} style={{ color: "#0a66c2" }} />
               {t("expenses.breakdown_title")}
             </h2>
-            <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-9 gap-1.5">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-9 gap-1.5">
               {byCategory.map((row) => {
                 const colors = CATEGORY_COLORS[row.category] || CATEGORY_COLORS.other;
                 const grandTotal = byCategory.reduce((s, r) => s + r.total, 0);
@@ -1318,9 +1318,9 @@ function ExpenseSkeleton() {
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
 
           {/* Toolbar */}
-          <div className="flex items-center justify-between px-3 py-1.5 border-b border-slate-100 bg-slate-50/60">
+          <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 px-3 py-1.5 border-b border-slate-100 bg-slate-50/60">
             <div className="exp-sh h-2 w-24 rounded" />
-            <div className="flex items-center gap-1.5">
+            <div className="flex flex-wrap items-center gap-1.5">
               {[56, 44, 48, 40].map((w, i) => (
                 <div key={i} className="exp-sh h-5 rounded" style={{ width: w }} />
               ))}
