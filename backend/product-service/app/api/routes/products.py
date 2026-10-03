@@ -54,15 +54,17 @@ def get_summary(
         return {
             "success": True,
             "data": {
-                "stock_value": 0.0, "potential_profit": 0.0,
-                "total_products": 0, "out_of_stock": 0, "low_stock": 0,
+                "stock_value": 0.0, "cost_value": 0.0, "potential_profit": 0.0,
+                "total_products": 0, "total_quantity": 0, "out_of_stock": 0, "low_stock": 0,
             },
         }
 
     row = db.query(Product).filter(Product.shop_id == user["shop_id"]).with_entities(
         func.coalesce(func.sum(Product.selling_price * Product.quantity), 0).label("stock_value"),
+        func.coalesce(func.sum(Product.cost_price * Product.quantity), 0).label("cost_value"),
         func.coalesce(func.sum((Product.selling_price - Product.cost_price) * Product.quantity), 0).label("potential_profit"),
         func.count(Product.id).label("total_products"),
+        func.coalesce(func.sum(Product.quantity), 0).label("total_quantity"),
         func.sum(case((Product.quantity == 0, 1), else_=0)).label("out_of_stock"),
         func.sum(case(((Product.quantity > 0) & (Product.quantity <= threshold), 1), else_=0)).label("low_stock"),
     ).one()
@@ -71,10 +73,12 @@ def get_summary(
         "success": True,
         "data": {
             "stock_value": float(row.stock_value),
+            "cost_value": float(row.cost_value),
             "potential_profit": float(row.potential_profit),
             "total_products": int(row.total_products),
-            "out_of_stock": int(row.out_of_stock),
-            "low_stock": int(row.low_stock),
+            "total_quantity": int(row.total_quantity),
+            "out_of_stock": int(row.out_of_stock or 0),
+            "low_stock": int(row.low_stock or 0),
         },
     }
 
@@ -120,8 +124,14 @@ def get_products(
     db: Session = Depends(get_db),
     user: dict = Depends(get_current_user),
     page: int = 1,
-    limit: int = 10
+    limit: int = 10,
+    q: str | None = None,         # name / barcode search (backed by the trigram index)
+    category: str | None = None,
+    stock: str | None = None,     # "low" | "out" | "restock" | "in"
+    threshold: int = 10,          # the shop's low-stock threshold, for stock="low"/"in"
 ):
+    page = max(page, 1)
+    limit = min(max(limit, 1), 1000)
     if not user["shop_id"]:
         return {"success": True, "data": {"items": [], "total": 0, "page": page, "limit": limit}}
 
@@ -129,9 +139,25 @@ def get_products(
 
     query = db.query(Product).filter(Product.shop_id == user["shop_id"])
 
+    if q and q.strip():
+        term = f"%{q.strip()}%"
+        # attributes holds e.g. a car's plate/chassis numbers as JSON text.
+        query = query.filter(Product.name.ilike(term) | Product.barcode.ilike(term) | Product.attributes.ilike(term))
+    if category:
+        query = query.filter(Product.category == category)
+    if stock == "out":
+        query = query.filter(Product.quantity == 0)
+    elif stock == "low":
+        query = query.filter(Product.quantity > 0, Product.quantity <= threshold)
+    elif stock == "restock":  # low + out of stock
+        query = query.filter(Product.quantity <= threshold)
+    elif stock == "in":
+        query = query.filter(Product.quantity > threshold)
+
     total = query.count()
     # Full images can be several MB per product — lists only send the thumbnail.
-    query = query.options(defer(Product.images))
+    # Newest first, with id as a tie-breaker so pages never overlap or skip rows.
+    query = query.options(defer(Product.images)).order_by(Product.created_at.desc(), Product.id)
     products = query.offset(offset).limit(limit).all()
 
     items = []
@@ -150,6 +176,7 @@ def get_products(
             "category": p.category,
             "thumbnail": p.thumbnail,
             "attributes": p.attributes,
+            "created_at": p.created_at.isoformat() if p.created_at else None,
             "profit_status": "profit" if profit >= 0 else "loss",
             "profit_money": float(profit),
             "profit_percent": percent

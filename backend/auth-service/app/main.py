@@ -53,7 +53,8 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
     if isinstance(exc, RuntimeError) and "not configured" in str(exc):
         return JSONResponse(status_code=503, content={"detail": str(exc)}, headers=extra)
 
-    return JSONResponse(status_code=500, content={"detail": str(exc)}, headers=extra)
+    # Details stay in the logs above — the raw message can contain DB hosts or SQL.
+    return JSONResponse(status_code=500, content={"detail": "Internal server error"}, headers=extra)
 
 # allow_credentials=False because auth here is a Bearer token in the
 # Authorization header, not cookies — so a browser never needs to send

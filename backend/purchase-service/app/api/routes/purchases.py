@@ -9,6 +9,10 @@ from app.schemas.purchase import PurchaseCreate
 from app.core.security import get_current_user
 from app.core.product_client import get_product, restock_product, create_product
 
+# The web app reaches this service through a Next.js rewrite, which can't
+# send a trailing slash. Without the "" aliases FastAPI 307-redirects to
+# "/purchases/" on this service's own origin, and browsers drop the
+# Authorization header on that cross-origin redirect (→ 401, empty list).
 router = APIRouter(prefix="/purchases", tags=["Purchases"])
 
 
@@ -41,6 +45,7 @@ def _token(authorization: str | None) -> str:
 # ─────────────────────────────────────────
 
 @router.get("/")
+@router.get("", include_in_schema=False)
 def list_purchases(
     db: Session = Depends(get_db),
     user: dict = Depends(get_current_user),
@@ -107,6 +112,7 @@ def get_summary(
 # ─────────────────────────────────────────
 
 @router.post("/")
+@router.post("", include_in_schema=False)
 def record_purchase(
     payload: PurchaseCreate,
     db: Session = Depends(get_db),

@@ -1,3 +1,4 @@
+import traceback
 import os
 import re
 
@@ -40,7 +41,10 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
     # otherwise the browser reports it as a CORS error, hiding the real 500.
     origin = request.headers.get("origin", "")
     extra = {"Access-Control-Allow-Origin": origin} if origin and _origin_matcher.match(origin) else {}
-    return JSONResponse(status_code=500, content={"detail": str(exc)}, headers=extra)
+    # Full traceback goes to the function logs; the client gets a generic
+    # message because the raw text can contain DB hosts, SQL or credentials.
+    traceback.print_exception(exc)
+    return JSONResponse(status_code=500, content={"detail": "Internal server error"}, headers=extra)
 
 
 app.add_middleware(
@@ -84,6 +88,8 @@ def on_startup():
                 # Trigram index backs ILIKE '%term%' search on product name at scale.
                 "CREATE EXTENSION IF NOT EXISTS pg_trgm",
                 "CREATE INDEX IF NOT EXISTS ix_products_name_trgm ON products USING gin (name gin_trgm_ops)",
+                # Shop inventory list: filter by shop, newest first.
+                "CREATE INDEX IF NOT EXISTS ix_products_shop_created ON products (shop_id, created_at DESC)",
             ]:
                 try:
                     conn.execute(text(sql))

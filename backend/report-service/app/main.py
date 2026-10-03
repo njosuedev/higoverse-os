@@ -1,3 +1,4 @@
+import traceback
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -16,7 +17,10 @@ _ALLOWED_ORIGINS = {
 async def unhandled_exception_handler(request: Request, exc: Exception):
     origin = request.headers.get("origin", "")
     extra = {"Access-Control-Allow-Origin": origin} if origin in _ALLOWED_ORIGINS else {}
-    return JSONResponse(status_code=500, content={"detail": str(exc)}, headers=extra)
+    # Full traceback goes to the function logs; the client gets a generic
+    # message because the raw text can contain DB hosts, SQL or credentials.
+    traceback.print_exception(exc)
+    return JSONResponse(status_code=500, content={"detail": "Internal server error"}, headers=extra)
 
 
 app.add_middleware(
