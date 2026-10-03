@@ -131,6 +131,8 @@ const dict: Record<Lang, Record<string, string>> = {
 
     // dashboard
     "dash.welcome": "Welcome back",
+    "access.owner_only_title": "Owner only",
+    "access.owner_only_body": "This page shows the company's finances, which only the business owner can view.",
     "dialog.delete_title": "Confirm deletion",
     "dialog.confirm_title": "Are you sure?",
     "common.clear": "Clear",
@@ -1203,6 +1205,8 @@ const dict: Record<Lang, Record<string, string>> = {
     "common.back": "Gusubira",
 
     "dash.welcome": "Murakaza neza",
+    "access.owner_only_title": "Nyir'ubucuruzi gusa",
+    "access.owner_only_body": "Iyi paji yerekana imari y'ikigo, ishobora kurebwa na nyir'ubucuruzi gusa.",
     "dialog.delete_title": "Emeza gusiba",
     "dialog.confirm_title": "Urabyizeye?",
     "common.clear": "Siba",
@@ -1595,6 +1599,8 @@ const dict: Record<Lang, Record<string, string>> = {
     "common.back": "Retour",
 
     "dash.welcome": "Bon retour",
+    "access.owner_only_title": "Réservé au propriétaire",
+    "access.owner_only_body": "Cette page présente les finances de l'entreprise, visibles uniquement par le propriétaire.",
     "dialog.delete_title": "Confirmer la suppression",
     "dialog.confirm_title": "Êtes-vous sûr ?",
     "common.clear": "Effacer",
@@ -1987,6 +1993,8 @@ const dict: Record<Lang, Record<string, string>> = {
     "common.back": "Rudi",
 
     "dash.welcome": "Karibu tena",
+    "access.owner_only_title": "Mmiliki pekee",
+    "access.owner_only_body": "Ukurasa huu unaonyesha fedha za kampuni, ambazo mmiliki pekee anaweza kuziona.",
     "dialog.delete_title": "Thibitisha kufuta",
     "dialog.confirm_title": "Una uhakika?",
     "common.clear": "Futa",
@@ -2399,6 +2407,8 @@ const dict: Record<Lang, Record<string, string>> = {
     "daterange.clear": "清除",
 
     "dash.welcome": "欢迎回来",
+    "access.owner_only_title": "仅限所有者",
+    "access.owner_only_body": "此页面显示公司财务，仅企业所有者可以查看。",
     "dialog.delete_title": "确认删除",
     "dialog.confirm_title": "确定吗？",
     "common.clear": "清除",

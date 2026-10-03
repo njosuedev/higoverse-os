@@ -21,9 +21,22 @@ def get_current_user(
             "shop_id": payload.get("shop_id"),
             "email": payload.get("email"),
             "role": payload.get("role"),
+            "layout": payload.get("layout"),
         }
     except JWTError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired token",
         )
+
+
+# Roles that may see a car company's money figures (profit, loss, costs,
+# stock value, revenue totals, expenses, reports). Everyone else at a car
+# company is staff who only handle vehicles and sales.
+FINANCIAL_ROLES = {"owner", "admin"}
+
+
+def hides_financials(user: dict) -> bool:
+    """True when this user works for a car company but isn't its owner."""
+    return user.get("layout") == "car" and user.get("role") not in FINANCIAL_ROLES
+

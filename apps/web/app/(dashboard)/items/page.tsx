@@ -12,6 +12,7 @@ import { parseImages, shrinkDataUrl } from "@/lib/image";
 import CarImagesPicker from "@/app/components/items/CarImagesPicker";
 import CarGallery from "@/app/components/items/CarGallery";
 import Pagination from "@/app/components/ui/Pagination";
+import { useCanSeeFinancials } from "@/lib/permissions";
 import {
   Package, AlertCircle, Search, Filter, Plus, Trash2, Pencil, X,
   TrendingUp, TrendingDown, RefreshCw, ChevronDown,
@@ -69,6 +70,8 @@ function urlParam(name: string) {
 export default function ItemManagementPage() {
   const { t, layout } = useLanguage();
   const isCar = layout === "car";
+  // Car companies keep stock value and profit figures from their staff.
+  const fin = useCanSeeFinancials();
   // One page of products, already searched/filtered/paged by the API.
   const [products, setProducts] = useState<Product[]>([]);
   const [total, setTotal] = useState(0);
@@ -671,6 +674,7 @@ export default function ItemManagementPage() {
         )}
 
         {/* STOCK VALUE */}
+        {fin && (
         <div className={`mb-4 grid gap-3 ${isCar ? "grid-cols-1 sm:max-w-xs" : "grid-cols-2 sm:max-w-xl"}`}>
           {[
             { label: t("items.stock_value"), value: stats.stockValue, tone: "text-text" },
@@ -682,6 +686,7 @@ export default function ItemManagementPage() {
             </div>
           ))}
         </div>
+        )}
 
         {/* hidden import file input */}
         <input

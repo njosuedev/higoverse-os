@@ -12,6 +12,7 @@ import { saleRequest } from "@/lib/sale-api";
 import { reportRequest } from "@/lib/report-api";
 import { expenseRequest } from "@/lib/expense-api";
 import StatCard from "@/app/components/dashboard/StatCard";
+import { useCanSeeFinancials } from "@/lib/permissions";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import {
   Package, Boxes, Wallet, AlertTriangle, ShoppingCart, Plus, Search,
@@ -67,6 +68,8 @@ export default function DashboardPage() {
   const money = (n: number) => fmtMoney(n, currency);
   const today = toDateStr(new Date());
   const enabled = !!user;
+  // Car companies keep money figures from their staff (enforced server-side too).
+  const fin = useCanSeeFinancials();
 
   // ── Inventory ──
   const inventory = useQuery({
@@ -92,7 +95,7 @@ export default function DashboardPage() {
   const salesToday = useQuery({
     queryKey: [DASH_KEY, "sales-today", today],
     queryFn: async () => ((await saleRequest(`/sales/summary?from_date=${today}&to_date=${today}`))?.data ?? null) as SaleSummary | null,
-    enabled,
+    enabled: enabled && fin,
     ...LIVE,
   });
   const recentSales = useQuery({
@@ -104,13 +107,13 @@ export default function DashboardPage() {
   const expensesToday = useQuery({
     queryKey: [DASH_KEY, "expenses-today", today],
     queryFn: async () => ((await expenseRequest(`/expenses/summary?from_date=${today}&to_date=${today}`))?.data?.total_expenses ?? 0) as number,
-    enabled,
+    enabled: enabled && fin,
     ...LIVE,
   });
   const daily = useQuery({
     queryKey: [DASH_KEY, "daily"],
     queryFn: async () => ((await reportRequest("/reports/daily?days=8"))?.data ?? []) as DailyRecord[],
-    enabled,
+    enabled: enabled && fin,
     staleTime: 5 * 60_000,
   });
 
@@ -186,9 +189,9 @@ export default function DashboardPage() {
       )}
 
       {/* ── Inventory at a glance ── */}
-      <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <section className={`grid grid-cols-2 gap-3 ${fin ? "lg:grid-cols-4" : "lg:grid-cols-3"}`}>
         {inventory.isPending ? (
-          Array.from({ length: 4 }).map((_, i) => <CardSkeleton key={i} />)
+          Array.from({ length: fin ? 4 : 3 }).map((_, i) => <CardSkeleton key={i} />)
         ) : (
           <>
             <StatCard
@@ -205,14 +208,14 @@ export default function DashboardPage() {
               href="/items"
               subtitle={t("dash.across_all_products")}
             />
-            <StatCard
+            {fin && <StatCard
               label={t("dash.stock_value")}
               value={money(inv?.cost_value ?? 0)}
               icon={<Wallet />}
               tone="green"
               href="/reports"
               subtitle={`${t("dash.sells_for")} ${money(inv?.stock_value ?? 0)}`}
-            />
+            />}
             <StatCard
               label={t("dash.needs_restock")}
               value={restockCount.toLocaleString()}
@@ -225,8 +228,8 @@ export default function DashboardPage() {
         )}
       </section>
 
-      {/* ── Today ── */}
-      <section className="rounded-data border border-border bg-white">
+      {/* ── Today (owner only at car companies) ── */}
+      {fin && <section className="rounded-data border border-border bg-white">
         <div className="flex items-center justify-between px-5 pt-4">
           <h2 className="font-display text-base font-semibold text-text">{t("dash.today")}</h2>
           <Link href="/reports" className="flex items-center gap-0.5 text-sm font-semibold text-ink hover:text-ink-dark">
@@ -264,7 +267,7 @@ export default function DashboardPage() {
             note={t("dash.net_today_note")}
           />
         </div>
-      </section>
+      </section>}
 
       {/* ── Stock alerts + recent sales ── */}
       <div className="grid gap-5 lg:grid-cols-2">
@@ -333,7 +336,7 @@ export default function DashboardPage() {
       {/* ── Inventory activity + trend ── */}
       <div className="grid gap-5 lg:grid-cols-5">
         <Panel
-          className="lg:col-span-2"
+          className={fin ? "lg:col-span-2" : "lg:col-span-5"}
           title={t("dash.recently_added")}
           icon={<Package size={16} className="text-ink" />}
           href="/items"
@@ -360,7 +363,7 @@ export default function DashboardPage() {
           )}
         </Panel>
 
-        <Panel
+        {fin && <Panel
           className="lg:col-span-3"
           title={t("dash.revenue_7d")}
           icon={<TrendingUp size={16} className="text-ink" />}
@@ -395,7 +398,7 @@ export default function DashboardPage() {
               </Link>
             </div>
           </div>
-        </Panel>
+        </Panel>}
       </div>
     </main>
   );

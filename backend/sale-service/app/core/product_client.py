@@ -1,15 +1,26 @@
+import hashlib
+import hmac
 import logging
+
 import requests
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
 
+def _internal_headers(token: str) -> dict:
+    """Bearer token plus the signed service header, so product-service returns
+    real cost prices (needed for profit) even when the user is car-company
+    staff who may not see them in the app."""
+    sig = hmac.new(settings.SECRET_KEY.encode(), b"higoverse-internal-v1", hashlib.sha256).hexdigest()
+    return {"Authorization": f"Bearer {token}", "X-Higoverse-Internal": sig}
+
+
 def get_product(product_id: str, token: str) -> dict | None:
     try:
         res = requests.get(
             f"{settings.PRODUCT_SERVICE_URL}/products/{product_id}",
-            headers={"Authorization": f"Bearer {token}"},
+            headers=_internal_headers(token),
             timeout=10,
         )
         if res.ok:
@@ -22,22 +33,14 @@ def get_product(product_id: str, token: str) -> dict | None:
 
 def update_product_stock(product_id: str, new_quantity: int, product: dict, token: str) -> bool:
     try:
-        payload = {
-            "name": product["name"],
-            "cost_price": float(product["cost_price"]),
-            "selling_price": float(product["selling_price"]),
-            "quantity": max(0, new_quantity),
-        }
-        if product.get("supplier_id"):
-            payload["supplier_id"] = product["supplier_id"]
+        # Only the quantity changes on a sale. Sending name/prices back would
+        # risk overwriting them (e.g. with a value another request changed).
+        payload = {"quantity": max(0, new_quantity)}
 
         res = requests.put(
             f"{settings.PRODUCT_SERVICE_URL}/products/{product_id}",
             json=payload,
-            headers={
-                "Authorization": f"Bearer {token}",
-                "Content-Type": "application/json",
-            },
+            headers={**_internal_headers(token), "Content-Type": "application/json"},
             timeout=10,
         )
         if not res.ok:

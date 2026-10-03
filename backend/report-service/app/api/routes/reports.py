@@ -2,7 +2,7 @@ import logging
 import requests
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from fastapi import APIRouter, Depends
-from app.core.security import get_current_user
+from app.core.security import require_financial_access
 from app.core.config import settings
 
 router = APIRouter(prefix="/reports", tags=["Reports"])
@@ -48,7 +48,7 @@ def _parallel(*tasks):
 
 @router.get("/summary")
 def get_summary(
-    user: dict = Depends(get_current_user),
+    user: dict = Depends(require_financial_access),
     from_date: str | None = None,
     to_date: str | None = None,
     threshold: int = 10,  # the shop's Settings → low stock threshold
@@ -91,7 +91,7 @@ def get_summary(
 
 @router.get("/daily")
 def get_daily(
-    user: dict = Depends(get_current_user),
+    user: dict = Depends(require_financial_access),
     days: int = 14,
 ):
     token = user["_token"]
@@ -105,7 +105,7 @@ def get_daily(
 
 @router.get("/top-items")
 def get_top_items(
-    user: dict = Depends(get_current_user),
+    user: dict = Depends(require_financial_access),
     limit: int = 10,
     from_date: str | None = None,
     to_date: str | None = None,
@@ -127,7 +127,7 @@ def get_top_items(
 
 @router.get("/stock-alerts")
 def get_stock_alerts(
-    user: dict = Depends(get_current_user),
+    user: dict = Depends(require_financial_access),
     threshold: int = 10,  # the shop's Settings → low stock threshold
 ):
     token = user["_token"]

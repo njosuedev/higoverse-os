@@ -9,6 +9,7 @@ import { useShop } from "@/lib/shop-context";
 import { LANGUAGES } from "@/lib/i18n";
 import { settingsRequest } from "@/lib/settings-api";
 import { getEffectiveRole } from "@/lib/auth";
+import { useCanSeeFinancials } from "@/lib/permissions";
 import {
   Home, Package, Truck, ShoppingCart, BarChart3,
   Users, FileText, ChevronDown, ShieldCheck, Receipt,
@@ -89,7 +90,11 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
   // Regular business menus (everyone with dashboard access) vs. the
   // admin-only item, kept separate so the nav can render a divider between them.
   // Car companies restock from Vehicles (stock in) — no Purchases page.
-  const businessMenus = BUSINESS_MENUS;
+  // Car companies keep expenses and reports (company finances) from their staff.
+  const canSeeFinancials = useCanSeeFinancials();
+  const businessMenus = canSeeFinancials
+    ? BUSINESS_MENUS
+    : BUSINESS_MENUS.filter((m) => m.href !== "/expenses" && m.href !== "/reports");
   const moreMenus: NavItem[] = layout === "car"
     ? MORE_MENUS.filter((m) => m.href !== "/purchases")
     : MORE_MENUS;

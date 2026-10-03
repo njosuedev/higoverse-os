@@ -6,10 +6,26 @@ from sqlalchemy.orm import Session, defer
 from app.db.database import get_db
 from app.models.product import Product
 from app.schemas.product import ProductCreate, ProductUpdate
-from app.core.security import get_current_user
+from app.core.security import get_current_user, hides_financials
 from app.core.supplier_client import validate_supplier
 
 router = APIRouter(prefix="/products", tags=["Products"])
+
+
+# Money fields a car company's staff must not see (see hides_financials).
+_FINANCIAL_KEYS = {"cost_price", "profit_status", "profit_money", "profit_percent",
+                   "stock_value", "cost_value", "potential_profit"}
+
+
+def _scrub(user: dict, value):
+    """Blank out financial fields for users who may not see them."""
+    if not hides_financials(user):
+        return value
+    if isinstance(value, dict):
+        return {k: (None if k in _FINANCIAL_KEYS else _scrub(user, v)) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_scrub(user, v) for v in value]
+    return value
 
 
 # -----------------------------
@@ -51,13 +67,13 @@ def get_summary(
     threshold: int = 10,  # the shop's Settings → low stock threshold
 ):
     if not user["shop_id"]:
-        return {
+        return _scrub(user, {
             "success": True,
             "data": {
                 "stock_value": 0.0, "cost_value": 0.0, "potential_profit": 0.0,
                 "total_products": 0, "total_quantity": 0, "out_of_stock": 0, "low_stock": 0,
             },
-        }
+        })
 
     row = db.query(Product).filter(Product.shop_id == user["shop_id"]).with_entities(
         func.coalesce(func.sum(Product.selling_price * Product.quantity), 0).label("stock_value"),
@@ -69,7 +85,7 @@ def get_summary(
         func.sum(case(((Product.quantity > 0) & (Product.quantity <= threshold), 1), else_=0)).label("low_stock"),
     ).one()
 
-    return {
+    return _scrub(user, {
         "success": True,
         "data": {
             "stock_value": float(row.stock_value),
@@ -80,7 +96,7 @@ def get_summary(
             "out_of_stock": int(row.out_of_stock or 0),
             "low_stock": int(row.low_stock or 0),
         },
-    }
+    })
 
 
 # -----------------------------
@@ -93,14 +109,14 @@ def get_stock_alerts(
     threshold: int = 10,
 ):
     if not user["shop_id"]:
-        return {"success": True, "data": []}
+        return _scrub(user, {"success": True, "data": []})
 
     items = db.query(Product).filter(
         Product.shop_id == user["shop_id"],
         Product.quantity <= threshold,
     ).order_by(Product.quantity.asc()).all()
 
-    return {
+    return _scrub(user, {
         "success": True,
         "data": [
             {
@@ -113,7 +129,7 @@ def get_stock_alerts(
             }
             for p in items
         ],
-    }
+    })
 
 
 # -----------------------------
@@ -133,7 +149,7 @@ def get_products(
     page = max(page, 1)
     limit = min(max(limit, 1), 1000)
     if not user["shop_id"]:
-        return {"success": True, "data": {"items": [], "total": 0, "page": page, "limit": limit}}
+        return _scrub(user, {"success": True, "data": {"items": [], "total": 0, "page": page, "limit": limit}})
 
     offset = (page - 1) * limit
 
@@ -182,7 +198,7 @@ def get_products(
             "profit_percent": percent
         })
 
-    return {
+    return _scrub(user, {
         "success": True,
         "data": {
             "items": items,
@@ -190,7 +206,7 @@ def get_products(
             "page": page,
             "limit": limit
         }
-    }
+    })
 
 
 # -----------------------------
@@ -239,7 +255,7 @@ def create_product(
             product.selling_price
         )
 
-        return {
+        return _scrub(user, {
             "success": True,
             "message": "Product created successfully",
             "data": {
@@ -251,7 +267,7 @@ def create_product(
                 "profit_money": float(profit),
                 "profit_percent": percent
             }
-        }
+        })
 
     except StarletteHTTPException:
         db.rollback()
@@ -278,7 +294,7 @@ def get_product(
         product.selling_price
     )
 
-    return {
+    return _scrub(user, {
         "success": True,
         "data": {
             "id": product.id,
@@ -295,7 +311,7 @@ def get_product(
             "profit_money": float(profit),
             "profit_percent": percent
         }
-    }
+    })
 
 
 # -----------------------------
@@ -335,7 +351,7 @@ def update_product(
             product.selling_price
         )
 
-        return {
+        return _scrub(user, {
             "success": True,
             "message": "Product updated successfully",
             "data": {
@@ -347,7 +363,7 @@ def update_product(
                 "profit_money": float(profit),
                 "profit_percent": percent
             }
-        }
+        })
 
     except StarletteHTTPException:
         db.rollback()

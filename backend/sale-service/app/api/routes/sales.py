@@ -6,10 +6,26 @@ from sqlalchemy.orm import Session
 from app.db.database import get_db
 from app.models.sale import Sale
 from app.schemas.sale import SaleCreate, SaleUpdate
-from app.core.security import get_current_user
+from app.core.security import get_current_user, hides_financials
 from app.core.product_client import get_product, update_product_stock
 
 router = APIRouter(prefix="/sales", tags=["Sales"])
+
+
+# Money fields a car company's staff must not see (see hides_financials).
+# Each sale's own total stays visible — staff record and print sales.
+_FINANCIAL_KEYS = {"profit", "cost_at_sale", "revenue"}
+
+
+def _scrub(user: dict, value):
+    """Blank out financial fields for users who may not see them."""
+    if not hides_financials(user):
+        return value
+    if isinstance(value, dict):
+        return {k: (None if k in _FINANCIAL_KEYS else _scrub(user, v)) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_scrub(user, v) for v in value]
+    return value
 
 
 # ─────────────────────────────────────────
@@ -60,7 +76,7 @@ def list_sales(
     to_date: str | None = None,
 ):
     if not user["shop_id"]:
-        return {"success": True, "data": {"items": [], "total": 0, "page": page, "limit": limit}}
+        return _scrub(user, {"success": True, "data": {"items": [], "total": 0, "page": page, "limit": limit}})
 
     q = db.query(Sale).filter(Sale.shop_id == user["shop_id"])
 
@@ -73,7 +89,7 @@ def list_sales(
     total = q.count()
     items = q.offset((page - 1) * limit).limit(limit).all()
 
-    return {
+    return _scrub(user, {
         "success": True,
         "data": {
             "items": [_fmt(s) for s in items],
@@ -81,7 +97,7 @@ def list_sales(
             "page": page,
             "limit": limit,
         },
-    }
+    })
 
 
 # ─────────────────────────────────────────
@@ -96,13 +112,13 @@ def get_summary(
     to_date: str | None = None,
 ):
     if not user["shop_id"]:
-        return {
+        return _scrub(user, {
             "success": True,
             "data": {
                 "revenue": 0.0, "profit": 0.0, "items_sold": 0,
                 "sales_count": 0, "unique_customers": 0,
             },
-        }
+        })
 
     q = db.query(Sale).filter(Sale.shop_id == user["shop_id"])
     if from_date:
@@ -118,7 +134,7 @@ def get_summary(
         func.count(func.distinct(Sale.customer_id)).label("unique_customers"),
     ).one()
 
-    return {
+    return _scrub(user, {
         "success": True,
         "data": {
             "revenue": float(row.revenue),
@@ -127,7 +143,7 @@ def get_summary(
             "sales_count": int(row.sales_count),
             "unique_customers": int(row.unique_customers),
         },
-    }
+    })
 
 
 # ─────────────────────────────────────────
@@ -141,7 +157,7 @@ def get_daily(
     days: int = 14,
 ):
     if not user["shop_id"]:
-        return {"success": True, "data": []}
+        return _scrub(user, {"success": True, "data": []})
 
     since = datetime.now(timezone.utc) - timedelta(days=days)
     q = db.query(Sale).filter(
@@ -156,7 +172,7 @@ def get_daily(
         func.count(Sale.id).label("sales_count"),
     ).group_by(func.date(Sale.created_at)).order_by(func.date(Sale.created_at)).all()
 
-    return {
+    return _scrub(user, {
         "success": True,
         "data": [
             {
@@ -167,7 +183,7 @@ def get_daily(
             }
             for r in rows
         ],
-    }
+    })
 
 
 # ─────────────────────────────────────────
@@ -183,7 +199,7 @@ def get_top_products(
     to_date: str | None = None,
 ):
     if not user["shop_id"]:
-        return {"success": True, "data": []}
+        return _scrub(user, {"success": True, "data": []})
 
     q = db.query(Sale).filter(Sale.shop_id == user["shop_id"])
     if from_date:
@@ -201,7 +217,7 @@ def get_top_products(
         func.sum(Sale.total_amount).desc()
     ).limit(limit).all()
 
-    return {
+    return _scrub(user, {
         "success": True,
         "data": [
             {
@@ -213,7 +229,7 @@ def get_top_products(
             }
             for r in rows
         ],
-    }
+    })
 
 
 # ─────────────────────────────────────────
@@ -274,7 +290,7 @@ def create_sale(
     db.commit()
     db.refresh(sale)
 
-    return {"success": True, "message": "Sale recorded successfully", "data": _fmt(sale)}
+    return _scrub(user, {"success": True, "message": "Sale recorded successfully", "data": _fmt(sale)})
 
 
 # ─────────────────────────────────────────
@@ -287,7 +303,7 @@ def get_sale(
     db: Session = Depends(get_db),
     user: dict = Depends(get_current_user),
 ):
-    return {"success": True, "data": _fmt(_get_or_404(db, sale_id, user["shop_id"]))}
+    return _scrub(user, {"success": True, "data": _fmt(_get_or_404(db, sale_id, user["shop_id"]))})
 
 
 # ─────────────────────────────────────────
@@ -343,7 +359,7 @@ def update_sale(
             update_product_stock(old_product_id, old_product["quantity"] + old_qty, old_product, token)
         update_product_stock(new_product_id, product["quantity"] - new_qty, product, token)
 
-    return {"success": True, "message": "Sale updated", "data": _fmt(sale)}
+    return _scrub(user, {"success": True, "message": "Sale updated", "data": _fmt(sale)})
 
 
 # ─────────────────────────────────────────

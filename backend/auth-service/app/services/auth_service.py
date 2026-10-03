@@ -17,10 +17,11 @@ def _hash_token(raw: str) -> str:
     return hashlib.sha256(raw.encode()).hexdigest()
 
 
-def _issue_tokens(db: Session, user: User) -> dict:
+def _issue_tokens(db: Session, user: User, layout: str = "retail") -> dict:
     """Build the access token + a freshly-minted, DB-backed refresh token for
     a staff user. Shared by login and /auth/refresh so both return the exact
-    same claim set."""
+    same claim set. `layout` is the shop's business layout — services use it
+    (with `role`) to keep car companies' financials from their staff."""
     permissions = user.permissions or default_permissions(user.role)
 
     access_token = create_access_token({
@@ -31,6 +32,7 @@ def _issue_tokens(db: Session, user: User) -> dict:
         "role":        user.role,
         "name":        user.name,
         "permissions": permissions,
+        "layout":      layout,
     })
 
     raw_refresh = secrets.token_urlsafe(48)
@@ -73,6 +75,7 @@ def login_user(db: Session, shop_db: Session, email: str, password: str) -> dict
         shop = shop_db.query(Shop).filter(Shop.id == user.shop_id).first() if user.shop_id else None
         if not shop or not shop.is_active:
             raise HTTPException(status_code=403, detail="This shop is not active. Contact your platform administrator.")
+        return _issue_tokens(db, user, shop.layout or "retail")
 
     return _issue_tokens(db, user)
 
@@ -105,7 +108,8 @@ def refresh_tokens(db: Session, shop_db: Session, raw_refresh_token: str) -> dic
     db.delete(record)
     db.commit()
 
-    return _issue_tokens(db, user)
+    layout = (shop.layout or "retail") if user.role != "admin" else "retail"
+    return _issue_tokens(db, user, layout)
 
 
 # ----------------------------

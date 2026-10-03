@@ -10,6 +10,7 @@ from app.core.permissions import default_permissions
 from app.core.security import verify_password, hash_password, create_access_token
 from app.db.deps import get_db, get_shop_db
 from app.models.password_reset import PasswordReset
+from app.models.shop import Shop
 from app.models.user import User
 from app.schemas.auth import (
     LoginRequest, RefreshRequest, LogoutRequest, ChangePasswordRequest,
@@ -128,6 +129,7 @@ def reset_password(payload: ResetPasswordRequest, db: Session = Depends(get_db))
 def update_profile(
     payload: UpdateProfileRequest,
     db: Session = Depends(get_db),
+    shop_db: Session = Depends(get_shop_db),
     current_user=Depends(get_current_user),
 ):
     name = payload.name.strip()
@@ -138,6 +140,10 @@ def update_profile(
     db.commit()
 
     permissions = current_user.permissions or default_permissions(current_user.role)
+    # Same claim set as login/refresh — `layout` keeps car companies'
+    # financials hidden from their staff (see auth_service._issue_tokens).
+    shop = shop_db.query(Shop).filter(Shop.id == current_user.shop_id).first() if current_user.shop_id else None
+    layout = (shop.layout or "retail") if shop else "retail"
 
     # Issue a fresh access token so the new name is reflected immediately
     new_token = create_access_token({
@@ -148,6 +154,7 @@ def update_profile(
         "role":        current_user.role,
         "name":        current_user.name,
         "permissions": permissions,
+        "layout":      layout,
     })
 
     return {

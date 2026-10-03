@@ -1,15 +1,26 @@
+import hashlib
+import hmac
 import logging
+
 import requests
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
 
+def _internal_headers(token: str) -> dict:
+    """Bearer token plus the signed service header, so product-service returns
+    real cost prices (needed for profit) even when the user is car-company
+    staff who may not see them in the app."""
+    sig = hmac.new(settings.SECRET_KEY.encode(), b"higoverse-internal-v1", hashlib.sha256).hexdigest()
+    return {"Authorization": f"Bearer {token}", "X-Higoverse-Internal": sig}
+
+
 def get_product(product_id: str, token: str) -> dict | None:
     try:
         res = requests.get(
             f"{settings.PRODUCT_SERVICE_URL}/products/{product_id}",
-            headers={"Authorization": f"Bearer {token}"},
+            headers=_internal_headers(token),
             timeout=10,
         )
         if res.ok:
@@ -35,10 +46,7 @@ def restock_product(product_id: str, qty_to_add: int, product: dict, token: str)
         res = requests.put(
             f"{settings.PRODUCT_SERVICE_URL}/products/{product_id}",
             json=payload,
-            headers={
-                "Authorization": f"Bearer {token}",
-                "Content-Type": "application/json",
-            },
+            headers={**_internal_headers(token), "Content-Type": "application/json"},
             timeout=10,
         )
         if not res.ok:
@@ -71,10 +79,7 @@ def create_product(
         res = requests.post(
             f"{settings.PRODUCT_SERVICE_URL}/products/",
             json=payload,
-            headers={
-                "Authorization": f"Bearer {token}",
-                "Content-Type": "application/json",
-            },
+            headers={**_internal_headers(token), "Content-Type": "application/json"},
             timeout=10,
         )
         if res.ok:
