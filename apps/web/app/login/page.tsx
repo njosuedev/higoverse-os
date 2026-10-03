@@ -178,10 +178,12 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen flex flex-col bg-paper">
-    <div className="flex flex-col lg:flex-row flex-1">
+    {/* Both columns sit together in one centred block, so wide screens
+        don't open up empty space between the overview and the form. */}
+    <div className="mx-auto flex w-full max-w-[1000px] flex-1 flex-col lg:flex-row lg:items-center lg:justify-center lg:gap-20 lg:px-10">
 
       {/* ══ LEFT PANEL — ink surface, ledger feature index ══ */}
-      <div className="hgv-surface hgv-surface--paper !border-0 !border-r !border-border hidden lg:flex lg:w-[48%] flex-col justify-between px-14 py-12">
+      <div className="hgv-surface hgv-surface--paper !border-0 hidden lg:flex lg:w-[400px] lg:shrink-0 flex-col gap-10 py-12">
         {/* top: brand */}
         <div className="flex items-center gap-3">
           <Image src="/higoverse-logo.png" alt="Higoverse" width={36} height={36} className="rounded-press" />
@@ -223,7 +225,7 @@ export default function LoginPage() {
       </div>
 
       {/* ══ RIGHT PANEL — the form ══ */}
-      <div className="flex-1 flex items-center justify-center px-6 py-12">
+      <div className="flex flex-1 items-center justify-center px-6 py-12 lg:max-w-[400px] lg:flex-none lg:px-0">
         <div className="w-full max-w-[400px]">
 
           {/* mobile brand + condensed value prop (left panel is desktop-only) */}
