@@ -250,7 +250,7 @@ function ProformaPageContent() {
       </tr>`).join("");
 
     const taxRow = taxRate > 0
-      ? `<tr class="sub-row"><td colspan="4">Tax (${taxRate}%)</td><td class="right">${taxAmt.toLocaleString()}</td></tr>`
+      ? `<tr class="sub-row"><td colspan="4">${t("proforma.tax")} (${taxRate}%)</td><td class="right">${taxAmt.toLocaleString()}</td></tr>`
       : "";
 
     const html = `<!DOCTYPE html>
@@ -313,61 +313,61 @@ function ProformaPageContent() {
   <div class="header">
     <div class="logo-block">
       ${shop.logo_url ? `<img src="${shop.logo_url}" alt="${shop.name}" style="width:64px;height:64px;object-fit:cover;border-radius:10px;margin-bottom:8px;display:block;" />` : ""}
-      <div class="logo-name">${shop.name || "Your Business"}</div>
+      <div class="logo-name">${shop.name || t("proforma.your_business")}</div>
       ${publicAddr ? `<div class="logo-sub">${publicAddr}</div>` : ""}
-      ${shop.phone ? `<div class="logo-sub">Tel: ${shop.phone}</div>` : ""}
+      ${shop.phone ? `<div class="logo-sub">${t("proforma.tel")}: ${shop.phone}</div>` : ""}
     </div>
     <div class="meta-block">
-      <div class="invoice-label">Invoice</div>
-      <div class="invoice-type">Proforma</div>
-      <div class="meta-row"><span class="meta-label">Number</span><span class="meta-val">${invoiceNo}</span></div>
-      <div class="meta-row"><span class="meta-label">Issue Date</span><span class="meta-val">${fmtDate(date)}</span></div>
-      <div class="meta-row"><span class="meta-label">Valid Until</span><span class="meta-val">${fmtDate(validUntilDate)}</span></div>
+      <div class="invoice-label">${t("proforma.print_invoice")}</div>
+      <div class="invoice-type">${t("proforma.print_type")}</div>
+      <div class="meta-row"><span class="meta-label">${t("proforma.number_label")}</span><span class="meta-val">${invoiceNo}</span></div>
+      <div class="meta-row"><span class="meta-label">${t("proforma.issue_date")}</span><span class="meta-val">${fmtDate(date)}</span></div>
+      <div class="meta-row"><span class="meta-label">${t("proforma.valid_until")}</span><span class="meta-val">${fmtDate(validUntilDate)}</span></div>
     </div>
   </div>
   <div class="bill-section">
     <div class="bill-box">
-      <div class="bill-title">Bill To</div>
-      ${customer ? `<div class="bill-name">${customer}</div>` : `<div class="bill-detail" style="color:#cbd5e1;font-style:italic">Customer not specified</div>`}
-      ${customerPhone ? `<div class="bill-detail">Phone: ${customerPhone}</div>` : ""}
+      <div class="bill-title">${t("proforma.bill_to_label")}</div>
+      ${customer ? `<div class="bill-name">${customer}</div>` : `<div class="bill-detail" style="color:#cbd5e1;font-style:italic">${t("proforma.customer_not_specified")}</div>`}
+      ${customerPhone ? `<div class="bill-detail">${t("proforma.phone")}: ${customerPhone}</div>` : ""}
       ${customerAddress ? `<div class="bill-detail">${customerAddress}</div>` : ""}
     </div>
     <div class="bill-box">
-      <div class="bill-title">Issued By</div>
-      <div class="bill-name">${shop.name || "Your Business"}</div>
+      <div class="bill-title">${t("proforma.issued_by")}</div>
+      <div class="bill-name">${shop.name || t("proforma.your_business")}</div>
       ${publicAddr ? `<div class="bill-detail">${publicAddr}</div>` : ""}
-      ${shop.phone ? `<div class="bill-detail">Tel: ${shop.phone}</div>` : ""}
+      ${shop.phone ? `<div class="bill-detail">${t("proforma.tel")}: ${shop.phone}</div>` : ""}
     </div>
   </div>
   <table class="items">
     <thead>
       <tr>
         <th style="width:32px">#</th>
-        <th>Description</th>
-        <th class="center" style="width:70px">Qty</th>
-        <th class="right" style="width:110px">Unit Price</th>
-        <th class="right" style="width:120px">Total (${currency})</th>
+        <th>${t("proforma.description_col")}</th>
+        <th class="center" style="width:70px">${t("proforma.col_qty")}</th>
+        <th class="right" style="width:110px">${t("proforma.col_price")}</th>
+        <th class="right" style="width:120px">${t("proforma.col_total")} (${currency})</th>
       </tr>
     </thead>
     <tbody>${itemsHtml}</tbody>
     <tfoot>
-      <tr class="sub-row"><td colspan="4">Subtotal</td><td>${subtotal.toLocaleString()}</td></tr>
+      <tr class="sub-row"><td colspan="4">${t("proforma.subtotal")}</td><td>${subtotal.toLocaleString()}</td></tr>
       ${taxRow}
-      <tr class="grand-row"><td colspan="4">Grand Total</td><td>${currency} ${grandTotal.toLocaleString()}</td></tr>
+      <tr class="grand-row"><td colspan="4">${t("proforma.grand_total")}</td><td>${currency} ${grandTotal.toLocaleString()}</td></tr>
     </tfoot>
   </table>
-  ${notes ? `<div class="notes"><div class="notes-title">Notes &amp; Terms</div>${notes}</div>` : ""}
+  ${notes ? `<div class="notes"><div class="notes-title">${t("proforma.notes")}</div>${notes}</div>` : ""}
   <div class="sig-row">
-    <div class="sig-box"><div class="sig-line"></div><div class="sig-label">Authorized Signature</div></div>
+    <div class="sig-box"><div class="sig-line"></div><div class="sig-label">${t("proforma.signature")}</div></div>
     <div style="text-align:right">
-      <div style="font-size:11px;color:#94a3b8;text-transform:uppercase;letter-spacing:1px;font-weight:600">Amount Due</div>
+      <div style="font-size:11px;color:#94a3b8;text-transform:uppercase;letter-spacing:1px;font-weight:600">${t("proforma.amount_due")}</div>
       <div style="font-size:28px;font-weight:900;color:#1e3a8a">${grandTotal.toLocaleString()}</div>
       <div style="font-size:12px;color:#64748b;font-weight:600">${currency}</div>
     </div>
-    <div class="sig-box"><div class="sig-line"></div><div class="sig-label">Received By</div></div>
+    <div class="sig-box"><div class="sig-line"></div><div class="sig-label">${t("proforma.received_by")}</div></div>
   </div>
   <div class="footer">
-    This is a proforma invoice — not a VAT invoice. &nbsp;·&nbsp; Valid until <strong>${fmtDate(validUntilDate)}</strong> &nbsp;·&nbsp; Powered by <strong>Higoverse</strong>
+    ${t("proforma.not_vat")} &nbsp;·&nbsp; ${t("proforma.valid_until_short")} <strong>${fmtDate(validUntilDate)}</strong> &nbsp;·&nbsp; ${t("sales.powered_by")} <strong>Higoverse</strong>
   </div>
 </div>
 <script>window.onload=function(){setTimeout(function(){window.print();},500);};window.onafterprint=function(){window.close();};</script>

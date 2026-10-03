@@ -135,7 +135,7 @@ function VehicleCard({ v, currency, onGallery, onEdit, onPending, onRelease, onP
       </div>
 
       {/* Actions */}
-      <div className="flex items-center gap-2 border-t border-border p-3">
+      <div className="flex flex-wrap items-center gap-2 border-t border-border p-3">
         {status !== "sold" && (
           <Link href={`/sales?new=1&product=${v.id}`}
             className="flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-full bg-ink px-3 py-2 text-sm font-semibold text-white hover:bg-ink-dark">
@@ -174,8 +174,8 @@ function PenaltyBadge({ a, onClick }: { a: Attributes; onClick: () => void }) {
     icon = <ShieldCheck size={15} />; cls = "text-success"; text = t("vehicle.no_fines");
   }
   return (
-    <button onClick={onClick} className="mt-auto flex w-full items-center gap-1.5 rounded-press px-1 py-1 text-left text-[13px] hover:bg-paper-dim">
-      <span className={`flex min-w-0 items-center gap-1.5 whitespace-nowrap font-medium ${cls}`}>{icon} <span className="truncate">{text}</span></span>
+    <button onClick={onClick} className="mt-auto flex w-full flex-wrap items-center gap-x-1.5 gap-y-0.5 rounded-press px-1 py-1 text-left text-[13px] hover:bg-paper-dim">
+      <span className={`flex items-center gap-1.5 font-medium ${cls}`}>{icon} <span>{text}</span></span>
       {checkedDays !== null && (
         <span className={`ml-auto shrink-0 whitespace-nowrap ${stale ? "font-semibold text-warning" : "text-text-faint"}`}>
           {stale ? t("vehicle.recheck") : checkedDays === 0 ? t("vehicle.today") : `${checkedDays} ${t("vehicle.days_ago")}`}

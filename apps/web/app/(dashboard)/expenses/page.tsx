@@ -724,22 +724,22 @@ export default function ExpenseManagementPage() {
           {/* Search + filter + date */}
           <div className="relative px-4 pb-3 space-y-2">
             <div className="flex gap-2">
-              <div className="flex-1 flex items-center gap-2 bg-white/10 hover:bg-white/15 focus-within:bg-white/20 border border-white/10 focus-within:border-white/30 rounded-xl px-3 py-2 transition-all group">
-                <Search size={13} className="shrink-0 text-white/40 group-focus-within:text-white/70 transition-colors" />
+              <div className="hgv-search">
+                <Search size={16} className="hgv-search-icon" />
                 <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t("expenses.search")}
-                  className="bg-transparent outline-none w-full text-sm text-white placeholder:text-white/40 font-medium" />
-                {search && <button onClick={() => setSearch("")} className="w-4 h-4 rounded-full bg-white/20 hover:bg-white/35 flex items-center justify-center text-white/70 transition-all shrink-0"><X size={9} /></button>}
+                  className="hgv-search-input" />
+                {search && <button onClick={() => setSearch("")} className="hgv-search-clear"><X size={14} /></button>}
               </div>
-              <div className="flex items-center gap-1.5 bg-white/10 hover:bg-white/15 border border-white/10 rounded-xl px-3 py-2 transition-all">
-                <Filter size={11} className="shrink-0 text-white/50" />
+              <div className="hgv-filter">
+                <Filter size={14} className="shrink-0" />
                 <select value={catFilter} onChange={(e) => { setCatFilter(e.target.value as Category | ""); setPage(1); }}
-                  className="bg-transparent outline-none text-sm text-white font-semibold appearance-none cursor-pointer">
+                  >
                   <option value="" className="text-gray-800">{t("expenses.all_categories")}</option>
                   {ALL_CATEGORIES.map((c) => (
                     <option key={c} value={c} className="text-gray-800">{t(`expenses.cat.${c}`)}</option>
                   ))}
                 </select>
-                <ChevronDown size={11} className="text-white/35 shrink-0" />
+                <ChevronDown size={14} className="shrink-0" />
               </div>
             </div>
             <DateRangeFilter

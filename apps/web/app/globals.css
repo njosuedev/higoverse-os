@@ -52,6 +52,9 @@ html {
 
 body {
   font-family: var(--font-sans);
+  /* Medium weight by default for readability; elements that set their own
+     weight (font-semibold, font-bold, font-normal…) keep it. */
+  font-weight: 500;
   background-color: var(--color-paper);
   color: var(--color-text);
   -webkit-font-smoothing: antialiased;
@@ -161,6 +164,74 @@ input, textarea, select, button {
   background: linear-gradient(90deg, var(--color-paper-dim) 25%, var(--color-paper-deep) 37%, var(--color-paper-dim) 63%);
   background-size: 800px 100%;
   animation: hgv-shimmer 1.6s ease-in-out infinite;
+}
+
+/* ── SEARCH + FILTER FIELDS (page banners) ───────────────────
+   Solid white fields with a clear border, readable placeholder and a
+   blue focus ring — one look on every page. */
+.hgv-search {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 0.6rem;
+  min-width: 0;
+  background: #ffffff;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 10px;
+  padding: 0.6rem 0.85rem;
+  transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+.hgv-search:hover { border-color: #a6a4a0; }
+.hgv-search:focus-within {
+  border-color: var(--color-ink);
+  box-shadow: 0 0 0 3px rgb(10 102 194 / 0.15);
+}
+.hgv-search-icon { flex-shrink: 0; color: var(--color-text-faint); transition: color 150ms ease; }
+.hgv-search:focus-within .hgv-search-icon { color: var(--color-ink); }
+.hgv-search-input {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  outline: none;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  color: var(--color-text);
+}
+.hgv-search-input::placeholder { color: var(--color-text-faint); font-weight: 400; }
+.hgv-search-clear {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 9999px;
+  color: var(--color-text-faint);
+  transition: background-color 150ms ease, color 150ms ease;
+}
+.hgv-search-clear:hover { background: var(--color-paper-dim); color: var(--color-text); }
+
+.hgv-filter {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  background: #ffffff;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 10px;
+  padding: 0.6rem 0.8rem;
+  color: var(--color-text-muted);
+  transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+.hgv-filter:hover { border-color: #a6a4a0; }
+.hgv-filter:focus-within { border-color: var(--color-ink); box-shadow: 0 0 0 3px rgb(10 102 194 / 0.15); }
+.hgv-filter select {
+  background: transparent;
+  outline: none;
+  appearance: none;
+  cursor: pointer;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--color-text);
 }
 
 /* ── SCROLLBAR ───────────────────────────────────────────── */

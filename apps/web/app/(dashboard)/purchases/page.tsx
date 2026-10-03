@@ -418,21 +418,21 @@ export default function PurchaseManagementPage() {
             )}
             {tab === "inventory" && (
               <div className="flex gap-2">
-                <div className="flex-1 flex items-center gap-2 bg-white/10 hover:bg-white/15 focus-within:bg-white/20 border border-white/10 focus-within:border-white/30 rounded-xl px-3 py-2 transition-all group shadow-inner">
-                  <Search size={13} className="shrink-0 text-white/40 group-focus-within:text-white/80 transition-colors" />
+                <div className="hgv-search">
+                  <Search size={16} className="hgv-search-icon" />
                   <input value={invSearch} onChange={(e) => { setInvSearch(e.target.value); setInvPage(1); }}
-                    placeholder={t("items.search")} className="bg-transparent outline-none w-full text-sm text-white placeholder:text-white/35 font-medium" />
-                  {invSearch && <button onClick={() => setInvSearch("")} className="w-4 h-4 rounded-full bg-white/20 hover:bg-white/35 flex items-center justify-center text-white/70 hover:text-white transition-all shrink-0"><X size={9} /></button>}
+                    placeholder={t("items.search")} className="hgv-search-input" />
+                  {invSearch && <button onClick={() => setInvSearch("")} className="hgv-search-clear"><X size={14} /></button>}
                 </div>
-                <div className="flex items-center gap-1.5 bg-white/10 hover:bg-white/15 border border-white/10 rounded-xl px-2.5 py-2 transition-all">
-                  <Filter size={11} className="shrink-0 text-white/50" />
-                  <select value={invFilter} onChange={(e) => { setInvFilter(e.target.value); setInvPage(1); }} className="bg-transparent outline-none text-xs text-white font-semibold appearance-none cursor-pointer">
+                <div className="hgv-filter">
+                  <Filter size={14} className="shrink-0" />
+                  <select value={invFilter} onChange={(e) => { setInvFilter(e.target.value); setInvPage(1); }} >
                     <option value="all" className="text-gray-800">{t("items.all")}</option>
                     <option value="in_stock" className="text-gray-800">{t("items.in_stock")}</option>
                     <option value="low_stock" className="text-gray-800">{t("items.low_stock")}</option>
                     <option value="out_stock" className="text-gray-800">{t("items.out_stock")}</option>
                   </select>
-                  <ChevronDown size={10} className="text-white/35 shrink-0" />
+                  <ChevronDown size={14} className="shrink-0" />
                 </div>
               </div>
             )}

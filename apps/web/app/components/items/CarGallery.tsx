@@ -52,9 +52,9 @@ export default function CarGallery({ productId, title, onClose }: { productId: s
           )}
           {n > 1 && (
             <>
-              <button onClick={() => setI((i - 1 + n) % n)} aria-label="Previous"
+              <button onClick={() => setI((i - 1 + n) % n)} aria-label={t("admin.prev")}
                 className="absolute left-2 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-white/85 hover:bg-white flex items-center justify-center"><ChevronLeft size={18} /></button>
-              <button onClick={() => setI((i + 1) % n)} aria-label="Next"
+              <button onClick={() => setI((i + 1) % n)} aria-label={t("admin.next")}
                 className="absolute right-2 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-white/85 hover:bg-white flex items-center justify-center"><ChevronRight size={18} /></button>
             </>
           )}

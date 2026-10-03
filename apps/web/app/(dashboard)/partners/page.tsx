@@ -318,25 +318,25 @@ export default function PartnerManagementPage() {
 
           {/* Row 3: search + filter */}
           <div className="relative flex gap-2 px-4 pb-3">
-            <div className="flex-1 flex items-center gap-2 bg-white/10 hover:bg-white/15 focus-within:bg-white/20 border border-white/10 focus-within:border-white/30 rounded-xl px-3 py-2 transition-all group shadow-inner">
-              <Search size={13} className="shrink-0 text-white/40 group-focus-within:text-white/80 transition-colors" />
+            <div className="hgv-search">
+              <Search size={16} className="hgv-search-icon" />
               <input value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} placeholder={t("partners.search")}
-                className="bg-transparent outline-none w-full text-sm text-white placeholder:text-white/35 font-medium" />
+                className="hgv-search-input" />
               {search && (
-                <button onClick={() => setSearch("")} className="w-4 h-4 rounded-full bg-white/20 hover:bg-white/35 flex items-center justify-center text-white/70 hover:text-white transition-all shrink-0">
-                  <X size={9} />
+                <button onClick={() => setSearch("")} className="hgv-search-clear">
+                  <X size={14} />
                 </button>
               )}
             </div>
-            {!isCar && <div className="flex items-center gap-1.5 bg-white/10 hover:bg-white/15 border border-white/10 rounded-xl px-2.5 py-2 transition-all">
-              <Filter size={11} className="shrink-0 text-white/50" />
+            {!isCar && <div className="hgv-filter">
+              <Filter size={14} className="shrink-0" />
               <select value={typeFilter} onChange={(e) => { setTypeFilter(e.target.value); setPage(1); }}
-                className="bg-transparent outline-none text-xs text-white font-semibold appearance-none cursor-pointer">
+                >
                 <option value="all" className="text-gray-800">{t("partners.all")}</option>
                 <option value="supplier" className="text-gray-800">{t("partners.suppliers")}</option>
                 <option value="customer" className="text-gray-800">{t("partners.customers")}</option>
               </select>
-              <ChevronDown size={10} className="text-white/35 shrink-0" />
+              <ChevronDown size={14} className="shrink-0" />
             </div>}
           </div>
         </div>

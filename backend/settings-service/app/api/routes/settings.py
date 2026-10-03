@@ -58,6 +58,7 @@ def get_settings(
 
 
 @router.put("/")
+@router.put("", include_in_schema=False)
 def update_settings(
     payload: SettingsUpdate,
     db: Session = Depends(get_db),
