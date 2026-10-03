@@ -7,9 +7,12 @@
    mode (see color-scheme below).
    ══════════════════════════════════════════════════════════════════════ */
 @theme {
-  /* type — LinkedIn's system font stack (Segoe UI on Windows, SF on Apple) */
-  --font-sans: -apple-system, system-ui, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", "Fira Sans", Ubuntu, Oxygen, "Oxygen Sans", Cantarell, "Droid Sans", "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Lucida Grande", Helvetica, Arial, sans-serif;
+  /* type — Inter (next/font), then the system stack as fallback */
+  --font-sans: var(--font-inter), -apple-system, system-ui, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", "Fira Sans", Ubuntu, Oxygen, "Oxygen Sans", Cantarell, "Droid Sans", "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Lucida Grande", Helvetica, Arial, sans-serif;
   --font-display: var(--font-sans);
+  /* Text reads one step heavier: "normal" is medium, "medium" is semibold. */
+  --font-weight-normal: 500;
+  --font-weight-medium: 600;
   --font-mono: var(--font-sans);
 
   /* color — LinkedIn palette */

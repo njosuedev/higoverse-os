@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { Inter } from "next/font/google";
 import "./globals.css";
 
 import { LanguageProvider } from "@/lib/language-context";
@@ -6,6 +7,10 @@ import { AuthProvider } from "@/lib/auth-context";
 import { QueryProvider } from "@/lib/query-provider";
 import { DialogHost } from "@/lib/dialogs";
 import { SITE } from "@/lib/site";
+
+// Inter: a typeface drawn for screens — crisp at small sizes, with real
+// semibold/bold weights. Downloaded at build time and served by the app.
+const inter = Inter({ subsets: ["latin", "latin-ext"], variable: "--font-inter", display: "swap" });
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE.url),
@@ -98,7 +103,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
+    <html lang="en" className={inter.variable}>
       <body>
         <AuthProvider>
           <LanguageProvider>

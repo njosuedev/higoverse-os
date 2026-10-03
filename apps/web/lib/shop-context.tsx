@@ -21,7 +21,7 @@ export function ShopProvider({ children }: { children: ReactNode }) {
   const [shop,    setShop]    = useState<Shop | null>(null);
   const [loading, setLoading] = useState(true);
   const [rev,     setRev]     = useState(0);
-  const { setLayout } = useLanguage();
+  const { layout, setLayout } = useLanguage();
 
   // The shop's admin-assigned layout drives layout-specific wording app-wide.
   useEffect(() => { setLayout(normalizeLayout(shop?.layout)); }, [shop?.layout, setLayout]);
@@ -41,8 +41,12 @@ export function ShopProvider({ children }: { children: ReactNode }) {
 
   function reload() { clearMyShopCache(); setRev((r) => r + 1); }
 
+  // Still "loading" until the shop's layout has been applied app-wide, so
+  // nothing renders with the default (shop) layout for a car company.
+  const layoutSynced = !shop || layout === normalizeLayout(shop.layout);
+
   return (
-    <Ctx.Provider value={{ shop, loading, reload }}>
+    <Ctx.Provider value={{ shop, loading: loading || !layoutSynced, reload }}>
       {children}
     </Ctx.Provider>
   );

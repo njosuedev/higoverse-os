@@ -44,7 +44,7 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
   const pathname   = usePathname();
   const { lang, setLang, t, layout } = useLanguage();
   const { user, logout, ready } = useAuth();
-  const { shop } = useShop();
+  const { shop, loading: shopLoading } = useShop();
 
   const [menuOpen, setMenuOpen]         = useState(false);
   const [mobileOpen, setMobileOpen]     = useState(false);
@@ -77,7 +77,9 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
   void currentLang;
 
   // Wait for auth (localStorage hydration) before committing to a role.
-  const isResolving = !ready;
+  // The menu depends on the business type (cars vs shops): wait for the
+  // business as well as the user, so the wrong menu never flashes.
+  const isResolving = !ready || shopLoading;
   const role        = isResolving ? null : getEffectiveRole(user ?? null);
   const isAdmin     = role === "ADMIN";
 

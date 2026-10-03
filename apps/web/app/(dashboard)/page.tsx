@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
 import { useLanguage } from "@/lib/language-context";
 import { useShopSettings } from "@/lib/shop-settings-context";
+import { useShop } from "@/lib/shop-context";
 import { itemRequest } from "@/lib/product-api";
 import { partnerRequest } from "@/lib/supplier-api";
 import { saleRequest } from "@/lib/sale-api";
@@ -118,6 +119,10 @@ export default function DashboardPage() {
   const prof = useShowsProfit();
   // Settings → currency and low stock threshold.
   const { currency, lowStock, loaded: settingsLoaded } = useShopSettings();
+  const { shop, loading: shopLoading } = useShop();
+  // Product/customer counts arrive in the second loading phase — show "—"
+  // until then rather than a misleading 0.
+  const [countsReady, setCountsReady] = useState(false);
   const fmtCurrency = (n: number) => fmtMoney(n, currency);
   const lowStockRef = useRef(lowStock);
   lowStockRef.current = lowStock;
@@ -157,7 +162,7 @@ export default function DashboardPage() {
   const clockRef     = useRef<ReturnType<typeof setInterval> | null>(null);
 
   function applyCache(c: DashCache) {
-    setStats(c.stats);
+    setStats(c.stats); setCountsReady(true);
     setStockAlerts(c.stockAlerts);
     setDailyData(c.dailyData);
     setRecentSales(c.recentSales);
@@ -248,6 +253,7 @@ export default function DashboardPage() {
       setPurchaseCostToday(purchCost);
       setLastUpdated(new Date());
       setProductServiceError((prev) => prev || productsRes.status === "rejected");
+      setCountsReady(true);
     } catch { /* non-fatal */ } finally {
       setRefreshing(false);
     }
@@ -299,7 +305,8 @@ export default function DashboardPage() {
     return result;
   }, [dailyData]);
 
-  if (!user || dataLoading) return <HomeSkeleton />;
+  // Wait for the business too: what the home shows depends on its type.
+  if (!user || dataLoading || shopLoading) return <HomeSkeleton />;
 
   const currentShop = shops.find((s) => s.id === user.shop_id);
   const onlineCount = shops.filter((s) => shopPresence(s.last_seen_at, now).online).length;
@@ -345,7 +352,7 @@ export default function DashboardPage() {
               )}
               <div>
                 <p className="text-paper/55 text-[10px] font-medium uppercase tracking-[0.14em]">{t("dash.welcome")}</p>
-                <h1 className="font-display text-xl md:text-2xl font-semibold mt-0.5">{currentShop?.name || user.name || t("dash.my_shop")}</h1>
+                <h1 className="font-display text-xl md:text-2xl font-semibold mt-0.5">{shop?.name || currentShop?.name || user.name || t("dash.my_shop")}</h1>
                 <p className="text-paper/55 text-[11px] mt-0.5">{user.name} · {user.role || t("dash.owner_role")}</p>
               </div>
             </div>
@@ -407,9 +414,9 @@ export default function DashboardPage() {
             delta={revDeltaPct !== null ? { value: `${Math.abs(revDeltaPct)}%`, direction: revDeltaPct >= 0 ? "up" : "down" } : undefined}
             subtitle={yesterdayRevenue > 0 ? `${t("dash.prev_week")}: ${fmtCurrency(yesterdayRevenue)}` : undefined}
           />}
-          <StatCard size="sm" label={t("dash.products")} value={stats.products.toLocaleString()}
+          <StatCard size="sm" label={t("dash.products")} value={countsReady ? stats.products.toLocaleString() : "—"}
             icon={<Package size={15} strokeWidth={2} />} tone="blue" href="/items" />
-          <StatCard size="sm" label={t("dash.partners")} value={partnersShown.toLocaleString()}
+          <StatCard size="sm" label={t("dash.partners")} value={countsReady ? partnersShown.toLocaleString() : "—"}
             icon={<Users size={15} strokeWidth={2} />} tone="blue" href="/partners" />
           <StatCard size="sm" label={t("dash.sales_week")} value={stats.sales.toLocaleString()}
             icon={<ShoppingCart size={15} strokeWidth={2} />} tone="blue" href="/sales" />

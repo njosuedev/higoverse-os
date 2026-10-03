@@ -3,32 +3,15 @@
 import { useEffect, useState, useCallback, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
 import { useLanguage } from "@/lib/language-context";
 import { LANGUAGES } from "@/lib/i18n";
 import {
   Loader2, ArrowLeft, Eye, EyeOff, RefreshCw,
   CheckCircle2, KeyRound, Mail, Lock,
-  Boxes, BarChart3, ShieldCheck, Truck,
-  Package, Users, FileText, Wallet, Settings, Home,
+  Boxes, BarChart3, ShieldCheck, Package, Users, FileText, Wallet,
 } from "lucide-react";
 import { AUTH_API as AUTH_URL } from "@/lib/api-config";
-
-// Real app routes only — these mirror the authenticated nav, so a logged-out
-// visitor clicking one simply bounces to /login (same as typing the URL
-// directly today). No fabricated marketing pages.
-const PLATFORM_LINKS = [
-  { key: "nav.dashboard", href: "/",          icon: Home },
-  { key: "nav.inventory", href: "/items",     icon: Package },
-  { key: "nav.purchases", href: "/purchases", icon: Truck },
-  { key: "nav.partners",  href: "/partners",  icon: Users },
-  { key: "nav.sales",     href: "/sales",     icon: Boxes },
-  { key: "nav.proforma",  href: "/proforma",  icon: FileText },
-  { key: "nav.expenses",  href: "/expenses",  icon: Wallet },
-  { key: "nav.reports",   href: "/reports",   icon: BarChart3 },
-  { key: "nav.settings",  href: "/settings",  icon: Settings },
-];
 
 type Step = "login" | "forgot" | "otp" | "success";
 
@@ -98,7 +81,7 @@ export default function LoginPage() {
       window.location.replace(getNextPath());
     } catch { setError(t("login.err_network")); }
     finally  { setLoading(false); }
-  }, [email, password, login, router, t]);
+  }, [email, password, login, t]);
 
   const handleSendOtp = async (e: React.FormEvent) => {
     e.preventDefault(); setFpError("");
@@ -174,65 +157,32 @@ export default function LoginPage() {
 
   /* shared field chrome — bordered paper surface, ink focus ring handled globally */
   const field = "w-full h-12 rounded-press bg-white border border-border px-4 text-sm text-text placeholder-text-faint focus:outline-none focus:border-ink transition-colors duration-200";
-  const label = "block text-xs font-medium text-text-muted mb-1.5";
+  const label = "block text-sm font-semibold text-text mb-1.5";
 
   return (
     <div className="min-h-screen flex flex-col bg-paper">
     <div className="flex flex-col lg:flex-row flex-1">
 
-      {/* ══ LEFT PANEL — ink surface, ledger feature index ══ */}
-      <div className="hgv-surface hgv-surface--paper !border-0 !border-r !border-border hidden lg:flex lg:w-[48%] flex-col justify-between px-14 py-12">
-        {/* top: brand */}
+      {/* ══ LEFT PANEL — what Higoverse is, plainly (desktop) ══ */}
+      <aside className="hidden lg:flex lg:w-[50%] flex-col border-r border-border bg-white px-14 py-12">
         <div className="flex items-center gap-3">
-          <Image src="/higoverse-logo.png" alt="Higoverse" width={36} height={36} className="rounded-press" />
-          <span className="font-display font-semibold text-lg tracking-tight">Higoverse</span>
+          <Image src="/higoverse-logo.png" alt="Higoverse" width={34} height={34} className="rounded-press" />
+          <span className="font-display text-lg font-bold tracking-tight text-text">Higoverse</span>
         </div>
-
-        {/* middle: headline */}
-        <div>
-          <p className="text-xs font-semibold text-paper/55 uppercase tracking-[0.14em] mb-4">{t("login.tagline")}</p>
-          <h1 className="font-display text-4xl font-semibold leading-tight mb-5">
-            {t("login.headline_1")}<br />{t("login.headline_2")}<br />
-            <span className="text-ink">{t("login.headline_3")}</span>
-          </h1>
-          <p className="text-paper/60 text-sm leading-relaxed max-w-sm mb-10">
-            {t("login.subheadline")}
-          </p>
-
-          {/* feature index — a ruled list, not four identical cards */}
-          <div className="border-t border-white/12 max-w-sm">
-            {[
-              { icon: <Boxes size={15} />,       label: t("login.feature_inventory"), sub: t("login.feature_inventory_sub") },
-              { icon: <BarChart3 size={15} />,   label: t("login.feature_analytics"), sub: t("login.feature_analytics_sub") },
-              { icon: <Truck size={15} />,       label: t("login.feature_suppliers"), sub: t("login.feature_suppliers_sub") },
-              { icon: <ShieldCheck size={15} />, label: t("login.feature_secure"),    sub: t("login.feature_secure_sub") },
-            ].map((f) => (
-              <div key={f.label} className="flex items-center gap-3 py-3 border-b border-white/12">
-                <span className="text-paper/70 shrink-0">{f.icon}</span>
-                <div>
-                  <p className="text-xs font-semibold text-paper">{f.label}</p>
-                  <p className="text-[11px] text-paper/50">{f.sub}</p>
-                </div>
-              </div>
-            ))}
-          </div>
+        <div className="my-auto max-w-[460px] py-10">
+          <About t={t} />
         </div>
-
-        {/* bottom: trust */}
-        <p className="text-[11px] text-paper/45">© {new Date().getFullYear()} Higoverse · {t("login.footer_tagline")}</p>
-      </div>
+        <p className="text-xs text-text-faint">© {new Date().getFullYear()} Higoverse</p>
+      </aside>
 
       {/* ══ RIGHT PANEL — the form ══ */}
       <div className="flex-1 flex items-center justify-center px-6 py-12">
         <div className="w-full max-w-[400px]">
 
-          {/* mobile brand + condensed value prop (left panel is desktop-only) */}
-          <div className="flex lg:hidden flex-col gap-2 mb-8">
-            <div className="flex items-center gap-2">
-              <Image src="/higoverse-logo.png" alt="Higoverse" width={30} height={30} className="rounded-press" />
-              <span className="font-display font-semibold text-text">Higoverse</span>
-            </div>
-            <p className="text-xs text-text-muted leading-relaxed">{t("login.subheadline")}</p>
+          {/* phones: brand above the form (the overview follows below it) */}
+          <div className="flex lg:hidden items-center gap-2 mb-8">
+            <Image src="/higoverse-logo.png" alt="Higoverse" width={30} height={30} className="rounded-press" />
+            <span className="font-display font-bold text-text">Higoverse</span>
           </div>
 
           {/* ── login ── */}
@@ -264,10 +214,10 @@ export default function LoginPage() {
 
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
-                    <label className="text-xs font-medium text-text-muted" htmlFor="login-password">{t("login.password_label")}</label>
+                    <label className="text-sm font-semibold text-text" htmlFor="login-password">{t("login.password_label")}</label>
                     <button type="button"
                       onClick={() => { setFpEmail(email); setStep("forgot"); setFpError(""); }}
-                      className="text-xs text-ink hover:text-ink-dark font-medium">
+                      className="text-sm text-ink hover:text-ink-dark hover:underline font-semibold">
                       {t("login.forgot_password")}
                     </button>
                   </div>
@@ -289,9 +239,9 @@ export default function LoginPage() {
                 </button>
               </form>
 
-              <div className="mt-6 pt-5 border-t border-border">
-                <p className="text-xs font-semibold text-text-muted">{t("login.help_title")}</p>
-                <p className="text-xs text-text-faint mt-1">{t("login.admin_created_note")}</p>
+              <div className="mt-6 rounded-press border border-border bg-white px-4 py-3">
+                <p className="text-sm font-semibold text-text">{t("login.help_title")}</p>
+                <p className="text-sm text-text-muted mt-0.5 leading-relaxed">{t("login.no_account_body")}</p>
               </div>
             </>
           )}
@@ -417,52 +367,68 @@ export default function LoginPage() {
       </div>
     </div>
 
-      {/* ══ FOOTER — language switcher + a full index of what Higoverse does ══ */}
-      <footer className="border-t border-border bg-white">
-        <div className="max-w-5xl mx-auto px-6 py-8 space-y-6">
+      {/* ══ PHONES — the overview, below the form ══ */}
+      <section className="lg:hidden border-t border-border bg-white px-6 py-10">
+        <div className="mx-auto max-w-[400px]"><About t={t} /></div>
+      </section>
 
-          {/* Language row */}
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-text-faint mb-2">{t("login.footer_language")}</p>
-            <div className="flex flex-wrap gap-x-4 gap-y-1.5">
-              {LANGUAGES.map((l) => (
-                <button
-                  key={l.code}
-                  onClick={() => setLang(l.code)}
-                  className={`text-xs transition-colors duration-200 ${l.code === lang ? "text-ink font-semibold" : "text-text-muted hover:text-text"}`}
-                >
-                  {l.flag} {l.label}
-                </button>
-              ))}
-            </div>
+      {/* ══ FOOTER — language ══ */}
+      <footer className="border-t border-border bg-paper">
+        <div className="mx-auto flex max-w-5xl flex-col gap-3 px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
+            <span className="text-xs font-semibold text-text-muted">{t("login.footer_language")}:</span>
+            {LANGUAGES.map((l) => (
+              <button key={l.code} onClick={() => setLang(l.code)} aria-pressed={l.code === lang}
+                className={`text-sm transition-colors duration-200 ${l.code === lang ? "font-bold text-ink underline underline-offset-4" : "text-text-muted hover:text-text"}`}>
+                {l.label}
+              </button>
+            ))}
           </div>
-
-          <div className="hgv-notch-divider" aria-hidden="true" />
-
-          {/* Platform index */}
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-text-faint mb-2">{t("login.footer_explore")}</p>
-            <div className="flex flex-wrap gap-x-5 gap-y-2">
-              {PLATFORM_LINKS.map((p) => {
-                const Icon = p.icon;
-                return (
-                  <Link key={p.href} href={p.href} className="flex items-center gap-1.5 text-xs text-text-muted hover:text-ink transition-colors duration-200">
-                    <Icon size={12} />
-                    {t(p.key)}
-                  </Link>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* About + copyright */}
-          <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 pt-2">
-            <p className="text-xs text-text-faint max-w-md leading-relaxed">{t("login.footer_about")}</p>
-            <p className="text-[11px] text-text-faint shrink-0">© {new Date().getFullYear()} Higoverse · {t("login.footer_tagline")}</p>
-          </div>
-
+          <p className="text-xs text-text-faint lg:hidden">© {new Date().getFullYear()} Higoverse</p>
         </div>
       </footer>
+    </div>
+  );
+}
+
+/** Plain account of what Higoverse does and how it keeps data — every line
+ *  here describes something the app actually does. */
+function About({ t }: { t: (key: string) => string }) {
+  const MODULES: { icon: React.ReactNode; title: string; body: string }[] = [
+    { icon: <Package size={16} />,  title: t("login.m_stock"),     body: t("login.m_stock_sub") },
+    { icon: <Boxes size={16} />,    title: t("login.m_sales"),     body: t("login.m_sales_sub") },
+    { icon: <Users size={16} />,    title: t("login.m_partners"),  body: t("login.m_partners_sub") },
+    { icon: <FileText size={16} />, title: t("login.m_proforma"),  body: t("login.m_proforma_sub") },
+    { icon: <Wallet size={16} />,   title: t("login.m_expenses"),  body: t("login.m_expenses_sub") },
+    { icon: <BarChart3 size={16} />, title: t("login.m_reports"),  body: t("login.m_reports_sub") },
+  ];
+  const DATA = [t("login.data_1"), t("login.data_2"), t("login.data_3"), t("login.data_4")];
+  return (
+    <div>
+      <h1 className="font-display text-[28px] font-bold leading-tight tracking-tight text-text">{t("login.intro_title")}</h1>
+      <p className="mt-3 text-[15px] leading-relaxed text-text-muted">{t("login.intro_body")}</p>
+
+      <h2 className="mt-9 text-xs font-bold uppercase tracking-[0.12em] text-text-muted">{t("login.what_title")}</h2>
+      <ul className="mt-3 grid gap-x-6 gap-y-4 sm:grid-cols-2">
+        {MODULES.map((m) => (
+          <li key={m.title} className="flex gap-3">
+            <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-press border border-border bg-paper text-ink">{m.icon}</span>
+            <div className="min-w-0">
+              <p className="text-sm font-bold text-text">{m.title}</p>
+              <p className="text-[13px] leading-snug text-text-muted">{m.body}</p>
+            </div>
+          </li>
+        ))}
+      </ul>
+
+      <h2 className="mt-9 text-xs font-bold uppercase tracking-[0.12em] text-text-muted">{t("login.data_title")}</h2>
+      <ul className="mt-3 space-y-2">
+        {DATA.map((line) => (
+          <li key={line} className="flex gap-2.5 text-sm leading-snug text-text">
+            <ShieldCheck size={16} className="mt-0.5 shrink-0 text-success" /> <span>{line}</span>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
