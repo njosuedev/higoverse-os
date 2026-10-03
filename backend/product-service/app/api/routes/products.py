@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Header
 from starlette.exceptions import HTTPException as StarletteHTTPException
-from sqlalchemy import case, func
+from sqlalchemy import case, func, or_
 from sqlalchemy.orm import Session, defer
 
 from app.db.database import get_db
@@ -58,6 +58,25 @@ def _attr_matches(pattern: str):
     return func.coalesce(Product.attributes, "").op("~")(pattern)
 
 
+def _attr_filled(key: str):
+    """The attribute is present with a non-empty value (string or number)."""
+    return _attr_matches(r'"%s"\s*:\s*"?[^"\s,}]' % key)
+
+
+# Details every car in stock should have, so staff can find, show and
+# transfer it. A pending car also needs the buyer's phone and ID.
+_CAR_DETAILS = ("plate_no", "chassis_no", "year", "color", "car_type")
+
+
+def _incomplete_car():
+    pending = _attr_matches(_PENDING_RE)
+    return (Product.quantity > 0) & or_(
+        *[~_attr_filled(k) for k in _CAR_DETAILS],
+        func.coalesce(Product.thumbnail, "") == "",
+        pending & ~(_attr_filled("buyer_phone") & _attr_filled("buyer_id_no")),
+    )
+
+
 def calculate_profit(cost_price: float, selling_price: float):
     if cost_price == 0:
         return 0, 0
@@ -83,7 +102,7 @@ def get_summary(
             "data": {
                 "stock_value": 0.0, "cost_value": 0.0, "potential_profit": 0.0,
                 "total_products": 0, "total_quantity": 0, "out_of_stock": 0, "low_stock": 0,
-                "pending": 0, "with_penalties": 0,
+                "pending": 0, "with_penalties": 0, "incomplete": 0,
             },
         })
 
@@ -97,6 +116,7 @@ def get_summary(
         func.sum(case(((Product.quantity > 0) & (Product.quantity <= threshold), 1), else_=0)).label("low_stock"),
         func.sum(case(((Product.quantity > 0) & _attr_matches(_PENDING_RE), 1), else_=0)).label("pending"),
         func.sum(case((_attr_matches(_PENALTY_RE), 1), else_=0)).label("with_penalties"),
+        func.sum(case((_incomplete_car(), 1), else_=0)).label("incomplete"),
     ).one()
 
     return _scrub(user, {
@@ -111,6 +131,7 @@ def get_summary(
             "low_stock": int(row.low_stock or 0),
             "pending": int(row.pending or 0),
             "with_penalties": int(row.with_penalties or 0),
+            "incomplete": int(row.incomplete or 0),
         },
     })
 
@@ -161,7 +182,7 @@ def get_products(
     q: str | None = None,         # name / barcode search (backed by the trigram index)
     category: str | None = None,
     stock: str | None = None,     # "low" | "out" | "restock" | "in"
-    status: str | None = None,    # car companies: "available" | "pending" | "sold" | "penalties"
+    status: str | None = None,    # car companies: "available" | "pending" | "sold" | "penalties" | "incomplete"
     threshold: int = 10,          # the shop's low-stock threshold, for stock="low"/"in"
 ):
     page = max(page, 1)
@@ -196,6 +217,8 @@ def get_products(
         query = query.filter(Product.quantity > 0, ~_attr_matches(_PENDING_RE))
     elif status == "penalties":
         query = query.filter(_attr_matches(_PENALTY_RE))
+    elif status == "incomplete":
+        query = query.filter(_incomplete_car())
 
     total = query.count()
     # Full images can be several MB per product — lists only send the thumbnail.

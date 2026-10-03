@@ -64,13 +64,13 @@ interface InventorySummary {
 // Filter dropdown value → the API's `stock` parameter.
 const STOCK_PARAM: Record<string, string> = { in_stock: "in", low_stock: "low", out_stock: "out", restock: "restock" };
 // Car companies filter by sale status instead (the API's `status` parameter).
-const CAR_STATUS: Record<string, string> = { available: "available", pending: "pending", sold: "sold", penalties: "penalties" };
+const CAR_STATUS: Record<string, string> = { available: "available", pending: "pending", sold: "sold", penalties: "penalties", incomplete: "incomplete" };
 
-// Cards or table for car companies — a per-device preference.
+// Table or cards for car companies — a per-device preference, list by default.
 const VIEW_KEY = "hgv_vehicle_view";
 type VehicleView = "cards" | "list";
 function readVehicleView(): VehicleView {
-  try { return localStorage.getItem(VIEW_KEY) === "list" ? "list" : "cards"; } catch { return "cards"; }
+  try { return localStorage.getItem(VIEW_KEY) === "cards" ? "cards" : "list"; } catch { return "list"; }
 }
 
 // The API caps a page at 1000 rows; exports walk every page.
@@ -129,7 +129,7 @@ export default function ItemManagementPage() {
   // (offered after the built-in ones).
   const { lowStock, currency, carTypes: customCarTypes } = useShopSettings();
   const [galleryFor, setGalleryFor] = useState<Product | null>(null);
-  const [vehicleView, setVehicleView] = useState<VehicleView>(() => (typeof window === "undefined" ? "cards" : readVehicleView()));
+  const [vehicleView, setVehicleView] = useState<VehicleView>(() => (typeof window === "undefined" ? "list" : readVehicleView()));
   function chooseView(v: VehicleView) {
     setVehicleView(v);
     try { localStorage.setItem(VIEW_KEY, v); } catch { /* preference only */ }
@@ -208,8 +208,11 @@ export default function ItemManagementPage() {
     }
   }
 
-  // Dashboard links: /items?stock=low (restock list), /items?add=1 (new product).
+  // Dashboard links: /items?stock=low (restock list), /items?add=1 (new product),
+  // /items?status=pending|penalties|incomplete (car watch lists).
   function handleDeepLink(params: URLSearchParams) {
+    const st = params.get("status");
+    if (st && CAR_STATUS[st]) { setFilter(st); setPage(1); }
     if (params.get("stock") === "low") { setFilter(isCar ? "all" : "restock"); setPage(1); }
     if (params.get("add") === "1") openCreateModal();
   }
@@ -565,7 +568,7 @@ export default function ItemManagementPage() {
     <div className="min-h-screen">
       <div className="max-w-7xl mx-auto px-3 sm:px-5 py-3 sm:py-4">
 
-        <DeepLink keys={["stock", "add"]} onParams={handleDeepLink} />
+        <DeepLink keys={["stock", "add", "status"]} onParams={handleDeepLink} />
 
         {/* HEADER BANNER */}
         <div
@@ -683,6 +686,7 @@ export default function ItemManagementPage() {
                   <option value="pending" className="text-gray-800">{t("vehicle.status_pending")}</option>
                   <option value="sold" className="text-gray-800">{t("vehicle.status_sold")}</option>
                   <option value="penalties" className="text-gray-800">{t("vehicle.has_fines")}</option>
+                  <option value="incomplete" className="text-gray-800">{t("vehicle.incomplete")}</option>
                 </>) : (<>
                   <option value="in_stock" className="text-gray-800">{t("items.in_stock")}</option>
                   <option value="restock" className="text-gray-800">{t("dash.needs_restock")}</option>
@@ -696,7 +700,7 @@ export default function ItemManagementPage() {
             {/* Cards / List (car companies) */}
             {isCar && (
               <div className="flex items-center gap-1 rounded-xl border border-white/10 bg-white/10 p-1">
-                {([["cards", LayoutGrid, t("vehicle.view_cards")], ["list", List, t("vehicle.view_list")]] as const).map(([v, Icon, label]) => (
+                {([["list", List, t("vehicle.view_list")], ["cards", LayoutGrid, t("vehicle.view_cards")]] as const).map(([v, Icon, label]) => (
                   <button key={v} onClick={() => chooseView(v)} aria-pressed={vehicleView === v}
                     className={`flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold transition ${vehicleView === v ? "bg-white text-[#0a66c2]" : "text-white/80 hover:bg-white/10"}`}>
                     <Icon size={12} /> {label}

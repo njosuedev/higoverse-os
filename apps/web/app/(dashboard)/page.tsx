@@ -13,6 +13,7 @@ import { expenseRequest } from "@/lib/expense-api";
 import { purchaseRequest } from "@/lib/purchase-api";
 import { listShops, type Shop as ShopInfo } from "@/lib/shop-api";
 import StatCard from "@/app/components/dashboard/StatCard";
+import VehicleWatch from "@/app/components/dashboard/VehicleWatch";
 import { useCanSeeFinancials } from "@/lib/permissions";
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer,
@@ -409,6 +410,9 @@ export default function DashboardPage() {
               tone={stats.outOfStock > 0 ? "red" : "slate"} href="/items" subtitle={t("dash.zero_units")} />
           </div>
         </section>
+
+        {/* ── CAR WATCH — pending transfers, fines, missing details ─────────── */}
+        {isCar && <VehicleWatch />}
 
         <div className="hgv-notch-divider" aria-hidden="true" />
 
