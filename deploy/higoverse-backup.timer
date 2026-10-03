@@ -1,0 +1,12 @@
+[Unit]
+Description=Nightly Higoverse database backup
+
+[Timer]
+# 01:00 UTC = 03:00 in Kigali, outside business hours.
+OnCalendar=*-*-* 01:00:00 UTC
+# Run on next boot if the server was off at the scheduled time.
+Persistent=true
+RandomizedDelaySec=5min
+
+[Install]
+WantedBy=timers.target

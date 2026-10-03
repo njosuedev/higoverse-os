@@ -1,0 +1,10 @@
+[Unit]
+Description=Higoverse database backup (authdb + shopdb)
+After=postgresql.service
+Requires=postgresql.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/higoverse-backup
+Nice=10
+IOSchedulingClass=idle

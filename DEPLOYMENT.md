@@ -235,23 +235,42 @@ Application role is `higoverse_app`; password is in `/etc/higoverse/pg_app_passw
 
 ### Database backups
 
-Nothing automated is set up yet. Minimum viable backup, run as a daily cron:
+Automated since 2026-10-03. Both databases are dumped nightly, verified, and
+copied off the server.
+
+**On the VPS** — `higoverse-backup.timer` runs `/usr/local/bin/higoverse-backup`
+(source: `deploy/higoverse-backup.sh`, units: `deploy/higoverse-backup.{service,timer}`)
+every day at 01:00 UTC (03:00 Kigali):
+
+- `pg_dump --format=custom` of `authdb` and `shopdb` into
+  `/var/backups/higoverse/<db>-<UTC timestamp>.dump` (dir is `700`, files `600`, root only).
+  Read-only against Postgres.
+- Each dump is written to `*.partial`, checked with `pg_restore --list` (must
+  contain table data), and only then renamed — a failed dump never replaces a good one.
+- Keeps 14 days; the newest dump of each database is never pruned.
 
 ```bash
-mkdir -p /var/backups/higoverse
-pg_dump -U postgres authdb | gzip > /var/backups/higoverse/authdb-$(date +%F).sql.gz
-pg_dump -U postgres shopdb | gzip > /var/backups/higoverse/shopdb-$(date +%F).sql.gz
-find /var/backups/higoverse -mtime +14 -delete   # keep 2 weeks
+systemctl list-timers higoverse-backup.timer      # next/last run
+systemctl start higoverse-backup.service          # back up right now
+journalctl -u higoverse-backup.service -n 20      # result of last run
+ls -la /var/backups/higoverse
 ```
 
-Add to root's crontab (`crontab -e`):
+**Off the VPS** — the Windows task "Higoverse backup pull" on the owner's PC runs
+`deploy/pull-backups.ps1` daily at 12:00 (or as soon as the PC is on), downloading
+new dumps over SSH to `D:HigoverseBackupsps` (kept 30 days, log in `pull.log`).
+These files are real customer data: keep that folder private and outside the repo.
+
+**Restoring** (into a *new* database — never over the live one without a fresh
+backup taken first):
+
+```bash
+su - postgres -c "createdb shopdb_restore"
+su - postgres -c "pg_restore --no-owner -d shopdb_restore /var/backups/higoverse/shopdb-<stamp>.dump"
 ```
-0 3 * * * /usr/bin/pg_dump -U postgres authdb | gzip > /var/backups/higoverse/authdb-$(date +\%F).sql.gz
-5 3 * * * /usr/bin/pg_dump -U postgres shopdb | gzip > /var/backups/higoverse/shopdb-$(date +\%F).sql.gz
-```
-Off-box copies (e.g. `rclone`/`scp` to another host or object storage) are
-strongly recommended once this holds real customer data — a single VPS disk
-is a single point of failure.
+
+Verified 2026-10-03: both dumps restored into a scratch Postgres and every
+table's row count matched production exactly (authdb 6 tables, shopdb 13).
 
 ---
 
@@ -857,8 +876,8 @@ since there is no public self-registration.
   Gmail address + App Password, given the default host is `smtp.gmail.com`).
   Once you have them: fill in `backend/auth-service/.env` and
   `systemctl restart higoverse-auth-service`.
-- **No automated backups yet** — see §4's backup section; nothing is
-  scheduled by default.
+- ~~No automated backups~~ — **done 2026-10-03**: nightly verified dumps on
+  the VPS plus a daily off-server copy; see §4 "Database backups".
 - **Single VPS, no redundancy.** Fine for now; if this becomes
   business-critical, consider a managed Postgres instance (so a VPS
   rebuild doesn't risk data) and/or a second app node behind a load balancer.
@@ -1152,3 +1171,15 @@ originally written, all folded into the sections above:
 SMTP credentials, automated DB backups, pinning the unpinned `sqlalchemy`
 requirement, a `git` deploy key for future `git pull`s, decommissioning the
 old `atconsultants.rw` VPS.
+
+### 2026-10-03 — inventory-first UI release + automated backups
+
+- Deployed `62bce57` (backend) and `18811be` (web) via §6: all 9 services
+  restarted healthy, `higoverse-web` rebuilt. Only schema change: the
+  additive index `ix_products_shop_created` (no rows modified). Verified
+  read-only afterwards: 115 products across 3 shops, none without `shop_id`.
+- Fixed in production: listing/recording purchases 401'd through the
+  Next.js proxy (trailing-slash redirect dropped the auth header).
+- Backups automated (§4) and a restore test passed — every table's row
+  count matched production.
+
