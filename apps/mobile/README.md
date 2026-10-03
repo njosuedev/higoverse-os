@@ -55,8 +55,15 @@ flutter build appbundle --release  # Google Play
 flutter build ipa --release        # iOS (on a Mac)
 ```
 
-App ID: `com.higoverse.app` (Android and iOS). Release signing keys are not in
-the repository; set them up before publishing to a store.
+App ID: `com.higoverse.app` (Android and iOS).
+
+Android release builds are signed with the upload key named in
+`android/key.properties` (git-ignored). The key itself lives outside the
+repository in `D:\Higoverse\Keys`; keep a backup. Without `key.properties`
+release builds fall back to the debug key (fine for testing, not for Play).
+
+Publishing to Google Play: see [store/PLAY_STORE.md](store/PLAY_STORE.md) for the
+listing text, graphics, policy answers and steps.
 
 ## Code
 
