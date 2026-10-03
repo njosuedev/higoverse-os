@@ -40,7 +40,7 @@ function fmtTime(d: Date) {
   return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 }
 function fmtDate(d: Date) {
-  return d.toLocaleDateString([], { weekday: "long", year: "numeric", month: "long", day: "numeric" });
+  return d.toLocaleDateString([], { weekday: "short", day: "numeric", month: "short" });
 }
 function fmtMoney(n: number, currency: string) {
   try {
@@ -339,64 +339,71 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* ── HERO — flat ink surface, no gradient, no glow ──────────────────── */}
+        {/* ── HERO — one compact row: business, key figures, time ─────────────── */}
         <section className="hgv-surface rounded-data">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 px-4 py-4 sm:px-5">
-            <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-3 px-4 py-3 sm:px-5">
+            {/* Business */}
+            <div className="order-1 flex min-w-0 flex-1 basis-[220px] items-center gap-3 sm:order-none">
               {currentShop?.logo_url && (
                 <img
                   src={currentShop.logo_url}
-                  alt={currentShop.name}
-                  className="w-11 h-11 rounded-data object-cover border border-white/15 shrink-0"
+                  alt=""
+                  className="h-9 w-9 shrink-0 rounded-press border border-white/15 object-cover"
                 />
               )}
-              <div>
-                <p className="text-paper/55 text-[10px] font-medium uppercase tracking-[0.14em]">{t("dash.welcome")}</p>
-                <h1 className="font-display text-xl md:text-2xl font-semibold mt-0.5">{shop?.name || currentShop?.name || user.name || t("dash.my_shop")}</h1>
-                <p className="text-paper/55 text-[11px] mt-0.5">{user.name} · {user.role || t("dash.owner_role")}</p>
+              <div className="min-w-0">
+                {(() => {
+                  const name = shop?.name || currentShop?.name || user.name || t("dash.my_shop");
+                  return <h1 className="truncate font-display text-base font-bold leading-tight" title={name}>{name}</h1>;
+                })()}
+                <p className="mt-0.5 flex min-w-0 items-center gap-1.5 truncate text-[11px] text-paper/60">
+                  <span className="truncate">{user.name} · {user.role || t("dash.owner_role")}</span>
+                  <span aria-hidden="true">·</span>
+                  <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#6fb97e]" />
+                  <span className="shrink-0">{lastUpdated ? `${t("dash.last_updated")} ${timeAgo(lastUpdated, t)}` : `${t("dash.live_refresh")} ${countdown}s`}</span>
+                </p>
               </div>
             </div>
 
-            <div className="flex items-center gap-2 flex-wrap">
-              <div className="bg-white/8 px-3 py-1.5 rounded-press text-center">
-                <p className="text-paper/55 text-[9px] uppercase tracking-wider">{t("dash.sales_week")}</p>
-                <p className="hgv-figure text-sm font-semibold">{stats.sales}</p>
+            {/* Key figures — plain label/value pairs, thin dividers */}
+            <dl className="order-3 flex w-full items-center divide-x divide-white/15 border-t border-white/10 pt-3 sm:order-none sm:w-auto sm:border-0 sm:pt-0">
+              <div className="flex-1 pr-4 sm:flex-none">
+                <dt className="whitespace-nowrap text-[10px] font-semibold uppercase tracking-wider text-paper/55">
+                  <span className="sm:hidden">{t("dash.chart_sales")}</span><span className="hidden sm:inline">{t("dash.sales_week")}</span>
+                </dt>
+                <dd className="hgv-figure whitespace-nowrap text-[15px] font-bold leading-tight">{stats.sales}</dd>
               </div>
-              {fin && <div className="bg-white/8 px-3 py-1.5 rounded-press text-center">
-                <p className="text-paper/55 text-[9px] uppercase tracking-wider">{t("dash.revenue_week")}</p>
-                <p className="hgv-figure text-sm font-semibold text-[#8fd19e]">
-                  {stats.revenue > 0 ? `${currency} ${fmtShort(stats.revenue)}` : "-"}
-                </p>
-              </div>}
-              {(stats.lowStock > 0 || stats.outOfStock > 0) && (
-                <div className="bg-accent/20 border border-accent/30 px-3 py-1.5 rounded-press text-center">
-                  <p className="text-[#f0c2b3] text-[9px] uppercase tracking-wider">{t("dash.needs_restock")}</p>
-                  <p className="hgv-figure text-sm font-semibold text-[#f0c2b3]">{stats.lowStock + stats.outOfStock}</p>
+              {fin && (
+                <div className="flex-1 px-4 sm:flex-none">
+                  <dt className="whitespace-nowrap text-[10px] font-semibold uppercase tracking-wider text-paper/55">
+                    <span className="sm:hidden">{t("dash.revenue_label")}</span><span className="hidden sm:inline">{t("dash.revenue_week")}</span>
+                  </dt>
+                  <dd className="hgv-figure whitespace-nowrap text-[15px] font-bold leading-tight text-[#8fd19e]">
+                    {stats.revenue > 0 ? `${currency} ${fmtShort(stats.revenue)}` : "-"}
+                  </dd>
                 </div>
               )}
-            </div>
+              {(stats.lowStock > 0 || stats.outOfStock > 0) && (
+                <div className="flex-1 pl-4 sm:flex-none">
+                  <dt className="whitespace-nowrap text-[10px] font-semibold uppercase tracking-wider text-[#f0c2b3]">{t("dash.needs_restock")}</dt>
+                  <dd className="hgv-figure whitespace-nowrap text-[15px] font-bold leading-tight text-[#f0c2b3]">{stats.lowStock + stats.outOfStock}</dd>
+                </div>
+              )}
+            </dl>
 
-            <div className="flex items-center gap-2 shrink-0">
-              <div className="text-right">
-                <p className="hgv-figure text-sm font-semibold">{fmtTime(now)}</p>
-                <p className="text-paper/50 text-[10px]">{fmtDate(now)}</p>
-              </div>
+            {/* Time + refresh */}
+            <div className="order-2 ml-auto flex shrink-0 items-center gap-2 sm:order-none">
+              <p className="hgv-figure hidden whitespace-nowrap text-right text-[11px] text-paper/60 sm:block">
+                <span className="font-semibold text-paper/85">{fmtTime(now)}</span> · {fmtDate(now)}
+              </p>
               <button
                 onClick={manualRefresh} disabled={refreshing}
-                className="w-9 h-9 rounded-press bg-white/8 hover:bg-white/15 flex items-center justify-center transition-colors duration-200 disabled:opacity-50"
-                title={t("common.refresh")}
+                className="flex h-8 w-8 items-center justify-center rounded-press bg-white/8 transition-colors duration-200 hover:bg-white/15 disabled:opacity-50"
+                title={t("common.refresh")} aria-label={t("common.refresh")}
               >
-                <RefreshCw size={14} className={refreshing ? "animate-spin" : ""} />
+                <RefreshCw size={13} className={refreshing ? "animate-spin" : ""} />
               </button>
             </div>
-          </div>
-
-          <div className="border-t border-white/10 px-4 sm:px-5 py-1.5 flex items-center gap-3 text-[10px] text-paper/55">
-            <span className="flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-[#6fb97e]" />
-              {t("dash.live_refresh")} {countdown}s
-            </span>
-            {lastUpdated && <span>{t("dash.last_updated")} {timeAgo(lastUpdated, t)}</span>}
           </div>
         </section>
 
