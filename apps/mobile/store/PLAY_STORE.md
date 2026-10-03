@@ -79,9 +79,13 @@ administrator. If your business doesn't have one yet, contact us.
 
 **Privacy policy**: https://higoverse.com/privacy
 
-**App access**: *All or some functionality is restricted* → give Google a
-**demo account** (email + password) that can sign in. Use a separate demo
-business with sample data, never a real customer's account.
+**App access**: *All or some functionality is restricted* → add instructions:
+- Username: `playreview@higoverse.com`
+- Password: in `D:\Higoverse\Keys\play-demo-account.txt` (not in the repository)
+- Notes: "Sign in with these details. The account belongs to a demo car dealer
+  (Higoverse Demo Motors) with sample vehicles, customers and sales."
+
+This demo business is separate from every real business and holds sample data only.
 
 **Ads**: No, the app does not contain ads.
 
