@@ -22,8 +22,19 @@
   --color-border: #e0dfdc;
   --color-border-strong: #c3c1bd;
   --color-text: #191919;
-  --color-text-muted: #666666;
-  --color-text-faint: #8c8c8c;
+  /* Secondary text kept dark enough to read easily (was #666 / #8c8c8c). */
+  --color-text-muted: #444444;
+  --color-text-faint: #5e5e5e;
+
+  /* Pale greys used for labels, hints and table headers across the pages
+     are shifted one step darker for contrast (Tailwind defaults in
+     brackets): slate-300 (#cbd5e1) … gray-500 (#6b7280). */
+  --color-slate-300: #94a3b8;
+  --color-slate-400: #64748b;
+  --color-slate-500: #475569;
+  --color-gray-300: #9ca3af;
+  --color-gray-400: #6b7280;
+  --color-gray-500: #4b5563;
   --color-accent: #cc1016;
   --color-accent-dark: #a30d12;
   --color-accent-soft: #fdeced;
@@ -52,9 +63,9 @@ html {
 
 body {
   font-family: var(--font-sans);
-  /* Medium weight by default for readability; elements that set their own
-     weight (font-semibold, font-bold, font-normal…) keep it. */
-  font-weight: 500;
+  /* Semi-bold by default for readability; elements that set their own
+     weight (font-bold, font-normal…) keep it. */
+  font-weight: 600;
   background-color: var(--color-paper);
   color: var(--color-text);
   -webkit-font-smoothing: antialiased;
@@ -297,3 +308,9 @@ select:-webkit-autofill {
   caret-color: var(--color-text);
   transition: background-color 9999s ease-out 0s;
 }
+
+/* ── READABILITY FLOOR ─────────────────────────────────────────
+   The tiniest labels (9–10px) are raised slightly so nothing is too
+   small to read. Unlayered, so it wins over the Tailwind utilities. */
+.text-\[9px\]  { font-size: 11px; }
+.text-\[10px\] { font-size: 11.5px; }
