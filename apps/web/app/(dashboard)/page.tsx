@@ -81,7 +81,7 @@ function shopPresence(lastSeenAt: string | null, now: Date) {
 const REFRESH_INTERVAL = 60;
 
 // ─── Dashboard cache (localStorage) ──────────────────────────────────────────
-const DASH_CACHE_KEY = "hgv_dash_v3";
+const DASH_CACHE_KEY = "hgv_dash_v4"; // v4: figures cover 7 days, not today
 const DASH_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
 interface DashCache {
@@ -165,11 +165,13 @@ export default function DashboardPage() {
   const loadAll = async (soft = false) => {
     if (soft) setRefreshing(true);
     const today = toDateStr(new Date());
+    // Figures cover the last 7 days (today included), like the lists' "7 days" preset.
+    const weekFrom = (() => { const d = new Date(); d.setDate(d.getDate() - 6); return toDateStr(d); })();
 
     // ── Phase 1: critical KPIs — unblocks UI fast ──────────────────────────
     try {
       const [salesRes, stockRes, recentRes] = await Promise.allSettled([
-        saleRequest(`/sales/summary?from_date=${today}&to_date=${today}`),
+        saleRequest(`/sales/summary?from_date=${weekFrom}&to_date=${today}`),
         itemRequest(`/products/stock-alerts?threshold=${lowStockRef.current}`),
         saleRequest("/sales?page=1&limit=8"),
       ]);
@@ -197,9 +199,9 @@ export default function DashboardPage() {
         itemRequest("/products?page=1&limit=1"),
         partnerRequest("/suppliers?limit=50"),
         listShops({ limit: 20 }),
-        reportRequest("/reports/daily?days=8"),
-        expenseRequest(`/expenses/summary?from_date=${today}&to_date=${today}`),
-        purchaseRequest(`/purchases/summary?from_date=${today}&to_date=${today}`),
+        reportRequest("/reports/daily?days=14"),
+        expenseRequest(`/expenses/summary?from_date=${weekFrom}&to_date=${today}`),
+        purchaseRequest(`/purchases/summary?from_date=${weekFrom}&to_date=${today}`),
       ]);
 
       const productCount = productsRes.status === "fulfilled" ? (productsRes.value?.data?.total ?? 0) : 0;
@@ -219,7 +221,9 @@ export default function DashboardPage() {
         ? (purchaseRes.value?.data?.total_cost ?? purchaseRes.value?.data?.items?.reduce(
             (s: number, p: { total_cost?: number }) => s + (p.total_cost ?? 0), 0) ?? 0)
         : 0;
-      const yRev = daily.length >= 2 ? (daily[daily.length - 2]?.revenue ?? 0) : 0;
+      // The 7 days before this week, for the revenue comparison.
+      const prevWeek = new Set(Array.from({ length: 7 }, (_, i) => { const d = new Date(); d.setDate(d.getDate() - 7 - i); return toDateStr(d); }));
+      const yRev = daily.reduce((sum, d) => sum + (d.day && prevWeek.has(d.day) ? (d.revenue ?? 0) : 0), 0);
 
       setStats((prev) => {
         const next = { ...prev, products: productCount, partners: partnerCount, suppliers: supplierCount };
@@ -342,11 +346,11 @@ export default function DashboardPage() {
 
             <div className="flex items-center gap-2 flex-wrap">
               <div className="bg-white/8 px-3 py-1.5 rounded-press text-center">
-                <p className="text-paper/55 text-[9px] uppercase tracking-wider">{t("dash.sales_today")}</p>
+                <p className="text-paper/55 text-[9px] uppercase tracking-wider">{t("dash.sales_week")}</p>
                 <p className="hgv-figure text-sm font-semibold">{stats.sales}</p>
               </div>
               {fin && <div className="bg-white/8 px-3 py-1.5 rounded-press text-center">
-                <p className="text-paper/55 text-[9px] uppercase tracking-wider">{t("dash.revenue_today")}</p>
+                <p className="text-paper/55 text-[9px] uppercase tracking-wider">{t("dash.revenue_week")}</p>
                 <p className="hgv-figure text-sm font-semibold text-[#8fd19e]">
                   {stats.revenue > 0 ? `${currency} ${fmtShort(stats.revenue)}` : "—"}
                 </p>
@@ -386,21 +390,21 @@ export default function DashboardPage() {
         {/* ── KPI CARDS — Revenue is the hero metric, everything else balanced ── */}
         <section className="grid grid-cols-1 gap-3 lg:grid-cols-3">
           {fin && <StatCard
-            label={t("dash.revenue_today")}
+            label={t("dash.revenue_week")}
             value={stats.revenue > 0 ? fmtCurrency(stats.revenue) : t("common.no_data")}
             icon={<TrendingUp size={18} strokeWidth={2} />}
             tone="green"
             size="lg"
             href="/reports"
             delta={revDeltaPct !== null ? { value: `${Math.abs(revDeltaPct)}%`, direction: revDeltaPct >= 0 ? "up" : "down" } : undefined}
-            subtitle={yesterdayRevenue > 0 ? `${t("dash.yesterday")}: ${fmtCurrency(yesterdayRevenue)}` : t("dash.first_day_data")}
+            subtitle={yesterdayRevenue > 0 ? `${t("dash.prev_week")}: ${fmtCurrency(yesterdayRevenue)}` : t("dash.first_day_data")}
           />}
           <div className={`grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5 ${fin ? "lg:col-span-2" : "lg:col-span-3"}`}>
             <StatCard label={t("dash.products")} value={stats.products.toLocaleString()}
               icon={<Package size={15} strokeWidth={2} />} tone="blue" href="/items" subtitle={t("dash.in_your_shop")} />
             <StatCard label={t("dash.partners")} value={partnersShown.toLocaleString()}
               icon={<Users size={15} strokeWidth={2} />} tone="blue" href="/partners" subtitle={t("dash.suppliers_customers")} />
-            <StatCard label={t("dash.sales_today")} value={stats.sales.toLocaleString()}
+            <StatCard label={t("dash.sales_week")} value={stats.sales.toLocaleString()}
               icon={<ShoppingCart size={15} strokeWidth={2} />} tone="blue" href="/sales" subtitle={t("dash.transactions")} />
             <StatCard label={t("items.low_stock")} value={stats.lowStock.toLocaleString()}
               icon={<AlertTriangle size={15} strokeWidth={2} />}
@@ -422,7 +426,7 @@ export default function DashboardPage() {
           <div className="flex items-center justify-between mb-3">
             <h2 className="font-display font-semibold text-text text-base flex items-center gap-2">
               <DollarSign size={14} className="text-ink" />
-              {t("dash.shop_status_today")}
+              {t("dash.shop_status_week")}
             </h2>
             <Link href="/reports" className="text-[11px] font-semibold text-ink hover:text-ink-dark flex items-center gap-0.5 transition-colors duration-200">
               {t("dash.full_report")} <ChevronRight size={12} />
@@ -431,9 +435,9 @@ export default function DashboardPage() {
 
           <div className={`grid grid-cols-2 ${isCar ? "sm:grid-cols-3" : "sm:grid-cols-4"} divide-y sm:divide-y-0 sm:divide-x divide-border border border-border rounded-data overflow-hidden`}>
             <div className="p-3">
-              <p className="text-[9px] text-text-faint uppercase tracking-wide font-medium">{t("dash.revenue_today")}</p>
+              <p className="text-[9px] text-text-faint uppercase tracking-wide font-medium">{t("dash.revenue_week")}</p>
               <p className="hgv-figure text-lg font-semibold text-success mt-0.5">{stats.revenue > 0 ? fmtCurrency(stats.revenue) : "—"}</p>
-              <p className="text-[10px] text-text-faint mt-0.5">{stats.sales} {t("dash.sales_today")}</p>
+              <p className="text-[10px] text-text-faint mt-0.5">{stats.sales} {t("dash.sales_week")}</p>
             </div>
             {!isCar && <div className="p-3">
               <p className="text-[9px] text-text-faint uppercase tracking-wide font-medium">{t("nav.purchases")}</p>
@@ -534,7 +538,7 @@ export default function DashboardPage() {
                   <div className="absolute inset-y-0 left-0 rounded-full transition-all duration-700" style={{ width: `${capped}%`, backgroundColor: barColor }} />
                 </div>
                 <div className="flex items-center justify-between text-[9px] text-text-faint">
-                  <span>{t("dash.revenue_today")}: {fmtCurrency(stats.revenue)}</span>
+                  <span>{t("dash.revenue_week")}: {fmtCurrency(stats.revenue)}</span>
                   <span className={isGood ? "text-success font-semibold" : ""}>{isGood ? t("dash.margin_healthy") : margin < 0 ? t("dash.margin_loss") : t("dash.margin_fair")}</span>
                 </div>
               </div>
@@ -823,7 +827,7 @@ export default function DashboardPage() {
               </span>
               <span className="text-border-strong">·</span>
               <span className="flex items-center gap-1 font-medium">
-                <ShoppingCart size={11} className="text-text-faint" /> {stats.sales} {t("dash.sales_today")}
+                <ShoppingCart size={11} className="text-text-faint" /> {stats.sales} {t("dash.sales_week")}
               </span>
               {fin && stats.revenue > 0 && (
                 <>

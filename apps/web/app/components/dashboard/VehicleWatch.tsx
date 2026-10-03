@@ -22,14 +22,16 @@ interface Contact { name: string; phone: string }
 type Kind = "pending" | "penalties" | "incomplete";
 type Lists = Record<Kind, { items: WatchCar[]; total: number }>;
 
-const SHOWN = 5;
-// Incomplete cars are drawn as a compact row of circles, so more fit.
+// Up to ROWS cars show as full rows; beyond that a panel switches to a row of
+// circles (up to STACK, then "+N"), so every panel keeps the same height.
+const ROWS = 2;
 const STACK = 8;
 const KINDS: Kind[] = ["pending", "penalties", "incomplete"];
+const PENDING_SCALE_DAYS = 30; // a pending ring is full after this many days
 
 function fetchLists() {
   return Promise.allSettled(KINDS.map((k) =>
-    itemRequest(`/products?page=1&limit=${k === "incomplete" ? STACK : SHOWN}&status=${k}`)
+    itemRequest(`/products?page=1&limit=${STACK}&status=${k}`)
       .then(async (r) => {
         let items = (r?.data?.items ?? []) as WatchCar[];
         if (k !== "incomplete") items = await Promise.all(items.map(async (c) => ({ ...c, contact: await findContact(c) })));
@@ -70,6 +72,10 @@ function missingDetails(c: WatchCar, a: Attributes, t: (k: string) => string): s
   return out;
 }
 
+/** One way to show a car in a panel: its ring, its details line, and an
+ *  optional count badge on the circle. */
+interface View { done: number; color: string; badge?: number; line: React.ReactNode; label: string }
+
 /** Car companies' home: the cars that need someone's attention today —
  *  reserved for a buyer, carrying traffic fines, or missing details. */
 export default function VehicleWatch() {
@@ -94,54 +100,80 @@ export default function VehicleWatch() {
   }, [apply]);
   useAutoRefresh(() => { fetchLists().then(apply); });
 
+  const pendingView = (c: WatchCar): View => {
+    const a = parseAttributes(c.attributes);
+    const days = daysSince(a.pending_since);
+    const text = `${t("vehicle.pending_docs")}${days !== null ? ` · ${days} ${t("vehicle.days")}` : ""}`;
+    return {
+      done: Math.min(1, (days ?? 0) / PENDING_SCALE_DAYS), color: "var(--color-warning)",
+      line: <span className="text-text-muted">{text}</span>, label: text,
+    };
+  };
+
+  const finesView = (c: WatchCar): View => {
+    const a = parseAttributes(c.attributes);
+    const n = Number(a.penalty_count || 0);
+    const checked = daysSince(a.penalty_checked);
+    const stale = checked !== null && checked > PENALTY_RECHECK_DAYS;
+    const fines = `${n} ${n === 1 ? t("vehicle.fine") : t("vehicle.fines")}${a.penalty_amount ? ` · ${Number(a.penalty_amount).toLocaleString()}` : ""}`;
+    const when = checked === null ? "" : stale ? t("vehicle.recheck") : checked === 0 ? t("vehicle.today") : `${checked} ${t("vehicle.days_ago")}`;
+    return {
+      done: 1, color: "var(--color-accent)", badge: n, label: fines,
+      line: <>
+        <span className="font-semibold text-accent-dark">{fines}</span>
+        {when && <span className={stale ? "font-semibold text-warning" : "text-text-faint"}> · {when}</span>}
+      </>,
+    };
+  };
+
+  const incompleteView = (c: WatchCar): View => {
+    const a = parseAttributes(c.attributes);
+    const miss = missingDetails(c, a, t);
+    const done = Math.max(0, 1 - miss.length / checkedCount(a));
+    return {
+      done, color: done < 0.5 ? "var(--color-accent)" : "var(--color-warning)",
+      label: `${t("vehicle.missing")}: ${miss.join(", ")}`,
+      line: <span className="text-text-muted" title={miss.join(", ")}>{t("vehicle.missing")}: <span className="font-semibold text-accent-dark">{miss.join(", ")}</span></span>,
+    };
+  };
+
+  // Gaps most incomplete cars share, shown under the circles.
+  const tally = new Map<string, number>();
+  lists.incomplete.items.forEach((c) => missingDetails(c, parseAttributes(c.attributes), t).forEach((m) => tally.set(m, (tally.get(m) ?? 0) + 1)));
+  const common = [...tally.entries()].sort((x, y) => y[1] - x[1]).slice(0, 4);
+
   return (
     <section className="grid gap-3 lg:grid-cols-3">
       <Panel kind="pending" icon={<Clock size={14} className="text-warning" />} title={t("vehicle.watch_pending")}
         total={lists.pending.total} loading={loading} empty={t("vehicle.no_pending")}>
-        {lists.pending.items.map((c) => {
-          const a = parseAttributes(c.attributes);
-          const days = daysSince(a.pending_since);
-          return (
-            <Row key={c.id} car={c} a={a}
-              line={<span className="text-text-muted">{t("vehicle.pending_docs")}{days !== null && <> · {days} {t("vehicle.days")}</>}</span>} />
-          );
-        })}
+        <CarList kind="pending" cars={lists.pending.items} total={lists.pending.total} view={pendingView} />
       </Panel>
 
       <Panel kind="penalties" icon={<ShieldAlert size={14} className="text-accent" />} title={t("vehicle.watch_fines")}
         total={lists.penalties.total} loading={loading} empty={t("vehicle.no_cars_with_fines")}>
-        {lists.penalties.items.map((c) => {
-          const a = parseAttributes(c.attributes);
-          const n = Number(a.penalty_count || 0);
-          const checked = daysSince(a.penalty_checked);
-          const stale = checked !== null && checked > PENALTY_RECHECK_DAYS;
-          return (
-            <Row key={c.id} car={c} a={a}
-              line={<>
-                <span className="font-semibold text-accent-dark">
-                  {n} {n === 1 ? t("vehicle.fine") : t("vehicle.fines")}{a.penalty_amount ? ` · ${Number(a.penalty_amount).toLocaleString()}` : ""}
-                </span>
-                {checked !== null && (
-                  <span className={stale ? "font-semibold text-warning" : "text-text-faint"}>
-                    {" · "}{stale ? t("vehicle.recheck") : checked === 0 ? t("vehicle.today") : `${checked} ${t("vehicle.days_ago")}`}
-                  </span>
-                )}
-              </>} />
-          );
-        })}
+        <CarList kind="penalties" cars={lists.penalties.items} total={lists.penalties.total} view={finesView} />
       </Panel>
 
       <Panel kind="incomplete" icon={<FileWarning size={14} className="text-ink" />} title={t("vehicle.incomplete")}
-        total={lists.incomplete.total} loading={loading} empty={t("vehicle.all_complete")} moreLink={false}>
-        <IncompleteStack cars={lists.incomplete.items} total={lists.incomplete.total} />
+        total={lists.incomplete.total} loading={loading} empty={t("vehicle.all_complete")}>
+        {/* Always circles: the gaps are the point, not the car list. */}
+        <CarList kind="incomplete" cars={lists.incomplete.items} total={lists.incomplete.total} view={incompleteView} circles
+          footer={common.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {common.map(([label, n]) => (
+                <span key={label} className="rounded-full border border-border bg-paper px-2 py-0.5 text-[11px] font-semibold text-text">
+                  {label} <span className="text-accent-dark">×{n}</span>
+                </span>
+              ))}
+            </div>
+          )} />
       </Panel>
     </section>
   );
 }
 
-function Panel({ kind, icon, title, total, loading, empty, children, moreLink = true }: {
+function Panel({ kind, icon, title, total, loading, empty, children }: {
   kind: Kind; icon: React.ReactNode; title: string; total: number; loading: boolean; empty: string; children: React.ReactNode;
-  moreLink?: boolean;
 }) {
   const { t } = useLanguage();
   return (
@@ -164,31 +196,71 @@ function Panel({ kind, icon, title, total, loading, empty, children, moreLink = 
           <CheckCircle size={16} className="text-success" />
           <p className="text-xs font-semibold text-text">{empty}</p>
         </div>
-      ) : (
-        <div className="pb-1">
-          {children}
-          {moreLink && total > SHOWN && (
-            <Link href={`/items?status=${kind}`} className="block px-3.5 py-2 text-xs font-semibold text-ink hover:bg-paper-dim">
-              +{total - SHOWN} {t("vehicle.more")}
-            </Link>
-          )}
-        </div>
-      )}
+      ) : children}
     </div>
   );
 }
 
-function Row({ car, a, line }: { car: WatchCar; a: Attributes; line: React.ReactNode }) {
+/** A few cars as rows; more than ROWS (or `circles`) as overlapping circles
+ *  with the hovered/focused car's details underneath. */
+function CarList({ kind, cars, total, view, circles = false, footer }: {
+  kind: Kind; cars: WatchCar[]; total: number; view: (c: WatchCar) => View; circles?: boolean; footer?: React.ReactNode;
+}) {
   const { t } = useLanguage();
+  const [active, setActive] = useState<string | null>(null);
+
+  if (!circles && total <= ROWS) {
+    return <div className="pb-1">{cars.map((c) => <Row key={c.id} car={c} line={view(c).line} />)}</div>;
+  }
+
+  const shown = cars.find((c) => c.id === active) ?? cars[0];
+  const extra = total - cars.length;
+  return (
+    <div className="px-3.5 pb-3">
+      <div className="flex items-center pl-1.5 pt-1" onMouseLeave={() => setActive(null)}>
+        {cars.map((c, i) => {
+          const v = view(c);
+          return (
+            <button key={c.id} type="button" aria-label={`${c.name}: ${v.label}`} aria-pressed={shown?.id === c.id}
+              onMouseEnter={() => setActive(c.id)} onFocus={() => setActive(c.id)} onClick={() => setActive(c.id)}
+              className="relative -ml-2.5 rounded-full transition-transform first:ml-0 hover:-translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-ink/40"
+              style={{ zIndex: shown?.id === c.id ? 30 : cars.length - i }}>
+              <Ring done={v.done} color={v.color} thumb={c.thumbnail} />
+              {!!v.badge && (
+                <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full border border-white bg-accent px-1 text-[10px] font-bold leading-none text-white">
+                  {v.badge}
+                </span>
+              )}
+            </button>
+          );
+        })}
+        {extra > 0 && (
+          <Link href={`/items?status=${kind}`} aria-label={`+${extra} ${t("vehicle.more")}`}
+            className="relative -ml-2.5 flex h-11 w-11 items-center justify-center rounded-full border-2 border-white bg-paper-dim text-xs font-bold text-text hover:bg-paper-deep">
+            +{extra}
+          </Link>
+        )}
+      </div>
+      {shown && <div className="-mx-3.5 mt-1"><Row car={shown} line={view(shown).line} bare /></div>}
+      {footer}
+    </div>
+  );
+}
+
+function Row({ car, line, bare = false }: { car: WatchCar; line: React.ReactNode; bare?: boolean }) {
+  const { t } = useLanguage();
+  const a = parseAttributes(car.attributes);
   const contact = car.contact;
   return (
-    <div className="hgv-ledger-row flex items-center gap-2.5 px-3.5 py-2">
-      <div className="flex h-9 w-12 shrink-0 items-center justify-center overflow-hidden rounded-press bg-paper-dim">
-        {car.thumbnail
-          // eslint-disable-next-line @next/next/no-img-element
-          ? <img src={car.thumbnail} alt="" loading="lazy" className="h-full w-full object-cover" />
-          : <Car size={16} className="text-text-faint" />}
-      </div>
+    <div className={`${bare ? "" : "hgv-ledger-row "}flex items-center gap-2.5 px-3.5 py-2`}>
+      {!bare && (
+        <div className="flex h-9 w-12 shrink-0 items-center justify-center overflow-hidden rounded-press bg-paper-dim">
+          {car.thumbnail
+            // eslint-disable-next-line @next/next/no-img-element
+            ? <img src={car.thumbnail} alt="" loading="lazy" className="h-full w-full object-cover" />
+            : <Car size={16} className="text-text-faint" />}
+        </div>
+      )}
       <div className="min-w-0 flex-1">
         <p className="truncate text-xs font-semibold text-text">
           {car.name}{a.plate_no && <span className="ml-1.5 font-mono font-medium text-text-muted">{a.plate_no}</span>}
@@ -214,76 +286,17 @@ function Row({ car, a, line }: { car: WatchCar; a: Attributes; line: React.React
   );
 }
 
-/** Incomplete cars as overlapping circles: each photo sits inside a ring
- *  that fills with how complete the car's details are. Hover or focus a
- *  circle for what's missing; below, the gaps most cars share. */
-function IncompleteStack({ cars, total }: { cars: WatchCar[]; total: number }) {
-  const { t } = useLanguage();
-  const [active, setActive] = useState<string | null>(null);
-  const rows = cars.map((c) => {
-    const a = parseAttributes(c.attributes);
-    const miss = missingDetails(c, a, t);
-    return { c, miss, done: Math.max(0, 1 - miss.length / checkedCount(a)) };
-  });
-  const tally = new Map<string, number>();
-  rows.forEach((r) => r.miss.forEach((m) => tally.set(m, (tally.get(m) ?? 0) + 1)));
-  const common = [...tally.entries()].sort((x, y) => y[1] - x[1]).slice(0, 4);
-  const shown = rows.find((r) => r.c.id === active) ?? rows[0];
-  const extra = total - rows.length;
-
-  return (
-    <div className="px-3.5 pb-3">
-      <div className="flex items-center pl-1.5 pt-1" onMouseLeave={() => setActive(null)}>
-        {rows.map((r, i) => (
-          <Link key={r.c.id} href="/items?status=incomplete" aria-label={`${r.c.name}: ${t("vehicle.missing")} ${r.miss.join(", ")}`}
-            onMouseEnter={() => setActive(r.c.id)} onFocus={() => setActive(r.c.id)}
-            className={`relative -ml-2.5 first:ml-0 rounded-full transition-transform hover:z-20 hover:-translate-y-0.5 focus:z-20 focus:outline-none ${shown?.c.id === r.c.id ? "z-10" : ""}`}
-            style={{ zIndex: shown?.c.id === r.c.id ? 15 : rows.length - i }}>
-            <Ring done={r.done} thumb={r.c.thumbnail} />
-          </Link>
-        ))}
-        {extra > 0 && (
-          <Link href="/items?status=incomplete"
-            className="relative -ml-2.5 flex h-11 w-11 items-center justify-center rounded-full border-2 border-white bg-paper-dim text-xs font-bold text-text hover:bg-paper-deep">
-            +{extra}
-          </Link>
-        )}
-      </div>
-
-      {shown && (
-        <div className="mt-2.5 min-w-0">
-          <p className="truncate text-xs font-semibold text-text">
-            {shown.c.name}{(() => { const pl = parseAttributes(shown.c.attributes).plate_no; return pl ? <span className="ml-1.5 font-mono font-medium text-text-muted">{pl}</span> : null; })()}
-          </p>
-          <p className="truncate text-xs text-text-muted" title={shown.miss.join(", ")}>
-            {t("vehicle.missing")}: <span className="font-semibold text-accent-dark">{shown.miss.join(", ")}</span>
-          </p>
-        </div>
-      )}
-
-      {common.length > 0 && (
-        <div className="mt-2 flex flex-wrap gap-1.5">
-          {common.map(([label, n]) => (
-            <span key={label} className="rounded-full border border-border bg-paper px-2 py-0.5 text-[11px] font-semibold text-text">
-              {label} <span className="text-accent-dark">×{n}</span>
-            </span>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-/** A car photo nested in a completion ring (red under half done, amber after). */
-function Ring({ done, thumb }: { done: number; thumb?: string | null }) {
+/** A car photo nested in a ring filled to `done` (0–1). */
+function Ring({ done, color, thumb }: { done: number; color: string; thumb?: string | null }) {
   const R = 20, C = 2 * Math.PI * R;
-  const color = done < 0.5 ? "var(--color-accent)" : "var(--color-warning)";
   return (
     <span className="relative block h-11 w-11 rounded-full bg-white">
       <svg viewBox="0 0 44 44" className="absolute inset-0 h-full w-full -rotate-90" aria-hidden="true">
         <circle cx="22" cy="22" r={R} fill="none" stroke="var(--color-border)" strokeWidth="3" />
-        <circle cx="22" cy="22" r={R} fill="none" stroke={color} strokeWidth="3" strokeLinecap="round"
-          strokeDasharray={`${C * done} ${C}`} />
+        {done > 0 && (
+          <circle cx="22" cy="22" r={R} fill="none" stroke={color} strokeWidth="3" strokeLinecap="round"
+            strokeDasharray={`${C * done} ${C}`} />
+        )}
       </svg>
       <span className="absolute inset-[5px] flex items-center justify-center overflow-hidden rounded-full bg-paper-dim">
         {thumb
