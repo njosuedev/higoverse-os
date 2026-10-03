@@ -302,7 +302,7 @@ export default function ReportsPage() {
                       return (
                         <div className="flex items-center gap-2.5">
                           <div className="min-w-0 flex-1">
-                            <p className="truncate text-sm font-semibold text-slate-800"><span className="mr-1.5 text-slate-400">{i + 1}.</span>{item.product_name || "—"}</p>
+                            <p className="truncate text-sm font-semibold text-slate-800"><span className="mr-1.5 text-slate-400">{i + 1}.</span>{item.product_name || "-"}</p>
                             <p className="truncate text-xs text-slate-500 tabular-nums">
                               <span className="font-semibold text-slate-800">{currency} {fmtNum(item.revenue)}</span> · {fmtNum(item.qty_sold)} {t("reports.sold_word")}
                             </p>
@@ -346,7 +346,7 @@ export default function ReportsPage() {
                 <tbody className="divide-y divide-slate-100">
                   {recentPurchases.map((p) => (
                     <tr key={p.id}>
-                      <td className="whitespace-nowrap px-4 py-1.5 text-xs text-slate-500">{p.created_at ? toDateStr(new Date(p.created_at)) : "—"}</td>
+                      <td className="whitespace-nowrap px-4 py-1.5 text-xs text-slate-500">{p.created_at ? toDateStr(new Date(p.created_at)) : "-"}</td>
                       <td className="px-4 py-1.5 font-medium text-slate-800">{p.product_name}</td>
                       <td className="px-4 py-1.5 tabular-nums text-slate-600">{p.quantity_added}</td>
                       <td className="px-4 py-1.5 tabular-nums text-slate-600">{(p.cost_price || 0).toLocaleString()}</td>

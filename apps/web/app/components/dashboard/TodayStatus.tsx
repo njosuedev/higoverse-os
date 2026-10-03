@@ -141,7 +141,7 @@ export default function TodayStatus() {
             const line = e.kind === "fines" ? `${e.detail} ${Number(e.detail) === 1 ? t("vehicle.fine") : t("vehicle.fines")}`
               : e.kind === "pending" && e.detail ? e.detail : kindLabel[e.kind];
             return (
-              <Link key={e.key} href={HREF[e.kind](e.car.id)} title={`${e.car.name} — ${line}, ${when(e)}`}
+              <Link key={e.key} href={HREF[e.kind](e.car.id)} title={`${e.car.name} · ${line}, ${when(e)}`}
                 className="group w-[128px] overflow-hidden rounded-press border border-border bg-white text-left transition hover:border-border-strong hover:shadow-[0_4px_12px_-6px_rgb(0_0_0_/_0.25)]">
                 <span className="relative block aspect-[4/3] w-full bg-paper-dim">
                   {e.car.thumbnail

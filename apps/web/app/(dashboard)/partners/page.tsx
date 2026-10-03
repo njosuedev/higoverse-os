@@ -150,12 +150,12 @@ export default function PartnerManagementPage() {
     autoTable(doc, {
       startY: 22,
       head: [isCar ? ["Name", "Phone", "Email"] : ["Name", "Type", "Phone", "TIN", "Email"]],
-      body: filtered.map((p) => isCar ? [p.name, p.phone || "—", p.email || "—"] : [
+      body: filtered.map((p) => isCar ? [p.name, p.phone || "-", p.email || "-"] : [
         p.name,
         p.partnerType === "supplier" ? "Supplier" : "Customer",
-        p.phone || "—",
-        p.tin || "—",
-        p.email || "—",
+        p.phone || "-",
+        p.tin || "-",
+        p.email || "-",
       ]),
       styles: { fontSize: 8 },
       headStyles: { fillColor: [19, 114, 230] },
@@ -429,23 +429,23 @@ export default function PartnerManagementPage() {
                       <td className="px-3 py-1.5">
                         {p.phone
                           ? <div className="flex items-center gap-1 text-xs text-slate-600"><Phone size={11} className="text-slate-400 shrink-0" />{p.phone}</div>
-                          : <span className="text-slate-300 text-xs">—</span>}
+                          : <span className="text-slate-300 text-xs">-</span>}
                       </td>
                       {isCar && <td className="px-3 py-1.5 font-mono text-xs text-slate-700">
-                        {p.id_number || <span className="text-slate-300">—</span>}
+                        {p.id_number || <span className="text-slate-300">-</span>}
                       </td>}
                       {!isCar && <td className="px-3 py-1.5">
                         {p.tin
                           ? <span className="font-mono text-[10px] bg-[#EBF2FD] text-[#0a66c2] px-1.5 py-0.5 rounded-md">{p.tin}</span>
-                          : <span className="text-slate-300 text-xs">—</span>}
+                          : <span className="text-slate-300 text-xs">-</span>}
                       </td>}
                       <td className="px-3 py-1.5">
                         {p.email
                           ? <div className="flex items-center gap-1 text-xs text-slate-600"><Mail size={11} className="text-slate-400 shrink-0" /><span className="truncate max-w-32">{p.email}</span></div>
-                          : <span className="text-slate-300 text-xs">—</span>}
+                          : <span className="text-slate-300 text-xs">-</span>}
                       </td>
                       {isCar ? (
-                        <td className="px-3 py-1.5 text-xs text-slate-600 max-w-48 truncate">{p.realAddress || <span className="text-slate-300">—</span>}</td>
+                        <td className="px-3 py-1.5 text-xs text-slate-600 max-w-48 truncate">{p.realAddress || <span className="text-slate-300">-</span>}</td>
                       ) : <td className="px-3 py-1.5">
                         {isSupplier ? (
                           <div className="flex items-center gap-1">

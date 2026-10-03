@@ -172,7 +172,7 @@ export default function PurchaseManagementPage() {
         head: [isCar ? ["Product", "Cost Price", "Selling Price", "Qty"] : ["Product", "Supplier", "Cost Price", "Selling Price", "Qty"]],
         body: paginatedProducts.map((p) => [
           p.name,
-          ...(isCar ? [] : [supplierMap[p.supplier_id ?? ""]?.name || "—"]),
+          ...(isCar ? [] : [supplierMap[p.supplier_id ?? ""]?.name || "-"]),
           p.cost_price.toLocaleString(),
           p.selling_price.toLocaleString(),
           String(p.quantity),
@@ -186,9 +186,9 @@ export default function PurchaseManagementPage() {
         startY: 22,
         head: [isCar ? ["Date", "Product", "Qty Added", "Cost Price", "Total"] : ["Date", "Product", "Supplier", "Qty Added", "Cost Price", "Total"]],
         body: purchases.map((p) => [
-          p.created_at ? new Date(p.created_at).toLocaleDateString() : "—",
+          p.created_at ? new Date(p.created_at).toLocaleDateString() : "-",
           p.product_name,
-          ...(isCar ? [] : [supplierMap[p.supplier_id ?? ""]?.name || "—"]),
+          ...(isCar ? [] : [supplierMap[p.supplier_id ?? ""]?.name || "-"]),
           String(p.quantity_added),
           p.cost_price.toLocaleString(),
           p.total_cost.toLocaleString(),
@@ -634,7 +634,7 @@ export default function PurchaseManagementPage() {
                             <p className="text-[10px] font-medium text-slate-700">{toDateStr(d)}</p>
                             <p className="text-[9px] text-slate-400">{d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</p>
                           </div>
-                        ) : <span className="text-slate-300 text-xs">—</span>}
+                        ) : <span className="text-slate-300 text-xs">-</span>}
                       </td>
                       <td className="px-3 py-1.5">
                         <p className="font-semibold text-slate-800 text-xs">{p.product_name}</p>
@@ -643,7 +643,7 @@ export default function PurchaseManagementPage() {
                       {!isCar && <td className="px-3 py-1.5">
                         {supplier
                           ? <div><p className="font-medium text-slate-700 text-xs">{supplier.name}</p>{supplier.phone && <p className="text-[10px] text-slate-400">{supplier.phone}</p>}</div>
-                          : <span className="text-slate-300 text-xs italic">—</span>}
+                          : <span className="text-slate-300 text-xs italic">-</span>}
                       </td>}
                       <td className="px-3 py-1.5 font-medium text-slate-700 tabular-nums text-xs">{p.quantity_added}</td>
                       <td className="px-3 py-1.5 text-slate-600 tabular-nums text-xs">{p.cost_price.toLocaleString()}</td>
@@ -688,7 +688,7 @@ export default function PurchaseManagementPage() {
                 {!isRestocking && (
                   <div className="md:col-span-2">
                     <label className="block text-xs font-medium text-gray-600 mb-1">{t("purchases.select_existing")}</label>
-                    <ProductPicker<Product> onSelect={handleSelectExisting} placeholder={`— ${t("common.search")} —`} />
+                    <ProductPicker<Product> onSelect={handleSelectExisting} placeholder={t("common.search")} />
                   </div>
                 )}
                 {isRestocking && selectedProduct && (

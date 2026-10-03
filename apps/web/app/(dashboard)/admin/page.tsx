@@ -65,7 +65,7 @@ function parseUTC(ts: string | null | undefined): Date {
   return new Date(s);
 }
 function fmtDate(s: string | null) {
-  if (!s) return "—";
+  if (!s) return "-";
   return parseUTC(s).toLocaleDateString([], { year: "numeric", month: "short", day: "numeric" });
 }
 function timeAgo(s: string | null, t: (key: string) => string) {
@@ -250,7 +250,7 @@ export default function AdminPage() {
     .sort((a, b) => b.user_count - a.user_count)
     .slice(0, 8)
     .map((s) => ({
-      name: (s.name ?? "—").length > 14 ? (s.name ?? "").slice(0, 13) + "…" : (s.name ?? "—"),
+      name: (s.name ?? "-").length > 14 ? (s.name ?? "").slice(0, 13) + "…" : (s.name ?? "-"),
       users: s.user_count,
     }));
 
@@ -976,9 +976,9 @@ export default function AdminPage() {
                               <div className="space-y-2">
                                 {[
                                   { icon: <Store size={11} />,  label: t("common.name"),    value: shop.name },
-                                  { icon: <Mail size={11} />,   label: t("common.email"),   value: shop.email ?? "—" },
-                                  { icon: <Phone size={11} />,  label: t("common.phone"),   value: shop.phone ?? "—" },
-                                  { icon: <MapPin size={11} />, label: t("common.address"), value: shop.address ?? "—" },
+                                  { icon: <Mail size={11} />,   label: t("common.email"),   value: shop.email ?? "-" },
+                                  { icon: <Phone size={11} />,  label: t("common.phone"),   value: shop.phone ?? "-" },
+                                  { icon: <MapPin size={11} />, label: t("common.address"), value: shop.address ?? "-" },
                                 ].map((d) => (
                                   <div key={d.label} className="flex items-start gap-2 text-xs">
                                     <span className="text-gray-300 mt-0.5 shrink-0">{d.icon}</span>
@@ -1317,7 +1317,7 @@ export default function AdminPage() {
                                       <p className="text-xs font-medium text-slate-700">{d.toLocaleDateString()}</p>
                                       <p className="text-[10px] text-slate-400">{d.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})}</p>
                                     </div>
-                                  ) : <span className="text-slate-300 text-xs">—</span>}
+                                  ) : <span className="text-slate-300 text-xs">-</span>}
                                 </td>
                                 {/* Title */}
                                 <td className="px-3 py-1.5">
@@ -1340,23 +1340,23 @@ export default function AdminPage() {
                                   {e.payment_method === "bank" && (
                                     <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-blue-100 text-blue-700">{t("admin.payment_bank")}</span>
                                   )}
-                                  {!e.payment_method && <span className="text-slate-300 text-[10px]">—</span>}
+                                  {!e.payment_method && <span className="text-slate-300 text-[10px]">-</span>}
                                 </td>
                                 {/* Bank Name */}
                                 <td className="px-3 py-1.5 text-[10px] text-slate-600 whitespace-nowrap">
-                                  {e.bank_name || <span className="text-slate-300">—</span>}
+                                  {e.bank_name || <span className="text-slate-300">-</span>}
                                 </td>
                                 {/* Account / Ref */}
                                 <td className="px-3 py-1.5 text-[10px] text-slate-600 font-mono whitespace-nowrap">
-                                  {e.bank_account || <span className="text-slate-300 font-sans">—</span>}
+                                  {e.bank_account || <span className="text-slate-300 font-sans">-</span>}
                                 </td>
                                 {/* Receiver Phone */}
                                 <td className="px-3 py-1.5 text-[10px] text-slate-600 whitespace-nowrap">
-                                  {e.receiver_phone || <span className="text-slate-300">—</span>}
+                                  {e.receiver_phone || <span className="text-slate-300">-</span>}
                                 </td>
                                 {/* Notes */}
                                 <td className="px-3 py-1.5 text-[10px] text-slate-500 max-w-[140px] truncate">
-                                  {e.notes || <span className="text-slate-300 italic">—</span>}
+                                  {e.notes || <span className="text-slate-300 italic">-</span>}
                                 </td>
                                 {/* Edit */}
                                 <td className="px-3 py-1.5">

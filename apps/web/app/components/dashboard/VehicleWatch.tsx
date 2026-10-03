@@ -255,7 +255,7 @@ function Row({ car, line, href, bare = false }: { car: WatchCar; line: React.Rea
           <p className="mt-0.5 flex min-w-0 items-center gap-1 text-xs text-text">
             <User size={11} className="shrink-0 text-text-faint" />
             {contact && (contact.name || contact.phone) ? <>
-              <span className="truncate font-semibold">{contact.name || "—"}</span>
+              <span className="truncate font-semibold">{contact.name || "-"}</span>
               {contact.phone && <span className="shrink-0 font-mono text-text-muted">· {contact.phone}</span>}
             </> : <span className="text-text-faint">{t("vehicle.no_customer")}</span>}
           </p>

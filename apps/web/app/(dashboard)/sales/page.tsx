@@ -551,9 +551,9 @@ export default function SaleManagementPage() {
       startY: 22,
       head: [["Date", "Product", "Customer", "Payment", "Qty", "Unit Price", "Total", ...(prof ? ["Profit"] : [])]],
       body: filtered.map((s) => [
-        s.created_at ? new Date(s.created_at).toLocaleDateString() : "—",
-        s.product_name || productMap[s.product_id]?.name || "—",
-        customerMap[s.customer_id || ""]?.name || "—",
+        s.created_at ? new Date(s.created_at).toLocaleDateString() : "-",
+        s.product_name || productMap[s.product_id]?.name || "-",
+        customerMap[s.customer_id || ""]?.name || "-",
         s.payment_method || "cash",
         String(s.quantity),
         s.unit_price.toLocaleString(),
@@ -892,7 +892,7 @@ ${paymentHtml}
                           <p className="text-xs font-medium text-slate-700">{toDateStr(saleDate)}</p>
                           <p className="text-xs text-slate-400">{saleDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</p>
                         </div>
-                      ) : <span className="text-slate-300 text-xs">—</span>}
+                      ) : <span className="text-slate-300 text-xs">-</span>}
                     </td>
                     <td className="px-3 py-2">
                       {(() => {
@@ -913,7 +913,7 @@ ${paymentHtml}
                     <td className="px-3 py-2">
                       {customer
                         ? <div><p className="font-medium text-slate-700">{customer.name}</p>{customer.phone && <p className="text-xs text-slate-400">{customer.phone}</p>}</div>
-                        : <span className="text-slate-400 text-xs italic">—</span>}
+                        : <span className="text-slate-400 text-xs italic">-</span>}
                     </td>
                     <td className="px-3 py-2 whitespace-nowrap">
                       {paymentBadge(s.payment_method, t)}
@@ -929,7 +929,7 @@ ${paymentHtml}
                         </span>
                       )}
                     </td>}
-                    <td className="px-3 py-2 text-slate-400 text-xs max-w-28 truncate">{s.notes || <span className="text-slate-200">—</span>}</td>
+                    <td className="px-3 py-2 text-slate-400 text-xs max-w-28 truncate">{s.notes || <span className="text-slate-200">-</span>}</td>
                     <td className="px-3 py-2">
                       <div className="flex items-center gap-1.5">
                         <button onClick={() => printReceiptPopup([s])} title={t("common.print")}
@@ -955,7 +955,7 @@ ${paymentHtml}
                 const fMargin = fRev > 0 ? (fProfit / fRev) * 100 : 0;
                 return (
                   <tr className="bg-slate-50 border-t-2 border-slate-200 text-xs font-semibold text-slate-500">
-                    <td className="px-4 py-2" colSpan={6}>{t("sales.subtotal_label")} — {filtered.length} {t("sales.sales_word")}</td>
+                    <td className="px-4 py-2" colSpan={6}>{t("sales.subtotal_label")} · {filtered.length} {t("sales.sales_word")}</td>
                     <td className="px-4 py-2 tabular-nums text-slate-700">{fRev.toLocaleString()}</td>
                     {prof && <td className={`px-4 py-2 tabular-nums ${fProfit >= 0 ? "text-green-600" : "text-red-500"}`}>
                       {fProfit >= 0 ? "+" : ""}{fProfit.toLocaleString()}
@@ -1268,7 +1268,7 @@ ${paymentHtml}
                       </div>
                       <select className={`${inputCls} sm:max-w-[280px]`} value={saleCustomer} onChange={(e) => setSaleCustomerAndDebtor(e.target.value)} aria-label={t("sales.buyer_existing")}>
                         <option value="">{t("sales.buyer_new")}</option>
-                        {customers.map((c) => <option key={c.id} value={c.id}>{c.name}{c.phone ? ` — ${c.phone}` : ""}</option>)}
+                        {customers.map((c) => <option key={c.id} value={c.id}>{c.name}{c.phone ? ` · ${c.phone}` : ""}</option>)}
                       </select>
                     </div>
                     <div className="grid gap-3 sm:grid-cols-2">
@@ -1378,7 +1378,7 @@ ${paymentHtml}
                     <label className="block text-xs font-medium text-gray-600 mb-1.5">{t("sales.customer")}</label>
                     <select className={inputCls} value={saleCustomer} onChange={(e) => setSaleCustomerAndDebtor(e.target.value)}>
                       <option value="">{t("sales.walkin_customer")}</option>
-                      {customers.map((c) => <option key={c.id} value={c.id}>{c.name}{c.phone ? ` — ${c.phone}` : ""}</option>)}
+                      {customers.map((c) => <option key={c.id} value={c.id}>{c.name}{c.phone ? ` · ${c.phone}` : ""}</option>)}
                     </select>
                   </div>}
                   <div>
@@ -1427,8 +1427,8 @@ ${paymentHtml}
                 <div className="md:col-span-2">
                   <label className="block text-xs font-medium text-gray-600 mb-1">{t("sales.customer")}</label>
                   <select className={inputCls} value={form.customer_id} onChange={(e) => setForm({ ...form, customer_id: e.target.value })}>
-                    <option value="">—</option>
-                    {customers.map((c) => <option key={c.id} value={c.id}>{c.name}{c.phone ? ` — ${c.phone}` : ""}</option>)}
+                    <option value="">-</option>
+                    {customers.map((c) => <option key={c.id} value={c.id}>{c.name}{c.phone ? ` · ${c.phone}` : ""}</option>)}
                   </select>
                 </div>
                 <div>

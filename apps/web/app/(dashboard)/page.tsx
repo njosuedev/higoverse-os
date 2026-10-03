@@ -120,7 +120,7 @@ export default function DashboardPage() {
   // Settings → currency and low stock threshold.
   const { currency, lowStock, loaded: settingsLoaded } = useShopSettings();
   const { shop, loading: shopLoading } = useShop();
-  // Product/customer counts arrive in the second loading phase — show "—"
+  // Product/customer counts arrive in the second loading phase — show "-"
   // until then rather than a misleading 0.
   const [countsReady, setCountsReady] = useState(false);
   const fmtCurrency = (n: number) => fmtMoney(n, currency);
@@ -365,7 +365,7 @@ export default function DashboardPage() {
               {fin && <div className="bg-white/8 px-3 py-1.5 rounded-press text-center">
                 <p className="text-paper/55 text-[9px] uppercase tracking-wider">{t("dash.revenue_week")}</p>
                 <p className="hgv-figure text-sm font-semibold text-[#8fd19e]">
-                  {stats.revenue > 0 ? `${currency} ${fmtShort(stats.revenue)}` : "—"}
+                  {stats.revenue > 0 ? `${currency} ${fmtShort(stats.revenue)}` : "-"}
                 </p>
               </div>}
               {(stats.lowStock > 0 || stats.outOfStock > 0) && (
@@ -414,9 +414,9 @@ export default function DashboardPage() {
             delta={revDeltaPct !== null ? { value: `${Math.abs(revDeltaPct)}%`, direction: revDeltaPct >= 0 ? "up" : "down" } : undefined}
             subtitle={yesterdayRevenue > 0 ? `${t("dash.prev_week")}: ${fmtCurrency(yesterdayRevenue)}` : undefined}
           />}
-          <StatCard size="sm" label={t("dash.products")} value={countsReady ? stats.products.toLocaleString() : "—"}
+          <StatCard size="sm" label={t("dash.products")} value={countsReady ? stats.products.toLocaleString() : "-"}
             icon={<Package size={15} strokeWidth={2} />} tone="blue" href="/items" />
-          <StatCard size="sm" label={t("dash.partners")} value={countsReady ? partnersShown.toLocaleString() : "—"}
+          <StatCard size="sm" label={t("dash.partners")} value={countsReady ? partnersShown.toLocaleString() : "-"}
             icon={<Users size={15} strokeWidth={2} />} tone="blue" href="/partners" />
           <StatCard size="sm" label={t("dash.sales_week")} value={stats.sales.toLocaleString()}
             icon={<ShoppingCart size={15} strokeWidth={2} />} tone="blue" href="/sales" />
@@ -449,23 +449,23 @@ export default function DashboardPage() {
           <div className={`grid grid-cols-2 ${isCar ? "sm:grid-cols-2" : "sm:grid-cols-4"} divide-y sm:divide-y-0 sm:divide-x divide-border border border-border rounded-data overflow-hidden`}>
             <div className="p-3">
               <p className="text-[9px] text-text-faint uppercase tracking-wide font-medium">{t("dash.revenue_week")}</p>
-              <p className="hgv-figure text-lg font-semibold text-success mt-0.5">{stats.revenue > 0 ? fmtCurrency(stats.revenue) : "—"}</p>
+              <p className="hgv-figure text-lg font-semibold text-success mt-0.5">{stats.revenue > 0 ? fmtCurrency(stats.revenue) : "-"}</p>
               <p className="text-[10px] text-text-faint mt-0.5">{stats.sales} {t("dash.sales_week")}</p>
             </div>
             {!isCar && <div className="p-3">
               <p className="text-[9px] text-text-faint uppercase tracking-wide font-medium">{t("nav.purchases")}</p>
-              <p className="hgv-figure text-lg font-semibold text-text mt-0.5">{purchaseCostToday > 0 ? fmtCurrency(purchaseCostToday) : "—"}</p>
+              <p className="hgv-figure text-lg font-semibold text-text mt-0.5">{purchaseCostToday > 0 ? fmtCurrency(purchaseCostToday) : "-"}</p>
               <p className="text-[10px] text-text-faint mt-0.5">{t("dash.stock_cost")}</p>
             </div>}
             <div className="p-3">
               <p className="text-[9px] text-text-faint uppercase tracking-wide font-medium">{t("nav.expenses")}</p>
-              <p className="hgv-figure text-lg font-semibold text-warning mt-0.5">{expenseToday.total_expenses > 0 ? fmtCurrency(expenseToday.total_expenses) : "—"}</p>
+              <p className="hgv-figure text-lg font-semibold text-warning mt-0.5">{expenseToday.total_expenses > 0 ? fmtCurrency(expenseToday.total_expenses) : "-"}</p>
               <p className="text-[10px] text-text-faint mt-0.5">{expenseToday.count} {t("expenses.records")}</p>
             </div>
             {prof && <div className="p-3">
               <p className="text-[9px] text-text-faint uppercase tracking-wide font-medium">{t("dash.net_profit")}</p>
               <p className={`hgv-figure text-lg font-semibold mt-0.5 ${netProfit >= 0 ? "text-ink" : "text-accent-dark"}`}>
-                {totalCosts > 0 || stats.revenue > 0 ? fmtCurrency(netProfit) : "—"}
+                {totalCosts > 0 || stats.revenue > 0 ? fmtCurrency(netProfit) : "-"}
               </p>
               <p className="text-[10px] text-text-faint mt-0.5">
                 {netProfit >= 0 ? t("dash.profitable") : t("dash.at_loss")}

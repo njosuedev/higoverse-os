@@ -577,7 +577,7 @@ export default function ItemManagementPage() {
         </label>
         {f.type === "select" ? (
           <select className={inputCls} value={value} onChange={(e) => set(e.target.value)}>
-            <option value="">—</option>
+            <option value="">-</option>
             {selectOptions(f).map((o) => <option key={o} value={o}>{carTypeLabel(t, o)}</option>)}
           </select>
         ) : (
@@ -758,7 +758,7 @@ export default function ItemManagementPage() {
           <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5 mb-2">
             <AlertCircle size={11} className="text-amber-500 shrink-0" />
             <p className="text-[10px] text-amber-700 flex-1 min-w-0 truncate">
-              <span className="font-bold">{alertItems.length}</span> {t("items.restock_alert")} —{" "}
+              <span className="font-bold">{alertItems.length}</span> {t("items.restock_alert")} ·{" "}
               <span className="text-amber-600">{alertItems.slice(0, 3).map((i) => i.name).join(", ")}{alertItems.length > 3 ? ` +${alertItems.length - 3} ${t("items.more")}` : ""}</span>
             </p>
             {!isCar && <Link href="/PurchaseManagement"
@@ -990,10 +990,10 @@ export default function ItemManagementPage() {
                       {isCar ? (() => {
                         const a = parseAttributes(p.attributes);
                         return (<>
-                          <td className="px-3 py-1.5 text-xs text-slate-700">{a.car_type ? carTypeLabel(t, a.car_type) : "—"}</td>
-                          <td className="px-3 py-1.5 text-center text-xs text-slate-700 tabular-nums">{a.year || "—"}</td>
-                          <td className="px-3 py-1.5 text-right text-xs text-slate-600 tabular-nums">{a.battery_range ? `${Number(a.battery_range).toLocaleString()} km` : "—"}</td>
-                          <td className="px-3 py-1.5 text-xs text-slate-700">{a.color || "—"}</td>
+                          <td className="px-3 py-1.5 text-xs text-slate-700">{a.car_type ? carTypeLabel(t, a.car_type) : "-"}</td>
+                          <td className="px-3 py-1.5 text-center text-xs text-slate-700 tabular-nums">{a.year || "-"}</td>
+                          <td className="px-3 py-1.5 text-right text-xs text-slate-600 tabular-nums">{a.battery_range ? `${Number(a.battery_range).toLocaleString()} km` : "-"}</td>
+                          <td className="px-3 py-1.5 text-xs text-slate-700">{a.color || "-"}</td>
                           <td className="px-3 py-1.5 text-right">
                             <span className="text-xs font-semibold text-slate-800 tabular-nums">{Number(p.selling_price || 0).toLocaleString()}</span>
                           </td>
@@ -1009,7 +1009,7 @@ export default function ItemManagementPage() {
                       <td className="hidden lg:table-cell px-3 py-2.5">
                         {supplier
                           ? <p className="text-xs font-medium text-slate-600 leading-tight">{supplier.name}</p>
-                          : <span className="text-slate-300 text-xs">—</span>}
+                          : <span className="text-slate-300 text-xs">-</span>}
                       </td>
 
                       {/* Cost price */}
@@ -1085,7 +1085,7 @@ export default function ItemManagementPage() {
                             </p>
                           </div>
                         ) : (
-                          <span className="text-slate-300 text-xs">—</span>
+                          <span className="text-slate-300 text-xs">-</span>
                         )}
                       </td>
 

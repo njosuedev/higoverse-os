@@ -756,11 +756,11 @@ function ProformaPageContent() {
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-slate-500">{t("common.date")}</span>
-                    <span className="font-medium text-slate-700">{fmtDate(date) || "—"}</span>
+                    <span className="font-medium text-slate-700">{fmtDate(date) || "-"}</span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-slate-500">{t("proforma.valid_until")}</span>
-                    <span className="font-medium text-slate-700">{fmtDate(validUntilDate) || "—"}</span>
+                    <span className="font-medium text-slate-700">{fmtDate(validUntilDate) || "-"}</span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-slate-500">{t("proforma.bill_to_label")}</span>

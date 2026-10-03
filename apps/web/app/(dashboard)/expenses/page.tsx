@@ -140,7 +140,7 @@ export default function ExpenseManagementPage() {
     const XLSX = await import("xlsx");
     const today = toDateStr(new Date());
     const ws = XLSX.utils.aoa_to_sheet([
-      ["HIGOVERSE — Expense Import Template  |  Do not modify column headers  |  payment_method: mtn or bank  |  category: rent | utilities | salaries | supplies | maintenance | marketing | transport | taxes | other"],
+      ["HIGOVERSE · Expense Import Template  |  Do not modify column headers  |  payment_method: mtn or bank  |  category: rent | utilities | salaries | supplies | maintenance | marketing | transport | taxes | other"],
       [],
       ["title *", "category *", "amount *", "expense_date *", "payment_method *", "bank_name", "bank_account", "receiver_phone", "notes"],
       ["Monthly Office Rent", "rent",      200000, today, "bank", "BK Bank",     "001-200-456",  "",              "Q2 office space"],
@@ -245,7 +245,7 @@ export default function ExpenseManagementPage() {
     const grandTotal = rows.reduce((s, e) => s + Number(e.amount), 0);
 
     const wsData = [
-      [`EXPENSE REPORT — ${periodLabel.toUpperCase()}`],
+      [`EXPENSE REPORT: ${periodLabel.toUpperCase()}`],
       [`Period: ${dateFrom || "All time"}  →  ${dateTo || toDateStr(now)}  |  Generated: ${now.toLocaleString()}  |  Records: ${rows.length}`],
       [],
       headers,
@@ -367,7 +367,7 @@ export default function ExpenseManagementPage() {
     const summaryCards = [
       { label: "TOTAL AMOUNT",   value: grandTotal.toLocaleString(), sub: currency,                          accent: C_BLUE   },
       { label: "TOTAL RECORDS",  value: String(rows.length),         sub: "expenses",                     accent: C_GREEN  },
-      { label: "TOP CATEGORY",   value: topCat ? topCat[0].toUpperCase() : "—", sub: topCat ? `${topCat[1].total.toLocaleString()} ${currency}` : "", accent: C_ORANGE },
+      { label: "TOP CATEGORY",   value: topCat ? topCat[0].toUpperCase() : "-", sub: topCat ? `${topCat[1].total.toLocaleString()} ${currency}` : "", accent: C_ORANGE },
       { label: "CATEGORIES",     value: String(catEntries.length),   sub: `of ${ALL_CATEGORIES.length}`,  accent: C_PURPLE },
     ];
 
@@ -409,16 +409,16 @@ export default function ExpenseManagementPage() {
       body: rows.map((e) => {
         const d = e.expense_date ? new Date(e.expense_date) : null;
         return [
-          d ? toDateStr(d) : "—",
+          d ? toDateStr(d) : "-",
           e.title,
           e.category.charAt(0).toUpperCase() + e.category.slice(1),
           Number(e.amount).toLocaleString(),
           e.payment_method === "mtn"  ? "MTN MoMo"
-            : e.payment_method === "bank" ? "Bank" : "—",
-          e.bank_name      || "—",
-          e.bank_account   || "—",
-          e.receiver_phone || "—",
-          e.notes ? (e.notes.length > 40 ? e.notes.slice(0, 38) + "…" : e.notes) : "—",
+            : e.payment_method === "bank" ? "Bank" : "-",
+          e.bank_name      || "-",
+          e.bank_account   || "-",
+          e.receiver_phone || "-",
+          e.notes ? (e.notes.length > 40 ? e.notes.slice(0, 38) + "…" : e.notes) : "-",
         ];
       }),
       styles:             { fontSize: 6.5, cellPadding: 1.8 },
@@ -442,7 +442,7 @@ export default function ExpenseManagementPage() {
         doc.setFontSize(6.5);
         doc.setTextColor(...C_WHITE);
         doc.setFont("helvetica", "normal");
-        doc.text("Higoverse — Expense Management System", 14, PH - 3.5);
+        doc.text("Higoverse · Expense Management System", 14, PH - 3.5);
         doc.text(`Page ${data.pageNumber}`, PW / 2, PH - 3.5, { align: "center" });
         doc.text(`Generated ${now.toLocaleDateString()}`, PW - 14, PH - 3.5, { align: "right" });
       },
@@ -770,7 +770,7 @@ export default function ExpenseManagementPage() {
             },
             {
               label: t("expenses.top_category"),
-              value: topCategory ? t(`expenses.cat.${topCategory.category}`) : "—",
+              value: topCategory ? t(`expenses.cat.${topCategory.category}`) : "-",
               sub: topCategory ? topCategory.total.toLocaleString() : t("common.no_data"),
               color: "text-orange-600", dot: "bg-orange-400",
             },
@@ -869,7 +869,7 @@ export default function ExpenseManagementPage() {
                             <p className="text-xs font-medium text-slate-700 leading-tight">{toDateStr(d)}</p>
                             <p className="text-[10px] text-slate-400 leading-tight">{d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</p>
                           </div>
-                        ) : <span className="text-slate-300 text-xs">—</span>}
+                        ) : <span className="text-slate-300 text-xs">-</span>}
                       </td>
                       <td className="px-2.5 py-1">
                         <p className="font-semibold text-slate-800 text-xs leading-tight">{e.title}</p>
@@ -891,22 +891,22 @@ export default function ExpenseManagementPage() {
                         {e.payment_method === "bank" && (
                           <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-blue-100 text-blue-700">{t("common.bank")}</span>
                         )}
-                        {!e.payment_method && <span className="text-slate-300 text-[10px]">—</span>}
+                        {!e.payment_method && <span className="text-slate-300 text-[10px]">-</span>}
                       </td>
                       {/* Bank Name */}
                       <td className="px-2.5 py-1 text-[10px] text-slate-600 whitespace-nowrap">
-                        {e.bank_name || <span className="text-slate-300">—</span>}
+                        {e.bank_name || <span className="text-slate-300">-</span>}
                       </td>
                       {/* Account / Ref */}
                       <td className="px-2.5 py-1 text-[10px] text-slate-600 font-mono whitespace-nowrap">
-                        {e.bank_account || <span className="text-slate-300 font-sans">—</span>}
+                        {e.bank_account || <span className="text-slate-300 font-sans">-</span>}
                       </td>
                       {/* Receiver Phone */}
                       <td className="px-2.5 py-1 text-[10px] text-slate-600 whitespace-nowrap">
-                        {e.receiver_phone || <span className="text-slate-300">—</span>}
+                        {e.receiver_phone || <span className="text-slate-300">-</span>}
                       </td>
                       <td className="px-2.5 py-1 text-slate-500 text-[10px] max-w-[160px] truncate">
-                        {e.notes || <span className="text-slate-300 italic">—</span>}
+                        {e.notes || <span className="text-slate-300 italic">-</span>}
                       </td>
                       <td className="px-2.5 py-1">
                         {e.has_proof ? (
@@ -915,7 +915,7 @@ export default function ExpenseManagementPage() {
                             <Paperclip size={9} /> {t("common.view")}
                           </button>
                         ) : (
-                          <span className="text-slate-300 text-[10px] italic">—</span>
+                          <span className="text-slate-300 text-[10px] italic">-</span>
                         )}
                       </td>
                       <td className="px-2.5 py-1">

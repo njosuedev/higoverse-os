@@ -314,7 +314,7 @@ export default function HigoMapPicker({ initialLat, initialLng, onConfirm, onClo
                 <Navigation size={11} className="shrink-0" />
                 {geoAccuracy <= 100
                   ? `${t("map.good_fix_label")} ±${geoAccuracy} m`
-                  : `${t("map.coarse_fix_label")} (±${geoAccuracy} m) — ${t("map.coarse_fix_hint")}`}
+                  : `${t("map.coarse_fix_label")} (±${geoAccuracy} m). ${t("map.coarse_fix_hint")}`}
               </div>
             )}
 

@@ -558,14 +558,14 @@ export default function SettingsPage() {
                 value={opsForm.currency}
                 onChange={(e) => setOpsForm({ ...opsForm, currency: e.target.value })}
               >
-                <option value="RWF">RWF — {t("settings.currency_rwf")}</option>
-                <option value="USD">USD — {t("settings.currency_usd")}</option>
-                <option value="EUR">EUR — {t("settings.currency_eur")}</option>
-                <option value="KES">KES — {t("settings.currency_kes")}</option>
-                <option value="UGX">UGX — {t("settings.currency_ugx")}</option>
-                <option value="TZS">TZS — {t("settings.currency_tzs")}</option>
-                <option value="BIF">BIF — {t("settings.currency_bif")}</option>
-                <option value="CDF">CDF — {t("settings.currency_cdf")}</option>
+                <option value="RWF">RWF ({t("settings.currency_rwf")})</option>
+                <option value="USD">USD ({t("settings.currency_usd")})</option>
+                <option value="EUR">EUR ({t("settings.currency_eur")})</option>
+                <option value="KES">KES ({t("settings.currency_kes")})</option>
+                <option value="UGX">UGX ({t("settings.currency_ugx")})</option>
+                <option value="TZS">TZS ({t("settings.currency_tzs")})</option>
+                <option value="BIF">BIF ({t("settings.currency_bif")})</option>
+                <option value="CDF">CDF ({t("settings.currency_cdf")})</option>
               </select>
             </Field>
 
