@@ -1,13 +1,11 @@
-import { getToken } from "@/lib/auth";
+import { authFetch } from "@/lib/session";
 
 export async function purchaseRequest(endpoint: string, options: RequestInit = {}) {
-  const token = getToken();
   const headers = new Headers(options.headers);
   headers.set("Content-Type", "application/json");
-  if (token) headers.set("Authorization", `Bearer ${token}`);
 
   // Route through Next.js rewrite proxy to avoid browser CORS restrictions
-  const res = await fetch(`/api/purchases${endpoint}`, { ...options, headers });
+  const res = await authFetch(`/api/purchases${endpoint}`, { ...options, headers });
 
   if (res.status === 401) {
     return null; // Service not yet configured for this account — return empty data

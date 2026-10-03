@@ -63,6 +63,13 @@ input, textarea, select, button {
   font-size: inherit;
 }
 
+/* Data tables: equal-width digits so quantities and prices line up down a
+   column. In a layer so a cell's own utilities still win. */
+@layer base {
+  td, th { font-variant-numeric: tabular-nums; }
+  tbody tr { border-color: var(--color-border); }
+}
+
 /* Visible, on-brand focus ring everywhere — WCAG AA, no element opts out. */
 :focus-visible {
   outline: 2px solid var(--color-ink);

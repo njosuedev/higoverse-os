@@ -1,4 +1,5 @@
 import { getToken } from "@/lib/auth";
+import { authFetch } from "@/lib/session";
 
 // Shops live in auth-service's shop_db — call auth-service directly
 const AUTH_API = process.env.NEXT_PUBLIC_AUTH_API || "https://auth-esys.vercel.app";
@@ -7,9 +8,8 @@ async function authShopRequest(endpoint: string, options: RequestInit = {}) {
   const token = getToken();
   const headers = new Headers(options.headers);
   headers.set("Content-Type", "application/json");
-  if (token) headers.set("Authorization", `Bearer ${token}`);
 
-  const res = await fetch(`${AUTH_API}${endpoint}`, { ...options, headers });
+  const res = await authFetch(`${AUTH_API}${endpoint}`, { ...options, headers });
 
   if (res.status === 401) {
     // Shop endpoints 401 for plenty of authenticated-but-shopless accounts

@@ -1,14 +1,12 @@
-import { getToken } from "@/lib/auth";
+import { authFetch } from "@/lib/session";
 
 const REPORT_API = process.env.NEXT_PUBLIC_API_REPORTS || "https://report-esys.vercel.app";
 
 export async function reportRequest(endpoint: string, options: RequestInit = {}) {
-  const token = getToken();
   const headers = new Headers(options.headers);
   headers.set("Content-Type", "application/json");
-  if (token) headers.set("Authorization", `Bearer ${token}`);
 
-  const res = await fetch(`${REPORT_API}${endpoint}`, { ...options, headers });
+  const res = await authFetch(`${REPORT_API}${endpoint}`, { ...options, headers });
 
   if (res.status === 401) {
     return null; // Service not yet configured for this account — return empty data

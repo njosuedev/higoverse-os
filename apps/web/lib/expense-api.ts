@@ -1,14 +1,12 @@
-import { getToken } from "@/lib/auth";
+import { authFetch } from "@/lib/session";
 
 const EXPENSE_API = "/api/expenses";
 
 export async function expenseRequest(endpoint: string, options: RequestInit = {}) {
-  const token = getToken();
   const headers = new Headers(options.headers);
   headers.set("Content-Type", "application/json");
-  if (token) headers.set("Authorization", `Bearer ${token}`);
 
-  const res = await fetch(`${EXPENSE_API}${endpoint}`, { ...options, headers });
+  const res = await authFetch(`${EXPENSE_API}${endpoint}`, { ...options, headers });
 
   if (res.status === 401) {
     return null; // Service not yet configured for this account — return empty data
@@ -24,14 +22,12 @@ export async function expenseRequest(endpoint: string, options: RequestInit = {}
 }
 
 export async function expenseUploadProof(expenseId: string, files: File[]) {
-  const token = getToken();
   const formData = new FormData();
   for (const file of files) formData.append("files", file);
 
   const headers: Record<string, string> = {};
-  if (token) headers["Authorization"] = `Bearer ${token}`;
 
-  const res = await fetch(`${EXPENSE_API}/expenses/${expenseId}/proof`, {
+  const res = await authFetch(`${EXPENSE_API}/expenses/${expenseId}/proof`, {
     method: "POST",
     headers,
     body: formData,

@@ -1,18 +1,16 @@
 import type { BusinessLayout } from "@/lib/business-layout";
-import { getToken, handleUnauthorized } from "@/lib/auth";
+import { authFetch, expireSession } from "@/lib/session";
 
 const AUTH_API = process.env.NEXT_PUBLIC_AUTH_API || "https://auth-esys.vercel.app";
 
 async function adminRequest(endpoint: string, options: RequestInit = {}) {
-  const token = getToken();
   const headers = new Headers(options.headers);
   headers.set("Content-Type", "application/json");
-  if (token) headers.set("Authorization", `Bearer ${token}`);
 
-  const res = await fetch(`${AUTH_API}${endpoint}`, { ...options, headers });
+  const res = await authFetch(`${AUTH_API}${endpoint}`, { ...options, headers });
 
   if (res.status === 401) {
-    handleUnauthorized();
+    expireSession();
     throw new Error("Session expired. Please log in again.");
   }
   if (res.status === 403) throw new Error("Admin access required.");

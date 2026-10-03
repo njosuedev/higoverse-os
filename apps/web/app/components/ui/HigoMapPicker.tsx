@@ -256,7 +256,7 @@ export default function HigoMapPicker({ initialLat, initialLng, onConfirm, onClo
               </div>
               <div>
                 <p className="font-extrabold text-sm tracking-tight">{t("map.title")}</p>
-                <p className="text-blue-200 text-[11px]">{t("map.subtitle")}</p>
+                <p className="text-blue-200 text-[13px]">{t("map.subtitle")}</p>
               </div>
             </div>
             <button onClick={onClose} className="w-7 h-7 rounded-lg bg-white/15 hover:bg-white/30 flex items-center justify-center text-white transition">
@@ -351,9 +351,9 @@ export default function HigoMapPicker({ initialLat, initialLng, onConfirm, onClo
               <div className="mb-3 flex items-start gap-2.5 bg-[#EBF2FD] border border-blue-100 rounded-xl px-3.5 py-2.5">
                 <MapPin size={14} className="text-[#0a66c2] mt-0.5 shrink-0" />
                 <div className="flex-1 min-w-0">
-                  <p className="text-[10px] text-slate-500 font-semibold uppercase tracking-wide mb-0.5">{t("map.pinned_location")}</p>
+                  <p className="text-xs text-slate-500 font-semibold uppercase tracking-wide mb-0.5">{t("map.pinned_location")}</p>
                   <p className="text-xs font-bold text-slate-800 line-clamp-2">{label || t("map.location_selected")}</p>
-                  <p className="text-[10px] text-slate-400 font-mono mt-0.5">{pos.lat.toFixed(6)}, {pos.lng.toFixed(6)}</p>
+                  <p className="text-xs text-slate-400 font-mono mt-0.5">{pos.lat.toFixed(6)}, {pos.lng.toFixed(6)}</p>
                 </div>
               </div>
             )}

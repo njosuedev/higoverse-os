@@ -1,16 +1,14 @@
-import { getToken } from "@/lib/auth";
+import { authFetch } from "@/lib/session";
 
 const SETTINGS_API = process.env.NEXT_PUBLIC_API_SETTINGS || "https://settings-esys.vercel.app";
 
 export async function settingsRequest(endpoint: string, options: RequestInit = {}) {
-  const token = getToken();
   const headers = new Headers(options.headers);
   headers.set("Content-Type", "application/json");
-  if (token) headers.set("Authorization", `Bearer ${token}`);
 
   let res: Response;
   try {
-    res = await fetch(`${SETTINGS_API}${endpoint}`, { ...options, headers });
+    res = await authFetch(`${SETTINGS_API}${endpoint}`, { ...options, headers });
   } catch {
     // Network error or CORS block (e.g. localhost dev vs. production service)
     return null;

@@ -7,19 +7,18 @@ import { partnerRequest } from "@/lib/supplier-api";
 import { saleRequest } from "@/lib/sale-api";
 import { settingsRequest } from "@/lib/settings-api";
 import { listProformas, deleteProforma, type Proforma, type ProformaStatus } from "@/lib/proforma-api";
-import { useDebounce } from "@/lib/hooks";
+import { useAutoRefresh, useDebounce } from "@/lib/hooks";
 import { useLanguage } from "@/lib/language-context";
 import { useShopSettings } from "@/lib/shop-settings-context";
 import { useShop } from "@/lib/shop-context";
 import { formatPublicAddress } from "@/lib/product-meta";
 import Pagination from "@/app/components/ui/Pagination";
+import ProductPicker, { type PickerProduct } from "@/app/components/ui/ProductPicker";
 import DateRangeFilter from "@/app/components/ui/DateRangeFilter";
 import {
-  ShoppingBag, Search, Filter, Plus, Trash2, Pencil, X,
-  TrendingUp, DollarSign, Users, ReceiptText, Package, RefreshCw, Calendar, Printer,
-  Wallet, AlertCircle, CheckCircle2, Phone, ChevronDown,
-  Download, Upload, FileSpreadsheet, FileText,
+  ShoppingBag, Filter, Plus, Trash2, Pencil, X, ReceiptText, Calendar, Printer, Wallet, AlertCircle, CheckCircle2, Phone, ChevronDown, Download, Upload, FileSpreadsheet, FileText,
 } from "lucide-react";
+import PageHeader, { SearchField, StatTiles, ToolbarRow } from "@/app/components/ui/PageHeader";
 
 const PROFORMA_STATUS_META: Record<ProformaStatus, { labelKey: string; color: string }> = {
   draft:    { labelKey: "sales.status_draft",    color: "bg-slate-100 text-slate-600 border-slate-200" },
@@ -60,7 +59,7 @@ const PAYMENT_METHODS: { value: PaymentMethod; labelKey: string; color: string }
 
 function paymentBadge(method: string | undefined, t: (key: string) => string) {
   const m = PAYMENT_METHODS.find((p) => p.value === method) || PAYMENT_METHODS[0];
-  return <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded border ${m.color}`}>{t(m.labelKey)}</span>;
+  return <span className={`text-xs font-semibold px-1.5 py-0.5 rounded border ${m.color}`}>{t(m.labelKey)}</span>;
 }
 
 function genId() { return Math.random().toString(36).slice(2, 9); }
@@ -85,14 +84,15 @@ export default function SaleManagementPage() {
   const [dateFrom, setDateFrom] = useState(() => toDateStr(new Date()));
   const [dateTo, setDateTo] = useState(() => toDateStr(new Date()));
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-  const [countdown, setCountdown] = useState(30);
-  const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
 
   const [modalMode, setModalMode] = useState<ModalMode>("create");
-  const [showModal, setShowModal] = useState(false);
+  // The dashboard's "Record sale" button links here with ?new=1.
+  const [showModal, setShowModal] = useState(
+    () => typeof window !== "undefined" && new URLSearchParams(window.location.search).get("new") === "1",
+  );
   const [submitting, setSubmitting] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState("");
@@ -133,19 +133,15 @@ export default function SaleManagementPage() {
   const [deletingProformaId, setDeletingProformaId] = useState("");
 
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const loadDataRef = useRef<(soft?: boolean) => Promise<void>>(async () => {});
-  useEffect(() => { loadDataRef.current = loadData; });
-
-  useEffect(() => {
-    countdownRef.current = setInterval(() => setCountdown((c) => (c <= 1 ? 30 : c - 1)), 1000);
-    const timer = setInterval(() => { loadDataRef.current(true); setCountdown(30); }, 30_000);
-    return () => { clearInterval(timer); if (countdownRef.current) clearInterval(countdownRef.current); };
-  }, []);
+  // Keep figures current without polling hidden tabs.
+  useAutoRefresh(() => loadData(true));
 
   const debouncedSearch = useDebounce(search, 350);
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { loadData(); loadDebts(); loadProformas(); }, []);
+  useEffect(() => {
+    loadData(); loadDebts(); loadProformas();
+    if (window.location.search) window.history.replaceState(null, "", window.location.pathname);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { if (!loading) loadData(true); }, [dateFrom, dateTo, page, pageSize]);
 
@@ -214,6 +210,11 @@ export default function SaleManagementPage() {
   function openEditModal(s: Sale) {
     setForm({ product_id: s.product_id, customer_id: s.customer_id || "", quantity: String(s.quantity), unit_price: String(s.unit_price), notes: s.notes || "" });
     setEditingId(s.id); setModalMode("edit"); setShowModal(true);
+    if (s.product_id && !products.some((p) => p.id === s.product_id)) {
+      itemRequest(`/products/${s.product_id}`)
+        .then((res) => { if (res?.data) rememberProduct(res.data); })
+        .catch(() => {});
+    }
   }
   function closeModal() {
     setShowModal(false); setForm(EMPTY_FORM); setEditingId(null);
@@ -223,9 +224,14 @@ export default function SaleManagementPage() {
 
   function addLine() { setLineItems((prev) => [...prev, emptyLine()]); }
   function removeLine(id: string) { setLineItems((prev) => prev.filter((l) => l.id !== id)); }
-  function setLineProduct(id: string, productId: string) {
-    const p = products.find((x) => x.id === productId);
-    setLineItems((prev) => prev.map((l) => l.id === id ? { ...l, product_id: productId, unit_price: p ? p.selling_price : l.unit_price } : l));
+  // The picker searches the whole catalogue; keep anything picked in the local
+  // list so name/price/stock lookups below find it.
+  function rememberProduct(p: PickerProduct) {
+    setProducts((prev) => prev.some((x) => x.id === p.id) ? prev.map((x) => x.id === p.id ? p : x) : [...prev, p]);
+  }
+  function setLineProduct(id: string, p: PickerProduct) {
+    rememberProduct(p);
+    setLineItems((prev) => prev.map((l) => l.id === id ? { ...l, product_id: p.id, unit_price: p.selling_price } : l));
   }
   function setLineQty(id: string, qty: number) {
     setLineItems((prev) => prev.map((l) => l.id === id ? { ...l, quantity: Math.max(1, qty) } : l));
@@ -234,9 +240,9 @@ export default function SaleManagementPage() {
     setLineItems((prev) => prev.map((l) => l.id === id ? { ...l, unit_price: Math.max(0, price) } : l));
   }
 
-  function onProductChange(productId: string) {
-    const product = products.find((p) => p.id === productId);
-    setForm((f) => ({ ...f, product_id: productId, unit_price: product ? String(product.selling_price) : f.unit_price }));
+  function onProductChange(product: PickerProduct) {
+    rememberProduct(product);
+    setForm((f) => ({ ...f, product_id: product.id, unit_price: String(product.selling_price) }));
   }
 
   async function submitForm() {
@@ -621,120 +627,64 @@ ${paymentHtml}
       <div className="max-w-7xl mx-auto px-3 sm:px-5 py-3 sm:py-4">
 
         {/* HEADER */}
-        <div className="hgv-surface relative rounded-2xl mb-2 overflow-hidden"
-          style={{ background: "linear-gradient(135deg, #0a66c2 0%, #004182 50%, #00376b 100%)" }}>
-          <div style={{ position:"absolute",inset:0,pointerEvents:"none",
-            backgroundImage:"radial-gradient(circle, rgba(255,255,255,0.06) 1px, transparent 1px)",
-            backgroundSize:"20px 20px" }} />
-
-          {/* Row 1: icon + title + actions */}
-          <div className="relative flex items-center gap-3 px-4 pt-3 pb-2">
-            <div className="flex items-center gap-2.5 min-w-0 mr-auto">
-              <div className="w-8 h-8 rounded-xl bg-white/15 border border-white/20 flex items-center justify-center shrink-0">
-                <ShoppingBag size={15} className="text-white" strokeWidth={2} />
-              </div>
-              <div>
-                <p className="text-[10px] font-semibold text-blue-200 uppercase tracking-widest leading-none">{t("nav.sales")}</p>
-                <h1 className="text-base font-extrabold text-white leading-tight tracking-tight">{t("sales.title")}</h1>
-              </div>
+        <PageHeader
+          title={t("sales.title")}
+          subtitle={<>
+            <span className="hgv-figure font-semibold text-text">{salesTotal.toLocaleString()}</span> {t("sales.sales_word")}
+            {lastUpdated && <> · {t("common.updated")} {lastUpdated.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</>}
+          </>}
+          onRefresh={() => loadData(true)}
+          refreshing={refreshing}
+          refreshLabel={t("common.refresh")}
+          action={{ label: t("sales.add"), onClick: openCreateModal }}
+        >
+          <ToolbarRow>
+            <SearchField value={search} onChange={(v) => { setSearch(v); setPage(1); }} placeholder={t("items.search")} clearLabel={t("common.clear")} />
+            <div className="relative flex items-center rounded-lg border border-border-strong bg-white focus-within:border-ink">
+              <Filter size={14} className="pointer-events-none absolute left-3 text-text-faint" />
+              <select value={filter} onChange={(e) => { setFilter(e.target.value); setPage(1); }}
+                className="w-full cursor-pointer appearance-none bg-transparent py-2.5 pl-9 pr-9 text-sm font-medium text-text outline-none">
+                <option value="all">{t("sales.all")}</option>
+                <option value="profit">{t("sales.profit")}</option>
+                <option value="loss">{t("sales.loss")}</option>
+                <optgroup label={t("sales.by_payment")}>
+                  {PAYMENT_METHODS.map((m) => (
+                    <option key={m.value} value={`pay:${m.value}`}>{t(m.labelKey)} {t("sales.only_suffix")}</option>
+                  ))}
+                </optgroup>
+              </select>
+              <ChevronDown size={14} className="pointer-events-none absolute right-3 text-text-faint" />
             </div>
-            <div className="flex items-center gap-1.5 shrink-0">
-              <button onClick={() => loadData(true)} disabled={refreshing}
-                className="w-7 h-7 rounded-lg bg-white/10 hover:bg-white/20 border border-white/15 flex items-center justify-center text-white transition-all disabled:opacity-40">
-                <RefreshCw size={12} className={refreshing ? "animate-spin" : ""} />
-              </button>
-              <button onClick={openCreateModal}
-                className="flex items-center gap-1.5 bg-white text-[#0a66c2] px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-blue-50 active:scale-95 transition-all shadow-lg shadow-black/20">
-                <Plus size={12} strokeWidth={3} /> {t("sales.add")}
-              </button>
-            </div>
-          </div>
+          </ToolbarRow>
+          <DateRangeFilter
+            from={dateFrom} to={dateTo}
+            onFrom={(v) => { setDateFrom(v); setPage(1); }}
+            onTo={(v) => { setDateTo(v); setPage(1); }}
+            onClear={() => { setDateFrom(""); setDateTo(""); setPage(1); }}
+          />
+        </PageHeader>
 
-          {/* Row 2: live indicator */}
-          <div className="relative flex items-center gap-1.5 px-4 pb-2">
-            <span className="relative flex h-1.5 w-1.5">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
-              <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-green-400" />
-            </span>
-            <p className="text-[10px] text-blue-100/70 flex-1">
-              {t("sales.live_label")} · <span className="font-semibold text-white/80">{salesTotal.toLocaleString()} {t("sales.sales_word")}</span>
-              {lastUpdated && <span className="ml-1 text-blue-200/50">· {t("common.updated")} {lastUpdated.toLocaleTimeString()}</span>}
-            </p>
-            <span className="text-[10px] text-blue-200/50">↻ {countdown}{t("common.seconds_abbr")}</span>
-          </div>
-
-          {/* Row 3: search + filter + date range */}
-          <div className="relative px-4 pb-3 space-y-2">
-            <div className="flex gap-2">
-              <div className="flex-1 flex items-center gap-2 bg-white/10 hover:bg-white/15 focus-within:bg-white/20 border border-white/10 focus-within:border-white/30 rounded-xl px-3 py-2 transition-all group shadow-inner">
-                <Search size={13} className="shrink-0 text-white/40 group-focus-within:text-white/80 transition-colors" />
-                <input value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-                  placeholder={t("items.search")}
-                  className="bg-transparent outline-none w-full text-sm text-white placeholder:text-white/35 font-medium" />
-                {search && (
-                  <button onClick={() => setSearch("")} className="w-4 h-4 rounded-full bg-white/20 hover:bg-white/35 flex items-center justify-center text-white/70 hover:text-white transition-all shrink-0">
-                    <X size={9} />
-                  </button>
-                )}
-              </div>
-              <div className="flex items-center gap-1.5 bg-white/10 hover:bg-white/15 border border-white/10 rounded-xl px-2.5 py-2 transition-all">
-                <Filter size={11} className="shrink-0 text-white/50" />
-                <select value={filter} onChange={(e) => { setFilter(e.target.value); setPage(1); }}
-                  className="bg-transparent outline-none text-xs text-white font-semibold appearance-none cursor-pointer">
-                  <option value="all" className="text-gray-800">{t("sales.all")}</option>
-                  <option value="profit" className="text-gray-800">{t("sales.profit")}</option>
-                  <option value="loss" className="text-gray-800">{t("sales.loss")}</option>
-                  <optgroup label={t("sales.by_payment")} className="text-gray-600">
-                    {PAYMENT_METHODS.map((m) => (
-                      <option key={m.value} value={`pay:${m.value}`} className="text-gray-800">{t(m.labelKey)} {t("sales.only_suffix")}</option>
-                    ))}
-                  </optgroup>
-                </select>
-                <ChevronDown size={10} className="text-white/35 shrink-0" />
-              </div>
-            </div>
-            <DateRangeFilter
-              from={dateFrom} to={dateTo}
-              onFrom={(v) => { setDateFrom(v); setPage(1); }}
-              onTo={(v) => { setDateTo(v); setPage(1); }}
-              onClear={() => { setDateFrom(""); setDateTo(""); setPage(1); }}
-              accentClass="focus:ring-[#0a66c2]/30 focus:border-[#0a66c2]"
-            />
-          </div>
-        </div>
-
-        {/* STAT CARDS */}
-        <div className="grid grid-cols-3 sm:grid-cols-5 gap-1.5 mb-2">
-          {[
-            { label: t("sales.count"),        value: stats.total,                                                            color: "text-[#0a66c2]",  dot: "bg-[#0a66c2]"  },
-            { label: t("sales.revenue"),       value: stats.revenue.toLocaleString(),                                         color: "text-green-600",  dot: "bg-green-500"  },
-            { label: t("sales.profit"),        value: `${stats.profit >= 0 ? "+" : ""}${stats.profit.toLocaleString()}`,      color: stats.profit >= 0 ? "text-green-700" : "text-red-500", dot: stats.profit >= 0 ? "bg-green-500" : "bg-red-500" },
-            { label: t("reports.customers"),   value: stats.uniqueCustomers,                                                  color: "text-[#0a66c2]",  dot: "bg-blue-400"   },
-            { label: t("sales.outstanding"),   value: debtsTotalOutstanding.toLocaleString(),                                  color: "text-orange-500", dot: "bg-orange-400" },
-          ].map((card) => (
-            <div key={card.label} className="bg-white rounded-lg border border-slate-200 px-2.5 py-2">
-              <div className="flex items-center gap-1 mb-1">
-                <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${card.dot}`} />
-                <p className="text-[9px] font-semibold text-slate-400 uppercase tracking-wider leading-none truncate">{card.label}</p>
-              </div>
-              <p className={`text-xl font-bold leading-none tabular-nums ${card.color}`}>{card.value}</p>
-            </div>
-          ))}
-        </div>
+        <StatTiles stats={[
+          { label: t("sales.count"), value: stats.total.toLocaleString() },
+          { label: t("sales.revenue"), value: stats.revenue.toLocaleString() },
+          { label: t("sales.profit"), value: `${stats.profit >= 0 ? "+" : ""}${stats.profit.toLocaleString()}`, tone: stats.profit >= 0 ? "text-success" : "text-accent-dark" },
+          { label: t("reports.customers"), value: stats.uniqueCustomers.toLocaleString() },
+          { label: t("sales.outstanding"), value: debtsTotalOutstanding.toLocaleString(), tone: debtsTotalOutstanding > 0 ? "text-warning" : "text-text" },
+        ]} />
 
         {/* PAYMENT BREAKDOWN */}
         {sales.length > 0 && (
-          <div className="bg-white rounded-xl border border-slate-200 px-3 py-1.5 mb-2 flex flex-wrap gap-2 items-center">
-            <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mr-1">{t("sales.payments_label")}</span>
+          <div className="mb-4 flex flex-wrap items-center gap-2">
+            <span className="mr-1 text-sm font-medium text-text-muted">{t("sales.payments_label")}</span>
             {PAYMENT_METHODS.filter((m) => (stats.payBreakdown[m.value]?.count ?? 0) > 0).map((m) => {
               const b = stats.payBreakdown[m.value];
               return (
-                <div key={m.value} className={`flex items-center gap-1 px-2 py-0.5 rounded-lg border text-[10px] ${m.color}`}>
+                <div key={m.value} className={`flex items-center gap-1.5 rounded-full border px-3 py-1 text-[13px] ${m.color}`}>
                   <span className="font-semibold">{t(m.labelKey)}</span>
                   <span className="opacity-60">·</span>
                   <span>{b.count} {b.count === 1 ? t("sales.sale_singular") : t("sales.sale_plural")}</span>
                   <span className="opacity-60">·</span>
-                  <span className="font-semibold tabular-nums">{b.revenue.toLocaleString()}</span>
+                  <span className="hgv-figure font-semibold">{b.revenue.toLocaleString()}</span>
                 </div>
               );
             })}
@@ -744,24 +694,24 @@ ${paymentHtml}
         {/* TABLE */}
         <div className="bg-white rounded-xl border border-slate-200 overflow-hidden mb-6">
           <div className="flex items-center justify-between px-3 py-1.5 border-b border-slate-100 bg-slate-50/60">
-            <p className="text-[10px] text-slate-500">
+            <p className="text-xs text-slate-500">
               <span className="font-semibold text-slate-700">{filtered.length.toLocaleString()}</span> {t("common.of")} <span className="font-semibold text-slate-700">{salesTotal.toLocaleString()}</span> {t("sales.sales_word")}
             </p>
             <div className="flex items-center gap-1.5">
               <button onClick={downloadTemplate} title={t("sales.download_template_tooltip")}
-                className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium border border-violet-200 text-violet-600 bg-white hover:bg-violet-50 transition">
+                className="flex items-center gap-1.5 rounded-full border border-border-strong bg-white px-3 py-1 text-[13px] font-medium text-text-muted transition hover:border-ink hover:text-ink disabled:opacity-50 disabled:cursor-wait">
                 <Download size={10} /> {t("common.template")}
               </button>
               <button onClick={() => fileInputRef.current?.click()} title={t("sales.import_tooltip")}
-                className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium border border-violet-200 text-violet-600 bg-white hover:bg-violet-50 transition">
+                className="flex items-center gap-1.5 rounded-full border border-border-strong bg-white px-3 py-1 text-[13px] font-medium text-text-muted transition hover:border-ink hover:text-ink disabled:opacity-50 disabled:cursor-wait">
                 <Upload size={10} /> {t("common.import")}
               </button>
               <button onClick={exportSalesExcel} title={t("sales.export_excel_tooltip")}
-                className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium border border-green-200 text-green-600 bg-white hover:bg-green-50 transition">
+                className="flex items-center gap-1.5 rounded-full border border-border-strong bg-white px-3 py-1 text-[13px] font-medium text-text-muted transition hover:border-ink hover:text-ink disabled:opacity-50 disabled:cursor-wait">
                 <FileSpreadsheet size={10} /> Excel
               </button>
               <button onClick={exportSalesPDF} title={t("sales.export_pdf_tooltip")}
-                className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium border border-red-200 text-red-600 bg-white hover:bg-red-50 transition">
+                className="flex items-center gap-1.5 rounded-full border border-border-strong bg-white px-3 py-1 text-[13px] font-medium text-text-muted transition hover:border-ink hover:text-ink disabled:opacity-50 disabled:cursor-wait">
                 <FileText size={10} /> PDF
               </button>
             </div>
@@ -793,10 +743,10 @@ ${paymentHtml}
                     <td className="px-3 py-2 whitespace-nowrap">
                       {saleDate ? (
                         <div>
-                          <p className="text-xs font-medium text-slate-700">{toDateStr(saleDate)}</p>
-                          <p className="text-xs text-slate-400">{saleDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</p>
+                          <p className="text-sm font-medium text-slate-700">{toDateStr(saleDate)}</p>
+                          <p className="text-sm text-slate-400">{saleDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</p>
                         </div>
-                      ) : <span className="text-slate-300 text-xs">—</span>}
+                      ) : <span className="text-slate-300 text-sm">—</span>}
                     </td>
                     <td className="px-3 py-2">
                       {(() => {
@@ -806,18 +756,18 @@ ${paymentHtml}
                           ? <div>
                               <p className="font-semibold text-slate-800">{name}</p>
                               {costPrice !== undefined && (
-                                <p className="text-[10px] text-slate-400 mt-0.5">
+                                <p className="text-sm text-slate-400 mt-0.5">
                                   cost {costPrice.toLocaleString()} · sell {s.unit_price.toLocaleString()}
                                 </p>
                               )}
                             </div>
-                          : <span className="text-slate-400 text-xs">{t("sales.unknown_product")}</span>;
+                          : <span className="text-slate-400 text-sm">{t("sales.unknown_product")}</span>;
                       })()}
                     </td>
                     <td className="px-3 py-2">
                       {customer
-                        ? <div><p className="font-medium text-slate-700">{customer.name}</p>{customer.phone && <p className="text-xs text-slate-400">{customer.phone}</p>}</div>
-                        : <span className="text-slate-400 text-xs italic">—</span>}
+                        ? <div><p className="font-medium text-slate-700">{customer.name}</p>{customer.phone && <p className="text-sm text-slate-400">{customer.phone}</p>}</div>
+                        : <span className="text-slate-400 text-sm italic">—</span>}
                     </td>
                     <td className="px-3 py-2 whitespace-nowrap">
                       {paymentBadge(s.payment_method, t)}
@@ -828,12 +778,12 @@ ${paymentHtml}
                     <td className={`px-3 py-2 tabular-nums ${isProfit ? "text-green-600" : "text-red-500"}`}>
                       <span className="font-semibold">{isProfit ? "+" : ""}{(s.profit || 0).toLocaleString()}</span>
                       {s.total_amount > 0 && (
-                        <span className="block text-[10px] font-normal opacity-60">
+                        <span className="block text-sm font-normal opacity-60">
                           {Math.round(((s.profit || 0) / s.total_amount) * 100)}% {t("sales.margin_suffix")}
                         </span>
                       )}
                     </td>
-                    <td className="px-3 py-2 text-slate-400 text-xs max-w-28 truncate">{s.notes || <span className="text-slate-200">—</span>}</td>
+                    <td className="px-3 py-2 text-slate-400 text-sm max-w-28 truncate">{s.notes || <span className="text-slate-200">—</span>}</td>
                     <td className="px-3 py-2">
                       <div className="flex items-center gap-1.5">
                         <button onClick={() => printReceiptPopup([s])} title={t("common.print")}
@@ -858,12 +808,12 @@ ${paymentHtml}
                 const fProfit = filtered.reduce((s, x) => s + (x.profit || 0), 0);
                 const fMargin = fRev > 0 ? (fProfit / fRev) * 100 : 0;
                 return (
-                  <tr className="bg-slate-50 border-t-2 border-slate-200 text-xs font-semibold text-slate-500">
+                  <tr className="bg-slate-50 border-t-2 border-slate-200 text-sm font-semibold text-slate-500">
                     <td className="px-4 py-2" colSpan={6}>{t("sales.subtotal_label")} — {filtered.length} {t("sales.sales_word")}</td>
                     <td className="px-4 py-2 tabular-nums text-slate-700">{fRev.toLocaleString()}</td>
                     <td className={`px-4 py-2 tabular-nums ${fProfit >= 0 ? "text-green-600" : "text-red-500"}`}>
                       {fProfit >= 0 ? "+" : ""}{fProfit.toLocaleString()}
-                      <span className="block text-[10px] font-normal opacity-70">{fMargin.toFixed(1)}% {t("sales.margin_suffix")}</span>
+                      <span className="block text-sm font-normal opacity-70">{fMargin.toFixed(1)}% {t("sales.margin_suffix")}</span>
                     </td>
                     <td colSpan={2} />
                   </tr>
@@ -930,8 +880,8 @@ ${paymentHtml}
                         <div className="flex items-center gap-2 flex-wrap">
                           <p className="font-semibold text-slate-800 text-sm">{d.debtor_name}</p>
                           {d.is_paid
-                            ? <span className="text-[10px] font-semibold bg-green-100 text-green-700 border border-green-200 px-1.5 py-0.5 rounded">{t("sales.paid_badge")}</span>
-                            : <span className="text-[10px] font-semibold bg-orange-100 text-orange-700 border border-orange-200 px-1.5 py-0.5 rounded">{t("sales.pending_badge")}</span>
+                            ? <span className="text-xs font-semibold bg-green-100 text-green-700 border border-green-200 px-1.5 py-0.5 rounded">{t("sales.paid_badge")}</span>
+                            : <span className="text-xs font-semibold bg-orange-100 text-orange-700 border border-orange-200 px-1.5 py-0.5 rounded">{t("sales.pending_badge")}</span>
                           }
                         </div>
                         {d.phone && (
@@ -939,13 +889,13 @@ ${paymentHtml}
                         )}
                         {d.notes && <p className="text-xs text-slate-400 mt-0.5 italic">{d.notes}</p>}
                         {d.created_at && (
-                          <p className="text-[10px] text-slate-300 mt-1">{new Date(d.created_at).toLocaleDateString()}</p>
+                          <p className="text-xs text-slate-300 mt-1">{new Date(d.created_at).toLocaleDateString()}</p>
                         )}
                         <div className="mt-2.5 flex items-center gap-2.5">
                           <div className="flex-1 bg-slate-100 rounded-full h-1.5 overflow-hidden">
                             <div className="h-full rounded-full bg-green-500 transition-all" style={{ width: `${pct}%` }} />
                           </div>
-                          <span className="text-[10px] text-slate-400 tabular-nums whitespace-nowrap">{Math.round(pct)}% {t("sales.paid_suffix")}</span>
+                          <span className="text-xs text-slate-400 tabular-nums whitespace-nowrap">{Math.round(pct)}% {t("sales.paid_suffix")}</span>
                         </div>
                       </div>
                       <div className="text-right shrink-0">
@@ -1038,7 +988,7 @@ ${paymentHtml}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-mono font-semibold text-sm text-blue-700">{p.invoice_no}</span>
-                        <span className={`inline-flex items-center text-[10px] font-semibold px-2 py-0.5 rounded-full border ${meta.color}`}>{t(meta.labelKey)}</span>
+                        <span className={`inline-flex items-center text-xs font-semibold px-2 py-0.5 rounded-full border ${meta.color}`}>{t(meta.labelKey)}</span>
                       </div>
                       <div className="flex items-center gap-3 mt-0.5 text-xs text-slate-500 flex-wrap">
                         <span className="font-medium text-slate-700 truncate max-w-40">
@@ -1051,7 +1001,7 @@ ${paymentHtml}
                       <p className="font-bold text-slate-800 tabular-nums">
                         {p.grand_total.toLocaleString()} <span className="text-xs font-normal text-slate-400">{p.currency}</span>
                       </p>
-                      <p className="text-[10px] text-slate-400">{p.lines.length} {t(p.lines.length !== 1 ? "common.item_plural" : "common.item_singular")}</p>
+                      <p className="text-xs text-slate-400">{p.lines.length} {t(p.lines.length !== 1 ? "common.item_plural" : "common.item_singular")}</p>
                     </div>
                     <div className="flex items-center gap-1 shrink-0">
                       <Link href={`/proforma?edit=${p.id}`} title={t("common.edit")}
@@ -1178,7 +1128,7 @@ ${paymentHtml}
                     </button>
                   </div>
 
-                  <div className="grid grid-cols-[2fr_80px_100px_90px_32px] gap-2 px-4 py-2 bg-slate-50 border-b border-slate-100 text-[10px] font-semibold uppercase text-slate-400 tracking-wide">
+                  <div className="grid grid-cols-[2fr_80px_100px_90px_32px] gap-2 px-4 py-2 bg-slate-50 border-b border-slate-100 text-xs font-semibold uppercase text-slate-400 tracking-wide">
                     <span>{t("sales.product")}</span><span className="text-center">{t("sales.col_qty")}</span><span className="text-center">{t("sales.unit_price")}</span><span className="text-right">{t("proforma.subtotal")}</span><span />
                   </div>
 
@@ -1190,18 +1140,11 @@ ${paymentHtml}
                       return (
                         <div key={line.id} className="px-3 py-2">
                           <div className="grid grid-cols-[2fr_80px_100px_90px_32px] gap-2 items-center">
-                            <select
-                              className="border border-slate-200 text-gray-800 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#0a66c2]/30 focus:border-[#0a66c2] transition"
-                              value={line.product_id}
-                              onChange={(e) => setLineProduct(line.id, e.target.value)}
-                            >
-                              <option value="">{t("sales.select_product")}</option>
-                              {products.map((prod) => (
-                                <option key={prod.id} value={prod.id} disabled={prod.quantity === 0}>
-                                  {prod.name} ({prod.quantity} {t("sales.left_suffix")})
-                                </option>
-                              ))}
-                            </select>
+                            <ProductPicker
+                              selected={p}
+                              onSelect={(prod) => setLineProduct(line.id, prod)}
+                              disableOutOfStock
+                            />
                             <input type="number" min="1" max={p?.quantity} value={line.quantity}
                               onChange={(e) => setLineQty(line.id, Number(e.target.value))}
                               className="border border-slate-200 text-gray-800 rounded-lg px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-[#0a66c2]/30 focus:border-[#0a66c2] transition w-full" />
@@ -1210,7 +1153,7 @@ ${paymentHtml}
                               className="border border-slate-200 text-gray-800 rounded-lg px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-[#0a66c2]/30 focus:border-[#0a66c2] transition w-full" />
                             <div className="text-right">
                               <p className="font-semibold text-slate-800 text-sm tabular-nums">{subtotal.toLocaleString()}</p>
-                              {p && <p className={`text-[10px] tabular-nums ${profit >= 0 ? "text-green-500" : "text-red-400"}`}>
+                              {p && <p className={`text-xs tabular-nums ${profit >= 0 ? "text-green-500" : "text-red-400"}`}>
                                 {profit >= 0 ? "+" : ""}{profit.toLocaleString()}
                               </p>}
                             </div>
@@ -1220,7 +1163,7 @@ ${paymentHtml}
                             </button>
                           </div>
                           {p && (
-                            <div className="flex gap-3 mt-1.5 text-[10px] text-slate-400">
+                            <div className="flex gap-3 mt-1.5 text-xs text-slate-400">
                               <span>{t("items.col_cost")}: <span className="font-medium">{p.cost_price.toLocaleString()}</span></span>
                               <span>{t("items.col_selling")}: <span className="font-medium text-green-600">{p.selling_price.toLocaleString()}</span></span>
                               <span className={p.quantity <= lowStock ? "text-amber-500 font-medium" : ""}>{t("sales.stock_label")}: {p.quantity}</span>
@@ -1233,11 +1176,11 @@ ${paymentHtml}
 
                   <div className="px-3 py-2 bg-slate-50 border-t border-slate-200 flex justify-end gap-6">
                     <div className="text-right">
-                      <p className="text-[10px] text-slate-400 uppercase tracking-wide">{t("proforma.grand_total")}</p>
+                      <p className="text-xs text-slate-400 uppercase tracking-wide">{t("proforma.grand_total")}</p>
                       <p className="font-bold text-lg text-slate-800 tabular-nums">{createGrandTotal.toLocaleString()} <span className="text-xs font-normal text-slate-400">{currency}</span></p>
                     </div>
                     <div className="text-right">
-                      <p className="text-[10px] text-slate-400 uppercase tracking-wide">{t("sales.est_profit")}</p>
+                      <p className="text-xs text-slate-400 uppercase tracking-wide">{t("sales.est_profit")}</p>
                       <p className={`font-bold text-lg tabular-nums ${createGrandProfit >= 0 ? "text-green-600" : "text-red-500"}`}>
                         {createGrandProfit >= 0 ? "+" : ""}{createGrandProfit.toLocaleString()}
                       </p>
@@ -1273,14 +1216,7 @@ ${paymentHtml}
               <div className="px-4 sm:px-6 py-4 sm:py-5 grid md:grid-cols-2 gap-4 overflow-y-auto flex-1">
                 <div className="md:col-span-2">
                   <label className="block text-xs font-medium text-gray-600 mb-1">{t("sales.product")} <span className="text-red-400">*</span></label>
-                  <select className={inputCls} value={form.product_id} onChange={(e) => onProductChange(e.target.value)}>
-                    <option value="">{t("common.search")}...</option>
-                    {products.map((p) => (
-                      <option key={p.id} value={p.id} disabled={p.quantity === 0}>
-                        {p.name} — {t("items.col_qty")}: {p.quantity}
-                      </option>
-                    ))}
-                  </select>
+                  <ProductPicker selected={selectedProduct} onSelect={onProductChange} disableOutOfStock />
                   {selectedProduct && (
                     <div className="mt-1.5 flex gap-3 text-xs text-slate-500">
                       <span>{t("items.cost_price")}: <span className="font-medium text-slate-700">{selectedProduct.cost_price.toLocaleString()}</span></span>

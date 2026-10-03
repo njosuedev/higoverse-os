@@ -17,3 +17,29 @@ export function useDebounceCallback(fn: () => void, delay = 350) {
     timer.current = setTimeout(fn, delay);
   };
 }
+
+/** Calls `refresh` every `intervalMs` while the tab is visible, and once when
+ *  the user comes back to a tab whose data has gone stale. Nothing runs in a
+ *  background tab, and nothing re-renders between refreshes. */
+export function useAutoRefresh(refresh: () => void, intervalMs = 60_000) {
+  const fn = useRef(refresh);
+  useEffect(() => { fn.current = refresh; });
+
+  useEffect(() => {
+    let last = Date.now();
+    const tick = () => {
+      if (document.visibilityState !== "visible") return;
+      last = Date.now();
+      fn.current();
+    };
+    const id = setInterval(tick, intervalMs);
+    const onVisible = () => {
+      if (document.visibilityState === "visible" && Date.now() - last >= intervalMs) tick();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [intervalMs]);
+}

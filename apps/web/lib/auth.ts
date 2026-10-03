@@ -71,17 +71,3 @@ export function clearAuth() {
   localStorage.removeItem(USER_KEY);
   sessionStorage.clear();
 }
-
-/** Full logout: clears storage and hard-navigates to /login. */
-export function logout() {
-  clearAuth();
-  if (typeof window !== "undefined") window.location.replace("/login");
-}
-
-/**
- * Called by the AUTH SERVICE only when the token is genuinely invalid/expired.
- * Forces logout and redirect to login.
- */
-export function handleUnauthorized() {
-  logout();
-}

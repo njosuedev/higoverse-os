@@ -4,15 +4,13 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { partnerRequest } from "@/lib/supplier-api";
 import { itemRequest } from "@/lib/product-api";
-import { useDebounce } from "@/lib/hooks";
+import { useAutoRefresh, useDebounce } from "@/lib/hooks";
 import { useLanguage } from "@/lib/language-context";
 import Pagination from "@/app/components/ui/Pagination";
 import {
-  Users, Search, Filter, Plus, Trash2, Pencil, X,
-  UserCheck, UserCog, Activity, Package, ShoppingCart,
-  Building2, Phone, Mail, MapPin, RefreshCw, ChevronDown,
-  Download, Upload, FileSpreadsheet, FileText,
+  Plus, Trash2, Pencil, X, UserCheck, Activity, Package, ShoppingCart, Building2, Phone, Mail, MapPin, Download, Upload, FileSpreadsheet, FileText,
 } from "lucide-react";
+import PageHeader, { SearchField, ToolbarRow } from "@/app/components/ui/PageHeader";
 
 interface RawPartner { id: string; name: string; phone?: string; email?: string; address?: string; }
 interface Partner extends RawPartner { tin: string; realAddress: string; partnerType: "supplier" | "customer"; }
@@ -59,10 +57,6 @@ export default function PartnerManagementPage() {
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-  const [countdown, setCountdown] = useState(30);
-  const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const refreshRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const loadDataRef = useRef<(soft?: boolean) => Promise<void>>(async () => {});
 
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
@@ -79,22 +73,11 @@ export default function PartnerManagementPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { loadData(); }, []);
-  useEffect(() => { loadDataRef.current = loadData; });
-  useEffect(() => {
-    countdownRef.current = setInterval(() => setCountdown((c) => (c <= 1 ? 30 : c - 1)), 1000);
-    refreshRef.current = setInterval(() => { loadDataRef.current(true); setCountdown(30); }, 30_000);
-    return () => {
-      if (countdownRef.current) clearInterval(countdownRef.current);
-      if (refreshRef.current) clearInterval(refreshRef.current);
-    };
-  }, []);
+  // Keep figures current without polling hidden tabs.
+  useAutoRefresh(() => loadData(true));
 
   function manualRefresh() {
-    loadData(true); setCountdown(30);
-    if (countdownRef.current) clearInterval(countdownRef.current);
-    if (refreshRef.current) clearInterval(refreshRef.current);
-    countdownRef.current = setInterval(() => setCountdown((c) => (c <= 1 ? 30 : c - 1)), 1000);
-    refreshRef.current = setInterval(() => { loadDataRef.current(true); setCountdown(30); }, 30_000);
+    loadData(true);
   }
 
   async function downloadTemplate() {
@@ -291,123 +274,90 @@ export default function PartnerManagementPage() {
     <div className="min-h-screen">
       <div className="max-w-7xl mx-auto px-3 sm:px-5 py-3 sm:py-4">
 
-        {/* HEADER BANNER */}
-        <div
-          className="hgv-surface relative rounded-2xl mb-2 overflow-hidden"
-          style={{ background: "linear-gradient(135deg, #0a66c2 0%, #004182 50%, #00376b 100%)" }}
+        {/* HEADER */}
+        <PageHeader
+          title={t("partners.title")}
+          subtitle={<>
+            <span className="hgv-figure font-semibold text-text">{partners.length.toLocaleString()}</span> {t("partners.count_label")}
+            {lastUpdated && <> · {t("common.updated")} {lastUpdated.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</>}
+          </>}
+          onRefresh={manualRefresh}
+          refreshing={refreshing}
+          refreshLabel={t("common.refresh")}
+          action={{ label: t("partners.add"), onClick: openCreateModal }}
         >
-          <div style={{ position: "absolute", inset: 0, pointerEvents: "none", backgroundImage: "radial-gradient(circle, rgba(255,255,255,0.06) 1px, transparent 1px)", backgroundSize: "20px 20px" }} />
+          {/* Suppliers vs customers — each chip filters the table */}
+          {!isCar && (
+            <div className="flex flex-wrap gap-2">
+              {[
+                { value: "all", label: t("partners.all"), count: stats.total },
+                { value: "supplier", label: t("partners.suppliers"), count: stats.suppliers },
+                { value: "customer", label: t("partners.customers"), count: stats.customers },
+              ].map((c) => {
+                const on = typeFilter === c.value;
+                return (
+                  <button
+                    key={c.value}
+                    onClick={() => { setTypeFilter(c.value); setPage(1); }}
+                    aria-pressed={on}
+                    className={`flex items-center gap-2 rounded-full border px-3.5 py-1.5 text-sm font-medium transition ${
+                      on ? "border-ink bg-ink-soft text-ink" : "border-border-strong bg-white text-text-muted hover:border-ink hover:text-text"
+                    }`}
+                  >
+                    {c.label}
+                    <span className={`hgv-figure font-semibold ${on ? "text-ink" : "text-text"}`}>{c.count.toLocaleString()}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          <ToolbarRow>
+            <SearchField value={search} onChange={(v) => { setSearch(v); setPage(1); }} placeholder={t("partners.search")} clearLabel={t("common.clear")} />
+          </ToolbarRow>
+        </PageHeader>
 
-          {/* Row 1: icon+title · actions */}
-          <div className="relative flex items-center gap-3 px-4 pt-3 pb-2">
-            <div className="flex items-center gap-2.5 min-w-0 mr-auto">
-              <div className="w-8 h-8 rounded-xl bg-white/15 border border-white/20 flex items-center justify-center shrink-0">
-                <Users size={15} className="text-white" strokeWidth={2} />
+        {!isCar && (
+          <div className="mb-4 grid grid-cols-2 gap-3 sm:max-w-xl">
+            {[
+              { label: t("partners.active_suppliers"), value: stats.activeSuppliers },
+              { label: t("partners.items_supplied"), value: stats.itemsSupplied },
+            ].map((s) => (
+              <div key={s.label} className="rounded-data border border-border bg-white px-4 py-3">
+                <p className="text-sm font-medium text-text-muted">{s.label}</p>
+                <p className="hgv-figure mt-0.5 text-xl font-semibold text-text">{Number(s.value).toLocaleString()}</p>
               </div>
-              <div>
-                <p className="text-[10px] font-semibold text-blue-200 uppercase tracking-widest leading-none">{t("nav.partners")}</p>
-                <h1 className="text-base font-extrabold text-white leading-tight tracking-tight">{t("partners.title")}</h1>
-              </div>
-            </div>
-            <div className="flex items-center gap-1.5 shrink-0">
-              <button onClick={manualRefresh} disabled={refreshing} title={t("common.refresh")}
-                className="w-7 h-7 rounded-lg bg-white/10 hover:bg-white/20 border border-white/15 flex items-center justify-center text-white transition-all disabled:opacity-40">
-                <RefreshCw size={12} className={refreshing ? "animate-spin" : ""} />
-              </button>
-              <button onClick={openCreateModal}
-                className="flex items-center gap-1.5 bg-white text-[#0a66c2] px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-blue-50 active:scale-95 transition-all shadow-lg shadow-black/20">
-                <Plus size={12} strokeWidth={3} /> {t("partners.add")}
-              </button>
-            </div>
+            ))}
           </div>
-
-          {/* Row 2: live indicator */}
-          <div className="relative flex items-center gap-1.5 px-4 pb-2">
-            <span className="relative flex h-1.5 w-1.5">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
-              <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-green-400" />
-            </span>
-            <p className="text-[10px] text-blue-100/70 flex-1">
-              {t("common.live")} · <span className="font-semibold text-white/80">{partners.length.toLocaleString()} {t("partners.count_label")}</span>
-              {lastUpdated && <span className="ml-1 text-blue-200/50">· {t("common.updated")} {lastUpdated.toLocaleTimeString()}</span>}
-            </p>
-            <span className="text-[10px] text-blue-200/50">↻ {countdown}s</span>
-          </div>
-
-          {/* Row 3: search + filter */}
-          <div className="relative flex gap-2 px-4 pb-3">
-            <div className="flex-1 flex items-center gap-2 bg-white/10 hover:bg-white/15 focus-within:bg-white/20 border border-white/10 focus-within:border-white/30 rounded-xl px-3 py-2 transition-all group shadow-inner">
-              <Search size={13} className="shrink-0 text-white/40 group-focus-within:text-white/80 transition-colors" />
-              <input value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} placeholder={t("partners.search")}
-                className="bg-transparent outline-none w-full text-sm text-white placeholder:text-white/35 font-medium" />
-              {search && (
-                <button onClick={() => setSearch("")} className="w-4 h-4 rounded-full bg-white/20 hover:bg-white/35 flex items-center justify-center text-white/70 hover:text-white transition-all shrink-0">
-                  <X size={9} />
-                </button>
-              )}
-            </div>
-            {!isCar && <div className="flex items-center gap-1.5 bg-white/10 hover:bg-white/15 border border-white/10 rounded-xl px-2.5 py-2 transition-all">
-              <Filter size={11} className="shrink-0 text-white/50" />
-              <select value={typeFilter} onChange={(e) => { setTypeFilter(e.target.value); setPage(1); }}
-                className="bg-transparent outline-none text-xs text-white font-semibold appearance-none cursor-pointer">
-                <option value="all" className="text-gray-800">{t("partners.all")}</option>
-                <option value="supplier" className="text-gray-800">{t("partners.suppliers")}</option>
-                <option value="customer" className="text-gray-800">{t("partners.customers")}</option>
-              </select>
-              <ChevronDown size={10} className="text-white/35 shrink-0" />
-            </div>}
-          </div>
-        </div>
-
-        {/* STAT CARDS */}
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5 mb-2">
-          {(isCar ? [
-            { label: t("partners.total"),            value: stats.total,           color: "text-[#0a66c2]", dot: "bg-[#0a66c2]" },
-          ] : [
-            { label: t("partners.total"),            value: stats.total,           color: "text-[#0a66c2]", dot: "bg-[#0a66c2]" },
-            { label: t("partners.suppliers"),         value: stats.suppliers,       color: "text-blue-600",  dot: "bg-blue-500" },
-            { label: t("partners.customers"),         value: stats.customers,       color: "text-slate-700", dot: "bg-slate-400" },
-            { label: t("partners.active_suppliers"),  value: stats.activeSuppliers, color: "text-green-600", dot: "bg-green-500" },
-            { label: t("partners.items_supplied"),    value: stats.itemsSupplied,   color: "text-amber-600", dot: "bg-amber-500" },
-          ]).map((card) => (
-            <div key={card.label} className="bg-white rounded-lg border border-slate-200 px-2.5 py-2">
-              <div className="flex items-center gap-1 mb-1">
-                <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${card.dot}`} />
-                <p className="text-[9px] font-semibold text-slate-400 uppercase tracking-wider leading-none truncate">{card.label}</p>
-              </div>
-              <p className={`text-xl font-bold leading-none tabular-nums ${card.color}`}>{card.value}</p>
-            </div>
-          ))}
-        </div>
+        )}
 
         {/* TABLE */}
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
           {/* Toolbar */}
           <div className="flex items-center justify-between px-3 py-1.5 border-b border-slate-100 bg-slate-50/60">
-            <p className="text-[10px] text-slate-500">
+            <p className="text-xs text-slate-500">
               {t("common.showing")} <span className="font-semibold text-slate-700">{paginated.length}</span> {t("common.of")} <span className="font-semibold text-slate-700">{filtered.length}</span> {t("partners.count_label")}
             </p>
             <div className="flex items-center gap-1.5">
               {(debouncedSearch || typeFilter !== "all") && (
                 <button onClick={() => { setSearch(""); setTypeFilter("all"); setPage(1); }}
-                  className="flex items-center gap-1 text-[10px] text-slate-400 hover:text-slate-600 transition mr-1">
+                  className="flex items-center gap-1 text-xs text-slate-400 hover:text-slate-600 transition mr-1">
                   <X size={10} /> {t("common.clear_filters")}
                 </button>
               )}
               <button onClick={downloadTemplate} title={t("common.download_template")}
-                className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium border border-violet-200 text-violet-600 bg-white hover:bg-violet-50 transition">
+                className="flex items-center gap-1.5 rounded-full border border-border-strong bg-white px-3 py-1 text-[13px] font-medium text-text-muted transition hover:border-ink hover:text-ink disabled:opacity-50 disabled:cursor-wait">
                 <Download size={10} /> {t("common.template")}
               </button>
               <button onClick={() => fileInputRef.current?.click()} title={t("partners.import_tooltip")}
-                className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium border border-violet-200 text-violet-600 bg-white hover:bg-violet-50 transition">
+                className="flex items-center gap-1.5 rounded-full border border-border-strong bg-white px-3 py-1 text-[13px] font-medium text-text-muted transition hover:border-ink hover:text-ink disabled:opacity-50 disabled:cursor-wait">
                 <Upload size={10} /> {t("common.import")}
               </button>
               <button onClick={exportExcel} title={t("common.export_excel")}
-                className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium border border-green-200 text-green-600 bg-white hover:bg-green-50 transition">
+                className="flex items-center gap-1.5 rounded-full border border-border-strong bg-white px-3 py-1 text-[13px] font-medium text-text-muted transition hover:border-ink hover:text-ink disabled:opacity-50 disabled:cursor-wait">
                 <FileSpreadsheet size={10} /> Excel
               </button>
               <button onClick={exportPDF} title={t("common.export_pdf")}
-                className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium border border-red-200 text-red-600 bg-white hover:bg-red-50 transition">
+                className="flex items-center gap-1.5 rounded-full border border-border-strong bg-white px-3 py-1 text-[13px] font-medium text-text-muted transition hover:border-ink hover:text-ink disabled:opacity-50 disabled:cursor-wait">
                 <FileText size={10} /> PDF
               </button>
             </div>
@@ -422,7 +372,7 @@ export default function PartnerManagementPage() {
                     ? [t("common.name"), t("common.phone"), t("common.email"), t("common.address"), ""]
                     : [t("common.name"), t("common.type"), t("common.phone"), "TIN", t("common.email"), t("partners.items_supplied"), ""]
                   ).map((h) => (
-                    <th key={h} className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-500 whitespace-nowrap">{h}</th>
+                    <th key={h} className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -432,46 +382,46 @@ export default function PartnerManagementPage() {
                   const itemCount = isSupplier ? (supplierItemCount[p.id] || 0) : null;
                   return (
                     <tr key={p.id} className="group border-b border-slate-50 last:border-0 hover:bg-slate-50/70 transition-colors">
-                      <td className="px-3 py-1.5">
-                        <p className="font-semibold text-slate-800 text-xs leading-tight">{p.name}</p>
-                        <p className="text-[10px] text-slate-400 font-mono">{p.id?.slice(0, 8)}</p>
+                      <td className="px-3 py-2.5">
+                        <p className="font-semibold text-slate-800 text-sm leading-tight">{p.name}</p>
+                        <p className="text-sm text-slate-400 font-mono">{p.id?.slice(0, 8)}</p>
                       </td>
-                      {!isCar && <td className="px-3 py-1.5">
-                        <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${isSupplier ? "bg-[#D5E8FB] text-[#0a66c2]" : "bg-slate-100 text-slate-600"}`}>
+                      {!isCar && <td className="px-3 py-2.5">
+                        <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-sm font-semibold ${isSupplier ? "bg-[#D5E8FB] text-[#0a66c2]" : "bg-slate-100 text-slate-600"}`}>
                           {isSupplier ? <Building2 size={9} /> : <UserCheck size={9} />}
                           {isSupplier ? t("partners.suppliers") : t("partners.customers")}
                         </span>
                       </td>}
-                      <td className="px-3 py-1.5">
+                      <td className="px-3 py-2.5">
                         {p.phone
-                          ? <div className="flex items-center gap-1 text-xs text-slate-600"><Phone size={11} className="text-slate-400 shrink-0" />{p.phone}</div>
-                          : <span className="text-slate-300 text-xs">—</span>}
+                          ? <div className="flex items-center gap-1 text-sm text-slate-600"><Phone size={11} className="text-slate-400 shrink-0" />{p.phone}</div>
+                          : <span className="text-slate-300 text-sm">—</span>}
                       </td>
-                      {!isCar && <td className="px-3 py-1.5">
+                      {!isCar && <td className="px-3 py-2.5">
                         {p.tin
-                          ? <span className="font-mono text-[10px] bg-[#EBF2FD] text-[#0a66c2] px-1.5 py-0.5 rounded-md">{p.tin}</span>
-                          : <span className="text-slate-300 text-xs">—</span>}
+                          ? <span className="font-mono text-sm bg-[#EBF2FD] text-[#0a66c2] px-1.5 py-0.5 rounded-md">{p.tin}</span>
+                          : <span className="text-slate-300 text-sm">—</span>}
                       </td>}
-                      <td className="px-3 py-1.5">
+                      <td className="px-3 py-2.5">
                         {p.email
-                          ? <div className="flex items-center gap-1 text-xs text-slate-600"><Mail size={11} className="text-slate-400 shrink-0" /><span className="truncate max-w-32">{p.email}</span></div>
-                          : <span className="text-slate-300 text-xs">—</span>}
+                          ? <div className="flex items-center gap-1 text-sm text-slate-600"><Mail size={11} className="text-slate-400 shrink-0" /><span className="truncate max-w-32">{p.email}</span></div>
+                          : <span className="text-slate-300 text-sm">—</span>}
                       </td>
                       {isCar ? (
-                        <td className="px-3 py-1.5 text-xs text-slate-600 max-w-48 truncate">{p.realAddress || <span className="text-slate-300">—</span>}</td>
-                      ) : <td className="px-3 py-1.5">
+                        <td className="px-3 py-2.5 text-sm text-slate-600 max-w-48 truncate">{p.realAddress || <span className="text-slate-300">—</span>}</td>
+                      ) : <td className="px-3 py-2.5">
                         {isSupplier ? (
                           <div className="flex items-center gap-1">
-                            <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${itemCount && itemCount > 0 ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-400"}`}>
+                            <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-sm font-semibold ${itemCount && itemCount > 0 ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-400"}`}>
                               <Package size={9} />{itemCount} {t("partners.item_word")}
                             </span>
                             {itemCount === 0 && (
-                              <Link href="/PurchaseManagement" className="text-[10px] text-[#0a66c2] hover:underline flex items-center gap-0.5"><ShoppingCart size={10} /> {t("common.buy")}</Link>
+                              <Link href="/PurchaseManagement" className="text-sm text-[#0a66c2] hover:underline flex items-center gap-0.5"><ShoppingCart size={10} /> {t("common.buy")}</Link>
                             )}
                           </div>
-                        ) : <span className="text-[10px] text-slate-400 italic">{t("partners.customer_singular")}</span>}
+                        ) : <span className="text-sm text-slate-400 italic">{t("partners.customer_singular")}</span>}
                       </td>}
-                      <td className="px-3 py-1.5">
+                      <td className="px-3 py-2.5">
                         <div className="flex items-center justify-center gap-1 opacity-60 group-hover:opacity-100 transition-opacity">
                           <button onClick={() => openEditModal(p)} title={t("common.edit")}
                             className="p-1 rounded bg-[#EBF2FD] hover:bg-[#D5E8FB] text-[#0a66c2] transition"><Pencil size={11} /></button>

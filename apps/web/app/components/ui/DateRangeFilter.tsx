@@ -38,28 +38,38 @@ export default function DateRangeFilter({ from, to, onFrom, onTo, onClear }: Pro
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <div className="flex items-center gap-1.5 bg-white border border-border rounded-press px-2.5 py-1.5">
-        <Calendar size={13} className="text-text-faint shrink-0" />
+      <div className="flex items-center gap-2 rounded-lg border border-border-strong bg-white px-3 py-2 focus-within:border-ink">
+        <Calendar size={15} className="shrink-0 text-text-faint" />
         <input type="date" value={from} onChange={(e) => onFrom(e.target.value)}
-          className="hgv-figure bg-transparent text-text text-xs focus:outline-none w-28 cursor-pointer" />
-        <span className="text-text-faint text-xs">→</span>
+          className="hgv-figure w-32 cursor-pointer bg-transparent text-sm text-text focus:outline-none" />
+        <span className="text-sm text-text-faint">→</span>
         <input type="date" value={to} onChange={(e) => onTo(e.target.value)}
-          className="hgv-figure bg-transparent text-text text-xs focus:outline-none w-28 cursor-pointer" />
+          className="hgv-figure w-32 cursor-pointer bg-transparent text-sm text-text focus:outline-none" />
       </div>
 
-      {(["today", "week", "month", "year"] as Preset[]).map((p) => (
-        <button
-          key={p}
-          onClick={() => preset(p)}
-          className="text-xs px-2.5 py-1.5 rounded-press border border-border bg-white text-text-muted hover:bg-paper-dim hover:text-text transition-colors duration-200"
-        >
-          {p === "today" ? t("daterange.today") : p === "week" ? t("daterange.week") : p === "month" ? t("daterange.month") : t("daterange.year")}
-        </button>
-      ))}
+      {(["today", "week", "month", "year"] as Preset[]).map((p) => {
+        const range = applyPreset(p);
+        const on = range.from === from && range.to === to;
+        return (
+          <button
+            key={p}
+            onClick={() => preset(p)}
+            aria-pressed={on}
+            className={`rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors duration-200 ${
+              on ? "border-ink bg-ink-soft text-ink" : "border-border-strong bg-white text-text-muted hover:border-ink hover:text-text"
+            }`}
+          >
+            {p === "today" ? t("daterange.today") : p === "week" ? t("daterange.week") : p === "month" ? t("daterange.month") : t("daterange.year")}
+          </button>
+        );
+      })}
 
       {hasFilter && (
-        <button onClick={onClear} className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-press bg-accent-soft text-accent-dark hover:bg-[#f9d6d8] transition-colors duration-200">
-          <X size={11} /> {t("daterange.clear")}
+        <button
+          onClick={onClear}
+          className="flex items-center gap-1 rounded-full px-3 py-1.5 text-sm font-medium text-text-muted transition-colors duration-200 hover:bg-paper-dim hover:text-text"
+        >
+          <X size={14} /> {t("daterange.clear")}
         </button>
       )}
     </div>

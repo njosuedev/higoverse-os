@@ -1,4 +1,4 @@
-import { getToken } from "@/lib/auth";
+import { authFetch } from "@/lib/session";
 
 const SUPPLIER_API = process.env.NEXT_PUBLIC_API_SUPPLIERS || "https://supplier-esys.vercel.app";
 
@@ -6,17 +6,11 @@ export async function partnerRequest(
   endpoint: string,
   options: RequestInit = {}
 ) {
-  const token = getToken();
-
   const headers = new Headers(options.headers);
 
   headers.set("Content-Type", "application/json");
 
-  if (token) {
-    headers.set("Authorization", `Bearer ${token}`);
-  }
-
-  const res = await fetch(`${SUPPLIER_API}${endpoint}`, {
+  const res = await authFetch(`${SUPPLIER_API}${endpoint}`, {
     ...options,
     headers,
   });

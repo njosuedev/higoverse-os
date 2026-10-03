@@ -3,22 +3,21 @@
 import { Suspense, useEffect, useState, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import { useLanguage } from "@/lib/language-context";
-import { itemRequest } from "@/lib/product-api";
 import { settingsRequest } from "@/lib/settings-api";
 import { getMyShop } from "@/lib/shop-api";
+import ProductPicker from "@/app/components/ui/ProductPicker";
 import { formatPublicAddress } from "@/lib/product-meta";
 import {
-  listProformas, createProforma, updateProforma, deleteProforma,
-  type Proforma, type ProformaLine, type ProformaStatus, type ProformaPayload,
+  listProformas, createProforma, updateProforma, deleteProforma, type Proforma, type ProformaStatus, type ProformaPayload,
 } from "@/lib/proforma-api";
 import {
   Plus, Trash2, Printer, X, FileText, RefreshCw, Building2, User,
   Calendar, Hash, ChevronRight, Save, Clock, CheckCircle2,
   Send, AlertCircle, Search, Eye, Pencil, History,
 } from "lucide-react";
+import PageHeader from "@/app/components/ui/PageHeader";
 
 interface LineItem { id: string; product_name: string; qty: number; unit_price: number; }
-interface Product { id: string; name: string; selling_price: number; }
 interface ShopInfo { name: string; phone?: string; address?: string; email?: string; logo_url?: string; }
 
 function genId() { return Math.random().toString(36).slice(2, 9); }
@@ -51,7 +50,7 @@ function StatusBadge({ status }: { status: ProformaStatus }) {
   const { t } = useLanguage();
   const m = STATUS_META[status] ?? STATUS_META.draft;
   return (
-    <span className={`inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full border ${m.color}`}>
+    <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full border ${m.color}`}>
       {m.icon} {t(STATUS_LABEL_KEY[status] ?? STATUS_LABEL_KEY.draft)}
     </span>
   );
@@ -72,7 +71,6 @@ function ProformaPageContent() {
   const searchParams = useSearchParams();
 
   const [loading, setLoading]     = useState(true);
-  const [products, setProducts]   = useState<Product[]>([]);
   const [shop, setShop]           = useState<ShopInfo>({ name: "" });
   const [currency, setCurrency]   = useState("RWF");
   const [taxRate, setTaxRate]     = useState(0);
@@ -102,12 +100,11 @@ function ProformaPageContent() {
   const [deletingId, setDeletingId]     = useState<string | null>(null);
 
   useEffect(() => {
+    // Products are searched on demand by the line pickers — no catalogue preload.
     Promise.allSettled([
-      itemRequest("/products?limit=500"),
       settingsRequest("/settings"),
       getMyShop(),
-    ]).then(([prodRes, settRes, shopRes]) => {
-      if (prodRes.status === "fulfilled") setProducts(prodRes.value?.data?.items || []);
+    ]).then(([settRes, shopRes]) => {
       if (settRes.status === "fulfilled" && settRes.value?.data) {
         const d = settRes.value.data;
         setCurrency(d.currency || "RWF");
@@ -150,9 +147,8 @@ function ProformaPageContent() {
   function setLineField<K extends keyof LineItem>(id: string, key: K, val: LineItem[K]) {
     setLines((p) => p.map((l) => l.id === id ? { ...l, [key]: val } : l));
   }
-  function onProductPick(id: string, productId: string) {
-    const p = products.find((x) => x.id === productId);
-    if (p) setLines((prev) => prev.map((l) => l.id === id ? { ...l, product_name: p.name, unit_price: p.selling_price } : l));
+  function onProductPick(id: string, p: { name: string; selling_price: number }) {
+    setLines((prev) => prev.map((l) => l.id === id ? { ...l, product_name: p.name, unit_price: p.selling_price } : l));
   }
 
   function clearAll() {
@@ -404,66 +400,59 @@ function ProformaPageContent() {
       <div className="max-w-5xl mx-auto px-3 sm:px-5 py-3 sm:py-4">
 
         {/* PAGE HEADER */}
-        <div className="hgv-surface text-white rounded-2xl p-5 mb-6" style={{ background: "#0a66c2" }}>
-          <div className="flex justify-between items-center flex-wrap gap-3">
-            <div className="flex items-center gap-2.5">
-              <FileText size={20} />
-              <div>
-                <h1 className="text-base font-semibold">{t("proforma.title")}</h1>
-                <p className="text-blue-200 text-xs mt-0.5">
-                  {editingId ? `${t("proforma.editing")} ${invoiceNo}` : t("proforma.create_hint")}
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2 flex-wrap">
-              {/* View toggle */}
-              <div className="flex bg-white/10 rounded-lg overflow-hidden">
+        <PageHeader
+          title={t("proforma.title")}
+          subtitle={editingId ? `${t("proforma.editing")} ${invoiceNo}` : t("proforma.create_hint")}
+          extra={view === "editor" ? (
+            <>
+              <button onClick={clearAll} title={t("proforma.new_tooltip")} aria-label={t("proforma.new_tooltip")}
+                className="flex h-10 w-10 items-center justify-center rounded-full border border-border-strong bg-white text-text-muted transition hover:border-ink hover:text-ink">
+                <RefreshCw size={16} />
+              </button>
+              <button onClick={addLine}
+                className="flex h-10 items-center gap-2 rounded-full border border-border-strong bg-white px-4 text-sm font-semibold text-text transition hover:border-ink hover:text-ink">
+                <Plus size={16} /> {t("proforma.add_line")}
+              </button>
+              <button
+                onClick={() => saveProforma(false)}
+                disabled={!hasLines || saving}
+                className="flex h-10 items-center gap-2 rounded-full border border-ink bg-white px-4 text-sm font-semibold text-ink transition hover:bg-ink-soft disabled:opacity-40"
+              >
+                <Save size={16} />
+                {saving ? t("proforma.saving") : saveMsg === "success" ? t("proforma.saved_short") : saveMsg === "error" ? t("proforma.save_failed") : t("proforma.save")}
+              </button>
+              <button
+                onClick={() => saveProforma(true)}
+                disabled={!hasLines || saving}
+                className="flex h-10 items-center gap-2 rounded-full bg-ink px-5 text-sm font-semibold text-white transition hover:bg-ink-dark disabled:opacity-40"
+              >
+                <Printer size={16} /> {t("proforma.save_print")}
+              </button>
+            </>
+          ) : undefined}
+        >
+          <div className="flex flex-wrap gap-2">
+            {[
+              { value: "editor" as const, label: t("proforma.tab_editor"), icon: <Pencil size={15} />, count: null },
+              { value: "history" as const, label: t("proforma.tab_history"), icon: <History size={15} />, count: proformas.length || null },
+            ].map((c) => {
+              const on = view === c.value;
+              return (
                 <button
-                  onClick={() => setView("editor")}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold transition ${view === "editor" ? "bg-white text-blue-700" : "text-white hover:bg-white/10"}`}
+                  key={c.value}
+                  onClick={() => { setView(c.value); if (c.value === "history") loadHistory(); }}
+                  aria-pressed={on}
+                  className={`flex items-center gap-2 rounded-full border px-3.5 py-1.5 text-sm font-medium transition ${
+                    on ? "border-ink bg-ink-soft text-ink" : "border-border-strong bg-white text-text-muted hover:border-ink hover:text-text"
+                  }`}
                 >
-                  <Pencil size={12} /> {t("proforma.tab_editor")}
+                  {c.icon} {c.label}
+                  {c.count !== null && <span className="hgv-figure font-semibold">{c.count}</span>}
                 </button>
-                <button
-                  onClick={() => { setView("history"); loadHistory(); }}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold transition ${view === "history" ? "bg-white text-blue-700" : "text-white hover:bg-white/10"}`}
-                >
-                  <History size={12} /> {t("proforma.tab_history")}
-                  {proformas.length > 0 && (
-                    <span className="bg-white/20 text-white rounded-full px-1.5 text-[10px]">{proformas.length}</span>
-                  )}
-                </button>
-              </div>
-
-              {view === "editor" && (
-                <>
-                  <button onClick={clearAll} title={t("proforma.new_tooltip")} className="p-2 rounded-lg bg-white/10 hover:bg-white/20 text-white transition">
-                    <RefreshCw size={14} />
-                  </button>
-                  <button onClick={addLine}
-                    className="bg-white/10 hover:bg-white/20 text-white px-3.5 py-1.5 rounded-lg flex items-center gap-1.5 text-sm font-semibold transition border border-white/20">
-                    <Plus size={15} /> {t("proforma.add_line")}
-                  </button>
-                  <button
-                    onClick={() => saveProforma(false)}
-                    disabled={!hasLines || saving}
-                    className="bg-white text-blue-700 px-3.5 py-1.5 rounded-lg flex items-center gap-1.5 text-sm font-semibold hover:bg-blue-50 transition disabled:opacity-40"
-                  >
-                    <Save size={15} />
-                    {saving ? t("proforma.saving") : saveMsg === "success" ? t("proforma.saved_short") : saveMsg === "error" ? t("proforma.save_failed") : t("proforma.save")}
-                  </button>
-                  <button
-                    onClick={() => saveProforma(true)}
-                    disabled={!hasLines || saving}
-                    className="bg-blue-800 hover:bg-blue-900 text-white px-3.5 py-1.5 rounded-lg flex items-center gap-1.5 text-sm font-semibold transition disabled:opacity-40"
-                  >
-                    <Printer size={15} /> {t("proforma.save_print")}
-                  </button>
-                </>
-              )}
-            </div>
+              );
+            })}
           </div>
-        </div>
+        </PageHeader>
 
         {/* ── HISTORY VIEW ── */}
         {view === "history" && (
@@ -536,7 +525,7 @@ function ProformaPageContent() {
                     </div>
                     <div className="text-right shrink-0">
                       <p className="font-bold text-slate-800 tabular-nums">{p.grand_total.toLocaleString()} <span className="text-xs font-normal text-slate-400">{p.currency}</span></p>
-                      <p className="text-[10px] text-slate-400">{p.lines.length} {t("proforma.items_unit")}</p>
+                      <p className="text-xs text-slate-400">{p.lines.length} {t("proforma.items_unit")}</p>
                     </div>
                     <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition">
                       <button
@@ -654,7 +643,7 @@ function ProformaPageContent() {
                   </button>
                 </div>
 
-                <div className="grid grid-cols-[1fr_80px_110px_100px_32px] gap-2 px-5 py-2.5 bg-slate-50 border-b border-slate-100 text-[10px] font-semibold uppercase text-slate-400 tracking-wide">
+                <div className="grid grid-cols-[1fr_80px_110px_100px_32px] gap-2 px-5 py-2.5 bg-slate-50 border-b border-slate-100 text-xs font-semibold uppercase text-slate-400 tracking-wide">
                   <span>{t("proforma.description_col")}</span><span className="text-center">{t("proforma.col_qty")}</span><span className="text-center">{t("proforma.col_price")}</span><span className="text-right">{t("proforma.subtotal")}</span><span />
                 </div>
 
@@ -671,18 +660,11 @@ function ProformaPageContent() {
                               placeholder={t("proforma.product_placeholder")}
                               className="border border-slate-200 text-gray-800 placeholder:text-gray-400 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition"
                             />
-                            {products.length > 0 && (
-                              <select
-                                className="text-xs text-slate-400 border border-slate-100 rounded px-1.5 py-1 focus:outline-none focus:border-blue-300 transition"
-                                defaultValue=""
-                                onChange={(e) => { if (e.target.value) onProductPick(line.id, e.target.value); }}
-                              >
-                                <option value="">{t("proforma.pick_from_inventory")}</option>
-                                {products.map((p) => (
-                                  <option key={p.id} value={p.id}>{p.name} ({p.selling_price.toLocaleString()} {currency})</option>
-                                ))}
-                              </select>
-                            )}
+                            <ProductPicker
+                              onSelect={(p) => onProductPick(line.id, p)}
+                              placeholder={t("proforma.pick_from_inventory")}
+                              className="text-xs"
+                            />
                           </div>
                           <input type="number" min="1" value={line.qty}
                             onChange={(e) => setLineField(line.id, "qty", Math.max(1, Number(e.target.value)))}
@@ -861,7 +843,7 @@ function ProformaPageContent() {
                         className="w-full text-left flex items-center justify-between gap-2 p-2 rounded-lg hover:bg-slate-50 transition group">
                         <div className="min-w-0">
                           <p className="font-mono text-xs font-semibold text-blue-700 truncate">{p.invoice_no}</p>
-                          <p className="text-[10px] text-slate-400 truncate">{p.customer || t("proforma.no_customer")}</p>
+                          <p className="text-xs text-slate-400 truncate">{p.customer || t("proforma.no_customer")}</p>
                         </div>
                         <div className="shrink-0 text-right">
                           <StatusBadge status={p.status} />

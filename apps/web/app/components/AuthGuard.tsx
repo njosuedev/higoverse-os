@@ -14,7 +14,8 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!ready) return;                          // wait for localStorage hydration
     if (PUBLIC_ROUTES.includes(pathname)) return; // public — always ok
-    if (!user) router.replace("/login");         // unauthenticated on protected route
+    // Unauthenticated on a protected route — come back here after signing in.
+    if (!user) router.replace(pathname === "/" ? "/login" : `/login?next=${encodeURIComponent(pathname)}`);
   }, [ready, user, pathname, router]);
 
   // Public routes render immediately, no auth needed

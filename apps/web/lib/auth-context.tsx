@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { clearAuth, getRefreshToken, getToken, getUser, setAuth as persistAuth, type User } from "./auth";
 import { sendOffline } from "./shop-api";
+import { SESSION_EVENT, warmSession } from "./session";
 
 const AUTH_URL = process.env.NEXT_PUBLIC_AUTH_API || "https://auth-esys.vercel.app";
 
@@ -34,6 +35,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Hydrate from localStorage once on the client — runs after first render only
   useEffect(() => {
     setState({ user: getUser(), token: getToken(), ready: true });
+    warmSession();
+
+    // Stay in sync with token refreshes/expiry from authFetch, and with
+    // sign-in/sign-out in other tabs (the "storage" event).
+    const sync = () => setState({ user: getUser(), token: getToken(), ready: true });
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === null || e.key === "token" || e.key === "user") sync();
+    };
+    window.addEventListener(SESSION_EVENT, sync);
+    window.addEventListener("storage", onStorage);
+    return () => {
+      window.removeEventListener(SESSION_EVENT, sync);
+      window.removeEventListener("storage", onStorage);
+    };
   }, []);
 
   const login = useCallback((data: { access_token: string; refresh_token?: string; user: User }) => {
