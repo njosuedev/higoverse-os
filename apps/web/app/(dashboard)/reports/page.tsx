@@ -15,9 +15,8 @@ import { useLanguage } from "@/lib/language-context";
 import { useShopSettings } from "@/lib/shop-settings-context";
 import DateRangeFilter from "@/app/components/ui/DateRangeFilter";
 import {
-  BarChart3, TrendingUp, DollarSign, Package, ShoppingCart, AlertCircle, Download, ArrowUpRight, AlertTriangle, CheckCircle, Activity, Truck, Receipt,
+  BarChart3, TrendingUp, DollarSign, Package, ShoppingCart, AlertCircle, Download, ArrowUpRight, AlertTriangle, CheckCircle, Activity, Truck, Receipt, RefreshCw,
 } from "lucide-react";
-import PageHeader from "@/app/components/ui/PageHeader";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface Summary {
@@ -300,23 +299,62 @@ export default function ReportsPage() {
       <div className="max-w-7xl mx-auto px-3 sm:px-5 py-3 sm:py-4 space-y-3">
 
         {/* ── HEADER ─────────────────────────────────────────────────────────── */}
-        <PageHeader
-          title={t("reports.title")}
-          subtitle={lastUpdated ? <>{t("common.updated")} {timeAgo(lastUpdated)}</> : undefined}
-          onRefresh={manualRefresh}
-          refreshing={refreshing}
-          refreshLabel={t("common.refresh")}
-          action={{ label: t("reports.export"), onClick: () => window.print(), icon: <Download size={16} /> }}
-        >
-          <DateRangeFilter
-            from={dateFrom} to={dateTo}
-            onFrom={setDateFrom} onTo={setDateTo}
-            onClear={() => {
-              const d = new Date(); d.setDate(d.getDate() - 29);
-              setDateFrom(toDateStr(d)); setDateTo(toDateStr(new Date()));
-            }}
-          />
-        </PageHeader>
+        <div className="hgv-surface relative rounded-2xl mb-2 overflow-hidden"
+          style={{ background: "linear-gradient(135deg, #0a66c2 0%, #004182 50%, #00376b 100%)" }}>
+          <div style={{ position:"absolute",inset:0,pointerEvents:"none",
+            backgroundImage:"radial-gradient(circle, rgba(255,255,255,0.06) 1px, transparent 1px)",
+            backgroundSize:"20px 20px" }} />
+
+          <div className="relative flex items-center gap-3 px-4 pt-3 pb-2">
+            <div className="flex items-center gap-2.5 min-w-0 mr-auto">
+              <div className="w-8 h-8 rounded-xl bg-white/15 border border-white/20 flex items-center justify-center shrink-0">
+                <BarChart3 size={15} className="text-white" strokeWidth={2}/>
+              </div>
+              <div>
+                <p className="text-[10px] font-semibold text-blue-200 uppercase tracking-widest leading-none">{t("reports.analytics_label")}</p>
+                <h1 className="text-base font-extrabold text-white leading-tight tracking-tight">{t("reports.title")}</h1>
+              </div>
+            </div>
+            <div className="flex items-center gap-1.5 shrink-0">
+              {lastUpdated && (
+                <span className="text-[10px] text-blue-200/60 hidden sm:block">
+                  {timeAgo(lastUpdated)}
+                </span>
+              )}
+              <button onClick={manualRefresh} disabled={refreshing}
+                className="w-7 h-7 rounded-lg bg-white/10 hover:bg-white/20 border border-white/15 flex items-center justify-center text-white transition-all disabled:opacity-40">
+                <RefreshCw size={12} className={refreshing ? "animate-spin" : ""}/>
+              </button>
+              <button onClick={() => window.print()}
+                className="flex items-center gap-1.5 bg-white text-[#0a66c2] px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-blue-50 active:scale-95 transition-all shadow-lg shadow-black/20">
+                <Download size={12}/> {t("reports.export")}
+              </button>
+            </div>
+          </div>
+
+          <div className="relative flex items-center gap-1.5 px-4 pb-2">
+            <span className="relative flex h-1.5 w-1.5">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"/>
+              <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-green-400"/>
+            </span>
+            <p className="text-[10px] text-blue-100/70">
+              <span className="text-green-400 font-semibold">{t("reports.live_word")}</span>
+              {lastUpdated && <span className="ml-1 text-blue-200/50">· {t("common.updated")} {lastUpdated.toLocaleTimeString()}</span>}
+            </p>
+          </div>
+
+          <div className="relative px-4 pb-3">
+            <DateRangeFilter
+              from={dateFrom} to={dateTo}
+              onFrom={setDateFrom} onTo={setDateTo}
+              onClear={() => {
+                const d = new Date(); d.setDate(d.getDate() - 29);
+                setDateFrom(toDateStr(d)); setDateTo(toDateStr(new Date()));
+              }}
+              accentClass="focus:ring-slate-400/40 focus:border-slate-400"
+            />
+          </div>
+        </div>
 
         {/* ── ERROR BANNER ───────────────────────────────────────────────────── */}
         {error && (
@@ -588,14 +626,14 @@ export default function ReportsPage() {
                     <p className="text-sm font-bold text-[#0a66c2] mt-0.5">
                       {((summary.potential_profit / stockCost) * 100).toFixed(1)}%
                     </p>
-                    <p className="text-xs text-slate-400 mt-0.5">{t("reports.profit_rate_stock_hint")}</p>
+                    <p className="text-[10px] text-slate-400 mt-0.5">{t("reports.profit_rate_stock_hint")}</p>
                   </div>
                 )}
                 {summary.revenue > 0 && (
                   <div className="bg-emerald-50 rounded-lg p-2">
                     <p className="text-xs text-slate-500">{t("reports.profit_rate_sales")}</p>
                     <p className="text-sm font-bold text-emerald-700 mt-0.5">{margin}%</p>
-                    <p className="text-xs text-slate-400 mt-0.5">{t("reports.profit_rate_sales_hint")}</p>
+                    <p className="text-[10px] text-slate-400 mt-0.5">{t("reports.profit_rate_sales_hint")}</p>
                   </div>
                 )}
               </div>
@@ -648,7 +686,7 @@ export default function ReportsPage() {
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-100">
                   {[t("items.name"), t("reports.col_qty_left"), t("reports.col_you_paid"), t("reports.col_you_sell_for"), t("reports.col_profit_pct"), t("reports.col_action")].map((h) => (
-                    <th key={h} className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 whitespace-nowrap">{h}</th>
+                    <th key={h} className="px-3 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-500 whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -658,20 +696,20 @@ export default function ReportsPage() {
                     ? (((item.selling_price - item.cost_price) / item.cost_price) * 100).toFixed(0) : "—";
                   return (
                     <tr key={item.id} className="hover:bg-slate-50/60">
-                      <td className="px-3 py-2.5 font-medium text-slate-800">{item.name}</td>
-                      <td className="px-3 py-2.5">
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-sm font-semibold
+                      <td className="px-3 py-1.5 font-medium text-slate-800">{item.name}</td>
+                      <td className="px-3 py-1.5">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold
                           ${item.quantity === 0 ? "bg-red-100 text-red-700" : "bg-amber-100 text-amber-700"}`}>
                           {item.quantity}
                         </span>
                       </td>
-                      <td className="px-3 py-2.5 text-slate-600 tabular-nums">{item.cost_price.toLocaleString()}</td>
-                      <td className="px-3 py-2.5 font-semibold text-green-600 tabular-nums">{item.selling_price.toLocaleString()}</td>
-                      <td className="px-3 py-2.5 text-slate-500 text-sm font-medium">{marginPct !== "—" ? `+${marginPct}%` : "—"}</td>
-                      <td className="px-3 py-2.5">
+                      <td className="px-3 py-1.5 text-slate-600 tabular-nums">{item.cost_price.toLocaleString()}</td>
+                      <td className="px-3 py-1.5 font-semibold text-green-600 tabular-nums">{item.selling_price.toLocaleString()}</td>
+                      <td className="px-3 py-1.5 text-slate-500 text-xs font-medium">{marginPct !== "—" ? `+${marginPct}%` : "—"}</td>
+                      <td className="px-3 py-1.5">
                         <Link
                           href={isCar ? "/items" : `/PurchaseManagement?name=${encodeURIComponent(item.name)}&cost=${item.cost_price}&selling=${item.selling_price}&supplierId=${item.supplier_id ?? ""}`}
-                          className="text-sm font-semibold text-[#0a66c2] hover:underline flex items-center gap-0.5">
+                          className="text-xs font-semibold text-[#0a66c2] hover:underline flex items-center gap-0.5">
                           <ArrowUpRight size={11} /> {t("reports.restock")}
                         </Link>
                       </td>
@@ -709,7 +747,7 @@ export default function ReportsPage() {
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-100">
                   {[t("purchases.col_date"), t("purchases.col_product"), t("purchases.col_qty"), t("purchases.col_unit"), t("purchases.col_total")].map((h) => (
-                    <th key={h} className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 whitespace-nowrap">{h}</th>
+                    <th key={h} className="px-3 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-500 whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -718,13 +756,13 @@ export default function ReportsPage() {
                   const d = p.created_at ? new Date(p.created_at) : null;
                   return (
                     <tr key={p.id} className="hover:bg-slate-50/60">
-                      <td className="px-3 py-2.5 text-sm text-slate-500 whitespace-nowrap">
+                      <td className="px-3 py-1.5 text-xs text-slate-500 whitespace-nowrap">
                         {d ? toDateStr(d) : "—"}
                       </td>
-                      <td className="px-3 py-2.5 font-medium text-slate-800">{p.product_name}</td>
-                      <td className="px-3 py-2.5 tabular-nums text-slate-600">{p.quantity_added}</td>
-                      <td className="px-3 py-2.5 tabular-nums text-slate-600">{(p.cost_price || 0).toLocaleString()}</td>
-                      <td className="px-3 py-2.5 font-semibold text-slate-800 tabular-nums">{(p.total_cost || 0).toLocaleString()}</td>
+                      <td className="px-3 py-1.5 font-medium text-slate-800">{p.product_name}</td>
+                      <td className="px-3 py-1.5 tabular-nums text-slate-600">{p.quantity_added}</td>
+                      <td className="px-3 py-1.5 tabular-nums text-slate-600">{(p.cost_price || 0).toLocaleString()}</td>
+                      <td className="px-3 py-1.5 font-semibold text-slate-800 tabular-nums">{(p.total_cost || 0).toLocaleString()}</td>
                     </tr>
                   );
                 })}
@@ -792,11 +830,11 @@ function KpiCard({ label, value, detail, icon, color, pulse, badge }: {
       <div className={`w-7 h-7 rounded-lg ${c.bg} ${c.text} flex items-center justify-center mb-2`}>
         {icon}
       </div>
-      <p className="text-xs text-slate-400 font-medium uppercase tracking-wide">{label}</p>
+      <p className="text-[10px] text-slate-400 font-medium uppercase tracking-wide">{label}</p>
       <p className={`text-xl font-bold mt-1 ${c.text} leading-none`}>{value}</p>
-      <p className="text-xs text-slate-400 mt-1.5">{detail}</p>
+      <p className="text-[10px] text-slate-400 mt-1.5">{detail}</p>
       {badge && (
-        <span className={`inline-block mt-2 text-xs font-bold px-2 py-0.5 rounded-full ${c.badge}`}>
+        <span className={`inline-block mt-2 text-[10px] font-bold px-2 py-0.5 rounded-full ${c.badge}`}>
           {badge}
         </span>
       )}
@@ -814,7 +852,7 @@ function ValueBar({ label, sublabel, value, max, color, textColor }: {
       <div className="flex justify-between items-start mb-1.5 gap-2">
         <div className="min-w-0">
           <span className="text-xs font-medium text-slate-700 block">{label}</span>
-          {sublabel && <span className="text-xs text-slate-400 leading-tight">{sublabel}</span>}
+          {sublabel && <span className="text-[10px] text-slate-400 leading-tight">{sublabel}</span>}
         </div>
         <span className={`text-sm font-bold ${textColor} shrink-0`}>{currency} {fmtRWF(value)}</span>
       </div>
@@ -835,10 +873,10 @@ function StatMini({ label, value, sub, color, icon }: {
     <div className="bg-white rounded-xl border border-slate-200 px-2.5 py-2 shadow-sm">
       <div className="flex items-center gap-1.5 text-slate-400 mb-1.5">
         {icon}
-        <span className="text-[11px] font-medium uppercase tracking-wide">{label}</span>
+        <span className="text-[9px] font-medium uppercase tracking-wide">{label}</span>
       </div>
       <p className={`text-xs font-bold ${color}`}>{value}</p>
-      <p className="text-[11px] text-slate-400 mt-0.5">{sub}</p>
+      <p className="text-[9px] text-slate-400 mt-0.5">{sub}</p>
     </div>
   );
 }

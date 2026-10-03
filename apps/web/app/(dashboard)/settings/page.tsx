@@ -14,9 +14,8 @@ import { useShopSettings } from "@/lib/shop-settings-context";
 import { compressImage } from "@/lib/image";
 import PageSkeleton from "@/app/components/dashboard/PageSkeleton";
 import {
-  Save, Store, Phone, MapPin, DollarSign, AlertCircle, FileText, Lock, Eye, EyeOff, CheckCircle2, ChevronDown, Globe, BarChart, ShieldCheck, Pencil, ImagePlus, X, Loader2, Target, Car, Plus,
+  Save, Store, Phone, MapPin, DollarSign, AlertCircle, FileText, Lock, Eye, EyeOff, CheckCircle2, ChevronDown, Globe, BarChart, ShieldCheck, Pencil, ImagePlus, X, Loader2, Target, Car, Plus, Settings, RefreshCw,
 } from "lucide-react";
-import PageHeader from "@/app/components/ui/PageHeader";
 
 const HigoMapPicker = dynamic(() => import("@/app/components/ui/HigoMapPicker"), { ssr: false });
 
@@ -356,19 +355,38 @@ export default function SettingsPage() {
       <div className="max-w-3xl mx-auto px-3 sm:px-5 py-3 sm:py-4 space-y-4">
 
         {/* ── HEADER ─────────────────────────────── */}
-        <PageHeader
-          title={t("settings.title")}
-          subtitle={lastSaved
-            ? `${t("settings.last_saved")} ${lastSaved.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
-            : t("settings.configure_subtitle")}
-          onRefresh={load}
-          refreshLabel={t("common.refresh")}
-          extra={anyDirty ? (
-            <span className="flex items-center gap-1.5 rounded-full border border-warning/30 bg-warning-soft px-3 py-1.5 text-sm font-semibold text-warning">
-              <Pencil size={13} /> {t("settings.unsaved_changes")}
-            </span>
-          ) : undefined}
-        />
+        <div className="bg-linear-to-r from-slate-700 to-slate-900 text-white rounded-2xl p-5">
+          <div className="flex flex-wrap justify-between items-center gap-2">
+            <div className="flex items-center gap-3">
+              {logoUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={logoUrl} alt={t("settings.shop_logo")} className="w-10 h-10 rounded-xl object-cover border-2 border-white/20" />
+              ) : (
+                <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center">
+                  <Settings size={19} />
+                </div>
+              )}
+              <div>
+                <h1 className="text-base font-semibold">{t("settings.title")}</h1>
+                <p className="text-slate-400 text-xs mt-0.5">
+                  {lastSaved
+                    ? `${t("settings.last_saved")} ${lastSaved.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
+                    : t("settings.configure_subtitle")}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              {anyDirty && (
+                <span className="flex items-center gap-1.5 text-[11px] font-semibold text-amber-300 bg-amber-500/20 border border-amber-500/30 px-2.5 py-1 rounded-full">
+                  <Pencil size={10} /> {t("settings.unsaved_changes")}
+                </span>
+              )}
+              <button onClick={load} className="p-2 rounded-lg bg-white/10 hover:bg-white/20 transition">
+                <RefreshCw size={14} />
+              </button>
+            </div>
+          </div>
+        </div>
 
         {/* ── SHOP PROFILE ─── */}
         <Section
@@ -416,7 +434,7 @@ export default function SettingsPage() {
                 </label>
               </div>
               {logoDirty && !logoLoading && (
-                <p className="text-[13px] text-amber-600 mt-1.5">{t("settings.logo_unsaved_hint")}</p>
+                <p className="text-[11px] text-amber-600 mt-1.5">{t("settings.logo_unsaved_hint")}</p>
               )}
             </div>
 
@@ -492,13 +510,13 @@ export default function SettingsPage() {
                     {pinLat != null ? t("settings.update_pin") : t("settings.pin_location")}
                   </button>
                   {pinLat != null && (
-                    <span className="text-xs font-mono text-slate-400">
+                    <span className="text-[10px] font-mono text-slate-400">
                       {pinLat.toFixed(5)}, {pinLng?.toFixed(5)}
                     </span>
                   )}
                 </div>
                 {pinLat != null && (
-                  <p className="text-[13px] text-emerald-600 mt-1 flex items-center gap-1">
+                  <p className="text-[11px] text-emerald-600 mt-1 flex items-center gap-1">
                     <MapPin size={10} /> {t("settings.gps_pinned_hint")}
                   </p>
                 )}
@@ -559,7 +577,7 @@ export default function SettingsPage() {
                 value={opsForm.low_stock_threshold}
                 onChange={(e) => setOpsForm({ ...opsForm, low_stock_threshold: Number(e.target.value) })}
               />
-              <p className="text-xs text-slate-400 mt-1">{t("settings.low_threshold_hint")}</p>
+              <p className="text-[10px] text-slate-400 mt-1">{t("settings.low_threshold_hint")}</p>
             </Field>
 
             <Field label={t("settings.tax_rate")}>
@@ -570,7 +588,7 @@ export default function SettingsPage() {
                 value={opsForm.tax_rate}
                 onChange={(e) => setOpsForm({ ...opsForm, tax_rate: Number(e.target.value) })}
               />
-              <p className="text-xs text-slate-400 mt-1">{t("settings.tax_rate_hint")}</p>
+              <p className="text-[10px] text-slate-400 mt-1">{t("settings.tax_rate_hint")}</p>
             </Field>
           </div>
         </Section>
@@ -669,12 +687,12 @@ export default function SettingsPage() {
               </div>
               <div>
                 <p className="text-sm font-semibold text-slate-700">{t("settings.security_title")}</p>
-                <p className="text-[13px] text-slate-400 mt-0.5">{t("settings.security_subtitle")}</p>
+                <p className="text-[11px] text-slate-400 mt-0.5">{t("settings.security_subtitle")}</p>
               </div>
             </div>
             <div className="flex items-center gap-2">
               {pwStatus === "saved" && (
-                <span className="flex items-center gap-1 text-[13px] text-green-600 font-medium">
+                <span className="flex items-center gap-1 text-[11px] text-green-600 font-medium">
                   <CheckCircle2 size={12} /> {t("settings.changed")}
                 </span>
               )}
@@ -743,10 +761,10 @@ export default function SettingsPage() {
                       </button>
                     </div>
                     {pwForm.confirm && pwForm.next !== pwForm.confirm && (
-                      <p className="text-[13px] text-red-500 mt-1">{t("settings.passwords_mismatch")}</p>
+                      <p className="text-[11px] text-red-500 mt-1">{t("settings.passwords_mismatch")}</p>
                     )}
                     {pwForm.confirm && pwForm.next === pwForm.confirm && pwForm.next.length >= 6 && (
-                      <p className="text-[13px] text-green-600 mt-1 flex items-center gap-1"><CheckCircle2 size={11} /> {t("settings.match")}</p>
+                      <p className="text-[11px] text-green-600 mt-1 flex items-center gap-1"><CheckCircle2 size={11} /> {t("settings.match")}</p>
                     )}
                   </Field>
                 </div>
@@ -846,19 +864,19 @@ function Section({
           </div>
           <h2 className="text-sm font-semibold text-slate-700">{title}</h2>
           {dirty && (
-            <span className="text-xs font-semibold text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
+            <span className="text-[10px] font-semibold text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
               {t("settings.modified")}
             </span>
           )}
         </div>
         <div className="flex items-center gap-2">
           {status === "saved" && (
-            <span className="flex items-center gap-1 text-[13px] text-green-600 font-medium">
+            <span className="flex items-center gap-1 text-[11px] text-green-600 font-medium">
               <CheckCircle2 size={12} /> {t("settings.saved_status")}
             </span>
           )}
           {status === "error" && (
-            <span className="flex items-center gap-1 text-[13px] text-red-500 font-medium">
+            <span className="flex items-center gap-1 text-[11px] text-red-500 font-medium">
               <AlertCircle size={12} /> {t("settings.failed_status")}
             </span>
           )}
@@ -923,7 +941,7 @@ function PasswordStrength({ pw }: { pw: string }) {
           <div key={i} className={`h-1 flex-1 rounded-full transition-all ${i <= score ? color : "bg-slate-200"}`} />
         ))}
       </div>
-      <p className={`text-xs font-medium ${textColor}`}>{label} {t("settings.password_label")}</p>
+      <p className={`text-[10px] font-medium ${textColor}`}>{label} {t("settings.password_label")}</p>
     </div>
   );
 }

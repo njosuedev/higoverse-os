@@ -45,6 +45,7 @@ def get_supplier_or_404(
 # =====================================
 
 @router.post("/")
+@router.post("", include_in_schema=False)
 def create_supplier(
     payload: SupplierCreate,
     db: Session = Depends(get_db),
@@ -96,6 +97,7 @@ def create_supplier(
 # =====================================
 
 @router.get("/")
+@router.get("", include_in_schema=False)
 def get_suppliers(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user)

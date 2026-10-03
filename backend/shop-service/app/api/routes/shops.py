@@ -14,6 +14,7 @@ router = APIRouter(prefix="/shops", tags=["Shops"])
 # ── Public directory ──────────────────────────────────────────────────────────
 
 @router.get("/")
+@router.get("", include_in_schema=False)
 def list_shops(
     search:      Optional[str] = Query(None, description="Filter by name, email or address"),
     active_only: bool          = Query(True,  description="Return only active shops"),

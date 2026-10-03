@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { useLanguage } from "@/lib/language-context";
 import { useRouter } from "next/navigation";
@@ -11,19 +11,30 @@ import {
 } from "@/lib/admin-api";
 import { decodeShopHumanInfo } from "@/lib/product-meta";
 import {
-  ShieldCheck, Store, AlertTriangle, Trash2, ToggleLeft, ToggleRight, RefreshCw, ChevronDown, UserCog, Search, Mail, Phone, MapPin, Eye, EyeOff, CheckCircle, XCircle, UserX, Receipt, Pencil, X, ChevronLeft, Plus, Loader2, Lock, User as UserIcon, UserPlus, LayoutDashboard, Users, Car,
+  PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis,
+  Tooltip, ResponsiveContainer,
+} from "recharts";
+import {
+  ShieldCheck, Store, AlertTriangle, Trash2,
+  ToggleLeft, ToggleRight, RefreshCw, ChevronDown,
+  UserCog, Search, Mail, Phone, MapPin, Eye, EyeOff,
+  CheckCircle, XCircle,
+  UserX,
+  Receipt, Pencil, X, ChevronLeft,
+  Plus, Loader2, Lock, User as UserIcon, UserPlus,
+  LayoutDashboard, Users, Activity, Sparkles, TrendingUp, Car,
 } from "lucide-react";
 import { expenseRequest } from "@/lib/expense-api";
-import { useAutoRefresh } from "@/lib/hooks";
 import LayoutPicker from "@/app/components/admin/LayoutPicker";
 import { normalizeLayout, type BusinessLayout } from "@/lib/business-layout";
-import PageHeader from "@/app/components/ui/PageHeader";
 
 type Tab = "overview" | "shops" | "users" | "expenses";
 type ShopSort = "newest" | "lastActive" | "name" | "users";
 
 const LI_BLUE  = "#0a66c2";
-const POLL_INTERVAL = 60; // seconds
+const LI_LIGHT = "#5B9DF3";
+const LI_GRAY  = "#C9CDD2";
+const POLL_INTERVAL = 30;
 
 const EXP_CATEGORIES = [
   "rent","utilities","salaries","supplies",
@@ -72,12 +83,28 @@ function isOnline(s: string | null) {
 function wasActiveToday(s: string | null) {
   return !!s && (Date.now() - parseUTC(s).getTime()) < 86_400_000;
 }
-/** Signed in before, but not in the last 7 days. */
-function isDormant(s: string | null) {
-  return !!s && (Date.now() - parseUTC(s).getTime()) > 7 * 86_400_000;
-}
 function joinedThisWeek(s: string | null) {
   return !!s && (Date.now() - parseUTC(s).getTime()) < 7 * 86_400_000;
+}
+
+// ── Donut chart ───────────────────────────────────────────────────────────────
+function DonutChart({ data, total, label }: { data: { name: string; value: number; fill: string }[]; total: number; label: string }) {
+  return (
+    <div className="relative shrink-0" style={{ width: 132, height: 132 }}>
+      <ResponsiveContainer width={132} height={132} debounce={50}>
+        <PieChart width={132} height={132}>
+          <Pie data={data} cx="50%" cy="50%" innerRadius={38} outerRadius={53}
+            dataKey="value" paddingAngle={2} startAngle={90} endAngle={-270}>
+            {data.map((d, i) => <Cell key={i} fill={d.fill} />)}
+          </Pie>
+        </PieChart>
+      </ResponsiveContainer>
+      <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+        <p className="text-xl font-bold text-gray-900 leading-none">{total}</p>
+        <p className="text-[11px] text-gray-400 mt-0.5">{label}</p>
+      </div>
+    </div>
+  );
 }
 
 // ── Confirm dialog ────────────────────────────────────────────────────────────
@@ -148,6 +175,9 @@ export default function AdminPage() {
   const [editingExp, setEditingExp]         = useState<AdminExpense | null>(null);
   const [editForm, setEditForm]             = useState<EditExpForm>(EMPTY_EDIT);
   const [editSaving, setEditSaving]         = useState(false);
+  const [countdown, setCountdown]         = useState(POLL_INTERVAL);
+  const [ticker, setTicker]               = useState(0);
+  const countdownRef                      = useRef(POLL_INTERVAL);
 
   useEffect(() => {
     if (!ready) return;
@@ -162,6 +192,8 @@ export default function AdminPage() {
       const [s, sh, u] = await Promise.all([getAdminStats(), getAdminShops(), getAdminUsers()]);
       setStats(s); setShops(sh); setUsers(u);
       setLastUpdated(new Date());
+      countdownRef.current = POLL_INTERVAL;
+      setCountdown(POLL_INTERVAL);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : t("admin.err_load"));
     } finally { setLoading(false); setRefreshing(false); }
@@ -169,8 +201,17 @@ export default function AdminPage() {
 
   useEffect(() => { if (user?.role === "admin") loadAll(); }, [user, loadAll]);
 
-  // Refresh while the tab is visible; nothing re-renders in between.
-  useAutoRefresh(() => { if (user?.role === "admin") loadAll(true); }, POLL_INTERVAL * 1000);
+  useEffect(() => {
+    if (!user || user.role !== "admin") return;
+    const t = setInterval(() => {
+      countdownRef.current -= 1;
+      if (countdownRef.current <= 0) loadAll(true);
+      else { setCountdown(countdownRef.current); setTicker((n) => n + 1); }
+    }, 1000);
+    return () => clearInterval(t);
+  }, [user, loadAll]);
+
+  void ticker;
 
   // ── Derived ───────────────────────────────────────────────────────────────
   const shopUsers = useMemo(() => {
@@ -189,24 +230,35 @@ export default function AdminPage() {
 
   const onlineNow   = activeShops.filter((s) => isOnline(s.last_seen_at)).length;
   const onlineToday = activeShops.filter((s) => wasActiveToday(s.last_seen_at)).length;
+  const neverOnline = activeShops.filter((s) => !s.last_seen_at).length;
   const newThisWeek = activeShops.filter((s) => joinedThisWeek(s.created_at)).length;
 
-  // ── Overview data ─────────────────────────────────────────────────────────
-  const inactiveShops = visibleShops.filter((s) => !s.is_active);
-  const recentShops = [...visibleShops]
-    .sort((a, b) => parseUTC(b.created_at).getTime() - parseUTC(a.created_at).getTime())
-    .slice(0, 6);
-  const dormantShops = activeShops.filter((s) => isDormant(s.last_seen_at));
-  const neverSignedIn = activeShops.filter((s) => !s.last_seen_at);
-  const unverifiedShops = activeShops.filter((s) => s.email && !s.email_verified);
-  const noOwnerShops = activeShops.filter((s) => s.user_count === 0);
-  const attention = [
-    { key: "never", count: neverSignedIn.length, label: t("admin.alert_never_signed_in"), tone: "warn" as const },
-    { key: "dormant", count: dormantShops.length, label: t("admin.alert_dormant"), tone: "warn" as const },
-    { key: "no-users", count: noOwnerShops.length, label: t("admin.alert_no_users"), tone: "warn" as const },
-    { key: "unverified", count: unverifiedShops.length, label: t("admin.alert_unverified"), tone: "info" as const },
-    { key: "inactive-users", count: stats?.inactive_users ?? 0, label: t("admin.alert_inactive_users"), tone: "info" as const },
-  ].filter((a) => a.count > 0);
+  // ── Chart data ────────────────────────────────────────────────────────────
+  const shopStatusData = stats ? [
+    { name: t("admin.status_active"),      value: stats.active_shops,    fill: LI_BLUE  },
+    { name: t("admin.status_inactive"),    value: stats.inactive_shops,  fill: LI_GRAY  },
+    { name: t("admin.status_online_now"),  value: onlineNow,             fill: "#057642" },
+  ] : [];
+
+  const userRoleData = [
+    { name: t("admin.role_owners"), value: users.filter((u) => u.role === "owner").length, fill: LI_BLUE  },
+    { name: t("admin.role_staff"),  value: users.filter((u) => u.role !== "owner" && u.role !== "admin").length, fill: LI_LIGHT },
+    { name: t("admin.role_admins"), value: users.filter((u) => u.role === "admin").length, fill: "#004182" },
+  ];
+
+  const topShopsData = [...activeShops]
+    .sort((a, b) => b.user_count - a.user_count)
+    .slice(0, 8)
+    .map((s) => ({
+      name: (s.name ?? "—").length > 14 ? (s.name ?? "").slice(0, 13) + "…" : (s.name ?? "—"),
+      users: s.user_count,
+    }));
+
+  const presenceData = [
+    { name: t("admin.status_online_now"),   value: onlineNow,   fill: "#057642" },
+    { name: t("admin.status_active_today"), value: onlineToday, fill: LI_BLUE   },
+    { name: t("dash.never_seen"),           value: neverOnline, fill: LI_GRAY   },
+  ];
 
   // ── Actions ───────────────────────────────────────────────────────────────
   const handleToggleShop = async (id: string) => {
@@ -506,21 +558,46 @@ export default function AdminPage() {
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen bg-gradient-to-b from-slate-100 to-slate-50">
       <main className="max-w-6xl mx-auto px-3 sm:px-4 py-2.5 sm:py-3 space-y-3">
 
-        {/* ── Header ──────────────────────────────────────────────────────── */}
-        <PageHeader
-          title={t("admin.panel_title")}
-          subtitle={<>
-            {user.email}
-            {" · "}
-            {refreshing ? t("admin.updating") : lastUpdated ? `${t("dash.last_updated")} ${timeAgo(lastUpdated.toISOString(), t)}` : null}
-          </>}
-          onRefresh={() => loadAll(true)}
-          refreshing={loading || refreshing}
-          refreshLabel={t("common.refresh")}
-        />
+        {/* ── Hero header ─────────────────────────────────────────────────── */}
+        <div className="hgv-header-in relative overflow-hidden rounded-2xl hgv-surface px-4 sm:px-5 py-3.5">
+          <div
+            className="pointer-events-none absolute inset-0 opacity-[0.06]"
+            style={{ backgroundImage: "radial-gradient(circle, #fff 1px, transparent 1px)", backgroundSize: "18px 18px" }}
+          />
+          <div className="hgv-header-glow pointer-events-none absolute -right-10 -top-16 h-56 w-56 rounded-full blur-3xl" style={{ background: LI_BLUE, opacity: 0.25 }} />
+
+          <div className="relative flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center bg-white/10 backdrop-blur-sm border border-white/10 shrink-0">
+                <ShieldCheck size={16} className="text-white" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h1 className="font-bold text-white text-sm leading-tight tracking-tight">{t("admin.panel_title")}</h1>
+                  <span className="hidden sm:inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-white/10 border border-white/15 text-white/80">
+                    <Sparkles size={9} /> {t("admin.platform_badge")}
+                  </span>
+                </div>
+                <p className="text-[11px] text-white/50 mt-0.5">{user.email}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2.5">
+              <div className="text-[11px] text-white/60 flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                {refreshing ? t("admin.updating") : `${t("admin.refreshes_in")} ${countdown}s`}
+                {lastUpdated && !refreshing && <span className="text-white/30">· {timeAgo(lastUpdated.toISOString(), t)}</span>}
+              </div>
+              <button onClick={() => loadAll(true)} disabled={loading || refreshing}
+                className="flex items-center gap-1.5 text-[11px] px-3 py-1 rounded-full bg-white/10 border border-white/15 text-white hover:bg-white/20 transition disabled:opacity-40 font-medium backdrop-blur-sm">
+                <RefreshCw size={11} className={refreshing ? "animate-spin" : ""} />
+                {t("common.refresh")}
+              </button>
+            </div>
+          </div>
+        </div>
 
         {/* ── Error ───────────────────────────────────────────────────────── */}
         {error && (
@@ -532,17 +609,26 @@ export default function AdminPage() {
         )}
 
         {/* ── Tabs ────────────────────────────────────────────────────────── */}
-        <div className="flex flex-wrap gap-2">
-          {TABS.map((tb) => {
-            const active = tab === tb.key;
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 px-1 py-1 flex gap-1 w-fit overflow-x-auto max-w-full">
+          {TABS.map((t) => {
+            const active = tab === t.key;
             return (
-              <button key={tb.key} onClick={() => setTab(tb.key)} aria-pressed={active}
-                className={`flex items-center gap-2 rounded-full border px-3.5 py-1.5 text-sm font-medium transition ${
-                  active ? "border-ink bg-ink-soft text-ink" : "border-border-strong bg-white text-text-muted hover:border-ink hover:text-text"
-                }`}>
-                <tb.icon size={15} />
-                {tb.label}
-                {tb.count !== undefined && tb.count > 0 && <span className="hgv-figure font-semibold">{tb.count}</span>}
+              <button key={t.key} onClick={() => setTab(t.key)}
+                className={`relative flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all ${
+                  active ? "text-white shadow-sm" : "text-gray-500 hover:text-gray-800 hover:bg-gray-50"
+                }`}
+                style={active ? { background: `linear-gradient(135deg, ${LI_BLUE}, #004182)` } : undefined}>
+                <t.icon size={12} className={active ? "text-white" : "text-gray-400"} />
+                {t.label}
+                {t.count !== undefined && t.count > 0 && (
+                  <span className="ml-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full"
+                    style={{
+                      background: active ? "rgba(255,255,255,0.2)" : "#eef2f6",
+                      color: active ? "#fff" : "#8a94a6",
+                    }}>
+                    {t.count}
+                  </span>
+                )}
               </button>
             );
           })}
@@ -559,99 +645,161 @@ export default function AdminPage() {
               </div>
             ) : stats ? (
               <>
+                {/* Pending applications callout */}
                 {/* KPI row */}
-                <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
                   {[
-                    { label: t("admin.kpi_businesses"), value: visibleShops.length, sub: `${newThisWeek} ${t("admin.new_this_week").toLowerCase()}`, color: "text-text" },
-                    { label: t("admin.status_active"), value: activeShops.length, sub: `${onlineToday} ${t("admin.shops_active_today_suffix")}`, color: "text-success" },
-                    { label: t("admin.status_inactive"), value: inactiveShops.length, sub: t("admin.kpi_inactive_sub"), color: inactiveShops.length ? "text-accent-dark" : "text-text-muted" },
-                    { label: t("admin.total_users"), value: stats.total_users, sub: `${stats.active_users} ${t("common.active")}`, color: "text-text" },
-                    { label: t("admin.online_now"), value: onlineNow, sub: t("admin.shops_live_sub"), color: "text-ink" },
+                    { label: t("admin.tab_shops"),      value: stats.active_shops,   sub: `${stats.inactive_shops} ${t("admin.inactive_suffix")}`, color: LI_BLUE,    bg: "#EBF2FD", icon: Store    },
+                    { label: t("admin.total_users"),    value: stats.total_users,    sub: `${stats.active_users} ${t("common.active")}`,            color: LI_BLUE,    bg: "#EBF2FD", icon: Users    },
+                    { label: t("admin.online_now"),     value: onlineNow,            sub: t("admin.shops_live_sub"),                                color: "#057642",  bg: "#E7F7EF", icon: Activity },
+                    { label: t("admin.new_this_week"),  value: newThisWeek,          sub: t("admin.new_shops_joined_sub"),                          color: "#915907",  bg: "#FEF3E2", icon: Sparkles },
                   ].map((k) => (
-                    <div key={k.label} className="rounded-data border border-border bg-white p-4">
-                      <p className="text-sm font-medium text-text-muted">{k.label}</p>
-                      <p className={`hgv-figure mt-1 text-[1.75rem] font-semibold leading-tight ${k.color}`}>{k.value.toLocaleString()}</p>
-                      <p className="mt-0.5 text-[13px] text-text-faint">{k.sub}</p>
+                    <div key={k.label} className="hgv-card-hover bg-white rounded-xl shadow-sm border border-gray-200 p-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-[11px] text-gray-400 font-medium">{k.label}</p>
+                        <div className="w-6 h-6 rounded-lg flex items-center justify-center shrink-0" style={{ background: k.bg }}>
+                          <k.icon size={12} style={{ color: k.color }} />
+                        </div>
+                      </div>
+                      <p className="text-2xl font-bold" style={{ color: k.color }}>{k.value}</p>
+                      <p className="text-[11px] text-gray-400 mt-0.5">{k.sub}</p>
                     </div>
                   ))}
                 </div>
 
-                <div className="grid gap-3 lg:grid-cols-5">
-                  {/* Recently created businesses */}
-                  <section className="overflow-hidden rounded-data border border-border bg-white lg:col-span-3">
-                    <div className="flex items-center justify-between border-b border-border px-5 py-3.5">
-                      <h3 className="flex items-center gap-2 text-base font-semibold text-text">
-                        <Store size={16} className="text-ink" /> {t("admin.recent_businesses")}
-                      </h3>
-                      <button onClick={() => setTab("shops")} className="text-sm font-semibold text-ink hover:text-ink-dark">
-                        {t("dash.view_all")}
-                      </button>
-                    </div>
-                    {recentShops.length === 0 ? (
-                      <p className="px-5 py-8 text-center text-sm text-text-muted">{t("admin.no_active_shops")}</p>
-                    ) : (
-                      <ul>
-                        {recentShops.map((s) => (
-                          <li key={s.id} className="hgv-ledger-row flex items-center gap-3 px-5 py-3 last:border-b-0">
-                            <span className={`h-2 w-2 shrink-0 rounded-full ${!s.is_active ? "bg-text-faint" : isOnline(s.last_seen_at) ? "bg-success" : "bg-border-strong"}`} />
-                            <div className="min-w-0 flex-1">
-                              <p className="truncate text-[15px] font-medium text-text">{s.name || "—"}</p>
-                              <p className="truncate text-sm text-text-muted">{s.owner_email || s.email || s.phone || "—"}</p>
+                {/* Charts row 1 */}
+                <div className="grid md:grid-cols-2 gap-3">
+                  <div className="hgv-card-hover bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+                    <h3 className="font-semibold text-gray-800 text-xs mb-3 flex items-center gap-2">
+                      <span className="w-5 h-5 rounded-lg flex items-center justify-center" style={{ background: "#EBF2FD" }}>
+                        <Store size={10} style={{ color: LI_BLUE }} />
+                      </span>
+                      {t("admin.chart_shop_status")}
+                    </h3>
+                    <div className="flex items-center gap-4">
+                      <DonutChart data={shopStatusData} total={stats.total_shops} label={t("admin.donut_total")} />
+                      <div className="space-y-3 flex-1">
+                        {shopStatusData.map((d) => (
+                          <div key={d.name}>
+                            <div className="flex justify-between text-xs mb-1">
+                              <span className="flex items-center gap-1.5 text-gray-600 font-medium">
+                                <span className="w-2.5 h-2.5 rounded-sm inline-block" style={{ background: d.fill }} />
+                                {d.name}
+                              </span>
+                              <span className="font-bold text-gray-900">{d.value}</span>
                             </div>
-                            <div className="shrink-0 text-right">
-                              <p className="text-sm text-text">{fmtDate(s.created_at)}</p>
-                              <p className="text-[13px] text-text-faint">
-                                {s.is_active ? (s.last_seen_at ? timeAgo(s.last_seen_at, t) : t("dash.never_seen")) : t("admin.status_inactive")}
-                              </p>
+                            <div className="h-1.5 rounded-full" style={{ background: "#F3F2EE" }}>
+                              <div className="h-full rounded-full transition-all"
+                                style={{ width: `${stats.total_shops ? (d.value / stats.total_shops) * 100 : 0}%`, background: d.fill }} />
                             </div>
-                          </li>
+                          </div>
                         ))}
-                      </ul>
-                    )}
-                  </section>
-
-                  {/* Needs attention */}
-                  <section className="overflow-hidden rounded-data border border-border bg-white lg:col-span-2">
-                    <div className="flex items-center gap-2 border-b border-border px-5 py-3.5">
-                      <AlertTriangle size={16} className="text-warning" />
-                      <h3 className="text-base font-semibold text-text">{t("admin.needs_attention")}</h3>
-                    </div>
-                    {attention.length === 0 ? (
-                      <div className="flex items-center gap-3 px-5 py-6">
-                        <CheckCircle size={18} className="text-success" />
-                        <p className="text-[15px] text-text">{t("admin.all_clear")}</p>
+                        <p className="text-xs text-gray-400 pt-1">
+                          {stats.total_shops ? Math.round(stats.active_shops / stats.total_shops * 100) : 0}% {t("admin.activation_rate_suffix")}
+                        </p>
                       </div>
-                    ) : (
-                      <ul>
-                        {attention.map((a) => (
-                          <li key={a.key}>
-                            <button
-                              onClick={() => setTab(a.key === "inactive-users" ? "users" : "shops")}
-                              className="hgv-ledger-row flex w-full items-center gap-3 px-5 py-3 text-left"
-                            >
-                              <span className={`hgv-figure min-w-[2.25rem] rounded-press px-2 py-0.5 text-center text-sm font-bold ${
-                                a.tone === "warn" ? "bg-warning-soft text-warning" : "bg-ink-soft text-ink"
-                              }`}>{a.count}</span>
-                              <span className="flex-1 text-[15px] text-text">{a.label}</span>
-                              <ChevronDown size={14} className="-rotate-90 text-text-faint" />
-                            </button>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                    <div className="grid grid-cols-3 divide-x divide-border border-t border-border">
-                      {[
-                        { label: t("admin.status_online_now"), value: onlineNow },
-                        { label: t("admin.status_active_today"), value: onlineToday },
-                        { label: t("admin.new_this_week"), value: newThisWeek },
-                      ].map((m) => (
-                        <div key={m.label} className="px-3 py-3 text-center">
-                          <p className="hgv-figure text-xl font-semibold text-text">{m.value}</p>
-                          <p className="text-[13px] text-text-muted">{m.label}</p>
-                        </div>
-                      ))}
                     </div>
-                  </section>
+                  </div>
+
+                  <div className="hgv-card-hover bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+                    <h3 className="font-semibold text-gray-800 text-xs mb-3 flex items-center gap-2">
+                      <span className="w-5 h-5 rounded-lg flex items-center justify-center" style={{ background: "#EBF2FD" }}>
+                        <Users size={10} style={{ color: LI_BLUE }} />
+                      </span>
+                      {t("admin.chart_users_by_role")}
+                    </h3>
+                    <div className="flex items-center gap-4">
+                      <DonutChart data={userRoleData} total={stats.total_users} label={t("admin.donut_users")} />
+                      <div className="space-y-3 flex-1">
+                        {userRoleData.map((d) => (
+                          <div key={d.name}>
+                            <div className="flex justify-between text-xs mb-1">
+                              <span className="flex items-center gap-1.5 text-gray-600 font-medium">
+                                <span className="w-2.5 h-2.5 rounded-sm inline-block" style={{ background: d.fill }} />
+                                {d.name}
+                              </span>
+                              <span className="font-bold text-gray-900">{d.value}</span>
+                            </div>
+                            <div className="h-1.5 rounded-full" style={{ background: "#F3F2EE" }}>
+                              <div className="h-full rounded-full transition-all"
+                                style={{ width: `${stats.total_users ? (d.value / stats.total_users) * 100 : 0}%`, background: d.fill }} />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Charts row 2 */}
+                <div className="grid md:grid-cols-2 gap-3">
+                  <div className="hgv-card-hover bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+                    <h3 className="font-semibold text-gray-800 text-xs mb-3 flex items-center gap-2">
+                      <span className="w-5 h-5 rounded-lg flex items-center justify-center" style={{ background: "#EBF2FD" }}>
+                        <UserCog size={10} style={{ color: LI_BLUE }} />
+                      </span>
+                      {t("admin.chart_top_shops")}
+                    </h3>
+                    {topShopsData.length === 0 ? (
+                      <p className="text-gray-400 text-xs py-8 text-center">{t("admin.no_active_shops")}</p>
+                    ) : (
+                      <ResponsiveContainer width="100%" height={170}>
+                        <BarChart data={topShopsData} layout="vertical" margin={{ left: 0, right: 16, top: 0, bottom: 0 }}>
+                          <XAxis type="number" tick={{ fontSize: 10, fill: "#999" }} axisLine={false} tickLine={false} />
+                          <YAxis type="category" dataKey="name" tick={{ fontSize: 11, fill: "#444" }} axisLine={false} tickLine={false} width={90} />
+                          <Tooltip contentStyle={{ fontSize: 12, border: "1px solid #e5e7eb", borderRadius: 8 }} formatter={(v: unknown) => [String(v), t("admin.users_label")]} />
+                          <Bar dataKey="users" radius={[0, 4, 4, 0]} fill={LI_BLUE} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    )}
+                  </div>
+
+                  <div className="hgv-card-hover bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+                    <h3 className="font-semibold text-gray-800 text-xs mb-3 flex items-center gap-2">
+                      <span className="w-5 h-5 rounded-lg flex items-center justify-center" style={{ background: "#E7F7EF" }}>
+                        <Activity size={10} style={{ color: "#057642" }} />
+                      </span>
+                      {t("admin.chart_shop_presence")}
+                    </h3>
+                    <ResponsiveContainer width="100%" height={170}>
+                      <BarChart data={presenceData} margin={{ left: 0, right: 16, top: 0, bottom: 0 }}>
+                        <XAxis dataKey="name" tick={{ fontSize: 10, fill: "#999" }} axisLine={false} tickLine={false} />
+                        <YAxis tick={{ fontSize: 10, fill: "#999" }} axisLine={false} tickLine={false} />
+                        <Tooltip contentStyle={{ fontSize: 12, border: "1px solid #e5e7eb", borderRadius: 8 }} formatter={(v: unknown, name: unknown) => [String(v), String(name)]} />
+                        <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+                          {presenceData.map((d, i) => <Cell key={i} fill={d.fill} />)}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+
+                {/* Platform health */}
+                <div className="hgv-card-hover bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+                  <h3 className="font-semibold text-gray-800 text-xs mb-3 flex items-center gap-2">
+                    <span className="w-5 h-5 rounded-lg flex items-center justify-center" style={{ background: "#FEF3E2" }}>
+                      <TrendingUp size={10} style={{ color: "#915907" }} />
+                    </span>
+                    {t("admin.platform_health")}
+                  </h3>
+                  <div className="grid sm:grid-cols-3 gap-4">
+                    {[
+                      { label: t("admin.shop_activation"),  pct: stats.total_shops ? Math.round(stats.active_shops  / stats.total_shops  * 100) : 0, sub: `${stats.active_shops} ${t("common.of")} ${stats.total_shops}` },
+                      { label: t("admin.user_activation"),  pct: stats.total_users ? Math.round(stats.active_users  / stats.total_users  * 100) : 0, sub: `${stats.active_users} ${t("common.of")} ${stats.total_users}` },
+                      { label: t("admin.daily_engagement"), pct: activeShops.length ? Math.round(onlineToday / activeShops.length * 100) : 0, sub: `${onlineToday} ${t("admin.shops_active_today_suffix")}` },
+                    ].map((m) => (
+                      <div key={m.label}>
+                        <div className="flex justify-between text-xs mb-1.5">
+                          <span className="text-gray-500 font-medium">{m.label}</span>
+                          <span className="font-bold text-gray-900">{m.pct}%</span>
+                        </div>
+                        <div className="h-2 rounded-full overflow-hidden" style={{ background: "#F1F0EC" }}>
+                          <div className="h-full rounded-full transition-all" style={{ width: `${m.pct}%`, background: `linear-gradient(90deg, ${LI_BLUE}, #004182)` }} />
+                        </div>
+                        <p className="text-xs text-gray-400 mt-1">{m.sub}</p>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </>
             ) : null}
@@ -738,53 +886,53 @@ export default function AdminPage() {
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className="text-[13px] font-semibold text-gray-900">{shop.name}</span>
                             {online && (
-                              <span className="flex items-center gap-1 text-xs font-bold px-1.5 py-0.5 rounded-full text-white" style={{ background: "#057642" }}>
+                              <span className="flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full text-white" style={{ background: "#057642" }}>
                                 <span className="w-1 h-1 rounded-full bg-white animate-pulse" /> {t("admin.live")}
                               </span>
                             )}
                             {joinedThisWeek(shop.created_at) && (
-                              <span className="text-xs font-bold px-1.5 py-0.5 rounded-full text-white" style={{ background: LI_BLUE }}>{t("admin.new_badge")}</span>
+                              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full text-white" style={{ background: LI_BLUE }}>{t("admin.new_badge")}</span>
                             )}
                             {normalizeLayout(shop.layout) === "car" && (
-                              <span className="flex items-center gap-1 text-xs font-semibold px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
+                              <span className="flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
                                 <Car size={9} /> {t("layout.car")}
                               </span>
                             )}
                             {shop.owner_email ? (
                               shop.email_verified ? (
-                                <span className="flex items-center gap-1 text-xs font-bold px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200">
+                                <span className="flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200">
                                   <CheckCircle size={9} /> {t("admin.verified")}
                                 </span>
                               ) : (
                                 <button onClick={() => handleVerifyEmail(shop.id)} disabled={busy}
                                   title={t("admin.confirm_email_title")}
-                                  className="flex items-center gap-1 text-xs font-bold px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-600 border border-amber-200 hover:bg-amber-100 transition disabled:opacity-40">
+                                  className="flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-600 border border-amber-200 hover:bg-amber-100 transition disabled:opacity-40">
                                   <AlertTriangle size={9} /> {t("admin.unverified_verify")}
                                 </button>
                               )
                             ) : (
-                              <span className="text-xs font-medium px-1.5 py-0.5 rounded-full bg-gray-50 text-gray-400 border border-gray-200">{t("admin.no_account")}</span>
+                              <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-gray-50 text-gray-400 border border-gray-200">{t("admin.no_account")}</span>
                             )}
                           </div>
                           <div className="flex items-center gap-3 mt-0.5 flex-wrap">
-                            {shop.owner_email && <span className="text-[13px] text-gray-400">{shop.owner_email}</span>}
-                            {shop.phone && <span className="flex items-center gap-1 text-[13px] text-gray-400"><Phone size={9} />{shop.phone}</span>}
-                            {shop.address && <span className="flex items-center gap-1 text-[13px] text-gray-400"><MapPin size={9} />{shop.address}</span>}
+                            {shop.owner_email && <span className="text-[11px] text-gray-400">{shop.owner_email}</span>}
+                            {shop.phone && <span className="flex items-center gap-1 text-[11px] text-gray-400"><Phone size={9} />{shop.phone}</span>}
+                            {shop.address && <span className="flex items-center gap-1 text-[11px] text-gray-400"><MapPin size={9} />{shop.address}</span>}
                           </div>
                         </div>
 
                         {/* Stats */}
                         <div className="hidden md:flex items-center gap-4 shrink-0 text-xs text-gray-500">
                           <div className="text-center">
-                            <p className="text-gray-400 text-xs">{t("admin.users_label")}</p>
+                            <p className="text-gray-400 text-[10px]">{t("admin.users_label")}</p>
                             <p className="font-bold text-gray-800 text-xs">{shop.user_count}</p>
                           </div>
                           <div className="text-center">
-                            <p className="text-gray-400 text-xs">{t("dash.last_seen")}</p>
+                            <p className="text-gray-400 text-[10px]">{t("dash.last_seen")}</p>
                             <p className="font-semibold text-gray-800">{online ? t("common.online") : timeAgo(shop.last_seen_at, t)}</p>
                           </div>
                           <div className="text-center">
-                            <p className="text-gray-400 text-xs">{t("admin.joined")}</p>
+                            <p className="text-gray-400 text-[10px]">{t("admin.joined")}</p>
                             <p className="font-semibold text-gray-800">{fmtDate(shop.created_at)}</p>
                           </div>
                         </div>
@@ -820,7 +968,7 @@ export default function AdminPage() {
                           <div className="grid sm:grid-cols-3 gap-2.5 mt-2">
                             {/* Info */}
                             <div className="bg-white rounded-lg border border-gray-200 p-3">
-                              <p className="text-xs uppercase tracking-wider text-gray-400 font-semibold mb-2.5">{t("admin.shop_info")}</p>
+                              <p className="text-[10px] uppercase tracking-wider text-gray-400 font-semibold mb-2.5">{t("admin.shop_info")}</p>
                               {shop.logo_url && (
                                 // eslint-disable-next-line @next/next/no-img-element
                                 <img src={shop.logo_url} alt={shop.name} className="w-16 h-16 rounded-xl object-cover mb-3 border border-gray-100" />
@@ -858,7 +1006,7 @@ export default function AdminPage() {
 
                             {/* Activity */}
                             <div className="bg-white rounded-lg border border-gray-200 p-3">
-                              <p className="text-xs uppercase tracking-wider text-gray-400 font-semibold mb-2.5">{t("admin.activity")}</p>
+                              <p className="text-[10px] uppercase tracking-wider text-gray-400 font-semibold mb-2.5">{t("admin.activity")}</p>
                               <div className="space-y-2 text-xs">
                                 {[
                                   { label: t("common.status"),      value: isOnline(shop.last_seen_at) ? t("common.online") : t("admin.offline"), highlight: isOnline(shop.last_seen_at) },
@@ -879,12 +1027,12 @@ export default function AdminPage() {
                             {/* Users */}
                             <div className="bg-white rounded-lg border border-gray-200 p-3">
                               <div className="flex items-center justify-between mb-2.5">
-                                <p className="text-xs uppercase tracking-wider text-gray-400 font-semibold flex items-center gap-1.5">
+                                <p className="text-[10px] uppercase tracking-wider text-gray-400 font-semibold flex items-center gap-1.5">
                                   {t("admin.team_members")} <span className="font-bold text-gray-600 normal-case">{members.length}</span>
                                 </p>
                                 <button onClick={() => openCreateUser(shop.id)}
                                   title={t("admin.register_user_for_shop_title")}
-                                  className="flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-lg hover:opacity-90 transition text-white shadow-sm"
+                                  className="flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-lg hover:opacity-90 transition text-white shadow-sm"
                                   style={{ background: `linear-gradient(135deg, ${LI_BLUE}, #004182)` }}>
                                   <UserPlus size={10} /> {t("common.add")}
                                 </button>
@@ -895,7 +1043,7 @@ export default function AdminPage() {
                                 <div className="space-y-2">
                                   {members.map((m) => (
                                     <div key={m.id} className="flex items-center gap-2 text-xs">
-                                      <div className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0"
+                                      <div className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0"
                                         style={{ background: LI_BLUE }}>
                                         {m.email[0].toUpperCase()}
                                       </div>
@@ -954,7 +1102,7 @@ export default function AdminPage() {
             {/* Header */}
             <div className="hidden sm:grid grid-cols-[1fr_1fr_auto_auto_auto] gap-4 px-4 py-1.5 border-b border-gray-100" style={{ background: "#F9F8F6" }}>
               {[t("common.user"), t("admin.shop_label"), t("admin.role_label"), t("common.status"), t("common.actions")].map((h) => (
-                <span key={h} className="text-xs font-semibold text-gray-400 uppercase tracking-wider">{h}</span>
+                <span key={h} className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">{h}</span>
               ))}
             </div>
 
@@ -978,13 +1126,13 @@ export default function AdminPage() {
                     <div key={u.id}
                       className={`grid grid-cols-[1fr_1fr_auto_auto_auto] gap-4 items-center px-4 py-2 hover:bg-slate-50/70 transition ${!u.is_active ? "opacity-50" : ""}`}>
                       <div className="min-w-0 flex items-center gap-2">
-                        <div className="w-7 h-7 rounded-full flex items-center justify-center text-[13px] font-bold text-white shrink-0 ring-2 ring-white shadow-sm"
+                        <div className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold text-white shrink-0 ring-2 ring-white shadow-sm"
                           style={{ background: `linear-gradient(135deg, ${LI_BLUE}, #004182)` }}>
                           {u.email[0].toUpperCase()}
                         </div>
                         <div className="min-w-0">
                           <p className="text-xs font-medium text-gray-900 truncate">{u.email}</p>
-                          <p className="text-xs text-gray-400">{fmtDate(u.created_at)}</p>
+                          <p className="text-[10px] text-gray-400">{fmtDate(u.created_at)}</p>
                         </div>
                       </div>
                       <div className="min-w-0">
@@ -1096,12 +1244,12 @@ export default function AdminPage() {
                           </div>
                           <div className="flex-1 min-w-0">
                             <p className="text-[13px] font-semibold text-gray-900 group-hover:text-[#0a66c2] transition-colors">{shop.name}</p>
-                            {shop.owner_email && <p className="text-[13px] text-gray-400 truncate">{shop.owner_email}</p>}
+                            {shop.owner_email && <p className="text-[11px] text-gray-400 truncate">{shop.owner_email}</p>}
                           </div>
                           <div className="flex items-center gap-4 text-xs text-gray-400 shrink-0">
                             <span>{shop.user_count} {t("admin.users_suffix")}</span>
                             {isOnline(shop.last_seen_at) && (
-                              <span className="flex items-center gap-1 text-xs font-bold px-1.5 py-0.5 rounded-full text-white" style={{ background: "#057642" }}>
+                              <span className="flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full text-white" style={{ background: "#057642" }}>
                                 <span className="w-1 h-1 rounded-full bg-white animate-pulse" />{t("admin.live")}
                               </span>
                             )}
@@ -1125,7 +1273,7 @@ export default function AdminPage() {
                   </span>
                   <div className="flex-1 min-w-0">
                     <p className="text-[13px] font-semibold text-gray-900">{expShopName}</p>
-                    <p className="text-[13px] text-gray-400">{expTotal.toLocaleString()} {t("admin.expenses_total")}</p>
+                    <p className="text-[11px] text-gray-400">{expTotal.toLocaleString()} {t("admin.expenses_total")}</p>
                   </div>
                   <button onClick={() => loadShopExpenses(expShopId, expPage)} disabled={expLoading}
                     className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 transition disabled:opacity-40 shrink-0">
@@ -1153,7 +1301,7 @@ export default function AdminPage() {
                         <thead>
                           <tr className="bg-slate-50 border-b border-slate-100">
                             {[t("common.date"),t("expenses.title_field"),t("expenses.category"),t("expenses.amount"),t("admin.col_payment"),t("admin.col_bank_name"),t("admin.col_account_ref"),t("admin.col_receiver_phone"),t("common.notes"),""].map((h) => (
-                              <th key={h} className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-slate-400 whitespace-nowrap">{h}</th>
+                              <th key={h} className="px-3 py-2 text-left text-[9px] font-semibold uppercase tracking-wider text-slate-400 whitespace-nowrap">{h}</th>
                             ))}
                           </tr>
                         </thead>
@@ -1163,55 +1311,55 @@ export default function AdminPage() {
                             return (
                               <tr key={e.id} className="hover:bg-slate-50/60 transition-colors">
                                 {/* Date */}
-                                <td className="px-3 py-2.5 whitespace-nowrap">
+                                <td className="px-3 py-1.5 whitespace-nowrap">
                                   {d ? (
                                     <div>
-                                      <p className="text-sm font-medium text-slate-700">{d.toLocaleDateString()}</p>
-                                      <p className="text-sm text-slate-400">{d.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})}</p>
+                                      <p className="text-xs font-medium text-slate-700">{d.toLocaleDateString()}</p>
+                                      <p className="text-[10px] text-slate-400">{d.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})}</p>
                                     </div>
-                                  ) : <span className="text-slate-300 text-sm">—</span>}
+                                  ) : <span className="text-slate-300 text-xs">—</span>}
                                 </td>
                                 {/* Title */}
-                                <td className="px-3 py-2.5">
-                                  <p className="text-sm font-semibold text-slate-800">{e.title}</p>
-                                  <p className="text-sm text-slate-400 font-mono">{e.id.slice(0,8)}</p>
+                                <td className="px-3 py-1.5">
+                                  <p className="text-xs font-semibold text-slate-800">{e.title}</p>
+                                  <p className="text-[10px] text-slate-400 font-mono">{e.id.slice(0,8)}</p>
                                 </td>
                                 {/* Category */}
-                                <td className="px-3 py-2.5">
-                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-sm font-semibold bg-blue-100 text-blue-700 capitalize">{t(`expenses.cat.${e.category}`)}</span>
+                                <td className="px-3 py-1.5">
+                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-blue-100 text-blue-700 capitalize">{t(`expenses.cat.${e.category}`)}</span>
                                 </td>
                                 {/* Amount */}
-                                <td className="px-3 py-2.5 text-sm font-bold tabular-nums" style={{ color: LI_BLUE }}>
+                                <td className="px-3 py-1.5 text-xs font-bold tabular-nums" style={{ color: LI_BLUE }}>
                                   {Number(e.amount).toLocaleString()}
                                 </td>
                                 {/* Payment Method */}
-                                <td className="px-3 py-2.5 whitespace-nowrap">
+                                <td className="px-3 py-1.5 whitespace-nowrap">
                                   {e.payment_method === "mtn" && (
-                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-sm font-semibold bg-yellow-100 text-yellow-700">{t("admin.payment_mtn")}</span>
+                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-yellow-100 text-yellow-700">{t("admin.payment_mtn")}</span>
                                   )}
                                   {e.payment_method === "bank" && (
-                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-sm font-semibold bg-blue-100 text-blue-700">{t("admin.payment_bank")}</span>
+                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-blue-100 text-blue-700">{t("admin.payment_bank")}</span>
                                   )}
-                                  {!e.payment_method && <span className="text-slate-300 text-sm">—</span>}
+                                  {!e.payment_method && <span className="text-slate-300 text-[10px]">—</span>}
                                 </td>
                                 {/* Bank Name */}
-                                <td className="px-3 py-2.5 text-sm text-slate-600 whitespace-nowrap">
+                                <td className="px-3 py-1.5 text-[10px] text-slate-600 whitespace-nowrap">
                                   {e.bank_name || <span className="text-slate-300">—</span>}
                                 </td>
                                 {/* Account / Ref */}
-                                <td className="px-3 py-2.5 text-sm text-slate-600 font-mono whitespace-nowrap">
+                                <td className="px-3 py-1.5 text-[10px] text-slate-600 font-mono whitespace-nowrap">
                                   {e.bank_account || <span className="text-slate-300 font-sans">—</span>}
                                 </td>
                                 {/* Receiver Phone */}
-                                <td className="px-3 py-2.5 text-sm text-slate-600 whitespace-nowrap">
+                                <td className="px-3 py-1.5 text-[10px] text-slate-600 whitespace-nowrap">
                                   {e.receiver_phone || <span className="text-slate-300">—</span>}
                                 </td>
                                 {/* Notes */}
-                                <td className="px-3 py-2.5 text-sm text-slate-500 max-w-[140px] truncate">
+                                <td className="px-3 py-1.5 text-[10px] text-slate-500 max-w-[140px] truncate">
                                   {e.notes || <span className="text-slate-300 italic">—</span>}
                                 </td>
                                 {/* Edit */}
-                                <td className="px-3 py-2.5">
+                                <td className="px-3 py-1.5">
                                   <button onClick={() => openEditExp(e)} title={t("admin.edit_expense_title")}
                                     className="p-1.5 rounded-md hover:bg-[#EBF2FD] text-gray-300 hover:text-[#0a66c2] transition">
                                     <Pencil size={12} />
@@ -1228,16 +1376,16 @@ export default function AdminPage() {
                   {/* Pagination */}
                   {expTotal > 50 && (
                     <div className="flex items-center justify-between px-4 py-2 border-t border-slate-100 bg-slate-50/50">
-                      <p className="text-[13px] text-slate-500">
+                      <p className="text-[11px] text-slate-500">
                         {t("admin.page")} <span className="font-semibold">{expPage}</span> · {expTotal.toLocaleString()} {t("common.total")}
                       </p>
                       <div className="flex gap-1">
                         <button disabled={expPage <= 1 || expLoading} onClick={() => loadShopExpenses(expShopId, expPage - 1)}
-                          className="px-2.5 py-1 rounded-md text-[13px] border border-slate-200 text-slate-500 hover:bg-slate-100 disabled:opacity-30 transition">
+                          className="px-2.5 py-1 rounded-md text-[11px] border border-slate-200 text-slate-500 hover:bg-slate-100 disabled:opacity-30 transition">
                           ← {t("admin.prev")}
                         </button>
                         <button disabled={expPage * 50 >= expTotal || expLoading} onClick={() => loadShopExpenses(expShopId, expPage + 1)}
-                          className="px-2.5 py-1 rounded-md text-[13px] border border-slate-200 text-slate-500 hover:bg-slate-100 disabled:opacity-30 transition">
+                          className="px-2.5 py-1 rounded-md text-[11px] border border-slate-200 text-slate-500 hover:bg-slate-100 disabled:opacity-30 transition">
                           {t("admin.next")} →
                         </button>
                       </div>
@@ -1263,7 +1411,7 @@ export default function AdminPage() {
                 </span>
                 <div>
                   <p className="text-sm font-bold text-slate-800">{t("admin.edit_expense")}</p>
-                  <p className="text-xs text-slate-400">{expShopName} · {editingExp.id.slice(0,8)}</p>
+                  <p className="text-[10px] text-slate-400">{expShopName} · {editingExp.id.slice(0,8)}</p>
                 </div>
               </div>
               <button onClick={() => setEditingExp(null)} className="p-1 rounded-md hover:bg-slate-100 text-slate-400 transition">
@@ -1275,23 +1423,23 @@ export default function AdminPage() {
             <div className="px-4 py-3 grid gap-2 overflow-y-auto flex-1">
               {/* Title */}
               <div>
-                <label className="block text-xs font-medium text-gray-500 mb-0.5">{t("expenses.title_field")} <span className="text-red-400">*</span></label>
-                <input className="border border-slate-200 rounded-md px-2 py-1 w-full text-[13px] text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#0a66c2]/30 focus:border-[#0a66c2] transition"
+                <label className="block text-[10px] font-medium text-gray-500 mb-0.5">{t("expenses.title_field")} <span className="text-red-400">*</span></label>
+                <input className="border border-slate-200 rounded-md px-2 py-1 w-full text-[11px] text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#0a66c2]/30 focus:border-[#0a66c2] transition"
                   value={editForm.title} onChange={(e) => setEditForm({ ...editForm, title: e.target.value })} />
               </div>
 
               {/* Category + Amount */}
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-0.5">{t("expenses.category")}</label>
-                  <select className="border border-slate-200 rounded-md px-2 py-1 w-full text-[13px] text-gray-800 focus:outline-none focus:ring-1 focus:ring-[#0a66c2]/30 focus:border-[#0a66c2] transition"
+                  <label className="block text-[10px] font-medium text-gray-500 mb-0.5">{t("expenses.category")}</label>
+                  <select className="border border-slate-200 rounded-md px-2 py-1 w-full text-[11px] text-gray-800 focus:outline-none focus:ring-1 focus:ring-[#0a66c2]/30 focus:border-[#0a66c2] transition"
                     value={editForm.category} onChange={(e) => setEditForm({ ...editForm, category: e.target.value })}>
                     {EXP_CATEGORIES.map((c) => <option key={c} value={c} className="capitalize">{t(`expenses.cat.${c}`)}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-0.5">{t("expenses.amount")} <span className="text-red-400">*</span></label>
-                  <input type="number" min="0" className="border border-slate-200 rounded-md px-2 py-1 w-full text-[13px] text-gray-800 focus:outline-none focus:ring-1 focus:ring-[#0a66c2]/30 focus:border-[#0a66c2] transition"
+                  <label className="block text-[10px] font-medium text-gray-500 mb-0.5">{t("expenses.amount")} <span className="text-red-400">*</span></label>
+                  <input type="number" min="0" className="border border-slate-200 rounded-md px-2 py-1 w-full text-[11px] text-gray-800 focus:outline-none focus:ring-1 focus:ring-[#0a66c2]/30 focus:border-[#0a66c2] transition"
                     value={editForm.amount} onChange={(e) => setEditForm({ ...editForm, amount: e.target.value })} />
                 </div>
               </div>
@@ -1299,25 +1447,25 @@ export default function AdminPage() {
               {/* Date + Notes */}
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-0.5">{t("common.date")}</label>
-                  <input type="date" className="border border-slate-200 rounded-md px-2 py-1 w-full text-[13px] text-gray-800 focus:outline-none focus:ring-1 focus:ring-[#0a66c2]/30 focus:border-[#0a66c2] transition"
+                  <label className="block text-[10px] font-medium text-gray-500 mb-0.5">{t("common.date")}</label>
+                  <input type="date" className="border border-slate-200 rounded-md px-2 py-1 w-full text-[11px] text-gray-800 focus:outline-none focus:ring-1 focus:ring-[#0a66c2]/30 focus:border-[#0a66c2] transition"
                     value={editForm.expense_date} onChange={(e) => setEditForm({ ...editForm, expense_date: e.target.value })} />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-0.5">{t("common.notes")}</label>
-                  <input className="border border-slate-200 rounded-md px-2 py-1 w-full text-[13px] text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#0a66c2]/30 focus:border-[#0a66c2] transition"
+                  <label className="block text-[10px] font-medium text-gray-500 mb-0.5">{t("common.notes")}</label>
+                  <input className="border border-slate-200 rounded-md px-2 py-1 w-full text-[11px] text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#0a66c2]/30 focus:border-[#0a66c2] transition"
                     placeholder={`${t("common.optional")}…`} value={editForm.notes} onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })} />
                 </div>
               </div>
 
               {/* Payment method */}
               <div className="border border-slate-100 rounded-lg p-2 bg-slate-50/50">
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">{t("admin.payment_method")}</p>
+                <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">{t("admin.payment_method")}</p>
                 <div className="flex gap-1.5 mb-1.5">
                   {(["","mtn","bank"] as const).map((m) => (
                     <button key={m} type="button"
                       onClick={() => setEditForm({ ...editForm, payment_method: m, bank_name: "", bank_account: "", receiver_phone: "" })}
-                      className={`flex-1 py-1 rounded-md text-xs font-semibold border transition-all ${
+                      className={`flex-1 py-1 rounded-md text-[10px] font-semibold border transition-all ${
                         editForm.payment_method === m
                           ? m === "mtn"  ? "bg-yellow-400 border-yellow-400 text-white"
                           : m === "bank" ? "border-[#0a66c2] text-white"
@@ -1332,24 +1480,24 @@ export default function AdminPage() {
                 {editForm.payment_method === "bank" && (
                   <div className="grid grid-cols-2 gap-1.5 mb-1.5">
                     <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-0.5">{t("admin.col_bank_name")}</label>
-                      <select className="border border-slate-200 rounded-md px-2 py-1 w-full text-[13px] text-gray-800 focus:outline-none focus:ring-1 focus:ring-[#0a66c2]/30 focus:border-[#0a66c2] transition"
+                      <label className="block text-[10px] font-medium text-gray-500 mb-0.5">{t("admin.col_bank_name")}</label>
+                      <select className="border border-slate-200 rounded-md px-2 py-1 w-full text-[11px] text-gray-800 focus:outline-none focus:ring-1 focus:ring-[#0a66c2]/30 focus:border-[#0a66c2] transition"
                         value={editForm.bank_name} onChange={(e) => setEditForm({ ...editForm, bank_name: e.target.value })}>
                         <option value="">{t("admin.select_bank_placeholder")}</option>
                         {BANK_NAMES.map((b) => <option key={b} value={b}>{b}</option>)}
                       </select>
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-0.5">{t("admin.col_account_ref")}</label>
-                      <input className="border border-slate-200 rounded-md px-2 py-1 w-full text-[13px] text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#0a66c2]/30 focus:border-[#0a66c2] transition"
+                      <label className="block text-[10px] font-medium text-gray-500 mb-0.5">{t("admin.col_account_ref")}</label>
+                      <input className="border border-slate-200 rounded-md px-2 py-1 w-full text-[11px] text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#0a66c2]/30 focus:border-[#0a66c2] transition"
                         placeholder={t("admin.account_ref_placeholder")} value={editForm.bank_account} onChange={(e) => setEditForm({ ...editForm, bank_account: e.target.value })} />
                     </div>
                   </div>
                 )}
                 {editForm.payment_method !== "" && (
                   <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-0.5">{t("admin.col_receiver_phone")}</label>
-                    <input className="border border-slate-200 rounded-md px-2 py-1 w-full text-[13px] text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#0a66c2]/30 focus:border-[#0a66c2] transition"
+                    <label className="block text-[10px] font-medium text-gray-500 mb-0.5">{t("admin.col_receiver_phone")}</label>
+                    <input className="border border-slate-200 rounded-md px-2 py-1 w-full text-[11px] text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#0a66c2]/30 focus:border-[#0a66c2] transition"
                       placeholder="+250 7XX XXX XXX" value={editForm.receiver_phone} onChange={(e) => setEditForm({ ...editForm, receiver_phone: e.target.value })} />
                   </div>
                 )}
@@ -1359,11 +1507,11 @@ export default function AdminPage() {
             {/* Footer */}
             <div className="flex justify-end gap-1.5 px-4 py-2.5 border-t border-slate-100 shrink-0">
               <button onClick={() => setEditingExp(null)}
-                className="px-3 py-1 rounded-md border border-slate-200 text-[13px] font-medium text-slate-600 hover:bg-slate-50 transition">
+                className="px-3 py-1 rounded-md border border-slate-200 text-[11px] font-medium text-slate-600 hover:bg-slate-50 transition">
                 {t("common.cancel")}
               </button>
               <button onClick={saveEditExp} disabled={editSaving || !editForm.title.trim() || !editForm.amount}
-                className="px-3 py-1 rounded-md text-[13px] font-semibold text-white transition disabled:opacity-60 hover:opacity-90 shadow-sm"
+                className="px-3 py-1 rounded-md text-[11px] font-semibold text-white transition disabled:opacity-60 hover:opacity-90 shadow-sm"
                 style={{ background: `linear-gradient(135deg, ${LI_BLUE}, #004182)` }}>
                 {editSaving ? t("common.saving") : t("common.save")}
               </button>
@@ -1384,7 +1532,7 @@ export default function AdminPage() {
                 </span>
                 <div>
                   <p className="text-sm font-bold text-slate-800">{t("admin.register_new_shop")}</p>
-                  <p className="text-xs text-slate-400">{t("admin.register_shop_sub")}</p>
+                  <p className="text-[10px] text-slate-400">{t("admin.register_shop_sub")}</p>
                 </div>
               </div>
               <button onClick={() => setShowCreateShop(false)} className="p-1 rounded-md hover:bg-slate-100 text-slate-400 transition">
@@ -1402,7 +1550,7 @@ export default function AdminPage() {
 
               {/* Shop name */}
               <div>
-                <label className="block text-[13px] font-medium text-gray-500 mb-1">{t("settings.shop_name")} <span className="text-red-400">*</span></label>
+                <label className="block text-[11px] font-medium text-gray-500 mb-1">{t("settings.shop_name")} <span className="text-red-400">*</span></label>
                 <div className="relative">
                   <Store size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
                   <input value={createForm.shop_name} onChange={(e) => setCreateForm({ ...createForm, shop_name: e.target.value })}
@@ -1414,7 +1562,7 @@ export default function AdminPage() {
               {/* Phone + Address */}
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-[13px] font-medium text-gray-500 mb-1">{t("common.phone")} <span className="text-red-400">*</span></label>
+                  <label className="block text-[11px] font-medium text-gray-500 mb-1">{t("common.phone")} <span className="text-red-400">*</span></label>
                   <div className="relative">
                     <Phone size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
                     <input value={createForm.phone} onChange={(e) => setCreateForm({ ...createForm, phone: e.target.value })}
@@ -1423,7 +1571,7 @@ export default function AdminPage() {
                   </div>
                 </div>
                 <div>
-                  <label className="block text-[13px] font-medium text-gray-500 mb-1">{t("common.address")}</label>
+                  <label className="block text-[11px] font-medium text-gray-500 mb-1">{t("common.address")}</label>
                   <div className="relative">
                     <MapPin size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
                     <input value={createForm.address} onChange={(e) => setCreateForm({ ...createForm, address: e.target.value })}
@@ -1435,7 +1583,7 @@ export default function AdminPage() {
 
               {/* Needs platform account toggle */}
               <label className="flex items-center justify-between gap-2 border border-slate-200 rounded-lg px-2.5 py-2 cursor-pointer bg-slate-50/50">
-                <span className="text-[13px] font-medium text-gray-600">{t("admin.needs_account_toggle")}</span>
+                <span className="text-[11px] font-medium text-gray-600">{t("admin.needs_account_toggle")}</span>
                 <button type="button" role="switch" aria-checked={shopNeedsAccount}
                   onClick={() => setShopNeedsAccount((v) => !v)}
                   className="relative w-8 h-[18px] rounded-full transition-colors shrink-0"
@@ -1448,7 +1596,7 @@ export default function AdminPage() {
                 <>
                   {/* Owner name */}
                   <div>
-                    <label className="block text-[13px] font-medium text-gray-500 mb-1">{t("admin.owner_full_name")}</label>
+                    <label className="block text-[11px] font-medium text-gray-500 mb-1">{t("admin.owner_full_name")}</label>
                     <div className="relative">
                       <UserIcon size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
                       <input value={createForm.owner_name} onChange={(e) => setCreateForm({ ...createForm, owner_name: e.target.value })}
@@ -1459,21 +1607,21 @@ export default function AdminPage() {
 
                   {/* Owner email */}
                   <div>
-                    <label className="block text-[13px] font-medium text-gray-500 mb-1">{t("admin.owner_email")} <span className="text-red-400">*</span></label>
+                    <label className="block text-[11px] font-medium text-gray-500 mb-1">{t("admin.owner_email")} <span className="text-red-400">*</span></label>
                     <div className="relative">
                       <Mail size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
                       <input type="email" value={createForm.owner_email} onChange={(e) => setCreateForm({ ...createForm, owner_email: e.target.value })}
                         placeholder="owner@example.com"
                         className="w-full pl-8 pr-3 py-2 text-xs border border-slate-200 rounded-lg text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#0a66c2]/30 focus:border-[#0a66c2] transition" />
                     </div>
-                    <p className="text-xs text-amber-600 mt-1 flex items-center gap-1">
+                    <p className="text-[10px] text-amber-600 mt-1 flex items-center gap-1">
                       <AlertTriangle size={9} /> {t("admin.new_shop_email_warning")}
                     </p>
                   </div>
 
                   {/* Owner password */}
                   <div>
-                    <label className="block text-[13px] font-medium text-gray-500 mb-1">{t("admin.owner_password")} <span className="text-red-400">*</span></label>
+                    <label className="block text-[11px] font-medium text-gray-500 mb-1">{t("admin.owner_password")} <span className="text-red-400">*</span></label>
                     <div className="relative">
                       <Lock size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
                       <input type={showShopPassword ? "text" : "password"} value={createForm.owner_password}
@@ -1493,7 +1641,7 @@ export default function AdminPage() {
 
               {/* Description */}
               <div>
-                <label className="block text-[13px] font-medium text-gray-500 mb-1">{t("items.description")}</label>
+                <label className="block text-[11px] font-medium text-gray-500 mb-1">{t("items.description")}</label>
                 <textarea value={createForm.description} onChange={(e) => setCreateForm({ ...createForm, description: e.target.value })}
                   placeholder={t("admin.shop_desc_placeholder")}
                   rows={2}
@@ -1529,7 +1677,7 @@ export default function AdminPage() {
                 </span>
                 <div>
                   <p className="text-sm font-bold text-slate-800">{t("admin.edit_shop")}</p>
-                  <p className="text-xs text-slate-400">{editingShop.owner_email ?? editingShop.id.slice(0, 8)}</p>
+                  <p className="text-[10px] text-slate-400">{editingShop.owner_email ?? editingShop.id.slice(0, 8)}</p>
                 </div>
               </div>
               <button onClick={() => setEditingShop(null)} className="p-1 rounded-md hover:bg-slate-100 text-slate-400 transition">
@@ -1540,7 +1688,7 @@ export default function AdminPage() {
             {/* Body */}
             <div className="px-3.5 py-2.5 grid gap-2 overflow-y-auto flex-1">
               <div>
-                <label className="block text-[13px] font-medium text-gray-500 mb-1">{t("settings.shop_name")} <span className="text-red-400">*</span></label>
+                <label className="block text-[11px] font-medium text-gray-500 mb-1">{t("settings.shop_name")} <span className="text-red-400">*</span></label>
                 <div className="relative">
                   <Store size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
                   <input value={editShopForm.name} onChange={(e) => setEditShopForm({ ...editShopForm, name: e.target.value })}
@@ -1550,7 +1698,7 @@ export default function AdminPage() {
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-[13px] font-medium text-gray-500 mb-1">{t("common.phone")}</label>
+                  <label className="block text-[11px] font-medium text-gray-500 mb-1">{t("common.phone")}</label>
                   <div className="relative">
                     <Phone size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
                     <input value={editShopForm.phone} onChange={(e) => setEditShopForm({ ...editShopForm, phone: e.target.value })}
@@ -1559,7 +1707,7 @@ export default function AdminPage() {
                   </div>
                 </div>
                 <div>
-                  <label className="block text-[13px] font-medium text-gray-500 mb-1">{t("common.address")}</label>
+                  <label className="block text-[11px] font-medium text-gray-500 mb-1">{t("common.address")}</label>
                   <div className="relative">
                     <MapPin size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
                     <input value={editShopForm.address} onChange={(e) => setEditShopForm({ ...editShopForm, address: e.target.value })}
@@ -1572,7 +1720,7 @@ export default function AdminPage() {
               <LayoutPicker value={editShopForm.layout} onChange={(l) => setEditShopForm({ ...editShopForm, layout: l })} />
 
               <div>
-                <label className="block text-[13px] font-medium text-gray-500 mb-1">{t("items.description")}</label>
+                <label className="block text-[11px] font-medium text-gray-500 mb-1">{t("items.description")}</label>
                 <textarea value={editShopForm.description} onChange={(e) => setEditShopForm({ ...editShopForm, description: e.target.value })}
                   rows={2}
                   className="w-full px-2.5 py-2 text-xs border border-slate-200 rounded-lg text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#0a66c2]/30 focus:border-[#0a66c2] transition resize-none" />
@@ -1607,7 +1755,7 @@ export default function AdminPage() {
                 </span>
                 <div>
                   <p className="text-sm font-bold text-slate-800">{t("admin.register_shop_user")}</p>
-                  <p className="text-xs text-slate-400">{t("admin.add_staff_sub")}</p>
+                  <p className="text-[10px] text-slate-400">{t("admin.add_staff_sub")}</p>
                 </div>
               </div>
               <button onClick={() => setShowCreateUser(false)} className="p-1 rounded-md hover:bg-slate-100 text-slate-400 transition">
@@ -1625,7 +1773,7 @@ export default function AdminPage() {
 
               {/* Shop */}
               <div>
-                <label className="block text-[13px] font-medium text-gray-500 mb-1">{t("admin.shop_label")} <span className="text-red-400">*</span></label>
+                <label className="block text-[11px] font-medium text-gray-500 mb-1">{t("admin.shop_label")} <span className="text-red-400">*</span></label>
                 <div className="relative">
                   <Store size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
                   <select
@@ -1643,7 +1791,7 @@ export default function AdminPage() {
 
               {/* Name */}
               <div>
-                <label className="block text-[13px] font-medium text-gray-500 mb-1">{t("admin.full_name")}</label>
+                <label className="block text-[11px] font-medium text-gray-500 mb-1">{t("admin.full_name")}</label>
                 <div className="relative">
                   <UserIcon size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
                   <input value={createUserForm.name} onChange={(e) => setCreateUserForm({ ...createUserForm, name: e.target.value })}
@@ -1654,7 +1802,7 @@ export default function AdminPage() {
 
               {/* Email */}
               <div>
-                <label className="block text-[13px] font-medium text-gray-500 mb-1">{t("common.email")} <span className="text-red-400">*</span></label>
+                <label className="block text-[11px] font-medium text-gray-500 mb-1">{t("common.email")} <span className="text-red-400">*</span></label>
                 <div className="relative">
                   <Mail size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
                   <input type="email" value={createUserForm.email} onChange={(e) => setCreateUserForm({ ...createUserForm, email: e.target.value })}
@@ -1665,7 +1813,7 @@ export default function AdminPage() {
 
               {/* Password */}
               <div>
-                <label className="block text-[13px] font-medium text-gray-500 mb-1">{t("admin.password_label")} <span className="text-red-400">*</span></label>
+                <label className="block text-[11px] font-medium text-gray-500 mb-1">{t("admin.password_label")} <span className="text-red-400">*</span></label>
                 <div className="relative">
                   <Lock size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
                   <input type={showUserPassword ? "text" : "password"} value={createUserForm.password}
@@ -1681,7 +1829,7 @@ export default function AdminPage() {
 
               {/* Role */}
               <div>
-                <label className="block text-[13px] font-medium text-gray-500 mb-1">{t("admin.role_label")} <span className="text-red-400">*</span></label>
+                <label className="block text-[11px] font-medium text-gray-500 mb-1">{t("admin.role_label")} <span className="text-red-400">*</span></label>
                 <div className="relative">
                   <UserCog size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
                   <select

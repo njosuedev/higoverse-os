@@ -46,6 +46,7 @@ def _get_or_create(db: Session, shop_id: str) -> ShopSettings:
 
 
 @router.get("/")
+@router.get("", include_in_schema=False)
 def get_settings(
     db: Session = Depends(get_db),
     user: dict = Depends(get_current_user),

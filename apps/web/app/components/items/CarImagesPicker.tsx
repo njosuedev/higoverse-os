@@ -52,7 +52,7 @@ export default function CarImagesPicker({
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={src} alt={`${t("vehicle.image")} ${i + 1}`} className="w-full h-full object-cover" />
             {i === 0 ? (
-              <span className="absolute bottom-0 inset-x-0 text-center text-[11px] font-bold text-white bg-black/55 py-0.5">{t("vehicle.cover")}</span>
+              <span className="absolute bottom-0 inset-x-0 text-center text-[9px] font-bold text-white bg-black/55 py-0.5">{t("vehicle.cover")}</span>
             ) : (
               <button type="button" onClick={() => makeCover(i)} title={t("vehicle.make_cover")} aria-label={t("vehicle.make_cover")}
                 className="absolute bottom-1 left-1 w-5 h-5 rounded-full bg-white/90 text-amber-500 flex items-center justify-center shadow">
@@ -69,7 +69,7 @@ export default function CarImagesPicker({
           <button type="button" onClick={() => inputRef.current?.click()} disabled={busy}
             className="aspect-square rounded-lg border-2 border-dashed border-slate-300 text-slate-400 hover:border-[#0a66c2] hover:text-[#0a66c2] flex flex-col items-center justify-center gap-0.5 transition disabled:opacity-60">
             {busy ? <Loader2 size={18} className="animate-spin" /> : <ImagePlus size={18} />}
-            <span className="text-[11px] font-semibold">{t("vehicle.add_images")}</span>
+            <span className="text-[9px] font-semibold">{t("vehicle.add_images")}</span>
           </button>
         )}
       </div>

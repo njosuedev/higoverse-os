@@ -152,6 +152,7 @@ def get_stock_alerts(
 # GET ALL PRODUCTS
 # -----------------------------
 @router.get("/")
+@router.get("", include_in_schema=False)
 def get_products(
     db: Session = Depends(get_db),
     user: dict = Depends(get_current_user),
@@ -239,6 +240,7 @@ def get_products(
 # CREATE PRODUCT
 # -----------------------------
 @router.post("/")
+@router.post("", include_in_schema=False)
 def create_product(
     payload: ProductCreate,
     db: Session = Depends(get_db),

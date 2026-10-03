@@ -45,11 +45,11 @@ export default function StatCard({
   const body = (
     <div
       className={`hgv-card-hover flex h-full flex-col justify-between border border-border bg-white rounded-data ${
-        isLg ? "p-5 sm:p-6" : "p-4 sm:p-5"
+        isLg ? "p-6" : "p-5"
       } ${className}`}
     >
       <div className="flex items-start justify-between gap-2">
-        <p className={`font-medium uppercase tracking-wide text-text-muted ${isLg ? "text-xs" : "text-[13px]"}`}>{label}</p>
+        <p className={`font-medium uppercase tracking-wide text-text-muted ${isLg ? "text-xs" : "text-[11px]"}`}>{label}</p>
         {icon && (
           <span className={`shrink-0 ${TONE_MAP[tone]} ${isLg ? "[&>svg]:h-5 [&>svg]:w-5" : "[&>svg]:h-4 [&>svg]:w-4"}`}>
             {icon}
@@ -58,7 +58,7 @@ export default function StatCard({
       </div>
 
       <div className="mt-3 flex items-end justify-between gap-2">
-        <h3 className={`hgv-figure min-w-0 break-words font-display font-semibold leading-tight text-text ${isLg ? "text-3xl sm:text-4xl" : "text-xl sm:text-2xl xl:text-[1.75rem]"}`}>{value}</h3>
+        <h3 className={`hgv-figure font-display font-semibold text-text ${isLg ? "text-4xl" : "text-[1.75rem]"}`}>{value}</h3>
         {delta && (
           <span
             className={`hgv-figure mb-1 flex shrink-0 items-center gap-0.5 text-xs font-semibold ${
@@ -70,7 +70,7 @@ export default function StatCard({
         )}
       </div>
 
-      {subtitle && <p className="mt-1 text-[13px] text-text-muted">{subtitle}</p>}
+      {subtitle && <p className="mt-1 text-xs text-text-faint">{subtitle}</p>}
     </div>
   );
 

@@ -567,167 +567,207 @@ export default function ItemManagementPage() {
 
         <DeepLink keys={["stock", "add"]} onParams={handleDeepLink} />
 
-        {/* HEADER */}
-        <header className="mb-4 space-y-4">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-            <div className="min-w-0">
-              <h1 className="font-display text-2xl font-semibold text-text">{t("items.title")}</h1>
-              <p className="mt-1 text-sm text-text-muted">
-                <span className="hgv-figure font-semibold text-text">{stats.total.toLocaleString()}</span> {t("items.count_suffix")}
-                {lastUpdated && <> · {t("common.updated")} {lastUpdated.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</>}
-              </p>
+        {/* HEADER BANNER */}
+        <div
+          className="hgv-surface relative rounded-2xl mb-2 overflow-hidden"
+          style={{ background: "linear-gradient(135deg, #0a66c2 0%, #004182 50%, #00376b 100%)" }}
+        >
+          {/* Dot-grid texture */}
+          <div style={{
+            position: "absolute", inset: 0, pointerEvents: "none",
+            backgroundImage: "radial-gradient(circle, rgba(255,255,255,0.06) 1px, transparent 1px)",
+            backgroundSize: "20px 20px",
+          }} />
+
+          {/* ── Row 1: title · stat chips · actions ── */}
+          <div className="relative flex items-center gap-3 px-4 pt-3 pb-2">
+
+            {/* Title */}
+            <div className="flex items-center gap-2.5 min-w-0 mr-auto">
+              <div className="w-8 h-8 rounded-xl bg-white/15 border border-white/20 flex items-center justify-center shrink-0">
+                <Package size={15} className="text-white" strokeWidth={2} />
+              </div>
+              <div>
+                <p className="text-[10px] font-semibold text-blue-200 uppercase tracking-widest leading-none">{t("nav.inventory")}</p>
+                <h1 className="text-base font-extrabold text-white leading-tight tracking-tight">{t("items.title")}</h1>
+              </div>
             </div>
-            <div className="flex items-center gap-2">
+
+            {/* Stat chips — like the reference screenshot */}
+            <div className="hidden md:flex items-center gap-2">
+              {(isCar ? [
+                { label: t("vehicle.status_available"), value: Math.max(0, stats.total - stats.outStock - stats.pending), accent: "text-green-300", highlight: false },
+                { label: t("vehicle.status_pending"),   value: stats.pending,  accent: "text-amber-300", highlight: stats.pending > 0 },
+                { label: t("vehicle.status_sold"),      value: stats.outStock, accent: "text-white",     highlight: false },
+              ] : [
+                { label: t("items.in_stock"),  value: stats.inStock,  accent: "text-green-300",  highlight: false },
+                { label: t("items.low_stock"),  value: stats.lowStock, accent: "text-amber-300",  highlight: stats.lowStock > 0 },
+                { label: t("items.out_stock"),  value: stats.outStock, accent: "text-red-300",    highlight: stats.outStock > 0 },
+              ]).map((s) => (
+                <div
+                  key={s.label}
+                  className={`flex flex-col items-center px-3 py-1.5 rounded-xl border min-w-[68px] transition-all
+                    ${s.highlight
+                      ? "bg-white/20 border-white/30"
+                      : "bg-white/10 border-white/15"}`}
+                >
+                  <p className="text-[9px] font-bold text-white/60 uppercase tracking-wider leading-none">{s.label}</p>
+                  <p className={`text-lg font-extrabold leading-tight tabular-nums mt-0.5 ${s.accent}`}>{s.value}</p>
+                </div>
+              ))}
+            </div>
+
+            {/* Actions */}
+            <div className="flex items-center gap-1.5 shrink-0">
               <button
                 onClick={manualRefresh}
                 disabled={refreshing}
                 title={t("common.refresh")}
-                aria-label={t("common.refresh")}
-                className="flex h-10 w-10 items-center justify-center rounded-full border border-border-strong bg-white text-text-muted transition hover:border-ink hover:text-ink disabled:opacity-50"
+                className="w-7 h-7 rounded-lg bg-white/10 hover:bg-white/20 border border-white/15 flex items-center justify-center text-white transition-all disabled:opacity-40"
               >
-                <RefreshCw size={16} className={refreshing ? "animate-spin" : ""} />
+                <RefreshCw size={12} className={refreshing ? "animate-spin" : ""} />
               </button>
               <button
                 onClick={openCreateModal}
-                className="flex h-10 items-center gap-2 rounded-full bg-ink px-5 text-sm font-semibold text-white transition hover:bg-ink-dark"
+                className="flex items-center gap-1.5 bg-white text-[#0a66c2] px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-blue-50 active:scale-95 transition-all shadow-lg shadow-black/20"
               >
-                <Plus size={16} strokeWidth={2.5} /> {t("items.add")}
+                <Plus size={12} strokeWidth={3} /> {t("items.add")}
               </button>
             </div>
           </div>
 
-          {/* Stock status — each chip filters the table */}
-          <div className="flex flex-wrap gap-2">
-            {(isCar ? [
-              { value: "all",       label: t("items.all"),                 count: stats.total,                                        tone: "text-text" },
-              { value: "available", label: t("vehicle.status_available"),  count: Math.max(0, stats.total - stats.outStock - stats.pending), tone: "text-success" },
-              { value: "pending",   label: t("vehicle.status_pending"),    count: stats.pending,                                      tone: "text-warning" },
-              { value: "sold",      label: t("vehicle.status_sold"),       count: stats.outStock,                                     tone: "text-text-muted" },
-              { value: "penalties", label: t("vehicle.has_fines"),         count: stats.withPenalties,                                tone: "text-accent-dark" },
-            ] : [
-              { value: "all",       label: t("items.all"),       count: stats.total,    tone: "text-text" },
-              { value: "in_stock",  label: t("items.in_stock"),  count: stats.inStock,  tone: "text-success" },
-              { value: "low_stock", label: t("items.low_stock"), count: stats.lowStock, tone: "text-warning" },
-              { value: "out_stock", label: t("items.out_stock"), count: stats.outStock, tone: "text-accent-dark" },
-            ]).map((c) => {
-              const on = filter === c.value || (c.value === "low_stock" && filter === "restock");
-              return (
-                <button
-                  key={c.value}
-                  onClick={() => { setFilter(c.value); setPage(1); }}
-                  aria-pressed={on}
-                  className={`flex items-center gap-2 rounded-full border px-3.5 py-1.5 text-sm font-medium transition ${
-                    on ? "border-ink bg-ink-soft text-ink" : "border-border-strong bg-white text-text-muted hover:border-ink hover:text-text"
-                  }`}
-                >
-                  {c.label}
-                  <span className={`hgv-figure font-semibold ${on ? "text-ink" : c.tone}`}>{c.count.toLocaleString()}</span>
-                </button>
-              );
-            })}
+          {/* ── Row 2: live indicator ── */}
+          <div className="relative flex items-center gap-1.5 px-4 pb-2">
+            <span className="relative flex h-1.5 w-1.5">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
+              <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-green-400" />
+            </span>
+            <p className="text-[10px] text-blue-100/70 flex-1">
+              {t("items.live_label")} · <span className="font-semibold text-white/80">{stats.total.toLocaleString()} {t("items.count_suffix")}</span>
+              {lastUpdated && <span className="ml-1 text-blue-200/50">· {t("common.updated")} {lastUpdated.toLocaleTimeString()}</span>}
+            </p>
           </div>
 
-          {/* Search + filter */}
-          <div className="flex flex-col gap-2 sm:flex-row">
-            <label className="flex flex-1 items-center gap-2 rounded-lg border border-border-strong bg-white px-3 py-2.5 transition focus-within:border-ink focus-within:ring-2 focus-within:ring-ink/20">
-              <Search size={16} className="shrink-0 text-text-faint" />
+          {/* ── Row 3: search + filter ── */}
+          <div className="relative flex gap-2 px-4 pb-3">
+            {/* Search */}
+            <div className="flex-1 flex items-center gap-2 bg-white/10 hover:bg-white/15 focus-within:bg-white/20 border border-white/10 focus-within:border-white/30 rounded-xl px-3 py-2 transition-all group shadow-inner">
+              <Search size={13} className="shrink-0 text-white/40 group-focus-within:text-white/80 transition-colors" />
               <input
                 value={search}
                 onChange={(e) => { setSearch(e.target.value); setPage(1); }}
                 placeholder={t("items.search")}
-                className="w-full bg-transparent text-[15px] text-text outline-none placeholder:text-text-faint"
+                className="bg-transparent outline-none w-full text-sm text-white placeholder:text-white/35 font-medium"
               />
-              {search && (
+              {search ? (
                 <button
-                  onClick={() => { setSearch(""); setPage(1); }}
-                  aria-label={t("common.clear")}
-                  className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-text-faint hover:bg-paper-dim hover:text-text"
+                  onClick={() => setSearch("")}
+                  className="w-4 h-4 rounded-full bg-white/20 hover:bg-white/35 flex items-center justify-center text-white/70 hover:text-white transition-all shrink-0"
                 >
-                  <X size={14} />
+                  <X size={9} />
                 </button>
+              ) : (
+                <kbd className="hidden sm:flex items-center px-1.5 py-0.5 rounded text-[9px] font-mono bg-white/8 text-white/30 border border-white/12 shrink-0 select-none">
+                  ⌘K
+                </kbd>
               )}
-            </label>
-            {isCar ? (
-              <div className="flex shrink-0 rounded-lg border border-border-strong bg-white p-1" role="group" aria-label={t("vehicle.view_label")}>
-                {([["cards", LayoutGrid, t("vehicle.view_cards")], ["list", List, t("vehicle.view_list")]] as const).map(([v, Icon, label]) => (
-                  <button key={v} onClick={() => chooseView(v)} aria-pressed={vehicleView === v}
-                    className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition ${vehicleView === v ? "bg-ink-soft text-ink" : "text-text-muted hover:text-text"}`}>
-                    <Icon size={15} /> {label}
-                  </button>
-                ))}
-              </div>
-            ) : (
-            <div className="relative flex items-center rounded-lg border border-border-strong bg-white focus-within:border-ink">
-              <Filter size={14} className="pointer-events-none absolute left-3 text-text-faint" />
+            </div>
+
+            {/* Filter */}
+            <div className="flex items-center gap-1.5 bg-white/10 hover:bg-white/15 border border-white/10 rounded-xl px-2.5 py-2 transition-all">
+              <Filter size={11} className="shrink-0 text-white/50" />
               <select
                 value={filter}
                 onChange={(e) => { setFilter(e.target.value); setPage(1); }}
-                className="w-full cursor-pointer appearance-none bg-transparent py-2.5 pl-9 pr-9 text-sm font-medium text-text outline-none"
+                className="bg-transparent outline-none text-xs text-white font-semibold appearance-none cursor-pointer"
               >
-                <option value="all">{t("items.all")}</option>
-                <option value="in_stock">{t("items.in_stock")}</option>
-                <option value="restock">{t("dash.needs_restock")}</option>
-                <option value="low_stock">{t("items.low_stock")}</option>
-                <option value="out_stock">{t("items.out_stock")}</option>
+                <option value="all" className="text-gray-800">{t("items.all")}</option>
+                {isCar ? (<>
+                  <option value="available" className="text-gray-800">{t("vehicle.status_available")}</option>
+                  <option value="pending" className="text-gray-800">{t("vehicle.status_pending")}</option>
+                  <option value="sold" className="text-gray-800">{t("vehicle.status_sold")}</option>
+                  <option value="penalties" className="text-gray-800">{t("vehicle.has_fines")}</option>
+                </>) : (<>
+                  <option value="in_stock" className="text-gray-800">{t("items.in_stock")}</option>
+                  <option value="restock" className="text-gray-800">{t("dash.needs_restock")}</option>
+                  <option value="low_stock" className="text-gray-800">{t("items.low_stock")}</option>
+                  <option value="out_stock" className="text-gray-800">{t("items.out_stock")}</option>
+                </>)}
               </select>
-              <ChevronDown size={14} className="pointer-events-none absolute right-3 text-text-faint" />
+              <ChevronDown size={10} className="text-white/35 shrink-0" />
             </div>
+
+            {/* Cards / List (car companies) */}
+            {isCar && (
+              <div className="flex items-center gap-1 rounded-xl border border-white/10 bg-white/10 p-1">
+                {([["cards", LayoutGrid, t("vehicle.view_cards")], ["list", List, t("vehicle.view_list")]] as const).map(([v, Icon, label]) => (
+                  <button key={v} onClick={() => chooseView(v)} aria-pressed={vehicleView === v}
+                    className={`flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold transition ${vehicleView === v ? "bg-white text-[#0a66c2]" : "text-white/80 hover:bg-white/10"}`}>
+                    <Icon size={12} /> {label}
+                  </button>
+                ))}
+              </div>
             )}
           </div>
-        </header>
+        </div>
 
         {/* LOAD ERROR BANNER */}
         {loadError && (
           <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-lg px-3 py-1.5 mb-2">
             <AlertCircle size={11} className="text-red-500 shrink-0" />
-            <p className="text-xs text-red-700 flex-1 min-w-0">
+            <p className="text-[10px] text-red-700 flex-1 min-w-0">
               {t("items.load_error")}
             </p>
             <button
               onClick={manualRefresh}
-              className="text-xs font-bold text-red-700 bg-red-100 hover:bg-red-200 px-2 py-0.5 rounded-md shrink-0 transition"
+              className="text-[10px] font-bold text-red-700 bg-red-100 hover:bg-red-200 px-2 py-0.5 rounded-md shrink-0 transition"
             >
               {t("common.retry")}
             </button>
           </div>
         )}
 
-        {/* RESTOCK ALERT */}
-        {!isCar && alertItems.length > 0 && filter !== "restock" && (
-          <div className="mb-4 flex flex-wrap items-center gap-3 rounded-data border border-warning/30 bg-warning-soft px-4 py-3">
-            <AlertCircle size={18} className="shrink-0 text-warning" />
-            <p className="min-w-0 flex-1 text-sm text-text">
-              <span className="font-semibold">{alertItems.length} {t("items.restock_alert")}</span>
-              <span className="text-text-muted"> — {alertItems.slice(0, 3).map((i) => i.name).join(", ")}{alertItems.length > 3 ? ` +${alertItems.length - 3} ${t("items.more")}` : ""}</span>
+        {/* LOW STOCK ALERT */}
+        {!isCar && alertItems.length > 0 && (
+          <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5 mb-2">
+            <AlertCircle size={11} className="text-amber-500 shrink-0" />
+            <p className="text-[10px] text-amber-700 flex-1 min-w-0 truncate">
+              <span className="font-bold">{alertItems.length}</span> {t("items.restock_alert")} —{" "}
+              <span className="text-amber-600">{alertItems.slice(0, 3).map((i) => i.name).join(", ")}{alertItems.length > 3 ? ` +${alertItems.length - 3} ${t("items.more")}` : ""}</span>
             </p>
-            <button
-              onClick={() => { setFilter("restock"); setPage(1); }}
-              className="shrink-0 rounded-full border border-warning/40 bg-white px-3.5 py-1.5 text-sm font-semibold text-warning hover:bg-warning-soft"
-            >
-              {t("dash.view_all")}
-            </button>
-            {!isCar && (
-              <Link href="/purchases" className="shrink-0 rounded-full bg-warning px-3.5 py-1.5 text-sm font-semibold text-white hover:opacity-90">
-                {t("items.purchase_short")}
-              </Link>
-            )}
+            {!isCar && <Link href="/PurchaseManagement"
+              className="text-[10px] font-bold text-amber-700 bg-amber-100 hover:bg-amber-200 px-2 py-0.5 rounded-md shrink-0 transition">
+              {t("items.purchase_short")}
+            </Link>}
           </div>
         )}
 
-        {/* STOCK VALUE */}
-        {fin && (
-        <div className={`mb-4 grid gap-3 ${isCar ? "grid-cols-1 sm:max-w-xs" : "grid-cols-2 sm:max-w-xl"}`}>
-          {[
-            { label: t("items.stock_value"), value: stats.stockValue, tone: "text-text" },
-            ...(isCar ? [] : [{ label: t("items.pot_profit"), value: stats.potentialProfit, tone: stats.potentialProfit >= 0 ? "text-success" : "text-accent-dark" }]),
-          ].map((card) => (
-            <div key={card.label} className="rounded-data border border-border bg-white px-4 py-3">
-              <p className="text-sm font-medium text-text-muted">{card.label}</p>
-              <p className={`hgv-figure mt-0.5 text-xl font-semibold ${card.tone}`}>{Math.round(card.value).toLocaleString()}</p>
+        {/* STAT CARDS */}
+        <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5 mb-2">
+          {(isCar ? [
+            { label: t("items.total"),              value: stats.total,         color: "text-[#0a66c2]", dot: "bg-[#0a66c2]" },
+            { label: t("vehicle.status_available"), value: Math.max(0, stats.total - stats.outStock - stats.pending), color: "text-green-600", dot: "bg-green-500" },
+            { label: t("vehicle.status_pending"),   value: stats.pending,       color: "text-amber-500", dot: "bg-amber-400" },
+            { label: t("vehicle.status_sold"),      value: stats.outStock,      color: "text-slate-600", dot: "bg-slate-400" },
+            { label: t("vehicle.has_fines"),        value: stats.withPenalties, color: "text-red-600",   dot: "bg-red-500" },
+            ...(fin ? [{ label: t("items.stock_value"), value: stats.stockValue.toLocaleString(), color: "text-slate-700", dot: "bg-slate-400" }] : []),
+          ] : [
+            { label: t("items.total"),       value: stats.total,                            color: "text-[#0a66c2]", dot: "bg-[#0a66c2]" },
+            { label: t("items.in_stock"),    value: stats.inStock,                          color: "text-green-600", dot: "bg-green-500" },
+            { label: t("items.low_stock"),   value: stats.lowStock,                         color: "text-amber-500", dot: "bg-amber-400" },
+            { label: t("items.out_stock"),   value: stats.outStock,                         color: "text-red-600",   dot: "bg-red-500"   },
+            ...(fin ? [{ label: t("items.stock_value"), value: stats.stockValue.toLocaleString(),      color: "text-slate-700", dot: "bg-slate-400" }] : []),
+            ...(fin ? [{ label: t("items.pot_profit"),  value: stats.potentialProfit.toLocaleString(), color: "text-green-700", dot: "bg-green-600" }] : []),
+          ]).map((card) => (
+            <div key={card.label} className="bg-white rounded-lg border border-slate-200 px-2.5 py-2">
+              <div className="flex items-center gap-1 mb-1">
+                <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${card.dot}`} />
+                <p className="text-[9px] font-semibold text-slate-400 uppercase tracking-wider leading-none truncate">{card.label}</p>
+              </div>
+              <p className={`text-xl font-bold leading-none tabular-nums ${card.color}`}>{card.value}</p>
             </div>
           ))}
         </div>
-        )}
 
         {/* hidden import file input */}
         <input
@@ -766,7 +806,7 @@ export default function ItemManagementPage() {
 
           {/* Table toolbar */}
           <div className="flex items-center justify-between px-3 py-1.5 border-b border-slate-100 bg-slate-50/60">
-            <p className="text-xs text-slate-500">
+            <p className="text-[10px] text-slate-500">
               {t("common.showing")}{" "}
               <span className="font-semibold text-slate-700">{paginated.length.toLocaleString()}</span>{" "}
               {t("common.of")}{" "}
@@ -780,7 +820,7 @@ export default function ItemManagementPage() {
               {(debouncedSearch || filter !== "all") && (
                 <button
                   onClick={() => { setSearch(""); setFilter("all"); setPage(1); }}
-                  className="flex items-center gap-1 text-xs text-slate-400 hover:text-slate-600 transition"
+                  className="flex items-center gap-1 text-[10px] text-slate-400 hover:text-slate-600 transition"
                 >
                   <X size={10} /> {t("common.clear_filters")}
                 </button>
@@ -792,7 +832,7 @@ export default function ItemManagementPage() {
               <button
                 onClick={downloadTemplate}
                 title={t("common.download_template")}
-                className="flex items-center gap-1.5 rounded-full border border-border-strong bg-white px-3 py-1 text-[13px] font-medium text-text-muted transition hover:border-ink hover:text-ink disabled:opacity-50 disabled:cursor-wait"
+                className="flex items-center gap-1 text-[10px] font-semibold text-violet-700 bg-violet-50 hover:bg-violet-100 border border-violet-200 px-2 py-0.5 rounded transition"
               >
                 <Download size={11} /> {t("common.template")}
               </button>
@@ -800,7 +840,7 @@ export default function ItemManagementPage() {
                 onClick={() => importInputRef.current?.click()}
                 disabled={importLoading}
                 title={t("items.import_title_hint")}
-                className="flex items-center gap-1.5 rounded-full border border-border-strong bg-white px-3 py-1 text-[13px] font-medium text-text-muted transition hover:border-ink hover:text-ink disabled:opacity-50 disabled:cursor-wait"
+                className="flex items-center gap-1 text-[10px] font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 px-2 py-0.5 rounded transition disabled:opacity-50"
               >
                 {importLoading ? <RefreshCw size={11} className="animate-spin" /> : <Upload size={11} />}
                 {importLoading ? t("common.importing") : t("common.import")}
@@ -812,7 +852,7 @@ export default function ItemManagementPage() {
                 onClick={exportExcel}
                 disabled={exporting}
                 title={t("common.export_excel_hint")}
-                className="flex items-center gap-1.5 rounded-full border border-border-strong bg-white px-3 py-1 text-[13px] font-medium text-text-muted transition hover:border-ink hover:text-ink disabled:opacity-50 disabled:cursor-wait"
+                className="flex items-center gap-1 text-[10px] font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-2 py-0.5 rounded transition"
               >
                 <FileSpreadsheet size={11} /> Excel
               </button>
@@ -820,7 +860,7 @@ export default function ItemManagementPage() {
                 onClick={exportPDF}
                 disabled={exporting}
                 title={t("common.export_pdf_hint")}
-                className="flex items-center gap-1.5 rounded-full border border-border-strong bg-white px-3 py-1 text-[13px] font-medium text-text-muted transition hover:border-ink hover:text-ink disabled:opacity-50 disabled:cursor-wait"
+                className="flex items-center gap-1 text-[10px] font-semibold text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 px-2 py-0.5 rounded transition"
               >
                 <FileText size={11} /> PDF
               </button>
@@ -832,31 +872,31 @@ export default function ItemManagementPage() {
               <thead>
                 {isCar ? (
                 <tr className="border-b border-slate-200 bg-slate-50">
-                  <th className="w-8 px-3 py-2 text-left text-xs font-semibold text-slate-400">#</th>
-                  <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{t("items.col_product")}</th>
-                  <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{t("vehicle.car_type")}</th>
-                  <th className="px-3 py-2 text-center text-xs font-semibold uppercase tracking-wider text-slate-500">{t("vehicle.year")}</th>
-                  <th className="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wider text-slate-500">{t("vehicle.battery_range")}</th>
-                  <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{t("vehicle.color")}</th>
-                  <th className="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wider text-slate-500">{t("items.col_selling")}</th>
-                  <th className="px-3 py-2 text-center text-xs font-semibold uppercase tracking-wider text-slate-500">{t("items.col_qty")}</th>
-                  <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{t("items.col_added")}</th>
-                  <th className="px-3 py-2 text-center text-xs font-semibold uppercase tracking-wider text-slate-500">{t("common.actions")}</th>
+                  <th className="w-8 px-3 py-2 text-left text-[10px] font-semibold text-slate-400">#</th>
+                  <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-500">{t("items.col_product")}</th>
+                  <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-500">{t("vehicle.car_type")}</th>
+                  <th className="px-3 py-2 text-center text-[10px] font-semibold uppercase tracking-wider text-slate-500">{t("vehicle.year")}</th>
+                  <th className="px-3 py-2 text-right text-[10px] font-semibold uppercase tracking-wider text-slate-500">{t("vehicle.battery_range")}</th>
+                  <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-500">{t("vehicle.color")}</th>
+                  <th className="px-3 py-2 text-right text-[10px] font-semibold uppercase tracking-wider text-slate-500">{t("items.col_selling")}</th>
+                  <th className="px-3 py-2 text-center text-[10px] font-semibold uppercase tracking-wider text-slate-500">{t("items.col_qty")}</th>
+                  <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-500">{t("items.col_added")}</th>
+                  <th className="px-3 py-2 text-center text-[10px] font-semibold uppercase tracking-wider text-slate-500">{t("common.actions")}</th>
                 </tr>
                 ) : (
                 <tr className="border-b border-slate-200 bg-slate-50">
-                  <th className="w-8 px-3 py-2 text-left text-xs font-semibold text-slate-400">#</th>
-                  <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{t("items.col_product")}</th>
+                  <th className="w-8 px-3 py-2 text-left text-[10px] font-semibold text-slate-400">#</th>
+                  <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-500">{t("items.col_product")}</th>
                   <th className="hidden lg:table-cell px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{t("items.col_supplier")}</th>
-                  <th className="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wider text-slate-500">{t("items.col_cost")}</th>
-                  <th className="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wider text-slate-500">{t("items.col_selling")}</th>
-                  <th className="px-3 py-2 text-center text-xs font-semibold uppercase tracking-wider text-slate-500">{t("items.col_margin")}</th>
-                  <th className="px-3 py-2 text-center text-xs font-semibold uppercase tracking-wider text-slate-500">{t("items.col_qty")}</th>
+                  <th className="px-3 py-2 text-right text-[10px] font-semibold uppercase tracking-wider text-slate-500">{t("items.col_cost")}</th>
+                  <th className="px-3 py-2 text-right text-[10px] font-semibold uppercase tracking-wider text-slate-500">{t("items.col_selling")}</th>
+                  <th className="px-3 py-2 text-center text-[10px] font-semibold uppercase tracking-wider text-slate-500">{t("items.col_margin")}</th>
+                  <th className="px-3 py-2 text-center text-[10px] font-semibold uppercase tracking-wider text-slate-500">{t("items.col_qty")}</th>
                   <th className="hidden lg:table-cell px-3 py-2 text-center text-xs font-semibold uppercase tracking-wider text-slate-500">{t("common.status")}</th>
                   <th className="hidden lg:table-cell px-3 py-2 text-right text-xs font-semibold uppercase tracking-wider text-slate-500">{t("items.col_unit_profit")}</th>
-                  <th className="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wider text-slate-500">{t("items.col_total_profit")}</th>
-                  <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{t("items.col_added")}</th>
-                  <th className="px-3 py-2 text-center text-xs font-semibold uppercase tracking-wider text-slate-500">{t("common.actions")}</th>
+                  <th className="px-3 py-2 text-right text-[10px] font-semibold uppercase tracking-wider text-slate-500">{t("items.col_total_profit")}</th>
+                  <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-500">{t("items.col_added")}</th>
+                  <th className="px-3 py-2 text-center text-[10px] font-semibold uppercase tracking-wider text-slate-500">{t("common.actions")}</th>
                 </tr>
                 )}
               </thead>
@@ -878,10 +918,10 @@ export default function ItemManagementPage() {
                         ${isOutOfStock ? "bg-red-50/30" : needsRestock ? "bg-amber-50/20" : "hover:bg-slate-50/70"}`}
                     >
                       {/* Row number */}
-                      <td className="px-3 py-2.5 text-sm text-slate-300 tabular-nums">{rowNum}</td>
+                      <td className="px-3 py-1.5 text-[10px] text-slate-300 tabular-nums">{rowNum}</td>
 
                       {/* Product */}
-                      <td className="px-3 py-2.5">
+                      <td className="px-3 py-1.5">
                         <div className="flex items-center gap-2">
                           {isCar ? (
                             <button type="button" onClick={() => setGalleryFor(p)} title={t("vehicle.view_photos")}
@@ -898,13 +938,13 @@ export default function ItemManagementPage() {
                           )}
                           <div className="min-w-0">
                             <div className="flex items-center gap-1.5 flex-wrap">
-                              <p className="font-semibold text-slate-800 text-sm leading-tight">{p.name}</p>
+                              <p className="font-semibold text-slate-800 text-xs leading-tight">{p.name}</p>
                             </div>
                             {isCar && carIds(parseAttributes(p.attributes)) && (
-                              <p className="text-sm text-slate-500 max-w-[240px] truncate">{carIds(parseAttributes(p.attributes))}</p>
+                              <p className="text-[10px] text-slate-500 max-w-[240px] truncate">{carIds(parseAttributes(p.attributes))}</p>
                             )}
                             {!isCar && p.description && (
-                              <p className="text-sm text-slate-400 max-w-[160px] truncate">{p.description}</p>
+                              <p className="text-[10px] text-slate-400 max-w-[160px] truncate">{p.description}</p>
                             )}
                           </div>
                         </div>
@@ -913,15 +953,15 @@ export default function ItemManagementPage() {
                       {isCar ? (() => {
                         const a = parseAttributes(p.attributes);
                         return (<>
-                          <td className="px-3 py-2.5 text-sm text-slate-700">{a.car_type ? carTypeLabel(t, a.car_type) : "—"}</td>
-                          <td className="px-3 py-2.5 text-center text-sm text-slate-700 tabular-nums">{a.year || "—"}</td>
-                          <td className="px-3 py-2.5 text-right text-sm text-slate-600 tabular-nums">{a.battery_range ? `${Number(a.battery_range).toLocaleString()} km` : "—"}</td>
-                          <td className="px-3 py-2.5 text-sm text-slate-700">{a.color || "—"}</td>
-                          <td className="px-3 py-2.5 text-right">
-                            <span className="text-sm font-semibold text-slate-800 tabular-nums">{Number(p.selling_price || 0).toLocaleString()}</span>
+                          <td className="px-3 py-1.5 text-xs text-slate-700">{a.car_type ? carTypeLabel(t, a.car_type) : "—"}</td>
+                          <td className="px-3 py-1.5 text-center text-xs text-slate-700 tabular-nums">{a.year || "—"}</td>
+                          <td className="px-3 py-1.5 text-right text-xs text-slate-600 tabular-nums">{a.battery_range ? `${Number(a.battery_range).toLocaleString()} km` : "—"}</td>
+                          <td className="px-3 py-1.5 text-xs text-slate-700">{a.color || "—"}</td>
+                          <td className="px-3 py-1.5 text-right">
+                            <span className="text-xs font-semibold text-slate-800 tabular-nums">{Number(p.selling_price || 0).toLocaleString()}</span>
                           </td>
-                          <td className="px-3 py-2.5 text-center">
-                            <span className={`inline-flex items-center justify-center min-w-[1.5rem] px-1.5 py-0.5 rounded text-sm font-bold tabular-nums
+                          <td className="px-3 py-1.5 text-center">
+                            <span className={`inline-flex items-center justify-center min-w-[1.5rem] px-1.5 py-0.5 rounded text-[10px] font-bold tabular-nums
                               ${isOutOfStock ? "bg-red-100 text-red-700" : needsRestock ? "bg-amber-100 text-amber-700" : "bg-green-100 text-green-700"}`}>
                               {p.quantity}
                             </span>
@@ -931,27 +971,27 @@ export default function ItemManagementPage() {
                       {/* Supplier */}
                       <td className="hidden lg:table-cell px-3 py-2.5">
                         {supplier
-                          ? <p className="text-sm font-medium text-slate-600 leading-tight">{supplier.name}</p>
-                          : <span className="text-slate-300 text-sm">—</span>}
+                          ? <p className="text-xs font-medium text-slate-600 leading-tight">{supplier.name}</p>
+                          : <span className="text-slate-300 text-xs">—</span>}
                       </td>
 
                       {/* Cost price */}
-                      <td className="px-3 py-2.5 text-right">
-                        <span className="text-sm font-medium text-slate-600 tabular-nums">
+                      <td className="px-3 py-1.5 text-right">
+                        <span className="text-xs font-medium text-slate-600 tabular-nums">
                           {Number(p.cost_price || 0).toLocaleString()}
                         </span>
                       </td>
 
                       {/* Selling price */}
-                      <td className="px-3 py-2.5 text-right">
-                        <span className="text-sm font-semibold text-slate-800 tabular-nums">
+                      <td className="px-3 py-1.5 text-right">
+                        <span className="text-xs font-semibold text-slate-800 tabular-nums">
                           {Number(p.selling_price || 0).toLocaleString()}
                         </span>
                       </td>
 
                       {/* Margin */}
-                      <td className="px-3 py-2.5 text-center">
-                        <span className={`inline-block text-sm font-bold px-1.5 py-0.5 rounded tabular-nums
+                      <td className="px-3 py-1.5 text-center">
+                        <span className={`inline-block text-[10px] font-bold px-1.5 py-0.5 rounded tabular-nums
                           ${margin >= 20 ? "bg-green-100 text-green-700"
                           : margin >= 0  ? "bg-blue-50 text-[#0a66c2]"
                           :               "bg-red-100 text-red-600"}`}>
@@ -960,8 +1000,8 @@ export default function ItemManagementPage() {
                       </td>
 
                       {/* Quantity */}
-                      <td className="px-3 py-2.5 text-center">
-                        <span className={`inline-flex items-center justify-center min-w-[1.5rem] px-1.5 py-0.5 rounded text-sm font-bold tabular-nums
+                      <td className="px-3 py-1.5 text-center">
+                        <span className={`inline-flex items-center justify-center min-w-[1.5rem] px-1.5 py-0.5 rounded text-[10px] font-bold tabular-nums
                           ${isOutOfStock  ? "bg-red-100 text-red-700"
                           : needsRestock  ? "bg-amber-100 text-amber-700"
                           :                "bg-green-100 text-green-700"}`}>
@@ -971,7 +1011,7 @@ export default function ItemManagementPage() {
 
                       {/* Status */}
                       <td className="hidden lg:table-cell px-3 py-2.5 text-center">
-                        <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-sm font-semibold
+                        <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold
                           ${isProfit ? "bg-green-50 text-green-700 border border-green-200"
                           :           "bg-red-50 text-red-600 border border-red-200"}`}>
                           {isProfit
@@ -983,37 +1023,37 @@ export default function ItemManagementPage() {
 
                       {/* Unit profit */}
                       <td className="hidden lg:table-cell px-3 py-2.5 text-right">
-                        <span className={`text-sm font-semibold tabular-nums ${isProfit ? "text-green-600" : "text-red-500"}`}>
+                        <span className={`text-xs font-semibold tabular-nums ${isProfit ? "text-green-600" : "text-red-500"}`}>
                           {isProfit ? "+" : ""}{Number(p.profit_money || 0).toLocaleString()}
                         </span>
                       </td>
 
                       {/* Total profit */}
-                      <td className="px-3 py-2.5 text-right">
-                        <span className={`text-sm font-bold tabular-nums ${isProfit ? "text-green-600" : "text-red-500"}`}>
+                      <td className="px-3 py-1.5 text-right">
+                        <span className={`text-xs font-bold tabular-nums ${isProfit ? "text-green-600" : "text-red-500"}`}>
                           {isProfit ? "+" : ""}{totalProfit.toLocaleString()}
                         </span>
                       </td>
                       </>)}
 
                       {/* Date added */}
-                      <td className="px-3 py-2.5 whitespace-nowrap">
+                      <td className="px-3 py-1.5 whitespace-nowrap">
                         {p.created_at ? (
                           <div>
-                            <p className="text-sm font-medium text-slate-600">
+                            <p className="text-[10px] font-medium text-slate-600">
                               {new Date(p.created_at).toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "numeric" })}
                             </p>
-                            <p className="text-[13px] text-slate-400">
+                            <p className="text-[9px] text-slate-400">
                               {new Date(p.created_at).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
                             </p>
                           </div>
                         ) : (
-                          <span className="text-slate-300 text-sm">—</span>
+                          <span className="text-slate-300 text-xs">—</span>
                         )}
                       </td>
 
                       {/* Actions */}
-                      <td className="px-3 py-2.5">
+                      <td className="px-3 py-1.5">
                         <div className="flex items-center justify-center gap-1 opacity-60 group-hover:opacity-100 transition-opacity">
                           {isCar ? (
                             <button onClick={() => { setStockInItem(p); setStockInQty(""); }} title={t("items.stock_in")}
@@ -1217,10 +1257,10 @@ export default function ItemManagementPage() {
                   <div className="space-y-1.5">
                     {importResults.failed.map((f) => (
                       <div key={`${f.row}-${f.name}`} className="flex items-start gap-2 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
-                        <span className="text-xs font-bold text-red-400 tabular-nums mt-0.5 shrink-0">{t("common.row")} {f.row}</span>
+                        <span className="text-[10px] font-bold text-red-400 tabular-nums mt-0.5 shrink-0">{t("common.row")} {f.row}</span>
                         <div className="min-w-0">
                           <p className="text-xs font-semibold text-slate-700 truncate">{f.name}</p>
-                          <p className="text-xs text-red-500">{f.reason}</p>
+                          <p className="text-[10px] text-red-500">{f.reason}</p>
                         </div>
                       </div>
                     ))}

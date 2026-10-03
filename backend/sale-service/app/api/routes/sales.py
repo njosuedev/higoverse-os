@@ -67,6 +67,7 @@ def _token(authorization: str | None) -> str:
 # ─────────────────────────────────────────
 
 @router.get("/")
+@router.get("", include_in_schema=False)
 def list_sales(
     db: Session = Depends(get_db),
     user: dict = Depends(get_current_user),
@@ -237,6 +238,7 @@ def get_top_products(
 # ─────────────────────────────────────────
 
 @router.post("/")
+@router.post("", include_in_schema=False)
 def create_sale(
     payload: SaleCreate,
     db: Session = Depends(get_db),

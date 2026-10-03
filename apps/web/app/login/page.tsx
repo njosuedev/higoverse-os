@@ -208,7 +208,7 @@ export default function LoginPage() {
                 <span className="text-paper/70 shrink-0">{f.icon}</span>
                 <div>
                   <p className="text-xs font-semibold text-paper">{f.label}</p>
-                  <p className="text-[13px] text-paper/50">{f.sub}</p>
+                  <p className="text-[11px] text-paper/50">{f.sub}</p>
                 </div>
               </div>
             ))}
@@ -216,7 +216,7 @@ export default function LoginPage() {
         </div>
 
         {/* bottom: trust */}
-        <p className="text-[13px] text-paper/45">© {new Date().getFullYear()} Higoverse · {t("login.footer_tagline")}</p>
+        <p className="text-[11px] text-paper/45">© {new Date().getFullYear()} Higoverse · {t("login.footer_tagline")}</p>
       </div>
 
       {/* ══ RIGHT PANEL — the form ══ */}
@@ -256,7 +256,7 @@ export default function LoginPage() {
                       onChange={(e) => setEmail(e.target.value)}
                       className={`${field} pl-10`} />
                   </div>
-                  <p className="text-[13px] text-text-faint mt-1.5">{t("login.email_hint")}</p>
+                  <p className="text-[11px] text-text-faint mt-1.5">{t("login.email_hint")}</p>
                 </div>
 
                 <div>
@@ -343,7 +343,7 @@ export default function LoginPage() {
               <h2 className="font-display text-xl font-semibold text-text mb-1">{t("login.check_inbox")}</h2>
               <p className="text-sm text-text-muted mb-1">{t("login.code_sent_to")}</p>
               <p className="text-sm font-semibold text-text mb-1 break-all">{fpEmail}</p>
-              <p className="text-[13px] text-text-faint mb-6">{t("login.otp_hint")}</p>
+              <p className="text-[11px] text-text-faint mb-6">{t("login.otp_hint")}</p>
 
               {fpError && (
                 <div className="mb-4 rounded-press bg-accent-soft border border-accent/30 px-3 py-2.5 text-sm text-accent-dark">{fpError}</div>
@@ -420,7 +420,7 @@ export default function LoginPage() {
 
           {/* Language row */}
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-text-faint mb-2">{t("login.footer_language")}</p>
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-text-faint mb-2">{t("login.footer_language")}</p>
             <div className="flex flex-wrap gap-x-4 gap-y-1.5">
               {LANGUAGES.map((l) => (
                 <button
@@ -438,7 +438,7 @@ export default function LoginPage() {
 
           {/* Platform index */}
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-text-faint mb-2">{t("login.footer_explore")}</p>
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-text-faint mb-2">{t("login.footer_explore")}</p>
             <div className="flex flex-wrap gap-x-5 gap-y-2">
               {PLATFORM_LINKS.map((p) => {
                 const Icon = p.icon;
@@ -455,7 +455,7 @@ export default function LoginPage() {
           {/* About + copyright */}
           <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 pt-2">
             <p className="text-xs text-text-faint max-w-md leading-relaxed">{t("login.footer_about")}</p>
-            <p className="text-[13px] text-text-faint shrink-0">© {new Date().getFullYear()} Higoverse · {t("login.footer_tagline")}</p>
+            <p className="text-[11px] text-text-faint shrink-0">© {new Date().getFullYear()} Higoverse · {t("login.footer_tagline")}</p>
           </div>
 
         </div>

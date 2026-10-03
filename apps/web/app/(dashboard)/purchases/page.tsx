@@ -13,9 +13,8 @@ import Pagination from "@/app/components/ui/Pagination";
 import ProductPicker from "@/app/components/ui/ProductPicker";
 import DateRangeFilter from "@/app/components/ui/DateRangeFilter";
 import {
-  AlertCircle, Plus, Trash2, X, Truck, Package, History, LayoutGrid, Calendar, Download, Upload, FileSpreadsheet, FileText,
+  AlertCircle, Plus, Trash2, X, Truck, Package, History, LayoutGrid, Calendar, Download, Upload, FileSpreadsheet, FileText, ShoppingCart, RefreshCw, Search, Filter, ChevronDown,
 } from "lucide-react";
-import PageHeader, { FilterSelect, SearchField, StatTiles, ToolbarRow } from "@/app/components/ui/PageHeader";
 import { askConfirm, notify } from "@/lib/dialogs";
 
 interface Product {
@@ -347,112 +346,156 @@ export default function PurchaseManagementPage() {
       <div className="max-w-7xl mx-auto px-3 sm:px-5 py-3 sm:py-4">
 
         {/* HEADER */}
-        <PageHeader
-          title={t("purchases.title")}
-          subtitle={<>
-            <span className="hgv-figure font-semibold text-text">{productsTotal.toLocaleString()}</span> {t("purchases.items_unit")}
-            {lastUpdated && <> · {t("common.updated")} {lastUpdated.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</>}
-          </>}
-          onRefresh={manualRefresh}
-          refreshing={refreshing}
-          refreshLabel={t("common.refresh")}
-          action={{ label: t("purchases.add"), onClick: openCreateModal }}
-        >
-          <div className="flex flex-wrap gap-2">
-            {[
-              { value: "inventory" as const, label: t("purchases.inventory"), icon: <LayoutGrid size={15} />, count: null },
-              { value: "history" as const, label: t("purchases.history"), icon: <History size={15} />, count: purchasesTotal },
-            ].map((c) => {
-              const on = tab === c.value;
-              return (
-                <button
-                  key={c.value}
-                  onClick={() => setTab(c.value)}
-                  aria-pressed={on}
-                  className={`flex items-center gap-2 rounded-full border px-3.5 py-1.5 text-sm font-medium transition ${
-                    on ? "border-ink bg-ink-soft text-ink" : "border-border-strong bg-white text-text-muted hover:border-ink hover:text-text"
-                  }`}
-                >
-                  {c.icon} {c.label}
-                  {c.count !== null && <span className="hgv-figure font-semibold">{c.count.toLocaleString()}</span>}
-                </button>
-              );
-            })}
+        <div className="hgv-surface relative rounded-2xl mb-2 overflow-hidden"
+          style={{ background: "linear-gradient(135deg, #0a66c2 0%, #004182 50%, #00376b 100%)" }}>
+          <div style={{ position: "absolute", inset: 0, pointerEvents: "none",
+            backgroundImage: "radial-gradient(circle, rgba(255,255,255,0.06) 1px, transparent 1px)",
+            backgroundSize: "20px 20px" }} />
+
+          {/* Row 1: icon + title + tabs + actions */}
+          <div className="relative flex items-center gap-3 px-4 pt-3 pb-2">
+            <div className="flex items-center gap-2.5 min-w-0 mr-auto">
+              <div className="w-8 h-8 rounded-xl bg-white/15 border border-white/20 flex items-center justify-center shrink-0">
+                <ShoppingCart size={15} className="text-white" strokeWidth={2} />
+              </div>
+              <div>
+                <p className="text-[10px] font-semibold text-blue-200 uppercase tracking-widest leading-none">{t("nav.purchases")}</p>
+                <h1 className="text-base font-extrabold text-white leading-tight tracking-tight">{t("purchases.title")}</h1>
+              </div>
+            </div>
+            <div className="hidden sm:flex items-center gap-1">
+              <button onClick={() => setTab("inventory")}
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold transition ${tab === "inventory" ? "bg-white text-[#0a66c2]" : "bg-white/10 text-white hover:bg-white/20"}`}>
+                <LayoutGrid size={11} /> {t("purchases.inventory")}
+              </button>
+              <button onClick={() => setTab("history")}
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold transition ${tab === "history" ? "bg-white text-[#0a66c2]" : "bg-white/10 text-white hover:bg-white/20"}`}>
+                <History size={11} /> {t("purchases.history")} ({purchasesTotal.toLocaleString()})
+              </button>
+            </div>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <button onClick={manualRefresh} disabled={refreshing}
+                className="w-7 h-7 rounded-lg bg-white/10 hover:bg-white/20 border border-white/15 flex items-center justify-center text-white transition-all disabled:opacity-40">
+                <RefreshCw size={12} className={refreshing ? "animate-spin" : ""} />
+              </button>
+              <button onClick={openCreateModal}
+                className="flex items-center gap-1.5 bg-white text-[#0a66c2] px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-blue-50 active:scale-95 transition-all shadow-lg shadow-black/20">
+                <Plus size={12} strokeWidth={3} /> {t("purchases.add")}
+              </button>
+            </div>
           </div>
-          {tab === "history" && (
-            <DateRangeFilter from={dateFrom} to={dateTo}
-              onFrom={(v) => { setDateFrom(v); setHistPage(1); }}
-              onTo={(v) => { setDateTo(v); setHistPage(1); }}
-              onClear={() => { setDateFrom(""); setDateTo(""); setHistPage(1); }} />
-          )}
-          {tab === "inventory" && (
-            <ToolbarRow>
-              <SearchField value={invSearch} onChange={(v) => { setInvSearch(v); setInvPage(1); }} placeholder={t("items.search")} clearLabel={t("common.clear")} />
-              <FilterSelect
-                value={invFilter}
-                onChange={(v) => { setInvFilter(v); setInvPage(1); }}
-                options={[
-                  { value: "all", label: t("items.all") },
-                  { value: "in_stock", label: t("items.in_stock") },
-                  { value: "low_stock", label: t("items.low_stock") },
-                  { value: "out_stock", label: t("items.out_stock") },
-                ]}
-              />
-            </ToolbarRow>
-          )}
-        </PageHeader>
+
+          {/* Row 2: live indicator */}
+          <div className="relative flex items-center gap-1.5 px-4 pb-2">
+            <span className="relative flex h-1.5 w-1.5">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
+              <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-green-400" />
+            </span>
+            <p className="text-[10px] text-blue-100/70 flex-1">
+              {t("common.live")} · <span className="font-semibold text-white/80">{productsTotal.toLocaleString()} {t("purchases.items_unit")}</span>
+              {lastUpdated && <span className="ml-1 text-blue-200/50">· {t("common.updated")} {lastUpdated.toLocaleTimeString()}</span>}
+            </p>
+          </div>
+
+          {/* Row 3: mobile tabs + search/filter */}
+          <div className="relative px-4 pb-3 space-y-2">
+            <div className="flex sm:hidden gap-1">
+              <button onClick={() => setTab("inventory")}
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold transition ${tab === "inventory" ? "bg-white text-[#0a66c2]" : "bg-white/10 text-white"}`}>
+                <LayoutGrid size={11} /> {t("purchases.inventory")}
+              </button>
+              <button onClick={() => setTab("history")}
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold transition ${tab === "history" ? "bg-white text-[#0a66c2]" : "bg-white/10 text-white"}`}>
+                <History size={11} /> {t("purchases.history")}
+              </button>
+            </div>
+            {tab === "history" && (
+              <DateRangeFilter from={dateFrom} to={dateTo}
+                onFrom={(v) => { setDateFrom(v); setHistPage(1); }}
+                onTo={(v) => { setDateTo(v); setHistPage(1); }}
+                onClear={() => { setDateFrom(""); setDateTo(""); setHistPage(1); }}
+                accentClass="focus:ring-[#0a66c2]/30 focus:border-[#0a66c2]" />
+            )}
+            {tab === "inventory" && (
+              <div className="flex gap-2">
+                <div className="flex-1 flex items-center gap-2 bg-white/10 hover:bg-white/15 focus-within:bg-white/20 border border-white/10 focus-within:border-white/30 rounded-xl px-3 py-2 transition-all group shadow-inner">
+                  <Search size={13} className="shrink-0 text-white/40 group-focus-within:text-white/80 transition-colors" />
+                  <input value={invSearch} onChange={(e) => { setInvSearch(e.target.value); setInvPage(1); }}
+                    placeholder={t("items.search")} className="bg-transparent outline-none w-full text-sm text-white placeholder:text-white/35 font-medium" />
+                  {invSearch && <button onClick={() => setInvSearch("")} className="w-4 h-4 rounded-full bg-white/20 hover:bg-white/35 flex items-center justify-center text-white/70 hover:text-white transition-all shrink-0"><X size={9} /></button>}
+                </div>
+                <div className="flex items-center gap-1.5 bg-white/10 hover:bg-white/15 border border-white/10 rounded-xl px-2.5 py-2 transition-all">
+                  <Filter size={11} className="shrink-0 text-white/50" />
+                  <select value={invFilter} onChange={(e) => { setInvFilter(e.target.value); setInvPage(1); }} className="bg-transparent outline-none text-xs text-white font-semibold appearance-none cursor-pointer">
+                    <option value="all" className="text-gray-800">{t("items.all")}</option>
+                    <option value="in_stock" className="text-gray-800">{t("items.in_stock")}</option>
+                    <option value="low_stock" className="text-gray-800">{t("items.low_stock")}</option>
+                    <option value="out_stock" className="text-gray-800">{t("items.out_stock")}</option>
+                  </select>
+                  <ChevronDown size={10} className="text-white/35 shrink-0" />
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
 
         {/* STOCK ALERT */}
         {(invStats.lowStock > 0 || invStats.outStock > 0) && (
-          <div className="mb-4 flex flex-wrap items-center gap-3 rounded-data border border-warning/30 bg-warning-soft px-4 py-3">
-            <AlertCircle size={18} className="shrink-0 text-warning" />
-            <p className="flex-1 text-sm text-text">
-              {invStats.outStock > 0 && <><span className="font-semibold">{invStats.outStock}</span> {t("items.out_stock")}</>}
+          <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5 mb-2">
+            <AlertCircle size={11} className="text-amber-500 shrink-0" />
+            <p className="text-[10px] text-amber-700 flex-1">
+              {invStats.outStock > 0 && <><span className="font-bold">{invStats.outStock}</span> {t("items.out_stock")}</>}
               {invStats.outStock > 0 && invStats.lowStock > 0 && " · "}
-              {invStats.lowStock > 0 && <><span className="font-semibold">{invStats.lowStock}</span> {t("items.low_stock")}</>}
+              {invStats.lowStock > 0 && <><span className="font-bold">{invStats.lowStock}</span> {t("items.low_stock")}</>}
             </p>
-            {!isCar && (
-              <Link href="/partners" className="shrink-0 rounded-full border border-warning/40 bg-white px-3.5 py-1.5 text-sm font-semibold text-warning hover:bg-warning-soft">
-                {t("partners.suppliers")}
-              </Link>
-            )}
+            {!isCar && <Link href="/PartnerManagement" className="text-[10px] font-bold text-amber-700 bg-amber-100 hover:bg-amber-200 px-2 py-0.5 rounded-md shrink-0 transition">
+              {t("partners.suppliers")}
+            </Link>}
           </div>
         )}
 
-        <StatTiles stats={[
-          { label: t("purchases.stat_what_you_paid"), value: invStats.costValue.toLocaleString() },
-          { label: t("purchases.stat_if_sell_all"), value: invStats.retailValue.toLocaleString() },
-          { label: t("purchases.stat_profit_to_make"), value: invStats.grossProfit.toLocaleString(), tone: "text-success" },
-          {
-            label: t("dash.needs_restock"),
-            value: (invStats.lowStock + invStats.outStock).toLocaleString(),
-            tone: invStats.outStock > 0 ? "text-accent-dark" : invStats.lowStock > 0 ? "text-warning" : "text-text",
-            sub: `${invStats.outStock} ${t("dash.out_short")} · ${invStats.lowStock} ${t("dash.low_short")}`,
-          },
-        ]} />
+        {/* STAT CARDS */}
+        <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5 mb-2">
+          {[
+            { label: t("purchases.stat_total_products"),   value: productsTotal,                         color: "text-[#0a66c2]", dot: "bg-[#0a66c2]" },
+            { label: t("purchases.stat_what_you_paid"),    value: invStats.costValue.toLocaleString(),    color: "text-[#0a66c2]", dot: "bg-blue-500" },
+            { label: t("purchases.stat_if_sell_all"),      value: invStats.retailValue.toLocaleString(),  color: "text-[#0a66c2]", dot: "bg-indigo-500" },
+            { label: t("purchases.stat_profit_to_make"),   value: invStats.grossProfit.toLocaleString(),  color: "text-green-600", dot: "bg-green-500" },
+            { label: t("purchases.stat_almost_finished"),  value: invStats.lowStock,                      color: "text-amber-500", dot: "bg-amber-400" },
+            { label: t("purchases.stat_finished_empty"),   value: invStats.outStock,                      color: "text-red-600",   dot: "bg-red-500" },
+          ].map((card) => (
+            <div key={card.label} className="bg-white rounded-lg border border-slate-200 px-2.5 py-2">
+              <div className="flex items-center gap-1 mb-1">
+                <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${card.dot}`} />
+                <p className="text-[9px] font-semibold text-slate-400 uppercase tracking-wider leading-none truncate">{card.label}</p>
+              </div>
+              <p className={`text-xl font-bold leading-none tabular-nums ${card.color}`}>{card.value}</p>
+            </div>
+          ))}
+        </div>
 
         {/* INVENTORY TABLE */}
         {tab === "inventory" && (
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
             <div className="flex items-center justify-between px-3 py-1.5 border-b border-slate-100 bg-slate-50/60">
-              <p className="text-xs text-slate-500">
+              <p className="text-[10px] text-slate-500">
                 <span className="font-semibold text-slate-700">{paginatedProducts.length}</span> {t("common.of")} <span className="font-semibold text-slate-700">{filteredProducts.length}</span> {t("purchases.products_word")}
               </p>
               <div className="flex items-center gap-1.5">
                 <button onClick={downloadTemplate} title={t("common.download_template_title")}
-                  className="flex items-center gap-1.5 rounded-full border border-border-strong bg-white px-3 py-1 text-[13px] font-medium text-text-muted transition hover:border-ink hover:text-ink disabled:opacity-50 disabled:cursor-wait">
+                  className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium border border-violet-200 text-violet-600 bg-white hover:bg-violet-50 transition">
                   <Download size={10} /> {t("common.template")}
                 </button>
                 <button onClick={() => fileInputRef.current?.click()} title={t("common.import_title")}
-                  className="flex items-center gap-1.5 rounded-full border border-border-strong bg-white px-3 py-1 text-[13px] font-medium text-text-muted transition hover:border-ink hover:text-ink disabled:opacity-50 disabled:cursor-wait">
+                  className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium border border-violet-200 text-violet-600 bg-white hover:bg-violet-50 transition">
                   <Upload size={10} /> {t("common.import")}
                 </button>
                 <button onClick={exportExcel} title={t("common.export_excel_title")}
-                  className="flex items-center gap-1.5 rounded-full border border-border-strong bg-white px-3 py-1 text-[13px] font-medium text-text-muted transition hover:border-ink hover:text-ink disabled:opacity-50 disabled:cursor-wait">
+                  className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium border border-green-200 text-green-600 bg-white hover:bg-green-50 transition">
                   <FileSpreadsheet size={10} /> {t("common.excel")}
                 </button>
                 <button onClick={exportPDF} title={t("common.export_pdf_title")}
-                  className="flex items-center gap-1.5 rounded-full border border-border-strong bg-white px-3 py-1 text-[13px] font-medium text-text-muted transition hover:border-ink hover:text-ink disabled:opacity-50 disabled:cursor-wait">
+                  className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium border border-red-200 text-red-600 bg-white hover:bg-red-50 transition">
                   <FileText size={10} /> {t("common.pdf")}
                 </button>
               </div>
@@ -463,7 +506,7 @@ export default function PurchaseManagementPage() {
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200">
                   {[t("items.col_product"), ...(isCar ? [] : [t("items.col_supplier")]), t("items.cost_price"), t("items.selling_price"), t("items.col_margin"), t("items.col_qty"), t("common.status"), ""].map((h) => (
-                    <th key={h} className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 whitespace-nowrap">{h}</th>
+                    <th key={h} className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-500 whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -474,36 +517,36 @@ export default function PurchaseManagementPage() {
                   const needsRestock = p.quantity <= lowStock;
                   return (
                     <tr key={p.id} className={`hover:bg-slate-50/60 transition-colors ${p.quantity === 0 ? "bg-red-50/20" : needsRestock ? "bg-amber-50/20" : ""}`}>
-                      <td className="px-3 py-2.5">
-                        <p className="font-semibold text-slate-800 text-sm">{p.name}</p>
-                        <p className="text-sm text-slate-400 font-mono">{p.id?.slice(0, 8)}</p>
+                      <td className="px-3 py-1.5">
+                        <p className="font-semibold text-slate-800 text-xs">{p.name}</p>
+                        <p className="text-[10px] text-slate-400 font-mono">{p.id?.slice(0, 8)}</p>
                       </td>
-                      {!isCar && <td className="px-3 py-2.5">
+                      {!isCar && <td className="px-3 py-1.5">
                         {supplier
-                          ? <div><p className="font-medium text-slate-700 text-sm">{supplier.name}</p>{supplier.phone && <p className="text-sm text-slate-400">{supplier.phone}</p>}</div>
-                          : <Link href="/PartnerManagement" className="text-sm text-[#0a66c2] hover:underline flex items-center gap-0.5"><Truck size={10} /> {t("common.add")}</Link>}
+                          ? <div><p className="font-medium text-slate-700 text-xs">{supplier.name}</p>{supplier.phone && <p className="text-[10px] text-slate-400">{supplier.phone}</p>}</div>
+                          : <Link href="/PartnerManagement" className="text-[10px] text-[#0a66c2] hover:underline flex items-center gap-0.5"><Truck size={10} /> {t("common.add")}</Link>}
                       </td>}
-                      <td className="px-3 py-2.5 text-slate-600 font-medium tabular-nums text-sm">{Number(p.cost_price).toLocaleString()}</td>
-                      <td className="px-3 py-2.5 font-semibold text-green-600 tabular-nums text-sm">{Number(p.selling_price).toLocaleString()}</td>
-                      <td className="px-3 py-2.5">
-                        <span className={`text-sm font-bold ${margin2 >= 0 ? "text-green-600" : "text-red-500"}`}>
+                      <td className="px-3 py-1.5 text-slate-600 font-medium tabular-nums text-xs">{Number(p.cost_price).toLocaleString()}</td>
+                      <td className="px-3 py-1.5 font-semibold text-green-600 tabular-nums text-xs">{Number(p.selling_price).toLocaleString()}</td>
+                      <td className="px-3 py-1.5">
+                        <span className={`text-[10px] font-bold ${margin2 >= 0 ? "text-green-600" : "text-red-500"}`}>
                           {margin2 >= 0 ? "+" : ""}{margin2.toFixed(1)}%
                         </span>
                       </td>
-                      <td className="px-3 py-2.5">
-                        <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-sm font-semibold ${p.quantity === 0 ? "bg-red-100 text-red-700" : p.quantity <= lowStock ? "bg-amber-100 text-amber-700" : "bg-green-100 text-green-700"}`}>
+                      <td className="px-3 py-1.5">
+                        <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${p.quantity === 0 ? "bg-red-100 text-red-700" : p.quantity <= lowStock ? "bg-amber-100 text-amber-700" : "bg-green-100 text-green-700"}`}>
                           {p.quantity}
                         </span>
                       </td>
-                      <td className="px-3 py-2.5">
-                        <span className={`inline-flex px-1.5 py-0.5 rounded-full text-sm font-semibold ${p.quantity === 0 ? "bg-red-100 text-red-700" : p.quantity <= lowStock ? "bg-amber-100 text-amber-700" : "bg-green-100 text-green-700"}`}>
+                      <td className="px-3 py-1.5">
+                        <span className={`inline-flex px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${p.quantity === 0 ? "bg-red-100 text-red-700" : p.quantity <= lowStock ? "bg-amber-100 text-amber-700" : "bg-green-100 text-green-700"}`}>
                           {p.quantity === 0 ? t("items.out_stock") : p.quantity <= lowStock ? t("items.low_stock") : t("items.in_stock")}
                         </span>
                       </td>
-                      <td className="px-3 py-2.5">
+                      <td className="px-3 py-1.5">
                         <button
                           onClick={() => { setForm({ product_id: p.id, product_name: p.name, description: p.description || "", cost_price: String(p.cost_price), selling_price: String(p.selling_price), quantity: "", supplier_id: p.supplier_id || "" }); setIsRestocking(true); setShowModal(true); }}
-                          className="px-2 py-0.5 rounded bg-[#EBF2FD] hover:bg-[#D5E8FB] text-[#0a66c2] text-sm font-semibold transition">
+                          className="px-2 py-0.5 rounded bg-[#EBF2FD] hover:bg-[#D5E8FB] text-[#0a66c2] text-[10px] font-semibold transition">
                           + {t("purchases.restock")}
                         </button>
                       </td>
@@ -533,30 +576,30 @@ export default function PurchaseManagementPage() {
         {tab === "history" && (
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
             <div className="flex items-center justify-between px-3 py-1.5 border-b border-slate-100 bg-slate-50/60">
-              <p className="text-xs text-slate-500">
+              <p className="text-[10px] text-slate-500">
                 <span className="font-semibold text-slate-700">{purchases.length}</span> {t("common.of")} <span className="font-semibold text-slate-700">{purchasesTotal}</span> {t("common.records")}
               </p>
               <div className="flex items-center gap-1.5">
                 <button onClick={downloadTemplate} title={t("common.download_template_title")}
-                  className="flex items-center gap-1.5 rounded-full border border-border-strong bg-white px-3 py-1 text-[13px] font-medium text-text-muted transition hover:border-ink hover:text-ink disabled:opacity-50 disabled:cursor-wait">
+                  className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium border border-violet-200 text-violet-600 bg-white hover:bg-violet-50 transition">
                   <Download size={10} /> {t("common.template")}
                 </button>
                 <button onClick={() => fileInputRef.current?.click()} title={t("common.import_title")}
-                  className="flex items-center gap-1.5 rounded-full border border-border-strong bg-white px-3 py-1 text-[13px] font-medium text-text-muted transition hover:border-ink hover:text-ink disabled:opacity-50 disabled:cursor-wait">
+                  className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium border border-violet-200 text-violet-600 bg-white hover:bg-violet-50 transition">
                   <Upload size={10} /> {t("common.import")}
                 </button>
                 <button onClick={exportExcel} title={t("common.export_excel_title")}
-                  className="flex items-center gap-1.5 rounded-full border border-border-strong bg-white px-3 py-1 text-[13px] font-medium text-text-muted transition hover:border-ink hover:text-ink disabled:opacity-50 disabled:cursor-wait">
+                  className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium border border-green-200 text-green-600 bg-white hover:bg-green-50 transition">
                   <FileSpreadsheet size={10} /> {t("common.excel")}
                 </button>
                 <button onClick={exportPDF} title={t("common.export_pdf_title")}
-                  className="flex items-center gap-1.5 rounded-full border border-border-strong bg-white px-3 py-1 text-[13px] font-medium text-text-muted transition hover:border-ink hover:text-ink disabled:opacity-50 disabled:cursor-wait">
+                  className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium border border-red-200 text-red-600 bg-white hover:bg-red-50 transition">
                   <FileText size={10} /> {t("common.pdf")}
                 </button>
               </div>
             </div>
             {hasDateFilter && (
-              <div className="flex items-center gap-2 px-4 py-1.5 border-b border-slate-100 text-xs text-[#0a66c2] bg-[#EBF2FD]">
+              <div className="flex items-center gap-2 px-4 py-1.5 border-b border-slate-100 text-[10px] text-[#0a66c2] bg-[#EBF2FD]">
                 <Calendar size={12} />
                 <span>
                   {dateFrom && <> {t("common.date")}: <span className="font-semibold">{dateFrom}</span></>}
@@ -571,7 +614,7 @@ export default function PurchaseManagementPage() {
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200">
                   {[t("purchases.col_date"), t("purchases.col_product"), ...(isCar ? [] : [t("purchases.col_supplier")]), t("purchases.col_qty"), t("purchases.col_unit"), t("purchases.col_total"), ""].map((h) => (
-                    <th key={h} className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 whitespace-nowrap">{h}</th>
+                    <th key={h} className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-500 whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -581,27 +624,27 @@ export default function PurchaseManagementPage() {
                   const d = p.created_at ? new Date(p.created_at) : null;
                   return (
                     <tr key={p.id} className="hover:bg-slate-50/60 transition-colors">
-                      <td className="px-3 py-2.5 whitespace-nowrap">
+                      <td className="px-3 py-1.5 whitespace-nowrap">
                         {d ? (
                           <div>
-                            <p className="text-sm font-medium text-slate-700">{toDateStr(d)}</p>
-                            <p className="text-[13px] text-slate-400">{d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</p>
+                            <p className="text-[10px] font-medium text-slate-700">{toDateStr(d)}</p>
+                            <p className="text-[9px] text-slate-400">{d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</p>
                           </div>
-                        ) : <span className="text-slate-300 text-sm">—</span>}
+                        ) : <span className="text-slate-300 text-xs">—</span>}
                       </td>
-                      <td className="px-3 py-2.5">
-                        <p className="font-semibold text-slate-800 text-sm">{p.product_name}</p>
-                        {p.product_id && <p className="text-sm text-slate-400 font-mono">{p.product_id.slice(0, 8)}</p>}
+                      <td className="px-3 py-1.5">
+                        <p className="font-semibold text-slate-800 text-xs">{p.product_name}</p>
+                        {p.product_id && <p className="text-[10px] text-slate-400 font-mono">{p.product_id.slice(0, 8)}</p>}
                       </td>
-                      {!isCar && <td className="px-3 py-2.5">
+                      {!isCar && <td className="px-3 py-1.5">
                         {supplier
-                          ? <div><p className="font-medium text-slate-700 text-sm">{supplier.name}</p>{supplier.phone && <p className="text-sm text-slate-400">{supplier.phone}</p>}</div>
-                          : <span className="text-slate-300 text-sm italic">—</span>}
+                          ? <div><p className="font-medium text-slate-700 text-xs">{supplier.name}</p>{supplier.phone && <p className="text-[10px] text-slate-400">{supplier.phone}</p>}</div>
+                          : <span className="text-slate-300 text-xs italic">—</span>}
                       </td>}
-                      <td className="px-3 py-2.5 font-medium text-slate-700 tabular-nums text-sm">{p.quantity_added}</td>
-                      <td className="px-3 py-2.5 text-slate-600 tabular-nums text-sm">{p.cost_price.toLocaleString()}</td>
-                      <td className="px-3 py-2.5 font-semibold text-slate-800 tabular-nums text-sm">{p.total_cost.toLocaleString()}</td>
-                      <td className="px-3 py-2.5">
+                      <td className="px-3 py-1.5 font-medium text-slate-700 tabular-nums text-xs">{p.quantity_added}</td>
+                      <td className="px-3 py-1.5 text-slate-600 tabular-nums text-xs">{p.cost_price.toLocaleString()}</td>
+                      <td className="px-3 py-1.5 font-semibold text-slate-800 tabular-nums text-xs">{p.total_cost.toLocaleString()}</td>
+                      <td className="px-3 py-1.5">
                         <button onClick={() => deleteHistoryRecord(p.id)} disabled={deletingId === p.id}
                           className="p-1 rounded bg-red-50 hover:bg-red-100 text-red-500 transition disabled:opacity-40">
                           <Trash2 size={11} />

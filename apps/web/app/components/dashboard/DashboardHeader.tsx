@@ -14,28 +14,25 @@ import {
   Home, Package, Truck, ShoppingCart, BarChart3,
   Users, FileText, ChevronDown, ShieldCheck, Receipt,
   Settings, LogOut, Globe,
-  Menu, X, MoreHorizontal,
+  Menu, X,
 } from "lucide-react";
 
 type NavItem = { key: string; href: string; icon: typeof Home };
 
-// Primary nav follows the daily inventory workflow: check stock, sell, review.
-// Purchases and Proforma are occasional tasks, so they sit under "More".
-// Settings lives in the account menu only. Admin is visually separated (see
-// the divider in the render below) since it's a privileged section.
+// Business-owner IA, in the specific order requested by the shop owner.
+// Settings lives in the account menu only, not the primary nav. Admin is
+// visually separated (see the divider in the render below) since it's a
+// distinct, privileged section rather than a regular business menu.
 const BUSINESS_MENUS: NavItem[] = [
   { key: "nav.dashboard", href: "/",          icon: Home         },
   { key: "nav.inventory", href: "/items",     icon: Package      },
-  { key: "nav.sales",     href: "/sales",     icon: ShoppingCart },
+  { key: "nav.purchases", href: "/purchases", icon: Truck        },
   { key: "nav.partners",  href: "/partners",  icon: Users        },
+  { key: "nav.sales",     href: "/sales",     icon: ShoppingCart },
+  { key: "nav.proforma",  href: "/proforma",  icon: FileText     },
   { key: "nav.expenses",  href: "/expenses",  icon: Receipt      },
   { key: "nav.reports",   href: "/reports",   icon: BarChart3    },
 ];
-const MORE_MENUS: NavItem[] = [
-  { key: "nav.purchases", href: "/purchases", icon: Truck        },
-  { key: "nav.proforma",  href: "/proforma",  icon: FileText     },
-];
-const SETTINGS_ITEM: NavItem = { key: "nav.settings", href: "/settings", icon: Settings };
 const ADMIN_ITEM: NavItem = { key: "nav.admin", href: "/admin", icon: ShieldCheck };
 
 function isActiveHref(pathname: string, href: string) {
@@ -51,14 +48,11 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
 
   const [menuOpen, setMenuOpen]         = useState(false);
   const [mobileOpen, setMobileOpen]     = useState(false);
-  const [moreOpen, setMoreOpen]         = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
-  const moreRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     function onOutside(e: MouseEvent) {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
-      if (moreRef.current && !moreRef.current.contains(e.target as Node)) setMoreOpen(false);
     }
     document.addEventListener("mousedown", onOutside);
     return () => document.removeEventListener("mousedown", onOutside);
@@ -90,15 +84,12 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
   // Regular business menus (everyone with dashboard access) vs. the
   // admin-only item, kept separate so the nav can render a divider between them.
   // Car companies restock from Vehicles (stock in) — no Purchases page.
-  // Car companies keep expenses and reports (company finances) from their staff.
+  // Car companies have no Purchases page, and keep expenses and reports
+  // (company finances) from their staff.
   const canSeeFinancials = useCanSeeFinancials();
-  const businessMenus = canSeeFinancials
-    ? BUSINESS_MENUS
-    : BUSINESS_MENUS.filter((m) => m.href !== "/expenses" && m.href !== "/reports");
-  const moreMenus: NavItem[] = layout === "car"
-    ? MORE_MENUS.filter((m) => m.href !== "/purchases")
-    : MORE_MENUS;
-  const moreActive = moreMenus.some((m) => isActiveHref(pathname, m.href));
+  const businessMenus: NavItem[] = BUSINESS_MENUS
+    .filter((m) => layout !== "car" || m.href !== "/purchases")
+    .filter((m) => canSeeFinancials || (m.href !== "/expenses" && m.href !== "/reports"));
 
   return (
     <>
@@ -135,29 +126,6 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
               {businessMenus.map((menu) => (
                 <NavLink key={menu.href} menu={menu} pathname={pathname} t={t} />
               ))}
-              <div ref={moreRef} className="relative flex">
-                <button
-                  type="button"
-                  onClick={() => setMoreOpen((o) => !o)}
-                  aria-expanded={moreOpen}
-                  className={`relative flex min-w-[56px] flex-shrink-0 flex-col items-center justify-center gap-0.5 px-3 py-1.5 transition-colors duration-200 lg:px-4 ${
-                    moreActive ? "text-ink" : "text-text-muted hover:bg-paper-dim hover:text-text"
-                  }`}
-                >
-                  <MoreHorizontal size={20} strokeWidth={moreActive ? 2.25 : 1.75} />
-                  <span className="flex items-center gap-0.5 text-xs font-semibold leading-none">
-                    {t("nav.more")} <ChevronDown size={11} className={moreOpen ? "rotate-180" : ""} />
-                  </span>
-                  {moreActive && <span className="absolute bottom-0 left-2.5 right-2.5 h-[2px] bg-ink" />}
-                </button>
-                {moreOpen && (
-                  <div className="absolute left-1/2 top-full z-50 mt-1 w-52 -translate-x-1/2 overflow-hidden rounded-data border border-border bg-white p-1.5 shadow-[0_16px_40px_-12px_rgb(0_0_0_/_0.3)]">
-                    {moreMenus.map((menu) => (
-                      <MobileLink key={menu.href} menu={menu} pathname={pathname} t={t} onNavigate={() => setMoreOpen(false)} />
-                    ))}
-                  </div>
-                )}
-              </div>
               {isAdmin && (
                 <>
                   <div aria-hidden="true" className="mx-1 my-auto h-6 w-px flex-shrink-0 bg-border" />
@@ -212,14 +180,14 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
                       <p className="truncate text-[13px] font-semibold leading-snug text-paper">
                         {user?.name ?? shop?.name ?? t("common.user")}
                       </p>
-                      <p className="mt-0.5 truncate text-[13px] text-paper/60">{user?.email ?? ""}</p>
+                      <p className="mt-0.5 truncate text-[11px] text-paper/60">{user?.email ?? ""}</p>
                       <div className="mt-2">
                         {isAdmin ? (
-                          <span className="hgv-stamp text-[11px] text-accent border-accent/60">
+                          <span className="hgv-stamp text-[9px] text-accent border-accent/60">
                             {t("nav.admin")}
                           </span>
                         ) : (
-                          <span className="hgv-stamp text-[11px] text-paper/85 border-paper/40">
+                          <span className="hgv-stamp text-[9px] text-paper/85 border-paper/40">
                             {t("common.shop_owner")}
                           </span>
                         )}
@@ -241,7 +209,7 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
                       <select
                         value={lang}
                         onChange={(e) => changeLang(e.target.value as typeof lang)}
-                        className="cursor-pointer appearance-none rounded-press border-0 bg-paper-dim py-1.5 pl-2 pr-6 text-[13px] font-semibold text-text outline-none transition-colors duration-200 hover:bg-paper-deep"
+                        className="cursor-pointer appearance-none rounded-press border-0 bg-paper-dim py-1.5 pl-2 pr-6 text-[11px] font-semibold text-text outline-none transition-colors duration-200 hover:bg-paper-deep"
                       >
                         {LANGUAGES.map((l) => (
                           <option key={l.code} value={l.code}>
@@ -261,7 +229,7 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
                     </div>
                     <div className="min-w-0">
                       <p className="text-sm font-medium text-text">{t("nav.settings")}</p>
-                      <p className="text-xs leading-snug text-text-faint">{t("nav.settings_hint")}</p>
+                      <p className="text-[10px] leading-snug text-text-faint">{t("nav.settings_hint")}</p>
                     </div>
                     <ChevronDown size={13} className="ml-auto shrink-0 -rotate-90 text-text-faint transition-colors duration-200 group-hover:text-text-muted" />
                   </Link>
@@ -308,11 +276,6 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
               {businessMenus.map((menu) => (
                 <MobileLink key={menu.href} menu={menu} pathname={pathname} t={t} onNavigate={() => setMobileOpen(false)} />
               ))}
-              <p className="px-3 pb-1 pt-4 text-xs font-semibold uppercase tracking-wide text-text-faint">{t("nav.more")}</p>
-              {moreMenus.map((menu) => (
-                <MobileLink key={menu.href} menu={menu} pathname={pathname} t={t} onNavigate={() => setMobileOpen(false)} />
-              ))}
-              <MobileLink menu={SETTINGS_ITEM} pathname={pathname} t={t} onNavigate={() => setMobileOpen(false)} />
               {isAdmin && (
                 <>
                   <div aria-hidden="true" className="my-2 border-t border-border" />
@@ -354,7 +317,7 @@ function NavLink({
       }`}
     >
       <Icon size={20} strokeWidth={active ? 2.25 : 1.75} />
-      <span className="hidden text-xs font-semibold leading-none md:block">{t(menu.key)}</span>
+      <span className="hidden text-[10px] font-semibold leading-none md:block">{t(menu.key)}</span>
       {active && <span className={`absolute bottom-0 left-2.5 right-2.5 h-[2px] ${underlineColor}`} />}
     </Link>
   );
