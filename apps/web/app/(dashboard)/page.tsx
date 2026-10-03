@@ -15,6 +15,7 @@ import { listShops, type Shop as ShopInfo } from "@/lib/shop-api";
 import StatCard from "@/app/components/dashboard/StatCard";
 import VehicleWatch from "@/app/components/dashboard/VehicleWatch";
 import CarPerformanceChart from "@/app/components/dashboard/CarPerformanceChart";
+import StockAlertCircles from "@/app/components/dashboard/StockAlertCircles";
 import { useCanSeeFinancials } from "@/lib/permissions";
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer,
@@ -187,7 +188,8 @@ export default function DashboardPage() {
         lowStock:   alertItems.filter((a) => a.quantity > 0).length,
         outOfStock: alertItems.filter((a) => a.quantity === 0).length,
       }));
-      setStockAlerts(alertItems.slice(0, 6));
+      // Emptiest first, so the circles show what needs restocking most; the rest show as +N.
+      setStockAlerts([...alertItems].sort((x, y) => x.quantity - y.quantity).slice(0, 8));
       setRecentSales(recent);
       setProductServiceError(stockRes.status === "rejected");
     } catch { /* non-fatal */ }
@@ -684,9 +686,9 @@ export default function DashboardPage() {
               <h2 className="font-display font-semibold text-text text-base flex items-center gap-2">
                 <AlertTriangle size={13} className="text-accent" />
                 {t("reports.stock_alerts")}
-                {stockAlerts.length > 0 && (
+                {stats.lowStock + stats.outOfStock > 0 && (
                   <span className="hgv-stamp text-[9px] text-accent-dark border-accent/50">
-                    {stockAlerts.length}
+                    {stats.lowStock + stats.outOfStock}
                   </span>
                 )}
               </h2>
@@ -704,26 +706,8 @@ export default function DashboardPage() {
                 </div>
               </div>
             ) : (
-              <div>
-                {stockAlerts.map((item) => (
-                  <div key={item.id} className="hgv-ledger-row flex items-center gap-2.5 px-3.5 py-2">
-                    <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${item.quantity === 0 ? "bg-accent" : "bg-warning"}`} />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-semibold text-text truncate">{item.name}</p>
-                      <p className="text-[10px] text-text-faint">
-                        {item.quantity === 0 ? t("dash.empty_stock") : `${item.quantity} ${t("dash.units_left")}`}
-                        {" · "}<span className="hgv-figure">{fmtCurrency(item.selling_price)}</span>
-                      </p>
-                    </div>
-                    <Link
-                      href={restockHref}
-                      className="flex items-center gap-1 text-[10px] font-semibold text-accent-dark bg-accent-soft hover:bg-[#f9d6d8] px-2 py-1 rounded-press transition-colors duration-200"
-                    >
-                      <Plus size={10} /> {t("reports.restock")}
-                    </Link>
-                  </div>
-                ))}
-              </div>
+              <StockAlertCircles items={stockAlerts} total={Math.max(stockAlerts.length, stats.lowStock + stats.outOfStock)}
+                threshold={lowStock} restockHref={restockHref} fmtCurrency={fmtCurrency} />
             )}
 
             {stockAlerts.length > 0 && (
