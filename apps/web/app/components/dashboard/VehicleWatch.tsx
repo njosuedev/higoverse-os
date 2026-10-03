@@ -2,8 +2,10 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { Car, CheckCircle, ChevronRight, Clock, FileWarning, Phone, ShieldAlert } from "lucide-react";
+import { Car, CheckCircle, ChevronRight, Clock, FileWarning, Phone, ShieldAlert, User } from "lucide-react";
 import { itemRequest } from "@/lib/product-api";
+import { saleRequest } from "@/lib/sale-api";
+import { partnerRequest } from "@/lib/supplier-api";
 import { useLanguage } from "@/lib/language-context";
 import { useAutoRefresh } from "@/lib/hooks";
 import { daysSince, parseAttributes, PENALTY_RECHECK_DAYS, type Attributes } from "@/lib/business-layout";
@@ -13,7 +15,10 @@ interface WatchCar {
   name: string;
   thumbnail?: string | null;
   attributes?: string | null;
+  /** Who to call about this car: the pending buyer, or whoever bought it. */
+  contact?: Contact | null;
 }
+interface Contact { name: string; phone: string }
 type Kind = "pending" | "penalties" | "incomplete";
 type Lists = Record<Kind, { items: WatchCar[]; total: number }>;
 
@@ -23,7 +28,24 @@ const KINDS: Kind[] = ["pending", "penalties", "incomplete"];
 function fetchLists() {
   return Promise.allSettled(KINDS.map((k) =>
     itemRequest(`/products?page=1&limit=${SHOWN}&status=${k}`)
-      .then((r) => ({ items: (r?.data?.items ?? []) as WatchCar[], total: Number(r?.data?.total ?? 0) }))));
+      .then(async (r) => {
+        let items = (r?.data?.items ?? []) as WatchCar[];
+        if (k !== "incomplete") items = await Promise.all(items.map(async (c) => ({ ...c, contact: await findContact(c) })));
+        return { items, total: Number(r?.data?.total ?? 0) };
+      })));
+}
+
+/** The buyer recorded on a pending car; otherwise the customer on the car's
+ *  latest sale (a sold car with fines). Missing pieces just stay empty. */
+async function findContact(c: WatchCar): Promise<Contact | null> {
+  const a = parseAttributes(c.attributes);
+  if (a.buyer_name || a.buyer_phone) return { name: a.buyer_name ?? "", phone: a.buyer_phone ?? "" };
+  try {
+    const sale = (await saleRequest(`/sales?page=1&limit=1&product_id=${encodeURIComponent(c.id)}`))?.data?.items?.[0];
+    if (!sale?.customer_id) return null;
+    const p = (await partnerRequest(`/suppliers/${encodeURIComponent(sale.customer_id)}`))?.data;
+    return p ? { name: p.name ?? "", phone: p.phone ?? "" } : null;
+  } catch { return null; }
 }
 const EMPTY: Lists = { pending: { items: [], total: 0 }, penalties: { items: [], total: 0 }, incomplete: { items: [], total: 0 } };
 
@@ -76,13 +98,7 @@ export default function VehicleWatch() {
           const days = daysSince(a.pending_since);
           return (
             <Row key={c.id} car={c} a={a}
-              line={<>{a.buyer_name || "—"}{days !== null && <span className="text-text-faint"> · {days} {t("vehicle.days")}</span>}</>}
-              action={a.buyer_phone ? (
-                <a href={`tel:${a.buyer_phone.replace(/\s/g, "")}`} title={`${t("vehicle.call")} ${a.buyer_phone}`}
-                  className="flex shrink-0 items-center gap-1 rounded-full border border-border-strong px-2.5 py-1 text-xs font-semibold text-ink hover:bg-paper-dim">
-                  <Phone size={12} /> {t("vehicle.call")}
-                </a>
-              ) : null} />
+              line={<span className="text-text-muted">{t("vehicle.pending_docs")}{days !== null && <> · {days} {t("vehicle.days")}</>}</span>} />
           );
         })}
       </Panel>
@@ -96,14 +112,16 @@ export default function VehicleWatch() {
           const stale = checked !== null && checked > PENALTY_RECHECK_DAYS;
           return (
             <Row key={c.id} car={c} a={a}
-              line={<span className="font-semibold text-accent-dark">
-                {n} {n === 1 ? t("vehicle.fine") : t("vehicle.fines")}{a.penalty_amount ? ` · ${Number(a.penalty_amount).toLocaleString()}` : ""}
-              </span>}
-              action={checked !== null ? (
-                <span className={`shrink-0 whitespace-nowrap text-xs ${stale ? "font-semibold text-warning" : "text-text-faint"}`}>
-                  {stale ? t("vehicle.recheck") : checked === 0 ? t("vehicle.today") : `${checked} ${t("vehicle.days_ago")}`}
+              line={<>
+                <span className="font-semibold text-accent-dark">
+                  {n} {n === 1 ? t("vehicle.fine") : t("vehicle.fines")}{a.penalty_amount ? ` · ${Number(a.penalty_amount).toLocaleString()}` : ""}
                 </span>
-              ) : null} />
+                {checked !== null && (
+                  <span className={stale ? "font-semibold text-warning" : "text-text-faint"}>
+                    {" · "}{stale ? t("vehicle.recheck") : checked === 0 ? t("vehicle.today") : `${checked} ${t("vehicle.days_ago")}`}
+                  </span>
+                )}
+              </>} />
           );
         })}
       </Panel>
@@ -161,7 +179,9 @@ function Panel({ kind, icon, title, total, loading, empty, children }: {
   );
 }
 
-function Row({ car, a, line, action }: { car: WatchCar; a: Attributes; line: React.ReactNode; action?: React.ReactNode }) {
+function Row({ car, a, line }: { car: WatchCar; a: Attributes; line: React.ReactNode }) {
+  const { t } = useLanguage();
+  const contact = car.contact;
   return (
     <div className="hgv-ledger-row flex items-center gap-2.5 px-3.5 py-2">
       <div className="flex h-9 w-12 shrink-0 items-center justify-center overflow-hidden rounded-press bg-paper-dim">
@@ -175,8 +195,22 @@ function Row({ car, a, line, action }: { car: WatchCar; a: Attributes; line: Rea
           {car.name}{a.plate_no && <span className="ml-1.5 font-mono font-medium text-text-muted">{a.plate_no}</span>}
         </p>
         <p className="truncate text-xs">{line}</p>
+        {contact !== undefined && (
+          <p className="mt-0.5 flex min-w-0 items-center gap-1 text-xs text-text">
+            <User size={11} className="shrink-0 text-text-faint" />
+            {contact && (contact.name || contact.phone) ? <>
+              <span className="truncate font-semibold">{contact.name || "—"}</span>
+              {contact.phone && <span className="shrink-0 font-mono text-text-muted">· {contact.phone}</span>}
+            </> : <span className="text-text-faint">{t("vehicle.no_customer")}</span>}
+          </p>
+        )}
       </div>
-      {action}
+      {contact?.phone && (
+        <a href={`tel:${contact.phone.replace(/[^\d+]/g, "")}`} title={`${t("vehicle.call")} ${contact.name} ${contact.phone}`}
+          className="flex shrink-0 items-center gap-1 rounded-full bg-ink px-3 py-1.5 text-xs font-semibold text-white hover:bg-ink-dark">
+          <Phone size={12} /> {t("vehicle.call")}
+        </a>
+      )}
     </div>
   );
 }
