@@ -107,6 +107,8 @@ export default function SaleManagementPage() {
 
   // Payment method state
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
+  // New sale opens with the product search already open — just start typing.
+  const [autoPick, setAutoPick] = useState(true);
   const [amountSent, setAmountSent] = useState("");
   const [debtorName, setDebtorName] = useState("");
   const [debtorPhone, setDebtorPhone] = useState("");
@@ -203,7 +205,8 @@ export default function SaleManagementPage() {
     finally { setDeletingProformaId(""); }
   }
 
-  function openCreateModal() {
+  function openCreateModal(autoSearch = true) {
+    setAutoPick(autoSearch);
     setLineItems([emptyLine()]); setSaleCustomer(""); setSaleNotes("");
     setPaymentMethod("cash"); setAmountSent(""); setDebtorName(""); setDebtorPhone("");
     setEditingId(null); setModalMode("create"); setShowModal(true);
@@ -211,15 +214,15 @@ export default function SaleManagementPage() {
   // Dashboard "Record sale" and vehicle-card "Sell" links: /sales?new=1[&product=<id>]
   function handleDeepLink(params: URLSearchParams) {
     if (params.get("new") !== "1") return;
-    openCreateModal();
     const id = params.get("product");
+    openCreateModal(!id);
     if (!id) return;
     itemRequest(`/products/${id}`)
       .then((res) => {
         const prod = res?.data as PickerProduct | undefined;
         if (!prod) return;
         rememberProduct(prod);
-        setLineItems((prev) => prev.map((l, i) => (i === 0 ? { ...l, product_id: prod.id, unit_price: prod.selling_price } : l)));
+        setLineItems((prev) => [...prev.map((l, i) => (i === 0 ? { ...l, product_id: prod.id, unit_price: prod.selling_price } : l)), emptyLine()]);
       })
       .catch(() => {});
   }
@@ -245,12 +248,28 @@ export default function SaleManagementPage() {
   function rememberProduct(p: PickerProduct) {
     setProducts((prev) => prev.some((x) => x.id === p.id) ? prev.map((x) => x.id === p.id ? p : x) : [...prev, p]);
   }
+  // Picking a product fills the line and opens a fresh empty line below, so
+  // items go in one after another without pressing "Add". Picking a product
+  // that's already on the sale adds one to that line instead of a duplicate.
   function setLineProduct(id: string, p: PickerProduct) {
     rememberProduct(p);
-    setLineItems((prev) => prev.map((l) => l.id === id ? { ...l, product_id: p.id, unit_price: p.selling_price } : l));
+    setLineItems((prev) => {
+      const dup = prev.find((l) => l.product_id === p.id && l.id !== id);
+      let next = dup
+        ? prev.map((l) => l.id === dup.id ? { ...l, quantity: Math.min(l.quantity + 1, Math.max(1, p.quantity)) } : l)
+        : prev.map((l) => l.id === id ? { ...l, product_id: p.id, unit_price: p.selling_price } : l);
+      if (next.every((l) => l.product_id)) next = [...next, emptyLine()];
+      return next;
+    });
   }
-  function setLineQty(id: string, qty: number) {
-    setLineItems((prev) => prev.map((l) => l.id === id ? { ...l, quantity: Math.max(1, qty) } : l));
+  function setLineQty(id: string, qty: number, stock?: number) {
+    const max = stock && stock > 0 ? stock : Infinity;
+    setLineItems((prev) => prev.map((l) => l.id === id ? { ...l, quantity: Math.min(max, Math.max(1, qty || 1)) } : l));
+  }
+  function setSaleCustomerAndDebtor(id: string) {
+    setSaleCustomer(id);
+    const c = customers.find((x) => x.id === id);
+    if (c) { setDebtorName(c.name); setDebtorPhone(c.phone || ""); }
   }
   function setLinePrice(id: string, price: number) {
     setLineItems((prev) => prev.map((l) => l.id === id ? { ...l, unit_price: Math.max(0, price) } : l));
@@ -667,7 +686,7 @@ ${paymentHtml}
                 className="w-7 h-7 rounded-lg bg-white/10 hover:bg-white/20 border border-white/15 flex items-center justify-center text-white transition-all disabled:opacity-40">
                 <RefreshCw size={12} className={refreshing ? "animate-spin" : ""} />
               </button>
-              <button onClick={openCreateModal}
+              <button onClick={() => openCreateModal()}
                 className="flex items-center gap-1.5 bg-white text-[#0a66c2] px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-blue-50 active:scale-95 transition-all shadow-lg shadow-black/20">
                 <Plus size={12} strokeWidth={3} /> {t("sales.add")}
               </button>
@@ -901,7 +920,7 @@ ${paymentHtml}
               <div className="p-4 bg-slate-100 rounded-2xl mb-3"><ShoppingBag size={32} className="opacity-40" /></div>
               <p className="font-medium text-slate-500 text-sm">{t("sales.no_sales")}</p>
               {!search && filter === "all" && !hasDateFilter && (
-                <button onClick={openCreateModal} className="mt-4 flex items-center gap-1.5 text-white text-sm font-semibold px-4 py-2 rounded-lg transition hover:opacity-90" style={{ background: "#0a66c2" }}>
+                <button onClick={() => openCreateModal()} className="mt-4 flex items-center gap-1.5 text-white text-sm font-semibold px-4 py-2 rounded-lg transition hover:opacity-90" style={{ background: "#0a66c2" }}>
                   <Plus size={14} /> {t("sales.add")}
                 </button>
               )}
@@ -1096,7 +1115,8 @@ ${paymentHtml}
         {/* CREATE MODAL */}
         {showModal && modalMode === "create" && (
           <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-2xl w-full max-w-2xl shadow-2xl flex flex-col max-h-[90vh]">
+            <div className="bg-white rounded-2xl w-full max-w-2xl shadow-2xl flex flex-col max-h-[90vh]"
+              onKeyDown={(e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && !submitting) { e.preventDefault(); submitForm(); } }}>
               <div className="flex justify-between items-center px-6 py-4 border-b border-slate-100 shrink-0">
                 <div>
                   <h2 className="text-base font-semibold text-slate-800">{t("sales.add_title")}</h2>
@@ -1107,22 +1127,83 @@ ${paymentHtml}
 
               <div className="px-6 py-4 overflow-y-auto flex-1">
 
-                {/* Customer + Notes */}
-                <div className="grid md:grid-cols-2 gap-4 mb-4">
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1.5">{t("sales.customer")}</label>
-                    <select className={inputCls} value={saleCustomer} onChange={(e) => setSaleCustomer(e.target.value)}>
-                      <option value="">{t("sales.walkin_customer")}</option>
-                      {customers.map((c) => <option key={c.id} value={c.id}>{c.name}{c.phone ? ` — ${c.phone}` : ""}</option>)}
-                    </select>
+                {/* Line items */}
+                <div className="border border-slate-200 rounded-xl overflow-hidden mb-4">
+                  <div className="bg-slate-50 px-4 py-2.5 border-b border-slate-200 flex justify-between items-center">
+                    <span className="text-xs font-semibold text-slate-600 uppercase tracking-wide">{t("nav.items")}</span>
+                    <button onClick={addLine}
+                      className="flex items-center gap-1 text-xs font-semibold text-[#0a66c2] bg-[#EBF2FD] hover:bg-[#D5E8FB] px-2.5 py-1 rounded-lg transition">
+                      <Plus size={12} /> {t("items.add")}
+                    </button>
                   </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1.5">{t("common.notes")}</label>
-                    <input className={inputCls} placeholder={t("sales.note_placeholder")}
-                      value={saleNotes} onChange={(e) => setSaleNotes(e.target.value)} />
+
+                  <div className="hidden sm:grid grid-cols-[2fr_80px_100px_90px_32px] gap-2 px-4 py-2 bg-slate-50 border-b border-slate-100 text-[10px] font-semibold uppercase text-slate-400 tracking-wide">
+                    <span>{t("sales.product")}</span><span className="text-center">{t("sales.col_qty")}</span><span className="text-center">{t("sales.unit_price")}</span><span className="text-right">{t("proforma.subtotal")}</span><span />
+                  </div>
+
+                  <div className="divide-y divide-slate-100">
+                    {lineItems.map((line, idx) => {
+                      const p = productMap[line.product_id];
+                      const subtotal = line.quantity * line.unit_price;
+                      const profit = fin && p && p.cost_price != null ? (line.unit_price - p.cost_price) * line.quantity : 0;
+                      return (
+                        <div key={line.id} className="px-3 py-2">
+                          {/* Phone: product on its own row, then qty · price · total. */}
+                          <div className="grid grid-cols-[64px_1fr_1fr_32px] sm:grid-cols-[2fr_80px_100px_90px_32px] gap-2 items-center">
+                            <ProductPicker
+                              className={line.product_id ? "col-span-4 sm:col-span-1" : "col-span-4 sm:col-span-5"}
+                              selected={p}
+                              onSelect={(prod) => setLineProduct(line.id, prod)}
+                              disableOutOfStock
+                              autoOpen={idx === 0 && autoPick}
+                            />
+                            {/* An empty line is just the search box until a product is picked. */}
+                            {line.product_id && <>
+                            <input type="number" min="1" max={p?.quantity} value={line.quantity} aria-label={t("sales.col_qty")}
+                              onFocus={(e) => e.target.select()}
+                              onChange={(e) => setLineQty(line.id, Number(e.target.value), p?.quantity)}
+                              className="border border-slate-200 text-gray-800 rounded-lg px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-[#0a66c2]/30 focus:border-[#0a66c2] transition w-full" />
+                            <input type="number" min="0" value={line.unit_price} aria-label={t("sales.unit_price")}
+                              onFocus={(e) => e.target.select()}
+                              onChange={(e) => setLinePrice(line.id, Number(e.target.value))}
+                              className="border border-slate-200 text-gray-800 rounded-lg px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-[#0a66c2]/30 focus:border-[#0a66c2] transition w-full" />
+                            <div className="text-right">
+                              <p className="font-semibold text-slate-800 text-sm tabular-nums">{subtotal.toLocaleString()}</p>
+                              {fin && p && <p className={`text-xs tabular-nums ${profit >= 0 ? "text-green-500" : "text-red-400"}`}>
+                                {profit >= 0 ? "+" : ""}{profit.toLocaleString()}
+                              </p>}
+                            </div>
+                            <button onClick={() => removeLine(line.id)} disabled={lineItems.length === 1 || !line.product_id} aria-label={t("common.delete")}
+                              className="p-1 rounded-lg hover:bg-red-50 text-slate-300 hover:text-red-400 transition disabled:opacity-20">
+                              <X size={14} />
+                            </button>
+                            </>}
+                          </div>
+                          {p && (
+                            <div className="flex gap-3 mt-1.5 text-[10px] text-slate-400">
+                              {fin && p.cost_price != null && <span>{t("items.col_cost")}: <span className="font-medium">{p.cost_price.toLocaleString()}</span></span>}
+                              <span>{t("items.col_selling")}: <span className="font-medium text-green-600">{p.selling_price.toLocaleString()}</span></span>
+                              <span className={p.quantity <= lowStock ? "text-amber-500 font-medium" : ""}>{t("sales.stock_label")}: {p.quantity}</span>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <div className="px-3 py-2 bg-slate-50 border-t border-slate-200 flex justify-end gap-6">
+                    <div className="text-right">
+                      <p className="text-[10px] text-slate-400 uppercase tracking-wide">{t("proforma.grand_total")}</p>
+                      <p className="font-bold text-lg text-slate-800 tabular-nums">{createGrandTotal.toLocaleString()} <span className="text-xs font-normal text-slate-400">{currency}</span></p>
+                    </div>
+                    {fin && <div className="text-right">
+                      <p className="text-[10px] text-slate-400 uppercase tracking-wide">{t("sales.est_profit")}</p>
+                      <p className={`font-bold text-lg tabular-nums ${createGrandProfit >= 0 ? "text-green-600" : "text-red-500"}`}>
+                        {createGrandProfit >= 0 ? "+" : ""}{createGrandProfit.toLocaleString()}
+                      </p>
+                    </div>}
                   </div>
                 </div>
-
                 {/* Payment Method */}
                 <div className="mb-4 p-4 bg-slate-50 rounded-xl border border-slate-200">
                   <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide mb-2.5">
@@ -1133,7 +1214,13 @@ ${paymentHtml}
                       <button
                         key={m.value}
                         type="button"
-                        onClick={() => { setPaymentMethod(m.value); setAmountSent(""); setDebtorName(""); setDebtorPhone(""); }}
+                        onClick={() => {
+                          setPaymentMethod(m.value); setAmountSent("");
+                          // On credit, the chosen customer is the debtor — no retyping.
+                          const c = customers.find((x) => x.id === saleCustomer);
+                          setDebtorName(m.value === "debt" && c ? c.name : "");
+                          setDebtorPhone(m.value === "debt" && c ? c.phone || "" : "");
+                        }}
                         className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition ${
                           paymentMethod === m.value
                             ? m.color + " ring-2 ring-offset-1 ring-current"
@@ -1157,6 +1244,12 @@ ${paymentHtml}
                           value={amountSent}
                           onChange={(e) => setAmountSent(e.target.value)}
                         />
+                        {createGrandTotal > 0 && (
+                          <button type="button" onClick={() => setAmountSent(String(createGrandTotal))}
+                            className="shrink-0 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:border-slate-300 hover:bg-slate-50 transition whitespace-nowrap">
+                            {t("sales.exact_amount")}
+                          </button>
+                        )}
                         {changeAmount > 0 && (
                           <div className="shrink-0 bg-green-50 border border-green-200 rounded-lg px-3 py-2 text-sm whitespace-nowrap">
                             {t("sales.change_label")}: <span className="font-bold text-green-700">{changeAmount.toLocaleString()} {currency}</span>
@@ -1191,86 +1284,31 @@ ${paymentHtml}
                   )}
                 </div>
 
-                {/* Line items */}
-                <div className="border border-slate-200 rounded-xl overflow-hidden mb-4">
-                  <div className="bg-slate-50 px-4 py-2.5 border-b border-slate-200 flex justify-between items-center">
-                    <span className="text-xs font-semibold text-slate-600 uppercase tracking-wide">{t("nav.items")}</span>
-                    <button onClick={addLine}
-                      className="flex items-center gap-1 text-xs font-semibold text-[#0a66c2] bg-[#EBF2FD] hover:bg-[#D5E8FB] px-2.5 py-1 rounded-lg transition">
-                      <Plus size={12} /> {t("items.add")}
-                    </button>
+                {/* Customer + Notes */}
+                <div className="grid md:grid-cols-2 gap-4 mb-4">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1.5">{t("sales.customer")}</label>
+                    <select className={inputCls} value={saleCustomer} onChange={(e) => setSaleCustomerAndDebtor(e.target.value)}>
+                      <option value="">{t("sales.walkin_customer")}</option>
+                      {customers.map((c) => <option key={c.id} value={c.id}>{c.name}{c.phone ? ` — ${c.phone}` : ""}</option>)}
+                    </select>
                   </div>
-
-                  <div className="grid grid-cols-[2fr_80px_100px_90px_32px] gap-2 px-4 py-2 bg-slate-50 border-b border-slate-100 text-[10px] font-semibold uppercase text-slate-400 tracking-wide">
-                    <span>{t("sales.product")}</span><span className="text-center">{t("sales.col_qty")}</span><span className="text-center">{t("sales.unit_price")}</span><span className="text-right">{t("proforma.subtotal")}</span><span />
-                  </div>
-
-                  <div className="divide-y divide-slate-100">
-                    {lineItems.map((line) => {
-                      const p = productMap[line.product_id];
-                      const subtotal = line.quantity * line.unit_price;
-                      const profit = fin && p && p.cost_price != null ? (line.unit_price - p.cost_price) * line.quantity : 0;
-                      return (
-                        <div key={line.id} className="px-3 py-2">
-                          <div className="grid grid-cols-[2fr_80px_100px_90px_32px] gap-2 items-center">
-                            <ProductPicker
-                              selected={p}
-                              onSelect={(prod) => setLineProduct(line.id, prod)}
-                              disableOutOfStock
-                            />
-                            <input type="number" min="1" max={p?.quantity} value={line.quantity}
-                              onChange={(e) => setLineQty(line.id, Number(e.target.value))}
-                              className="border border-slate-200 text-gray-800 rounded-lg px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-[#0a66c2]/30 focus:border-[#0a66c2] transition w-full" />
-                            <input type="number" min="0" value={line.unit_price}
-                              onChange={(e) => setLinePrice(line.id, Number(e.target.value))}
-                              className="border border-slate-200 text-gray-800 rounded-lg px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-[#0a66c2]/30 focus:border-[#0a66c2] transition w-full" />
-                            <div className="text-right">
-                              <p className="font-semibold text-slate-800 text-sm tabular-nums">{subtotal.toLocaleString()}</p>
-                              {fin && p && <p className={`text-xs tabular-nums ${profit >= 0 ? "text-green-500" : "text-red-400"}`}>
-                                {profit >= 0 ? "+" : ""}{profit.toLocaleString()}
-                              </p>}
-                            </div>
-                            <button onClick={() => removeLine(line.id)} disabled={lineItems.length === 1}
-                              className="p-1 rounded-lg hover:bg-red-50 text-slate-300 hover:text-red-400 transition disabled:opacity-20">
-                              <X size={14} />
-                            </button>
-                          </div>
-                          {p && (
-                            <div className="flex gap-3 mt-1.5 text-[10px] text-slate-400">
-                              {fin && p.cost_price != null && <span>{t("items.col_cost")}: <span className="font-medium">{p.cost_price.toLocaleString()}</span></span>}
-                              <span>{t("items.col_selling")}: <span className="font-medium text-green-600">{p.selling_price.toLocaleString()}</span></span>
-                              <span className={p.quantity <= lowStock ? "text-amber-500 font-medium" : ""}>{t("sales.stock_label")}: {p.quantity}</span>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  <div className="px-3 py-2 bg-slate-50 border-t border-slate-200 flex justify-end gap-6">
-                    <div className="text-right">
-                      <p className="text-[10px] text-slate-400 uppercase tracking-wide">{t("proforma.grand_total")}</p>
-                      <p className="font-bold text-lg text-slate-800 tabular-nums">{createGrandTotal.toLocaleString()} <span className="text-xs font-normal text-slate-400">{currency}</span></p>
-                    </div>
-                    {fin && <div className="text-right">
-                      <p className="text-[10px] text-slate-400 uppercase tracking-wide">{t("sales.est_profit")}</p>
-                      <p className={`font-bold text-lg tabular-nums ${createGrandProfit >= 0 ? "text-green-600" : "text-red-500"}`}>
-                        {createGrandProfit >= 0 ? "+" : ""}{createGrandProfit.toLocaleString()}
-                      </p>
-                    </div>}
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1.5">{t("common.notes")}</label>
+                    <input className={inputCls} placeholder={t("sales.note_placeholder")}
+                      value={saleNotes} onChange={(e) => setSaleNotes(e.target.value)} />
                   </div>
                 </div>
+
               </div>
 
               <div className="flex justify-between items-center gap-2.5 px-6 py-4 border-t border-slate-100 shrink-0">
-                <span className="text-xs text-slate-400">
-                  {lineItems.filter((l) => l.product_id).length} {t("common.of")} {lineItems.length} {t(lineItems.length !== 1 ? "common.item_plural" : "common.item_singular")} {t("common.selected")}
-                </span>
+                <span className="hidden text-xs text-slate-400 sm:inline">{t("sales.shortcut_hint")}</span>
                 <div className="flex gap-2.5">
                   <button onClick={closeModal} className="px-4 py-2 rounded-lg border border-slate-200 text-slate-600 text-sm font-medium hover:bg-slate-50 transition">{t("common.cancel")}</button>
                   <button onClick={submitForm} disabled={submitting}
                     className="px-5 py-2 rounded-lg text-white text-sm font-semibold transition disabled:opacity-60 hover:opacity-90" style={{ background: "#0a66c2" }}>
-                    {submitting ? t("common.saving") : `${t("sales.add")}${lineItems.filter((l) => l.product_id).length > 1 ? ` (${lineItems.filter((l) => l.product_id).length} ${t("common.item_plural")})` : ""}`}
+                    {submitting ? t("common.saving") : `${t("sales.add")}${createGrandTotal > 0 ? ` · ${createGrandTotal.toLocaleString()} ${currency}` : ""}`}
                   </button>
                 </div>
               </div>

@@ -27,6 +27,8 @@ interface Props<T extends PickerProduct> {
   disableOutOfStock?: boolean;
   placeholder?: string;
   className?: string;
+  /** Open the search straight away (e.g. the first line of a new sale). */
+  autoOpen?: boolean;
 }
 
 const RESULTS = 20;
@@ -47,7 +49,7 @@ function anchorFor(el: HTMLElement): Anchor {
 /** Searchable product field backed by the API, so it works for any catalogue
  *  size instead of listing every product in a <select>. */
 export default function ProductPicker<T extends PickerProduct = PickerProduct>({
-  selected, onSelect, disableOutOfStock = false, placeholder, className = "",
+  selected, onSelect, disableOutOfStock = false, placeholder, className = "", autoOpen = false,
 }: Props<T>) {
   const { t } = useLanguage();
   const listId = useId();
@@ -99,6 +101,12 @@ export default function ProductPicker<T extends PickerProduct = PickerProduct>({
     };
   }, [open]);
 
+  // Mount-only: later re-renders must not reopen a picker the user closed.
+  useEffect(() => {
+    if (autoOpen && !selected) openPicker();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const isDisabled = (p: T) => disableOutOfStock && p.quantity <= 0;
 
   function choose(p: T) {
@@ -128,6 +136,7 @@ export default function ProductPicker<T extends PickerProduct = PickerProduct>({
           <Search size={15} className="shrink-0 text-text-faint" />
           <input
             ref={inputRef}
+            autoFocus
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={onKeyDown}

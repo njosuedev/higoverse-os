@@ -16,7 +16,7 @@ import DeepLink from "@/app/components/DeepLink";
 import Pagination from "@/app/components/ui/Pagination";
 import { useCanSeeFinancials } from "@/lib/permissions";
 import {
-  Package, AlertCircle, Search, Filter, Plus, Trash2, Pencil, X,
+  Package, AlertCircle, Search, Filter, Plus, Trash2, Pencil, X, ShoppingCart,
   TrendingUp, TrendingDown, RefreshCw, ChevronDown,
   FileSpreadsheet, FileText, Upload, Download, CheckCircle, XCircle, Car, PackagePlus, LayoutGrid, List,
 } from "lucide-react";
@@ -1060,6 +1060,12 @@ export default function ItemManagementPage() {
                             <Link href={restockUrl} title={t("purchases.restock")}
                               className="p-1 rounded bg-amber-50 hover:bg-amber-100 text-amber-600 transition">
                               <RefreshCw size={11} />
+                            </Link>
+                          )}
+                          {p.quantity > 0 && (
+                            <Link href={`/sales?new=1&product=${p.id}`} title={t("vehicle.sell")}
+                              className="p-1 rounded bg-[#0a66c2] hover:opacity-90 text-white transition">
+                              <ShoppingCart size={11} />
                             </Link>
                           )}
                           <button onClick={() => openEditModal(p)} title={t("common.edit")}
