@@ -14,6 +14,7 @@ import { purchaseRequest } from "@/lib/purchase-api";
 import { listShops, type Shop as ShopInfo } from "@/lib/shop-api";
 import StatCard from "@/app/components/dashboard/StatCard";
 import VehicleWatch from "@/app/components/dashboard/VehicleWatch";
+import TodayStatus from "@/app/components/dashboard/TodayStatus";
 import CarPerformanceChart from "@/app/components/dashboard/CarPerformanceChart";
 import StockAlertCircles from "@/app/components/dashboard/StockAlertCircles";
 import { useCanSeeFinancials } from "@/lib/permissions";
@@ -390,32 +391,32 @@ export default function DashboardPage() {
           </div>
         </section>
 
-        {/* ── KPI CARDS — Revenue is the hero metric, everything else balanced ── */}
-        <section className="grid grid-cols-1 gap-3 lg:grid-cols-3">
-          {fin && <StatCard
+        {/* ── TODAY (car companies): new cars, new fines, new pending — like status ── */}
+        {isCar && <TodayStatus />}
+
+        {/* ── KEY FIGURES — one compact row ─────────────────────────────────── */}
+        <section className={`grid grid-cols-2 gap-2 sm:grid-cols-3 ${fin ? "lg:grid-cols-6" : "lg:grid-cols-5"}`}>
+          {fin && <StatCard size="sm"
             label={t("dash.revenue_week")}
-            value={stats.revenue > 0 ? fmtCurrency(stats.revenue) : t("common.no_data")}
-            icon={<TrendingUp size={18} strokeWidth={2} />}
+            value={fmtCurrency(stats.revenue)}
+            icon={<TrendingUp size={15} strokeWidth={2} />}
             tone="green"
-            size="lg"
             href="/reports"
             delta={revDeltaPct !== null ? { value: `${Math.abs(revDeltaPct)}%`, direction: revDeltaPct >= 0 ? "up" : "down" } : undefined}
-            subtitle={yesterdayRevenue > 0 ? `${t("dash.prev_week")}: ${fmtCurrency(yesterdayRevenue)}` : t("dash.first_day_data")}
+            subtitle={yesterdayRevenue > 0 ? `${t("dash.prev_week")}: ${fmtCurrency(yesterdayRevenue)}` : undefined}
           />}
-          <div className={`grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5 ${fin ? "lg:col-span-2" : "lg:col-span-3"}`}>
-            <StatCard label={t("dash.products")} value={stats.products.toLocaleString()}
-              icon={<Package size={15} strokeWidth={2} />} tone="blue" href="/items" subtitle={t("dash.in_your_shop")} />
-            <StatCard label={t("dash.partners")} value={partnersShown.toLocaleString()}
-              icon={<Users size={15} strokeWidth={2} />} tone="blue" href="/partners" subtitle={t("dash.suppliers_customers")} />
-            <StatCard label={t("dash.sales_week")} value={stats.sales.toLocaleString()}
-              icon={<ShoppingCart size={15} strokeWidth={2} />} tone="blue" href="/sales" subtitle={t("dash.transactions")} />
-            <StatCard label={t("items.low_stock")} value={stats.lowStock.toLocaleString()}
-              icon={<AlertTriangle size={15} strokeWidth={2} />}
-              tone={stats.lowStock > 0 ? "amber" : "slate"} href="/items" subtitle={t("dash.le_10_units")} />
-            <StatCard label={t("items.out_stock")} value={stats.outOfStock.toLocaleString()}
-              icon={<Package size={15} strokeWidth={2} />}
-              tone={stats.outOfStock > 0 ? "red" : "slate"} href="/items" subtitle={t("dash.zero_units")} />
-          </div>
+          <StatCard size="sm" label={t("dash.products")} value={stats.products.toLocaleString()}
+            icon={<Package size={15} strokeWidth={2} />} tone="blue" href="/items" />
+          <StatCard size="sm" label={t("dash.partners")} value={partnersShown.toLocaleString()}
+            icon={<Users size={15} strokeWidth={2} />} tone="blue" href="/partners" />
+          <StatCard size="sm" label={t("dash.sales_week")} value={stats.sales.toLocaleString()}
+            icon={<ShoppingCart size={15} strokeWidth={2} />} tone="blue" href="/sales" />
+          <StatCard size="sm" label={t("items.low_stock")} value={stats.lowStock.toLocaleString()}
+            icon={<AlertTriangle size={15} strokeWidth={2} />}
+            tone={stats.lowStock > 0 ? "amber" : "slate"} href="/items" />
+          <StatCard size="sm" label={t("items.out_stock")} value={stats.outOfStock.toLocaleString()}
+            icon={<Package size={15} strokeWidth={2} />}
+            tone={stats.outOfStock > 0 ? "red" : "slate"} href="/items" />
         </section>
 
         {/* ── CAR WATCH — pending transfers, fines, missing details ─────────── */}
