@@ -67,6 +67,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const login = useCallback((data: { access_token: string; refresh_token?: string; user: User }) => {
+    // Start the new session clean: drop anything a previous account left
+    // behind (e.g. its session expired instead of signing out).
+    clearAuth();
     persistAuth(data); // writes to localStorage
     setState({ user: data.user, token: data.access_token, ready: true });
   }, []);

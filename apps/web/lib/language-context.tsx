@@ -33,7 +33,9 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     const stored = localStorage.getItem("app_lang") as Lang | null;
     if (stored && VALID.includes(stored)) setLangState(stored);
 
-    if (isAuthenticated()) {
+    // The language picked on this device wins; the account's saved language
+    // is only used when the device has none yet.
+    if (isAuthenticated() && !(stored && VALID.includes(stored))) {
       settingsRequest("/settings")
         .then((res) => {
           const l = res?.data?.language as Lang | undefined;

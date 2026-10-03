@@ -131,7 +131,7 @@ export default function TodayStatus() {
 
       {entries === null ? (
         <div className="mt-4 flex justify-center gap-3">
-          {[0, 1, 2].map((i) => <div key={i} className="h-[146px] w-[128px] animate-pulse rounded-press bg-paper-dim" />)}
+          {Array.from({ length: MAX_SHOWN }, (_, i) => <div key={i} className="h-[146px] w-[128px] animate-pulse rounded-press bg-paper-dim" />)}
         </div>
       ) : entries.length === 0 ? (
         <p className="mt-3 text-center text-sm text-text-muted">{t("dash.recent_nothing")}</p>

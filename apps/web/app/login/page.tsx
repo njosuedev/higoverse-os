@@ -92,7 +92,10 @@ export default function LoginPage() {
       });
       const data = await res.json();
       if (!res.ok) return setError(data?.detail || t("login.err_incorrect_credentials"));
-      login(data); router.replace(getNextPath());
+      login(data);
+      // A full page load (not a client-side route change) so every screen
+      // loads this account's data from scratch — nothing from before shows.
+      window.location.replace(getNextPath());
     } catch { setError(t("login.err_network")); }
     finally  { setLoading(false); }
   }, [email, password, login, router, t]);

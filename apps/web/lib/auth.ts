@@ -63,8 +63,9 @@ export function getAuthHeaders(): Record<string, string> {
   };
 }
 
-// Device preferences that aren't tied to an account survive sign-out.
-const KEEP_ON_SIGN_OUT = new Set(["app_lang"]);
+// Device preferences that aren't tied to an account survive sign-out:
+// the language and the Vehicles list/cards view.
+const KEEP_ON_SIGN_OUT = new Set(["app_lang", "hgv_vehicle_view"]);
 
 /** Remove everything this account left in the browser — tokens, the stored
  *  user, and any cached business data (e.g. the old `hgv_dash_*` dashboard
