@@ -7,6 +7,7 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from "recharts";
 import { reportRequest } from "@/lib/report-api";
+import WeeklyPerformance from "@/app/components/reports/WeeklyPerformance";
 import { useAutoRefresh } from "@/lib/hooks";
 import { itemRequest } from "@/lib/product-api";
 import { purchaseRequest } from "@/lib/purchase-api";
@@ -125,8 +126,9 @@ export default function ReportsPage() {
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Opens on the last 7 days, like the other pages.
   const [dateFrom, setDateFrom] = useState(() => {
-    const d = new Date(); d.setDate(d.getDate() - 29); return toDateStr(d);
+    const d = new Date(); d.setDate(d.getDate() - 6); return toDateStr(d);
   });
   const [dateTo, setDateTo] = useState(() => toDateStr(new Date()));
 
@@ -447,6 +449,9 @@ export default function ReportsPage() {
             </div>
           </>
         )}
+
+        {/* ── WEEKLY PERFORMANCE — 8 weeks, this week vs last ─────────────────── */}
+        <WeeklyPerformance isCar={isCar} currency={currency} fmt={fmtRWF} />
 
         {/* ── REVENUE + PROFIT AREA CHART ────────────────────────────────────── */}
         <div className="bg-white rounded-xl border border-slate-200 p-2.5">
