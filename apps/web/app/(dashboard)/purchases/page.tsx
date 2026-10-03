@@ -58,7 +58,8 @@ export default function PurchaseManagementPage() {
   const [purchasesTotal, setPurchasesTotal] = useState(0);
   const [histPage, setHistPage] = useState(1);
   const [histPageSize, setHistPageSize] = useState(25);
-  const [dateFrom, setDateFrom] = useState(() => toDateStr(new Date()));
+  // Lists open on the last 7 days (the date picker's "7 days" preset).
+  const [dateFrom, setDateFrom] = useState(() => { const d = new Date(); d.setDate(d.getDate() - 6); return toDateStr(d); });
   const [dateTo, setDateTo] = useState(() => toDateStr(new Date()));
 
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);

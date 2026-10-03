@@ -85,7 +85,8 @@ export default function SaleManagementPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
-  const [dateFrom, setDateFrom] = useState(() => toDateStr(new Date()));
+  // Lists open on the last 7 days (the date picker's "7 days" preset).
+  const [dateFrom, setDateFrom] = useState(() => { const d = new Date(); d.setDate(d.getDate() - 6); return toDateStr(d); });
   const [dateTo, setDateTo] = useState(() => toDateStr(new Date()));
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 

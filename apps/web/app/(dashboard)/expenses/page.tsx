@@ -87,7 +87,8 @@ export default function ExpenseManagementPage() {
   const [total, setTotal]             = useState(0);
   const [page, setPage]               = useState(1);
   const [pageSize, setPageSize]       = useState(25);
-  const [dateFrom, setDateFrom]       = useState(() => toDateStr(new Date()));
+  // Lists open on the last 7 days (the date picker's "7 days" preset).
+  const [dateFrom, setDateFrom]       = useState(() => { const d = new Date(); d.setDate(d.getDate() - 6); return toDateStr(d); });
   const [dateTo, setDateTo]           = useState(() => toDateStr(new Date()));
   const [catFilter, setCatFilter]     = useState<Category | "">("");
   const [search, setSearch]           = useState("");
