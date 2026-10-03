@@ -6,7 +6,9 @@ import { LanguageProvider } from "@/lib/language-context";
 import { AuthProvider } from "@/lib/auth-context";
 import { QueryProvider } from "@/lib/query-provider";
 import { DialogHost } from "@/lib/dialogs";
+import UpdateNotice from "@/app/components/UpdateNotice";
 import { SITE } from "@/lib/site";
+import { THEME_BOOT_SCRIPT } from "@/lib/theme-boot";
 
 // Inter: a typeface drawn for screens — crisp at small sizes, with real
 // semibold/bold weights. Downloaded at build time and served by the app.
@@ -103,12 +105,17 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={inter.variable}>
+    // suppressHydrationWarning: the head script sets data-theme before React loads.
+    <html lang="en" className={inter.variable} suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />
+      </head>
       <body>
         <AuthProvider>
           <LanguageProvider>
             <QueryProvider>{children}</QueryProvider>
             <DialogHost />
+            <UpdateNotice />
           </LanguageProvider>
         </AuthProvider>
       </body>

@@ -3,8 +3,8 @@
 /* ══════════════════════════════════════════════════════════════════════
    Design tokens — LinkedIn-style palette and type
    Warm-grey page, white cards, LinkedIn blue (#0a66c2) as the primary,
-   LinkedIn red reserved for danger/alerts. Single light theme — no dark
-   mode (see color-scheme below).
+   LinkedIn red reserved for danger/alerts. A dark theme lives at the end
+   of this file (html[data-theme="dark"]).
    ══════════════════════════════════════════════════════════════════════ */
 @theme {
   /* type — Inter (next/font), then the system stack as fallback */
@@ -53,7 +53,8 @@
 
 /* ── FORCE LIGHT MODE — ignore OS dark preference ───────── */
 html {
-  color-scheme: light only;
+  /* Light by default; the dark theme (bottom of this file) switches it. */
+  color-scheme: light;
   overflow-y: scroll;
   scrollbar-gutter: stable;
 }
@@ -380,3 +381,118 @@ select:-webkit-autofill {
     background-color: #f8fafc;
   }
 }
+
+/* ══════════════════════════════════════════════════════════════════════
+   DARK THEME — html[data-theme="dark"], set by the theme script in
+   app/layout.tsx (System / Light / Dark, see lib/theme.ts).
+   Pages use both design tokens and Tailwind palette classes, so both are
+   remapped here: tokens and grey scales are swapped, light tinted
+   backgrounds (…-50/100) become dark tints and dark text shades (…-600+)
+   become light ones. Print windows (receipts, invoices) are separate
+   documents and stay light.
+   ══════════════════════════════════════════════════════════════════════ */
+html[data-theme="dark"] {
+  color-scheme: dark;
+  --surface: #1b1e23;
+  --surface-2: #22262c;
+
+  --color-ink: #4a9eed;
+  --color-ink-dark: #7cb9f2;
+  --color-ink-soft: #15283d;
+  --color-paper: #111317;
+  --color-paper-dim: #1f2329;
+  --color-paper-deep: #2a2f36;
+  --color-border: #2c3138;
+  --color-border-strong: #424852;
+  --color-text: #e8eaed;
+  --color-text-muted: #c4c8ce;
+  --color-text-faint: #a3a9b1;
+  --color-accent: #f0646a;
+  --color-accent-dark: #ff8a8f;
+  --color-accent-soft: #3a1518;
+  --color-success: #3dbf7d;
+  --color-success-soft: #10291c;
+  --color-warning: #e3aa48;
+  --color-warning-soft: #2e2311;
+
+  /* grey scales: light end ↔ dark end */
+  --color-slate-50: #171a1f;  --color-slate-100: #1f2329; --color-slate-200: #2c3138;
+  --color-slate-300: #6b7380; --color-slate-400: #8d95a1; --color-slate-500: #a8afb8;
+  --color-slate-600: #c2c7ce; --color-slate-700: #d3d7dc; --color-slate-800: #e2e5e8; --color-slate-900: #eef0f2;
+  --color-gray-50: #171a1f;   --color-gray-100: #1f2329;  --color-gray-200: #2c3138;
+  --color-gray-300: #6b7380;  --color-gray-400: #8d95a1;  --color-gray-500: #a8afb8;
+  --color-gray-600: #c2c7ce;  --color-gray-700: #d3d7dc;  --color-gray-800: #e2e5e8;  --color-gray-900: #eef0f2;
+
+  /* coloured badges/chips: dark tinted backgrounds, light text */
+  --color-blue-50: #12233a;   --color-blue-100: #16304f;  --color-blue-200: #1d4370;
+  --color-blue-600: #6aaef5;  --color-blue-700: #8cc1f7;  --color-blue-800: #a9d1fa;
+  --color-indigo-50: #1a1d3a; --color-indigo-100: #222652; --color-indigo-600: #a3a8f5; --color-indigo-700: #b9bdf8;
+  --color-violet-50: #221a38; --color-violet-100: #2c2149; --color-violet-200: #3e2f66; --color-violet-600: #b9a3f7; --color-violet-700: #c9b8f9;
+  --color-purple-50: #261a36; --color-purple-100: #321f47; --color-purple-200: #46296a; --color-purple-600: #cfa5f5; --color-purple-700: #dbbbf8;
+  --color-green-50: #10261a;  --color-green-100: #143321; --color-green-200: #1c4a2f;
+  --color-green-600: #4cc985; --color-green-700: #6fd59d; --color-green-800: #94e2b6;
+  --color-emerald-50: #0f2620; --color-emerald-100: #133329; --color-emerald-600: #4bcaa0; --color-emerald-700: #73d6b5;
+  --color-teal-50: #0f2526;   --color-teal-100: #133234;  --color-teal-600: #4cc6c0; --color-teal-700: #74d3cf;
+  --color-amber-50: #2b2010;  --color-amber-100: #3a2b12; --color-amber-200: #523c17;
+  --color-amber-600: #e8b04f; --color-amber-700: #f0c270; --color-amber-800: #f5d392;
+  --color-yellow-50: #2a2610; --color-yellow-100: #383213; --color-yellow-600: #e5cf4f; --color-yellow-700: #eedc76;
+  --color-orange-50: #2d1c10; --color-orange-100: #3d2513; --color-orange-200: #573419;
+  --color-orange-600: #f39a52; --color-orange-700: #f6b27a; --color-orange-800: #f9c9a1;
+  --color-red-50: #2e1416;    --color-red-100: #3e181b;   --color-red-200: #5a2125;
+  --color-red-600: #f26b70;   --color-red-700: #f58c90;   --color-red-800: #f8adb0;
+}
+
+/* surfaces that are plain white in the light theme */
+html[data-theme="dark"] body { background-color: var(--color-paper); color: var(--color-text); }
+html[data-theme="dark"] .bg-white,
+html[data-theme="dark"] .hgv-surface,
+html[data-theme="dark"] .hgv-search,
+html[data-theme="dark"] .hgv-filter { background-color: var(--surface) !important; }
+html[data-theme="dark"] [class*="bg-white/9"] { background-color: rgb(27 30 35 / 0.92); }
+html[data-theme="dark"] .hgv-search:hover,
+html[data-theme="dark"] .hgv-filter:hover { border-color: var(--color-border-strong); }
+html[data-theme="dark"] .hgv-surface .bg-white { background-color: var(--color-ink) !important; color: #ffffff; }
+/* page-header primary buttons: white label on blue (beats the blue-text rule below) */
+html[data-theme="dark"] .hgv-surface .bg-white,
+html[data-theme="dark"] .hgv-surface .bg-white * { color: #ffffff !important; }
+html[data-theme="dark"] input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+html[data-theme="dark"] select,
+html[data-theme="dark"] textarea { background-color: var(--surface); color: var(--color-text); border-color: var(--color-border-strong); }
+html[data-theme="dark"] input::placeholder,
+html[data-theme="dark"] textarea::placeholder { color: var(--color-text-faint); }
+html[data-theme="dark"] option { background-color: var(--surface); color: var(--color-text); }
+
+/* fixed brand colours written as raw hex in the pages */
+html[data-theme="dark"] [class*="text-[#0a66c2]"] { color: var(--color-ink) !important; }
+html[data-theme="dark"] [class*="bg-[#EBF2FD]"],
+html[data-theme="dark"] [class*="bg-[#ebf2fd]"] { background-color: var(--color-ink-soft) !important; }
+html[data-theme="dark"] [class*="bg-[#D5E8FB]"],
+html[data-theme="dark"] [class*="hover:bg-[#D5E8FB]"]:hover { background-color: #1d3a5c !important; }
+html[data-theme="dark"] [class*="bg-[#f9d6d8]"]:hover { background-color: #4a1d20 !important; }
+
+/* page banners that use a blue gradient keep their colour but darken a touch */
+html[data-theme="dark"] [style*="linear-gradient(135deg, #0a66c2"] { filter: brightness(0.82) saturate(1.05); }
+
+/* dialogs and overlays */
+html[data-theme="dark"] [class*="bg-black/"] { background-color: rgb(0 0 0 / 0.6); }
+html[data-theme="dark"] .shadow-2xl,
+html[data-theme="dark"] .shadow-lg,
+html[data-theme="dark"] .shadow-xl { box-shadow: 0 20px 50px -12px rgb(0 0 0 / 0.65); }
+
+/* skeletons and soft rows */
+html[data-theme="dark"] .hgv-ledger-row:hover { background-color: var(--color-paper-dim); }
+html[data-theme="dark"] .rep-sh { background: linear-gradient(90deg, #1f2329 25%, #2a2f36 50%, #1f2329 75%) !important; background-size: 200% 100% !important; }
+
+/* pinned table action column (see PHONES & TOUCH) */
+@media (max-width: 1023px) {
+  html[data-theme="dark"] .overflow-x-auto > table tr > td:last-child:has(button, a) { background-color: var(--surface); }
+  html[data-theme="dark"] .overflow-x-auto > table thead tr > th:last-child { background-color: var(--color-slate-50); }
+}
+
+/* charts: grid lines and tooltips */
+html[data-theme="dark"] .recharts-cartesian-grid line { stroke: #2c3138; }
+html[data-theme="dark"] .recharts-default-tooltip { background-color: var(--surface-2) !important; border-color: var(--color-border-strong) !important; color: var(--color-text); }
+html[data-theme="dark"] .recharts-text { fill: var(--color-text-faint); }
+
+/* scrollbars follow the theme */
+html[data-theme="dark"] { scrollbar-color: #3a4048 var(--color-paper); }

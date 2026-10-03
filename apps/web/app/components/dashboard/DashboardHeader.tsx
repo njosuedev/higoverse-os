@@ -6,11 +6,12 @@ import { useState, useRef, useEffect } from "react";
 import { useLanguage } from "@/lib/language-context";
 import { useAuth } from "@/lib/auth-context";
 import { useShop } from "@/lib/shop-context";
+import { useThemePref } from "@/lib/theme";
 import { LANGUAGES } from "@/lib/i18n";
 import { settingsRequest } from "@/lib/settings-api";
 import { getEffectiveRole } from "@/lib/auth";
 import { useCanSeeFinancials } from "@/lib/permissions";
-import {
+import { Sun, Moon, Monitor,
   Home, Package, Truck, ShoppingCart, BarChart3,
   Users, FileText, ChevronDown, ShieldCheck, Receipt,
   Settings, LogOut, Globe,
@@ -43,6 +44,7 @@ function isActiveHref(pathname: string, href: string) {
 export default function DashboardHeader({ loading = false }: { loading?: boolean }) {
   const pathname   = usePathname();
   const { lang, setLang, t, layout } = useLanguage();
+  const [themePref, setThemePref] = useThemePref();
   const { user, logout, ready } = useAuth();
   const { shop, loading: shopLoading } = useShop();
 
@@ -220,6 +222,23 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
                         ))}
                       </select>
                       <ChevronDown size={11} className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 text-text-faint" />
+                    </div>
+                  </div>
+
+                  {/* Appearance — System / Light / Dark (this device) */}
+                  <div className="flex items-center gap-3 rounded-press px-3 py-2.5">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-press bg-paper-dim text-text-muted">
+                      {themePref === "dark" ? <Moon size={15} /> : themePref === "light" ? <Sun size={15} /> : <Monitor size={15} />}
+                    </div>
+                    <span className="text-sm font-medium text-text">{t("theme.appearance")}</span>
+                    <div role="radiogroup" aria-label={t("theme.appearance")} className="ml-auto flex shrink-0 rounded-press bg-paper-dim p-0.5">
+                      {(["system", "light", "dark"] as const).map((p) => (
+                        <button key={p} type="button" role="radio" aria-checked={themePref === p} title={t(`theme.${p}`)}
+                          onClick={() => setThemePref(p)}
+                          className={`rounded-[6px] px-2 py-1 text-[11px] font-semibold transition-colors duration-200 ${themePref === p ? "bg-white text-text shadow-sm" : "text-text-muted hover:text-text"}`}>
+                          {t(`theme.${p}`)}
+                        </button>
+                      ))}
                     </div>
                   </div>
 
