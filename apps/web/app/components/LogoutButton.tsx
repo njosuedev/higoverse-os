@@ -1,17 +1,13 @@
 "use client";
 
 import { LogOut } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 
 export default function LogoutButton() {
   const { logout } = useAuth();
-  const router = useRouter();
 
-  const handleLogout = () => {
-    logout();           // clears storage + updates auth state
-    router.replace("/login"); // navigate cleanly via Next.js router
-  };
+  // logout() clears this account from the browser and reloads to /login.
+  const handleLogout = () => logout();
 
   return (
     <button

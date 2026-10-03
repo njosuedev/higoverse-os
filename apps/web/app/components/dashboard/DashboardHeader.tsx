@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { useState, useRef, useEffect } from "react";
 import { useLanguage } from "@/lib/language-context";
 import { useAuth } from "@/lib/auth-context";
@@ -44,7 +44,6 @@ function isActiveHref(pathname: string, href: string) {
 
 export default function DashboardHeader({ loading = false }: { loading?: boolean }) {
   const pathname   = usePathname();
-  const router     = useRouter();
   const { lang, setLang, t, layout } = useLanguage();
   const { user, logout, ready } = useAuth();
   const { shop } = useShop();
@@ -76,8 +75,7 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
 
   function handleLogout() {
     setMenuOpen(false);
-    logout();
-    router.replace("/login");
+    logout(); // clears this account from the browser and reloads to /login
   }
 
   const currentLang = LANGUAGES.find((l) => l.code === lang) ?? LANGUAGES[0];

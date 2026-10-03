@@ -63,11 +63,20 @@ export function getAuthHeaders(): Record<string, string> {
   };
 }
 
-/** Clear auth data from storage without navigating (used by React auth context). */
+// Device preferences that aren't tied to an account survive sign-out.
+const KEEP_ON_SIGN_OUT = new Set(["app_lang"]);
+
+/** Remove everything this account left in the browser — tokens, the stored
+ *  user, and any cached business data (e.g. the old `hgv_dash_*` dashboard
+ *  snapshot) — so the next person to sign in on this device sees nothing of
+ *  it. Server-side data is never touched. Callers reload the page afterwards
+ *  to drop in-memory caches too. */
 export function clearAuth() {
   if (typeof window === "undefined") return;
-  localStorage.removeItem(TOKEN_KEY);
-  localStorage.removeItem(REFRESH_TOKEN_KEY);
-  localStorage.removeItem(USER_KEY);
-  sessionStorage.clear();
+  try {
+    for (const key of Object.keys(localStorage)) {
+      if (!KEEP_ON_SIGN_OUT.has(key)) localStorage.removeItem(key);
+    }
+  } catch { /* storage unavailable (private mode) — nothing to clear */ }
+  try { sessionStorage.clear(); } catch { /* same */ }
 }

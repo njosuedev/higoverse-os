@@ -40,8 +40,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Stay in sync with token refreshes/expiry from authFetch, and with
     // sign-in/sign-out in other tabs (the "storage" event).
     const sync = () => setState({ user: getUser(), token: getToken(), ready: true });
+    let currentUserId = getUser()?.id ?? null;
     const onStorage = (e: StorageEvent) => {
-      if (e.key === null || e.key === "token" || e.key === "user") sync();
+      if (e.key !== null && e.key !== "token" && e.key !== "user") return;
+      const next = getUser();
+      if (!getToken() || !next) {
+        // Signed out in another tab: this tab still holds that account's data
+        // in memory, so reload rather than just switching the UI.
+        if (window.location.pathname !== "/login") window.location.replace("/login");
+        return;
+      }
+      if (currentUserId && next.id !== currentUserId) {
+        // A different account signed in elsewhere — start over with its data.
+        window.location.reload();
+        return;
+      }
+      currentUserId = next.id;
+      sync(); // same account, e.g. a token refreshed in another tab
     };
     window.addEventListener(SESSION_EVENT, sync);
     window.addEventListener("storage", onStorage);
@@ -62,7 +77,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const logout = useCallback(() => {
-    // Send offline signal first — token is still in localStorage at this point
+    // Send offline signal first — token is still in localStorage at this point.
+    // keepalive lets both requests finish even though the page reloads below.
     sendOffline();
     // Best-effort server-side revocation of the refresh token — don't block
     // the UI on it, and don't fail logout if the network call fails.
@@ -72,11 +88,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ refresh_token: refreshToken }),
+        keepalive: true,
       }).catch(() => {});
     }
-    clearAuth(); // removes from localStorage
+    clearAuth(); // tokens, user and any cached business data in storage
     setState({ user: null, token: null, ready: true });
-    // Navigation is handled by AuthGuard reacting to user becoming null
+    // A full reload (not a client-side route change) drops every in-memory
+    // cache — dashboard queries, the shop profile, settings — so the next
+    // account starts from nothing.
+    window.location.replace("/login");
   }, []);
 
   return (

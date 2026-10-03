@@ -137,12 +137,13 @@ export async function sendHeartbeat(): Promise<void> {
  *  Must be called BEFORE clearAuth() so the token is still available. */
 export async function sendOffline(): Promise<void> {
   try {
-    await authShopRequest("/api/v1/shop/heartbeat", { method: "DELETE" });
+    await authShopRequest("/api/v1/shop/heartbeat", { method: "DELETE", keepalive: true });
   } catch {
     // If the DELETE endpoint doesn't exist, try clearing via update
     try {
       await authShopRequest("/api/v1/shop", {
         method: "PATCH",
+        keepalive: true,
         body: JSON.stringify({ last_seen_at: null }),
       });
     } catch {
