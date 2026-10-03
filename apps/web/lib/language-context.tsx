@@ -46,6 +46,12 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  // Tell the browser which language is on screen: picks proper fonts and
+  // line-breaking, and lets the stylesheet size Chinese text up (globals.css).
+  useEffect(() => {
+    document.documentElement.lang = lang === "zh" ? "zh-CN" : lang;
+  }, [lang]);
+
   function setLang(l: Lang) {
     setLangState(l);
     localStorage.setItem("app_lang", l);

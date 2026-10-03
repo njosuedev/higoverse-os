@@ -314,3 +314,24 @@ select:-webkit-autofill {
    small to read. Unlayered, so it wins over the Tailwind utilities. */
 .text-\[9px\]  { font-size: 11px; }
 .text-\[10px\] { font-size: 11.5px; }
+
+/* ── CHINESE (lang="zh-CN", set by LanguageProvider) ───────────
+   Chinese characters need more size than Latin letters to stay legible:
+   their strokes run together at the 10–12px used for labels. Use real
+   CJK fonts and lift the small sizes while Chinese is on screen. */
+:lang(zh) body,
+:lang(zh) input,
+:lang(zh) textarea,
+:lang(zh) select,
+:lang(zh) button {
+  font-family: "Microsoft YaHei", "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", "Source Han Sans SC", var(--font-sans);
+}
+:lang(zh) body { letter-spacing: 0.01em; }
+:lang(zh) .text-\[9px\],
+:lang(zh) .text-\[10px\],
+:lang(zh) .text-\[11px\] { font-size: 13px; }
+:lang(zh) .text-xs       { font-size: 13.5px; }
+:lang(zh) .text-\[13px\] { font-size: 14.5px; }
+:lang(zh) .text-sm       { font-size: 15px; }
+/* uppercase + wide tracking is a Latin style; it only spreads Chinese out */
+:lang(zh) .uppercase { letter-spacing: 0.02em; }
