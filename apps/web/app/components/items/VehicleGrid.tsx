@@ -42,7 +42,7 @@ async function patchAttributes(id: string, changes: Attributes) {
   await itemRequest(`/products/${id}`, { method: "PUT", body: JSON.stringify({ attributes: stringifyAttributes(merged) }) });
 }
 
-const CLEAR_PENDING: Attributes = { sale_status: "", buyer_name: "", buyer_phone: "", buyer_id_no: "", pending_since: "", pending_note: "" };
+const CLEAR_PENDING: Attributes = { sale_status: "", buyer_name: "", buyer_phone: "", buyer_id_no: "", pending_since: "", pending_at: "", pending_note: "" };
 
 export default function VehicleGrid({ vehicles, currency, onOpenGallery, onEdit, onChanged, autoForm }: Props) {
   const { t } = useLanguage();
@@ -246,7 +246,7 @@ function PendingForm({ v, onClose, onSaved }: { v: Vehicle; onClose: () => void;
       await patchAttributes(v.id, {
         plate_no: plate.trim().toUpperCase(), chassis_no: chassis.trim().toUpperCase(),
         sale_status: "pending", buyer_name: name.trim(), buyer_phone: phone.trim(),
-        buyer_id_no: idNo.trim(), pending_note: note.trim(), pending_since: today(),
+        buyer_id_no: idNo.trim(), pending_note: note.trim(), pending_since: today(), pending_at: new Date().toISOString(),
       });
       notify(t("vehicle.marked_pending"), "success");
       onSaved();
@@ -300,6 +300,7 @@ function PenaltyForm({ v, onClose, onSaved }: { v: Vehicle; onClose: () => void;
         penalty_count: String(n),
         penalty_amount: n > 0 && amount.trim() ? String(Math.max(0, Number(amount) || 0)) : "",
         penalty_checked: checked,
+        penalty_saved_at: new Date().toISOString(),
       });
       notify(t("vehicle.penalties_saved"), "success");
       onSaved();
