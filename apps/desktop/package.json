@@ -1,7 +1,7 @@
 {
   "name": "higoverse-desktop",
   "productName": "Higoverse",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Higoverse for Windows: business records, sales and stock.",
   "author": "Higoverse <higoverse@gmail.com>",
   "homepage": "https://higoverse.com",
@@ -32,7 +32,14 @@
       "assets/**"
     ],
     "win": {
-      "target": [{ "target": "nsis", "arch": ["x64"] }],
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
       "icon": "build/icon.ico",
       "legalTrademarks": "Higoverse"
     },
@@ -53,6 +60,15 @@
       "runAfterFinish": true,
       "deleteAppDataOnUninstall": false,
       "artifactName": "Higoverse-Setup-${version}.${ext}"
-    }
+    },
+    "publish": [
+      {
+        "provider": "generic",
+        "url": "https://higoverse.com/downloads/desktop/"
+      }
+    ]
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.9"
   }
 }

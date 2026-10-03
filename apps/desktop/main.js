@@ -5,20 +5,29 @@
 // copy, remembered window size, a native menu and right-click menu, printing,
 // file downloads with a Save dialog, and a friendly screen when offline.
 //
+// Updates: the pages always come live from higoverse.com; the app itself
+// checks https://higoverse.com/downloads/desktop/ on start and every few
+// hours, downloads new versions in the background and installs them on
+// restart (electron-updater).
+//
+// Appearance follows Windows (light/dark); the website's own Appearance
+// setting can override it.
+//
 // Security: the page runs sandboxed with no Node.js access. Only the
 // Higoverse site may load inside the app; any other link opens in the
 // default browser.
 
 const { app, BrowserWindow, Menu, shell, dialog, session, nativeTheme } = require("electron");
+const { autoUpdater } = require("electron-updater");
 const fs = require("fs");
 const path = require("path");
 
 const APP_URL = process.env.HIGOVERSE_URL || "https://higoverse.com/";
 const APP_ORIGIN = new URL(APP_URL).origin;
-const BG = "#F3F2EF";
+const bg = () => (nativeTheme.shouldUseDarkColors ? "#111317" : "#F3F2EF");
 
 app.setAppUserModelId("com.higoverse.desktop");
-nativeTheme.themeSource = "light";
+nativeTheme.themeSource = "system";
 
 // ── One running copy: a second launch focuses the existing window ──────────
 if (!app.requestSingleInstanceLock()) {
@@ -68,7 +77,7 @@ function createWindow() {
     minHeight: 620,
     show: false,
     title: "Higoverse",
-    backgroundColor: BG,
+    backgroundColor: bg(),
     icon: path.join(__dirname, "assets", "icon.png"),
     autoHideMenuBar: true,
     webPreferences: {
@@ -214,6 +223,7 @@ function buildMenu() {
         { label: "Privacy policy", click: () => shell.openExternal("https://higoverse.com/privacy") },
         { label: "Contact support", click: () => shell.openExternal("mailto:higoverse@gmail.com") },
         { type: "separator" },
+        { label: "Check for updates…", click: () => checkForUpdates(true) },
         {
           label: "About Higoverse",
           click: () => dialog.showMessageBox(win, {
@@ -228,6 +238,51 @@ function buildMenu() {
     },
   ];
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+}
+
+// ── Self-updating ──────────────────────────────────────────────────────────
+// New versions are published to https://higoverse.com/downloads/desktop/
+// (latest.yml + installer, see package.json "publish"). Downloads happen in
+// the background; the update installs on restart or when the app closes.
+let updateReadyShown = false;
+let manualCheck = false;
+function setupUpdates() {
+  if (!app.isPackaged) return; // nothing to update while developing
+  autoUpdater.autoDownload = true;
+  autoUpdater.autoInstallOnAppQuit = true;
+  autoUpdater.on("update-downloaded", async (info) => {
+    if (updateReadyShown || !win) return;
+    updateReadyShown = true;
+    const { response } = await dialog.showMessageBox(win, {
+      type: "info",
+      buttons: ["Restart now", "Later"],
+      defaultId: 0,
+      cancelId: 1,
+      title: "Update ready",
+      message: `Higoverse ${info.version} is ready to install.`,
+      detail: "Restart Higoverse to finish updating. If you choose Later, it installs when you close the app.",
+    });
+    if (response === 0) setImmediate(() => autoUpdater.quitAndInstall());
+  });
+  autoUpdater.on("update-not-available", () => {
+    if (manualCheck && win) dialog.showMessageBox(win, { type: "info", title: "Higoverse", message: `You have the latest version (${app.getVersion()}).` });
+    manualCheck = false;
+  });
+  autoUpdater.on("error", (err) => {
+    if (manualCheck && win) dialog.showMessageBox(win, { type: "warning", title: "Higoverse", message: "Couldn't check for updates.", detail: String(err && err.message || err).slice(0, 300) });
+    manualCheck = false;
+  });
+  setTimeout(() => checkForUpdates(false), 10_000);
+  setInterval(() => checkForUpdates(false), 4 * 60 * 60 * 1000);
+}
+function checkForUpdates(manual) {
+  if (!app.isPackaged) {
+    if (manual && win) dialog.showMessageBox(win, { type: "info", title: "Higoverse", message: "Updates are checked in the installed app." });
+    return;
+  }
+  manualCheck = manual;
+  if (manual && updateReadyShown) { updateReadyShown = false; }
+  autoUpdater.checkForUpdates().catch(() => {});
 }
 
 app.on("second-instance", () => {
@@ -251,7 +306,11 @@ app.whenReady().then(() => {
 
   buildMenu();
   createWindow();
+  setupUpdates();
 });
+
+// Keep the window background in step with Windows' light/dark setting.
+nativeTheme.on("updated", () => { if (win && !win.isDestroyed()) win.setBackgroundColor(bg()); });
 
 app.on("window-all-closed", () => app.quit());
 
