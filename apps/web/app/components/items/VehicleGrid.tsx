@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Car, Clock, Images, Pencil, ShieldAlert, ShieldCheck, ShieldQuestion, ShoppingCart, UserCheck, X } from "lucide-react";
+import { Car, Clock, Pencil, ShieldAlert, ShieldCheck, ShieldQuestion, ShoppingCart, UserCheck, UserX, X } from "lucide-react";
 import { itemRequest } from "@/lib/product-api";
 import { useLanguage } from "@/lib/language-context";
 import { askConfirm, notify } from "@/lib/dialogs";
@@ -56,7 +56,7 @@ export default function VehicleGrid({ vehicles, currency, onOpenGallery, onEdit,
 
   return (
     <>
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
         {vehicles.map((v) => (
           <VehicleCard
             key={v.id}
@@ -93,95 +93,87 @@ function VehicleCard({ v, currency, onGallery, onEdit, onPending, onRelease, onP
     sold:      { label: t("vehicle.status_sold"),      cls: "bg-text-muted text-white" },
   }[status];
 
+  const sub = [a.year, a.color, a.plate_no].filter(Boolean).join(" · ");
+
   return (
-    <article className={`flex flex-col overflow-hidden rounded-data border border-border bg-white transition hover:border-border-strong hover:shadow-[0_8px_24px_-12px_rgb(0_0_0_/_0.25)] ${status === "sold" ? "opacity-80" : ""}`}>
-      {/* Photo + status */}
-      <button type="button" onClick={onGallery} className="group relative aspect-[4/3] w-full overflow-hidden bg-paper-dim" aria-label={t("vehicle.view_photos")}>
-        {v.thumbnail
-          // eslint-disable-next-line @next/next/no-img-element
-          ? <img src={v.thumbnail} alt={v.name} loading="lazy" className={`h-full w-full object-cover transition group-hover:scale-[1.02] ${status === "sold" ? "grayscale" : ""}`} />
-          : <div className="flex h-full w-full items-center justify-center"><Car size={40} className="text-text-faint" /></div>}
-        <span className={`absolute left-3 top-3 rounded-full px-2.5 py-1 text-xs font-bold uppercase tracking-wide shadow-sm ${STATUS.cls}`}>{STATUS.label}</span>
-        {v.thumbnail && (
-          <span className="absolute bottom-2 right-2 flex items-center gap-1 rounded-full bg-black/55 px-2 py-0.5 text-xs font-medium text-white opacity-0 transition group-hover:opacity-100">
-            <Images size={12} /> {t("vehicle.view_photos")}
-          </span>
-        )}
-      </button>
-
-      {/* Details */}
-      <div className="flex flex-1 flex-col gap-2 p-4">
-        <div>
-          <h3 className="truncate text-base font-semibold text-text" title={v.name}>{v.name}</h3>
-          {meta && <p className="truncate text-sm text-text-muted">{meta}</p>}
-          {ids && <p className="mt-0.5 truncate font-mono text-[13px] text-text-muted" title={ids}>{ids}</p>}
-        </div>
-        <p className="hgv-figure text-lg font-semibold text-text">
-          {Number(v.selling_price || 0).toLocaleString()} <span className="text-sm font-medium text-text-muted">{currency}</span>
-        </p>
-
-        {status === "pending" && (
-          <div className="rounded-press border border-warning/30 bg-warning-soft px-3 py-2 text-[13px] text-text">
-            <p className="flex items-center gap-1.5 font-semibold text-warning">
-              <Clock size={13} /> {t("vehicle.pending_docs")}
-              {pendingDays !== null && <span className="font-normal text-text-muted">· {pendingDays} {t("vehicle.days")}</span>}
-            </p>
-            {a.buyer_name && <p className="mt-0.5 truncate">{a.buyer_name}{a.buyer_phone ? ` · ${a.buyer_phone}` : ""}</p>}
-            {a.buyer_id_no && <p className="truncate font-mono text-text-muted">{t("vehicle.id_short")}: {a.buyer_id_no}</p>}
-            {a.pending_note && <p className="truncate text-text-muted" title={a.pending_note}>{a.pending_note}</p>}
-          </div>
-        )}
-
+    <article className={`flex flex-col overflow-hidden rounded-data border border-border bg-white transition hover:border-border-strong hover:shadow-[0_6px_18px_-10px_rgb(0_0_0_/_0.25)] ${status === "sold" ? "opacity-75" : ""}`}>
+      {/* Photo with status (left) and fines shield (right) */}
+      <div className="relative aspect-[16/10] w-full overflow-hidden bg-paper-dim">
+        <button type="button" onClick={onGallery} className="group block h-full w-full" aria-label={t("vehicle.view_photos")} title={t("vehicle.view_photos")}>
+          {v.thumbnail
+            // eslint-disable-next-line @next/next/no-img-element
+            ? <img src={v.thumbnail} alt={v.name} loading="lazy" className={`h-full w-full object-cover transition group-hover:scale-[1.03] ${status === "sold" ? "grayscale" : ""}`} />
+            : <span className="flex h-full w-full items-center justify-center"><Car size={30} className="text-text-faint" /></span>}
+        </button>
+        <span className={`pointer-events-none absolute left-2 top-2 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide shadow-sm ${STATUS.cls}`}>{STATUS.label}</span>
         <PenaltyBadge a={a} onClick={onPenalties} />
       </div>
 
-      {/* Actions */}
-      <div className="flex flex-wrap items-center gap-2 border-t border-border p-3">
-        {status !== "sold" && (
-          <Link href={`/sales?new=1&product=${v.id}`}
-            className="flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-full bg-ink px-3 py-2 text-sm font-semibold text-white hover:bg-ink-dark">
-            <ShoppingCart size={15} /> {status === "pending" ? t("vehicle.complete_sale") : t("vehicle.sell")}
-          </Link>
+      {/* Details */}
+      <div className="flex flex-1 flex-col gap-0.5 px-2.5 pb-2 pt-2">
+        <h3 className="truncate text-sm font-semibold text-text" title={[v.name, meta, ids].filter(Boolean).join(" · ")}>{v.name}</h3>
+        {sub && <p className="truncate text-xs text-text-muted">{sub}</p>}
+        <p className="hgv-figure mt-0.5 text-sm font-bold text-text">
+          {Number(v.selling_price || 0).toLocaleString()} <span className="text-[11px] font-medium text-text-muted">{currency}</span>
+        </p>
+        {status === "pending" && (
+          <p className="mt-0.5 flex min-w-0 items-center gap-1 text-xs font-semibold text-warning"
+            title={[t("vehicle.pending_docs"), a.buyer_name, a.buyer_phone, a.buyer_id_no && `${t("vehicle.id_short")}: ${a.buyer_id_no}`, a.pending_note].filter(Boolean).join(" · ")}>
+            <Clock size={12} className="shrink-0" />
+            <span className="truncate">{a.buyer_name || t("vehicle.pending_docs")}</span>
+            {pendingDays !== null && <span className="shrink-0 font-normal text-text-muted">· {pendingDays} {t("vehicle.days")}</span>}
+          </p>
         )}
+      </div>
+
+      {/* Actions: one compact row */}
+      <div className="flex items-center gap-1 border-t border-border px-2 py-1.5">
+        {status !== "sold" ? (
+          <Link href={`/sales?new=1&product=${v.id}`} title={status === "pending" ? t("vehicle.complete_sale") : t("vehicle.sell")}
+            className="flex h-8 min-w-0 flex-1 items-center justify-center gap-1 rounded-full bg-ink px-2 text-xs font-semibold text-white hover:bg-ink-dark">
+            <ShoppingCart size={13} className="shrink-0" /> <span className="truncate">{t("vehicle.sell")}</span>
+          </Link>
+        ) : <span className="flex-1" />}
         {status === "available" && (
-          <button onClick={onPending} className="flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-full border border-border-strong px-3 py-2 text-sm font-semibold text-text hover:border-warning hover:text-warning">
-            <UserCheck size={15} /> {t("vehicle.mark_pending")}
-          </button>
+          <IconBtn onClick={onPending} label={t("vehicle.mark_pending")} className="hover:text-warning"><UserCheck size={15} /></IconBtn>
         )}
         {status === "pending" && (
-          <button onClick={onRelease} className="whitespace-nowrap rounded-full border border-border-strong px-3 py-2 text-sm font-semibold text-text-muted hover:border-ink hover:text-ink">
-            {t("vehicle.release")}
-          </button>
+          <IconBtn onClick={onRelease} label={t("vehicle.release")} className="hover:text-ink"><UserX size={15} /></IconBtn>
         )}
-        <button onClick={onEdit} title={t("common.edit")} aria-label={t("common.edit")}
-          className="ml-auto flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-text-muted hover:bg-paper-dim hover:text-ink">
-          <Pencil size={16} />
-        </button>
+        <IconBtn onClick={onEdit} label={t("common.edit")} className="hover:text-ink"><Pencil size={14} /></IconBtn>
       </div>
     </article>
   );
 }
 
+function IconBtn({ onClick, label, className = "", children }: { onClick: () => void; label: string; className?: string; children: React.ReactNode }) {
+  return (
+    <button type="button" onClick={onClick} title={label} aria-label={label}
+      className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-text-muted hover:bg-paper-dim ${className}`}>
+      {children}
+    </button>
+  );
+}
+
+/** Fines status as a small chip on the photo: grey ? not checked, green
+ *  shield clear, red shield with the count. Opens the penalties form. */
 function PenaltyBadge({ a, onClick }: { a: Attributes; onClick: () => void }) {
   const { t } = useLanguage();
   const checkedDays = daysSince(a.penalty_checked);
   const count = Number(a.penalty_count || 0);
   const stale = checkedDays !== null && checkedDays > PENALTY_RECHECK_DAYS;
-  let icon = <ShieldQuestion size={15} />, cls = "text-text-muted", text = t("vehicle.penalties_unchecked");
+  let icon = <ShieldQuestion size={13} />, cls = "bg-white/90 text-text-muted", text = t("vehicle.penalties_unchecked");
   if (checkedDays !== null && count > 0) {
-    icon = <ShieldAlert size={15} />; cls = "text-accent-dark";
+    icon = <ShieldAlert size={13} />; cls = "bg-accent text-white";
     text = `${count} ${count === 1 ? t("vehicle.fine") : t("vehicle.fines")}${a.penalty_amount ? ` · ${Number(a.penalty_amount).toLocaleString()}` : ""}`;
   } else if (checkedDays !== null) {
-    icon = <ShieldCheck size={15} />; cls = "text-success"; text = t("vehicle.no_fines");
+    icon = <ShieldCheck size={13} />; cls = "bg-white/90 text-success"; text = t("vehicle.no_fines");
   }
+  const when = checkedDays === null ? "" : stale ? t("vehicle.recheck") : checkedDays === 0 ? t("vehicle.today") : `${checkedDays} ${t("vehicle.days_ago")}`;
   return (
-    <button onClick={onClick} className="mt-auto flex w-full flex-wrap items-center gap-x-1.5 gap-y-0.5 rounded-press px-1 py-1 text-left text-[13px] hover:bg-paper-dim">
-      <span className={`flex items-center gap-1.5 font-medium ${cls}`}>{icon} <span>{text}</span></span>
-      {checkedDays !== null && (
-        <span className={`ml-auto shrink-0 whitespace-nowrap ${stale ? "font-semibold text-warning" : "text-text-faint"}`}>
-          {stale ? t("vehicle.recheck") : checkedDays === 0 ? t("vehicle.today") : `${checkedDays} ${t("vehicle.days_ago")}`}
-        </span>
-      )}
+    <button type="button" onClick={onClick} title={[text, when].filter(Boolean).join(" · ")} aria-label={[t("vehicle.traffic_penalties"), text, when].filter(Boolean).join(" · ")}
+      className={`absolute right-2 top-2 flex h-6 items-center gap-1 rounded-full px-1.5 text-[11px] font-bold shadow-sm ${cls} ${stale ? "ring-2 ring-warning" : ""}`}>
+      {icon}{count > 0 && checkedDays !== null && <span>{count}</span>}
     </button>
   );
 }

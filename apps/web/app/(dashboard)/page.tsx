@@ -14,6 +14,7 @@ import { purchaseRequest } from "@/lib/purchase-api";
 import { listShops, type Shop as ShopInfo } from "@/lib/shop-api";
 import StatCard from "@/app/components/dashboard/StatCard";
 import VehicleWatch from "@/app/components/dashboard/VehicleWatch";
+import CarPerformanceChart from "@/app/components/dashboard/CarPerformanceChart";
 import { useCanSeeFinancials } from "@/lib/permissions";
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer,
@@ -574,6 +575,8 @@ export default function DashboardPage() {
         <div className="grid md:grid-cols-5 gap-3">
           {fin && (
           <section className="md:col-span-3 bg-white border border-border rounded-data p-3.5">
+            {/* Car companies: sales, expenses, fines and pending — no profit line. */}
+            {isCar ? <CarPerformanceChart daily={dailyData} fmtCurrency={fmtCurrency} /> : (<>
             <div className="flex items-center justify-between mb-1">
               <div>
                 <h2 className="font-display font-semibold text-text text-base flex items-center gap-2">
@@ -622,6 +625,7 @@ export default function DashboardPage() {
                 <span className="w-2.5 h-0.5 rounded bg-success inline-block" /> {t("dash.profit_label")}
               </span>
             </div>
+            </>)}
           </section>
           )}
 
