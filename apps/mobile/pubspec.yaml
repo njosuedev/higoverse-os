@@ -1,0 +1,26 @@
+name: higoverse_inventory_mobile
+description: Higoverse mobile app — stock, sales and account on the go.
+publish_to: "none"
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.3.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  # HTTP calls to the Higoverse services.
+  http: ^1.2.2
+  # Tokens are kept in the platform keystore (Android Keystore / iOS Keychain).
+  flutter_secure_storage: ^9.2.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/higoverse-logo.png
