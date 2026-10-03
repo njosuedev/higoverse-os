@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self'; style-src 'unsafe-inline'; script-src 'unsafe-inline'">
+  <title>Higoverse</title>
+  <style>
+    :root { --ink: #0a66c2; --text: #191919; --muted: #555; --paper: #f3f2ef; --border: #e0dfdc; }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; }
+    body {
+      display: flex; align-items: center; justify-content: center;
+      background: var(--paper); color: var(--text);
+      font-family: "Segoe UI", system-ui, sans-serif;
+    }
+    .card {
+      width: 420px; max-width: calc(100% - 32px); padding: 36px 32px 30px; text-align: center;
+      background: #fff; border: 1px solid var(--border); border-radius: 12px;
+      box-shadow: 0 8px 30px -12px rgb(0 0 0 / 0.18);
+    }
+    img { width: 64px; height: 64px; border-radius: 14px; }
+    h1 { margin: 18px 0 6px; font-size: 20px; }
+    p { margin: 0; color: var(--muted); line-height: 1.5; font-size: 14px; }
+    button {
+      margin-top: 22px; padding: 10px 26px; border: 0; border-radius: 8px; cursor: pointer;
+      background: var(--ink); color: #fff; font: 600 14px "Segoe UI", system-ui, sans-serif;
+    }
+    button:hover { background: #004182; }
+    small { display: block; margin-top: 14px; color: #888; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <img src="assets/icon.png" alt="">
+    <h1>Can't reach Higoverse</h1>
+    <p>Check your internet connection. Higoverse will open as soon as you're back online.</p>
+    <button id="retry" type="button">Try again</button>
+    <small id="status">Trying again automatically…</small>
+  </div>
+  <script>
+    const target = new URLSearchParams(location.search).get("url") || "https://higoverse.com/";
+    const retry = () => { location.href = target; };
+    document.getElementById("retry").addEventListener("click", retry);
+    window.addEventListener("online", retry);
+    setTimeout(retry, 15000);
+  </script>
+</body>
+</html>
