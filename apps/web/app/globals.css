@@ -309,21 +309,24 @@ select:-webkit-autofill {
   transition: background-color 9999s ease-out 0s;
 }
 
+/* Header nav: scrolls sideways when labels are long, without a visible bar. */
+.hgv-nav-scroll { scrollbar-width: none; }
+.hgv-nav-scroll::-webkit-scrollbar { display: none; }
+
 /* ── READABILITY SCALE ─────────────────────────────────────────
    Every small text size is lifted one step so labels, hints and tables
    are easy to read at a glance. Unlayered, so it wins over the Tailwind
    utilities; larger sizes (text-base and up) are unchanged. */
-.text-\[9px\]  { font-size: 12px; }
-.text-\[10px\] { font-size: 12.5px; }
-.text-\[11px\] { font-size: 13px; }
-.text-xs       { font-size: 13px; line-height: 1.35; }
-.text-\[13px\] { font-size: 14px; }
-.text-sm       { font-size: 15px; line-height: 1.45; }
+.text-\[9px\],
+.text-\[10px\],
+.text-\[11px\] { font-size: 13.5px; }
+.text-xs       { font-size: 14px; line-height: 1.4; }
+.text-\[13px\] { font-size: 15px; }
+.text-sm       { font-size: 15.5px; line-height: 1.45; }
 
 /* ── CHINESE (lang="zh-CN", set by LanguageProvider) ───────────
-   Chinese characters need more size than Latin letters to stay legible:
-   their strokes run together at the 10–12px used for labels. Use real
-   CJK fonts and lift the small sizes while Chinese is on screen. */
+   Real CJK fonts while Chinese is on screen (sizes come from the shared
+   readability scale above, which is the same for every language). */
 :lang(zh) body,
 :lang(zh) input,
 :lang(zh) textarea,
@@ -332,11 +335,5 @@ select:-webkit-autofill {
   font-family: "Microsoft YaHei", "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", "Source Han Sans SC", var(--font-sans);
 }
 :lang(zh) body { letter-spacing: 0.01em; }
-:lang(zh) .text-\[9px\],
-:lang(zh) .text-\[10px\],
-:lang(zh) .text-\[11px\] { font-size: 14px; }
-:lang(zh) .text-xs       { font-size: 14px; }
-:lang(zh) .text-\[13px\] { font-size: 15px; }
-:lang(zh) .text-sm       { font-size: 15.5px; }
 /* uppercase + wide tracking is a Latin style; it only spreads Chinese out */
 :lang(zh) .uppercase { letter-spacing: 0.02em; }

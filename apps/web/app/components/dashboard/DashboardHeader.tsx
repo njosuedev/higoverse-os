@@ -116,7 +116,7 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
         </div>
 
         {/* ── CENTER: Nav (desktop) ── */}
-        <nav className="hidden flex-1 items-stretch justify-center md:flex">
+        <nav className="hgv-nav-scroll mx-2 hidden min-w-0 flex-1 items-stretch justify-center-safe overflow-x-auto md:flex">
           {(loading || isResolving) ? (
             Array.from({ length: 4 }).map((_, i) => (
               <div key={i} className="mx-1 my-auto h-8 w-16 flex-shrink-0 animate-pulse rounded-press bg-paper-dim" />
@@ -312,12 +312,12 @@ function NavLink({
     <Link
       href={menu.href}
       onClick={onNavigate}
-      className={`relative flex flex-shrink-0 flex-col items-center justify-center gap-0.5 px-3 py-1.5 min-w-[56px] lg:px-4 transition-colors duration-200 ${
+      className={`relative flex flex-shrink-0 flex-col items-center justify-center gap-0.5 px-2 py-1.5 min-w-[56px] lg:px-3 xl:px-4 transition-colors duration-200 ${
         active ? activeText : idleText
       }`}
     >
       <Icon size={20} strokeWidth={active ? 2.25 : 1.75} />
-      <span className="hidden text-[10px] font-semibold leading-none md:block">{t(menu.key)}</span>
+      <span className="hidden whitespace-nowrap text-[10px] font-semibold leading-none md:block">{t(menu.key)}</span>
       {active && <span className={`absolute bottom-0 left-2.5 right-2.5 h-[2px] ${underlineColor}`} />}
     </Link>
   );
