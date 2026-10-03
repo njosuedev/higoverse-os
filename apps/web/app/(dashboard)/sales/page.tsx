@@ -15,6 +15,7 @@ import { formatPublicAddress } from "@/lib/product-meta";
 import Pagination from "@/app/components/ui/Pagination";
 import ProductPicker, { type PickerProduct } from "@/app/components/ui/ProductPicker";
 import { useCanSeeFinancials } from "@/lib/permissions";
+import DeepLink from "@/app/components/DeepLink";
 import DateRangeFilter from "@/app/components/ui/DateRangeFilter";
 import {
   ShoppingBag, Filter, Plus, Trash2, Pencil, X, ReceiptText, Calendar, Printer, Wallet, AlertCircle, CheckCircle2, Phone, ChevronDown, Download, Upload, FileSpreadsheet, FileText,
@@ -94,9 +95,7 @@ export default function SaleManagementPage() {
 
   const [modalMode, setModalMode] = useState<ModalMode>("create");
   // The dashboard's "Record sale" button links here with ?new=1.
-  const [showModal, setShowModal] = useState(
-    () => typeof window !== "undefined" && new URLSearchParams(window.location.search).get("new") === "1",
-  );
+  const [showModal, setShowModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState("");
@@ -144,7 +143,6 @@ export default function SaleManagementPage() {
 
   useEffect(() => {
     loadData(); loadDebts(); loadProformas();
-    if (window.location.search) window.history.replaceState(null, "", window.location.pathname);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { if (!loading) loadData(true); }, [dateFrom, dateTo, page, pageSize]);
@@ -210,6 +208,21 @@ export default function SaleManagementPage() {
     setLineItems([emptyLine()]); setSaleCustomer(""); setSaleNotes("");
     setPaymentMethod("cash"); setAmountSent(""); setDebtorName(""); setDebtorPhone("");
     setEditingId(null); setModalMode("create"); setShowModal(true);
+  }
+  // Dashboard "Record sale" and vehicle-card "Sell" links: /sales?new=1[&product=<id>]
+  function handleDeepLink(params: URLSearchParams) {
+    if (params.get("new") !== "1") return;
+    openCreateModal();
+    const id = params.get("product");
+    if (!id) return;
+    itemRequest(`/products/${id}`)
+      .then((res) => {
+        const prod = res?.data as PickerProduct | undefined;
+        if (!prod) return;
+        rememberProduct(prod);
+        setLineItems((prev) => prev.map((l, i) => (i === 0 ? { ...l, product_id: prod.id, unit_price: prod.selling_price } : l)));
+      })
+      .catch(() => {});
   }
   function openEditModal(s: Sale) {
     setForm({ product_id: s.product_id, customer_id: s.customer_id || "", quantity: String(s.quantity), unit_price: String(s.unit_price), notes: s.notes || "" });
@@ -629,6 +642,8 @@ ${paymentHtml}
   return (
     <div className="min-h-screen">
       <div className="max-w-7xl mx-auto px-3 sm:px-5 py-3 sm:py-4">
+
+        <DeepLink keys={["new", "product"]} onParams={handleDeepLink} />
 
         {/* HEADER */}
         <PageHeader

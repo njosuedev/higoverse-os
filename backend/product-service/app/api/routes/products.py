@@ -47,6 +47,17 @@ def get_product_or_404(db: Session, product_id: str, shop_id: str):
     return product
 
 
+# Car companies keep a vehicle's sale status and traffic-penalty record in the
+# `attributes` JSON text (written by the web app). These match it without
+# parsing JSON in SQL, so one malformed row can never break the query.
+_PENDING_RE = r'"sale_status"\s*:\s*"pending"'
+_PENALTY_RE = r'"penalty_count"\s*:\s*"?[1-9]'
+
+
+def _attr_matches(pattern: str):
+    return func.coalesce(Product.attributes, "").op("~")(pattern)
+
+
 def calculate_profit(cost_price: float, selling_price: float):
     if cost_price == 0:
         return 0, 0
@@ -72,6 +83,7 @@ def get_summary(
             "data": {
                 "stock_value": 0.0, "cost_value": 0.0, "potential_profit": 0.0,
                 "total_products": 0, "total_quantity": 0, "out_of_stock": 0, "low_stock": 0,
+                "pending": 0, "with_penalties": 0,
             },
         })
 
@@ -83,6 +95,8 @@ def get_summary(
         func.coalesce(func.sum(Product.quantity), 0).label("total_quantity"),
         func.sum(case((Product.quantity == 0, 1), else_=0)).label("out_of_stock"),
         func.sum(case(((Product.quantity > 0) & (Product.quantity <= threshold), 1), else_=0)).label("low_stock"),
+        func.sum(case(((Product.quantity > 0) & _attr_matches(_PENDING_RE), 1), else_=0)).label("pending"),
+        func.sum(case((_attr_matches(_PENALTY_RE), 1), else_=0)).label("with_penalties"),
     ).one()
 
     return _scrub(user, {
@@ -95,6 +109,8 @@ def get_summary(
             "total_quantity": int(row.total_quantity),
             "out_of_stock": int(row.out_of_stock or 0),
             "low_stock": int(row.low_stock or 0),
+            "pending": int(row.pending or 0),
+            "with_penalties": int(row.with_penalties or 0),
         },
     })
 
@@ -144,6 +160,7 @@ def get_products(
     q: str | None = None,         # name / barcode search (backed by the trigram index)
     category: str | None = None,
     stock: str | None = None,     # "low" | "out" | "restock" | "in"
+    status: str | None = None,    # car companies: "available" | "pending" | "sold" | "penalties"
     threshold: int = 10,          # the shop's low-stock threshold, for stock="low"/"in"
 ):
     page = max(page, 1)
@@ -169,6 +186,15 @@ def get_products(
         query = query.filter(Product.quantity <= threshold)
     elif stock == "in":
         query = query.filter(Product.quantity > threshold)
+
+    if status == "sold":
+        query = query.filter(Product.quantity == 0)
+    elif status == "pending":
+        query = query.filter(Product.quantity > 0, _attr_matches(_PENDING_RE))
+    elif status == "available":
+        query = query.filter(Product.quantity > 0, ~_attr_matches(_PENDING_RE))
+    elif status == "penalties":
+        query = query.filter(_attr_matches(_PENALTY_RE))
 
     total = query.count()
     # Full images can be several MB per product — lists only send the thumbnail.

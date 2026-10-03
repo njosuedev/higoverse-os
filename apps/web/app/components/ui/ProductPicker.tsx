@@ -6,6 +6,7 @@ import { ChevronDown, Loader2, Search } from "lucide-react";
 import { itemRequest } from "@/lib/product-api";
 import { useDebounce } from "@/lib/hooks";
 import { useLanguage } from "@/lib/language-context";
+import { parseAttributes } from "@/lib/business-layout";
 
 export interface PickerProduct {
   id: string;
@@ -13,6 +14,8 @@ export interface PickerProduct {
   quantity: number;
   selling_price: number;
   cost_price: number;
+  /** Car companies: vehicle details incl. pending-sale status (JSON text). */
+  attributes?: string | null;
 }
 
 interface Props<T extends PickerProduct> {
@@ -174,9 +177,19 @@ export default function ProductPicker<T extends PickerProduct = PickerProduct>({
                 className={`flex cursor-pointer items-center gap-3 px-3 py-2 ${i === active ? "bg-paper-dim" : ""} ${disabled ? "cursor-not-allowed opacity-50" : ""}`}
               >
                 <span className="min-w-0 flex-1 truncate text-sm font-medium text-text">{p.name}</span>
-                <span className={`hgv-figure shrink-0 text-[13px] ${p.quantity <= 0 ? "text-accent-dark" : "text-text-muted"}`}>
-                  {p.quantity <= 0 ? t("items.out_stock") : `${p.quantity.toLocaleString()} ${t("sales.left_suffix")}`}
-                </span>
+                {(() => {
+                  // A car reserved for a buyer gathering transfer documents:
+                  // still sellable (to that buyer), but flagged clearly.
+                  const a = p.quantity > 0 ? parseAttributes(p.attributes) : {};
+                  if (a.sale_status === "pending") {
+                    return <span className="max-w-[45%] shrink-0 truncate text-[13px] font-semibold text-warning">{t("vehicle.status_pending")}{a.buyer_name ? ` · ${a.buyer_name}` : ""}</span>;
+                  }
+                  return (
+                    <span className={`hgv-figure shrink-0 text-[13px] ${p.quantity <= 0 ? "text-accent-dark" : "text-text-muted"}`}>
+                      {p.quantity <= 0 ? t("items.out_stock") : `${p.quantity.toLocaleString()} ${t("sales.left_suffix")}`}
+                    </span>
+                  );
+                })()}
                 <span className="hgv-figure w-20 shrink-0 text-right text-[13px] font-semibold text-text">
                   {Number(p.selling_price).toLocaleString()}
                 </span>

@@ -34,7 +34,31 @@ export const VEHICLE_FIELDS: {
   { key: "plate_no",      type: "text",   required: false, placeholder: "RAC 123 A" },
 ];
 
-export type Attributes = Partial<Record<VehicleField, string>>;
+// Sale status + traffic penalties, also kept in attributes (set from the
+// vehicle cards, not the main form). Sold is derived from quantity = 0.
+export type VehicleStatusField =
+  | "sale_status" | "buyer_name" | "buyer_phone" | "pending_since" | "pending_note"
+  | "penalty_count" | "penalty_amount" | "penalty_checked";
+
+export type Attributes = Partial<Record<VehicleField | VehicleStatusField, string>>;
+
+export type VehicleStatus = "available" | "pending" | "sold";
+
+/** Sold when none left; pending while a buyer gathers transfer documents. */
+export function vehicleStatus(quantity: number, a: Attributes): VehicleStatus {
+  if (quantity <= 0) return "sold";
+  return a.sale_status === "pending" ? "pending" : "available";
+}
+
+/** Days since an ISO date (YYYY-MM-DD), or null when unset/invalid. */
+export function daysSince(iso: string | undefined): number | null {
+  if (!iso) return null;
+  const t = new Date(iso + "T00:00:00").getTime();
+  return Number.isNaN(t) ? null : Math.max(0, Math.floor((Date.now() - t) / 86_400_000));
+}
+
+/** A penalty check older than this is shown as needing a re-check. */
+export const PENALTY_RECHECK_DAYS = 30;
 
 export function parseAttributes(raw: string | null | undefined): Attributes {
   if (!raw) return {};

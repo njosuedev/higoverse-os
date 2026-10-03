@@ -11,12 +11,14 @@ import { useShopSettings } from "@/lib/shop-settings-context";
 import { parseImages, shrinkDataUrl } from "@/lib/image";
 import CarImagesPicker from "@/app/components/items/CarImagesPicker";
 import CarGallery from "@/app/components/items/CarGallery";
+import VehicleGrid from "@/app/components/items/VehicleGrid";
+import DeepLink from "@/app/components/DeepLink";
 import Pagination from "@/app/components/ui/Pagination";
 import { useCanSeeFinancials } from "@/lib/permissions";
 import {
   Package, AlertCircle, Search, Filter, Plus, Trash2, Pencil, X,
   TrendingUp, TrendingDown, RefreshCw, ChevronDown,
-  FileSpreadsheet, FileText, Upload, Download, CheckCircle, XCircle, Car, PackagePlus,
+  FileSpreadsheet, FileText, Upload, Download, CheckCircle, XCircle, Car, PackagePlus, LayoutGrid, List,
 } from "lucide-react";
 import { askConfirm, notify } from "@/lib/dialogs";
 
@@ -56,16 +58,23 @@ const PAGE_SIZES = [25, 50, 100, 250];
 interface InventorySummary {
   total_products: number; low_stock: number; out_of_stock: number;
   cost_value: number; potential_profit: number;
+  pending?: number; with_penalties?: number;
 }
 
 // Filter dropdown value → the API's `stock` parameter.
 const STOCK_PARAM: Record<string, string> = { in_stock: "in", low_stock: "low", out_stock: "out", restock: "restock" };
+// Car companies filter by sale status instead (the API's `status` parameter).
+const CAR_STATUS: Record<string, string> = { available: "available", pending: "pending", sold: "sold", penalties: "penalties" };
+
+// Cards or table for car companies — a per-device preference.
+const VIEW_KEY = "hgv_vehicle_view";
+type VehicleView = "cards" | "list";
+function readVehicleView(): VehicleView {
+  try { return localStorage.getItem(VIEW_KEY) === "list" ? "list" : "cards"; } catch { return "cards"; }
+}
+
 // The API caps a page at 1000 rows; exports walk every page.
 const EXPORT_PAGE = 1000;
-
-function urlParam(name: string) {
-  return typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get(name);
-}
 
 export default function ItemManagementPage() {
   const { t, layout } = useLanguage();
@@ -85,14 +94,14 @@ export default function ItemManagementPage() {
   const [loadError, setLoadError] = useState(false);
   const [search, setSearch] = useState("");
   // The dashboard deep-links here with ?stock=low (restock list) or ?add=1 (new product).
-  const [filter, setFilter] = useState(() => urlParam("stock") === "low" ? "restock" : "all");
+  const [filter, setFilter] = useState("all");
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
 
   const [modalMode, setModalMode] = useState<ModalMode>("create");
-  const [showModal, setShowModal] = useState(() => urlParam("add") === "1");
+  const [showModal, setShowModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState("");
@@ -114,14 +123,18 @@ export default function ItemManagementPage() {
 
   useEffect(() => {
     loadSuppliers();
-    // Drop the one-shot deep-link params so a reload doesn't reopen the form.
-    if (window.location.search) window.history.replaceState(null, "", window.location.pathname);
   }, []);
 
   // Settings → low stock threshold, and the company's own car types
   // (offered after the built-in ones).
-  const { lowStock, carTypes: customCarTypes } = useShopSettings();
+  const { lowStock, currency, carTypes: customCarTypes } = useShopSettings();
   const [galleryFor, setGalleryFor] = useState<Product | null>(null);
+  const [vehicleView, setVehicleView] = useState<VehicleView>(() => (typeof window === "undefined" ? "cards" : readVehicleView()));
+  function chooseView(v: VehicleView) {
+    setVehicleView(v);
+    try { localStorage.setItem(VIEW_KEY, v); } catch { /* preference only */ }
+  }
+  const showCards = isCar && vehicleView === "cards";
   const [loadingEdit, setLoadingEdit] = useState(false);
   // Keep figures current without polling hidden tabs.
   useAutoRefresh(() => loadData(true));
@@ -133,7 +146,8 @@ export default function ItemManagementPage() {
   function listQuery(pageNo: number, limit: number) {
     const qs = new URLSearchParams({ page: String(pageNo), limit: String(limit), threshold: String(lowStock) });
     if (debouncedSearch.trim()) qs.set("q", debouncedSearch.trim());
-    if (STOCK_PARAM[filter]) qs.set("stock", STOCK_PARAM[filter]);
+    if (isCar && CAR_STATUS[filter]) qs.set("status", CAR_STATUS[filter]);
+    else if (STOCK_PARAM[filter]) qs.set("stock", STOCK_PARAM[filter]);
     return qs.toString();
   }
 
@@ -192,6 +206,12 @@ export default function ItemManagementPage() {
       all.push(...items);
       if (items.length < EXPORT_PAGE || all.length >= (res?.data?.total ?? 0)) return all;
     }
+  }
+
+  // Dashboard links: /items?stock=low (restock list), /items?add=1 (new product).
+  function handleDeepLink(params: URLSearchParams) {
+    if (params.get("stock") === "low") { setFilter(isCar ? "all" : "restock"); setPage(1); }
+    if (params.get("add") === "1") openCreateModal();
   }
 
   function openCreateModal() {
@@ -304,6 +324,8 @@ export default function ItemManagementPage() {
     inStock: Math.max(0, (summary?.total_products ?? 0) - (summary?.low_stock ?? 0) - (summary?.out_of_stock ?? 0)),
     lowStock: summary?.low_stock ?? 0,
     outStock: summary?.out_of_stock ?? 0,
+    pending: summary?.pending ?? 0,
+    withPenalties: summary?.with_penalties ?? 0,
     stockValue: summary?.cost_value ?? 0,
     potentialProfit: summary?.potential_profit ?? 0,
   };
@@ -543,6 +565,8 @@ export default function ItemManagementPage() {
     <div className="min-h-screen">
       <div className="max-w-7xl mx-auto px-3 sm:px-5 py-3 sm:py-4">
 
+        <DeepLink keys={["stock", "add"]} onParams={handleDeepLink} />
+
         {/* HEADER */}
         <header className="mb-4 space-y-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
@@ -574,12 +598,18 @@ export default function ItemManagementPage() {
 
           {/* Stock status — each chip filters the table */}
           <div className="flex flex-wrap gap-2">
-            {[
+            {(isCar ? [
+              { value: "all",       label: t("items.all"),                 count: stats.total,                                        tone: "text-text" },
+              { value: "available", label: t("vehicle.status_available"),  count: Math.max(0, stats.total - stats.outStock - stats.pending), tone: "text-success" },
+              { value: "pending",   label: t("vehicle.status_pending"),    count: stats.pending,                                      tone: "text-warning" },
+              { value: "sold",      label: t("vehicle.status_sold"),       count: stats.outStock,                                     tone: "text-text-muted" },
+              { value: "penalties", label: t("vehicle.has_fines"),         count: stats.withPenalties,                                tone: "text-accent-dark" },
+            ] : [
               { value: "all",       label: t("items.all"),       count: stats.total,    tone: "text-text" },
               { value: "in_stock",  label: t("items.in_stock"),  count: stats.inStock,  tone: "text-success" },
               { value: "low_stock", label: t("items.low_stock"), count: stats.lowStock, tone: "text-warning" },
               { value: "out_stock", label: t("items.out_stock"), count: stats.outStock, tone: "text-accent-dark" },
-            ].map((c) => {
+            ]).map((c) => {
               const on = filter === c.value || (c.value === "low_stock" && filter === "restock");
               return (
                 <button
@@ -617,6 +647,16 @@ export default function ItemManagementPage() {
                 </button>
               )}
             </label>
+            {isCar ? (
+              <div className="flex shrink-0 rounded-lg border border-border-strong bg-white p-1" role="group" aria-label={t("vehicle.view_label")}>
+                {([["cards", LayoutGrid, t("vehicle.view_cards")], ["list", List, t("vehicle.view_list")]] as const).map(([v, Icon, label]) => (
+                  <button key={v} onClick={() => chooseView(v)} aria-pressed={vehicleView === v}
+                    className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition ${vehicleView === v ? "bg-ink-soft text-ink" : "text-text-muted hover:text-text"}`}>
+                    <Icon size={15} /> {label}
+                  </button>
+                ))}
+              </div>
+            ) : (
             <div className="relative flex items-center rounded-lg border border-border-strong bg-white focus-within:border-ink">
               <Filter size={14} className="pointer-events-none absolute left-3 text-text-faint" />
               <select
@@ -632,6 +672,7 @@ export default function ItemManagementPage() {
               </select>
               <ChevronDown size={14} className="pointer-events-none absolute right-3 text-text-faint" />
             </div>
+            )}
           </div>
         </header>
 
@@ -652,7 +693,7 @@ export default function ItemManagementPage() {
         )}
 
         {/* RESTOCK ALERT */}
-        {alertItems.length > 0 && filter !== "restock" && (
+        {!isCar && alertItems.length > 0 && filter !== "restock" && (
           <div className="mb-4 flex flex-wrap items-center gap-3 rounded-data border border-warning/30 bg-warning-soft px-4 py-3">
             <AlertCircle size={18} className="shrink-0 text-warning" />
             <p className="min-w-0 flex-1 text-sm text-text">
@@ -697,7 +738,30 @@ export default function ItemManagementPage() {
           onChange={(e) => { const f = e.target.files?.[0]; if (f) handleImport(f); }}
         />
 
-        {/* TABLE */}
+        {/* VEHICLE CARDS (car companies) or TABLE */}
+        {showCards ? (
+          <div className="space-y-4">
+            {products.length === 0 ? (
+              <div className="flex flex-col items-center rounded-data border border-border bg-white py-16 text-center">
+                <Car size={36} className="text-text-faint" />
+                <p className="mt-3 font-medium text-text">{t("items.no_items")}</p>
+                <p className="text-sm text-text-muted">{search || filter !== "all" ? t("common.try_adjust_filters") : t("items.add_first")}</p>
+              </div>
+            ) : (
+              <VehicleGrid
+                vehicles={products}
+                currency={currency}
+                onOpenGallery={(v) => setGalleryFor(products.find((x) => x.id === v.id) ?? null)}
+                onEdit={(v) => { const p = products.find((x) => x.id === v.id); if (p) openEditModal(p); }}
+                onChanged={() => loadData(true)}
+              />
+            )}
+            <div className="overflow-hidden rounded-data border border-border bg-white">
+              <Pagination page={page} totalPages={totalPages} total={total}
+                pageSize={pageSize} pageSizes={PAGE_SIZES} onPage={setPage} onPageSize={setPageSize} />
+            </div>
+          </div>
+        ) : (
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
 
           {/* Table toolbar */}
@@ -1000,6 +1064,7 @@ export default function ItemManagementPage() {
           <Pagination page={page} totalPages={totalPages} total={total}
             pageSize={pageSize} pageSizes={PAGE_SIZES} onPage={setPage} onPageSize={setPageSize} />
         </div>
+        )}
 
         {galleryFor && (
           <CarGallery productId={galleryFor.id} title={galleryFor.name} onClose={() => setGalleryFor(null)} />
