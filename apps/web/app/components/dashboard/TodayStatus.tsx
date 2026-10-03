@@ -13,7 +13,7 @@ type Kind = "added" | "fines" | "pending";
 interface Entry { key: string; kind: Kind; car: CarRow; day: string; detail?: string }
 
 const DAYS = 3;
-const MAX_SHOWN = 12;
+const MAX_SHOWN = 6;
 
 // Status dates are written as UTC calendar days (VehicleGrid `today()`), and
 // created_at is a UTC timestamp — so compare everything on the UTC day.
@@ -57,11 +57,15 @@ async function loadEntries(): Promise<Entry[]> {
     const a = parseAttributes(c.attributes);
     if (a.pending_since && window.has(a.pending_since)) out.push({ key: `p-${c.id}`, kind: "pending", car: c, day: a.pending_since, detail: a.buyer_name });
   }
-  return out.sort((x, y) => y.day.localeCompare(x.day));
+  // What needs action (fines, then pending) before new arrivals, so it never
+  // hides behind "+N"; newest first within each.
+  const rank: Record<Kind, number> = { fines: 0, pending: 1, added: 2 };
+  return out.sort((x, y) => rank[x.kind] - rank[y.kind] || y.day.localeCompare(x.day));
 }
 
 /** Car companies: what changed in the last three days — cars added, fines
- *  found, cars put on pending — as a centred row of photo circles. */
+ *  found, cars put on pending — as a centred row of small photo tiles
+ *  (six, then "+N"). */
 export default function TodayStatus() {
   const { t } = useLanguage();
   const [entries, setEntries] = useState<Entry[] | null>(null);
@@ -100,36 +104,43 @@ export default function TodayStatus() {
       </div>
 
       {entries === null ? (
-        <div className="mt-4 flex justify-center gap-5">
-          {[0, 1, 2].map((i) => <div key={i} className="h-12 w-12 animate-pulse rounded-full bg-paper-dim" />)}
+        <div className="mt-4 flex justify-center gap-3">
+          {[0, 1, 2].map((i) => <div key={i} className="h-[146px] w-[128px] animate-pulse rounded-press bg-paper-dim" />)}
         </div>
       ) : entries.length === 0 ? (
         <p className="mt-3 text-center text-sm text-text-muted">{t("dash.recent_nothing")}</p>
       ) : (
-        <div className="mt-4 flex flex-wrap justify-center gap-x-5 gap-y-4">
+        <div className="mt-4 flex flex-wrap justify-center gap-3">
           {shown.map((e) => {
             const line = e.kind === "fines" ? `${e.detail} ${Number(e.detail) === 1 ? t("vehicle.fine") : t("vehicle.fines")}`
               : e.kind === "pending" && e.detail ? e.detail : kindLabel[e.kind];
             return (
               <Link key={e.key} href={HREF[e.kind](e.car.id)} title={`${e.car.name} — ${line}, ${when(e.day)}`}
-                className="group flex w-[88px] flex-col items-center text-center">
-                <span className="block h-12 w-12 rounded-full p-[2px] transition-shadow group-hover:shadow-[0_0_0_3px_rgb(0_0_0_/_0.06)]" style={{ background: COLOR[e.kind] }}>
-                  <span className="flex h-full w-full items-center justify-center overflow-hidden rounded-full border-2 border-white bg-paper-dim">
-                    {e.car.thumbnail
-                      // eslint-disable-next-line @next/next/no-img-element
-                      ? <img src={e.car.thumbnail} alt="" loading="lazy" className="h-full w-full object-cover" />
-                      : <Car size={16} className="text-text-faint" />}
-                  </span>
+                className="group w-[128px] overflow-hidden rounded-press border border-border bg-white text-left transition hover:border-border-strong hover:shadow-[0_4px_12px_-6px_rgb(0_0_0_/_0.25)]">
+                <span className="relative block aspect-[4/3] w-full bg-paper-dim">
+                  {e.car.thumbnail
+                    // eslint-disable-next-line @next/next/no-img-element
+                    ? <img src={e.car.thumbnail} alt="" loading="lazy" className="h-full w-full object-cover" />
+                    : <span className="flex h-full w-full items-center justify-center"><Car size={20} className="text-text-faint" /></span>}
+                  {/* What happened, as a coloured strip along the bottom of the photo */}
+                  <span className="absolute inset-x-0 bottom-0 h-[3px]" style={{ background: COLOR[e.kind] }} />
                 </span>
-                <span className="mt-1.5 w-full truncate text-[11px] font-semibold leading-tight text-text group-hover:text-ink">{e.car.name}</span>
-                <span className="w-full truncate text-[10px] leading-tight text-text-muted">{line}</span>
-                <span className="w-full truncate text-[10px] leading-tight text-text-faint">{when(e.day)}</span>
+                <span className="block px-2 py-1.5">
+                  <span className="block truncate text-[11px] font-semibold leading-tight text-text group-hover:text-ink">{e.car.name}</span>
+                  <span className="mt-0.5 flex items-center gap-1 text-[10px] leading-tight text-text-muted">
+                    <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: COLOR[e.kind] }} />
+                    <span className="truncate">{line}</span>
+                  </span>
+                  <span className="block truncate text-[10px] leading-tight text-text-faint">{when(e.day)}</span>
+                </span>
               </Link>
             );
           })}
           {extra > 0 && (
-            <Link href="/items" className="flex w-[88px] flex-col items-center text-center">
-              <span className="flex h-12 w-12 items-center justify-center rounded-full border border-border bg-paper text-xs font-semibold text-text">+{extra}</span>
+            <Link href="/items" title={`+${extra}`}
+              className="flex w-[128px] flex-col items-center justify-center rounded-press border border-dashed border-border-strong bg-paper text-text transition hover:border-ink hover:text-ink">
+              <span className="font-display text-xl font-semibold">+{extra}</span>
+              <span className="text-[10px] text-text-muted">{t("dash.view_all")}</span>
             </Link>
           )}
         </div>
