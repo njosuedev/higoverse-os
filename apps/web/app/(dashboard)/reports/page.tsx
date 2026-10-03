@@ -1,11 +1,7 @@
 ﻿"use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import {
-  AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
-  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
-} from "recharts";
 import { reportRequest } from "@/lib/report-api";
 import WeeklyPerformance from "@/app/components/reports/WeeklyPerformance";
 import { useAutoRefresh } from "@/lib/hooks";
@@ -15,9 +11,7 @@ import { expenseRequest } from "@/lib/expense-api";
 import { useLanguage } from "@/lib/language-context";
 import { useShopSettings } from "@/lib/shop-settings-context";
 import DateRangeFilter from "@/app/components/ui/DateRangeFilter";
-import {
-  BarChart3, TrendingUp, DollarSign, Package, ShoppingCart, AlertCircle, Download, ArrowUpRight, AlertTriangle, CheckCircle, Activity, Truck, Receipt, RefreshCw,
-} from "lucide-react";
+import { BarChart3, AlertCircle, Download, CheckCircle, RefreshCw } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface Summary {
@@ -26,7 +20,6 @@ interface Summary {
   stock_value: number; potential_profit: number;
   total_products: number; out_of_stock: number; low_stock: number;
 }
-interface DayRow { day: string; revenue: number; profit: number; sales_count: number; }
 interface TopItem { product_id: string; product_name: string; qty_sold: number; revenue: number; profit: number; }
 interface StockAlert { id: string; name: string; quantity: number; cost_price: number; selling_price: number; supplier_id?: string; }
 interface Product { id: string; name: string; cost_price: number; selling_price: number; quantity: number; supplier_id?: string | null; }
@@ -51,59 +44,6 @@ function timeAgo(d: Date) {
 
 const REFRESH_INTERVAL = 120; // seconds
 
-// ─── Custom Tooltip for Revenue Chart ─────────────────────────────────────────
-function RevenueTooltip({ active, payload, label }: { active?: boolean; payload?: Array<{ value: number; name: string; color: string }>; label?: string }) {
-  const { t } = useLanguage();
-  const { currency } = useShopSettings();
-  if (!active || !payload?.length) return null;
-  const seriesLabel = (name: string) => name === "revenue" ? t("sales.revenue") : name === "profit" ? t("sales.profit") : name;
-  return (
-    <div className="bg-slate-900 text-white text-xs rounded-xl px-3 py-2.5 shadow-xl border border-slate-700">
-      <p className="font-semibold mb-1.5 text-slate-300">{label}</p>
-      {payload.map((p) => (
-        <div key={p.name} className="flex items-center gap-2 mb-0.5">
-          <span className="w-2 h-2 rounded-full" style={{ background: p.color }} />
-          <span className="text-slate-300">{seriesLabel(p.name)}:</span>
-          <span className="font-bold">{fmtNum(p.value)} {currency}</span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-// ─── Custom Tooltip for Top Items Chart ───────────────────────────────────────
-function ItemTooltip({ active, payload }: { active?: boolean; payload?: Array<{ payload: TopItem; value: number; name: string }> }) {
-  const { t } = useLanguage();
-  const { currency } = useShopSettings();
-  if (!active || !payload?.length) return null;
-  const d = payload[0].payload;
-  return (
-    <div className="bg-slate-900 text-white text-xs rounded-xl px-3 py-2.5 shadow-xl border border-slate-700">
-      <p className="font-semibold mb-1 text-slate-200">{d.product_name}</p>
-      <p>{t("sales.revenue")}: <span className="font-bold">{fmtNum(d.revenue)} {currency}</span></p>
-      <p>{t("sales.profit")}: <span className="font-bold text-emerald-400">{fmtNum(d.profit)} {currency}</span></p>
-      <p>{t("reports.qty_sold")}: <span className="font-bold">{d.qty_sold}</span></p>
-    </div>
-  );
-}
-
-// ─── Custom Pie label ─────────────────────────────────────────────────────────
-function PieLabel({ cx, cy, midAngle, innerRadius, outerRadius, percent, name }: {
-  cx: number; cy: number; midAngle: number; innerRadius: number; outerRadius: number; percent: number; name: string;
-}) {
-  if (percent < 0.04) return null;
-  const RADIAN = Math.PI / 180;
-  const radius = innerRadius + (outerRadius - innerRadius) * 0.55;
-  const x = cx + radius * Math.cos(-midAngle * RADIAN);
-  const y = cy + radius * Math.sin(-midAngle * RADIAN);
-  return (
-    <text x={x} y={y} fill="white" textAnchor="middle" dominantBaseline="central" fontSize={11} fontWeight={700}>
-      {`${(percent * 100).toFixed(0)}%`}
-      {"\n"}{name}
-    </text>
-  );
-}
-
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function ReportsPage() {
   const { t, layout } = useLanguage();
@@ -112,14 +52,12 @@ export default function ReportsPage() {
   // Settings → currency and low stock threshold.
   const { currency, lowStock } = useShopSettings();
   const [summary, setSummary] = useState<Summary | null>(null);
-  const [daily, setDaily]     = useState<DayRow[]>([]);
   const [topItems, setTopItems] = useState<TopItem[]>([]);
   const [stockAlerts, setStockAlerts] = useState<StockAlert[]>([]);
   const [recentPurchases, setRecentPurchases] = useState<PurchaseRecord[]>([]);
   const [purchaseTotalSpent, setPurchaseTotalSpent] = useState(0);
   const [expenseTotalPeriod, setExpenseTotalPeriod] = useState(0);
   const [expenseCount, setExpenseCount] = useState(0);
-  const [stockCost, setStockCost]     = useState(0); // cost_price × qty  (book value)
   const [stockRetail, setStockRetail] = useState(0); // selling_price × qty (retail value)
   const [loading, setLoading]   = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -148,9 +86,8 @@ export default function ReportsPage() {
       });
 
       // Fetch from reports service, products service, purchases service, and expenses in parallel
-      const [sumRes, dayRes, topRes, alertRes, productsRes, purchasesRes, expenseRes] = await Promise.allSettled([
+      const [sumRes, topRes, alertRes, productsRes, purchasesRes, expenseRes] = await Promise.allSettled([
         reportRequest(`/reports/summary?${dateParams}`),
-        reportRequest("/reports/daily?days=30"),
         reportRequest(`/reports/top-items?limit=10&${dateParams}`),
         reportRequest(`/reports/stock-alerts?threshold=${lowStock}`),
         itemRequest("/products?limit=1000"),
@@ -171,7 +108,6 @@ export default function ReportsPage() {
       const outOfStock  = products.filter((p) => p.quantity === 0).length;
       const lowCount    = products.filter((p) => p.quantity > 0 && p.quantity <= lowStock).length;
       const totalProducts = products.length;
-      setStockCost(costValue);
       setStockRetail(retailValue);
 
       // Purchases from purchase service
@@ -218,7 +154,6 @@ export default function ReportsPage() {
         setError(String(sumRes.reason?.message ?? t("reports.could_not_load_sales_summary")));
       }
 
-      setDaily(dayRes.status    === "fulfilled" ? dayRes.value?.data    ?? [] : []);
       setTopItems(topRes.status === "fulfilled" ? topRes.value?.data    ?? [] : []);
 
       // Use stock alerts from products service (more reliable), fall back to reports service
@@ -249,49 +184,9 @@ export default function ReportsPage() {
   const manualRefresh = () => loadData(true);
 
   // ── Derived values ──────────────────────────────────────────────────────────
-  const margin = summary && summary.revenue > 0
-    ? ((summary.profit / summary.revenue) * 100).toFixed(1) : "0.0";
-
-  const dailyChartData = useMemo(() => {
-    // Build a full 30-day scaffold so the line chart always has a complete range.
-    // The API only returns days that have sales; empty days get zero values.
-    const byDay: Record<string, DayRow> = {};
-    daily.forEach((d) => { byDay[d.day] = d; });
-
-    const result = [];
-    for (let i = 29; i >= 0; i--) {
-      const d = new Date();
-      d.setDate(d.getDate() - i);
-      const key = toDateStr(d);
-      result.push(byDay[key] ?? { day: key, revenue: 0, profit: 0, sales_count: 0 });
-    }
-    return result.map((d) => ({ ...d, label: d.day.slice(5) }));
-  }, [daily]);
-
-  const maxDailyRevenue = useMemo(() =>
-    Math.max(...daily.map((d) => d.revenue), 1), [daily]);
-
-  const topItemsChart = useMemo(() =>
-    topItems.slice(0, 8).map((i) => ({
-      ...i,
-      name: i.product_name?.length > 14 ? i.product_name.slice(0, 13) + "…" : (i.product_name || "—"),
-    })), [topItems]);
-
-  const stockPieData = useMemo(() => {
-    if (!summary) return [];
-    const healthy = Math.max(0, summary.total_products - summary.out_of_stock - summary.low_stock);
-    return [
-      { name: "Healthy",      value: healthy,                  color: "#22c55e" },
-      { name: "Low Stock",    value: summary.low_stock,        color: "#f59e0b" },
-      { name: "Out of Stock", value: summary.out_of_stock,     color: "#ef4444" },
-    ].filter((d) => d.value > 0);
-  }, [summary]);
-
-  const avgDailyRevenue = useMemo(() =>
-    daily.length ? daily.reduce((s, d) => s + d.revenue, 0) / daily.length : 0, [daily]);
-
-  const revenueThisWeek = useMemo(() =>
-    daily.slice(-7).reduce((s, d) => s + d.revenue, 0), [daily]);
+  const topMax = Math.max(1, ...topItems.map((i) => i.revenue || 0));
+  const restockHref = (item: StockAlert) => isCar ? "/items"
+    : `/PurchaseManagement?name=${encodeURIComponent(item.name)}&cost=${item.cost_price}&selling=${item.selling_price}&supplierId=${item.supplier_id ?? ""}`;
 
   // ── Loading skeleton ────────────────────────────────────────────────────────
   if (loading) return <ReportsSkeleton />;
@@ -350,7 +245,7 @@ export default function ReportsPage() {
               from={dateFrom} to={dateTo}
               onFrom={setDateFrom} onTo={setDateTo}
               onClear={() => {
-                const d = new Date(); d.setDate(d.getDate() - 29);
+                const d = new Date(); d.setDate(d.getDate() - 6);
                 setDateFrom(toDateStr(d)); setDateTo(toDateStr(new Date()));
               }}
               accentClass="focus:ring-slate-400/40 focus:border-slate-400"
@@ -370,426 +265,102 @@ export default function ReportsPage() {
           </div>
         )}
 
-        {/* ── KPI CARDS ──────────────────────────────────────────────────────── */}
+        {/* ── KEY FIGURES — one plain row, no profit ───────────────────────── */}
         {summary && (
-          <>
-            {/* Row 1: Stock money summary */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5">
-              <KpiCard
-                label={t("reports.stock_value")}
-                value={`${currency} ${fmtRWF(stockCost)}`}
-                detail={t("reports.detail_stock_value").replace("{n}", fmtNum(summary.total_products))}
-                icon={<Package size={18} />}
-                color="blue"
-                pulse
-              />
-              <KpiCard
-                label={t("reports.if_sell_everything")}
-                value={`${currency} ${fmtRWF(stockRetail)}`}
-                detail={t("reports.detail_sell_everything")}
-                icon={<DollarSign size={18} />}
-                color="blue"
-                pulse
-              />
-              <KpiCard
-                label={t("reports.profit_you_can_make")}
-                value={`${currency} ${fmtRWF(summary.potential_profit)}`}
-                detail={t("reports.detail_profit_potential").replace("{pct}", String(stockCost > 0 ? ((summary.potential_profit / stockCost) * 100).toFixed(1) : 0))}
-                icon={<TrendingUp size={18} />}
-                color="blue"
-                pulse
-              />
-            </div>
-            {/* Row 2: Stock health + sales + expenses + net profit */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-1.5">
-              <KpiCard
-                label={t("reports.out_stock")}
-                value={String(summary.out_of_stock)}
-                detail={t("reports.detail_out_of_stock")}
-                icon={<AlertCircle size={18} />}
-                color={summary.out_of_stock > 0 ? "red" : "green"}
-                badge={summary.out_of_stock > 0 ? t("reports.badge_buy_now") : t("reports.badge_all_good")}
-              />
-              <KpiCard
-                label={t("reports.almost_finished")}
-                value={String(summary.low_stock)}
-                detail={t("reports.detail_almost_finished")}
-                icon={<AlertTriangle size={18} />}
-                color={summary.low_stock > 0 ? "amber" : "green"}
-                badge={summary.low_stock > 0 ? t("reports.badge_restock_soon") : t("reports.badge_ok")}
-              />
-              <KpiCard
-                label={t("reports.revenue_earned")}
-                value={`${currency} ${fmtRWF(summary.revenue)}`}
-                detail={t("reports.detail_revenue").replace("{sales}", String(summary.sales_count)).replace("{customers}", String(summary.unique_customers))}
-                icon={<ShoppingCart size={18} />}
-                color="blue"
-              />
-              <KpiCard
-                label={t("reports.gross_profit_sales")}
-                value={`${currency} ${fmtRWF(summary.profit)}`}
-                detail={t("reports.detail_gross_profit").replace("{margin}", margin)}
-                icon={<TrendingUp size={18} />}
-                color="emerald"
-              />
-              <KpiCard
-                label={t("reports.business_expenses")}
-                value={expenseTotalPeriod > 0 ? `${currency} ${fmtRWF(expenseTotalPeriod)}` : "—"}
-                detail={t("reports.detail_expense_records").replace("{count}", String(expenseCount))}
-                icon={<Receipt size={18} />}
-                color="orange"
-              />
-              <KpiCard
-                label={t("reports.net_profit_real")}
-                value={`${currency} ${fmtRWF(summary.profit - expenseTotalPeriod)}`}
-                detail={t("reports.detail_net_profit").replace("{status}", summary.profit - expenseTotalPeriod >= 0 ? t("reports.profitable") : t("reports.at_loss"))}
-                icon={<DollarSign size={18} />}
-                color={summary.profit - expenseTotalPeriod >= 0 ? "blue" : "red"}
-              />
-            </div>
-          </>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
+            <Figure label={t("dash.chart_sales")} value={`${currency} ${fmtNum(summary.revenue)}`}
+              detail={`${fmtNum(summary.sales_count)} ${t("reports.sales_word")}`} />
+            <Figure label={t("reports.items_sold")} value={fmtNum(summary.items_sold)}
+              detail={`${t("reports.to_word")} ${summary.unique_customers} ${t("reports.customers_word")}`} />
+            <Figure label={t("dash.chart_expenses")} value={`${currency} ${fmtNum(expenseTotalPeriod)}`}
+              detail={`${expenseCount} ${t("reports.records_this_period")}`} />
+            <Figure label={t("reports.stock_value")} value={`${currency} ${fmtNum(stockRetail)}`}
+              detail={`${fmtNum(summary.total_products)} ${t("reports.products_word")} · ${summary.low_stock + summary.out_of_stock} ${t("reports.need_restock_word")}`} />
+          </div>
         )}
 
         {/* ── WEEKLY PERFORMANCE — 8 weeks, this week vs last ─────────────────── */}
         <WeeklyPerformance isCar={isCar} currency={currency} fmt={fmtRWF} />
 
-        {/* ── REVENUE + PROFIT AREA CHART ────────────────────────────────────── */}
-        <div className="bg-white rounded-xl border border-slate-200 p-2.5">
-          <div className="flex flex-wrap justify-between items-start gap-2 mb-3">
-            <div>
-              <h2 className="text-sm font-semibold text-slate-800 flex items-center gap-2">
-                <Activity size={15} className="text-[#0a66c2]" />
-                {t("reports.daily_revenue_profit_30d")}
-              </h2>
-              <p className="text-xs text-slate-400 mt-0.5">
-                {t("reports.avg_daily_revenue")}: <span className="font-semibold text-slate-600">{currency} {fmtRWF(avgDailyRevenue)}</span>
-                &nbsp;·&nbsp;{t("reports.this_week")}: <span className="font-semibold text-slate-600">{currency} {fmtRWF(revenueThisWeek)}</span>
-              </p>
-            </div>
-            <div className="flex items-center gap-4 text-xs">
-              <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-[#0a66c2] inline-block" /> {t("sales.revenue")}</span>
-              <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-emerald-500 inline-block" /> {t("sales.profit")}</span>
-            </div>
-          </div>
-
-          {dailyChartData.length === 0 ? (
-            <div className="h-52 flex items-center justify-center text-slate-400 text-sm">{t("common.no_data")}</div>
-          ) : (
-            <ResponsiveContainer width="100%" height={170}>
-              <AreaChart data={dailyChartData} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="gradRevenue" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%"  stopColor="#0a66c2" stopOpacity={0.25} />
-                    <stop offset="95%" stopColor="#0a66c2" stopOpacity={0.02} />
-                  </linearGradient>
-                  <linearGradient id="gradProfit" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%"  stopColor="#10b981" stopOpacity={0.25} />
-                    <stop offset="95%" stopColor="#10b981" stopOpacity={0.02} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                <XAxis dataKey="label" tick={{ fontSize: 10, fill: "#94a3b8" }} tickLine={false} axisLine={false} interval="preserveStartEnd" />
-                <YAxis tickFormatter={fmtRWF} tick={{ fontSize: 10, fill: "#94a3b8" }} tickLine={false} axisLine={false} width={44} />
-                <Tooltip content={<RevenueTooltip />} />
-                <Area type="monotone" dataKey="revenue" name="revenue" stroke="#0a66c2" strokeWidth={2} fill="url(#gradRevenue)" dot={false} activeDot={{ r: 4, fill: "#0a66c2" }} />
-                <Area type="monotone" dataKey="profit"  name="profit"  stroke="#10b981" strokeWidth={2} fill="url(#gradProfit)"  dot={false} activeDot={{ r: 4, fill: "#10b981" }} />
-              </AreaChart>
-            </ResponsiveContainer>
-          )}
-        </div>
-
-        {/* ── STOCK HEALTH PIE + STOCK VALUE vs POTENTIAL ────────────────────── */}
+        {/* ── TOP SELLERS + STOCK ALERTS ─────────────────────────────────────── */}
         {summary && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-
-            {/* Stock Health Pie */}
-            <div className="bg-white rounded-xl border border-slate-200 p-3 shadow-sm">
-              <h2 className="text-sm font-semibold text-slate-800 mb-1">{t("reports.how_is_your_stock")}</h2>
-              <p className="text-xs text-slate-400 mb-2">
-                {summary.total_products} {t("reports.products_total")} &mdash;&nbsp;
-                <span className="text-red-500 font-medium">{summary.out_of_stock} {t("reports.finished_word").toLowerCase()}</span>,&nbsp;
-                <span className="text-amber-500 font-medium">{summary.low_stock} {t("reports.almost_finished").toLowerCase()}</span>
-              </p>
-
-              {stockPieData.length === 0 ? (
-                <div className="h-48 flex items-center justify-center text-slate-400 text-sm">{t("reports.no_stock_data")}</div>
+            <Panel title={t("reports.top_sellers")} sub={`${dateFrom || "…"} → ${dateTo || "…"}`}>
+              {topItems.length === 0 ? (
+                <p className="px-4 py-6 text-sm text-slate-500">{t("common.no_data")}</p>
               ) : (
-                <ResponsiveContainer width="100%" height={150}>
-                  <PieChart>
-                    <Pie
-                      data={stockPieData}
-                      cx="50%" cy="50%"
-                      innerRadius={50} outerRadius={88}
-                      paddingAngle={2}
-                      dataKey="value"
-                      labelLine={false}
-                      label={PieLabel as React.ComponentProps<typeof Pie>["label"]}
-                    >
-                      {stockPieData.map((entry, i) => (
-                        <Cell key={i} fill={entry.color} />
-                      ))}
-                    </Pie>
-                    <Tooltip
-                      formatter={(v, name) => {
-                        const n = typeof v === "number" ? v : 0;
-                        return [`${n} items (${((n / summary.total_products) * 100).toFixed(0)}%)`, name as string];
-                      }}
-                      contentStyle={{ borderRadius: 12, border: "1px solid #e2e8f0", fontSize: 12 }}
-                    />
-                    <Legend iconType="circle" iconSize={10} wrapperStyle={{ fontSize: 12, paddingTop: 8 }} />
-                  </PieChart>
-                </ResponsiveContainer>
+                <ul className="divide-y divide-slate-100">
+                  {topItems.slice(0, 8).map((item, i) => (
+                    <li key={item.product_id} className="px-4 py-2">
+                      <div className="flex items-baseline justify-between gap-3">
+                        <p className="min-w-0 truncate text-sm font-semibold text-slate-800">
+                          <span className="mr-2 text-slate-400 tabular-nums">{i + 1}.</span>{item.product_name || "—"}
+                        </p>
+                        <p className="shrink-0 text-sm font-semibold text-slate-900 tabular-nums">{currency} {fmtNum(item.revenue)}</p>
+                      </div>
+                      <div className="mt-1 flex items-center gap-2">
+                        <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100">
+                          <div className="h-full rounded-full bg-[#0a66c2]" style={{ width: `${Math.max(2, (item.revenue / topMax) * 100)}%` }} />
+                        </div>
+                        <span className="w-20 shrink-0 text-right text-xs text-slate-500 tabular-nums">{fmtNum(item.qty_sold)} {t("reports.sold_word")}</span>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
               )}
+            </Panel>
 
-              {/* Legend pills */}
-              <div className="grid grid-cols-3 gap-2 mt-1.5">
-                {[
-                  { label: t("reports.good_word"),      count: Math.max(0, summary.total_products - summary.out_of_stock - summary.low_stock), color: "bg-green-500", text: "text-green-700", bg: "bg-green-50" },
-                  { label: t("reports.almost_finished"), count: summary.low_stock,   color: "bg-amber-400", text: "text-amber-700", bg: "bg-amber-50" },
-                  { label: t("reports.finished_word"),   count: summary.out_of_stock, color: "bg-red-500",  text: "text-red-700",  bg: "bg-red-50" },
-                ].map((s) => (
-                  <div key={s.label} className={`${s.bg} rounded-lg p-2 text-center`}>
-                    <p className={`text-sm font-bold ${s.text}`}>{s.count}</p>
-                    <p className="text-xs text-slate-500 mt-0.5">{s.label}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Money Breakdown */}
-            <div className="bg-white rounded-xl border border-slate-200 p-3 shadow-sm">
-              <h2 className="text-sm font-semibold text-slate-800 mb-0.5">{t("reports.where_your_money_is")}</h2>
-              <p className="text-xs text-slate-400 mb-2">
-                {t("reports.bar_chart_hint")}
-              </p>
-
-              <div className="space-y-2.5 mb-3">
-                <ValueBar
-                  label={t("reports.vb_paid_label")}
-                  sublabel={t("reports.vb_paid_sub")}
-                  value={stockCost}
-                  max={Math.max(stockCost, stockRetail, summary.revenue, 1)}
-                  color="bg-indigo-500"
-                  textColor="text-indigo-700"
-                />
-                <ValueBar
-                  label={t("reports.vb_earn_label")}
-                  sublabel={t("reports.vb_earn_sub")}
-                  value={stockRetail}
-                  max={Math.max(stockCost, stockRetail, summary.revenue, 1)}
-                  color="bg-[#0a66c2]"
-                  textColor="text-[#0a66c2]"
-                />
-                <ValueBar
-                  label={t("reports.vb_profit_label")}
-                  sublabel={t("reports.vb_profit_sub")}
-                  value={summary.potential_profit}
-                  max={Math.max(stockCost, stockRetail, summary.revenue, 1)}
-                  color="bg-violet-500"
-                  textColor="text-violet-700"
-                />
-                <ValueBar
-                  label={`${t("reports.vb_sales_label")} (${dateFrom} → ${dateTo})`}
-                  sublabel={t("reports.vb_sales_sub")}
-                  value={summary.revenue}
-                  max={Math.max(stockCost, stockRetail, summary.revenue, 1)}
-                  color="bg-teal-500"
-                  textColor="text-teal-700"
-                />
-                <ValueBar
-                  label={`${t("reports.vb_gross_profit_label")} (${dateFrom} → ${dateTo})`}
-                  sublabel={t("reports.vb_gross_profit_sub")}
-                  value={summary.profit}
-                  max={Math.max(stockCost, stockRetail, summary.revenue, 1)}
-                  color="bg-emerald-500"
-                  textColor="text-emerald-700"
-                />
-                {expenseTotalPeriod > 0 && (
-                  <ValueBar
-                    label={`${t("reports.business_expenses")} (${dateFrom} → ${dateTo})`}
-                    sublabel={t("reports.vb_expenses_sub").replace("{count}", String(expenseCount))}
-                    value={expenseTotalPeriod}
-                    max={Math.max(stockCost, stockRetail, summary.revenue, 1)}
-                    color="bg-orange-400"
-                    textColor="text-orange-600"
-                  />
-                )}
-                <ValueBar
-                  label={`${t("reports.vb_net_profit_label")} (${dateFrom} → ${dateTo})`}
-                  sublabel={t("reports.vb_net_profit_sub")}
-                  value={Math.max(0, summary.profit - expenseTotalPeriod)}
-                  max={Math.max(stockCost, stockRetail, summary.revenue, 1)}
-                  color={summary.profit - expenseTotalPeriod >= 0 ? "bg-[#0a66c2]" : "bg-red-400"}
-                  textColor={summary.profit - expenseTotalPeriod >= 0 ? "text-[#0a66c2]" : "text-red-600"}
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-2">
-                {stockCost > 0 && (
-                  <div className="bg-[#EBF2FD] rounded-lg p-2">
-                    <p className="text-xs text-slate-500">{t("reports.profit_rate_stock")}</p>
-                    <p className="text-sm font-bold text-[#0a66c2] mt-0.5">
-                      {((summary.potential_profit / stockCost) * 100).toFixed(1)}%
-                    </p>
-                    <p className="text-[10px] text-slate-400 mt-0.5">{t("reports.profit_rate_stock_hint")}</p>
-                  </div>
-                )}
-                {summary.revenue > 0 && (
-                  <div className="bg-emerald-50 rounded-lg p-2">
-                    <p className="text-xs text-slate-500">{t("reports.profit_rate_sales")}</p>
-                    <p className="text-sm font-bold text-emerald-700 mt-0.5">{margin}%</p>
-                    <p className="text-[10px] text-slate-400 mt-0.5">{t("reports.profit_rate_sales_hint")}</p>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ── TOP ITEMS HORIZONTAL BAR ───────────────────────────────────────── */}
-        {topItemsChart.length > 0 && (
-          <div className="bg-white rounded-xl border border-slate-200 p-3 shadow-sm">
-            <div className="flex justify-between items-center mb-2">
-              <div>
-                <h2 className="text-sm font-semibold text-slate-800">{t("reports.top_items")}</h2>
-                <p className="text-xs text-slate-400 mt-0.5">{t("reports.revenue_profit_by_product")}</p>
-              </div>
-              <div className="flex items-center gap-3 text-xs">
-                <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-slate-600 inline-block" /> {t("sales.revenue")}</span>
-                <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-emerald-500 inline-block" /> {t("sales.profit")}</span>
-              </div>
-            </div>
-            <ResponsiveContainer width="100%" height={Math.max(160, topItemsChart.length * 32)}>
-              <BarChart data={topItemsChart} layout="vertical" margin={{ top: 0, right: 16, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
-                <XAxis type="number" tickFormatter={fmtRWF} tick={{ fontSize: 10, fill: "#94a3b8" }} tickLine={false} axisLine={false} />
-                <YAxis type="category" dataKey="name" tick={{ fontSize: 11, fill: "#475569" }} tickLine={false} axisLine={false} width={100} />
-                <Tooltip content={<ItemTooltip />} cursor={{ fill: "#f8fafc" }} />
-                <Bar dataKey="revenue" name="Revenue" fill="#475569" radius={[0, 4, 4, 0]} maxBarSize={14} />
-                <Bar dataKey="profit"  name="Profit"  fill="#10b981" radius={[0, 4, 4, 0]} maxBarSize={14} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        )}
-
-        {/* ── STOCK ALERTS TABLE ─────────────────────────────────────────────── */}
-        {stockAlerts.length > 0 ? (
-          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
-            <div className="flex justify-between items-center px-4 py-2 border-b border-slate-100">
-              <div className="flex items-center gap-2">
-                <AlertCircle size={14} className="text-amber-500" />
-                <h2 className="text-sm font-semibold text-slate-700">
-                  {t("reports.stock_alerts")} — {stockAlerts.length} {t("nav.items").toLowerCase()}
-                </h2>
-              </div>
-              <Link href={isCar ? "/items" : "/PurchaseManagement"}
-                className="flex items-center gap-1.5 text-xs font-semibold text-[#0a66c2] bg-[#EBF2FD] hover:bg-[#D5E8FB] px-3 py-1 rounded-lg transition">
-                <ArrowUpRight size={11} /> {t("purchases.add")}
-              </Link>
-            </div>
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-slate-50 border-b border-slate-100">
-                  {[t("items.name"), t("reports.col_qty_left"), t("reports.col_you_paid"), t("reports.col_you_sell_for"), t("reports.col_profit_pct"), t("reports.col_action")].map((h) => (
-                    <th key={h} className="px-3 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-500 whitespace-nowrap">{h}</th>
+            <Panel title={t("reports.stock_alerts")} sub={stockAlerts.length > 0 ? `${stockAlerts.length} ${t("nav.items").toLowerCase()}` : undefined}
+              action={<Link href={isCar ? "/items" : "/PurchaseManagement"} className="text-xs font-semibold text-[#0a66c2] hover:underline">{t("dash.view_all")}</Link>}>
+              {stockAlerts.length === 0 ? (
+                <p className="flex items-center gap-2 px-4 py-6 text-sm font-medium text-emerald-700"><CheckCircle size={16} /> {t("reports.stock_healthy_full")}</p>
+              ) : (
+                <ul className="divide-y divide-slate-100">
+                  {[...stockAlerts].sort((x, y) => x.quantity - y.quantity).slice(0, 8).map((item) => (
+                    <li key={item.id} className="flex items-center gap-3 px-4 py-2">
+                      <span className={`inline-flex h-7 min-w-7 shrink-0 items-center justify-center rounded-full px-1.5 text-xs font-bold tabular-nums ${item.quantity === 0 ? "bg-red-100 text-red-700" : "bg-amber-100 text-amber-800"}`}>
+                        {item.quantity}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-semibold text-slate-800">{item.name}</p>
+                        <p className="text-xs text-slate-500 tabular-nums">{currency} {fmtNum(item.selling_price)}</p>
+                      </div>
+                      <Link href={restockHref(item)} className="shrink-0 text-xs font-semibold text-[#0a66c2] hover:underline">{t("reports.restock")}</Link>
+                    </li>
                   ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-50">
-                {stockAlerts.map((item) => {
-                  const marginPct = item.cost_price > 0
-                    ? (((item.selling_price - item.cost_price) / item.cost_price) * 100).toFixed(0) : "—";
-                  return (
-                    <tr key={item.id} className="hover:bg-slate-50/60">
-                      <td className="px-3 py-1.5 font-medium text-slate-800">{item.name}</td>
-                      <td className="px-3 py-1.5">
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold
-                          ${item.quantity === 0 ? "bg-red-100 text-red-700" : "bg-amber-100 text-amber-700"}`}>
-                          {item.quantity}
-                        </span>
-                      </td>
-                      <td className="px-3 py-1.5 text-slate-600 tabular-nums">{item.cost_price.toLocaleString()}</td>
-                      <td className="px-3 py-1.5 font-semibold text-green-600 tabular-nums">{item.selling_price.toLocaleString()}</td>
-                      <td className="px-3 py-1.5 text-slate-500 text-xs font-medium">{marginPct !== "—" ? `+${marginPct}%` : "—"}</td>
-                      <td className="px-3 py-1.5">
-                        <Link
-                          href={isCar ? "/items" : `/PurchaseManagement?name=${encodeURIComponent(item.name)}&cost=${item.cost_price}&selling=${item.selling_price}&supplierId=${item.supplier_id ?? ""}`}
-                          className="text-xs font-semibold text-[#0a66c2] hover:underline flex items-center gap-0.5">
-                          <ArrowUpRight size={11} /> {t("reports.restock")}
-                        </Link>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                </ul>
+              )}
+            </Panel>
           </div>
-        ) : (
-          summary && (
-            <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-xl px-5 py-4 text-green-700 text-sm font-medium">
-              <CheckCircle size={16} />
-              {t("reports.stock_healthy_full")}
-            </div>
-          )
         )}
 
-        {/* ── RECENT PURCHASES ───────────────────────────────────────────────── */}
+        {/* ── RECENT PURCHASES (shops; car companies stock in from Vehicles) ── */}
         {!isCar && recentPurchases.length > 0 && (
-          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
-            <div className="flex justify-between items-center px-4 py-2 border-b border-slate-100">
-              <div className="flex items-center gap-2">
-                <Truck size={14} className="text-[#0a66c2]" />
-                <h2 className="text-sm font-semibold text-slate-700">
-                  {t("reports.recent_purchases")} — <span className="text-[#0a66c2]">{currency} {fmtRWF(purchaseTotalSpent)} {t("reports.spent_word")}</span>
-                </h2>
-              </div>
-              <Link href={isCar ? "/items" : "/PurchaseManagement"}
-                className="flex items-center gap-1.5 text-xs font-semibold text-[#0a66c2] bg-[#EBF2FD] hover:bg-[#D5E8FB] px-3 py-1 rounded-lg transition">
-                <ArrowUpRight size={11} /> {t("dash.view_all")}
-              </Link>
-            </div>
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-slate-50 border-b border-slate-100">
-                  {[t("purchases.col_date"), t("purchases.col_product"), t("purchases.col_qty"), t("purchases.col_unit"), t("purchases.col_total")].map((h) => (
-                    <th key={h} className="px-3 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-500 whitespace-nowrap">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-50">
-                {recentPurchases.map((p) => {
-                  const d = p.created_at ? new Date(p.created_at) : null;
-                  return (
-                    <tr key={p.id} className="hover:bg-slate-50/60">
-                      <td className="px-3 py-1.5 text-xs text-slate-500 whitespace-nowrap">
-                        {d ? toDateStr(d) : "—"}
-                      </td>
-                      <td className="px-3 py-1.5 font-medium text-slate-800">{p.product_name}</td>
-                      <td className="px-3 py-1.5 tabular-nums text-slate-600">{p.quantity_added}</td>
-                      <td className="px-3 py-1.5 tabular-nums text-slate-600">{(p.cost_price || 0).toLocaleString()}</td>
-                      <td className="px-3 py-1.5 font-semibold text-slate-800 tabular-nums">{(p.total_cost || 0).toLocaleString()}</td>
+          <Panel title={t("reports.recent_purchases")} sub={`${currency} ${fmtNum(purchaseTotalSpent)} ${t("reports.spent_word")}`}
+            action={<Link href="/PurchaseManagement" className="text-xs font-semibold text-[#0a66c2] hover:underline">{t("dash.view_all")}</Link>}>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-slate-100 bg-slate-50">
+                    {[t("purchases.col_date"), t("purchases.col_product"), t("purchases.col_qty"), t("purchases.col_unit"), t("purchases.col_total")].map((h) => (
+                      <th key={h} className="whitespace-nowrap px-4 py-1.5 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {recentPurchases.map((p) => (
+                    <tr key={p.id}>
+                      <td className="whitespace-nowrap px-4 py-1.5 text-xs text-slate-500">{p.created_at ? toDateStr(new Date(p.created_at)) : "—"}</td>
+                      <td className="px-4 py-1.5 font-medium text-slate-800">{p.product_name}</td>
+                      <td className="px-4 py-1.5 tabular-nums text-slate-600">{p.quantity_added}</td>
+                      <td className="px-4 py-1.5 tabular-nums text-slate-600">{(p.cost_price || 0).toLocaleString()}</td>
+                      <td className="px-4 py-1.5 font-semibold tabular-nums text-slate-800">{(p.total_cost || 0).toLocaleString()}</td>
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-
-        {/* ── SECONDARY STATS ROW ────────────────────────────────────────────── */}
-        {summary && (
-          <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-1.5 pb-6">
-            <StatMini label={t("reports.items_sold")}  value={fmtNum(summary.items_sold)}               sub={`${t("reports.to_word")} ${summary.unique_customers} ${t("reports.customers_word")}`} color="text-indigo-600" icon={<ShoppingCart size={14} />} />
-            {!isCar && <StatMini label={t("reports.spent_on_restocking")} value={`${currency} ${fmtRWF(summary.total_spent)}`}   sub={`${recentPurchases.length} ${t("reports.purchase_records")}`} color="text-teal-600" icon={<Truck size={14} />} />}
-            <StatMini label={t("reports.business_expenses")}  value={expenseTotalPeriod > 0 ? `${currency} ${fmtRWF(expenseTotalPeriod)}` : "—"} sub={`${expenseCount} ${t("reports.records_this_period")}`} color="text-orange-600" icon={<Receipt size={14} />} />
-            <StatMini
-              label={t("reports.net_profit_real")}
-              value={`${currency} ${fmtRWF(summary.profit - expenseTotalPeriod)}`}
-              sub={summary.profit - expenseTotalPeriod >= 0 ? t("reports.profitable_after_costs") : t("reports.spending_more")}
-              color={summary.profit - expenseTotalPeriod >= 0 ? "text-[#0a66c2]" : "text-red-600"}
-              icon={<DollarSign size={14} />}
-            />
-          </div>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Panel>
         )}
 
         {/* EMPTY STATE */}
@@ -807,82 +378,29 @@ export default function ReportsPage() {
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-const kpiColors: Record<string, { bg: string; text: string; badge: string }> = {
-  indigo:  { bg: "bg-[#EBF2FD]",   text: "text-[#0a66c2]",   badge: "bg-[#D5E8FB] text-[#0a66c2]"     },
-  blue:    { bg: "bg-[#EBF2FD]",   text: "text-[#0a66c2]",   badge: "bg-[#D5E8FB] text-[#0a66c2]"     },
-  violet:  { bg: "bg-[#EBF2FD]",   text: "text-[#0a66c2]",   badge: "bg-[#D5E8FB] text-[#0a66c2]"     },
-  teal:    { bg: "bg-[#EBF2FD]",   text: "text-[#0a66c2]",   badge: "bg-[#D5E8FB] text-[#0a66c2]"     },
-  emerald: { bg: "bg-emerald-50",  text: "text-emerald-600",  badge: "bg-emerald-100 text-emerald-700" },
-  red:     { bg: "bg-red-50",      text: "text-red-600",      badge: "bg-red-100 text-red-700"         },
-  amber:   { bg: "bg-amber-50",    text: "text-amber-600",    badge: "bg-amber-100 text-amber-700"     },
-  green:   { bg: "bg-green-50",    text: "text-green-600",    badge: "bg-green-100 text-green-700"     },
-  orange:  { bg: "bg-orange-50",   text: "text-orange-600",   badge: "bg-orange-100 text-orange-700"   },
-};
-
-function KpiCard({ label, value, detail, icon, color, pulse, badge }: {
-  label: string; value: string; detail: string; icon: React.ReactNode;
-  color: string; pulse?: boolean; badge?: string;
-}) {
-  const c = kpiColors[color] ?? kpiColors.indigo;
+/** One key figure: label, value, one line of context. */
+function Figure({ label, value, detail }: { label: string; value: string; detail: string }) {
   return (
-    <div className={`bg-white rounded-xl border border-slate-200 p-3 transition-all ${pulse ? "relative" : ""}`}>
-      {pulse && (
-        <span className="absolute top-3 right-3 flex h-2 w-2">
-          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75" />
-          <span className="relative inline-flex rounded-full h-2 w-2 bg-[#0a66c2]" />
-        </span>
-      )}
-      <div className={`w-7 h-7 rounded-lg ${c.bg} ${c.text} flex items-center justify-center mb-2`}>
-        {icon}
-      </div>
-      <p className="text-[10px] text-slate-400 font-medium uppercase tracking-wide">{label}</p>
-      <p className={`text-xl font-bold mt-1 ${c.text} leading-none`}>{value}</p>
-      <p className="text-[10px] text-slate-400 mt-1.5">{detail}</p>
-      {badge && (
-        <span className={`inline-block mt-2 text-[10px] font-bold px-2 py-0.5 rounded-full ${c.badge}`}>
-          {badge}
-        </span>
-      )}
+    <div className="min-w-0 rounded-xl border border-slate-200 bg-white px-3.5 py-3">
+      <p className="truncate text-[11px] font-semibold uppercase tracking-wide text-slate-500">{label}</p>
+      <p className="mt-1 truncate text-xl font-bold text-slate-900 tabular-nums">{value}</p>
+      <p className="mt-0.5 truncate text-xs text-slate-500">{detail}</p>
     </div>
   );
 }
 
-function ValueBar({ label, sublabel, value, max, color, textColor }: {
-  label: string; sublabel?: string; value: number; max: number; color: string; textColor: string;
-}) {
-  const { currency } = useShopSettings();
-  const pct = max > 0 ? Math.min((value / max) * 100, 100) : 0;
+function Panel({ title, sub, action, children }: { title: string; sub?: string; action?: React.ReactNode; children: React.ReactNode }) {
   return (
-    <div>
-      <div className="flex justify-between items-start mb-1.5 gap-2">
+    <section className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+      <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-4 py-2.5">
         <div className="min-w-0">
-          <span className="text-xs font-medium text-slate-700 block">{label}</span>
-          {sublabel && <span className="text-[10px] text-slate-400 leading-tight">{sublabel}</span>}
+          <h2 className="truncate text-sm font-semibold text-slate-800">{title}</h2>
+          {sub && <p className="truncate text-xs text-slate-500">{sub}</p>}
         </div>
-        <span className={`text-sm font-bold ${textColor} shrink-0`}>{currency} {fmtRWF(value)}</span>
+        {action}
       </div>
-      <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-        <div
-          className={`h-full ${color} rounded-full transition-all duration-700`}
-          style={{ width: `${pct}%` }}
-        />
-      </div>
-    </div>
-  );
-}
-
-function StatMini({ label, value, sub, color, icon }: {
-  label: string; value: string; sub: string; color: string; icon: React.ReactNode;
-}) {
-  return (
-    <div className="bg-white rounded-xl border border-slate-200 px-2.5 py-2 shadow-sm">
-      <div className="flex items-center gap-1.5 text-slate-400 mb-1.5">
-        {icon}
-        <span className="text-[9px] font-medium uppercase tracking-wide">{label}</span>
-      </div>
-      <p className={`text-xs font-bold ${color}`}>{value}</p>
-      <p className="text-[9px] text-slate-400 mt-0.5">{sub}</p>
-    </div>
+      {children}
+    </section>
   );
 }
 
