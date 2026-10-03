@@ -19,6 +19,7 @@ import {
   ShoppingBag, Filter, Plus, Trash2, Pencil, X, ReceiptText, Calendar, Printer, Wallet, AlertCircle, CheckCircle2, Phone, ChevronDown, Download, Upload, FileSpreadsheet, FileText,
 } from "lucide-react";
 import PageHeader, { SearchField, StatTiles, ToolbarRow } from "@/app/components/ui/PageHeader";
+import { askConfirm, notify } from "@/lib/dialogs";
 
 const PROFORMA_STATUS_META: Record<ProformaStatus, { labelKey: string; color: string }> = {
   draft:    { labelKey: "sales.status_draft",    color: "bg-slate-100 text-slate-600 border-slate-200" },
@@ -193,12 +194,12 @@ export default function SaleManagementPage() {
   }
 
   async function handleDeleteProforma(id: string) {
-    if (!confirm(t("sales.confirm_delete_proforma"))) return;
+    if (!(await askConfirm({ message: t("sales.confirm_delete_proforma"), danger: true }))) return;
     try {
       setDeletingProformaId(id);
       await deleteProforma(id);
       await loadProformas();
-    } catch { alert(t("common.delete_failed")); }
+    } catch { notify(t("common.delete_failed")); }
     finally { setDeletingProformaId(""); }
   }
 
@@ -248,7 +249,7 @@ export default function SaleManagementPage() {
   async function submitForm() {
     if (modalMode === "edit" && editingId) {
       if (!form.product_id || !form.quantity || !form.unit_price) {
-        alert(t("sales.sale_fields_required")); return;
+        notify(t("sales.sale_fields_required")); return;
       }
       const payload = {
         product_id: form.product_id, customer_id: form.customer_id || undefined,
@@ -259,14 +260,14 @@ export default function SaleManagementPage() {
         setSubmitting(true);
         await saleRequest(`/sales/${editingId}`, { method: "PUT", body: JSON.stringify(payload) });
         closeModal(); await loadData(true);
-      } catch (err: unknown) { alert(err instanceof Error ? err.message : t("common.error")); }
+      } catch (err: unknown) { notify(err instanceof Error ? err.message : t("common.error")); }
       finally { setSubmitting(false); }
       return;
     }
 
     const validLines = lineItems.filter((l) => l.product_id && l.quantity > 0 && l.unit_price >= 0);
-    if (validLines.length === 0) { alert(t("sales.need_one_item")); return; }
-    if (paymentMethod === "debt" && !debtorName.trim()) { alert(t("sales.need_debtor_name")); return; }
+    if (validLines.length === 0) { notify(t("sales.need_one_item")); return; }
+    if (paymentMethod === "debt" && !debtorName.trim()) { notify(t("sales.need_debtor_name")); return; }
 
     const grandTotal = validLines.reduce((s, l) => s + l.quantity * l.unit_price, 0);
 
@@ -314,23 +315,23 @@ export default function SaleManagementPage() {
 
       closeModal();
       if (created.length > 0) setReceipts(created);
-      if (errors.length > 0) alert(`${t("sales.some_items_failed")}\n${errors.join("\n")}`);
+      if (errors.length > 0) notify(`${t("sales.some_items_failed")}\n${errors.join("\n")}`);
       await loadData(true);
     } finally { setSubmitting(false); }
   }
 
   async function deleteSale(id: string) {
-    if (!confirm(t("common.confirm_delete"))) return;
+    if (!(await askConfirm({ message: t("common.confirm_delete"), danger: true }))) return;
     try {
       setDeletingId(id);
       await saleRequest(`/sales/${id}`, { method: "DELETE" });
       await loadData(true);
-    } catch { alert(t("common.delete_failed")); }
+    } catch { notify(t("common.delete_failed")); }
     finally { setDeletingId(""); }
   }
 
   async function submitDebt() {
-    if (!debtForm.debtor_name.trim() || !debtForm.amount_owed) { alert(t("sales.debt_fields_required")); return; }
+    if (!debtForm.debtor_name.trim() || !debtForm.amount_owed) { notify(t("sales.debt_fields_required")); return; }
     try {
       setDebtSubmitting(true);
       if (editingDebt) {
@@ -359,7 +360,7 @@ export default function SaleManagementPage() {
       setShowDebtModal(false); setEditingDebt(null);
       setDebtForm({ debtor_name: "", phone: "", amount_owed: "", amount_paid: "0", notes: "" });
       await loadDebts();
-    } catch (err: unknown) { alert(err instanceof Error ? err.message : t("common.error")); }
+    } catch (err: unknown) { notify(err instanceof Error ? err.message : t("common.error")); }
     finally { setDebtSubmitting(false); }
   }
 
@@ -374,17 +375,17 @@ export default function SaleManagementPage() {
       });
       setShowPayModal(null); setPaymentAmount("");
       await loadDebts();
-    } catch (err: unknown) { alert(err instanceof Error ? err.message : t("common.error")); }
+    } catch (err: unknown) { notify(err instanceof Error ? err.message : t("common.error")); }
     finally { setPayingDebtId(""); }
   }
 
   async function deleteDebt(id: string) {
-    if (!confirm(t("sales.confirm_delete_debt"))) return;
+    if (!(await askConfirm({ message: t("sales.confirm_delete_debt"), danger: true }))) return;
     try {
       setDeletingDebtId(id);
       await saleRequest(`/debts/${id}`, { method: "DELETE" });
       await loadDebts();
-    } catch { alert(t("common.delete_failed")); }
+    } catch { notify(t("common.delete_failed")); }
     finally { setDeletingDebtId(""); }
   }
 
@@ -429,9 +430,9 @@ export default function SaleManagementPage() {
         } catch { failed++; }
       }
       e.target.value = "";
-      alert(`${imported} ${t("sales.import_success")}${failed ? `, ${failed} ${t("sales.import_partial_fail")}` : ""}`);
+      notify(`${imported} ${t("sales.import_success")}${failed ? `, ${failed} ${t("sales.import_partial_fail")}` : ""}`, failed ? "warning" : "success");
       await loadData(true);
-    } catch { alert(t("common.parse_failed")); }
+    } catch { notify(t("common.parse_failed")); }
   }
 
   async function exportSalesExcel() {

@@ -11,6 +11,7 @@ import {
   Plus, Trash2, Pencil, X, UserCheck, Activity, Package, ShoppingCart, Building2, Phone, Mail, MapPin, Download, Upload, FileSpreadsheet, FileText,
 } from "lucide-react";
 import PageHeader, { SearchField, ToolbarRow } from "@/app/components/ui/PageHeader";
+import { askConfirm, notify } from "@/lib/dialogs";
 
 interface RawPartner { id: string; name: string; phone?: string; email?: string; address?: string; }
 interface Partner extends RawPartner { tin: string; realAddress: string; partnerType: "supplier" | "customer"; }
@@ -120,9 +121,9 @@ export default function PartnerManagementPage() {
         } catch { failed++; }
       }
       e.target.value = "";
-      alert(`${t("partners.import_result_prefix")} ${imported} ${t("partners.import_result_suffix")}${failed ? `, ${failed} ${t("partners.import_failed_suffix")}` : ""}.`);
+      notify(`${t("partners.import_result_prefix")} ${imported} ${t("partners.import_result_suffix")}${failed ? `, ${failed} ${t("partners.import_failed_suffix")}` : ""}.`, failed ? "warning" : "success");
       await loadData(true);
-    } catch { alert(t("common.parse_file_failed")); }
+    } catch { notify(t("common.parse_file_failed")); }
   }
 
   async function exportExcel() {
@@ -221,21 +222,21 @@ export default function PartnerManagementPage() {
   async function createPartner() {
     if (!validate()) return;
     try { setSubmitting(true); await partnerRequest("/suppliers", { method: "POST", body: JSON.stringify(buildPayload()) }); closeModal(); await loadData(true); }
-    catch (err) { alert(`${t("partners.err_create_prefix")} ${err instanceof Error ? err.message : t("common.unknown_error")}`); }
+    catch (err) { notify(`${t("partners.err_create_prefix")} ${err instanceof Error ? err.message : t("common.unknown_error")}`); }
     finally { setSubmitting(false); }
   }
 
   async function updatePartner() {
     if (!validate() || !editingId) return;
     try { setSubmitting(true); await partnerRequest(`/suppliers/${editingId}`, { method: "PUT", body: JSON.stringify(buildPayload()) }); closeModal(); await loadData(true); }
-    catch (err) { alert(`${t("partners.err_update_prefix")} ${err instanceof Error ? err.message : t("common.unknown_error")}`); }
+    catch (err) { notify(`${t("partners.err_update_prefix")} ${err instanceof Error ? err.message : t("common.unknown_error")}`); }
     finally { setSubmitting(false); }
   }
 
   async function deletePartner(id: string) {
-    if (!confirm(t("common.confirm_delete"))) return;
+    if (!(await askConfirm({ message: t("common.confirm_delete"), danger: true }))) return;
     try { setDeletingId(id); await partnerRequest(`/suppliers/${id}`, { method: "DELETE" }); await loadData(true); }
-    catch (err) { alert(`${t("common.delete_failed_prefix")} ${err instanceof Error ? err.message : t("common.unknown_error")}`); }
+    catch (err) { notify(`${t("common.delete_failed_prefix")} ${err instanceof Error ? err.message : t("common.unknown_error")}`); }
     finally { setDeletingId(""); }
   }
 

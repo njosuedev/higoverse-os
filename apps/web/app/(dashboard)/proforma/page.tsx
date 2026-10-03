@@ -16,6 +16,7 @@ import {
   Send, AlertCircle, Search, Eye, Pencil, History,
 } from "lucide-react";
 import PageHeader from "@/app/components/ui/PageHeader";
+import { askConfirm } from "@/lib/dialogs";
 
 interface LineItem { id: string; product_name: string; qty: number; unit_price: number; }
 interface ShopInfo { name: string; phone?: string; address?: string; email?: string; logo_url?: string; }
@@ -226,7 +227,7 @@ function ProformaPageContent() {
   }
 
   async function handleDelete(id: string) {
-    if (!confirm(t("common.confirm_delete"))) return;
+    if (!(await askConfirm({ message: t("common.confirm_delete"), danger: true }))) return;
     setDeletingId(id);
     try {
       await deleteProforma(id);

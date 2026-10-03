@@ -4,6 +4,7 @@ import "./globals.css";
 import { LanguageProvider } from "@/lib/language-context";
 import { AuthProvider } from "@/lib/auth-context";
 import { QueryProvider } from "@/lib/query-provider";
+import { DialogHost } from "@/lib/dialogs";
 import { SITE } from "@/lib/site";
 
 export const metadata: Metadata = {
@@ -102,6 +103,7 @@ export default function RootLayout({
         <AuthProvider>
           <LanguageProvider>
             <QueryProvider>{children}</QueryProvider>
+            <DialogHost />
           </LanguageProvider>
         </AuthProvider>
       </body>

@@ -131,6 +131,8 @@ const dict: Record<Lang, Record<string, string>> = {
 
     // dashboard
     "dash.welcome": "Welcome back",
+    "dialog.delete_title": "Confirm deletion",
+    "dialog.confirm_title": "Are you sure?",
     "common.clear": "Clear",
     "items.export_failed": "Export failed. Please try again.",
     "admin.kpi_businesses": "Businesses",
@@ -1201,6 +1203,8 @@ const dict: Record<Lang, Record<string, string>> = {
     "common.back": "Gusubira",
 
     "dash.welcome": "Murakaza neza",
+    "dialog.delete_title": "Emeza gusiba",
+    "dialog.confirm_title": "Urabyizeye?",
     "common.clear": "Siba",
     "items.export_failed": "Kohereza byanze. Ongera ugerageze.",
     "admin.kpi_businesses": "Ubucuruzi",
@@ -1591,6 +1595,8 @@ const dict: Record<Lang, Record<string, string>> = {
     "common.back": "Retour",
 
     "dash.welcome": "Bon retour",
+    "dialog.delete_title": "Confirmer la suppression",
+    "dialog.confirm_title": "Êtes-vous sûr ?",
     "common.clear": "Effacer",
     "items.export_failed": "L'export a échoué. Veuillez réessayer.",
     "admin.kpi_businesses": "Entreprises",
@@ -1981,6 +1987,8 @@ const dict: Record<Lang, Record<string, string>> = {
     "common.back": "Rudi",
 
     "dash.welcome": "Karibu tena",
+    "dialog.delete_title": "Thibitisha kufuta",
+    "dialog.confirm_title": "Una uhakika?",
     "common.clear": "Futa",
     "items.export_failed": "Uhamishaji umeshindwa. Jaribu tena.",
     "admin.kpi_businesses": "Biashara",
@@ -2391,6 +2399,8 @@ const dict: Record<Lang, Record<string, string>> = {
     "daterange.clear": "清除",
 
     "dash.welcome": "欢迎回来",
+    "dialog.delete_title": "确认删除",
+    "dialog.confirm_title": "确定吗？",
     "common.clear": "清除",
     "items.export_failed": "导出失败，请重试。",
     "admin.kpi_businesses": "企业",

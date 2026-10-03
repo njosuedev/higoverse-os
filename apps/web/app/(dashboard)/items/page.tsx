@@ -17,6 +17,7 @@ import {
   TrendingUp, TrendingDown, RefreshCw, ChevronDown,
   FileSpreadsheet, FileText, Upload, Download, CheckCircle, XCircle, Car, PackagePlus,
 } from "lucide-react";
+import { askConfirm, notify } from "@/lib/dialogs";
 
 interface Product {
   id: string;
@@ -223,13 +224,13 @@ export default function ItemManagementPage() {
     if (isCar) {
       const missing = VEHICLE_FIELDS.some((f) => f.required && !String(form.attributes[f.key] ?? "").trim());
       if (!form.name.trim() || !form.selling_price || !form.quantity || missing) {
-        alert(t("vehicle.err_required")); return;
+        notify(t("vehicle.err_required")); return;
       }
       if (!(Number(form.selling_price) > 0) || !(Number(form.quantity) >= 0)) {
-        alert(t("vehicle.err_price")); return;
+        notify(t("vehicle.err_price")); return;
       }
     } else if (!form.name.trim() || !form.cost_price || !form.selling_price || !form.quantity) {
-      alert(t("items.validation_required")); return;
+      notify(t("items.validation_required")); return;
     }
     const thumbnail = isCar && form.images[0] ? await shrinkDataUrl(form.images[0]).catch(() => "") : "";
     const payload = {
@@ -255,14 +256,14 @@ export default function ItemManagementPage() {
       }
       closeModal(); await loadData(true);
     } catch (err) {
-      console.error(err); alert(modalMode === "edit" ? t("items.update_failed") : t("items.add_failed"));
+      console.error(err); notify(modalMode === "edit" ? t("items.update_failed") : t("items.add_failed"));
     } finally { setSubmitting(false); }
   }
 
   async function submitStockIn() {
     if (!stockInItem) return;
     const add = Number(stockInQty);
-    if (!Number.isInteger(add) || add <= 0) { alert(t("items.stock_in_invalid")); return; }
+    if (!Number.isInteger(add) || add <= 0) { notify(t("items.stock_in_invalid")); return; }
     try {
       setStockingIn(true);
       // Re-read the current quantity so a sale made meanwhile isn't overwritten.
@@ -272,17 +273,17 @@ export default function ItemManagementPage() {
       setStockInItem(null); setStockInQty("");
       await loadData(true);
     } catch (err) {
-      console.error(err); alert(t("items.update_failed"));
+      console.error(err); notify(t("items.update_failed"));
     } finally { setStockingIn(false); }
   }
 
   async function deleteProduct(id: string) {
-    if (!confirm(t("items.confirm_delete"))) return;
+    if (!(await askConfirm({ message: t("items.confirm_delete"), danger: true }))) return;
     try {
       setDeletingId(id);
       await itemRequest(`/products/${id}`, { method: "DELETE" });
       await loadData(true);
-    } catch (err) { console.error(err); alert(t("items.delete_failed")); }
+    } catch (err) { console.error(err); notify(t("items.delete_failed")); }
     finally { setDeletingId(""); }
   }
 
@@ -359,14 +360,14 @@ export default function ItemManagementPage() {
       utils.book_append_sheet(wb, ws, "Inventory");
       writeFile(wb, `inventory_${new Date().toISOString().slice(0, 10)}.xlsx`);
     } catch (err) {
-      console.warn(err); alert(t("items.export_failed"));
+      console.warn(err); notify(t("items.export_failed"));
     } finally { setExporting(false); }
   }
 
   async function exportPDF() {
     setExporting(true);
     try { await writePDF(await fetchAllMatching()); }
-    catch (err) { console.warn(err); alert(t("items.export_failed")); }
+    catch (err) { console.warn(err); notify(t("items.export_failed")); }
     finally { setExporting(false); }
   }
 
@@ -449,7 +450,7 @@ export default function ItemManagementPage() {
       const ws = wb.Sheets[wb.SheetNames[0]];
       const rows = utils.sheet_to_json<unknown[]>(ws, { header: 1 }) as unknown[][];
 
-      if (rows.length < 2) { alert(t("items.import_no_rows")); return; }
+      if (rows.length < 2) { notify(t("items.import_no_rows")); return; }
 
       const supplierByName: Record<string, string> = {};
       suppliers.forEach((s) => { supplierByName[s.name.toLowerCase()] = s.id; });
@@ -494,7 +495,7 @@ export default function ItemManagementPage() {
       if (success > 0) await loadData(true);
     } catch (err) {
       console.error(err);
-      alert(t("items.import_parse_failed"));
+      notify(t("items.import_parse_failed"));
     } finally {
       setImportLoading(false);
       if (importInputRef.current) importInputRef.current.value = "";

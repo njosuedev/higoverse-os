@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { ImagePlus, Loader2, Star, X } from "lucide-react";
 import { useLanguage } from "@/lib/language-context";
 import { compressImage } from "@/lib/image";
+import { notify } from "@/lib/dialogs";
 
 export const MAX_CAR_IMAGES = 7;
 
@@ -23,13 +24,13 @@ export default function CarImagesPicker({
   async function addFiles(files: FileList | null) {
     if (!files?.length) return;
     const picked = Array.from(files).filter((f) => f.type.startsWith("image/"));
-    if (picked.length > left) alert(t("vehicle.images_limit"));
+    if (picked.length > left) notify(t("vehicle.images_limit"), "warning");
     setBusy(true);
     try {
       const added = await Promise.all(picked.slice(0, left).map((f) => compressImage(f, 1280, 0.78)));
       onChange([...images, ...added]);
     } catch {
-      alert(t("vehicle.images_read_failed"));
+      notify(t("vehicle.images_read_failed"));
     } finally {
       setBusy(false);
       if (inputRef.current) inputRef.current.value = "";

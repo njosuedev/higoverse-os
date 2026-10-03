@@ -16,6 +16,7 @@ import {
   AlertCircle, Plus, Trash2, X, Truck, Package, History, LayoutGrid, Calendar, Download, Upload, FileSpreadsheet, FileText,
 } from "lucide-react";
 import PageHeader, { FilterSelect, SearchField, StatTiles, ToolbarRow } from "@/app/components/ui/PageHeader";
+import { askConfirm, notify } from "@/lib/dialogs";
 
 interface Product {
   id: string; name: string; description?: string;
@@ -123,9 +124,9 @@ export default function PurchaseManagementPage() {
         } catch { failed++; }
       }
       e.target.value = "";
-      alert(`${t("purchases.import_result_prefix")} ${imported} ${t("common.records")}${failed ? `, ${failed} ${t("purchases.import_result_failed")}` : ""}.`);
+      notify(`${t("purchases.import_result_prefix")} ${imported} ${t("common.records")}${failed ? `, ${failed} ${t("purchases.import_result_failed")}` : ""}.`, failed ? "warning" : "success");
       await loadAll(true);
-    } catch { alert(t("purchases.import_parse_error")); }
+    } catch { notify(t("purchases.import_parse_error")); }
   }
 
   async function exportExcel() {
@@ -266,9 +267,9 @@ export default function PurchaseManagementPage() {
     const qty = Number(form.quantity);
     const cost = Number(form.cost_price);
     if ((!isRestocking && !form.product_name.trim()) || !form.quantity || !form.cost_price) {
-      alert(t("purchases.product_name") + ", " + t("purchases.qty_added") + " " + t("common.and") + " " + t("purchases.cost_price") + " " + t("common.is_required") + "."); return;
+      notify(t("purchases.product_name") + ", " + t("purchases.qty_added") + " " + t("common.and") + " " + t("purchases.cost_price") + " " + t("common.is_required") + "."); return;
     }
-    if (qty <= 0 || cost <= 0) { alert(t("purchases.qty_cost_positive")); return; }
+    if (qty <= 0 || cost <= 0) { notify(t("purchases.qty_cost_positive")); return; }
 
     const payload: Record<string, unknown> = {
       cost_price: cost, selling_price: form.selling_price ? Number(form.selling_price) : undefined,
@@ -283,17 +284,17 @@ export default function PurchaseManagementPage() {
       setShowModal(false); setForm(EMPTY_FORM); setIsRestocking(false);
       await loadAll(true);
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : t("common.error"));
+      notify(err instanceof Error ? err.message : t("common.error"));
     } finally { setSubmitting(false); }
   }
 
   async function deleteHistoryRecord(id: string) {
-    if (!confirm(t("common.confirm_delete"))) return;
+    if (!(await askConfirm({ message: t("common.confirm_delete"), danger: true }))) return;
     try {
       setDeletingId(id);
       await purchaseRequest(`/purchases/${id}`, { method: "DELETE" });
       await loadHistory(true);
-    } catch { alert(t("common.delete_failed")); }
+    } catch { notify(t("common.delete_failed")); }
     finally { setDeletingId(""); }
   }
 
