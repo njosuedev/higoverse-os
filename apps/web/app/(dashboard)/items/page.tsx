@@ -134,7 +134,12 @@ export default function ItemManagementPage() {
     setVehicleView(v);
     try { localStorage.setItem(VIEW_KEY, v); } catch { /* preference only */ }
   }
-  const showCards = isCar && vehicleView === "cards";
+  // A link can open one product (?open=<id>): it's shown on its own (as a
+  // card for car companies) until "Show all". `autoForm` then opens that
+  // car's fines or pending form once its card is on screen.
+  const [focusId, setFocusId] = useState<string | null>(null);
+  const [autoForm, setAutoForm] = useState<{ id: string; form: "fines" | "pending" } | null>(null);
+  const showCards = isCar && (vehicleView === "cards" || !!focusId);
   const [loadingEdit, setLoadingEdit] = useState(false);
   // Keep figures current without polling hidden tabs.
   useAutoRefresh(() => loadData(true));
@@ -164,13 +169,15 @@ export default function ItemManagementPage() {
     try {
       if (!soft) setLoading(true); else setRefreshing(true);
       const [listRes, summaryRes, alertsRes] = await Promise.all([
-        itemRequest(`/products?${listQuery(page, pageSize)}`),
+        focusId ? itemRequest(`/products/${focusId}`) : itemRequest(`/products?${listQuery(page, pageSize)}`),
         itemRequest(`/products/summary?threshold=${lowStock}`),
         itemRequest(`/products/stock-alerts?threshold=${lowStock}`),
       ]);
       if (id !== requestId.current) return; // a newer search/page already answered
-      const items: Product[] = listRes?.data?.items || []; // newest first, ordered by the API
-      const count: number = listRes?.data?.total ?? 0;
+      const items: Product[] = focusId
+        ? (listRes?.data ? [listRes.data] : [])
+        : listRes?.data?.items || []; // newest first, ordered by the API
+      const count: number = focusId ? items.length : listRes?.data?.total ?? 0;
       // Deleting the last row of the last page — step back to a page that exists.
       if (items.length === 0 && page > 1 && count > 0) { setPage(Math.ceil(count / pageSize)); return; }
       setProducts(items);
@@ -195,7 +202,7 @@ export default function ItemManagementPage() {
   useEffect(() => {
     loadData(loadedOnce.current);
     loadedOnce.current = true;
-  }, [page, pageSize, debouncedSearch, filter, lowStock]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [page, pageSize, debouncedSearch, filter, lowStock, focusId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /** Every product matching the current search/filter, for exports. */
   async function fetchAllMatching(): Promise<Product[]> {
@@ -211,6 +218,23 @@ export default function ItemManagementPage() {
   // Dashboard links: /items?stock=low (restock list), /items?add=1 (new product),
   // /items?status=pending|penalties|incomplete (car watch lists).
   function handleDeepLink(params: URLSearchParams) {
+    // Dashboard/report circles: /items?open=<id>[&do=edit|fines|pending|stockin]
+    const open = params.get("open");
+    if (open) {
+      const act = params.get("do");
+      setFocusId(open); setPage(1);
+      if (act === "edit" || act === "stockin") {
+        itemRequest(`/products/${open}`)
+          .then((res) => {
+            const p = res?.data as Product | undefined;
+            if (!p) return;
+            if (act === "edit") openEditModal(p);
+            else { setStockInItem(p); setStockInQty(""); }
+          })
+          .catch(() => {});
+      }
+      if (act === "fines" || act === "pending") setAutoForm({ id: open, form: act });
+    }
     const st = params.get("status");
     if (st && CAR_STATUS[st]) { setFilter(st); setPage(1); }
     if (params.get("stock") === "low") { setFilter(isCar ? "all" : "restock"); setPage(1); }
@@ -568,7 +592,7 @@ export default function ItemManagementPage() {
     <div className="min-h-screen">
       <div className="max-w-7xl mx-auto px-3 sm:px-5 py-3 sm:py-4">
 
-        <DeepLink keys={["stock", "add", "status"]} onParams={handleDeepLink} />
+        <DeepLink keys={["stock", "add", "status", "open", "do"]} onParams={handleDeepLink} />
 
         {/* HEADER BANNER */}
         <div
@@ -778,6 +802,16 @@ export default function ItemManagementPage() {
           onChange={(e) => { const f = e.target.files?.[0]; if (f) handleImport(f); }}
         />
 
+        {/* One product opened from a link */}
+        {focusId && (
+          <div className="mb-2 flex items-center justify-between gap-3 rounded-data border border-ink/30 bg-ink-soft px-3 py-2 text-sm">
+            <span className="font-semibold text-ink">{t("items.focus_one")}</span>
+            <button onClick={() => { setFocusId(null); setAutoForm(null); }} className="rounded-full bg-ink px-3 py-1 text-xs font-semibold text-white hover:bg-ink-dark">
+              {t("items.show_all")}
+            </button>
+          </div>
+        )}
+
         {/* VEHICLE CARDS (car companies) or TABLE */}
         {showCards ? (
           <div className="space-y-4">
@@ -794,6 +828,7 @@ export default function ItemManagementPage() {
                 onOpenGallery={(v) => setGalleryFor(products.find((x) => x.id === v.id) ?? null)}
                 onEdit={(v) => { const p = products.find((x) => x.id === v.id); if (p) openEditModal(p); }}
                 onChanged={() => loadData(true)}
+                autoForm={autoForm}
               />
             )}
             <div className="overflow-hidden rounded-data border border-border bg-white">

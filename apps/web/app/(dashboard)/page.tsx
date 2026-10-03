@@ -25,7 +25,7 @@ import {
 } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-interface StockAlert { id: string; name: string; quantity: number; selling_price: number; }
+interface StockAlert { id: string; name: string; quantity: number; selling_price: number; cost_price?: number | null; supplier_id?: string | null; }
 interface Stats { products: number; partners: number; suppliers: number; sales: number; revenue: number; lowStock: number; outOfStock: number; }
 interface DailyRecord { day: string; revenue: number; profit: number; sales_count: number; }
 interface RecentSale { id: string; product_name?: string; total_amount: number; quantity: number; profit?: number; created_at?: string; }
@@ -707,7 +707,7 @@ export default function DashboardPage() {
               </div>
             ) : (
               <StockAlertCircles items={stockAlerts} total={Math.max(stockAlerts.length, stats.lowStock + stats.outOfStock)}
-                threshold={lowStock} restockHref={restockHref} fmtCurrency={fmtCurrency} />
+                threshold={lowStock} isCar={isCar} allHref={isCar ? "/items" : "/items?stock=low"} fmtMoney={fmtCurrency} />
             )}
 
             {stockAlerts.length > 0 && (

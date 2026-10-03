@@ -4,6 +4,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { reportRequest } from "@/lib/report-api";
 import WeeklyPerformance from "@/app/components/reports/WeeklyPerformance";
+import CircleStack from "@/app/components/ui/CircleStack";
+import StockAlertCircles from "@/app/components/dashboard/StockAlertCircles";
 import { useAutoRefresh } from "@/lib/hooks";
 import { itemRequest } from "@/lib/product-api";
 import { purchaseRequest } from "@/lib/purchase-api";
@@ -185,8 +187,6 @@ export default function ReportsPage() {
 
   // ── Derived values ──────────────────────────────────────────────────────────
   const topMax = Math.max(1, ...topItems.map((i) => i.revenue || 0));
-  const restockHref = (item: StockAlert) => isCar ? "/items"
-    : `/PurchaseManagement?name=${encodeURIComponent(item.name)}&cost=${item.cost_price}&selling=${item.selling_price}&supplierId=${item.supplier_id ?? ""}`;
 
   // ── Loading skeleton ────────────────────────────────────────────────────────
   if (loading) return <ReportsSkeleton />;
@@ -289,24 +289,30 @@ export default function ReportsPage() {
               {topItems.length === 0 ? (
                 <p className="px-4 py-6 text-sm text-slate-500">{t("common.no_data")}</p>
               ) : (
-                <ul className="divide-y divide-slate-100">
-                  {topItems.slice(0, 8).map((item, i) => (
-                    <li key={item.product_id} className="px-4 py-2">
-                      <div className="flex items-baseline justify-between gap-3">
-                        <p className="min-w-0 truncate text-sm font-semibold text-slate-800">
-                          <span className="mr-2 text-slate-400 tabular-nums">{i + 1}.</span>{item.product_name || "—"}
-                        </p>
-                        <p className="shrink-0 text-sm font-semibold text-slate-900 tabular-nums">{currency} {fmtNum(item.revenue)}</p>
-                      </div>
-                      <div className="mt-1 flex items-center gap-2">
-                        <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100">
-                          <div className="h-full rounded-full bg-[#0a66c2]" style={{ width: `${Math.max(2, (item.revenue / topMax) * 100)}%` }} />
+                <div className="pt-2.5">
+                  <CircleStack
+                    items={topItems.slice(0, 8).map((item, i) => ({
+                      id: item.product_id, href: `/items?open=${item.product_id}`,
+                      label: `${i + 1}. ${item.product_name}: ${currency} ${fmtNum(item.revenue)} · ${fmtNum(item.qty_sold)} ${t("reports.sold_word")}`,
+                      done: item.revenue / topMax, color: "#0a66c2", center: i + 1,
+                    }))}
+                    caption={(id) => {
+                      const i = topItems.findIndex((x) => x.product_id === id);
+                      const item = topItems[i];
+                      return (
+                        <div className="flex items-center gap-2.5">
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-semibold text-slate-800"><span className="mr-1.5 text-slate-400">{i + 1}.</span>{item.product_name || "—"}</p>
+                            <p className="truncate text-xs text-slate-500 tabular-nums">
+                              <span className="font-semibold text-slate-800">{currency} {fmtNum(item.revenue)}</span> · {fmtNum(item.qty_sold)} {t("reports.sold_word")}
+                            </p>
+                          </div>
+                          <Link href={`/items?open=${item.product_id}`} className="shrink-0 text-xs font-semibold text-[#0a66c2] hover:underline">{t("reports.open_item")}</Link>
                         </div>
-                        <span className="w-20 shrink-0 text-right text-xs text-slate-500 tabular-nums">{fmtNum(item.qty_sold)} {t("reports.sold_word")}</span>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
+                      );
+                    }}
+                  />
+                </div>
               )}
             </Panel>
 
@@ -315,20 +321,10 @@ export default function ReportsPage() {
               {stockAlerts.length === 0 ? (
                 <p className="flex items-center gap-2 px-4 py-6 text-sm font-medium text-emerald-700"><CheckCircle size={16} /> {t("reports.stock_healthy_full")}</p>
               ) : (
-                <ul className="divide-y divide-slate-100">
-                  {[...stockAlerts].sort((x, y) => x.quantity - y.quantity).slice(0, 8).map((item) => (
-                    <li key={item.id} className="flex items-center gap-3 px-4 py-2">
-                      <span className={`inline-flex h-7 min-w-7 shrink-0 items-center justify-center rounded-full px-1.5 text-xs font-bold tabular-nums ${item.quantity === 0 ? "bg-red-100 text-red-700" : "bg-amber-100 text-amber-800"}`}>
-                        {item.quantity}
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-semibold text-slate-800">{item.name}</p>
-                        <p className="text-xs text-slate-500 tabular-nums">{currency} {fmtNum(item.selling_price)}</p>
-                      </div>
-                      <Link href={restockHref(item)} className="shrink-0 text-xs font-semibold text-[#0a66c2] hover:underline">{t("reports.restock")}</Link>
-                    </li>
-                  ))}
-                </ul>
+                <div className="pt-2.5">
+                  <StockAlertCircles items={[...stockAlerts].sort((x, y) => x.quantity - y.quantity).slice(0, 8)} total={stockAlerts.length}
+                    threshold={lowStock} isCar={isCar} allHref={isCar ? "/items" : "/items?stock=low"} fmtMoney={(n) => `${currency} ${fmtNum(n)}`} />
+                </div>
               )}
             </Panel>
           </div>

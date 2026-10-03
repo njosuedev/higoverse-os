@@ -27,6 +27,8 @@ interface Props {
   onEdit: (v: Vehicle) => void;
   /** Called after a status/penalty change so the page can reload. */
   onChanged: () => void;
+  /** Open this car's fines or pending form once it's shown (from a link). */
+  autoForm?: { id: string; form: "fines" | "pending" } | null;
 }
 
 const today = () => new Date().toISOString().slice(0, 10);
@@ -42,10 +44,24 @@ async function patchAttributes(id: string, changes: Attributes) {
 
 const CLEAR_PENDING: Attributes = { sale_status: "", buyer_name: "", buyer_phone: "", buyer_id_no: "", pending_since: "", pending_note: "" };
 
-export default function VehicleGrid({ vehicles, currency, onOpenGallery, onEdit, onChanged }: Props) {
+export default function VehicleGrid({ vehicles, currency, onOpenGallery, onEdit, onChanged, autoForm }: Props) {
   const { t } = useLanguage();
   const [pendingFor, setPendingFor] = useState<Vehicle | null>(null);
   const [penaltyFor, setPenaltyFor] = useState<Vehicle | null>(null);
+
+  // A link asked for this car's form: open it once, as soon as the car is
+  // listed (state adjusted during render, React's pattern for prop changes).
+  const [handledForm, setHandledForm] = useState<string | null>(null);
+  const formKey = autoForm ? `${autoForm.id}:${autoForm.form}` : null;
+  if (autoForm && formKey !== handledForm) {
+    const v = vehicles.find((x) => x.id === autoForm.id);
+    if (v) {
+      setHandledForm(formKey);
+      const a = parseAttributes(v.attributes);
+      if (autoForm.form === "fines") setPenaltyFor(v);
+      else if (v.quantity > 0 && a.sale_status !== "pending") setPendingFor(v);
+    }
+  }
 
   async function release(v: Vehicle) {
     const ok = await askConfirm({ title: t("vehicle.release_title"), message: t("vehicle.release_confirm"), confirmLabel: t("vehicle.release") });

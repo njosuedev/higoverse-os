@@ -8,6 +8,7 @@ import { saleRequest } from "@/lib/sale-api";
 import { partnerRequest } from "@/lib/supplier-api";
 import { useLanguage } from "@/lib/language-context";
 import { useAutoRefresh } from "@/lib/hooks";
+import CircleStack from "@/app/components/ui/CircleStack";
 import { daysSince, parseAttributes, PENALTY_RECHECK_DAYS, type Attributes } from "@/lib/business-layout";
 
 interface WatchCar {
@@ -71,6 +72,13 @@ function missingDetails(c: WatchCar, a: Attributes, t: (k: string) => string): s
   }
   return out;
 }
+
+/** Clicking a car opens it on the Vehicles page with the matching action. */
+const HREF: Record<Kind, (id: string) => string> = {
+  pending:    (id) => `/items?open=${id}`,
+  penalties:  (id) => `/items?open=${id}&do=fines`,
+  incomplete: (id) => `/items?open=${id}&do=edit`,
+};
 
 /** One way to show a car in a panel: its ring, its details line, and an
  *  optional count badge on the circle. */
@@ -206,65 +214,42 @@ function Panel({ kind, icon, title, total, loading, empty, children }: {
 function CarList({ kind, cars, total, view, circles = false, footer }: {
   kind: Kind; cars: WatchCar[]; total: number; view: (c: WatchCar) => View; circles?: boolean; footer?: React.ReactNode;
 }) {
-  const { t } = useLanguage();
-  const [active, setActive] = useState<string | null>(null);
-
   if (!circles && total <= ROWS) {
-    return <div className="pb-1">{cars.map((c) => <Row key={c.id} car={c} line={view(c).line} />)}</div>;
+    return <div className="pb-1">{cars.map((c) => <Row key={c.id} car={c} line={view(c).line} href={HREF[kind](c.id)} />)}</div>;
   }
-
-  const shown = cars.find((c) => c.id === active) ?? cars[0];
-  const extra = total - cars.length;
+  const byId = new Map(cars.map((c) => [c.id, c]));
   return (
-    <div className="px-3.5 pb-3">
-      <div className="flex items-center pl-1.5 pt-1" onMouseLeave={() => setActive(null)}>
-        {cars.map((c, i) => {
-          const v = view(c);
-          return (
-            <button key={c.id} type="button" aria-label={`${c.name}: ${v.label}`} aria-pressed={shown?.id === c.id}
-              onMouseEnter={() => setActive(c.id)} onFocus={() => setActive(c.id)} onClick={() => setActive(c.id)}
-              className="relative -ml-2.5 rounded-full transition-transform first:ml-0 hover:-translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-ink/40"
-              style={{ zIndex: shown?.id === c.id ? 30 : cars.length - i }}>
-              <Ring done={v.done} color={v.color} thumb={c.thumbnail} />
-              {!!v.badge && (
-                <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full border border-white bg-accent px-1 text-[10px] font-bold leading-none text-white">
-                  {v.badge}
-                </span>
-              )}
-            </button>
-          );
-        })}
-        {extra > 0 && (
-          <Link href={`/items?status=${kind}`} aria-label={`+${extra} ${t("vehicle.more")}`}
-            className="relative -ml-2.5 flex h-11 w-11 items-center justify-center rounded-full border-2 border-white bg-paper-dim text-xs font-bold text-text hover:bg-paper-deep">
-            +{extra}
-          </Link>
-        )}
-      </div>
-      {shown && <div className="-mx-3.5 mt-1"><Row car={shown} line={view(shown).line} bare /></div>}
-      {footer}
-    </div>
+    <CircleStack
+      items={cars.map((c) => {
+        const v = view(c);
+        return { id: c.id, href: HREF[kind](c.id), label: `${c.name}: ${v.label}`, done: v.done, color: v.color, thumb: c.thumbnail, badge: v.badge };
+      })}
+      extra={total - cars.length}
+      extraHref={`/items?status=${kind}`}
+      caption={(id) => { const c = byId.get(id)!; return <div className="-mx-3.5"><Row car={c} line={view(c).line} href={HREF[kind](c.id)} bare /></div>; }}
+      footer={footer}
+    />
   );
 }
 
-function Row({ car, line, bare = false }: { car: WatchCar; line: React.ReactNode; bare?: boolean }) {
+function Row({ car, line, href, bare = false }: { car: WatchCar; line: React.ReactNode; href: string; bare?: boolean }) {
   const { t } = useLanguage();
   const a = parseAttributes(car.attributes);
   const contact = car.contact;
   return (
     <div className={`${bare ? "" : "hgv-ledger-row "}flex items-center gap-2.5 px-3.5 py-2`}>
       {!bare && (
-        <div className="flex h-9 w-12 shrink-0 items-center justify-center overflow-hidden rounded-press bg-paper-dim">
+        <Link href={href} aria-label={car.name} className="flex h-9 w-12 shrink-0 items-center justify-center overflow-hidden rounded-press bg-paper-dim hover:opacity-90">
           {car.thumbnail
             // eslint-disable-next-line @next/next/no-img-element
             ? <img src={car.thumbnail} alt="" loading="lazy" className="h-full w-full object-cover" />
             : <Car size={16} className="text-text-faint" />}
-        </div>
+        </Link>
       )}
       <div className="min-w-0 flex-1">
-        <p className="truncate text-xs font-semibold text-text">
+        <Link href={href} className="block truncate text-xs font-semibold text-text hover:text-ink hover:underline">
           {car.name}{a.plate_no && <span className="ml-1.5 font-mono font-medium text-text-muted">{a.plate_no}</span>}
-        </p>
+        </Link>
         <p className="truncate text-xs">{line}</p>
         {contact !== undefined && (
           <p className="mt-0.5 flex min-w-0 items-center gap-1 text-xs text-text">
@@ -283,27 +268,5 @@ function Row({ car, line, bare = false }: { car: WatchCar; line: React.ReactNode
         </a>
       )}
     </div>
-  );
-}
-
-/** A car photo nested in a ring filled to `done` (0–1). */
-function Ring({ done, color, thumb }: { done: number; color: string; thumb?: string | null }) {
-  const R = 20, C = 2 * Math.PI * R;
-  return (
-    <span className="relative block h-11 w-11 rounded-full bg-white">
-      <svg viewBox="0 0 44 44" className="absolute inset-0 h-full w-full -rotate-90" aria-hidden="true">
-        <circle cx="22" cy="22" r={R} fill="none" stroke="var(--color-border)" strokeWidth="3" />
-        {done > 0 && (
-          <circle cx="22" cy="22" r={R} fill="none" stroke={color} strokeWidth="3" strokeLinecap="round"
-            strokeDasharray={`${C * done} ${C}`} />
-        )}
-      </svg>
-      <span className="absolute inset-[5px] flex items-center justify-center overflow-hidden rounded-full bg-paper-dim">
-        {thumb
-          // eslint-disable-next-line @next/next/no-img-element
-          ? <img src={thumb} alt="" loading="lazy" className="h-full w-full object-cover" />
-          : <Car size={15} className="text-text-faint" />}
-      </span>
-    </span>
   );
 }
