@@ -1,7 +1,7 @@
 import type { BusinessLayout } from "@/lib/business-layout";
 import { authFetch, expireSession } from "@/lib/session";
+import { AUTH_API } from "@/lib/api-config";
 
-const AUTH_API = process.env.NEXT_PUBLIC_AUTH_API || "https://auth-esys.vercel.app";
 
 async function adminRequest(endpoint: string, options: RequestInit = {}) {
   const headers = new Headers(options.headers);

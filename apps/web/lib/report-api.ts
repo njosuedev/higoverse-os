@@ -1,6 +1,6 @@
 import { authFetch } from "@/lib/session";
+import { REPORT_API } from "@/lib/api-config";
 
-const REPORT_API = process.env.NEXT_PUBLIC_API_REPORTS || "https://report-esys.vercel.app";
 
 export async function reportRequest(endpoint: string, options: RequestInit = {}) {
   const headers = new Headers(options.headers);

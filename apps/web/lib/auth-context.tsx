@@ -4,8 +4,8 @@ import { createContext, useCallback, useContext, useEffect, useState } from "rea
 import { clearAuth, getRefreshToken, getToken, getUser, setAuth as persistAuth, type User } from "./auth";
 import { sendOffline } from "./shop-api";
 import { SESSION_EVENT, warmSession } from "./session";
+import { AUTH_API as AUTH_URL } from "@/lib/api-config";
 
-const AUTH_URL = process.env.NEXT_PUBLIC_AUTH_API || "https://auth-esys.vercel.app";
 
 interface AuthState {
   user: User | null;

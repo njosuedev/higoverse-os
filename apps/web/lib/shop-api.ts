@@ -1,8 +1,8 @@
 import { getToken } from "@/lib/auth";
 import { authFetch } from "@/lib/session";
+import { AUTH_API } from "@/lib/api-config";
 
 // Shops live in auth-service's shop_db — call auth-service directly
-const AUTH_API = process.env.NEXT_PUBLIC_AUTH_API || "https://auth-esys.vercel.app";
 
 async function authShopRequest(endpoint: string, options: RequestInit = {}) {
   const token = getToken();

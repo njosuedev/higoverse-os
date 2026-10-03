@@ -1,6 +1,6 @@
 import { authFetch } from "@/lib/session";
+import { SETTINGS_API } from "@/lib/api-config";
 
-const SETTINGS_API = process.env.NEXT_PUBLIC_API_SETTINGS || "https://settings-esys.vercel.app";
 
 export async function settingsRequest(endpoint: string, options: RequestInit = {}) {
   const headers = new Headers(options.headers);

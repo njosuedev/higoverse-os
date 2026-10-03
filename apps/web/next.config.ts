@@ -26,14 +26,23 @@ const nextConfig: NextConfig = {
   },
 
   async rewrites() {
+    // Same-origin service paths. On the VPS nginx answers /svc/* before
+    // requests ever reach Next.js; in local development these rewrites play
+    // the same role and forward to the services on their usual ports.
+    const local = (port: number) => `http://127.0.0.1:${port}`;
+    const services: [string, number][] = [
+      ["auth", 8000], ["products", 8001], ["suppliers", 8002], ["sales", 8003], ["purchases", 8004],
+      ["expenses", 8005], ["settings", 8006], ["shops", 8007], ["reports", 8008],
+    ];
     return [
+      ...services.map(([name, port]) => ({ source: `/svc/${name}/:path*`, destination: `${local(port)}/:path*` })),
       {
         source: "/api/expenses/:path*",
-        destination: `${process.env.NEXT_PUBLIC_API_EXPENSES || "https://expenses-esys.vercel.app"}/:path*`,
+        destination: `${process.env.NEXT_PUBLIC_API_EXPENSES || local(8005)}/:path*`,
       },
       {
         source: "/api/purchases/:path*",
-        destination: `${process.env.NEXT_PUBLIC_API_PURCHASES || "https://purchase-esys.vercel.app"}/:path*`,
+        destination: `${process.env.NEXT_PUBLIC_API_PURCHASES || local(8004)}/:path*`,
       },
     ];
   },

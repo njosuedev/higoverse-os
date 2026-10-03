@@ -7,7 +7,7 @@ class Settings(BaseSettings):
     SECRET_KEY:             str = os.getenv("SECRET_KEY") or os.getenv("AUTH_SERVICE_SECRET", "")
     AUTH_SERVICE_ALGORITHM: str = "HS256"
     SERVICE_NAME:           str = "product-service"
-    SUPPLIER_SERVICE_URL:   str = os.getenv("SUPPLIER_SERVICE_URL", "https://higoverse-suppliers.vercel.app")
+    SUPPLIER_SERVICE_URL:   str = os.getenv("SUPPLIER_SERVICE_URL", "http://127.0.0.1:8002")
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

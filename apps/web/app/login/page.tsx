@@ -13,6 +13,7 @@ import {
   Boxes, BarChart3, ShieldCheck, Truck,
   Package, Users, FileText, Wallet, Settings, Home,
 } from "lucide-react";
+import { AUTH_API as AUTH_URL } from "@/lib/api-config";
 
 // Real app routes only — these mirror the authenticated nav, so a logged-out
 // visitor clicking one simply bounces to /login (same as typing the URL
@@ -29,7 +30,6 @@ const PLATFORM_LINKS = [
   { key: "nav.settings",  href: "/settings",  icon: Settings },
 ];
 
-const AUTH_URL = process.env.NEXT_PUBLIC_AUTH_API || "https://auth-esys.vercel.app";
 type Step = "login" | "forgot" | "otp" | "success";
 
 const noopSubscribe = () => () => {};

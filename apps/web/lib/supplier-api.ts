@@ -1,6 +1,6 @@
 import { authFetch } from "@/lib/session";
+import { SUPPLIER_API } from "@/lib/api-config";
 
-const SUPPLIER_API = process.env.NEXT_PUBLIC_API_SUPPLIERS || "https://supplier-esys.vercel.app";
 
 export async function partnerRequest(
   endpoint: string,

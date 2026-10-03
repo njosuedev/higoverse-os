@@ -1,6 +1,6 @@
 import { authFetch } from "@/lib/session";
+import { SALE_API } from "@/lib/api-config";
 
-const SALE_API = process.env.NEXT_PUBLIC_API_SALES || "https://sales-esys.vercel.app";
 
 export async function saleRequest(endpoint: string, options: RequestInit = {}) {
   const headers = new Headers(options.headers);

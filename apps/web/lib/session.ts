@@ -1,11 +1,11 @@
 import { clearAuth, getRefreshToken, getToken, setAuth } from "@/lib/auth";
+import { AUTH_API } from "@/lib/api-config";
 
 // Access tokens live 60 minutes; the refresh token lives 30 days and is
 // single-use (the server rotates it on every /auth/refresh). Every API client
 // goes through authFetch so an expired access token is renewed silently
 // instead of logging the user out — or worse, making their data look empty.
 
-const AUTH_API = process.env.NEXT_PUBLIC_AUTH_API || "https://auth-esys.vercel.app";
 
 /** Fired on window whenever the stored session changes (refresh or expiry). */
 export const SESSION_EVENT = "hgv-session-changed";
