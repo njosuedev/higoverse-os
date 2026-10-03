@@ -14,7 +14,7 @@ import { useShop } from "@/lib/shop-context";
 import { formatPublicAddress } from "@/lib/product-meta";
 import Pagination from "@/app/components/ui/Pagination";
 import ProductPicker, { type PickerProduct } from "@/app/components/ui/ProductPicker";
-import { useCanSeeFinancials } from "@/lib/permissions";
+import { useCanSeeFinancials, useShowsProfit } from "@/lib/permissions";
 import DeepLink from "@/app/components/DeepLink";
 import DateRangeFilter from "@/app/components/ui/DateRangeFilter";
 import {
@@ -73,6 +73,8 @@ function toDateStr(d: Date) {
 export default function SaleManagementPage() {
   // Car companies keep profit, costs and revenue totals from their staff.
   const fin = useCanSeeFinancials();
+  // Car companies never show profit, loss or margins (owners included).
+  const prof = useShowsProfit();
   const { t, lang } = useLanguage();
   const { lowStock } = useShopSettings();
   const { shop } = useShop();
@@ -480,7 +482,7 @@ export default function SaleManagementPage() {
       Qty: s.quantity,
       "Unit Price": s.unit_price,
       Total: s.total_amount,
-      ...(fin ? { Profit: s.profit || 0 } : {}),
+      ...(prof ? { Profit: s.profit || 0 } : {}),
     }));
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
@@ -496,7 +498,7 @@ export default function SaleManagementPage() {
     doc.text("Sales Report", 14, 16);
     autoTable(doc, {
       startY: 22,
-      head: [["Date", "Product", "Customer", "Payment", "Qty", "Unit Price", "Total", ...(fin ? ["Profit"] : [])]],
+      head: [["Date", "Product", "Customer", "Payment", "Qty", "Unit Price", "Total", ...(prof ? ["Profit"] : [])]],
       body: filtered.map((s) => [
         s.created_at ? new Date(s.created_at).toLocaleDateString() : "—",
         s.product_name || productMap[s.product_id]?.name || "—",
@@ -505,7 +507,7 @@ export default function SaleManagementPage() {
         String(s.quantity),
         s.unit_price.toLocaleString(),
         s.total_amount.toLocaleString(),
-        ...(fin ? [(s.profit || 0).toLocaleString()] : []),
+        ...(prof ? [(s.profit || 0).toLocaleString()] : []),
       ]),
       styles: { fontSize: 7 },
       headStyles: { fillColor: [19, 114, 230] },
@@ -725,8 +727,8 @@ ${paymentHtml}
                 <select value={filter} onChange={(e) => { setFilter(e.target.value); setPage(1); }}
                   >
                   <option value="all" className="text-gray-800">{t("sales.all")}</option>
-                  {fin && <option value="profit" className="text-gray-800">{t("sales.profit")}</option>}
-                  {fin && <option value="loss" className="text-gray-800">{t("sales.loss")}</option>}
+                  {prof && <option value="profit" className="text-gray-800">{t("sales.profit")}</option>}
+                  {prof && <option value="loss" className="text-gray-800">{t("sales.loss")}</option>}
                   <optgroup label={t("sales.by_payment")} className="text-gray-600">
                     {PAYMENT_METHODS.map((m) => (
                       <option key={m.value} value={`pay:${m.value}`} className="text-gray-800">{t(m.labelKey)} {t("sales.only_suffix")}</option>
@@ -751,7 +753,7 @@ ${paymentHtml}
           {[
             { label: t("sales.count"),        value: stats.total,                                                            color: "text-[#0a66c2]",  dot: "bg-[#0a66c2]"  },
             ...(!fin ? [] : [{ label: t("sales.revenue"),       value: stats.revenue.toLocaleString(),                                         color: "text-green-600",  dot: "bg-green-500"  },
-            { label: t("sales.profit"),        value: `${stats.profit >= 0 ? "+" : ""}${stats.profit.toLocaleString()}`,      color: stats.profit >= 0 ? "text-green-700" : "text-red-500", dot: stats.profit >= 0 ? "bg-green-500" : "bg-red-500" }]),
+            ...(prof ? [{ label: t("sales.profit"),        value: `${stats.profit >= 0 ? "+" : ""}${stats.profit.toLocaleString()}`,      color: stats.profit >= 0 ? "text-green-700" : "text-red-500", dot: stats.profit >= 0 ? "bg-green-500" : "bg-red-500" }] : [])]),
             { label: t("reports.customers"),   value: stats.uniqueCustomers,                                                  color: "text-[#0a66c2]",  dot: "bg-blue-400"   },
             { label: t("sales.outstanding"),   value: debtsTotalOutstanding.toLocaleString(),                                  color: "text-orange-500", dot: "bg-orange-400" },
           ].map((card) => (
@@ -820,7 +822,7 @@ ${paymentHtml}
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-200">
-                {[t("sales.col_date"), t("sales.col_product"), t("sales.col_customer"), t("sales.payment"), t("sales.col_qty"), t("sales.col_price"), t("sales.col_total"), ...(fin ? [t("sales.profit_margin_col")] : []), t("common.notes"), ""].map((h) => (
+                {[t("sales.col_date"), t("sales.col_product"), t("sales.col_customer"), t("sales.payment"), t("sales.col_qty"), t("sales.col_price"), t("sales.col_total"), ...(prof ? [t("sales.profit_margin_col")] : []), t("common.notes"), ""].map((h) => (
                   <th key={h} className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-400 whitespace-nowrap">{h}</th>
                 ))}
               </tr>
@@ -832,7 +834,7 @@ ${paymentHtml}
                 const isProfit = (s.profit || 0) > 0;
                 const saleDate = s.created_at ? new Date(s.created_at) : null;
                 return (
-                  <tr key={s.id} className={`hover:bg-slate-50/60 transition-colors border-l-2 ${!fin ? "border-l-slate-200" : isProfit ? "border-l-green-400" : (s.profit || 0) < 0 ? "border-l-red-400" : "border-l-slate-200"}`}>
+                  <tr key={s.id} className={`hover:bg-slate-50/60 transition-colors border-l-2 ${!prof ? "border-l-slate-200" : isProfit ? "border-l-green-400" : (s.profit || 0) < 0 ? "border-l-red-400" : "border-l-slate-200"}`}>
                     <td className="px-3 py-2 whitespace-nowrap">
                       {saleDate ? (
                         <div>
@@ -868,7 +870,7 @@ ${paymentHtml}
                     <td className="px-3 py-2 font-medium text-slate-700 tabular-nums">{s.quantity}</td>
                     <td className="px-3 py-2 text-slate-600 tabular-nums">{s.unit_price.toLocaleString()}</td>
                     <td className="px-3 py-2 font-semibold text-slate-800 tabular-nums">{s.total_amount.toLocaleString()}</td>
-                    {fin && <td className={`px-3 py-2 tabular-nums ${isProfit ? "text-green-600" : "text-red-500"}`}>
+                    {prof && <td className={`px-3 py-2 tabular-nums ${isProfit ? "text-green-600" : "text-red-500"}`}>
                       <span className="font-semibold">{isProfit ? "+" : ""}{(s.profit || 0).toLocaleString()}</span>
                       {s.total_amount > 0 && (
                         <span className="block text-[10px] font-normal opacity-60">
@@ -904,7 +906,7 @@ ${paymentHtml}
                   <tr className="bg-slate-50 border-t-2 border-slate-200 text-xs font-semibold text-slate-500">
                     <td className="px-4 py-2" colSpan={6}>{t("sales.subtotal_label")} — {filtered.length} {t("sales.sales_word")}</td>
                     <td className="px-4 py-2 tabular-nums text-slate-700">{fRev.toLocaleString()}</td>
-                    {fin && <td className={`px-4 py-2 tabular-nums ${fProfit >= 0 ? "text-green-600" : "text-red-500"}`}>
+                    {prof && <td className={`px-4 py-2 tabular-nums ${fProfit >= 0 ? "text-green-600" : "text-red-500"}`}>
                       {fProfit >= 0 ? "+" : ""}{fProfit.toLocaleString()}
                       <span className="block text-[10px] font-normal opacity-70">{fMargin.toFixed(1)}% {t("sales.margin_suffix")}</span>
                     </td>}
@@ -1146,7 +1148,7 @@ ${paymentHtml}
                     {lineItems.map((line, idx) => {
                       const p = productMap[line.product_id];
                       const subtotal = line.quantity * line.unit_price;
-                      const profit = fin && p && p.cost_price != null ? (line.unit_price - p.cost_price) * line.quantity : 0;
+                      const profit = prof && p && p.cost_price != null ? (line.unit_price - p.cost_price) * line.quantity : 0;
                       return (
                         <div key={line.id} className="px-3 py-2">
                           {/* Phone: product on its own row, then qty · price · total. */}
@@ -1170,7 +1172,7 @@ ${paymentHtml}
                               className="border border-slate-200 text-gray-800 rounded-lg px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-[#0a66c2]/30 focus:border-[#0a66c2] transition w-full" />
                             <div className="text-right">
                               <p className="font-semibold text-slate-800 text-sm tabular-nums">{subtotal.toLocaleString()}</p>
-                              {fin && p && <p className={`text-xs tabular-nums ${profit >= 0 ? "text-green-500" : "text-red-400"}`}>
+                              {prof && p && <p className={`text-xs tabular-nums ${profit >= 0 ? "text-green-500" : "text-red-400"}`}>
                                 {profit >= 0 ? "+" : ""}{profit.toLocaleString()}
                               </p>}
                             </div>
@@ -1197,7 +1199,7 @@ ${paymentHtml}
                       <p className="text-[10px] text-slate-400 uppercase tracking-wide">{t("proforma.grand_total")}</p>
                       <p className="font-bold text-lg text-slate-800 tabular-nums">{createGrandTotal.toLocaleString()} <span className="text-xs font-normal text-slate-400">{currency}</span></p>
                     </div>
-                    {fin && <div className="text-right">
+                    {prof && <div className="text-right">
                       <p className="text-[10px] text-slate-400 uppercase tracking-wide">{t("sales.est_profit")}</p>
                       <p className={`font-bold text-lg tabular-nums ${createGrandProfit >= 0 ? "text-green-600" : "text-red-500"}`}>
                         {createGrandProfit >= 0 ? "+" : ""}{createGrandProfit.toLocaleString()}
@@ -1357,7 +1359,7 @@ ${paymentHtml}
                 {form.product_id && form.quantity && form.unit_price && (
                   <div className="md:col-span-2 bg-slate-50 rounded-lg px-3 py-2 flex gap-6 text-sm">
                     <div><p className="text-xs text-gray-400">{t("common.total")}</p><p className="font-bold text-slate-800">{(Number(form.quantity) * Number(form.unit_price)).toLocaleString()}</p></div>
-                    {fin && selectedProduct && selectedProduct.cost_price != null && (
+                    {prof && selectedProduct && selectedProduct.cost_price != null && (
                       <div><p className="text-xs text-gray-400">{t("sales.col_profit")}</p>
                         <p className={`font-bold ${(Number(form.unit_price) - selectedProduct.cost_price) * Number(form.quantity) >= 0 ? "text-green-600" : "text-red-500"}`}>
                           {((Number(form.unit_price) - selectedProduct.cost_price) * Number(form.quantity)).toLocaleString()}

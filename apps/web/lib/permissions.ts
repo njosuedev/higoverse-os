@@ -21,3 +21,13 @@ export function useCanSeeFinancials(): boolean {
   if (loading) return false;
   return normalizeLayout(shop?.layout) !== "car";
 }
+
+/** Whether profit, loss and margin figures may be shown. Car companies don't
+ *  show them at all (owners included); other businesses show them to anyone
+ *  who can see financials. Fails closed until the shop's layout is known. */
+export function useShowsProfit(): boolean {
+  const fin = useCanSeeFinancials();
+  const { shop, loading } = useShop();
+  if (!fin || loading) return false;
+  return normalizeLayout(shop?.layout) !== "car";
+}

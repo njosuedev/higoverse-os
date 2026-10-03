@@ -17,7 +17,7 @@ import VehicleWatch from "@/app/components/dashboard/VehicleWatch";
 import TodayStatus from "@/app/components/dashboard/TodayStatus";
 import CarPerformanceChart from "@/app/components/dashboard/CarPerformanceChart";
 import StockAlertCircles from "@/app/components/dashboard/StockAlertCircles";
-import { useCanSeeFinancials } from "@/lib/permissions";
+import { useCanSeeFinancials, useShowsProfit } from "@/lib/permissions";
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer,
 } from "recharts";
@@ -114,6 +114,8 @@ export default function DashboardPage() {
   const isCar = layout === "car";
   // Car companies keep money figures from their staff (enforced server-side too).
   const fin = useCanSeeFinancials();
+  // Car companies never show profit, loss or margins (owners included).
+  const prof = useShowsProfit();
   // Settings → currency and low stock threshold.
   const { currency, lowStock, loaded: settingsLoaded } = useShopSettings();
   const fmtCurrency = (n: number) => fmtMoney(n, currency);
@@ -437,7 +439,7 @@ export default function DashboardPage() {
             </Link>
           </div>
 
-          <div className={`grid grid-cols-2 ${isCar ? "sm:grid-cols-3" : "sm:grid-cols-4"} divide-y sm:divide-y-0 sm:divide-x divide-border border border-border rounded-data overflow-hidden`}>
+          <div className={`grid grid-cols-2 ${isCar ? "sm:grid-cols-2" : "sm:grid-cols-4"} divide-y sm:divide-y-0 sm:divide-x divide-border border border-border rounded-data overflow-hidden`}>
             <div className="p-3">
               <p className="text-[9px] text-text-faint uppercase tracking-wide font-medium">{t("dash.revenue_week")}</p>
               <p className="hgv-figure text-lg font-semibold text-success mt-0.5">{stats.revenue > 0 ? fmtCurrency(stats.revenue) : "—"}</p>
@@ -453,7 +455,7 @@ export default function DashboardPage() {
               <p className="hgv-figure text-lg font-semibold text-warning mt-0.5">{expenseToday.total_expenses > 0 ? fmtCurrency(expenseToday.total_expenses) : "—"}</p>
               <p className="text-[10px] text-text-faint mt-0.5">{expenseToday.count} {t("expenses.records")}</p>
             </div>
-            <div className="p-3">
+            {prof && <div className="p-3">
               <p className="text-[9px] text-text-faint uppercase tracking-wide font-medium">{t("dash.net_profit")}</p>
               <p className={`hgv-figure text-lg font-semibold mt-0.5 ${netProfit >= 0 ? "text-ink" : "text-accent-dark"}`}>
                 {totalCosts > 0 || stats.revenue > 0 ? fmtCurrency(netProfit) : "—"}
@@ -461,7 +463,7 @@ export default function DashboardPage() {
               <p className="text-[10px] text-text-faint mt-0.5">
                 {netProfit >= 0 ? t("dash.profitable") : t("dash.at_loss")}
               </p>
-            </div>
+            </div>}
           </div>
 
           {stats.revenue > 0 && (
@@ -469,7 +471,7 @@ export default function DashboardPage() {
               <div className="flex h-1.5 overflow-hidden gap-px rounded-full">
                 {purchasePct > 0 && <div className="bg-border-strong" style={{ width: `${purchasePct}%` }} />}
                 {expensePct  > 0 && <div className="bg-warning"       style={{ width: `${expensePct}%` }} />}
-                {netPct      > 0 && <div className="bg-success flex-1" />}
+                {prof && netPct > 0 && <div className="bg-success flex-1" />}
               </div>
               <div className="flex flex-wrap items-center gap-3 mt-2">
                 {!isCar && <span className="flex items-center gap-1 text-[10px] text-text-muted">
@@ -478,9 +480,9 @@ export default function DashboardPage() {
                 <span className="flex items-center gap-1 text-[10px] text-text-muted">
                   <span className="w-2 h-1.5 rounded-sm bg-warning inline-block" /> {t("nav.expenses")} {expensePct}%
                 </span>
-                <span className="flex items-center gap-1 text-[10px] text-text-muted">
+                {prof && <span className="flex items-center gap-1 text-[10px] text-text-muted">
                   <span className="w-2 h-1.5 rounded-sm bg-success inline-block" /> {t("dash.profit_label")} {netPct}%
-                </span>
+                </span>}
                 <Link href="/ExpenseManagement" className="ml-auto text-[10px] font-semibold text-paper bg-ink hover:bg-ink-dark px-2.5 py-1 rounded-press flex items-center gap-1 transition-colors duration-200">
                   <Receipt size={10} /> {t("expenses.add")}
                 </Link>
@@ -491,7 +493,7 @@ export default function DashboardPage() {
         </>)}
 
         {/* ── BUSINESS PROGRESS ───────────────────────────────────────────────── */}
-        <section className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <section className={`grid grid-cols-1 gap-3 ${prof ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}>
           {/* Stock health */}
           {(() => {
             const total = stats.products;
@@ -524,7 +526,7 @@ export default function DashboardPage() {
           })()}
 
           {/* Net margin */}
-          {fin && (() => {
+          {prof && (() => {
             const margin = stats.revenue > 0 ? Math.round((netProfit / stats.revenue) * 100) : 0;
             const capped  = Math.min(100, Math.max(0, margin));
             const isGood  = margin >= 20;
@@ -661,7 +663,7 @@ export default function DashboardPage() {
                     </div>
                     <div className="text-right shrink-0">
                       <p className="hgv-figure text-xs font-semibold text-text">{fmtCurrency(sale.total_amount)}</p>
-                      {sale.profit != null && sale.profit > 0 && (
+                      {prof && sale.profit != null && sale.profit > 0 && (
                         <p className="hgv-figure text-[9px] text-success">+{fmtCurrency(sale.profit)}</p>
                       )}
                     </div>

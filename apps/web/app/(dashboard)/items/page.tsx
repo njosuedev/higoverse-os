@@ -14,7 +14,7 @@ import CarGallery from "@/app/components/items/CarGallery";
 import VehicleGrid from "@/app/components/items/VehicleGrid";
 import DeepLink from "@/app/components/DeepLink";
 import Pagination from "@/app/components/ui/Pagination";
-import { useCanSeeFinancials } from "@/lib/permissions";
+import { useCanSeeFinancials, useShowsProfit } from "@/lib/permissions";
 import {
   Package, AlertCircle, Search, Filter, Plus, Trash2, Pencil, X, ShoppingCart,
   TrendingUp, TrendingDown, RefreshCw, ChevronDown,
@@ -81,6 +81,8 @@ export default function ItemManagementPage() {
   const isCar = layout === "car";
   // Car companies keep stock value and profit figures from their staff.
   const fin = useCanSeeFinancials();
+  // Car companies never show profit, loss or margins (owners included).
+  const prof = useShowsProfit();
   // One page of products, already searched/filtered/paged by the API.
   const [products, setProducts] = useState<Product[]>([]);
   const [total, setTotal] = useState(0);
@@ -781,7 +783,7 @@ export default function ItemManagementPage() {
             { label: t("items.low_stock"),   value: stats.lowStock,                         color: "text-amber-500", dot: "bg-amber-400" },
             { label: t("items.out_stock"),   value: stats.outStock,                         color: "text-red-600",   dot: "bg-red-500"   },
             ...(fin ? [{ label: t("items.stock_value"), value: stats.stockValue.toLocaleString(),      color: "text-slate-700", dot: "bg-slate-400" }] : []),
-            ...(fin ? [{ label: t("items.pot_profit"),  value: stats.potentialProfit.toLocaleString(), color: "text-green-700", dot: "bg-green-600" }] : []),
+            ...(prof ? [{ label: t("items.pot_profit"),  value: stats.potentialProfit.toLocaleString(), color: "text-green-700", dot: "bg-green-600" }] : []),
           ]).map((card) => (
             <div key={card.label} className="bg-white rounded-lg border border-slate-200 px-2.5 py-2">
               <div className="flex items-center gap-1 mb-1">

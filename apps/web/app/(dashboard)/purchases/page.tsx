@@ -8,6 +8,7 @@ import { partnerRequest } from "@/lib/supplier-api";
 import { purchaseRequest } from "@/lib/purchase-api";
 import { useAutoRefresh, useDebounce } from "@/lib/hooks";
 import { useLanguage } from "@/lib/language-context";
+import { useShowsProfit } from "@/lib/permissions";
 import { useShopSettings } from "@/lib/shop-settings-context";
 import Pagination from "@/app/components/ui/Pagination";
 import ProductPicker from "@/app/components/ui/ProductPicker";
@@ -39,6 +40,8 @@ function toDateStr(d: Date) {
 
 export default function PurchaseManagementPage() {
   const { t, layout } = useLanguage();
+  // Car companies never show profit, loss or margins (owners included).
+  const prof = useShowsProfit();
   // Car companies don't use Purchases (they stock in from Vehicles); the
   // supplier hiding below still applies if one lands here before the redirect.
   const isCar = layout === "car";
@@ -461,7 +464,7 @@ export default function PurchaseManagementPage() {
             { label: t("purchases.stat_total_products"),   value: productsTotal,                         color: "text-[#0a66c2]", dot: "bg-[#0a66c2]" },
             { label: t("purchases.stat_what_you_paid"),    value: invStats.costValue.toLocaleString(),    color: "text-[#0a66c2]", dot: "bg-blue-500" },
             { label: t("purchases.stat_if_sell_all"),      value: invStats.retailValue.toLocaleString(),  color: "text-[#0a66c2]", dot: "bg-indigo-500" },
-            { label: t("purchases.stat_profit_to_make"),   value: invStats.grossProfit.toLocaleString(),  color: "text-green-600", dot: "bg-green-500" },
+            ...(prof ? [{ label: t("purchases.stat_profit_to_make"),   value: invStats.grossProfit.toLocaleString(),  color: "text-green-600", dot: "bg-green-500" }] : []),
             { label: t("purchases.stat_almost_finished"),  value: invStats.lowStock,                      color: "text-amber-500", dot: "bg-amber-400" },
             { label: t("purchases.stat_finished_empty"),   value: invStats.outStock,                      color: "text-red-600",   dot: "bg-red-500" },
           ].map((card) => (
@@ -506,7 +509,7 @@ export default function PurchaseManagementPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200">
-                  {[t("items.col_product"), ...(isCar ? [] : [t("items.col_supplier")]), t("items.cost_price"), t("items.selling_price"), t("items.col_margin"), t("items.col_qty"), t("common.status"), ""].map((h) => (
+                  {[t("items.col_product"), ...(isCar ? [] : [t("items.col_supplier")]), t("items.cost_price"), t("items.selling_price"), ...(prof ? [t("items.col_margin")] : []), t("items.col_qty"), t("common.status"), ""].map((h) => (
                     <th key={h} className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-500 whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
@@ -529,11 +532,11 @@ export default function PurchaseManagementPage() {
                       </td>}
                       <td className="px-3 py-1.5 text-slate-600 font-medium tabular-nums text-xs">{Number(p.cost_price).toLocaleString()}</td>
                       <td className="px-3 py-1.5 font-semibold text-green-600 tabular-nums text-xs">{Number(p.selling_price).toLocaleString()}</td>
-                      <td className="px-3 py-1.5">
+                      {prof && <td className="px-3 py-1.5">
                         <span className={`text-[10px] font-bold ${margin2 >= 0 ? "text-green-600" : "text-red-500"}`}>
                           {margin2 >= 0 ? "+" : ""}{margin2.toFixed(1)}%
                         </span>
-                      </td>
+                      </td>}
                       <td className="px-3 py-1.5">
                         <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${p.quantity === 0 ? "bg-red-100 text-red-700" : p.quantity <= lowStock ? "bg-amber-100 text-amber-700" : "bg-green-100 text-green-700"}`}>
                           {p.quantity}
@@ -719,7 +722,7 @@ export default function PurchaseManagementPage() {
                   <input type="number" min="0" className={inputCls} placeholder="0"
                     value={form.selling_price} onChange={(e) => setForm({ ...form, selling_price: e.target.value })} />
                 </div>
-                {margin !== null && (
+                {prof && margin !== null && (
                   <div className="md:col-span-2 bg-slate-50 rounded-lg px-3 py-2 text-xs text-slate-500">
                     {t("purchases.margin_label")}: <span className={`font-bold ${Number(margin) >= 0 ? "text-green-600" : "text-red-500"}`}>{Number(margin) >= 0 ? "+" : ""}{margin}%</span>
                     {" · "}{t("purchases.unit_profit_label")}: <span className="font-bold text-slate-700">{(Number(form.selling_price) - Number(form.cost_price)).toLocaleString()}</span>
