@@ -339,73 +339,77 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* ── HERO — one compact row: business, key figures, time ─────────────── */}
-        <section className="hgv-surface rounded-data">
-          <div className="flex flex-wrap items-center gap-x-6 gap-y-3 px-4 py-3 sm:px-5">
-            {/* Business */}
-            <div className="order-1 flex min-w-0 flex-1 basis-[220px] items-center gap-3 sm:order-none">
-              {currentShop?.logo_url && (
-                <img
-                  src={currentShop.logo_url}
-                  alt=""
-                  className="h-9 w-9 shrink-0 rounded-press border border-white/15 object-cover"
-                />
-              )}
-              <div className="min-w-0">
-                {(() => {
-                  const name = shop?.name || currentShop?.name || user.name || t("dash.my_shop");
-                  return <h1 className="truncate font-display text-base font-bold leading-tight" title={name}>{name}</h1>;
-                })()}
-                <p className="mt-0.5 flex min-w-0 items-center gap-1.5 truncate text-[11px] text-paper/60">
-                  <span className="truncate">{user.name} · {user.role || t("dash.owner_role")}</span>
-                  <span aria-hidden="true">·</span>
-                  <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#6fb97e]" />
-                  <span className="shrink-0">{lastUpdated ? `${t("dash.last_updated")} ${timeAgo(lastUpdated, t)}` : `${t("dash.live_refresh")} ${countdown}s`}</span>
-                </p>
-              </div>
-            </div>
-
-            {/* Key figures — plain label/value pairs, thin dividers */}
-            <dl className="order-3 flex w-full items-center divide-x divide-white/15 border-t border-white/10 pt-3 sm:order-none sm:w-auto sm:border-0 sm:pt-0">
-              <div className="flex-1 pr-4 sm:flex-none">
-                <dt className="whitespace-nowrap text-[10px] font-semibold uppercase tracking-wider text-paper/55">
-                  <span className="sm:hidden">{t("dash.chart_sales")}</span><span className="hidden sm:inline">{t("dash.sales_week")}</span>
-                </dt>
-                <dd className="hgv-figure whitespace-nowrap text-[15px] font-bold leading-tight">{stats.sales}</dd>
-              </div>
-              {fin && (
-                <div className="flex-1 px-4 sm:flex-none">
-                  <dt className="whitespace-nowrap text-[10px] font-semibold uppercase tracking-wider text-paper/55">
-                    <span className="sm:hidden">{t("dash.revenue_label")}</span><span className="hidden sm:inline">{t("dash.revenue_week")}</span>
-                  </dt>
-                  <dd className="hgv-figure whitespace-nowrap text-[15px] font-bold leading-tight text-[#8fd19e]">
-                    {stats.revenue > 0 ? `${currency} ${fmtShort(stats.revenue)}` : "-"}
-                  </dd>
+        {/* ── HERO — business badge, greeting, three key figures, time ────────── */}
+        {(() => {
+          const name = shop?.name || currentShop?.name || user.name || t("dash.my_shop");
+          const initials = name.split(/\s+/).filter((w) => /[A-Za-z0-9]/.test(w[0] ?? "")).slice(0, 2).map((w) => w[0]).join("").toUpperCase() || "H";
+          const hour = now.getHours();
+          const greeting = t(hour < 12 ? "dash.good_morning" : hour < 18 ? "dash.good_afternoon" : "dash.good_evening");
+          const firstName = (user.name || "").split(" ")[0];
+          const restock = stats.lowStock + stats.outOfStock;
+          const figures = [
+            { href: "/sales", icon: <ShoppingCart size={15} />, tint: "bg-ink/10 text-ink", short: t("dash.chart_sales"), long: t("dash.sales_week"), value: String(stats.sales), tone: "text-text" },
+            ...(fin ? [{ href: "/reports", icon: <TrendingUp size={15} />, tint: "bg-success/10 text-success", short: t("dash.revenue_label"), long: t("dash.revenue_week"), value: stats.revenue > 0 ? `${currency} ${fmtShort(stats.revenue)}` : "-", tone: "text-success" }] : []),
+            ...(restock > 0 ? [{ href: "/items?stock=low", icon: <AlertTriangle size={15} />, tint: "bg-accent/10 text-accent", short: t("dash.restock_short"), long: t("dash.needs_restock"), value: String(restock), tone: "text-accent-dark" }] : []),
+          ];
+          return (
+            <section className="relative overflow-hidden rounded-data border border-border bg-white shadow-[0_1px_2px_rgb(0_0_0_/_0.04)]">
+              {/* soft brand tint toward the right */}
+              <div aria-hidden="true" className="pointer-events-none absolute inset-y-0 right-0 w-2/3 bg-gradient-to-l from-ink/[0.05] to-transparent" />
+              <div className="relative flex flex-wrap items-center gap-x-6 gap-y-3 px-4 py-3.5 sm:px-5">
+                {/* Business */}
+                <div className="order-1 flex min-w-0 flex-1 basis-[220px] items-center gap-3 sm:order-none">
+                  {currentShop?.logo_url ? (
+                    <img src={currentShop.logo_url} alt="" className="h-11 w-11 shrink-0 rounded-full border border-border object-cover" />
+                  ) : (
+                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-ink text-sm font-bold tracking-wide text-white">{initials}</span>
+                  )}
+                  <div className="min-w-0">
+                    <h1 className="truncate font-display text-[17px] font-bold leading-tight text-text" title={name}>{name}</h1>
+                    <p className="mt-0.5 flex min-w-0 items-center gap-1.5 text-xs text-text-muted">
+                      <span className="truncate">{greeting}{firstName ? `, ${firstName}` : ""} · {user.role || t("dash.owner_role")}</span>
+                      <span className="relative ml-0.5 flex h-2 w-2 shrink-0" title={lastUpdated ? `${t("dash.last_updated")} ${timeAgo(lastUpdated, t)}` : undefined}>
+                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-success opacity-40" />
+                        <span className="relative inline-flex h-2 w-2 rounded-full bg-success" />
+                      </span>
+                    </p>
+                  </div>
                 </div>
-              )}
-              {(stats.lowStock > 0 || stats.outOfStock > 0) && (
-                <div className="flex-1 pl-4 sm:flex-none">
-                  <dt className="whitespace-nowrap text-[10px] font-semibold uppercase tracking-wider text-[#f0c2b3]">{t("dash.needs_restock")}</dt>
-                  <dd className="hgv-figure whitespace-nowrap text-[15px] font-bold leading-tight text-[#f0c2b3]">{stats.lowStock + stats.outOfStock}</dd>
-                </div>
-              )}
-            </dl>
 
-            {/* Time + refresh */}
-            <div className="order-2 ml-auto flex shrink-0 items-center gap-2 sm:order-none">
-              <p className="hgv-figure hidden whitespace-nowrap text-right text-[11px] text-paper/60 sm:block">
-                <span className="font-semibold text-paper/85">{fmtTime(now)}</span> · {fmtDate(now)}
-              </p>
-              <button
-                onClick={manualRefresh} disabled={refreshing}
-                className="flex h-8 w-8 items-center justify-center rounded-press bg-white/8 transition-colors duration-200 hover:bg-white/15 disabled:opacity-50"
-                title={t("common.refresh")} aria-label={t("common.refresh")}
-              >
-                <RefreshCw size={13} className={refreshing ? "animate-spin" : ""} />
-              </button>
-            </div>
-          </div>
-        </section>
+                {/* Key figures */}
+                <div className="order-3 flex w-full items-stretch gap-1 border-t border-border pt-2.5 sm:order-none sm:w-auto sm:border-0 sm:pt-0">
+                  {figures.map((f) => (
+                    <Link key={f.long} href={f.href}
+                      className="group flex min-w-0 flex-1 items-center gap-2.5 rounded-press px-2 py-1.5 transition-colors duration-200 hover:bg-paper sm:flex-none sm:px-3">
+                      <span className={`hidden h-8 w-8 shrink-0 items-center justify-center rounded-full sm:flex ${f.tint}`}>{f.icon}</span>
+                      <span className="min-w-0">
+                        <span className="block whitespace-nowrap text-[10px] font-semibold uppercase tracking-wider text-text-muted">
+                          <span className="sm:hidden">{f.short}</span><span className="hidden sm:inline">{f.long}</span>
+                        </span>
+                        <span className={`hgv-figure block whitespace-nowrap text-base font-bold leading-tight ${f.tone}`}>{f.value}</span>
+                      </span>
+                    </Link>
+                  ))}
+                </div>
+
+                {/* Time + refresh */}
+                <div className="order-2 ml-auto flex shrink-0 items-center gap-3 sm:order-none">
+                  <div className="hidden text-right xl:block">
+                    <p className="hgv-figure text-sm font-bold leading-tight text-text">{fmtTime(now)}</p>
+                    <p className="text-[11px] text-text-muted">{fmtDate(now)}</p>
+                  </div>
+                  <button
+                    onClick={manualRefresh} disabled={refreshing}
+                    className="flex h-9 w-9 items-center justify-center rounded-full border border-border bg-white text-text-muted transition-colors duration-200 hover:border-ink hover:text-ink disabled:opacity-50"
+                    title={t("common.refresh")} aria-label={t("common.refresh")}
+                  >
+                    <RefreshCw size={14} className={refreshing ? "animate-spin" : ""} />
+                  </button>
+                </div>
+              </div>
+            </section>
+          );
+        })()}
 
         {/* ── TODAY (car companies): new cars, new fines, new pending — like status ── */}
         {isCar && <TodayStatus />}
