@@ -23,18 +23,18 @@
   --color-border-strong: #c3c1bd;
   --color-text: #191919;
   /* Secondary text kept dark enough to read easily (was #666 / #8c8c8c). */
-  --color-text-muted: #444444;
-  --color-text-faint: #5e5e5e;
+  --color-text-muted: #333333;
+  --color-text-faint: #474747;
 
   /* Pale greys used for labels, hints and table headers across the pages
      are shifted one step darker for contrast (Tailwind defaults in
      brackets): slate-300 (#cbd5e1) … gray-500 (#6b7280). */
-  --color-slate-300: #94a3b8;
-  --color-slate-400: #64748b;
-  --color-slate-500: #475569;
-  --color-gray-300: #9ca3af;
-  --color-gray-400: #6b7280;
-  --color-gray-500: #4b5563;
+  --color-slate-300: #64748b;
+  --color-slate-400: #475569;
+  --color-slate-500: #334155;
+  --color-gray-300: #6b7280;
+  --color-gray-400: #4b5563;
+  --color-gray-500: #374151;
   --color-accent: #cc1016;
   --color-accent-dark: #a30d12;
   --color-accent-soft: #fdeced;
@@ -309,11 +309,16 @@ select:-webkit-autofill {
   transition: background-color 9999s ease-out 0s;
 }
 
-/* ── READABILITY FLOOR ─────────────────────────────────────────
-   The tiniest labels (9–10px) are raised slightly so nothing is too
-   small to read. Unlayered, so it wins over the Tailwind utilities. */
-.text-\[9px\]  { font-size: 11px; }
-.text-\[10px\] { font-size: 11.5px; }
+/* ── READABILITY SCALE ─────────────────────────────────────────
+   Every small text size is lifted one step so labels, hints and tables
+   are easy to read at a glance. Unlayered, so it wins over the Tailwind
+   utilities; larger sizes (text-base and up) are unchanged. */
+.text-\[9px\]  { font-size: 12px; }
+.text-\[10px\] { font-size: 12.5px; }
+.text-\[11px\] { font-size: 13px; }
+.text-xs       { font-size: 13px; line-height: 1.35; }
+.text-\[13px\] { font-size: 14px; }
+.text-sm       { font-size: 15px; line-height: 1.45; }
 
 /* ── CHINESE (lang="zh-CN", set by LanguageProvider) ───────────
    Chinese characters need more size than Latin letters to stay legible:
@@ -329,9 +334,9 @@ select:-webkit-autofill {
 :lang(zh) body { letter-spacing: 0.01em; }
 :lang(zh) .text-\[9px\],
 :lang(zh) .text-\[10px\],
-:lang(zh) .text-\[11px\] { font-size: 13px; }
-:lang(zh) .text-xs       { font-size: 13.5px; }
-:lang(zh) .text-\[13px\] { font-size: 14.5px; }
-:lang(zh) .text-sm       { font-size: 15px; }
+:lang(zh) .text-\[11px\] { font-size: 14px; }
+:lang(zh) .text-xs       { font-size: 14px; }
+:lang(zh) .text-\[13px\] { font-size: 15px; }
+:lang(zh) .text-sm       { font-size: 15.5px; }
 /* uppercase + wide tracking is a Latin style; it only spreads Chinese out */
 :lang(zh) .uppercase { letter-spacing: 0.02em; }
