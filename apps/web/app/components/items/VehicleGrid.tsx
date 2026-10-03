@@ -40,7 +40,7 @@ async function patchAttributes(id: string, changes: Attributes) {
   await itemRequest(`/products/${id}`, { method: "PUT", body: JSON.stringify({ attributes: stringifyAttributes(merged) }) });
 }
 
-const CLEAR_PENDING: Attributes = { sale_status: "", buyer_name: "", buyer_phone: "", pending_since: "", pending_note: "" };
+const CLEAR_PENDING: Attributes = { sale_status: "", buyer_name: "", buyer_phone: "", buyer_id_no: "", pending_since: "", pending_note: "" };
 
 export default function VehicleGrid({ vehicles, currency, onOpenGallery, onEdit, onChanged }: Props) {
   const { t } = useLanguage();
@@ -127,6 +127,7 @@ function VehicleCard({ v, currency, onGallery, onEdit, onPending, onRelease, onP
               {pendingDays !== null && <span className="font-normal text-text-muted">· {pendingDays} {t("vehicle.days")}</span>}
             </p>
             {a.buyer_name && <p className="mt-0.5 truncate">{a.buyer_name}{a.buyer_phone ? ` · ${a.buyer_phone}` : ""}</p>}
+            {a.buyer_id_no && <p className="truncate font-mono text-text-muted">{t("vehicle.id_short")}: {a.buyer_id_no}</p>}
             {a.pending_note && <p className="truncate text-text-muted" title={a.pending_note}>{a.pending_note}</p>}
           </div>
         )}
@@ -193,7 +194,7 @@ function Sheet({ title, subtitle, onClose, children, footer }: {
   return (
     <div className="fixed inset-0 z-[150] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
-      <div role="dialog" aria-modal="true" className="relative w-full max-w-md rounded-data border border-border bg-white shadow-[0_24px_60px_-12px_rgb(0_0_0_/_0.35)]">
+      <div role="dialog" aria-modal="true" className="relative flex max-h-[92vh] w-full max-w-md flex-col rounded-data border border-border bg-white shadow-[0_24px_60px_-12px_rgb(0_0_0_/_0.35)]">
         <div className="flex items-start justify-between gap-3 border-b border-border px-5 py-4">
           <div className="min-w-0">
             <h2 className="font-display text-lg font-semibold text-text">{title}</h2>
@@ -201,7 +202,7 @@ function Sheet({ title, subtitle, onClose, children, footer }: {
           </div>
           <button onClick={onClose} aria-label={t("common.close")} className="rounded-full p-1 text-text-faint hover:bg-paper-dim hover:text-text"><X size={18} /></button>
         </div>
-        <div className="space-y-3 px-5 py-4">{children}</div>
+        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-5 py-4">{children}</div>
         <div className="flex justify-end gap-2 border-t border-border px-5 py-3">{footer}</div>
       </div>
     </div>
@@ -213,18 +214,31 @@ const labelCls = "mb-1 block text-sm font-medium text-text";
 
 function PendingForm({ v, onClose, onSaved }: { v: Vehicle; onClose: () => void; onSaved: () => void }) {
   const { t } = useLanguage();
+  const a = parseAttributes(v.attributes);
+  // Plate and chassis come from the vehicle record; filling them here also
+  // completes the vehicle's own details.
+  const [plate, setPlate] = useState(a.plate_no ?? "");
+  const [chassis, setChassis] = useState(a.chassis_no ?? "");
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
+  const [idNo, setIdNo] = useState("");
   const [note, setNote] = useState("");
+  const [tried, setTried] = useState(false);
   const [saving, setSaving] = useState(false);
 
+  const missing = (s: string) => tried && !s.trim();
+  const field = (s: string) => `${inputCls} ${missing(s) ? "border-accent ring-2 ring-accent/20" : ""}`;
+
   async function save() {
-    if (!name.trim()) { notify(t("vehicle.buyer_required")); return; }
+    setTried(true);
+    if (![plate, chassis, name, phone, idNo].every((s) => s.trim())) { notify(t("vehicle.pending_missing")); return; }
+    if (phone.replace(/\D/g, "").length < 9) { notify(t("vehicle.phone_invalid")); return; }
     setSaving(true);
     try {
       await patchAttributes(v.id, {
+        plate_no: plate.trim().toUpperCase(), chassis_no: chassis.trim().toUpperCase(),
         sale_status: "pending", buyer_name: name.trim(), buyer_phone: phone.trim(),
-        pending_note: note.trim(), pending_since: today(),
+        buyer_id_no: idNo.trim(), pending_note: note.trim(), pending_since: today(),
       });
       notify(t("vehicle.marked_pending"), "success");
       onSaved();
@@ -239,10 +253,22 @@ function PendingForm({ v, onClose, onSaved }: { v: Vehicle; onClose: () => void;
         <button onClick={save} disabled={saving} className="h-10 rounded-full bg-warning px-5 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50">{t("vehicle.mark_pending")}</button>
       </>}>
       <p className="text-sm text-text-muted">{t("vehicle.pending_explain")}</p>
+      <p className="pt-1 text-xs font-bold uppercase tracking-wide text-text-muted">{t("vehicle.section_vehicle")}</p>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:items-end">
+        <div><label className={labelCls}>{t("vehicle.plate_no")} <span className="text-accent">*</span></label>
+          <input className={`${field(plate)} font-mono uppercase`} value={plate} onChange={(e) => setPlate(e.target.value)} placeholder="RAC 123 A" /></div>
+        <div><label className={labelCls}>{t("vehicle.chassis_no")} <span className="text-accent">*</span></label>
+          <input className={`${field(chassis)} font-mono uppercase`} value={chassis} onChange={(e) => setChassis(e.target.value)} placeholder="LGXCE4CB0P0000000" /></div>
+      </div>
+      <p className="pt-1 text-xs font-bold uppercase tracking-wide text-text-muted">{t("vehicle.section_buyer")}</p>
       <div><label className={labelCls}>{t("vehicle.buyer_name")} <span className="text-accent">*</span></label>
-        <input autoFocus className={inputCls} value={name} onChange={(e) => setName(e.target.value)} /></div>
-      <div><label className={labelCls}>{t("vehicle.buyer_phone")}</label>
-        <input className={inputCls} value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="07XXXXXXXX" inputMode="tel" /></div>
+        <input autoFocus className={field(name)} value={name} onChange={(e) => setName(e.target.value)} /></div>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:items-end">
+        <div><label className={labelCls}>{t("vehicle.buyer_phone")} <span className="text-accent">*</span></label>
+          <input className={field(phone)} value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="07XXXXXXXX" inputMode="tel" /></div>
+        <div><label className={labelCls}>{t("vehicle.buyer_id")} <span className="text-accent">*</span></label>
+          <input className={field(idNo)} value={idNo} onChange={(e) => setIdNo(e.target.value)} placeholder="1 1990 8 0000000 0 00" /></div>
+      </div>
       <div><label className={labelCls}>{t("vehicle.pending_note")}</label>
         <input className={inputCls} value={note} onChange={(e) => setNote(e.target.value)} placeholder={t("vehicle.pending_note_placeholder")} /></div>
     </Sheet>

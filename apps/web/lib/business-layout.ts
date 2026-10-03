@@ -37,7 +37,7 @@ export const VEHICLE_FIELDS: {
 // Sale status + traffic penalties, also kept in attributes (set from the
 // vehicle cards, not the main form). Sold is derived from quantity = 0.
 export type VehicleStatusField =
-  | "sale_status" | "buyer_name" | "buyer_phone" | "pending_since" | "pending_note"
+  | "sale_status" | "buyer_name" | "buyer_phone" | "buyer_id_no" | "pending_since" | "pending_note"
   | "penalty_count" | "penalty_amount" | "penalty_checked";
 
 export type Attributes = Partial<Record<VehicleField | VehicleStatusField, string>>;
