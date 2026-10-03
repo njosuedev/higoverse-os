@@ -14,6 +14,7 @@ import { useShop } from "@/lib/shop-context";
 import { formatPublicAddress } from "@/lib/product-meta";
 import Pagination from "@/app/components/ui/Pagination";
 import ProductPicker, { type PickerProduct } from "@/app/components/ui/ProductPicker";
+import { parseAttributes } from "@/lib/business-layout";
 import { useCanSeeFinancials, useShowsProfit } from "@/lib/permissions";
 import DeepLink from "@/app/components/DeepLink";
 import DateRangeFilter from "@/app/components/ui/DateRangeFilter";
@@ -37,7 +38,9 @@ interface Sale {
   created_at?: string;
 }
 interface Product { id: string; name: string; selling_price: number; cost_price: number; quantity: number; }
-interface Partner { id: string; name: string; phone?: string; address?: string; }
+interface Partner { id: string; name: string; phone?: string; address?: string; id_number?: string | null; }
+type Buyer = { name: string; phone: string; id_number: string; address: string };
+const EMPTY_BUYER: Buyer = { name: "", phone: "", id_number: "", address: "" };
 interface LineItem { id: string; product_id: string; quantity: number; unit_price: number; }
 interface Debt {
   id: string; debtor_name: string; phone?: string;
@@ -75,7 +78,9 @@ export default function SaleManagementPage() {
   const fin = useCanSeeFinancials();
   // Car companies never show profit, loss or margins (owners included).
   const prof = useShowsProfit();
-  const { t, lang } = useLanguage();
+  const { t, lang, layout } = useLanguage();
+  // Car companies sell every vehicle to a named customer.
+  const isCar = layout === "car";
   const { lowStock } = useShopSettings();
   const { shop } = useShop();
 
@@ -110,6 +115,9 @@ export default function SaleManagementPage() {
 
   // Payment method state
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
+  // Car sales: the buyer's details (picked customer, or a new one to save).
+  const [buyer, setBuyer] = useState<Buyer>(EMPTY_BUYER);
+  const [buyerTried, setBuyerTried] = useState(false);
   // New sale opens with the product search already open — just start typing.
   const [autoPick, setAutoPick] = useState(true);
   const [amountSent, setAmountSent] = useState("");
@@ -212,6 +220,7 @@ export default function SaleManagementPage() {
     setAutoPick(autoSearch);
     setLineItems([emptyLine()]); setSaleCustomer(""); setSaleNotes("");
     setPaymentMethod("cash"); setAmountSent(""); setDebtorName(""); setDebtorPhone("");
+    setBuyer(EMPTY_BUYER); setBuyerTried(false);
     setEditingId(null); setModalMode("create"); setShowModal(true);
   }
   // Dashboard "Record sale" and vehicle-card "Sell" links: /sales?new=1[&product=<id>]
@@ -225,7 +234,22 @@ export default function SaleManagementPage() {
         const prod = res?.data as PickerProduct | undefined;
         if (!prod) return;
         rememberProduct(prod);
-        setLineItems((prev) => [...prev.map((l, i) => (i === 0 ? { ...l, product_id: prod.id, unit_price: prod.selling_price } : l)), emptyLine()]);
+        setLineItems((prev) => {
+          const next = prev.map((l, i) => (i === 0 ? { ...l, product_id: prod.id, unit_price: prod.selling_price } : l));
+          return next.every((l) => l.product_id) ? [...next, emptyLine()] : next;
+        });
+        const a = parseAttributes(prod.attributes);
+        if (a.buyer_name || a.buyer_phone) {
+          const digits = (x?: string | null) => (x || "").replace(/\D/g, "");
+          const match = a.buyer_phone ? customers.find((c) => digits(c.phone) && digits(c.phone) === digits(a.buyer_phone)) : undefined;
+          if (match) {
+            setSaleCustomer(match.id);
+            setBuyer({ name: match.name || a.buyer_name || "", phone: match.phone || a.buyer_phone || "", id_number: match.id_number || a.buyer_id_no || "", address: match.address || "" });
+          } else {
+            setSaleCustomer("");
+            setBuyer({ name: a.buyer_name || "", phone: a.buyer_phone || "", id_number: a.buyer_id_no || "", address: "" });
+          }
+        }
       })
       .catch(() => {});
   }
@@ -242,6 +266,7 @@ export default function SaleManagementPage() {
     setShowModal(false); setForm(EMPTY_FORM); setEditingId(null);
     setLineItems([emptyLine()]); setSaleCustomer(""); setSaleNotes("");
     setPaymentMethod("cash"); setAmountSent(""); setDebtorName(""); setDebtorPhone("");
+    setBuyer(EMPTY_BUYER); setBuyerTried(false);
   }
 
   function addLine() { setLineItems((prev) => [...prev, emptyLine()]); }
@@ -273,6 +298,7 @@ export default function SaleManagementPage() {
     setSaleCustomer(id);
     const c = customers.find((x) => x.id === id);
     if (c) { setDebtorName(c.name); setDebtorPhone(c.phone || ""); }
+    setBuyer(c ? { name: c.name || "", phone: c.phone || "", id_number: c.id_number || "", address: c.address || "" } : EMPTY_BUYER);
   }
   function setLinePrice(id: string, price: number) {
     setLineItems((prev) => prev.map((l) => l.id === id ? { ...l, unit_price: Math.max(0, price) } : l));
@@ -304,7 +330,13 @@ export default function SaleManagementPage() {
 
     const validLines = lineItems.filter((l) => l.product_id && l.quantity > 0 && l.unit_price >= 0);
     if (validLines.length === 0) { notify(t("sales.need_one_item")); return; }
-    if (paymentMethod === "debt" && !debtorName.trim()) { notify(t("sales.need_debtor_name")); return; }
+    if (isCar) {
+      setBuyerTried(true);
+      if (![buyer.name, buyer.phone, buyer.id_number, buyer.address].every((x) => x.trim())) { notify(t("sales.buyer_required")); return; }
+      if (buyer.phone.replace(/\D/g, "").length < 9) { notify(t("vehicle.phone_invalid")); return; }
+    }
+    const debtor = debtorName.trim() || (isCar ? buyer.name.trim() : "");
+    if (paymentMethod === "debt" && !debtor) { notify(t("sales.need_debtor_name")); return; }
 
     const grandTotal = validLines.reduce((s, l) => s + l.quantity * l.unit_price, 0);
 
@@ -313,13 +345,32 @@ export default function SaleManagementPage() {
       const created: Sale[] = [];
       const errors: string[] = [];
 
+      let customerId = saleCustomer;
+      if (isCar) {
+        const details = { name: buyer.name.trim(), phone: buyer.phone.trim(), id_number: buyer.id_number.trim(), address: buyer.address.trim() };
+        try {
+          const digits = (x?: string | null) => (x || "").replace(/\D/g, "");
+          if (!customerId) customerId = customers.find((c) => digits(c.phone) && digits(c.phone) === digits(details.phone))?.id ?? "";
+          if (!customerId) {
+            const res = await partnerRequest("/suppliers", { method: "POST", body: JSON.stringify(details) });
+            customerId = res?.data?.id ?? "";
+          } else {
+            const c = customers.find((x) => x.id === customerId);
+            const changed = !c || c.name !== details.name || (c.phone || "") !== details.phone
+              || (c.id_number || "") !== details.id_number || (c.address || "") !== details.address;
+            if (changed) await partnerRequest(`/suppliers/${customerId}`, { method: "PUT", body: JSON.stringify(details) });
+          }
+        } catch { customerId = ""; }
+        if (!customerId) { notify(t("sales.buyer_save_failed")); return; }
+      }
+
       for (const line of validLines) {
         try {
           const res = await saleRequest("/sales", {
             method: "POST",
             body: JSON.stringify({
               product_id: line.product_id,
-              customer_id: saleCustomer || undefined,
+              customer_id: customerId || undefined,
               quantity: line.quantity,
               unit_price: line.unit_price,
               notes: saleNotes.trim() || undefined,
@@ -338,7 +389,7 @@ export default function SaleManagementPage() {
           await saleRequest("/debts", {
             method: "POST",
             body: JSON.stringify({
-              debtor_name: debtorName.trim(),
+              debtor_name: debtor,
               phone: debtorPhone.trim() || undefined,
               amount_owed: grandTotal,
               amount_paid: 0,
@@ -1207,6 +1258,40 @@ ${paymentHtml}
                     </div>}
                   </div>
                 </div>
+                {/* Car companies: the buyer, all four details required */}
+                {isCar && (
+                  <div className="mb-4 rounded-xl border border-slate-200 p-4">
+                    <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-600">{t("sales.buyer_title")} <span className="text-red-500">*</span></p>
+                        <p className="text-xs text-slate-500">{t("sales.buyer_hint")}</p>
+                      </div>
+                      <select className={`${inputCls} sm:max-w-[280px]`} value={saleCustomer} onChange={(e) => setSaleCustomerAndDebtor(e.target.value)} aria-label={t("sales.buyer_existing")}>
+                        <option value="">{t("sales.buyer_new")}</option>
+                        {customers.map((c) => <option key={c.id} value={c.id}>{c.name}{c.phone ? ` — ${c.phone}` : ""}</option>)}
+                      </select>
+                    </div>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      {([
+                        ["name", t("sales.buyer_full_name"), "", "text"],
+                        ["phone", t("sales.buyer_phone"), "07XXXXXXXX", "tel"],
+                        ["id_number", t("sales.buyer_id"), "1 1990 8 0000000 0 00", "text"],
+                        ["address", t("sales.buyer_address"), t("sales.buyer_address_placeholder"), "text"],
+                      ] as const).map(([key, label, ph, mode]) => {
+                        const missing = buyerTried && !buyer[key].trim();
+                        return (
+                          <div key={key}>
+                            <label className="block text-xs font-medium text-gray-600 mb-1">{label} <span className="text-red-500">*</span></label>
+                            <input className={`${inputCls} ${missing ? "border-red-400 ring-2 ring-red-200" : ""}`} placeholder={ph}
+                              inputMode={mode === "tel" ? "tel" : undefined}
+                              value={buyer[key]} onChange={(e) => setBuyer((b) => ({ ...b, [key]: e.target.value }))} />
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
                 {/* Payment Method */}
                 <div className="mb-4 p-4 bg-slate-50 rounded-xl border border-slate-200">
                   <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide mb-2.5">
@@ -1288,14 +1373,14 @@ ${paymentHtml}
                 </div>
 
                 {/* Customer + Notes */}
-                <div className="grid md:grid-cols-2 gap-4 mb-4">
-                  <div>
+                <div className={`grid gap-4 mb-4 ${isCar ? "" : "md:grid-cols-2"}`}>
+                  {!isCar && <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1.5">{t("sales.customer")}</label>
                     <select className={inputCls} value={saleCustomer} onChange={(e) => setSaleCustomerAndDebtor(e.target.value)}>
                       <option value="">{t("sales.walkin_customer")}</option>
                       {customers.map((c) => <option key={c.id} value={c.id}>{c.name}{c.phone ? ` — ${c.phone}` : ""}</option>)}
                     </select>
-                  </div>
+                  </div>}
                   <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1.5">{t("common.notes")}</label>
                     <input className={inputCls} placeholder={t("sales.note_placeholder")}

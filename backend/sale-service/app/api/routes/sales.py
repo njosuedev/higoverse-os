@@ -250,6 +250,10 @@ def create_sale(
 ):
     if not user["shop_id"]:
         raise HTTPException(status_code=400, detail="You need a shop before recording sales")
+    # Car companies sell every vehicle to a named customer (the app collects
+    # their full name, phone, ID and address before this call).
+    if user.get("layout") == "car" and not (payload.customer_id or "").strip():
+        raise HTTPException(status_code=400, detail="Choose the customer buying this car.")
 
     token = _token(authorization)
     product = get_product(payload.product_id, token)

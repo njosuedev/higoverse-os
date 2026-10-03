@@ -22,3 +22,6 @@ class Supplier(Base):
     email = Column(String)
 
     address = Column(String)
+
+    # National ID / passport number (car companies require it for buyers).
+    id_number = Column(String)

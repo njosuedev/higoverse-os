@@ -3,6 +3,8 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from sqlalchemy import text
+
 from app.db.database import Base, engine
 from app.api.routes.suppliers import router as supplier_router
 
@@ -62,6 +64,10 @@ def on_startup():
         return
     try:
         Base.metadata.create_all(bind=engine)
+        # Additive and idempotent: a new nullable column, existing rows untouched.
+        with engine.connect() as conn:
+            conn.execute(text("ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS id_number VARCHAR"))
+            conn.commit()
     except Exception:
         pass
 

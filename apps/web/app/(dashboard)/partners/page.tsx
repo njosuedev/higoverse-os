@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import { askConfirm, notify } from "@/lib/dialogs";
 
-interface RawPartner { id: string; name: string; phone?: string; email?: string; address?: string; }
+interface RawPartner { id: string; name: string; phone?: string; email?: string; address?: string; id_number?: string | null; }
 interface Partner extends RawPartner { tin: string; realAddress: string; partnerType: "supplier" | "customer"; }
 interface Product { id: string; supplier_id?: string | null; }
 interface FormErrors { name?: string; contact?: string; phone?: string; tin?: string; email?: string; }
@@ -36,7 +36,7 @@ function decodePartner(raw: RawPartner): Partner {
   return { ...raw, tin, realAddress, partnerType: tin ? "supplier" : "customer" };
 }
 
-const EMPTY_FORM = { name: "", phone: "", tin: "", email: "", address: "" };
+const EMPTY_FORM = { name: "", phone: "", tin: "", email: "", address: "", id_number: "" };
 const PAGE_SIZES = [25, 50, 100, 250];
 
 const inputCls =
@@ -131,7 +131,7 @@ export default function PartnerManagementPage() {
       [t("common.name")]: p.name,
       ...(isCar ? {} : { [t("common.type")]: p.partnerType === "supplier" ? t("partners.supplier_singular") : t("partners.customer_singular") }),
       [t("common.phone")]: p.phone || "",
-      ...(isCar ? {} : { TIN: p.tin || "" }),
+      ...(isCar ? { [t("partners.id_number")]: p.id_number || "" } : { TIN: p.tin || "" }),
       [t("common.email")]: p.email || "",
       [t("common.address")]: p.realAddress || "",
     }));
@@ -208,7 +208,7 @@ export default function PartnerManagementPage() {
 
   function openCreateModal() { setForm(EMPTY_FORM); setErrors({}); setEditingId(null); setModalMode("create"); setShowModal(true); }
   function openEditModal(p: Partner) {
-    setForm({ name: p.name, phone: p.phone ?? "", tin: p.tin ?? "", email: p.email ?? "", address: p.realAddress ?? "" });
+    setForm({ name: p.name, phone: p.phone ?? "", tin: p.tin ?? "", email: p.email ?? "", address: p.realAddress ?? "", id_number: p.id_number ?? "" });
     setErrors({}); setEditingId(p.id); setModalMode("edit"); setShowModal(true);
   }
   function closeModal() { setShowModal(false); setForm(EMPTY_FORM); setErrors({}); setEditingId(null); }
@@ -216,6 +216,8 @@ export default function PartnerManagementPage() {
   const buildPayload = () => ({
     name: form.name.trim(), phone: form.phone.trim() || null,
     email: form.email.trim() || null, address: encodeAddress(form.tin, form.address) || null,
+    // Car companies record their customers' ID / passport number.
+    ...(isCar ? { id_number: form.id_number.trim() || null } : {}),
   });
 
   async function createPartner() {
@@ -248,7 +250,7 @@ export default function PartnerManagementPage() {
   const filtered = useMemo(() => {
     const q = debouncedSearch.toLowerCase();
     return partners
-      .filter((p) => p.name?.toLowerCase().includes(q) || p.phone?.includes(q) || p.tin?.includes(q) || p.email?.toLowerCase().includes(q))
+      .filter((p) => p.name?.toLowerCase().includes(q) || p.phone?.includes(q) || p.tin?.includes(q) || p.email?.toLowerCase().includes(q) || p.id_number?.toLowerCase().includes(q))
       .filter((p) => typeFilter === "all" || p.partnerType === typeFilter);
   }, [partners, debouncedSearch, typeFilter]);
 
@@ -401,7 +403,7 @@ export default function PartnerManagementPage() {
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200">
                   {(isCar
-                    ? [t("common.name"), t("common.phone"), t("common.email"), t("common.address"), ""]
+                    ? [t("common.name"), t("common.phone"), t("partners.id_number"), t("common.email"), t("common.address"), ""]
                     : [t("common.name"), t("common.type"), t("common.phone"), "TIN", t("common.email"), t("partners.items_supplied"), ""]
                   ).map((h) => (
                     <th key={h} className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-500 whitespace-nowrap">{h}</th>
@@ -429,6 +431,9 @@ export default function PartnerManagementPage() {
                           ? <div className="flex items-center gap-1 text-xs text-slate-600"><Phone size={11} className="text-slate-400 shrink-0" />{p.phone}</div>
                           : <span className="text-slate-300 text-xs">—</span>}
                       </td>
+                      {isCar && <td className="px-3 py-1.5 font-mono text-xs text-slate-700">
+                        {p.id_number || <span className="text-slate-300">—</span>}
+                      </td>}
                       {!isCar && <td className="px-3 py-1.5">
                         {p.tin
                           ? <span className="font-mono text-[10px] bg-[#EBF2FD] text-[#0a66c2] px-1.5 py-0.5 rounded-md">{p.tin}</span>
@@ -527,6 +532,10 @@ export default function PartnerManagementPage() {
                     <label className="block text-xs font-medium text-gray-600 mb-1"><span className="flex items-center gap-1"><MapPin size={12} /> {t("common.address")}</span></label>
                     <input name="address" placeholder={t("partners.address_placeholder")} value={form.address} className={inputCls} onChange={handleChange} />
                   </div>
+                  {isCar && <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">{t("partners.id_number")}</label>
+                    <input name="id_number" placeholder="1 1990 8 0000000 0 00" value={form.id_number} className={inputCls} onChange={handleChange} />
+                  </div>}
                 </div>
               </div>
               <div className="flex justify-end gap-2.5 px-4 sm:px-6 py-4 border-t border-slate-100 shrink-0">

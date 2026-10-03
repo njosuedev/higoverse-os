@@ -6,6 +6,7 @@ class SupplierCreate(BaseModel):
     phone: str | None = None
     email: str | None = None
     address: str | None = None
+    id_number: str | None = None
 
 
 class SupplierUpdate(BaseModel):
@@ -13,3 +14,4 @@ class SupplierUpdate(BaseModel):
     phone: str | None = None
     email: str | None = None
     address: str | None = None
+    id_number: str | None = None
