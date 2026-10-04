@@ -187,9 +187,6 @@ class _DashboardScreenState extends State<DashboardScreen> with LiveListener {
   Widget build(BuildContext context) {
     final s = SessionScope.of(context);
     final t = T.of(context);
-    final c = Hgv.of(context);
-    final now = DateTime.now();
-    final greeting = t(now.hour < 12 ? 'dash.good_morning' : (now.hour < 18 ? 'dash.good_afternoon' : 'dash.good_evening'));
     return Scaffold(
       body: RefreshIndicator(
         onRefresh: _load,
@@ -199,20 +196,6 @@ class _DashboardScreenState extends State<DashboardScreen> with LiveListener {
             SliverPadding(
               padding: const EdgeInsets.fromLTRB(12, 12, 12, 28),
               sliver: SliverList.list(children: [
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 2),
-                  child: Row(crossAxisAlignment: CrossAxisAlignment.baseline, textBaseline: TextBaseline.alphabetic, children: [
-                    Flexible(
-                      child: Text('$greeting, ${s.user?.name.split(' ').first ?? ''}',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800, letterSpacing: -0.3)),
-                    ),
-                    const SizedBox(width: 8),
-                    Text('${t.weekday(now.weekday)} ${t.date(now)}', style: TextStyle(fontSize: 12, color: c.faint)),
-                  ]),
-                ),
-                const ActiveNowRow(),
                 if (_error != null && !_hasData)
                   EmptyState(icon: Icons.cloud_off_outlined, message: errorText(t, _error!), onRetry: _load)
                 else if (!_hasData)
@@ -306,12 +289,13 @@ class _DashboardScreenState extends State<DashboardScreen> with LiveListener {
     ];
 
     return [
+      // Stories first, straight under the top bar, as on Facebook.
       if (s.isCar && stories.isNotEmpty) ...[
-        SectionHeader(t('story.section'), count: (fined + pending).toInt()),
         StoriesRow(stories: stories),
-        const SizedBox(height: 12),
-      ] else
         const SizedBox(height: 4),
+      ],
+      const ActiveNowRow(),
+      const SizedBox(height: 12),
       _overview(s, t),
       const SizedBox(height: 10),
       // ── Status strip ──
