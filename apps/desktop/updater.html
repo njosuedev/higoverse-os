@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'">
+<title>Higoverse update</title>
+<style>
+  /* Small progress window for app updates: checking, then downloading.
+     main.js drives it with render({...}). Follows Windows light/dark. */
+  :root { --bg: #ffffff; --text: #191919; --muted: #474747; --track: #e8e7e4; --ink: #0a66c2; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #1b1e23; --text: #e8eaed; --muted: #a3a9b1; --track: #2c3138; --ink: #4a9eed; }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); overflow: hidden;
+    font: 500 13px/1.4 "Segoe UI", system-ui, sans-serif; -webkit-user-select: none; user-select: none; }
+  body { display: flex; align-items: center; gap: 16px; padding: 18px 20px; -webkit-app-region: drag; }
+  .rings { width: 40px; height: 40px; flex: none; }
+  .rings circle { fill: none; stroke-linecap: round; transform-origin: 50% 50%; }
+  .track { stroke: var(--track); }
+  .arc { stroke: var(--ink); }
+  .r1 { animation: spin 1.8s linear infinite; }
+  .r2 { animation: spin 1.2s linear infinite reverse; opacity: .8; }
+  .r3 { animation: spin .9s linear infinite; opacity: .6; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { .r1, .r2, .r3 { animation: none; } }
+  .body { flex: 1; min-width: 0; padding-right: 18px; }
+  .title { font-weight: 600; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .detail { color: var(--muted); font-size: 12px; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .bar { height: 6px; border-radius: 3px; background: var(--track); margin-top: 10px; overflow: hidden; }
+  .fill { height: 100%; width: 0; border-radius: 3px; background: var(--ink); transition: width .25s ease; }
+  .close { -webkit-app-region: no-drag; position: absolute; top: 6px; right: 8px; width: 24px; height: 24px;
+    border: 0; border-radius: 4px; background: transparent; color: var(--muted); font-size: 16px; line-height: 24px;
+    cursor: pointer; padding: 0; }
+  .close:hover { background: var(--track); color: var(--text); }
+  .bar.indeterminate .fill { width: 30%; animation: slide 1.2s ease-in-out infinite; }
+  @keyframes slide { from { transform: translateX(-100%); } to { transform: translateX(340%); } }
+</style>
+</head>
+<body>
+  <svg class="rings" viewBox="0 0 40 40" aria-hidden="true">
+    <circle class="track" cx="20" cy="20" r="17" stroke-width="3.4"/>
+    <circle class="arc r1" cx="20" cy="20" r="17" stroke-width="3.4" stroke-dasharray="72 200"/>
+    <circle class="track" cx="20" cy="20" r="10.5" stroke-width="3.4"/>
+    <circle class="arc r2" cx="20" cy="20" r="10.5" stroke-width="3.4" stroke-dasharray="33 200"/>
+    <circle class="track" cx="20" cy="20" r="4.4" stroke-width="3.4"/>
+    <circle class="arc r3" cx="20" cy="20" r="4.4" stroke-width="3.4" stroke-dasharray="11 200"/>
+  </svg>
+  <!-- Hiding the window doesn't stop the download: progress stays on the taskbar icon. -->
+  <button class="close" title="Hide" aria-label="Hide" onclick="window.close()">&#x2715;</button>
+  <div class="body" role="status" aria-live="polite">
+    <div class="title" id="title">Checking for updates…</div>
+    <div class="detail" id="detail">Higoverse</div>
+    <div class="bar indeterminate" id="bar"><div class="fill" id="fill"></div></div>
+  </div>
+<script>
+  // state: { title, detail, percent } — percent null shows a moving bar.
+  window.render = (state) => {
+    document.getElementById("title").textContent = state.title || "";
+    document.getElementById("detail").textContent = state.detail || "";
+    const bar = document.getElementById("bar");
+    const known = typeof state.percent === "number";
+    bar.classList.toggle("indeterminate", !known);
+    document.getElementById("fill").style.width = known ? Math.max(2, Math.min(100, state.percent)) + "%" : "";
+  };
+</script>
+</body>
+</html>

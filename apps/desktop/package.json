@@ -1,7 +1,7 @@
 {
   "name": "higoverse-desktop",
   "productName": "Higoverse",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Higoverse for Windows: business records, sales and stock.",
   "author": "Higoverse <higoverse@gmail.com>",
   "homepage": "https://higoverse.com",
@@ -29,6 +29,7 @@
       "main.js",
       "preload.js",
       "offline.html",
+      "updater.html",
       "assets/**"
     ],
     "win": {
