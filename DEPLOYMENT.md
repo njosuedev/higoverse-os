@@ -730,8 +730,12 @@ The installed apps update themselves from `https://higoverse.com/downloads/`
   installed apps download as soon as it changes.
 - **Android (APK installs):** bump `version: x.y.z+N` in `apps/mobile/pubspec.yaml`,
   `flutter build apk --release`, upload the APK to `downloads/android/`, then
-  update `downloads/android/version.json` (`versionCode` = N). Google Play
-  installs update through Play (upload the `.aab` in Play Console).
+  update `downloads/android/version.json` (`versionCode` = N). The app
+  downloads the APK itself (progress bar) and opens Android's installer.
+- **Android (Google Play):** `flutter build appbundle --release --android-project-arg=play=true`
+  and upload `build/app/outputs/bundle/release/app-release.aab` in Play Console.
+  The `play` flag leaves out `REQUEST_INSTALL_PACKAGES` (Play restricts it;
+  Play installs update through Play's in-app update).
 - The web app needs nothing: open tabs show "Reload" after a deploy.
 
 ---

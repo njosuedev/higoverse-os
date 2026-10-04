@@ -58,6 +58,13 @@ android {
     }
 }
 
+// The Google Play bundle leaves out the APK installer permission (Play
+// restricts it; Play installs update through Play). Build it with
+//   flutter build appbundle --android-project-arg=play=true
+if (project.hasProperty("play")) {
+    android.sourceSets.getByName("release").manifest.srcFile("src/play/AndroidManifest.xml")
+}
+
 kotlin {
     compilerOptions {
         jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17

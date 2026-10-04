@@ -1,0 +1,7 @@
+<!-- Google Play build only (built with the Gradle property play=true, see build.gradle.kts).
+     Play installs update through Play's in-app update, so the Play bundle
+     doesn't ask to install other packages: Play restricts that permission. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" tools:node="remove" />
+</manifest>
