@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../app_settings.dart';
+import '../covers.dart';
 import '../format.dart';
 import '../i18n.dart';
 import '../live/activity.dart';
@@ -82,6 +83,7 @@ class _HomeShellState extends State<HomeShell> {
     );
     AppNotifier.instance
       ..onOpen = _openFromNotification
+      ..onMarkRead = (() => _feed?.markAllRead())
       ..init();
   }
 
@@ -102,7 +104,9 @@ class _HomeShellState extends State<HomeShell> {
     _freshSub?.cancel();
     _bannerTimer?.cancel();
     _sleep?.cancel();
-    AppNotifier.instance.onOpen = null;
+    AppNotifier.instance
+      ..onOpen = null
+      ..onMarkRead = null;
     _feed?.dispose();
     _live?.dispose();
     _productFilter.dispose();
@@ -148,15 +152,20 @@ class _HomeShellState extends State<HomeShell> {
     });
     final settings = AppSettingsScope.of(context);
     if (_activityOpen || !AppNotifier.wanted(item, settings)) return;
+    final session = SessionScope.of(context);
+    final productId = '${item.data['product_id'] ?? item.data['id'] ?? ''}';
     AppNotifier.instance.show(
       item,
       t: T.of(context),
-      session: SessionScope.of(context),
+      session: session,
       sound: settings.sound,
-      foreground: _foreground,
       unread: _feed?.unread ?? 1,
+      photo: productId.isEmpty ? null : CoverStore.of(session).cover(productId),
     );
-    if (!_foreground) return;
+    // Like WhatsApp, the phone's own pop-up shows (with sound) even while
+    // the app is open; the in-app banner is only for phones that block
+    // notifications.
+    if (!_foreground || AppNotifier.instance.allowed) return;
     HapticFeedback.mediumImpact();
     setState(() => _banner = item);
     _bannerTimer?.cancel();

@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Release builds shrink unused resources; the notification icon is only
+<!-- Release builds shrink unused resources; the notification icon and tone are only
      named from Dart, so keep it explicitly or notifications fail silently. -->
 <resources xmlns:tools="http://schemas.android.com/tools"
-    tools:keep="@drawable/ic_stat_higoverse" />
+    tools:keep="@drawable/ic_stat_higoverse,@raw/hgv_tone" />
