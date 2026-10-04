@@ -14,6 +14,14 @@ String groupDigits(num n) {
 /// "1,250,000 RWF".
 String money(num n, String currency) => '${groupDigits(n)} $currency';
 
+/// Short amounts for small tiles: 950 → "950 RWF", 22000000 → "22M RWF".
+String compactMoney(num n, String currency) {
+  final a = n.abs();
+  String f(num v, String u) => '${v >= 100 ? v.round() : (v * 10).round() / 10}$u'.replaceAll('.0$u', u);
+  final s = a < 10000 ? groupDigits(a) : a < 1e6 ? f(a / 1e3, 'K') : a < 1e9 ? f(a / 1e6, 'M') : f(a / 1e9, 'B');
+  return '${n < 0 ? '-' : ''}$s $currency';
+}
+
 String ymd(DateTime d) =>
     '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 

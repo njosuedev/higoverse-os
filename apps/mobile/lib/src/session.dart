@@ -26,21 +26,31 @@ class User {
 }
 
 class Shop {
-  Shop({required this.id, required this.name, required this.layout});
+  Shop({required this.id, required this.name, required this.layout, this.logoUrl});
 
-  factory Shop.fromJson(Map<String, dynamic> j) =>
-      Shop(id: '${j['id'] ?? ''}', name: '${j['name'] ?? ''}', layout: '${j['layout'] ?? 'retail'}');
+  factory Shop.fromJson(Map<String, dynamic> j) => Shop(
+        id: '${j['id'] ?? ''}',
+        name: '${j['name'] ?? ''}',
+        layout: '${j['layout'] ?? 'retail'}',
+        logoUrl: (j['logo_url'] as String?)?.trim().isNotEmpty == true ? j['logo_url'] as String : null,
+      );
 
   final String id, name, layout;
+
+  /// The business logo: an https URL or a data: URL (set on the website).
+  final String? logoUrl;
 }
 
 /// The signed-in account: tokens, user, shop and shop settings.
 /// Same rules as the website — see apps/web/lib/session.ts and permissions.ts.
 class Session extends ChangeNotifier implements TokenSource {
-  Session({FlutterSecureStorage? storage}) : _store = storage ?? const FlutterSecureStorage();
+  Session({FlutterSecureStorage? storage, http.Client? client})
+      : _store = storage ?? const FlutterSecureStorage(),
+        _client = client;
 
   final FlutterSecureStorage _store;
-  late final Api api = Api(this);
+  final http.Client? _client;
+  late final Api api = Api(this, client: _client);
 
   /// Bumped when the app comes back to the foreground: screens reload their data.
   final refreshTick = ValueNotifier<int>(0);

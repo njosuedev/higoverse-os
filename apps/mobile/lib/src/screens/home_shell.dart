@@ -8,6 +8,7 @@ import '../format.dart';
 import '../i18n.dart';
 import '../live/activity.dart';
 import '../live/live.dart';
+import '../live/scoped_route.dart';
 import '../session.dart';
 import '../sheets.dart';
 import '../theme.dart';
@@ -16,9 +17,11 @@ import 'dashboard_screen.dart';
 import 'more_screen.dart';
 import 'products_screen.dart';
 import 'sales_screen.dart';
+import 'search_screen.dart';
 
-/// Signed-in app: five tabs, each keeping its place when you switch. Owns
-/// the live connection and the activity feed for this account.
+/// Signed-in app: four tabs, each keeping its place when you switch, with
+/// search and notifications at the top of Home. Owns the live connection
+/// and the activity feed for this account.
 class HomeShell extends StatefulWidget {
   const HomeShell({super.key});
 
@@ -27,8 +30,13 @@ class HomeShell extends StatefulWidget {
 }
 
 class _HomeShellState extends State<HomeShell> {
-  static const _activityTab = 3;
   int _tab = 0;
+
+  /// Whether the notifications page is open (no banners over it).
+  bool _activityOpen = false;
+
+  /// Home → Vehicles/Stock with a filter already picked.
+  final _productFilter = ValueNotifier<String?>(null);
   late final AppLifecycleListener _life;
   Live? _live;
   ActivityFeed? _feed;
@@ -68,10 +76,27 @@ class _HomeShellState extends State<HomeShell> {
     _bannerTimer?.cancel();
     _feed?.dispose();
     _live?.dispose();
+    _productFilter.dispose();
     super.dispose();
   }
 
   void _openTab(int i) => setState(() => _tab = i);
+
+  void _openProducts(String filter) {
+    _productFilter.value = filter;
+    setState(() => _tab = 1);
+  }
+
+  Future<void> _openActivity(BuildContext context) async {
+    setState(() {
+      _activityOpen = true;
+      _banner = null;
+    });
+    await pushScoped<void>(context, const ActivityScreen(visible: true));
+    if (mounted) setState(() => _activityOpen = false);
+  }
+
+  void _openSearch(BuildContext context) => pushScoped<void>(context, const SearchScreen());
 
   /// Something happened: a banner at the top, unless it was this person's
   /// own doing, the Activity tab is already open, or they turned it off.
@@ -79,7 +104,7 @@ class _HomeShellState extends State<HomeShell> {
     if (!mounted || item.read) return;
     final settings = AppSettingsScope.of(context);
     final wanted = (item.kind == ActivityKind.sale && settings.alertSales) || (item.kind.isStockAlert && settings.alertStock);
-    if (_tab == _activityTab || !wanted) return;
+    if (_activityOpen || !wanted) return;
     HapticFeedback.lightImpact();
     setState(() => _banner = item);
     _bannerTimer?.cancel();
@@ -109,14 +134,17 @@ class _HomeShellState extends State<HomeShell> {
       child: FeedScope(
         feed: _feed!,
         child: Builder(builder: (context) {
-          final unread = FeedScope.of(context)?.unread ?? 0;
           return Scaffold(
             body: Stack(children: [
               IndexedStack(index: _tab, children: [
-                DashboardScreen(onOpenTab: _openTab),
-                const ProductsScreen(),
+                DashboardScreen(
+                  onOpenTab: _openTab,
+                  onOpenProducts: _openProducts,
+                  onSearch: () => _openSearch(context),
+                  onNotifications: () => _openActivity(context),
+                ),
+                ProductsScreen(filter: _productFilter),
                 const SalesScreen(),
-                ActivityScreen(visible: _tab == _activityTab),
                 const MoreScreen(),
               ]),
               _BannerHost(item: _banner, onTap: _openBanner, onDismiss: () => setState(() => _banner = null)),
@@ -133,12 +161,6 @@ class _HomeShellState extends State<HomeShell> {
                 ),
                 NavigationDestination(
                     icon: const Icon(Icons.point_of_sale_outlined), selectedIcon: const Icon(Icons.point_of_sale), label: t('nav.sales')),
-                NavigationDestination(
-                  icon: Badge(
-                      isLabelVisible: unread > 0, label: Text(unread > 99 ? '99+' : '$unread'), child: const Icon(Icons.notifications_none_rounded)),
-                  selectedIcon: const Icon(Icons.notifications_rounded),
-                  label: t('nav.activity'),
-                ),
                 NavigationDestination(icon: const Icon(Icons.person_outline), selectedIcon: const Icon(Icons.person), label: t('nav.account')),
               ],
             ),

@@ -6,6 +6,7 @@ import '../charts.dart';
 import '../config.dart';
 import '../format.dart';
 import '../i18n.dart';
+import '../live/activity.dart';
 import '../live/live.dart';
 import '../live/live_widgets.dart';
 import '../session.dart';
@@ -14,11 +15,24 @@ import '../theme.dart';
 import '../widgets.dart';
 import 'activity_screen.dart';
 
-/// Home: today at a glance, the week as a chart, what sells, who owes, and
-/// what needs restocking — kept current live as sales and stock change.
+/// Home: the business at a glance, kept current live. Top bar with the
+/// logo, search and notifications; today and the week; for car dealers the
+/// fleet's status (available, pending transfer, fines, sold) with the
+/// vehicles that need attention; newly added stock; stock alerts; top
+/// sellers, money owed and the latest sales.
 class DashboardScreen extends StatefulWidget {
-  const DashboardScreen({super.key, required this.onOpenTab});
+  const DashboardScreen({
+    super.key,
+    required this.onOpenTab,
+    required this.onOpenProducts,
+    required this.onSearch,
+    required this.onNotifications,
+  });
   final ValueChanged<int> onOpenTab;
+
+  /// Opens Vehicles / Stock already filtered ("pending", "penalties"…).
+  final ValueChanged<String> onOpenProducts;
+  final VoidCallback onSearch, onNotifications;
 
   @override
   State<DashboardScreen> createState() => _DashboardScreenState();
@@ -26,7 +40,7 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> with LiveListener {
   Map<String, dynamic>? _week, _today, _yesterday, _stock;
-  List<Map<String, dynamic>> _alerts = [], _recent = [], _top = [], _daily = [];
+  List<Map<String, dynamic>> _alerts = [], _recent = [], _top = [], _daily = [], _newest = [], _pending = [], _fined = [];
   num _owed = 0;
   int _owedCount = 0;
   Object? _error;
@@ -34,7 +48,7 @@ class _DashboardScreenState extends State<DashboardScreen> with LiveListener {
   ValueNotifier<int>? _tick;
   int _selectedDay = 6;
 
-  /// Sales that arrived live and haven't been highlighted yet.
+  /// Rows that arrived live and haven't been highlighted yet.
   final Set<String> _flash = {};
   final _salesSoon = Debouncer(const Duration(milliseconds: 700));
   final _stockSoon = Debouncer(const Duration(milliseconds: 900));
@@ -69,11 +83,13 @@ class _DashboardScreenState extends State<DashboardScreen> with LiveListener {
 
   @override
   void onLive(LiveEvent e) {
+    final id = e.data['id'];
     switch (e.topic) {
       case 'sale':
-        if (e.type == 'sale.created' && e.data['id'] != null) _flash.add('${e.data['id']}');
+        if (e.type == 'sale.created' && id != null) _flash.add('$id');
         _salesSoon(() => _once('sales', _fetchSales));
       case 'product' || 'purchase':
+        if (e.type == 'product.created' && id != null) _flash.add('$id');
         _stockSoon(() => _once('stock', _fetchStock));
       case 'debt':
         _debtsSoon(() => _once('debts', _fetchDebts));
@@ -105,6 +121,7 @@ class _DashboardScreenState extends State<DashboardScreen> with LiveListener {
   static Map<String, dynamic> _data(dynamic r) => Map<String, dynamic>.from((r as Map)['data'] as Map? ?? {});
   static List<Map<String, dynamic>> _list(dynamic l) =>
       (l as List? ?? const []).whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
+  static List<Map<String, dynamic>> _items(dynamic r) => _list(((r as Map)['data'] as Map?)?['items']);
 
   Future<void> _fetchSales() => _guard(() async {
         final s = SessionScope.of(context);
@@ -117,7 +134,7 @@ class _DashboardScreenState extends State<DashboardScreen> with LiveListener {
           s.api.get('${Svc.sales}/sales/summary', query: {'from_date': yesterday, 'to_date': yesterday}),
           s.api.get('${Svc.sales}/sales/daily', query: {'days': '7'}),
           s.api.get('${Svc.sales}/sales/top-products', query: {'limit': '5', 'from_date': week.from, 'to_date': week.to}),
-          s.api.get('${Svc.sales}/sales', query: {'page': '1', 'limit': '6'}),
+          s.api.get('${Svc.sales}/sales', query: {'page': '1', 'limit': '5'}),
         ]);
         if (!mounted) return;
         setState(() {
@@ -126,23 +143,32 @@ class _DashboardScreenState extends State<DashboardScreen> with LiveListener {
           _yesterday = _data(r[2]);
           _daily = _list((r[3] as Map)['data']);
           _top = _list((r[4] as Map)['data']);
-          _recent = _list(((r[5] as Map)['data'] as Map?)?['items']);
+          _recent = _items(r[5]);
         });
       });
 
   Future<void> _fetchStock() => _guard(() async {
         final s = SessionScope.of(context);
+        final p = '${Svc.products}/products';
         final r = await Future.wait([
-          s.api.get('${Svc.products}/products/summary', query: {'threshold': '${s.lowStock}'}),
-          s.api.get('${Svc.products}/products/stock-alerts', query: {'threshold': '${s.lowStock}'}),
+          s.api.get('$p/summary', query: {'threshold': '${s.lowStock}'}),
+          s.api.get('$p/stock-alerts', query: {'threshold': '${s.lowStock}'}),
+          s.api.get(p, query: {'page': '1', 'limit': '10'}),
+          if (s.isCar) ...[
+            s.api.get(p, query: {'page': '1', 'limit': '4', 'status': 'pending'}),
+            s.api.get(p, query: {'page': '1', 'limit': '4', 'status': 'penalties'}),
+          ],
         ]);
         if (!mounted) return;
         setState(() {
           _stock = _data(r[0]);
           _alerts = (_list((r[1] as Map)['data'])
                 ..sort((a, b) => (a['quantity'] as num? ?? 0).compareTo(b['quantity'] as num? ?? 0)))
-              .take(6)
+              .take(5)
               .toList();
+          _newest = _items(r[2]);
+          _pending = s.isCar ? _items(r[3]) : const [];
+          _fined = s.isCar ? _items(r[4]) : const [];
         });
       });
 
@@ -158,6 +184,49 @@ class _DashboardScreenState extends State<DashboardScreen> with LiveListener {
     } catch (_) {/* optional card: simply not shown */}
   }
 
+  // ── Top bar ─────────────────────────────────────────────
+
+  Widget _topBar(Session s, T t) {
+    final c = Hgv.of(context);
+    final live = LiveScope.of(context);
+    final unread = FeedScope.of(context)?.unread ?? 0;
+    final (liveLabel, liveColor) = switch (live?.status) {
+      LiveStatus.live => (t('live.live'), c.success),
+      LiveStatus.connecting => (t('live.connecting'), c.warning),
+      _ => (t('live.offline'), c.faint),
+    };
+    final name = s.shop?.name ?? 'Higoverse';
+    return SliverAppBar(
+      floating: true,
+      snap: true,
+      toolbarHeight: 58,
+      titleSpacing: 14,
+      title: Row(children: [
+        ShopLogo(name: name, url: s.shop?.logoUrl, size: 38),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+            Text(name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, letterSpacing: -0.3)),
+            Row(children: [
+              PulseDot(color: liveColor, active: live?.status == LiveStatus.live, size: 6),
+              Text(liveLabel, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: liveColor)),
+            ]),
+          ]),
+        ),
+      ]),
+      actions: [
+        RoundIconButton(icon: Icons.search_rounded, tooltip: t('search.title'), onTap: widget.onSearch),
+        const SizedBox(width: 8),
+        RoundIconButton(
+            icon: Icons.notifications_rounded, tooltip: t('acc.notifications'), onTap: widget.onNotifications, badge: unread),
+        const SizedBox(width: 12),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final s = SessionScope.of(context);
@@ -165,86 +234,87 @@ class _DashboardScreenState extends State<DashboardScreen> with LiveListener {
     final c = Hgv.of(context);
     final now = DateTime.now();
     final greeting = t(now.hour < 12 ? 'dash.good_morning' : (now.hour < 18 ? 'dash.good_afternoon' : 'dash.good_evening'));
-    final date = '${t.weekday(now.weekday)} ${t.date(now)}';
     return Scaffold(
-      appBar: AppBar(
-        title: Text(s.shop?.name ?? 'Higoverse', overflow: TextOverflow.ellipsis),
-        actions: const [Padding(padding: EdgeInsets.only(right: 12), child: Center(child: LivePill()))],
-      ),
       body: RefreshIndicator(
         onRefresh: _load,
-        child: ListView(
+        edgeOffset: 58 + MediaQuery.paddingOf(context).top,
+        child: CustomScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(16, 14, 16, 28),
-          children: [
-            Text('$greeting, ${s.user?.name.split(' ').first ?? ''}',
-                style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, letterSpacing: -0.4)),
-            const SizedBox(height: 2),
-            Text(date, style: TextStyle(color: c.faint, fontWeight: FontWeight.w500)),
-            const ActiveNowRow(),
-            if (_error != null && !_hasData)
-              EmptyState(icon: Icons.cloud_off_outlined, message: errorText(t, _error!), onRetry: _load)
-            else if (!_hasData)
-              _skeleton(s)
-            else ...[
-              if (_error != null) _OfflineNote(t('dash.offline')),
-              ..._content(s, t),
-            ],
+          slivers: [
+            _topBar(s, t),
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 28),
+              sliver: SliverList.list(children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 2),
+                  child: Row(crossAxisAlignment: CrossAxisAlignment.baseline, textBaseline: TextBaseline.alphabetic, children: [
+                    Flexible(
+                      child: Text('$greeting, ${s.user?.name.split(' ').first ?? ''}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800, letterSpacing: -0.3)),
+                    ),
+                    const SizedBox(width: 8),
+                    Text('${t.weekday(now.weekday)} ${t.date(now)}', style: TextStyle(fontSize: 12, color: c.faint)),
+                  ]),
+                ),
+                const ActiveNowRow(),
+                if (_error != null && !_hasData)
+                  EmptyState(icon: Icons.cloud_off_outlined, message: errorText(t, _error!), onRetry: _load)
+                else if (!_hasData)
+                  _skeleton()
+                else ...[
+                  if (_error != null) _OfflineNote(t('dash.offline')),
+                  ..._content(s, t),
+                ],
+              ]),
+            ),
           ],
         ),
       ),
     );
   }
 
-  /// Same shape as the loaded screen: hero card, chart, tiles, a list.
-  Widget _skeleton(Session s) {
-    final tiles = (s.canSeeFinancials ? 4 : 3) + (s.isCar ? 2 : 0);
-    Widget card(int rows, RowLead lead) => Card(
-          child: Column(children: [
-            for (var i = 0; i < rows; i++) ...[
-              if (i > 0) const Divider(indent: 16, endIndent: 16),
-              RowSkeleton(leading: lead, titleWidth: const [140.0, 110.0, 160.0, 125.0][i % 4]),
-            ],
-          ]),
-        );
+  Widget _skeleton() {
+    Widget card(double h) => Padding(padding: const EdgeInsets.only(top: 10), child: Card(child: SizedBox(height: h)));
     return Shimmer(
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        const SizedBox(height: 16),
+        const SizedBox(height: 4),
         const Card(
           child: Padding(
-            padding: EdgeInsets.all(18),
+            padding: EdgeInsets.all(14),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Bone(width: 60, height: 10),
-              SizedBox(height: 12),
-              Bone(width: 190, height: 26, radius: 8),
-              SizedBox(height: 12),
-              Bone(width: 130, height: 10),
+              Bone(width: 50, height: 9),
+              SizedBox(height: 10),
+              Bone(width: 160, height: 22, radius: 7),
+              SizedBox(height: 10),
+              Bone(width: 110, height: 9),
+              SizedBox(height: 18),
+              Bone(height: 60, radius: 8),
             ]),
           ),
         ),
-        const SizedBox(height: 12),
-        const Card(child: SizedBox(height: 170)),
-        const SizedBox(height: 18),
-        _grid([for (var i = 0; i < tiles; i++) FigureTileSkeleton(detail: i == 1)]),
-        const SizedBox(height: 18),
-        card(4, RowLead.circle),
+        const SizedBox(height: 10),
+        Row(children: [
+          for (var i = 0; i < 4; i++) ...[
+            if (i > 0) const SizedBox(width: 8),
+            const Expanded(child: Card(child: SizedBox(height: 74))),
+          ],
+        ]),
+        const Padding(padding: EdgeInsets.fromLTRB(2, 20, 2, 10), child: Bone(width: 110, height: 11)),
+        SizedBox(
+          height: 170,
+          child: Row(children: [
+            for (var i = 0; i < 3; i++) ...[
+              if (i > 0) const SizedBox(width: 8),
+              const Expanded(child: Card(child: SizedBox.expand())),
+            ],
+          ]),
+        ),
+        card(150),
       ]),
     );
   }
-
-  Widget _grid(List<Widget> children) => GridView(
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2,
-          mainAxisSpacing: 10,
-          crossAxisSpacing: 10,
-          // Fixed height that grows with the phone's text size, so the tiles
-          // never cut their text off on small screens.
-          mainAxisExtent: 102 * MediaQuery.textScalerOf(context).scale(1).clamp(1.0, 1.8),
-        ),
-        children: children,
-      );
 
   /// The figure people care about: money for those who may see it,
   /// otherwise the number of sales.
@@ -253,7 +323,7 @@ class _DashboardScreenState extends State<DashboardScreen> with LiveListener {
     return revenue ?? (m?['sales_count'] as num?) ?? 0;
   }
 
-  String _fmtHeadline(Session s, num v) => s.canSeeFinancials ? money(v, s.currency) : groupDigits(v);
+  String _fmt(Session s, num v) => s.canSeeFinancials ? money(v, s.currency) : groupDigits(v);
 
   List<DayValue> _weekBars(Session s, T t) {
     final byDay = {for (final d in _daily) '${d['day']}': d};
@@ -262,76 +332,203 @@ class _DashboardScreenState extends State<DashboardScreen> with LiveListener {
       for (var i = 6; i >= 0; i--)
         () {
           final day = DateTime(now.year, now.month, now.day).subtract(Duration(days: i));
-          final row = byDay[ymd(day)];
-          return DayValue(day, _headline(s, row).toDouble(), i == 0 ? t('dash.today') : t.weekday(day.weekday));
+          return DayValue(day, _headline(s, byDay[ymd(day)]).toDouble(), i == 0 ? t('dash.today') : t.weekday(day.weekday));
         }(),
     ];
   }
 
   List<Widget> _content(Session s, T t) {
     final c = Hgv.of(context);
-    final week = _week ?? {}, stock = _stock ?? {};
-    final low = (stock['low_stock'] as num? ?? 0) + (stock['out_of_stock'] as num? ?? 0);
-    final pending = stock['pending'] as num? ?? 0, fined = stock['with_penalties'] as num? ?? 0;
+    final stock = _stock ?? {};
+    num n(String k) => stock[k] as num? ?? 0;
+    final total = n('total_products'), sold = n('out_of_stock'), pending = n('pending'), fined = n('with_penalties');
+    final available = (total - sold - pending).clamp(0, total);
+    final low = n('low_stock') + sold;
 
+    return [
+      const SizedBox(height: 4),
+      _overview(s, t),
+      const SizedBox(height: 10),
+      // ── Status strip ──
+      if (s.isCar)
+        Row(children: [
+          _StatusTile(label: t('dash.available'), value: available, icon: Icons.check_circle_rounded, color: c.success,
+              onTap: () => widget.onOpenProducts('available')),
+          _StatusTile(label: t('stock.f_pending'), value: pending, icon: Icons.schedule_rounded, color: c.warning,
+              onTap: () => widget.onOpenProducts('pending')),
+          _StatusTile(label: t('dash.fines_short'), value: fined, icon: Icons.gpp_maybe_rounded, color: c.danger,
+              onTap: () => widget.onOpenProducts('penalties')),
+          _StatusTile(label: t('stock.f_sold'), value: sold, icon: Icons.sell_rounded, color: c.ink,
+              onTap: () => widget.onOpenProducts('sold')),
+        ])
+      else
+        Row(children: [
+          if (s.canSeeFinancials)
+            _StatusTile(label: t('dash.revenue'), value: _week?['revenue'] as num? ?? 0, money: true, icon: Icons.trending_up_rounded,
+                color: c.success, onTap: () => widget.onOpenTab(2)),
+          _StatusTile(label: t('dash.sales'), value: _week?['sales_count'] as num? ?? 0, icon: Icons.receipt_long_rounded,
+              color: c.ink, onTap: () => widget.onOpenTab(2)),
+          _StatusTile(label: t('dash.products'), value: total, icon: Icons.inventory_2_rounded, color: c.ink,
+              onTap: () => widget.onOpenTab(1)),
+          _StatusTile(label: t('dash.need_restock'), value: low, icon: Icons.warning_rounded,
+              color: low > 0 ? c.warning : c.success, onTap: () => widget.onOpenTab(1)),
+        ]),
+      // ── Stock alert ──
+      if (s.isCar && total > 0 && available <= s.lowStock)
+        Padding(
+          padding: const EdgeInsets.only(top: 10),
+          child: _AlertCard(
+            icon: Icons.warning_amber_rounded,
+            color: available == 0 ? c.danger : c.warning,
+            title: t('dash.few_cars', {'n': groupDigits(available)}),
+            body: t('dash.few_cars_sub'),
+            onTap: () => widget.onOpenProducts('available'),
+          ),
+        ),
+      if (!s.isCar) ...[
+        SectionHeader(t('dash.stock_alerts'), count: low.toInt(), action: t('app.view_all'), onAction: () => widget.onOpenTab(1)),
+        if (_alerts.isEmpty)
+          _AlertCard(icon: Icons.check_circle_rounded, color: c.success, title: t('dash.all_healthy'))
+        else
+          _ListCard(children: [
+            for (final a in _alerts)
+              Builder(builder: (context) {
+                final qty = a['quantity'] as num? ?? 0;
+                final tone = qty <= 0 ? c.danger : c.warning;
+                return _Row(
+                  onTap: () => showProductSheet(context, a),
+                  leading: RingBadge(color: tone, size: 36, child: Text(groupDigits(qty))),
+                  title: '${a['name'] ?? ''}',
+                  subtitle: qty <= 0 ? t('dash.out_of_stock') : t('dash.left', {'n': groupDigits(qty)}),
+                  subtitleColor: tone,
+                  trailing: money(a['selling_price'] as num? ?? 0, s.currency),
+                );
+              }),
+          ]),
+      ],
+      // ── Newly added ──
+      if (_newest.isNotEmpty) ...[
+        SectionHeader(t('dash.new_arrivals'), action: t('app.view_all'), onAction: () => widget.onOpenProducts('all')),
+        SizedBox(
+          height: 186,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            itemCount: _newest.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 8),
+            itemBuilder: (context, i) => _ArrivalCard(
+              key: ValueKey(_newest[i]['id']),
+              item: _newest[i],
+              flash: _flash.remove('${_newest[i]['id']}'),
+            ),
+          ),
+        ),
+      ],
+      // ── Car: awaiting transfer ──
+      if (s.isCar && _pending.isNotEmpty) ...[
+        SectionHeader(t('dash.awaiting'), count: pending.toInt(), action: t('app.view_all'),
+            onAction: () => widget.onOpenProducts('pending')),
+        _ListCard(children: [
+          for (final v in _pending)
+            Builder(builder: (context) {
+              final a = attributesOf(v['attributes']);
+              final buyer = a['buyer_name'] ?? '';
+              return _Row(
+                onTap: () => showProductSheet(context, v),
+                leading: ProductThumb(v['thumbnail'] as String?, isCar: true, width: 50, height: 38),
+                title: '${v['name'] ?? ''}',
+                subtitle: [
+                  if (buyer.isNotEmpty) t('dash.buyer', {'name': buyer}),
+                  if ((a['plate_no'] ?? '').isNotEmpty) a['plate_no'],
+                ].join(' · '),
+                trailingWidget: StatusChip(t('stock.f_pending'), c.warning),
+              );
+            }),
+        ]),
+      ],
+      // ── Car: fines ──
+      if (s.isCar && _fined.isNotEmpty) ...[
+        SectionHeader(t('dash.fines_title'), count: fined.toInt(), action: t('app.view_all'),
+            onAction: () => widget.onOpenProducts('penalties')),
+        _ListCard(children: [
+          for (final v in _fined)
+            Builder(builder: (context) {
+              final a = attributesOf(v['attributes']);
+              final count = int.tryParse(a['penalty_count'] ?? '') ?? 0;
+              final amount = num.tryParse(a['penalty_amount'] ?? '') ?? 0;
+              return _Row(
+                onTap: () => showProductSheet(context, v),
+                leading: ProductThumb(v['thumbnail'] as String?, isCar: true, width: 50, height: 38),
+                title: '${v['name'] ?? ''}',
+                subtitle: [a['plate_no'] ?? '', a['year'] ?? ''].where((x) => x.isNotEmpty).join(' · '),
+                trailingWidget: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.end, children: [
+                  StatusChip(count == 1 ? t('stock.fine_one') : t('stock.fines_n', {'n': count}), c.danger),
+                  if (amount > 0) ...[
+                    const SizedBox(height: 3),
+                    Text(money(amount, s.currency),
+                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: c.danger)),
+                  ],
+                ]),
+              );
+            }),
+        ]),
+      ],
+      // ── Money owed ──
+      if (_owedCount > 0)
+        Padding(
+          padding: const EdgeInsets.only(top: 14),
+          child: _AlertCard(
+            icon: Icons.account_balance_wallet_rounded,
+            color: c.warning,
+            title: '${t('dash.owed')} · ${money(_owed, s.currency)}',
+            body: t('dash.owed_detail', {'n': _owedCount}),
+            onTap: () => openDebts(context),
+          ),
+        ),
+      // ── Top sellers ──
+      if (_top.isNotEmpty) ...[
+        SectionHeader(t('dash.top_products')),
+        _TopSellers(top: _top, session: s),
+      ],
+      // ── Latest sales (live) ──
+      SectionHeader(t('dash.recent_sales'), action: t('app.view_all'), onAction: () => widget.onOpenTab(2)),
+      if (_recent.isEmpty)
+        _AlertCard(icon: Icons.receipt_long_outlined, color: c.faint, title: t('dash.no_sales'))
+      else
+        _ListCard(children: [
+          for (final r in _recent)
+            Flash(
+              key: ValueKey(r['id']),
+              flash: _flash.remove('${r['id']}'),
+              child: _Row(
+                onTap: () => showSaleSheet(context, r),
+                leading: IconAvatar(icon: Icons.receipt_long_rounded, color: c.success, size: 36),
+                title: '${r['product_name'] ?? t('sale.default')}',
+                subtitle: '${r['quantity'] ?? 1} × · ${t.ago(parseTimestamp(r['created_at']) ?? DateTime.now())}',
+                trailing: money(r['total_amount'] as num? ?? 0, s.currency),
+              ),
+            ),
+        ]),
+    ];
+  }
+
+  /// Today's figure against yesterday, then the week as bars.
+  Widget _overview(Session s, T t) {
+    final c = Hgv.of(context);
     final todayValue = _headline(s, _today), yValue = _headline(s, _yesterday);
     final delta = percentChange(todayValue, yValue);
     final bars = _weekBars(s, t);
     final sel = bars[_selectedDay.clamp(0, bars.length - 1)];
     final weekTotal = bars.fold<double>(0, (a, b) => a + b.value);
-    final topMax = _top.fold<num>(0, (m, p) {
-      final v = (s.canSeeFinancials ? p['revenue'] as num? : null) ?? p['qty_sold'] as num? ?? 0;
-      return v > m ? v : m;
-    });
-
-    // Few colours: figures are neutral with blue icons; amber / red only
-    // when there is something to act on.
-    final figures = <Widget>[
-      if (s.canSeeFinancials)
-        FigureTile(label: t('dash.revenue'), value: money(week['revenue'] as num? ?? 0, s.currency), icon: Icons.trending_up),
-      FigureTile(
-          label: t('dash.sales'),
-          value: groupDigits(week['sales_count'] as num? ?? 0),
-          detail: t('dash.transactions'),
-          icon: Icons.point_of_sale_outlined),
-      FigureTile(
-        label: s.isCar ? t('dash.vehicles') : t('dash.products'),
-        value: groupDigits(stock['total_products'] as num? ?? 0),
-        icon: s.isCar ? Icons.directions_car_outlined : Icons.inventory_2_outlined,
-      ),
-      FigureTile(
-        label: t('dash.need_restock'),
-        value: groupDigits(low),
-        icon: Icons.warning_amber_rounded,
-        color: low > 0 ? c.warning : null,
-      ),
-      if (s.isCar) ...[
-        FigureTile(
-            label: t('dash.pending'),
-            value: groupDigits(pending),
-            detail: t('dash.awaiting_transfer'),
-            icon: Icons.schedule,
-            color: pending > 0 ? c.warning : null),
-        FigureTile(
-            label: t('dash.with_fines'),
-            value: groupDigits(fined),
-            icon: Icons.gpp_maybe_outlined,
-            color: fined > 0 ? c.danger : null),
-      ],
-    ];
-
-    return [
-      const SizedBox(height: 16),
-      // ── Today ──
-      Panel(
-        padding: const EdgeInsets.all(18),
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
-            Text(t('dash.today'), style: TextStyle(color: c.muted, fontWeight: FontWeight.w700)),
+            Text(t('dash.today'), style: TextStyle(fontSize: 12, color: c.muted, fontWeight: FontWeight.w700)),
             const Spacer(),
             if (delta != null) DeltaChip(delta, suffix: t('dash.vs_yesterday')),
           ]),
-          const SizedBox(height: 6),
+          const SizedBox(height: 2),
           FittedBox(
             fit: BoxFit.scaleDown,
             alignment: Alignment.centerLeft,
@@ -339,150 +536,326 @@ class _DashboardScreenState extends State<DashboardScreen> with LiveListener {
               tween: Tween(end: todayValue.toDouble()),
               duration: const Duration(milliseconds: 600),
               curve: Curves.easeOutCubic,
-              builder: (context, v, _) => Text(_fmtHeadline(s, v),
-                  style: const TextStyle(fontSize: 32, fontWeight: FontWeight.w900, letterSpacing: -0.8)),
+              builder: (context, v, _) =>
+                  Text(_fmt(s, v), style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w900, letterSpacing: -0.6)),
             ),
           ),
-          const SizedBox(height: 4),
           Text(
             t('dash.today_detail', {
               'n': groupDigits(_today?['sales_count'] as num? ?? 0),
               'items': groupDigits(_today?['items_sold'] as num? ?? 0),
             }),
-            style: TextStyle(color: c.faint, fontWeight: FontWeight.w500),
+            style: TextStyle(fontSize: 12, color: c.faint),
           ),
-        ]),
-      ),
-      const SizedBox(height: 12),
-      // ── This week ──
-      Panel(
-        title: t('dash.this_week'),
-        trailing: Text(t('dash.week_total', {'v': _fmtHeadline(s, weekTotal)}),
-            style: TextStyle(color: c.faint, fontSize: 13, fontWeight: FontWeight.w600)),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(_fmtHeadline(s, sel.value), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
-          Text(daysAgo(sel.day) == 0 ? t('dash.today') : '${t.weekday(sel.day.weekday)} ${t.date(sel.day)}',
-              style: TextStyle(color: c.faint, fontSize: 12)),
-          const SizedBox(height: 12),
-          WeekBars(days: bars, selected: _selectedDay, onSelect: (i) => setState(() => _selectedDay = i)),
-        ]),
-      ),
-      SectionTitle(t('dash.last_7_days')),
-      _grid(figures),
-      if (_owedCount > 0) ...[
-        const SizedBox(height: 12),
-        Panel(
-          onTap: () => openDebts(context),
-          child: Row(children: [
-            IconAvatar(icon: Icons.account_balance_wallet_outlined, color: c.warning, size: 44),
-            const SizedBox(width: 14),
+          const Padding(padding: EdgeInsets.symmetric(vertical: 10), child: Divider()),
+          Row(children: [
+            Text(t('dash.this_week'), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800)),
+            const SizedBox(width: 6),
             Expanded(
+              child: Text(
+                '· ${daysAgo(sel.day) == 0 ? t('dash.today') : '${t.weekday(sel.day.weekday)} ${t.date(sel.day)}'}: ${_fmt(s, sel.value)}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontSize: 12, color: c.muted, fontWeight: FontWeight.w600),
+              ),
+            ),
+          ]),
+          Text(t('dash.week_total', {'v': _fmt(s, weekTotal)}), style: TextStyle(fontSize: 11, color: c.faint)),
+          const SizedBox(height: 8),
+          WeekBars(days: bars, selected: _selectedDay, height: 58, onSelect: (i) => setState(() => _selectedDay = i)),
+        ]),
+      ),
+    );
+  }
+}
+
+/// A small square figure: icon, count, label. Tapping opens the list
+/// behind it.
+class _StatusTile extends StatelessWidget {
+  const _StatusTile({
+    required this.label,
+    required this.value,
+    required this.icon,
+    required this.color,
+    required this.onTap,
+    this.money = false,
+  });
+  final String label;
+  final num value;
+  final IconData icon;
+  final Color color;
+  final VoidCallback onTap;
+  final bool money;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = Hgv.of(context);
+    final s = SessionScope.of(context);
+    return Expanded(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 3),
+        child: Card(
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(10, 10, 8, 9),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(t('dash.owed'), style: TextStyle(color: c.muted, fontWeight: FontWeight.w600)),
+                Container(
+                  width: 26,
+                  height: 26,
+                  decoration: BoxDecoration(color: color.withValues(alpha: 0.13), shape: BoxShape.circle),
+                  child: Icon(icon, size: 15, color: color),
+                ),
+                const SizedBox(height: 6),
                 FittedBox(
                   fit: BoxFit.scaleDown,
                   alignment: Alignment.centerLeft,
-                  child: Text(money(_owed, s.currency), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900)),
+                  child: Text(money ? compactMoney(value, s.currency) : groupDigits(value),
+                      style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w900, letterSpacing: -0.3)),
                 ),
-                Text(t('dash.owed_detail', {'n': _owedCount}), style: TextStyle(color: c.faint, fontSize: 12)),
+                Text(label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: 11, color: c.muted, fontWeight: FontWeight.w600)),
               ]),
             ),
-            Icon(Icons.chevron_right_rounded, color: c.faint),
-          ]),
+          ),
         ),
-      ],
-      const SizedBox(height: 12),
-      // ── Top sellers ──
-      Panel(
-        title: t('dash.top_products'),
-        child: _top.isEmpty
-            ? Text(t('dash.no_top'), style: TextStyle(color: c.faint))
-            : Column(children: [
-                for (var i = 0; i < _top.length; i++)
-                  Builder(builder: (context) {
-                    final p = _top[i];
-                    final qty = p['qty_sold'] as num? ?? 0;
-                    final rev = s.canSeeFinancials ? p['revenue'] as num? : null;
-                    final v = rev ?? qty;
-                    return Padding(
-                      padding: EdgeInsets.only(top: i == 0 ? 0 : 12),
-                      child: Row(children: [
-                        SizedBox(
-                          width: 26,
-                          child: Text('${i + 1}',
-                              style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: i == 0 ? c.ink : c.faint)),
-                        ),
-                        Expanded(
-                          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                            Row(children: [
-                              Expanded(
-                                child: Text('${p['product_name'] ?? ''}',
-                                    maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700)),
-                              ),
-                              Text(rev != null ? money(rev, s.currency) : t('dash.sold_n', {'n': groupDigits(qty)}),
-                                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
-                            ]),
-                            const SizedBox(height: 5),
-                            Meter(value: topMax <= 0 ? 0 : v / topMax, color: i == 0 ? c.ink : c.ink.withValues(alpha: 0.5)),
-                            if (rev != null) ...[
-                              const SizedBox(height: 3),
-                              Text(t('dash.sold_n', {'n': groupDigits(qty)}), style: TextStyle(fontSize: 12, color: c.faint)),
-                            ],
-                          ]),
-                        ),
-                      ]),
-                    );
-                  }),
-              ]),
       ),
-      // ── Stock alerts ──
-      SectionTitle(t('dash.stock_alerts'), trailing: TextButton(onPressed: () => widget.onOpenTab(1), child: Text(t('app.view_all')))),
-      if (_alerts.isEmpty)
-        Card(child: ListTile(leading: Icon(Icons.check_circle, color: c.success), title: Text(t('dash.all_healthy'))))
-      else
-        Card(
-          clipBehavior: Clip.antiAlias,
-          child: Column(children: [
-            for (final a in _alerts)
-              Builder(builder: (context) {
-                final qty = a['quantity'] as num? ?? 0;
-                final tone = qty <= 0 ? c.danger : c.warning;
-                return ListTile(
-                  onTap: () => showProductSheet(context, a),
-                  leading: RingBadge(color: tone, size: 40, child: Text(groupDigits(qty))),
-                  title: Text('${a['name'] ?? ''}',
-                      maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700)),
-                  subtitle: Text(qty <= 0 ? t('dash.out_of_stock') : t('dash.left', {'n': groupDigits(qty)}),
-                      style: TextStyle(color: tone, fontWeight: FontWeight.w600)),
-                  trailing: Text(money(a['selling_price'] as num? ?? 0, s.currency), style: const TextStyle(fontWeight: FontWeight.w600)),
-                );
-              }),
+    );
+  }
+}
+
+/// A one-line notice in a tinted card (stock alert, money owed…).
+class _AlertCard extends StatelessWidget {
+  const _AlertCard({required this.icon, required this.color, required this.title, this.body, this.onTap});
+  final IconData icon;
+  final Color color;
+  final String title;
+  final String? body;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = Hgv.of(context);
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Container(
+          decoration: BoxDecoration(border: Border(left: BorderSide(color: color, width: 3))),
+          padding: const EdgeInsets.fromLTRB(12, 10, 10, 10),
+          child: Row(children: [
+            IconAvatar(icon: icon, color: color, size: 34),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+                Text(title, style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700)),
+                if (body != null) Text(body!, style: TextStyle(fontSize: 12, color: c.faint)),
+              ]),
+            ),
+            if (onTap != null) Icon(Icons.chevron_right_rounded, color: c.faint, size: 20),
           ]),
         ),
-      // ── Recent sales (live) ──
-      SectionTitle(t('dash.recent_sales'), trailing: TextButton(onPressed: () => widget.onOpenTab(2), child: Text(t('app.view_all')))),
-      if (_recent.isEmpty)
-        Card(child: ListTile(leading: const Icon(Icons.receipt_long_outlined), title: Text(t('dash.no_sales'))))
-      else
-        Card(
-          clipBehavior: Clip.antiAlias,
-          child: Column(children: [
-            for (final r in _recent)
-              Flash(
-                key: ValueKey(r['id']),
-                flash: _flash.remove('${r['id']}'),
-                child: ListTile(
-                  onTap: () => showSaleSheet(context, r),
-                  leading: IconAvatar(icon: Icons.receipt_long_rounded, color: c.success, size: 38),
-                  title: Text('${r['product_name'] ?? t('sale.default')}',
-                      maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700)),
-                  subtitle: Text('${r['quantity'] ?? 1} × · ${t.ago(parseTimestamp(r['created_at']) ?? DateTime.now())}'),
-                  trailing: Text(money(r['total_amount'] as num? ?? 0, s.currency), style: const TextStyle(fontWeight: FontWeight.w800)),
-                ),
+      ),
+    );
+  }
+}
+
+/// Rows in one card, divided by hairlines.
+class _ListCard extends StatelessWidget {
+  const _ListCard({required this.children});
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) => Card(
+        clipBehavior: Clip.antiAlias,
+        child: Column(children: [
+          for (var i = 0; i < children.length; i++) ...[
+            if (i > 0) const Divider(indent: 64),
+            children[i],
+          ],
+        ]),
+      );
+}
+
+/// A compact list row: leading, title, subtitle, trailing text or widget.
+class _Row extends StatelessWidget {
+  const _Row({
+    required this.leading,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+    this.trailing,
+    this.trailingWidget,
+    this.subtitleColor,
+  });
+  final Widget leading;
+  final String title, subtitle;
+  final String? trailing;
+  final Widget? trailingWidget;
+  final Color? subtitleColor;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = Hgv.of(context);
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+        child: Row(children: [
+          SizedBox(width: 50, child: Center(child: leading)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700)),
+              if (subtitle.isNotEmpty)
+                Text(subtitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: 12, color: subtitleColor ?? c.faint, fontWeight: FontWeight.w500)),
+            ]),
+          ),
+          const SizedBox(width: 8),
+          if (trailingWidget != null) trailingWidget!,
+          if (trailing != null) Text(trailing!, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800)),
+        ]),
+      ),
+    );
+  }
+}
+
+/// A newly added product or vehicle: photo first, like a feed card.
+class _ArrivalCard extends StatelessWidget {
+  const _ArrivalCard({super.key, required this.item, required this.flash});
+  final Map<String, dynamic> item;
+  final bool flash;
+
+  @override
+  Widget build(BuildContext context) {
+    final s = SessionScope.of(context);
+    final t = T.of(context);
+    final c = Hgv.of(context);
+    final a = attributesOf(item['attributes']);
+    final qty = item['quantity'] as num? ?? 0;
+    final status = qty <= 0
+        ? (t('stock.f_sold'), c.faint)
+        : s.isCar && a['sale_status'] == 'pending'
+            ? (t('stock.f_pending'), c.warning)
+            : null;
+    final fines = int.tryParse(a['penalty_count'] ?? '') ?? 0;
+    final sub = s.isCar
+        ? [a['plate_no'], a['year']].where((x) => x != null && x.isNotEmpty).join(' · ')
+        : (qty <= 0 ? t('dash.out_of_stock') : t('stock.in_stock_n', {'n': groupDigits(qty)}));
+    final added = parseTimestamp(item['created_at']);
+    return SizedBox(
+      width: 148,
+      child: Card(
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: () => showProductSheet(context, item),
+          child: Flash(
+            flash: flash,
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Stack(children: [
+                ProductThumb(item['thumbnail'] as String?, isCar: s.isCar, width: 148, height: 98, radius: 0),
+                if (status != null || fines > 0)
+                  Positioned(
+                    left: 6,
+                    top: 6,
+                    child: _Tag(status?.$1 ?? (fines == 1 ? t('stock.fine_one') : t('stock.fines_n', {'n': fines})),
+                        status?.$2 ?? c.danger),
+                  ),
+                if (added != null)
+                  Positioned(right: 6, bottom: 6, child: _Tag(t.ago(added), Colors.black54)),
+              ]),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(9, 7, 9, 0),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('${item['name'] ?? ''}',
+                      maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
+                  Text(sub,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontSize: 11, color: !s.isCar && qty <= s.lowStock ? c.warning : c.faint)),
+                  const SizedBox(height: 3),
+                  Text(money(item['selling_price'] as num? ?? 0, s.currency),
+                      maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: c.ink)),
+                ]),
               ),
-          ]),
+            ]),
+          ),
         ),
-    ];
+      ),
+    );
+  }
+}
+
+/// A tiny label over a photo.
+class _Tag extends StatelessWidget {
+  const _Tag(this.text, this.color);
+  final String text;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+        decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(6)),
+        child: Text(text, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Colors.white)),
+      );
+}
+
+class _TopSellers extends StatelessWidget {
+  const _TopSellers({required this.top, required this.session});
+  final List<Map<String, dynamic>> top;
+  final Session session;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = T.of(context);
+    final c = Hgv.of(context);
+    final s = session;
+    num value(Map<String, dynamic> p) => (s.canSeeFinancials ? p['revenue'] as num? : null) ?? p['qty_sold'] as num? ?? 0;
+    final max = top.fold<num>(0, (m, p) => value(p) > m ? value(p) : m);
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+        child: Column(children: [
+          for (var i = 0; i < top.length; i++)
+            Padding(
+              padding: EdgeInsets.only(top: i == 0 ? 0 : 10),
+              child: Row(children: [
+                SizedBox(
+                  width: 22,
+                  child: Text('${i + 1}', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14, color: i == 0 ? c.ink : c.faint)),
+                ),
+                Expanded(
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Row(children: [
+                      Expanded(
+                        child: Text('${top[i]['product_name'] ?? ''}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
+                      ),
+                      Text(
+                        s.canSeeFinancials && top[i]['revenue'] is num
+                            ? money(top[i]['revenue'] as num, s.currency)
+                            : t('dash.sold_n', {'n': groupDigits(top[i]['qty_sold'] as num? ?? 0)}),
+                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
+                      ),
+                    ]),
+                    const SizedBox(height: 4),
+                    Meter(value: max <= 0 ? 0 : value(top[i]) / max, height: 5, color: i == 0 ? c.ink : c.ink.withValues(alpha: 0.45)),
+                  ]),
+                ),
+              ]),
+            ),
+        ]),
+      ),
+    );
   }
 }
 
@@ -494,7 +867,7 @@ class _OfflineNote extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = Hgv.of(context);
     return Container(
-      margin: const EdgeInsets.only(top: 12),
+      margin: const EdgeInsets.only(top: 8),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: c.warning.withValues(alpha: 0.10),
@@ -504,7 +877,7 @@ class _OfflineNote extends StatelessWidget {
       child: Row(children: [
         Icon(Icons.cloud_off_outlined, size: 16, color: c.warning),
         const SizedBox(width: 8),
-        Expanded(child: Text(text, style: TextStyle(color: c.warning, fontWeight: FontWeight.w600, fontSize: 13))),
+        Expanded(child: Text(text, style: TextStyle(color: c.warning, fontWeight: FontWeight.w600, fontSize: 12.5))),
       ]),
     );
   }

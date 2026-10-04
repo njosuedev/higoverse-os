@@ -79,7 +79,14 @@ ThemeData buildTheme(Brightness brightness) {
     onSurface: c.text,
     error: c.danger,
   );
-  final base = ThemeData(useMaterial3: true, brightness: brightness, colorScheme: scheme, scaffoldBackgroundColor: c.paper);
+  final base = ThemeData(
+    useMaterial3: true,
+    brightness: brightness,
+    colorScheme: scheme,
+    scaffoldBackgroundColor: c.paper,
+    // Denser, like the big social apps: more on screen, smaller touch padding.
+    visualDensity: const VisualDensity(horizontal: -1, vertical: -1),
+  );
   return base.copyWith(
     extensions: [c],
     textTheme: base.textTheme.apply(bodyColor: c.text, displayColor: c.text),
@@ -89,14 +96,15 @@ ThemeData buildTheme(Brightness brightness) {
       elevation: 0,
       scrolledUnderElevation: 0.5,
       centerTitle: false,
-      titleTextStyle: TextStyle(fontSize: 21, fontWeight: FontWeight.w800, letterSpacing: -0.3, color: c.text),
+      titleTextStyle: TextStyle(fontSize: 19, fontWeight: FontWeight.w800, letterSpacing: -0.3, color: c.text),
+      toolbarHeight: 54,
     ),
     cardTheme: CardThemeData(
       color: c.surface,
       elevation: 0,
       margin: EdgeInsets.zero,
       shape: RoundedRectangleBorder(
-        borderRadius: const BorderRadius.all(Radius.circular(14)),
+        borderRadius: const BorderRadius.all(Radius.circular(12)),
         side: BorderSide(color: c.border.withValues(alpha: 0.7)),
       ),
     ),
@@ -125,11 +133,21 @@ ThemeData buildTheme(Brightness brightness) {
       selectedColor: c.ink.withValues(alpha: 0.14),
       labelStyle: TextStyle(fontWeight: FontWeight.w600, color: c.text),
     ),
+    listTileTheme: ListTileThemeData(
+      titleTextStyle: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: c.text),
+      subtitleTextStyle: TextStyle(fontSize: 12.5, color: c.faint),
+      minVerticalPadding: 8,
+      horizontalTitleGap: 12,
+    ),
     navigationBarTheme: NavigationBarThemeData(
-      height: 66,
+      height: 60,
+      iconTheme: WidgetStateProperty.resolveWith((s) => IconThemeData(size: 24, color: s.contains(WidgetState.selected) ? c.ink : c.muted)),
       backgroundColor: c.surface,
       indicatorColor: c.ink.withValues(alpha: 0.16),
-      labelTextStyle: WidgetStateProperty.all(TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: c.text)),
+      labelTextStyle: WidgetStateProperty.resolveWith((s) => TextStyle(
+          fontSize: 11,
+          fontWeight: s.contains(WidgetState.selected) ? FontWeight.w800 : FontWeight.w600,
+          color: s.contains(WidgetState.selected) ? c.ink : c.muted)),
     ),
     dividerTheme: DividerThemeData(color: c.border, space: 1),
     bottomSheetTheme: BottomSheetThemeData(

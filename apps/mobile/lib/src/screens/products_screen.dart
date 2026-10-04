@@ -1,6 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
-import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 
@@ -16,7 +14,10 @@ import '../widgets.dart';
 /// Stock (shops) or Vehicles (car dealers): searchable, loads more as you
 /// scroll. Quantities and prices change in place as sales and restocks happen.
 class ProductsScreen extends StatefulWidget {
-  const ProductsScreen({super.key});
+  const ProductsScreen({super.key, this.filter});
+
+  /// Set from Home (e.g. "pending") to open the list already filtered.
+  final ValueNotifier<String?>? filter;
 
   @override
   State<ProductsScreen> createState() => _ProductsScreenState();
@@ -83,13 +84,25 @@ class _ProductsScreenState extends State<ProductsScreen> with LiveListener {
     super.didChangeDependencies();
     if (_tick == null) {
       _tick = SessionScope.of(context).refreshTick..addListener(_onResume);
+      widget.filter?.addListener(_onFilter);
       _reload();
     }
+  }
+
+  void _onFilter() {
+    final f = widget.filter?.value;
+    if (f == null) return;
+    widget.filter!.value = null;
+    _search.clear();
+    _status = f;
+    if (_scroll.hasClients) _scroll.jumpTo(0);
+    _reload();
   }
 
   @override
   void dispose() {
     _tick?.removeListener(_onResume);
+    widget.filter?.removeListener(_onFilter);
     _debounce?.cancel();
     _search.dispose();
     _scroll.dispose();
@@ -275,7 +288,7 @@ class _ProductRow extends StatelessWidget {
         : (qty <= 0 ? t('dash.out_of_stock') : t('stock.in_stock_n', {'n': groupDigits(qty)}));
     return ListTile(
       onTap: () => showProductSheet(context, item),
-      leading: _Thumb(item['thumbnail'] as String?, isCar),
+      leading: ProductThumb(item['thumbnail'] as String?, isCar: isCar),
       title: Text('${item['name'] ?? ''}', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700)),
       subtitle: Padding(
         padding: const EdgeInsets.only(top: 2),
@@ -286,42 +299,6 @@ class _ProductRow extends StatelessWidget {
         ]),
       ),
       trailing: Text(money(item['selling_price'] as num? ?? 0, session.currency), style: const TextStyle(fontWeight: FontWeight.w700)),
-    );
-  }
-}
-
-/// The product's small photo (a data URL from the API), or an icon.
-class _Thumb extends StatelessWidget {
-  const _Thumb(this.dataUrl, this.isCar);
-  final String? dataUrl;
-  final bool isCar;
-
-  static final _cache = <String, Uint8List>{};
-
-  @override
-  Widget build(BuildContext context) {
-    Uint8List? bytes;
-    final d = dataUrl;
-    if (d != null && d.startsWith('data:') && d.contains(',')) {
-      bytes = _cache[d] ??= (() {
-        try {
-          return base64Decode(d.substring(d.indexOf(',') + 1));
-        } catch (_) {
-          return Uint8List(0);
-        }
-      })();
-    }
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(8),
-      child: SizedBox(
-        width: 52,
-        height: 40,
-        child: bytes != null && bytes.isNotEmpty
-            ? Image.memory(bytes, fit: BoxFit.cover, gaplessPlayback: true)
-            : Container(
-                color: Hgv.of(context).paper,
-                child: Icon(isCar ? Icons.directions_car_outlined : Icons.inventory_2_outlined, color: Hgv.of(context).faint, size: 20)),
-      ),
     );
   }
 }

@@ -4,6 +4,7 @@ import '../format.dart';
 import '../i18n.dart';
 import '../live/activity.dart';
 import '../live/live_widgets.dart';
+import '../live/scoped_route.dart';
 import '../session.dart';
 import '../sheets.dart';
 import '../theme.dart';
@@ -121,7 +122,7 @@ class _ActivityScreenState extends State<ActivityScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(t('nav.activity')),
+        title: Text(t('acc.notifications')),
         actions: [
           const Center(child: LivePill()),
           IconButton(
@@ -211,5 +212,4 @@ class _ActivityScreenState extends State<ActivityScreen> {
 }
 
 /// Opens the debts list (used from Home and Account).
-void openDebts(BuildContext context) =>
-    Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const DebtsScreen()));
+void openDebts(BuildContext context) => pushScoped<void>(context, const DebtsScreen());
