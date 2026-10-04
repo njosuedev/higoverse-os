@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 
 /// Colours from the website's design tokens (apps/web/app/globals.css), in a
-/// light and a dark set. Read them with `Hgv.of(context)`, so screens follow
+/// light and a dark set. Few colours on purpose: neutrals, the brand blue,
+/// and success / warning / danger only for status. Read them with `Hgv.of(context)`, so screens follow
 /// the current appearance (System / Light / Dark).
 @immutable
 class Hgv extends ThemeExtension<Hgv> {
@@ -17,11 +18,15 @@ class Hgv extends ThemeExtension<Hgv> {
     required this.success,
     required this.warning,
     required this.danger,
-    required this.purple,
     required this.skeleton,
+    required this.skeletonHi,
   });
 
-  final Color ink, inkDark, paper, surface, border, text, muted, faint, success, warning, danger, purple, skeleton;
+  final Color ink, inkDark, paper, surface, border, text, muted, faint, success, warning, danger;
+
+  /// Loading placeholders: base and the highlight that sweeps across it —
+  /// the website's Reports skeleton (.rep-sh), light and dark.
+  final Color skeleton, skeletonHi;
 
   static const light = Hgv(
     ink: Color(0xFF0A66C2),
@@ -35,8 +40,8 @@ class Hgv extends ThemeExtension<Hgv> {
     success: Color(0xFF057642),
     warning: Color(0xFF915907),
     danger: Color(0xFFCC1016),
-    purple: Color(0xFF7C3AED),
-    skeleton: Color(0xFFE8E7E4),
+    skeleton: Color(0xFFF1F5F9),
+    skeletonHi: Color(0xFFE2E8F0),
   );
 
   static const dark = Hgv(
@@ -51,8 +56,8 @@ class Hgv extends ThemeExtension<Hgv> {
     success: Color(0xFF3DBF7D),
     warning: Color(0xFFE3AA48),
     danger: Color(0xFFF0646A),
-    purple: Color(0xFFB9A3F7),
-    skeleton: Color(0xFF22262C),
+    skeleton: Color(0xFF1F2329),
+    skeletonHi: Color(0xFF2A2F36),
   );
 
   static Hgv of(BuildContext context) => Theme.of(context).extension<Hgv>() ?? light;

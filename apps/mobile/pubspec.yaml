@@ -1,13 +1,16 @@
 name: higoverse_inventory_mobile
 description: Higoverse mobile app — stock, sales and account on the go.
 publish_to: "none"
-version: 1.1.0+2
+version: 1.2.0+3
 
 environment:
   sdk: ">=3.3.0 <4.0.0"
 
 dependencies:
   flutter:
+    sdk: flutter
+  # Flutter's own texts (dialogs, tooltips) in French, Swahili and Chinese.
+  flutter_localizations:
     sdk: flutter
   cupertino_icons: ^1.0.8
   # HTTP calls to the Higoverse services.
@@ -17,6 +20,8 @@ dependencies:
   package_info_plus: ^9.0.1
   url_launcher: ^6.3.3
   in_app_update: ^5.0.0
+  path_provider: ^2.1.6
+  open_filex: ^4.7.0
 
 dev_dependencies:
   flutter_test:

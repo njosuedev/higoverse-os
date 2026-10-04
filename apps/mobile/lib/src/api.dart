@@ -6,9 +6,16 @@ import 'package:http/http.dart' as http;
 import 'config.dart';
 
 class ApiException implements Exception {
-  ApiException(this.status, this.message);
+  ApiException(this.status, this.message, {this.key, this.args = const {}});
   final int status;
+
+  /// The server's own message, or the English text of [key].
   final String message;
+
+  /// Set for messages written by the app (not the server), so screens can
+  /// show them in the app's language: see i18n.dart.
+  final String? key;
+  final Map<String, Object?> args;
 
   @override
   String toString() => message;
@@ -56,15 +63,15 @@ class Api {
     try {
       res = await http.Response.fromStream(await _http.send(req).timeout(_timeout));
     } on TimeoutException {
-      throw ApiException(0, 'The server took too long to answer. Check your connection and try again.');
+      throw ApiException(0, 'The server took too long to answer. Check your connection and try again.', key: 'err.timeout');
     } catch (_) {
-      throw ApiException(0, 'No connection to Higoverse. Check your internet and try again.');
+      throw ApiException(0, 'No connection to Higoverse. Check your internet and try again.', key: 'err.network');
     }
 
     if (res.statusCode == 401 && token != null && !retried) {
       if (await tokens.refresh()) return _send(method, url, body: body, retried: true);
       await tokens.expire();
-      throw ApiException(401, 'Your session has ended. Please sign in again.');
+      throw ApiException(401, 'Your session has ended. Please sign in again.', key: 'err.session');
     }
     return decode(res);
   }
@@ -79,11 +86,10 @@ class Api {
       data = null;
     }
     if (res.statusCode >= 200 && res.statusCode < 300) return data;
-    var message = 'Something went wrong (${res.statusCode}). Please try again.';
-    if (data is Map && data['detail'] != null) {
-      final d = data['detail'];
-      message = d is String ? d : (d is List && d.isNotEmpty && d.first is Map ? '${d.first['msg']}' : message);
-    }
-    throw ApiException(res.statusCode, message);
+    final generic = 'Something went wrong (${res.statusCode}). Please try again.';
+    final d = data is Map ? data['detail'] : null;
+    final detail = d is String ? d : (d is List && d.isNotEmpty && d.first is Map ? '${d.first['msg']}' : null);
+    if (detail != null) throw ApiException(res.statusCode, detail);
+    throw ApiException(res.statusCode, generic, key: 'err.generic', args: {'code': res.statusCode});
   }
 }

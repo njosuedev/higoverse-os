@@ -24,13 +24,16 @@ String ymd(DateTime d) =>
 }
 
 /// "3 Oct, 14:05" from an API timestamp (UTC, sometimes without a zone).
-String shortDateTime(String? ts) {
+/// [months] gives the month names in the app's language (`T.months`);
+/// Chinese reads "10月3日 14:05".
+String shortDateTime(String? ts, [List<String>? months, String lang = 'en']) {
   if (ts == null || ts.isEmpty) return '';
   final hasZone = RegExp(r'[zZ]|[+-]\d\d:?\d\d$').hasMatch(ts);
   final d = DateTime.tryParse(hasZone ? ts : '${ts}Z')?.toLocal();
   if (d == null) return '';
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  return '${d.day} ${months[d.month - 1]}, ${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
+  final m = (months ?? const ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'])[d.month - 1];
+  final time = '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
+  return lang == 'zh' ? '$m${d.day}日 $time' : '${d.day} $m, $time';
 }
 
 /// Car details are stored as JSON text on the product (`attributes`).

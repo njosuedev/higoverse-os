@@ -1,6 +1,14 @@
 import 'package:flutter/material.dart';
 
+import 'api.dart';
+import 'i18n.dart';
 import 'theme.dart';
+
+export 'loading.dart';
+
+/// A failure as text in the app's language. The server's own messages are
+/// shown as they come.
+String errorText(T t, Object e) => e is ApiException && e.key != null ? t(e.key!, e.args) : '$e';
 
 /// Section title used above cards and lists.
 class SectionTitle extends StatelessWidget {
@@ -89,20 +97,40 @@ class EmptyState extends StatelessWidget {
           Text(message, textAlign: TextAlign.center, style: TextStyle(color: Hgv.of(context).muted)),
           if (onRetry != null) ...[
             const SizedBox(height: 12),
-            OutlinedButton(onPressed: onRetry, child: const Text('Try again')),
+            OutlinedButton(onPressed: onRetry, child: Text(T.of(context)('app.retry'))),
           ],
         ]),
       );
 }
 
-/// Grey placeholder block while something loads.
-class SkeletonBox extends StatelessWidget {
-  const SkeletonBox({super.key, this.height = 64});
-  final double height;
+/// Nested circles around a short label: a soft outer halo, then a ring
+/// holding the label — e.g. the quantity left on a stock alert, or initials.
+class RingBadge extends StatelessWidget {
+  const RingBadge({super.key, required this.color, required this.child, this.size = 38, this.solid = false});
+  final Color color;
+  final Widget child;
+  final double size;
+
+  /// Filled inner circle (white label) instead of a tinted one.
+  final bool solid;
 
   @override
   Widget build(BuildContext context) => Container(
-        height: height,
-        decoration: BoxDecoration(color: const Color(0xFFE8E7E4), borderRadius: BorderRadius.circular(8)),
+        width: size,
+        height: size,
+        padding: EdgeInsets.all(size * 0.09),
+        decoration: BoxDecoration(shape: BoxShape.circle, color: color.withValues(alpha: 0.10)),
+        child: Container(
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: solid ? color : color.withValues(alpha: 0.14),
+            border: Border.all(color: color.withValues(alpha: solid ? 1 : 0.55), width: 1.5),
+          ),
+          child: DefaultTextStyle.merge(
+            style: TextStyle(color: solid ? Colors.white : color, fontWeight: FontWeight.w800, fontSize: size * 0.32),
+            child: FittedBox(fit: BoxFit.scaleDown, child: Padding(padding: const EdgeInsets.all(2), child: child)),
+          ),
+        ),
       );
 }

@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'src/app_settings.dart';
+import 'src/i18n.dart';
 import 'src/screens/home_shell.dart';
 import 'src/screens/login_screen.dart';
 import 'src/session.dart';
 import 'src/theme.dart';
+import 'src/widgets.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -31,31 +34,39 @@ class _HigoverseAppState extends State<HigoverseApp> {
     return AppSettingsScope(
       settings: widget.settings,
       child: SessionScope(
-      session: widget.session,
-      child: ListenableBuilder(
-        listenable: widget.settings,
-        builder: (context, _) => MaterialApp(
-        debugShowCheckedModeBanner: false,
-        title: 'Higoverse',
-        theme: buildTheme(Brightness.light),
-        darkTheme: buildTheme(Brightness.dark),
-        themeMode: widget.settings.themeMode,
-        home: FutureBuilder<bool>(
-          future: _restored,
-          builder: (context, snap) {
-            if (snap.connectionState != ConnectionState.done) return const _Splash();
-            // Rebuilds on sign-in / sign-out / expiry.
-            return ListenableBuilder(
-              listenable: widget.session,
-              // Keyed by account so nothing from a previous account survives.
-              builder: (context, _) => widget.session.signedIn
-                  ? HomeShell(key: ValueKey(widget.session.user!.id))
-                  : const LoginScreen(),
+        session: widget.session,
+        child: ListenableBuilder(
+          listenable: Listenable.merge([widget.settings, widget.session]),
+          builder: (context, _) {
+            final lang = widget.settings.effectiveLanguage(
+              account: widget.session.accountLanguage,
+              device: WidgetsBinding.instance.platformDispatcher.locale,
+            );
+            return MaterialApp(
+              debugShowCheckedModeBanner: false,
+              title: 'Higoverse',
+              theme: buildTheme(Brightness.light),
+              darkTheme: buildTheme(Brightness.dark),
+              themeMode: widget.settings.themeMode,
+              // Flutter's own texts (tooltips, date pickers…) and the right
+              // fonts for Chinese. Flutter has no Kinyarwanda: English there.
+              locale: Locale(lang == 'rw' ? 'en' : lang),
+              supportedLocales: const [Locale('en'), Locale('fr'), Locale('sw'), Locale('zh')],
+              localizationsDelegates: GlobalMaterialLocalizations.delegates,
+              builder: (context, child) => LangScope(lang: lang, child: child!),
+              home: FutureBuilder<bool>(
+                future: _restored,
+                builder: (context, snap) {
+                  if (snap.connectionState != ConnectionState.done) return const _Splash();
+                  // Keyed by account so nothing from a previous account survives.
+                  return widget.session.signedIn
+                      ? HomeShell(key: ValueKey(widget.session.user!.id))
+                      : const LoginScreen();
+                },
+              ),
             );
           },
         ),
-      ),
-      ),
       ),
     );
   }
@@ -73,8 +84,8 @@ class _Splash extends StatelessWidget {
               borderRadius: BorderRadius.circular(14),
               child: Image.asset('assets/higoverse-logo.png', width: 64, height: 64),
             ),
-            const SizedBox(height: 18),
-            SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2.4, color: Hgv.of(context).ink)),
+            const SizedBox(height: 22),
+            const RingsLoader(size: 34),
           ]),
         ),
       );

@@ -53,6 +53,10 @@ class Session extends ChangeNotifier implements TokenSource {
   String currency = 'RWF';
   int lowStock = 10;
 
+  /// Language saved on the account (website settings); used until a language
+  /// is picked on this phone.
+  String? accountLanguage;
+
   bool get signedIn => accessToken != null && user != null;
   bool get isCar => shop?.layout == 'car';
 
@@ -89,7 +93,7 @@ class Session extends ChangeNotifier implements TokenSource {
             headers: {'Content-Type': 'application/json'},
             body: jsonEncode({'email': email.trim(), 'password': password}))
         .timeout(const Duration(seconds: 20))
-        .catchError((_) => throw ApiException(0, 'No connection to Higoverse. Check your internet and try again.'));
+        .catchError((_) => throw ApiException(0, 'No connection to Higoverse. Check your internet and try again.', key: 'err.network'));
     final data = Api.decode(res) as Map<String, dynamic>;
     // A new session starts clean: nothing from a previous account remains.
     await _clear();
@@ -98,7 +102,7 @@ class Session extends ChangeNotifier implements TokenSource {
     notifyListeners();
   }
 
-  /// Shop (for its layout) and shop settings (currency, low-stock level).
+  /// Shop (for its layout) and shop settings (currency, low-stock level, language).
   Future<void> loadAccount() async {
     final results = await Future.wait([
       api.get('${Svc.auth}/api/v1/shop').catchError((_) => null),
@@ -111,6 +115,7 @@ class Session extends ChangeNotifier implements TokenSource {
       final d = st['data'] as Map;
       currency = (d['currency'] as String?)?.trim().isNotEmpty == true ? d['currency'] as String : 'RWF';
       lowStock = int.tryParse('${d['low_stock_threshold']}') ?? 10;
+      accountLanguage = d['language'] as String?;
     }
     notifyListeners();
   }
@@ -182,6 +187,7 @@ class Session extends ChangeNotifier implements TokenSource {
     shop = null;
     currency = 'RWF';
     lowStock = 10;
+    accountLanguage = null;
     try {
       // Only this account's keys: device preferences (appearance) stay.
       for (final k in const [_kAccess, _kRefresh, _kUser]) {

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../i18n.dart';
 import '../session.dart';
 import '../updates.dart';
 import 'dashboard_screen.dart';
@@ -41,6 +42,7 @@ class _HomeShellState extends State<HomeShell> {
   @override
   Widget build(BuildContext context) {
     final s = SessionScope.of(context);
+    final t = T.of(context);
     return Scaffold(
       body: IndexedStack(index: _tab, children: [
         DashboardScreen(onOpenTab: (i) => setState(() => _tab = i)),
@@ -52,14 +54,15 @@ class _HomeShellState extends State<HomeShell> {
         selectedIndex: _tab,
         onDestinationSelected: (i) => setState(() => _tab = i),
         destinations: [
-          const NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home), label: 'Home'),
+          NavigationDestination(icon: const Icon(Icons.home_outlined), selectedIcon: const Icon(Icons.home), label: t('nav.home')),
           NavigationDestination(
             icon: Icon(s.isCar ? Icons.directions_car_outlined : Icons.inventory_2_outlined),
             selectedIcon: Icon(s.isCar ? Icons.directions_car : Icons.inventory_2),
-            label: s.isCar ? 'Vehicles' : 'Stock',
+            label: s.isCar ? t('nav.vehicles') : t('nav.stock'),
           ),
-          const NavigationDestination(icon: Icon(Icons.point_of_sale_outlined), selectedIcon: Icon(Icons.point_of_sale), label: 'Sales'),
-          const NavigationDestination(icon: Icon(Icons.person_outline), selectedIcon: Icon(Icons.person), label: 'Account'),
+          NavigationDestination(
+              icon: const Icon(Icons.point_of_sale_outlined), selectedIcon: const Icon(Icons.point_of_sale), label: t('nav.sales')),
+          NavigationDestination(icon: const Icon(Icons.person_outline), selectedIcon: const Icon(Icons.person), label: t('nav.account')),
         ],
       ),
     );
