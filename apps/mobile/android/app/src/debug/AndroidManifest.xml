@@ -4,4 +4,8 @@
          to allow setting breakpoints, to provide hot reload, etc.
     -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Debug builds only: plain HTTP to a local test server, e.g.
+         flutter run -dart-define=API_BASE=http://10.0.2.2:3000/svc
+         (release builds keep Android's HTTPS-only default). -->
+    <application android:usesCleartextTraffic="true" />
 </manifest>

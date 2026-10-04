@@ -6,7 +6,7 @@ import '../config.dart';
 import '../i18n.dart';
 import '../session.dart';
 import '../theme.dart';
-import '../updates.dart';
+import '../updates/update_controller.dart';
 import '../widgets.dart';
 
 /// Account: who is signed in, for which business, preferences and sign-out.
@@ -136,7 +136,7 @@ class MoreScreen extends StatelessWidget {
                 title: Text(t('acc.check_updates')),
                 subtitle: Text(snap.hasData ? t('acc.version', {'v': snap.data!.version}) : t('acc.version_bare')),
                 trailing: const Icon(Icons.chevron_right),
-                onTap: () => AppUpdates.check(context, manual: true),
+                onTap: () => AppUpdates.instance.check(manual: true),
               ),
             ),
             const Divider(indent: 16, endIndent: 16),

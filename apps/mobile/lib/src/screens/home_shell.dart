@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../i18n.dart';
 import '../session.dart';
-import '../updates.dart';
 import 'dashboard_screen.dart';
 import 'more_screen.dart';
 import 'products_screen.dart';
@@ -25,12 +24,6 @@ class _HomeShellState extends State<HomeShell> {
     super.initState();
     // Coming back to the app: every screen reloads its data.
     _life = AppLifecycleListener(onResume: () => SessionScope.of(context).refreshTick.value++);
-    // Look for a newer version shortly after start.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      Future.delayed(const Duration(seconds: 3), () {
-        if (mounted) AppUpdates.check(context);
-      });
-    });
   }
 
   @override

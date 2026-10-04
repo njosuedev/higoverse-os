@@ -3,14 +3,9 @@
     <!-- Needed in release builds to reach the Higoverse servers. -->
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- APK installs: the downloaded update is handed to Android's installer
-         (Android asks once to allow installs from Higoverse). -->
+         (Android asks once to allow installs from Higoverse). Left out of the
+         Google Play bundle: see src/play/AndroidManifest.xml. -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
-    <!-- Added by open_filex but never used: the app only opens its own update
-         file, so it asks for no access to photos, videos or audio. -->
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" tools:node="remove" />
-    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" tools:node="remove" />
-    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" tools:node="remove" />
-    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" tools:node="remove" />
     <application
         android:label="Higoverse"
         android:name="${applicationName}"
@@ -37,6 +32,16 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
+        <!-- Shares the downloaded update APK with Android's installer (MainActivity.kt). -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.updates"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/update_paths" />
+        </provider>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

@@ -7,6 +7,7 @@ import 'src/screens/home_shell.dart';
 import 'src/screens/login_screen.dart';
 import 'src/session.dart';
 import 'src/theme.dart';
+import 'src/updates/update_controller.dart';
 import 'src/widgets.dart';
 
 void main() {
@@ -24,10 +25,24 @@ class HigoverseApp extends StatefulWidget {
 }
 
 class _HigoverseAppState extends State<HigoverseApp> {
+  final _navigator = GlobalKey<NavigatorState>();
+  final _messenger = GlobalKey<ScaffoldMessengerState>();
+
   late final Future<bool> _restored = () async {
     await widget.settings.load();
     return widget.session.restore();
   }();
+
+  @override
+  void initState() {
+    super.initState();
+    // Updates are looked for in the background once the app is open; the
+    // app never waits for them (see updates/update_controller.dart).
+    AppUpdates.instance
+      ..navigatorKey = _navigator
+      ..messengerKey = _messenger;
+    _restored.whenComplete(AppUpdates.instance.start);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -43,6 +58,8 @@ class _HigoverseAppState extends State<HigoverseApp> {
               device: WidgetsBinding.instance.platformDispatcher.locale,
             );
             return MaterialApp(
+              navigatorKey: _navigator,
+              scaffoldMessengerKey: _messenger,
               debugShowCheckedModeBanner: false,
               title: 'Higoverse',
               theme: buildTheme(Brightness.light),
