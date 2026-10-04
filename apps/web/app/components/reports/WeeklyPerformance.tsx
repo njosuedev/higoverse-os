@@ -78,7 +78,7 @@ export default function WeeklyPerformance({ isCar, currency, fmt }: { isCar: boo
     ];
     if (isCar) {
       list.push({ key: "fines",   label: t("dash.chart_fines"),   color: "#cc1016", money: false, goodUp: false });
-      list.push({ key: "pending", label: t("dash.chart_pending"), color: "#7c3aed", money: false, goodUp: true });
+      list.push({ key: "pending", label: t("dash.chart_pending"), color: "#6ea8e6", money: false, goodUp: true });
     }
     return list;
   }, [isCar, t]);

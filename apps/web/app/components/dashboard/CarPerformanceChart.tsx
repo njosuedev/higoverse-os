@@ -86,7 +86,7 @@ export default function CarPerformanceChart({ daily, fmtCurrency }: { daily: Dai
     { key: "sales",    label: t("dash.chart_sales"),    color: "#0a66c2", money: true },
     { key: "expenses", label: t("dash.chart_expenses"), color: "#915907", money: true },
     { key: "fines",    label: t("dash.chart_fines"),    color: "#cc1016", money: false },
-    { key: "pending",  label: t("dash.chart_pending"),  color: "#7c3aed", money: false },
+    { key: "pending",  label: t("dash.chart_pending"),  color: "#6ea8e6", money: false },
   ] as const;
 
   return (
@@ -134,7 +134,7 @@ export default function CarPerformanceChart({ daily, fmtCurrency }: { daily: Dai
               return [s?.money ? fmtCurrency(n) : n.toLocaleString(), s?.label ?? String(name)];
             }}
           />
-          <Bar yAxisId="count" dataKey="pending" fill="#7c3aed" fillOpacity={0.75} barSize={7} radius={[2, 2, 0, 0]} />
+          <Bar yAxisId="count" dataKey="pending" fill="#6ea8e6" fillOpacity={0.75} barSize={7} radius={[2, 2, 0, 0]} />
           <Bar yAxisId="count" dataKey="fines" fill="#cc1016" fillOpacity={0.75} barSize={7} radius={[2, 2, 0, 0]} />
           <Area yAxisId="money" type="monotone" dataKey="sales" stroke="#0a66c2" fill="url(#carSalesFill)" strokeWidth={2} dot={false} />
           <Line yAxisId="money" type="monotone" dataKey="expenses" stroke="#915907" strokeWidth={1.75} dot={false} strokeDasharray="4 2" />

@@ -29,20 +29,27 @@ const nextConfig: NextConfig = {
     // Same-origin service paths. On the VPS nginx answers /svc/* before
     // requests ever reach Next.js; in local development these rewrites play
     // the same role and forward to the services on their usual ports.
+    //
+    // HGV_API_ORIGIN (e.g. https://higoverse.com/svc, set in
+    // .env.development.local) sends them to a deployed server instead, for
+    // working on the frontend without running the services. That is live
+    // data: anything changed while testing changes it for real.
+    const remote = process.env.HGV_API_ORIGIN?.replace(/\/+$/, "");
     const local = (port: number) => `http://127.0.0.1:${port}`;
     const services: [string, number][] = [
       ["auth", 8000], ["products", 8001], ["suppliers", 8002], ["sales", 8003], ["purchases", 8004],
       ["expenses", 8005], ["settings", 8006], ["shops", 8007], ["reports", 8008],
     ];
+    const target = (name: string, port: number) => (remote ? `${remote}/${name}` : local(port));
     return [
-      ...services.map(([name, port]) => ({ source: `/svc/${name}/:path*`, destination: `${local(port)}/:path*` })),
+      ...services.map(([name, port]) => ({ source: `/svc/${name}/:path*`, destination: `${target(name, port)}/:path*` })),
       {
         source: "/api/expenses/:path*",
-        destination: `${process.env.NEXT_PUBLIC_API_EXPENSES || local(8005)}/:path*`,
+        destination: `${process.env.NEXT_PUBLIC_API_EXPENSES || target("expenses", 8005)}/:path*`,
       },
       {
         source: "/api/purchases/:path*",
-        destination: `${process.env.NEXT_PUBLIC_API_PURCHASES || local(8004)}/:path*`,
+        destination: `${process.env.NEXT_PUBLIC_API_PURCHASES || target("purchases", 8004)}/:path*`,
       },
     ];
   },

@@ -46,6 +46,31 @@
   --color-warning: #915907;
   --color-warning-soft: #fcf0d9;
 
+
+  /* Few colours, like the top of the sign-in page: neutral greys, the brand
+     blue, and green / amber / red only for status (paid, low stock, errors).
+     The blue scale is the brand blue; every other decorative hue the pages
+     use (violet, indigo, teal, orange…) folds into one of these four, so the
+     pages follow without each class being rewritten. Dark mode inherits it:
+     the aliases read the dark blue / green / amber / red below. */
+  --color-blue-50: #eef6fe;  --color-blue-100: #dbeafc; --color-blue-200: #b7d6f8;
+  --color-blue-300: #84b9f0; --color-blue-400: #4f98e3; --color-blue-500: #1d76d2;
+  --color-blue-600: #0a66c2; --color-blue-700: #004182; --color-blue-800: #00356b;
+  --color-blue-900: #002a55; --color-blue-950: #001c3a;
+  --color-indigo-50: var(--color-blue-50); --color-indigo-100: var(--color-blue-100); --color-indigo-200: var(--color-blue-200); --color-indigo-300: var(--color-blue-300); --color-indigo-400: var(--color-blue-400); --color-indigo-500: var(--color-blue-500); --color-indigo-600: var(--color-blue-600); --color-indigo-700: var(--color-blue-700); --color-indigo-800: var(--color-blue-800); --color-indigo-900: var(--color-blue-900); --color-indigo-950: var(--color-blue-950);
+  --color-violet-50: var(--color-blue-50); --color-violet-100: var(--color-blue-100); --color-violet-200: var(--color-blue-200); --color-violet-300: var(--color-blue-300); --color-violet-400: var(--color-blue-400); --color-violet-500: var(--color-blue-500); --color-violet-600: var(--color-blue-600); --color-violet-700: var(--color-blue-700); --color-violet-800: var(--color-blue-800); --color-violet-900: var(--color-blue-900); --color-violet-950: var(--color-blue-950);
+  --color-purple-50: var(--color-blue-50); --color-purple-100: var(--color-blue-100); --color-purple-200: var(--color-blue-200); --color-purple-300: var(--color-blue-300); --color-purple-400: var(--color-blue-400); --color-purple-500: var(--color-blue-500); --color-purple-600: var(--color-blue-600); --color-purple-700: var(--color-blue-700); --color-purple-800: var(--color-blue-800); --color-purple-900: var(--color-blue-900); --color-purple-950: var(--color-blue-950);
+  --color-fuchsia-50: var(--color-blue-50); --color-fuchsia-100: var(--color-blue-100); --color-fuchsia-200: var(--color-blue-200); --color-fuchsia-300: var(--color-blue-300); --color-fuchsia-400: var(--color-blue-400); --color-fuchsia-500: var(--color-blue-500); --color-fuchsia-600: var(--color-blue-600); --color-fuchsia-700: var(--color-blue-700); --color-fuchsia-800: var(--color-blue-800); --color-fuchsia-900: var(--color-blue-900); --color-fuchsia-950: var(--color-blue-950);
+  --color-pink-50: var(--color-blue-50); --color-pink-100: var(--color-blue-100); --color-pink-200: var(--color-blue-200); --color-pink-300: var(--color-blue-300); --color-pink-400: var(--color-blue-400); --color-pink-500: var(--color-blue-500); --color-pink-600: var(--color-blue-600); --color-pink-700: var(--color-blue-700); --color-pink-800: var(--color-blue-800); --color-pink-900: var(--color-blue-900); --color-pink-950: var(--color-blue-950);
+  --color-sky-50: var(--color-blue-50); --color-sky-100: var(--color-blue-100); --color-sky-200: var(--color-blue-200); --color-sky-300: var(--color-blue-300); --color-sky-400: var(--color-blue-400); --color-sky-500: var(--color-blue-500); --color-sky-600: var(--color-blue-600); --color-sky-700: var(--color-blue-700); --color-sky-800: var(--color-blue-800); --color-sky-900: var(--color-blue-900); --color-sky-950: var(--color-blue-950);
+  --color-cyan-50: var(--color-blue-50); --color-cyan-100: var(--color-blue-100); --color-cyan-200: var(--color-blue-200); --color-cyan-300: var(--color-blue-300); --color-cyan-400: var(--color-blue-400); --color-cyan-500: var(--color-blue-500); --color-cyan-600: var(--color-blue-600); --color-cyan-700: var(--color-blue-700); --color-cyan-800: var(--color-blue-800); --color-cyan-900: var(--color-blue-900); --color-cyan-950: var(--color-blue-950);
+  --color-teal-50: var(--color-blue-50); --color-teal-100: var(--color-blue-100); --color-teal-200: var(--color-blue-200); --color-teal-300: var(--color-blue-300); --color-teal-400: var(--color-blue-400); --color-teal-500: var(--color-blue-500); --color-teal-600: var(--color-blue-600); --color-teal-700: var(--color-blue-700); --color-teal-800: var(--color-blue-800); --color-teal-900: var(--color-blue-900); --color-teal-950: var(--color-blue-950);
+  --color-orange-50: var(--color-blue-50); --color-orange-100: var(--color-blue-100); --color-orange-200: var(--color-blue-200); --color-orange-300: var(--color-blue-300); --color-orange-400: var(--color-blue-400); --color-orange-500: var(--color-blue-500); --color-orange-600: var(--color-blue-600); --color-orange-700: var(--color-blue-700); --color-orange-800: var(--color-blue-800); --color-orange-900: var(--color-blue-900); --color-orange-950: var(--color-blue-950);
+  --color-yellow-50: var(--color-amber-50); --color-yellow-100: var(--color-amber-100); --color-yellow-200: var(--color-amber-200); --color-yellow-300: var(--color-amber-300); --color-yellow-400: var(--color-amber-400); --color-yellow-500: var(--color-amber-500); --color-yellow-600: var(--color-amber-600); --color-yellow-700: var(--color-amber-700); --color-yellow-800: var(--color-amber-800); --color-yellow-900: var(--color-amber-900); --color-yellow-950: var(--color-amber-950);
+  --color-emerald-50: var(--color-green-50); --color-emerald-100: var(--color-green-100); --color-emerald-200: var(--color-green-200); --color-emerald-300: var(--color-green-300); --color-emerald-400: var(--color-green-400); --color-emerald-500: var(--color-green-500); --color-emerald-600: var(--color-green-600); --color-emerald-700: var(--color-green-700); --color-emerald-800: var(--color-green-800); --color-emerald-900: var(--color-green-900); --color-emerald-950: var(--color-green-950);
+  --color-lime-50: var(--color-green-50); --color-lime-100: var(--color-green-100); --color-lime-200: var(--color-green-200); --color-lime-300: var(--color-green-300); --color-lime-400: var(--color-green-400); --color-lime-500: var(--color-green-500); --color-lime-600: var(--color-green-600); --color-lime-700: var(--color-green-700); --color-lime-800: var(--color-green-800); --color-lime-900: var(--color-green-900); --color-lime-950: var(--color-green-950);
+  --color-rose-50: var(--color-red-50); --color-rose-100: var(--color-red-100); --color-rose-200: var(--color-red-200); --color-rose-300: var(--color-red-300); --color-rose-400: var(--color-red-400); --color-rose-500: var(--color-red-500); --color-rose-600: var(--color-red-600); --color-rose-700: var(--color-red-700); --color-rose-800: var(--color-red-800); --color-rose-900: var(--color-red-900); --color-rose-950: var(--color-red-950);
+
   /* radius — LinkedIn-style soft corners; buttons are pills (see Button.tsx) */
   --radius-data: 8px;
   --radius-press: 8px;
@@ -295,19 +320,21 @@ input, textarea, select, button {
 /* same light remapping, on the warm-grey page colour instead of white */
 .hgv-surface.hgv-surface--paper { background: var(--color-paper) !important; }
 /* skeleton shimmer placeholders that were translucent-white on blue */
-.hgv-surface [class*="-sh-w"] {
+.hgv-surface [class*="-sh-w"],
+.hgv-surface .exp-sh-blue {
   background: linear-gradient(90deg, var(--color-paper-dim) 25%, var(--color-paper-deep) 50%, var(--color-paper-dim) 75%) !important;
   background-size: 700px 100% !important;
 }
 
-/* Browser autofill paints filled inputs light blue (#e8f0fe); keep them white. */
+/* Browser autofill paints filled inputs light blue (#e8f0fe); keep them the
+   field colour instead: white in light mode, the dark surface in dark mode. */
 input:-webkit-autofill,
 input:-webkit-autofill:hover,
 input:-webkit-autofill:focus,
 textarea:-webkit-autofill,
 select:-webkit-autofill {
-  -webkit-box-shadow: 0 0 0 1000px #ffffff inset !important;
-  box-shadow: 0 0 0 1000px #ffffff inset !important;
+  -webkit-box-shadow: 0 0 0 1000px var(--surface, #ffffff) inset !important;
+  box-shadow: 0 0 0 1000px var(--surface, #ffffff) inset !important;
   -webkit-text-fill-color: var(--color-text) !important;
   caret-color: var(--color-text);
   transition: background-color 9999s ease-out 0s;
@@ -393,6 +420,8 @@ select:-webkit-autofill {
    ══════════════════════════════════════════════════════════════════════ */
 html[data-theme="dark"] {
   color-scheme: dark;
+  --btn-primary: #0a66c2;
+  --btn-primary-hover: #0d74db;
   --surface: #1b1e23;
   --surface-2: #22262c;
 
@@ -426,18 +455,10 @@ html[data-theme="dark"] {
   /* coloured badges/chips: dark tinted backgrounds, light text */
   --color-blue-50: #12233a;   --color-blue-100: #16304f;  --color-blue-200: #1d4370;
   --color-blue-600: #6aaef5;  --color-blue-700: #8cc1f7;  --color-blue-800: #a9d1fa;
-  --color-indigo-50: #1a1d3a; --color-indigo-100: #222652; --color-indigo-600: #a3a8f5; --color-indigo-700: #b9bdf8;
-  --color-violet-50: #221a38; --color-violet-100: #2c2149; --color-violet-200: #3e2f66; --color-violet-600: #b9a3f7; --color-violet-700: #c9b8f9;
-  --color-purple-50: #261a36; --color-purple-100: #321f47; --color-purple-200: #46296a; --color-purple-600: #cfa5f5; --color-purple-700: #dbbbf8;
   --color-green-50: #10261a;  --color-green-100: #143321; --color-green-200: #1c4a2f;
   --color-green-600: #4cc985; --color-green-700: #6fd59d; --color-green-800: #94e2b6;
-  --color-emerald-50: #0f2620; --color-emerald-100: #133329; --color-emerald-600: #4bcaa0; --color-emerald-700: #73d6b5;
-  --color-teal-50: #0f2526;   --color-teal-100: #133234;  --color-teal-600: #4cc6c0; --color-teal-700: #74d3cf;
   --color-amber-50: #2b2010;  --color-amber-100: #3a2b12; --color-amber-200: #523c17;
   --color-amber-600: #e8b04f; --color-amber-700: #f0c270; --color-amber-800: #f5d392;
-  --color-yellow-50: #2a2610; --color-yellow-100: #383213; --color-yellow-600: #e5cf4f; --color-yellow-700: #eedc76;
-  --color-orange-50: #2d1c10; --color-orange-100: #3d2513; --color-orange-200: #573419;
-  --color-orange-600: #f39a52; --color-orange-700: #f6b27a; --color-orange-800: #f9c9a1;
   --color-red-50: #2e1416;    --color-red-100: #3e181b;   --color-red-200: #5a2125;
   --color-red-600: #f26b70;   --color-red-700: #f58c90;   --color-red-800: #f8adb0;
 }
@@ -449,12 +470,50 @@ html[data-theme="dark"] .hgv-surface,
 html[data-theme="dark"] .hgv-search,
 html[data-theme="dark"] .hgv-filter { background-color: var(--surface) !important; }
 html[data-theme="dark"] [class*="bg-white/9"] { background-color: rgb(27 30 35 / 0.92); }
+/* panels meant to sit flush on the page (the sign-in intro) stay page-coloured,
+   not a lighter box with the text against its edge */
+html[data-theme="dark"] .hgv-surface.hgv-surface--paper { background: var(--color-paper) !important; }
+/* Solid blue buttons and fills (page-header actions, Save, Sign in…): one
+   deep brand blue with a white label, no glow. The light blues the dark
+   theme uses for blue text and links would otherwise fill them — a pale,
+   low-contrast pill. Blue text and links stay light. */
+html[data-theme="dark"] .bg-ink,
+html[data-theme="dark"] .bg-ink-dark,
+html[data-theme="dark"] .bg-blue-500,
+html[data-theme="dark"] .bg-blue-600,
+html[data-theme="dark"] .bg-blue-700,
+html[data-theme="dark"] .bg-blue-800,
+html[data-theme="dark"] [class~="bg-[#0a66c2]"],
+html[data-theme="dark"] [class~="bg-[#004182]"] {
+  background-color: var(--btn-primary) !important;
+  color: #ffffff;
+  box-shadow: none;
+}
+html[data-theme="dark"] :is(.bg-ink, .bg-ink-dark, .bg-blue-500, .bg-blue-600, .bg-blue-700, .bg-blue-800,
+  [class~="bg-[#0a66c2]"], [class~="bg-[#004182]"]):is(button, a, label, [role="button"]):not(:disabled):hover {
+  background-color: var(--btn-primary-hover) !important;
+}
+html[data-theme="dark"] .bg-ink.text-paper { color: #ffffff; }
 html[data-theme="dark"] .hgv-search:hover,
 html[data-theme="dark"] .hgv-filter:hover { border-color: var(--color-border-strong); }
-html[data-theme="dark"] .hgv-surface .bg-white { background-color: var(--color-ink) !important; color: #ffffff; }
-/* page-header primary buttons: white label on blue (beats the blue-text rule below) */
-html[data-theme="dark"] .hgv-surface .bg-white,
-html[data-theme="dark"] .hgv-surface .bg-white * { color: #ffffff !important; }
+/* Page-header actions (Add, New, Export, Save on Sales, Expenses, Reports,
+   Proforma…): no fill in dark mode — a thin outline and a blue label, which
+   reads calmer on the dark header than a solid blue block. */
+html[data-theme="dark"] .hgv-surface :is(.bg-white, .bg-ink, .bg-blue-600, .bg-blue-700, .bg-blue-800,
+  [class~="bg-[#0a66c2]"]):is(button, a, label, [role="button"]) {
+  background-color: transparent !important;
+  border: 1px solid var(--color-border-strong) !important;
+  box-shadow: none !important;
+}
+html[data-theme="dark"] .hgv-surface :is(.bg-white, .bg-ink, .bg-blue-600, .bg-blue-700, .bg-blue-800,
+  [class~="bg-[#0a66c2]"]):is(button, a, label, [role="button"]):not(:disabled):hover {
+  background-color: var(--color-ink-soft) !important;
+  border-color: var(--color-ink) !important;
+}
+html[data-theme="dark"] .hgv-surface :is(.bg-white, .bg-ink, .bg-blue-600, .bg-blue-700, .bg-blue-800,
+  [class~="bg-[#0a66c2]"]):is(button, a, label, [role="button"]),
+html[data-theme="dark"] .hgv-surface :is(.bg-white, .bg-ink, .bg-blue-600, .bg-blue-700, .bg-blue-800,
+  [class~="bg-[#0a66c2]"]):is(button, a, label, [role="button"]) * { color: var(--color-ink) !important; }
 html[data-theme="dark"] input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
 html[data-theme="dark"] select,
 html[data-theme="dark"] textarea { background-color: var(--surface); color: var(--color-text); border-color: var(--color-border-strong); }
@@ -481,7 +540,21 @@ html[data-theme="dark"] .shadow-xl { box-shadow: 0 20px 50px -12px rgb(0 0 0 / 0
 
 /* skeletons and soft rows */
 html[data-theme="dark"] .hgv-ledger-row:hover { background-color: var(--color-paper-dim); }
-html[data-theme="dark"] .rep-sh { background: linear-gradient(90deg, #1f2329 25%, #2a2f36 50%, #1f2329 75%) !important; background-size: 200% 100% !important; }
+/* every page's skeleton bars (exp-, home-, itm-, pf-, ptr-, pur-, rep-,
+   sal-sh) hard-code light greys, and the -sh-w / -sh-blue ones translucent
+   white: all get the Reports dark shimmer instead of white blocks */
+html[data-theme="dark"] .exp-sh, html[data-theme="dark"] .exp-sh-blue,
+html[data-theme="dark"] .home-sh, html[data-theme="dark"] .home-sh-w,
+html[data-theme="dark"] .itm-sh, html[data-theme="dark"] .itm-sh-w,
+html[data-theme="dark"] .pf-sh, html[data-theme="dark"] .pf-sh-w,
+html[data-theme="dark"] .ptr-sh, html[data-theme="dark"] .ptr-sh-w,
+html[data-theme="dark"] .pur-sh, html[data-theme="dark"] .pur-sh-w,
+html[data-theme="dark"] .rep-sh, html[data-theme="dark"] .rep-sh-w,
+html[data-theme="dark"] .sal-sh, html[data-theme="dark"] .sal-sh-w {
+  background: linear-gradient(90deg, #1f2329 25%, #2a2f36 50%, #1f2329 75%) !important;
+  background-size: 200% 100% !important;
+}
+html[data-theme="dark"] .pf-sh, html[data-theme="dark"] .pf-sh-w { background-size: 700px 100% !important; }
 
 /* pinned table action column (see PHONES & TOUCH) */
 @media (max-width: 1023px) {
