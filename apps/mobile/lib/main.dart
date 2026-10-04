@@ -70,7 +70,13 @@ class _HigoverseAppState extends State<HigoverseApp> {
               locale: Locale(lang == 'rw' ? 'en' : lang),
               supportedLocales: const [Locale('en'), Locale('fr'), Locale('sw'), Locale('zh')],
               localizationsDelegates: GlobalMaterialLocalizations.delegates,
-              builder: (context, child) => LangScope(lang: lang, child: child!),
+              builder: (context, child) {
+                final theme = Theme.of(context);
+                return AnnotatedRegion(
+                  value: systemBars(Hgv.of(context), theme.brightness),
+                  child: LangScope(lang: lang, child: child!),
+                );
+              },
               home: FutureBuilder<bool>(
                 future: _restored,
                 builder: (context, snap) {

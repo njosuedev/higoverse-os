@@ -53,7 +53,7 @@ class TopBar extends StatelessWidget {
       _ => (t('live.offline'), c.faint),
     };
     return Material(
-      color: c.surface,
+      color: c.chrome,
       elevation: 0,
       child: SafeArea(
         bottom: false,

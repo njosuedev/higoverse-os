@@ -227,13 +227,19 @@ class _HomeShellState extends State<HomeShell> {
                   ],
                 ),
                 Expanded(
-                  child: IndexedStack(index: _tab, children: [
-                    DashboardScreen(onOpenTab: _openTab, onOpenProducts: _openProducts),
-                    ProductsScreen(filter: _productFilter),
-                    const SalesScreen(),
-                    const MoreScreen(),
-                  ]),
+                  child: MediaQuery.removePadding(
+                    context: context,
+                    removeBottom: true,
+                    child: IndexedStack(index: _tab, children: [
+                      DashboardScreen(onOpenTab: _openTab, onOpenProducts: _openProducts),
+                      ProductsScreen(filter: _productFilter),
+                      const SalesScreen(),
+                      const MoreScreen(),
+                    ]),
+                  ),
                 ),
+                // The gesture bar's safe area, in the top bar's colour.
+                ColoredBox(color: Hgv.of(context).chrome, child: SizedBox(height: MediaQuery.paddingOf(context).bottom, width: double.infinity)),
               ]),
               _BannerHost(item: _banner, onTap: _openBanner, onDismiss: () => setState(() => _banner = null)),
             ]),

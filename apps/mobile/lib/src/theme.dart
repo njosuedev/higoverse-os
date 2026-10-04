@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 /// Colours from the website's design tokens (apps/web/app/globals.css), in a
 /// light and a dark set. Few colours on purpose: neutrals, the brand blue,
@@ -11,6 +12,7 @@ class Hgv extends ThemeExtension<Hgv> {
     required this.inkDark,
     required this.paper,
     required this.surface,
+    required this.chrome,
     required this.border,
     required this.text,
     required this.muted,
@@ -24,6 +26,10 @@ class Hgv extends ThemeExtension<Hgv> {
 
   final Color ink, inkDark, paper, surface, border, text, muted, faint, success, warning, danger;
 
+  /// The top bar and the phone's safe areas around it (status bar, gesture
+  /// bar): white in light, black in dark.
+  final Color chrome;
+
   /// Loading placeholders: base and the highlight that sweeps across it —
   /// the website's Reports skeleton (.rep-sh), light and dark.
   final Color skeleton, skeletonHi;
@@ -33,6 +39,7 @@ class Hgv extends ThemeExtension<Hgv> {
     inkDark: Color(0xFF004182),
     paper: Color(0xFFF3F2EF),
     surface: Colors.white,
+    chrome: Colors.white,
     border: Color(0xFFE0DFDC),
     text: Color(0xFF191919),
     muted: Color(0xFF333333),
@@ -49,6 +56,7 @@ class Hgv extends ThemeExtension<Hgv> {
     inkDark: Color(0xFF7CB9F2),
     paper: Color(0xFF111317),
     surface: Color(0xFF1B1E23),
+    chrome: Colors.black,
     border: Color(0xFF2C3138),
     text: Color(0xFFE8EAED),
     muted: Color(0xFFC4C8CE),
@@ -69,6 +77,21 @@ class Hgv extends ThemeExtension<Hgv> {
   Hgv lerp(ThemeExtension<Hgv>? other, double t) => t < 0.5 || other is! Hgv ? this : other;
 }
 
+/// Status bar and navigation bar in the chrome colour, with icons that
+/// read on it.
+SystemUiOverlayStyle systemBars(Hgv c, Brightness brightness) {
+  final icons = brightness == Brightness.dark ? Brightness.light : Brightness.dark;
+  return SystemUiOverlayStyle(
+    statusBarColor: Colors.transparent,
+    statusBarIconBrightness: icons,
+    statusBarBrightness: brightness, // iOS
+    systemNavigationBarColor: c.chrome,
+    systemNavigationBarDividerColor: c.chrome,
+    systemNavigationBarIconBrightness: icons,
+    systemNavigationBarContrastEnforced: false,
+  );
+}
+
 ThemeData buildTheme(Brightness brightness) {
   final c = brightness == Brightness.dark ? Hgv.dark : Hgv.light;
   final scheme = ColorScheme.fromSeed(
@@ -83,7 +106,8 @@ ThemeData buildTheme(Brightness brightness) {
     useMaterial3: true,
     brightness: brightness,
     colorScheme: scheme,
-    scaffoldBackgroundColor: c.paper,
+    // Dark mode is black behind everything, safe areas included.
+    scaffoldBackgroundColor: brightness == Brightness.dark ? c.chrome : c.paper,
     // Denser, like the big social apps: more on screen, smaller touch padding.
     visualDensity: const VisualDensity(horizontal: -1, vertical: -1),
   );
@@ -98,6 +122,7 @@ ThemeData buildTheme(Brightness brightness) {
       centerTitle: false,
       titleTextStyle: TextStyle(fontSize: 19, fontWeight: FontWeight.w800, letterSpacing: -0.3, color: c.text),
       toolbarHeight: 54,
+      systemOverlayStyle: systemBars(c, brightness),
     ),
     cardTheme: CardThemeData(
       color: c.surface,
