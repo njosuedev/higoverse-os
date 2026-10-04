@@ -329,6 +329,14 @@ const Map<String, Map<String, String>> _dict = {
     'search.prompt': 'Search your products by name or barcode.',
     'search.prompt_car': 'Search vehicles by name, plate or chassis number.',
     'search.results': '{n} results',
+    'story.section': 'Fines & transfers',
+    'story.fines': 'Traffic fines',
+    'story.pending': 'Pending transfer',
+    'story.added': 'Added {when} ago',
+    'story.view': 'View vehicle',
+    'story.call_buyer': 'Call buyer',
+    'story.fine_total': 'Fines to pay',
+    'story.phone': 'Phone',
   },
 
   // ─── KINYARWANDA ─────────────────────────────────────────
@@ -582,6 +590,14 @@ const Map<String, Map<String, String>> _dict = {
     'search.prompt': 'Shakisha ibicuruzwa ukoresheje izina cyangwa barcode.',
     'search.prompt_car': 'Shakisha imodoka ukoresheje izina, purake cyangwa chassis.',
     'search.results': 'Ibisubizo {n}',
+    'story.section': 'Amande n\'ihererekanya',
+    'story.fines': 'Amande yo mu muhanda',
+    'story.pending': 'Bitegereje ihererekanya',
+    'story.added': 'Yongeweho mu {when} bishize',
+    'story.view': 'Reba imodoka',
+    'story.call_buyer': 'Hamagara umuguzi',
+    'story.fine_total': 'Amande yo kwishyura',
+    'story.phone': 'Telefone',
   },
 
   // ─── FRANÇAIS ────────────────────────────────────────────
@@ -835,6 +851,14 @@ const Map<String, Map<String, String>> _dict = {
     'search.prompt': 'Recherchez vos produits par nom ou code-barres.',
     'search.prompt_car': 'Recherchez un véhicule par nom, plaque ou numéro de châssis.',
     'search.results': '{n} résultat(s)',
+    'story.section': 'Amendes et transferts',
+    'story.fines': 'Amendes routières',
+    'story.pending': 'Transfert en attente',
+    'story.added': 'Ajouté il y a {when}',
+    'story.view': 'Voir le véhicule',
+    'story.call_buyer': 'Appeler l\'acheteur',
+    'story.fine_total': 'Amendes à payer',
+    'story.phone': 'Téléphone',
   },
 
   // ─── KISWAHILI ───────────────────────────────────────────
@@ -1088,6 +1112,14 @@ const Map<String, Map<String, String>> _dict = {
     'search.prompt': 'Tafuta bidhaa kwa jina au msimbo pau.',
     'search.prompt_car': 'Tafuta gari kwa jina, namba ya usajili au chasisi.',
     'search.results': 'Matokeo {n}',
+    'story.section': 'Faini na uhamisho',
+    'story.fines': 'Faini za barabarani',
+    'story.pending': 'Inasubiri uhamisho',
+    'story.added': 'Imeongezwa {when} zilizopita',
+    'story.view': 'Angalia gari',
+    'story.call_buyer': 'Mpigie mnunuzi',
+    'story.fine_total': 'Faini za kulipa',
+    'story.phone': 'Simu',
   },
 
   // ─── 中文 ────────────────────────────────────────────────
@@ -1341,5 +1373,13 @@ const Map<String, Map<String, String>> _dict = {
     'search.prompt': '按名称或条码搜索商品。',
     'search.prompt_car': '按名称、车牌或车架号搜索车辆。',
     'search.results': '{n} 条结果',
+    'story.section': '罚款与过户',
+    'story.fines': '交通罚款',
+    'story.pending': '待过户',
+    'story.added': '{when}前添加',
+    'story.view': '查看车辆',
+    'story.call_buyer': '致电买家',
+    'story.fine_total': '待缴罚款',
+    'story.phone': '电话',
   },
 };

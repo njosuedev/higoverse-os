@@ -11,6 +11,7 @@ import '../live/live.dart';
 import '../live/live_widgets.dart';
 import '../session.dart';
 import '../sheets.dart';
+import '../stories.dart';
 import '../theme.dart';
 import '../widgets.dart';
 import 'activity_screen.dart';
@@ -155,8 +156,8 @@ class _DashboardScreenState extends State<DashboardScreen> with LiveListener {
           s.api.get('$p/stock-alerts', query: {'threshold': '${s.lowStock}'}),
           s.api.get(p, query: {'page': '1', 'limit': '10'}),
           if (s.isCar) ...[
-            s.api.get(p, query: {'page': '1', 'limit': '4', 'status': 'pending'}),
-            s.api.get(p, query: {'page': '1', 'limit': '4', 'status': 'penalties'}),
+            s.api.get(p, query: {'page': '1', 'limit': '10', 'status': 'pending'}),
+            s.api.get(p, query: {'page': '1', 'limit': '10', 'status': 'penalties'}),
           ],
         ]);
         if (!mounted) return;
@@ -345,8 +346,19 @@ class _DashboardScreenState extends State<DashboardScreen> with LiveListener {
     final available = (total - sold - pending).clamp(0, total);
     final low = n('low_stock') + sold;
 
+    // Fines first (they cost money every day), then transfers waiting.
+    final stories = [
+      for (final v in _fined) Story(StoryKind.fines, v),
+      for (final v in _pending) Story(StoryKind.pending, v),
+    ];
+
     return [
-      const SizedBox(height: 4),
+      if (s.isCar && stories.isNotEmpty) ...[
+        SectionHeader(t('story.section'), count: (fined + pending).toInt()),
+        StoriesRow(stories: stories),
+        const SizedBox(height: 12),
+      ] else
+        const SizedBox(height: 4),
       _overview(s, t),
       const SizedBox(height: 10),
       // ── Status strip ──
@@ -423,55 +435,6 @@ class _DashboardScreenState extends State<DashboardScreen> with LiveListener {
           ),
         ),
       ],
-      // ── Car: awaiting transfer ──
-      if (s.isCar && _pending.isNotEmpty) ...[
-        SectionHeader(t('dash.awaiting'), count: pending.toInt(), action: t('app.view_all'),
-            onAction: () => widget.onOpenProducts('pending')),
-        _ListCard(children: [
-          for (final v in _pending)
-            Builder(builder: (context) {
-              final a = attributesOf(v['attributes']);
-              final buyer = a['buyer_name'] ?? '';
-              return _Row(
-                onTap: () => showProductSheet(context, v),
-                leading: ProductThumb(v['thumbnail'] as String?, isCar: true, width: 50, height: 38),
-                title: '${v['name'] ?? ''}',
-                subtitle: [
-                  if (buyer.isNotEmpty) t('dash.buyer', {'name': buyer}),
-                  if ((a['plate_no'] ?? '').isNotEmpty) a['plate_no'],
-                ].join(' · '),
-                trailingWidget: StatusChip(t('stock.f_pending'), c.warning),
-              );
-            }),
-        ]),
-      ],
-      // ── Car: fines ──
-      if (s.isCar && _fined.isNotEmpty) ...[
-        SectionHeader(t('dash.fines_title'), count: fined.toInt(), action: t('app.view_all'),
-            onAction: () => widget.onOpenProducts('penalties')),
-        _ListCard(children: [
-          for (final v in _fined)
-            Builder(builder: (context) {
-              final a = attributesOf(v['attributes']);
-              final count = int.tryParse(a['penalty_count'] ?? '') ?? 0;
-              final amount = num.tryParse(a['penalty_amount'] ?? '') ?? 0;
-              return _Row(
-                onTap: () => showProductSheet(context, v),
-                leading: ProductThumb(v['thumbnail'] as String?, isCar: true, width: 50, height: 38),
-                title: '${v['name'] ?? ''}',
-                subtitle: [a['plate_no'] ?? '', a['year'] ?? ''].where((x) => x.isNotEmpty).join(' · '),
-                trailingWidget: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.end, children: [
-                  StatusChip(count == 1 ? t('stock.fine_one') : t('stock.fines_n', {'n': count}), c.danger),
-                  if (amount > 0) ...[
-                    const SizedBox(height: 3),
-                    Text(money(amount, s.currency),
-                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: c.danger)),
-                  ],
-                ]),
-              );
-            }),
-        ]),
-      ],
       // ── Money owed ──
       if (_owedCount > 0)
         Padding(
@@ -526,7 +489,7 @@ class _DashboardScreenState extends State<DashboardScreen> with LiveListener {
           Row(children: [
             Text(t('dash.today'), style: TextStyle(fontSize: 12, color: c.muted, fontWeight: FontWeight.w700)),
             const Spacer(),
-            if (delta != null) DeltaChip(delta, suffix: t('dash.vs_yesterday')),
+            if (delta != null && delta.abs() >= 0.05) DeltaChip(delta, suffix: t('dash.vs_yesterday')),
           ]),
           const SizedBox(height: 2),
           FittedBox(
@@ -688,13 +651,11 @@ class _Row extends StatelessWidget {
     required this.subtitle,
     required this.onTap,
     this.trailing,
-    this.trailingWidget,
     this.subtitleColor,
   });
   final Widget leading;
   final String title, subtitle;
   final String? trailing;
-  final Widget? trailingWidget;
   final Color? subtitleColor;
   final VoidCallback onTap;
 
@@ -719,7 +680,6 @@ class _Row extends StatelessWidget {
             ]),
           ),
           const SizedBox(width: 8),
-          if (trailingWidget != null) trailingWidget!,
           if (trailing != null) Text(trailing!, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800)),
         ]),
       ),
