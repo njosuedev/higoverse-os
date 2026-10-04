@@ -6,9 +6,9 @@
 // file downloads with a Save dialog, and a friendly screen when offline.
 //
 // Updates: the pages always come live from higoverse.com; the app itself
-// checks https://higoverse.com/downloads/desktop/ on start and every few
-// hours, downloads new versions in the background and installs them on
-// restart (electron-updater).
+// asks the Higoverse update endpoint in the background and, when there is a
+// newer version, offers it, downloads it with progress, checks it and
+// installs it (see "Self-updating" below).
 //
 // Appearance follows Windows (light/dark); the website's own Appearance
 // setting can override it.
@@ -17,8 +17,9 @@
 // Higoverse site may load inside the app; any other link opens in the
 // default browser.
 
-const { app, BrowserWindow, Menu, shell, dialog, session, nativeTheme } = require("electron");
+const { app, BrowserWindow, Menu, shell, dialog, session, nativeTheme, ipcMain } = require("electron");
 const { autoUpdater } = require("electron-updater");
+const { parseRelease, decide, dueForCheck, isSnoozed, sha256File, mb } = require("./update-core");
 const fs = require("fs");
 const path = require("path");
 
@@ -241,146 +242,329 @@ function buildMenu() {
 }
 
 // ── Self-updating ──────────────────────────────────────────────────────────
-// New versions are published to https://higoverse.com/downloads/desktop/
-// (latest.yml + installer, see package.json "publish"). Downloads happen in
-// the background; the update installs on restart or when the app closes.
-// A small progress window (updater.html) shows the check when you ask for it
-// from Help, and the download whenever a new version is found; the taskbar
-// icon shows the download progress too.
-let updateReadyShown = false;
-let manualCheck = false;
-function setupUpdates() {
-  if (!app.isPackaged) return; // nothing to update while developing
-  autoUpdater.autoDownload = true;
-  autoUpdater.autoInstallOnAppQuit = true;
-  autoUpdater.on("checking-for-update", () => {
-    if (manualCheck) showProgress({ title: "Checking for updates…", detail: `Higoverse ${app.getVersion()}`, percent: null });
-  });
-  autoUpdater.on("update-available", (info) => {
-    progressDismissed = false;
-    showProgress({ title: `Downloading Higoverse ${info.version}…`, detail: "Starting download", percent: 0 });
-    if (win && !win.isDestroyed()) win.setProgressBar(2); // indeterminate until the first bytes
-  });
-  autoUpdater.on("download-progress", (p) => {
-    const percent = Math.round(p.percent || 0);
-    showProgress({
-      title: `Downloading update… ${percent}%`,
-      detail: `${mb(p.transferred)} of ${mb(p.total)} MB · ${mb(p.bytesPerSecond)} MB/s`,
-      percent,
-    });
-    if (win && !win.isDestroyed()) win.setProgressBar(Math.max(0, Math.min(1, (p.percent || 0) / 100)));
-  });
-  autoUpdater.on("update-downloaded", async (info) => {
-    hideProgress();
-    if (updateReadyShown || !win) return;
-    updateReadyShown = true;
-    const { response } = await dialog.showMessageBox(win, {
-      type: "info",
-      buttons: ["Restart now", "Later"],
-      defaultId: 0,
-      cancelId: 1,
-      title: "Update ready",
-      message: `Higoverse ${info.version} is ready to install.`,
-      detail: "Restart Higoverse to finish updating. If you choose Later, it installs when you close the app.",
-    });
-    if (response === 0) setImmediate(() => autoUpdater.quitAndInstall());
-  });
-  autoUpdater.on("update-not-available", () => {
-    hideProgress();
-    if (manualCheck && win) dialog.showMessageBox(win, { type: "info", title: "Higoverse", message: `You have the latest version (${app.getVersion()}).` });
-    manualCheck = false;
-  });
-  autoUpdater.on("error", (err) => {
-    hideProgress();
-    if (manualCheck && win) dialog.showMessageBox(win, { type: "warning", title: "Higoverse", message: "Couldn't check for updates.", detail: String(err && err.message || err).slice(0, 300) });
-    manualCheck = false;
-  });
-  setTimeout(() => checkForUpdates(false), 10_000);
-  setInterval(() => checkForUpdates(false), 4 * 60 * 60 * 1000);
+// One Higoverse update system for Android and Windows: the app asks
+// GET /svc/settings/api/app-updates/latest?platform=windows in the
+// background (8 s after start, then at most every 4 hours; never blocking),
+// and only when a newer version exists shows the update window:
+//
+//   prompt (Update now / Later — or only Update now when required)
+//   → download with progress (electron-updater: latest.yml + blockmap next
+//     to the installer, SHA-512 checked, only changed blocks when possible)
+//   → our own SHA-256 check against the endpoint
+//   → "Installing… please wait": the app quits, the NSIS installer updates
+//     it in place (user data in %APPDATA%\Higoverse is untouched) and starts
+//     it again.
+//
+// No network or no server: nothing is shown and the app carries on. The
+// last answer is kept in update-state.json (userData) with "Later".
+const UPDATE_API = process.env.HIGOVERSE_UPDATE_API
+  || new URL("/svc/settings/api/app-updates/latest?platform=windows", APP_ORIGIN).toString();
+const UPDATE_ALLOW_HTTP = UPDATE_API.startsWith("http://"); // local test servers only
+
+const updates = {
+  win: null, ready: false, hidden: false,
+  stage: "idle", // idle | prompt | downloading | verifying | ready | installing | failed
+  release: null, kind: "none", manual: false, checking: false,
+  percent: null, received: 0, total: 0, error: null,
+};
+const updateStateFile = () => path.join(app.getPath("userData"), "update-state.json");
+function readUpdateState() {
+  try { return JSON.parse(fs.readFileSync(updateStateFile(), "utf8")); } catch { return {}; }
 }
-function checkForUpdates(manual) {
+function writeUpdateState(patch) {
+  try { fs.writeFileSync(updateStateFile(), JSON.stringify({ ...readUpdateState(), ...patch })); } catch { /* not critical */ }
+}
+
+function setupUpdates() {
+  // The app is quitting (for example quitAndInstall): windows must close freely,
+  // or the old copy stays running while the installer starts the new one.
+  app.on("before-quit", () => { updates.quitting = true; });
+  ipcMain.on("hgv-update", (e, action) => {
+    if (updates.win && !updates.win.isDestroyed() && e.sender === updates.win.webContents) onUpdateAction(action);
+  });
+  if (process.env.HIGOVERSE_UPDATE_PREVIEW && !app.isPackaged) {
+    win.once("ready-to-show", () => setTimeout(previewUpdates, 1500));
+    return;
+  }
+  if (!app.isPackaged) return; // nothing to update while developing
+  autoUpdater.autoDownload = false;
+  autoUpdater.autoInstallOnAppQuit = false; // only once our SHA-256 check passed
+  autoUpdater.on("download-progress", (p) => {
+    if (updates.stage !== "downloading") return;
+    updates.percent = Math.floor(p.percent || 0);
+    updates.received = p.transferred || 0;
+    updates.total = p.total || 0;
+    if (win && !win.isDestroyed()) win.setProgressBar(Math.max(0, Math.min(1, (p.percent || 0) / 100)));
+    renderUpdate();
+  });
+  autoUpdater.on("update-downloaded", (info) => { onUpdateDownloaded(info).catch((err) => failUpdate("storage", err)); });
+  autoUpdater.on("error", (err) => { if (updates.stage === "downloading") failUpdate("network", err); });
+  setTimeout(() => checkForUpdates(false), 8_000);
+  setInterval(() => checkForUpdates(false), 60 * 60 * 1000); // dueForCheck keeps it to every 4 h
+}
+
+async function checkForUpdates(manual) {
   if (!app.isPackaged) {
     if (manual && win) dialog.showMessageBox(win, { type: "info", title: "Higoverse", message: "Updates are checked in the installed app." });
     return;
   }
-  manualCheck = manual;
-  if (manual) { updateReadyShown = false; progressDismissed = false; }
-  autoUpdater.checkForUpdates().catch(() => {});
-}
-
-const mb = (bytes) => ((bytes || 0) / 1048576).toFixed(1);
-
-// The progress window: small, at the bottom-right of the app window, never
-// takes focus. Closing it (×) only hides it; the download carries on.
-let progressWin = null;
-let progressReady = false;
-let progressState = null;
-let progressDismissed = false;
-function showProgress(state) {
-  progressState = state;
-  if (progressDismissed || !win || win.isDestroyed()) return;
-  if (!progressWin || progressWin.isDestroyed()) {
-    progressReady = false;
-    progressWin = new BrowserWindow({
-      parent: win,
-      width: 400,
-      height: 104,
-      frame: false,
-      resizable: false,
-      minimizable: false,
-      maximizable: false,
-      fullscreenable: false,
-      skipTaskbar: true,
-      show: false,
-      backgroundColor: nativeTheme.shouldUseDarkColors ? "#1b1e23" : "#ffffff",
-      webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false },
-    });
-    const b = win.getBounds();
-    progressWin.setPosition(Math.round(b.x + b.width - 400 - 24), Math.round(b.y + b.height - 104 - 24));
-    progressWin.on("closed", () => {
-      // Closed by the user (×) while still working: keep it hidden.
-      if (progressState) progressDismissed = true;
-      progressWin = null;
-    });
-    progressWin.webContents.on("did-finish-load", () => {
-      progressReady = true;
-      renderProgress();
-      if (progressWin && !progressWin.isDestroyed()) progressWin.showInactive();
-    });
-    progressWin.loadFile(path.join(__dirname, "updater.html"));
+  if (!["idle", "failed", "prompt"].includes(updates.stage)) { showUpdateWindow(); return; } // already under way
+  if (updates.checking) return;
+  const state = readUpdateState();
+  let release = null;
+  let reached = false;
+  if (manual || dueForCheck(state)) {
+    updates.checking = true;
+    try {
+      const res = await fetch(UPDATE_API, { headers: { Accept: "application/json" }, signal: AbortSignal.timeout(10_000) });
+      if (res.ok) {
+        const raw = await res.json();
+        release = parseRelease(raw, { allowHttp: UPDATE_ALLOW_HTTP });
+        reached = true;
+        writeUpdateState({ checkedAt: Date.now(), release: release ? raw : null });
+      } else if (res.status === 404) {
+        reached = true;
+        writeUpdateState({ checkedAt: Date.now(), release: null });
+      }
+    } catch { /* offline or server down: use what we knew */ }
+    updates.checking = false;
+  }
+  if (!reached) release = parseRelease(state.release, { allowHttp: UPDATE_ALLOW_HTTP });
+  const kind = decide(release, app.getVersion());
+  if (kind === "none") {
+    if (manual && win) {
+      dialog.showMessageBox(win, reached
+        ? { type: "info", title: "Higoverse", message: `You have the latest version (${app.getVersion()}).` }
+        : { type: "warning", title: "Higoverse", message: "Couldn't check for updates.", detail: "Check your internet connection and try again." });
+    }
     return;
   }
-  renderProgress();
-}
-function renderProgress() {
-  if (!progressReady || !progressWin || progressWin.isDestroyed() || !progressState) return;
-  progressWin.webContents.executeJavaScript(`render(${JSON.stringify(progressState)})`).catch(() => {});
-}
-function hideProgress() {
-  progressState = null;
-  if (progressWin && !progressWin.isDestroyed()) progressWin.close();
-  if (win && !win.isDestroyed()) win.setProgressBar(-1);
+  if (kind === "optional" && !manual && isSnoozed(state, release.version)) return;
+  updates.release = release;
+  updates.kind = kind;
+  updates.stage = "prompt";
+  updates.hidden = false;
+  showUpdateWindow();
 }
 
-// Development only: `set HIGOVERSE_UPDATE_PREVIEW=1 && npm start` plays a fake
-// check and download so the progress window can be seen without a release.
-function previewUpdateProgress() {
-  manualCheck = true;
-  showProgress({ title: "Checking for updates…", detail: `Higoverse ${app.getVersion()}`, percent: null });
-  let percent = 0;
-  setTimeout(() => {
-    const total = 92.4 * 1048576;
-    const timer = setInterval(() => {
-      percent = Math.min(100, percent + 7);
-      showProgress({
-        title: `Downloading update… ${percent}%`,
-        detail: `${mb(total * percent / 100)} of ${mb(total)} MB · 4.2 MB/s`,
-        percent,
-      });
-      win.setProgressBar(percent / 100);
-      if (percent >= 100) { clearInterval(timer); setTimeout(hideProgress, 1500); }
-    }, 600);
-  }, 2500);
+function onUpdateAction(action) {
+  const required = updates.kind === "required";
+  switch (action) {
+    case "update-now":
+    case "retry":
+      startUpdateDownload();
+      break;
+    case "install":
+      installUpdate();
+      break;
+    case "later":
+      if (updates.stage === "ready") autoUpdater.autoInstallOnAppQuit = true; // installs when Higoverse closes
+      else if (updates.release) writeUpdateState({ snooze: { version: updates.release.version, at: Date.now() } });
+      if (updates.stage === "prompt" || updates.stage === "failed") updates.stage = "idle";
+      closeUpdateWindow();
+      break;
+    case "hide":
+      updates.hidden = true;
+      closeUpdateWindow();
+      break;
+    case "quit":
+      app.quit();
+      break;
+    case "escape":
+      if (!required) onUpdateAction(updates.stage === "downloading" || updates.stage === "verifying" ? "hide" : "later");
+      break;
+  }
+}
+
+async function startUpdateDownload() {
+  if (updates.preview) return previewDownload();
+  const r = updates.release;
+  if (!r || updates.stage === "downloading") return;
+  Object.assign(updates, { stage: "downloading", percent: 0, received: 0, total: r.size || 0, error: null });
+  renderUpdate();
+  if (win && !win.isDestroyed()) win.setProgressBar(2); // indeterminate until the first bytes
+  try {
+    autoUpdater.setFeedURL({ provider: "generic", url: r.feedUrl });
+    const result = await autoUpdater.checkForUpdates();
+    // latest.yml must announce the same version the endpoint did.
+    if (!result || !result.updateInfo || result.updateInfo.version !== r.version) throw Object.assign(new Error("feed"), { kind: "feed" });
+    await autoUpdater.downloadUpdate();
+  } catch (err) {
+    if (updates.stage === "downloading") failUpdate(err && err.kind === "feed" ? "feed" : "network", err);
+  }
+}
+
+async function onUpdateDownloaded(info) {
+  const r = updates.release;
+  if (!r || updates.stage !== "downloading") return;
+  updates.stage = "verifying";
+  renderUpdate();
+  const file = info && info.downloadedFile;
+  if (!file || (await sha256File(file)) !== r.sha256) {
+    try { if (file) fs.unlinkSync(file); } catch { /* electron-updater cleans its cache too */ }
+    failUpdate("corrupt");
+    return;
+  }
+  if (win && !win.isDestroyed()) win.setProgressBar(-1);
+  updates.stage = "ready";
+  // Asked for with "Update now" and still watching: straight to installing.
+  // Hidden while it downloaded: ask, since it closes the app.
+  if (updates.hidden && updates.kind !== "required") showUpdateWindow();
+  else installUpdate();
+}
+
+function installUpdate() {
+  if (updates.stage !== "ready" && updates.stage !== "installing") return;
+  updates.stage = "installing";
+  updates.hidden = false;
+  showUpdateWindow();
+  autoUpdater.autoInstallOnAppQuit = true;
+  // Give the window a moment to say so; then the app quits (all windows
+  // close, nothing in use), the installer runs silently and restarts it.
+  setTimeout(() => { if (updates.preview) closeUpdateWindow(); else autoUpdater.quitAndInstall(true, true); }, 1800);
+}
+
+function failUpdate(kind, err) {
+  if (err) console.warn("update failed:", kind, err && err.message);
+  Object.assign(updates, { stage: "failed", error: kind });
+  if (win && !win.isDestroyed()) win.setProgressBar(-1);
+  updates.hidden = false;
+  showUpdateWindow();
+}
+
+// ── The update window ──────────────────────────────────────────────────────
+function updateView() {
+  const r = updates.release || {};
+  const required = updates.kind === "required";
+  const v = r.version || "";
+  switch (updates.stage) {
+    case "prompt":
+      return required
+        ? { title: "Update required", sub: `Higoverse ${v}`, text: "A new version of Higoverse is required to continue.", notes: r.notes,
+            actions: [{ id: "update-now", label: "Update now", primary: true }] }
+        : { title: "New update available", sub: `Higoverse ${v}`, text: `Higoverse ${v} is available.`, notes: r.notes,
+            actions: [{ id: "later", label: "Later" }, { id: "update-now", label: "Update now", primary: true }] };
+    case "downloading": {
+      const known = updates.total > 0;
+      return { title: "Updating Higoverse", sub: `Higoverse ${v}`, text: "Downloading update…",
+        progress: { percent: known ? updates.percent : null,
+          figures: known ? `${updates.percent}% • ${mb(updates.received)} MB / ${mb(updates.total)} MB` : `${mb(updates.received)} MB` },
+        actions: required ? [] : [{ id: "hide", label: "Hide" }] };
+    }
+    case "verifying":
+      return { title: "Updating Higoverse", sub: `Higoverse ${v}`, text: "Checking the download…", progress: { percent: null, figures: "" }, actions: [] };
+    case "ready":
+      return { title: "Update ready", sub: `Higoverse ${v}`, text: "Restart Higoverse to install the update. If you choose Later, it installs when you close the app.",
+        actions: [{ id: "later", label: "Later" }, { id: "install", label: "Restart now", primary: true }] };
+    case "installing":
+      return { title: "Update ready", sub: `Higoverse ${v}`, text: `Installing Higoverse ${v}…\nPlease wait.`, rings: true, actions: [] };
+    case "failed": {
+      const text = {
+        corrupt: "The downloaded update was damaged, so it was removed. Try again.",
+        feed: "The update isn't ready on the server yet. Try again in a few minutes.",
+        storage: "The update couldn't be saved. Free some disk space and try again.",
+      }[updates.error] || "The download stopped. Check your internet connection and try again.";
+      return { title: "Updating Higoverse", sub: `Higoverse ${v}`, text, error: true,
+        actions: [required ? { id: "quit", label: "Quit" } : { id: "later", label: "Later" }, { id: "retry", label: "Try again", primary: true }] };
+    }
+    default:
+      return null;
+  }
+}
+
+function showUpdateWindow() {
+  if (!win || win.isDestroyed() || updates.stage === "idle") return;
+  if (updates.hidden && (updates.stage === "downloading" || updates.stage === "verifying")) return;
+  if (updates.win && !updates.win.isDestroyed()) {
+    renderUpdate();
+    updates.win.show();
+    return;
+  }
+  const required = updates.kind === "required";
+  updates.ready = false;
+  const w = new BrowserWindow({
+    parent: win,
+    modal: required, // a required update keeps the app out of reach
+    width: 460,
+    height: 300,
+    frame: false,
+    resizable: false,
+    minimizable: false,
+    maximizable: false,
+    fullscreenable: false,
+    show: false,
+    title: "Higoverse update",
+    backgroundColor: nativeTheme.shouldUseDarkColors ? "#1b1e23" : "#ffffff",
+    icon: path.join(__dirname, "assets", "icon.png"),
+    webPreferences: { preload: path.join(__dirname, "updater-preload.js"), sandbox: true, contextIsolation: true, nodeIntegration: false },
+  });
+  updates.win = w;
+  const b = win.getBounds();
+  w.setPosition(Math.round(b.x + (b.width - 460) / 2), Math.round(b.y + (b.height - 300) / 2));
+  w.webContents.on("will-navigate", (e) => e.preventDefault());
+  w.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+  w.on("close", (e) => {
+    // Closing a required update (Alt+F4) closes Higoverse; an optional one
+    // counts as Later, or as Hide while downloading.
+    if (updates.closing || updates.quitting) return; // quitting (also to install): let it close
+    e.preventDefault();
+    if (required && updates.stage !== "installing") app.quit();
+    else if (!required) onUpdateAction(updates.stage === "downloading" || updates.stage === "verifying" ? "hide" : "later");
+  });
+  w.on("closed", () => { if (updates.win === w) updates.win = null; updates.closing = false; });
+  w.webContents.on("did-finish-load", () => {
+    updates.ready = true;
+    renderUpdate();
+    if (!w.isDestroyed()) w.show();
+  });
+  w.loadFile(path.join(__dirname, "updater.html"));
+}
+
+function renderUpdate() {
+  const w = updates.win;
+  const view = updateView();
+  if (!updates.ready || !w || w.isDestroyed() || !view) return;
+  w.webContents.executeJavaScript(`render(${JSON.stringify(view)})`).catch(() => {});
+}
+
+function closeUpdateWindow() {
+  const w = updates.win;
+  if (!w || w.isDestroyed()) return;
+  updates.closing = true;
+  w.close();
+}
+
+// Development only: `set HIGOVERSE_UPDATE_PREVIEW=optional && npm start`
+// (or =required, =fail) shows the update window with a made-up release and
+// a fake download, to work on it without publishing anything.
+function previewUpdates() {
+  const mode = process.env.HIGOVERSE_UPDATE_PREVIEW;
+  updates.preview = mode;
+  updates.release = parseRelease({
+    version: "9.9.9", download_url: "https://higoverse.com/downloads/desktop/Higoverse-Setup-9.9.9.exe", sha256: "0".repeat(64),
+    size: 96 * 1048576, release_notes: "Faster stock lists and clearer reports.",
+  });
+  updates.kind = mode === "required" ? "required" : "optional";
+  updates.stage = "prompt";
+  showUpdateWindow();
+}
+function previewDownload() {
+  Object.assign(updates, { stage: "downloading", percent: 0, received: 0, total: 96 * 1048576 });
+  renderUpdate();
+  const timer = setInterval(() => {
+    updates.percent = Math.min(100, updates.percent + 9);
+    updates.received = updates.total * updates.percent / 100;
+    if (win && !win.isDestroyed()) win.setProgressBar(updates.percent / 100);
+    renderUpdate();
+    if (updates.percent >= 100) {
+      clearInterval(timer);
+      if (win && !win.isDestroyed()) win.setProgressBar(-1);
+      if (updates.preview === "fail") { updates.preview = "optional"; failUpdate("corrupt"); return; }
+      updates.stage = "verifying";
+      renderUpdate();
+      setTimeout(() => { updates.stage = "ready"; if (updates.hidden) showUpdateWindow(); else installUpdate(); }, 900);
+    }
+  }, 350);
 }
 
 app.on("second-instance", () => {
@@ -405,7 +589,6 @@ app.whenReady().then(() => {
   buildMenu();
   createWindow();
   setupUpdates();
-  if (!app.isPackaged && process.env.HIGOVERSE_UPDATE_PREVIEW) win.once("ready-to-show", () => setTimeout(previewUpdateProgress, 1500));
 });
 
 // Keep the window background in step with Windows' light/dark setting.
