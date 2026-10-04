@@ -2,4 +2,4 @@
 <!-- Release builds shrink unused resources; the notification icon and tone are only
      named from Dart, so keep it explicitly or notifications fail silently. -->
 <resources xmlns:tools="http://schemas.android.com/tools"
-    tools:keep="@drawable/ic_stat_higoverse,@raw/hgv_tone" />
+    tools:keep="@drawable/ic_stat_higoverse,@raw/hgv_chime" />

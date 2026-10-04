@@ -21,7 +21,7 @@ void _backgroundResponse(NotificationResponse response) {}
 
 /// Phone notifications for live activity, the way WhatsApp does them:
 ///
-/// * every alert pops up on the screen with the Higoverse tone and a short
+/// * every alert pops up on the screen with the Higoverse chime and a short
 ///   vibration — app open or not (Sound off in Menu: pops up silently);
 /// * alerts stack per topic like chats — Sales, Fines & transfers, Stock,
 ///   Money — each line with who did it (initials avatar) and the vehicle or
@@ -46,7 +46,8 @@ class AppNotifier {
   /// Whether the phone lets the app post notifications.
   bool get allowed => _allowed;
 
-  static const _channel = 'hgv_alerts', _silentChannel = 'hgv_alerts_silent';
+  // A channel's sound is fixed once created: a new sound needs a new id.
+  static const _channel = 'hgv_alerts_chime', _silentChannel = 'hgv_alerts_silent';
   static const _group = 'higoverse.live';
   static const _summaryId = 100;
   static final _vibration = Int64List.fromList([0, 220, 140, 220]);
@@ -79,8 +80,8 @@ class AppNotifier {
       );
       final android = _plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
       if (android != null) {
-        // The 1.7 channels (sound fixed at creation) give way to these.
-        for (final old in const ['live_sound', 'live_ring', 'live_quiet']) {
+        // Older channels (sound fixed at creation) give way to these.
+        for (final old in const ['live_sound', 'live_ring', 'live_quiet', 'hgv_alerts']) {
           await android.deleteNotificationChannel(channelId: old);
         }
         await android.createNotificationChannel(AndroidNotificationChannel(
@@ -89,7 +90,7 @@ class AppNotifier {
           description: 'Sales, traffic fines, transfers and stock alerts as they happen.',
           importance: Importance.max,
           playSound: true,
-          sound: const RawResourceAndroidNotificationSound('hgv_tone'),
+          sound: const RawResourceAndroidNotificationSound('hgv_chime'),
           enableVibration: true,
           vibrationPattern: _vibration,
           enableLights: true,
@@ -191,7 +192,7 @@ class AppNotifier {
             importance: sound ? Importance.max : Importance.high,
             priority: Priority.max,
             playSound: sound,
-            sound: sound ? const RawResourceAndroidNotificationSound('hgv_tone') : null,
+            sound: sound ? const RawResourceAndroidNotificationSound('hgv_chime') : null,
             enableVibration: sound,
             vibrationPattern: sound ? _vibration : null,
             number: unread,
