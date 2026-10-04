@@ -26,8 +26,8 @@ class Hgv extends ThemeExtension<Hgv> {
 
   final Color ink, inkDark, paper, surface, border, text, muted, faint, success, warning, danger;
 
-  /// The top bar and the phone's safe areas around it (status bar, gesture
-  /// bar): white in light, black in dark.
+  /// Every page background, the top bar and the phone's safe areas (status
+  /// bar, gesture bar): white in light, black in dark.
   final Color chrome;
 
   /// Loading placeholders: base and the highlight that sweeps across it —
@@ -106,8 +106,8 @@ ThemeData buildTheme(Brightness brightness) {
     useMaterial3: true,
     brightness: brightness,
     colorScheme: scheme,
-    // Dark mode is black behind everything, safe areas included.
-    scaffoldBackgroundColor: brightness == Brightness.dark ? c.chrome : c.paper,
+    // White (light) or black (dark) behind everything, safe areas included.
+    scaffoldBackgroundColor: c.chrome,
     // Denser, like the big social apps: more on screen, smaller touch padding.
     visualDensity: const VisualDensity(horizontal: -1, vertical: -1),
   );
@@ -115,7 +115,8 @@ ThemeData buildTheme(Brightness brightness) {
     extensions: [c],
     textTheme: base.textTheme.apply(bodyColor: c.text, displayColor: c.text),
     appBarTheme: AppBarTheme(
-      backgroundColor: c.surface,
+      backgroundColor: c.chrome,
+      surfaceTintColor: Colors.transparent,
       foregroundColor: c.text,
       elevation: 0,
       scrolledUnderElevation: 0.5,
@@ -167,7 +168,8 @@ ThemeData buildTheme(Brightness brightness) {
     navigationBarTheme: NavigationBarThemeData(
       height: 60,
       iconTheme: WidgetStateProperty.resolveWith((s) => IconThemeData(size: 24, color: s.contains(WidgetState.selected) ? c.ink : c.muted)),
-      backgroundColor: c.surface,
+      backgroundColor: c.chrome,
+      surfaceTintColor: Colors.transparent,
       indicatorColor: c.ink.withValues(alpha: 0.16),
       labelTextStyle: WidgetStateProperty.resolveWith((s) => TextStyle(
           fontSize: 11,

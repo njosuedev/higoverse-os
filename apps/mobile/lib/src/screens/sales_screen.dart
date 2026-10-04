@@ -176,7 +176,7 @@ class _SalesScreenState extends State<SalesScreen> with LiveListener {
     return Scaffold(
       body: Column(children: [
         Container(
-          color: Hgv.of(context).surface,
+          color: Hgv.of(context).chrome,
           padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             SegmentedButton<int>(

@@ -119,9 +119,9 @@ class _SearchScreenState extends State<SearchScreen> {
     final s = SessionScope.of(context);
     final itemsLabel = s.isCar ? t('nav.vehicles') : t('dash.products');
     return Scaffold(
-      backgroundColor: c.surface,
+      backgroundColor: c.chrome,
       appBar: AppBar(
-        backgroundColor: c.surface,
+        backgroundColor: c.chrome,
         titleSpacing: 0,
         leading: IconButton(
           tooltip: MaterialLocalizations.of(context).backButtonTooltip,

@@ -8,7 +8,7 @@ import 'session.dart';
 import 'theme.dart';
 import 'ui.dart';
 
-/// One tab of [TopTabs].
+/// One tab of [BottomBar].
 class NavItem {
   const NavItem({required this.label, this.icon, this.activeIcon, this.avatarName, this.badge = 0});
   final String label;
@@ -21,22 +21,15 @@ class NavItem {
   final int badge;
 }
 
-/// The top of the signed-in app, fixed like Facebook's: the Higoverse logo
-/// and name (with live status) beside search and notifications, then a row of icon tabs
-/// with a blue line under the open one and red counts for what's new.
+/// The top of the signed-in app: the Higoverse logo and name (with live
+/// status) beside search and notifications.
 class TopBar extends StatelessWidget {
   const TopBar({
     super.key,
-    required this.items,
-    required this.index,
-    required this.onTap,
     required this.onSearch,
     required this.onNotifications,
     required this.unread,
   });
-  final List<NavItem> items;
-  final int index;
-  final ValueChanged<int> onTap;
   final VoidCallback onSearch, onNotifications;
   final int unread;
 
@@ -81,14 +74,39 @@ class TopBar extends StatelessWidget {
               RoundIconButton(icon: Icons.notifications_rounded, tooltip: t('acc.notifications'), onTap: onNotifications, badge: unread),
             ]),
           ),
+          Divider(height: 1, thickness: 0.6, color: c.border),
+        ]),
+      ),
+    );
+  }
+}
+
+/// The tabs, fixed at the bottom: icon and label, a blue line over the open
+/// one and red counts for what's new. Fills the gesture bar's safe area in
+/// the same colour.
+class BottomBar extends StatelessWidget {
+  const BottomBar({super.key, required this.items, required this.index, required this.onTap});
+  final List<NavItem> items;
+  final int index;
+  final ValueChanged<int> onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = Hgv.of(context);
+    return Material(
+      color: c.chrome,
+      elevation: 0,
+      child: SafeArea(
+        top: false,
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Divider(height: 1, thickness: 0.6, color: c.border),
           SizedBox(
-            height: 46,
+            height: 58,
             child: Row(children: [
               for (var i = 0; i < items.length; i++)
                 Expanded(child: _Tab(item: items[i], selected: i == index, onTap: () => onTap(i))),
             ]),
           ),
-          Divider(height: 1, thickness: 0.6, color: c.border),
         ]),
       ),
     );
@@ -111,7 +129,7 @@ class _Tab extends StatelessWidget {
                 shape: BoxShape.circle, border: Border.all(color: selected ? c.ink : Colors.transparent, width: 1.8)),
             child: Avatar(name: item.avatarName!, size: 24),
           )
-        : Icon(selected ? (item.activeIcon ?? item.icon) : item.icon, size: 26, color: selected ? c.ink : c.muted);
+        : Icon(selected ? (item.activeIcon ?? item.icon) : item.icon, size: 25, color: selected ? c.ink : c.muted);
     if (item.badge > 0) {
       icon = Badge(
         backgroundColor: c.danger,
@@ -133,17 +151,29 @@ class _Tab extends StatelessWidget {
             onTap();
           },
           child: Stack(children: [
-            Center(child: icon),
+            Center(
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                icon,
+                const SizedBox(height: 3),
+                Text(item.label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+                        color: selected ? c.ink : c.muted)),
+              ]),
+            ),
             Positioned(
-              left: 10,
-              right: 10,
-              bottom: 0,
+              left: 18,
+              right: 18,
+              top: 0,
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
                 height: 3,
                 decoration: BoxDecoration(
                   color: selected ? c.ink : Colors.transparent,
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(3)),
+                  borderRadius: const BorderRadius.vertical(bottom: Radius.circular(3)),
                 ),
               ),
             ),

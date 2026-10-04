@@ -80,7 +80,7 @@ class _DebtsScreenState extends State<DebtsScreen> with LiveListener {
       appBar: AppBar(title: Text(t('debts.title'))),
       body: Column(children: [
         Container(
-          color: c.surface,
+          color: c.chrome,
           padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
           child: SegmentedButton<bool>(
             segments: [

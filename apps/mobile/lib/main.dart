@@ -100,7 +100,7 @@ class _Splash extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-        backgroundColor: Hgv.of(context).surface,
+        backgroundColor: Hgv.of(context).chrome,
         body: Center(
           child: Column(mainAxisSize: MainAxisSize.min, children: [
             ClipRRect(

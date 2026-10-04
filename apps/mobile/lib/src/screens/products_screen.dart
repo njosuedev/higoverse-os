@@ -161,7 +161,7 @@ class _ProductsScreenState extends State<ProductsScreen> with LiveListener {
     return Scaffold(
       body: Column(children: [
         Container(
-          color: Hgv.of(context).surface,
+          color: Hgv.of(context).chrome,
           padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
           child: Column(children: [
             TextField(

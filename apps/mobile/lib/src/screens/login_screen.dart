@@ -55,7 +55,7 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget build(BuildContext context) {
     final t = T.of(context);
     return Scaffold(
-      backgroundColor: Hgv.of(context).surface,
+      backgroundColor: Hgv.of(context).chrome,
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -221,7 +221,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   Widget build(BuildContext context) {
     final t = T.of(context);
     return Scaffold(
-      backgroundColor: Hgv.of(context).surface,
+      backgroundColor: Hgv.of(context).chrome,
       appBar: AppBar(title: Text(t('reset.title'))),
       body: SafeArea(
         child: SingleChildScrollView(

@@ -208,23 +208,9 @@ class _HomeShellState extends State<HomeShell> {
             body: Stack(children: [
               Column(children: [
                 TopBar(
-                  index: _tab,
-                  onTap: _openTab,
                   onSearch: () => _openSearch(context),
                   onNotifications: () => _openActivity(context),
                   unread: FeedScope.of(context)?.unread ?? 0,
-                  items: [
-                    NavItem(label: t('nav.home'), icon: Icons.home_outlined, activeIcon: Icons.home_rounded),
-                    NavItem(
-                      label: s.isCar ? t('nav.vehicles') : t('nav.stock'),
-                      icon: s.isCar ? Icons.directions_car_outlined : Icons.inventory_2_outlined,
-                      activeIcon: s.isCar ? Icons.directions_car_rounded : Icons.inventory_2_rounded,
-                      badge: _newStock,
-                    ),
-                    NavItem(
-                        label: t('nav.sales'), icon: Icons.receipt_long_outlined, activeIcon: Icons.receipt_long_rounded, badge: _newSales),
-                    NavItem(label: t('nav.menu'), avatarName: s.user?.name ?? '?'),
-                  ],
                 ),
                 Expanded(
                   child: MediaQuery.removePadding(
@@ -238,8 +224,22 @@ class _HomeShellState extends State<HomeShell> {
                     ]),
                   ),
                 ),
-                // The gesture bar's safe area, in the top bar's colour.
-                ColoredBox(color: Hgv.of(context).chrome, child: SizedBox(height: MediaQuery.paddingOf(context).bottom, width: double.infinity)),
+                BottomBar(
+                  index: _tab,
+                  onTap: _openTab,
+                  items: [
+                    NavItem(label: t('nav.home'), icon: Icons.home_outlined, activeIcon: Icons.home_rounded),
+                    NavItem(
+                      label: s.isCar ? t('nav.vehicles') : t('nav.stock'),
+                      icon: s.isCar ? Icons.directions_car_outlined : Icons.inventory_2_outlined,
+                      activeIcon: s.isCar ? Icons.directions_car_rounded : Icons.inventory_2_rounded,
+                      badge: _newStock,
+                    ),
+                    NavItem(
+                        label: t('nav.sales'), icon: Icons.receipt_long_outlined, activeIcon: Icons.receipt_long_rounded, badge: _newSales),
+                    NavItem(label: t('nav.menu'), avatarName: s.user?.name ?? '?'),
+                  ],
+                ),
               ]),
               _BannerHost(item: _banner, onTap: _openBanner, onDismiss: () => setState(() => _banner = null)),
             ]),
