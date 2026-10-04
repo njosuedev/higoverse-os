@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'config.dart';
+import 'covers.dart';
 import 'format.dart';
 import 'i18n.dart';
 import 'session.dart';
@@ -95,7 +96,12 @@ class _StoryCard extends StatelessWidget {
           child: SizedBox(
             width: 108,
             child: Stack(fit: StackFit.expand, children: [
-              _Backdrop(url: story.vehicle['thumbnail'] as String?, kind: story.kind),
+              CoverPhoto(
+                id: '${story.vehicle['id']}',
+                thumbnail: story.vehicle['thumbnail'] as String?,
+                isCar: true,
+                fallback: _Backdrop(url: null, kind: story.kind),
+              ),
               // Darkens the bottom so the white text reads on any photo.
               const DecoratedBox(
                 decoration: BoxDecoration(

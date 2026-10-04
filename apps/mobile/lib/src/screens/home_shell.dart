@@ -189,34 +189,37 @@ class _HomeShellState extends State<HomeShell> {
           _scoped = context;
           return Scaffold(
             body: Stack(children: [
-              IndexedStack(index: _tab, children: [
-                DashboardScreen(
-                  onOpenTab: _openTab,
-                  onOpenProducts: _openProducts,
+              Column(children: [
+                TopBar(
+                  index: _tab,
+                  onTap: _openTab,
                   onSearch: () => _openSearch(context),
                   onNotifications: () => _openActivity(context),
+                  unread: FeedScope.of(context)?.unread ?? 0,
+                  items: [
+                    NavItem(label: t('nav.home'), icon: Icons.home_outlined, activeIcon: Icons.home_rounded),
+                    NavItem(
+                      label: s.isCar ? t('nav.vehicles') : t('nav.stock'),
+                      icon: s.isCar ? Icons.directions_car_outlined : Icons.inventory_2_outlined,
+                      activeIcon: s.isCar ? Icons.directions_car_rounded : Icons.inventory_2_rounded,
+                      badge: _newStock,
+                    ),
+                    NavItem(
+                        label: t('nav.sales'), icon: Icons.receipt_long_outlined, activeIcon: Icons.receipt_long_rounded, badge: _newSales),
+                    NavItem(label: t('nav.menu'), avatarName: s.user?.name ?? '?'),
+                  ],
                 ),
-                ProductsScreen(filter: _productFilter),
-                const SalesScreen(),
-                const MoreScreen(),
+                Expanded(
+                  child: IndexedStack(index: _tab, children: [
+                    DashboardScreen(onOpenTab: _openTab, onOpenProducts: _openProducts),
+                    ProductsScreen(filter: _productFilter),
+                    const SalesScreen(),
+                    const MoreScreen(),
+                  ]),
+                ),
               ]),
               _BannerHost(item: _banner, onTap: _openBanner, onDismiss: () => setState(() => _banner = null)),
             ]),
-            bottomNavigationBar: AppNavBar(
-              index: _tab,
-              onTap: _openTab,
-              items: [
-                NavItem(label: t('nav.home'), icon: Icons.home_outlined, activeIcon: Icons.home_rounded),
-                NavItem(
-                  label: s.isCar ? t('nav.vehicles') : t('nav.stock'),
-                  icon: s.isCar ? Icons.directions_car_outlined : Icons.inventory_2_outlined,
-                  activeIcon: s.isCar ? Icons.directions_car_rounded : Icons.inventory_2_rounded,
-                  badge: _newStock,
-                ),
-                NavItem(label: t('nav.sales'), icon: Icons.receipt_long_outlined, activeIcon: Icons.receipt_long_rounded, badge: _newSales),
-                NavItem(label: t('nav.menu'), avatarName: s.user?.name ?? '?'),
-              ],
-            ),
           );
         }),
       ),

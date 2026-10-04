@@ -9,3 +9,5 @@ pydantic
 pydantic-settings
 alembic
 requests
+# Resizes photos for the mobile app (/products/covers).
+pillow

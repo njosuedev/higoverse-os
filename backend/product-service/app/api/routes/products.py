@@ -1,4 +1,7 @@
+import base64
+import io
 import json
+from collections import OrderedDict
 from fastapi import APIRouter, Depends, HTTPException, Header
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from sqlalchemy import case, func, or_
@@ -362,6 +365,82 @@ def create_product(
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
+
+
+# -----------------------------
+# COVERS (sharp photos for the mobile app)
+# -----------------------------
+# Lists carry a 160px thumbnail; the app's cards and stories want something
+# sharper without downloading each full 1280px photo. This returns each
+# product's first photo resized to `size` px (longest side), as a JPEG data
+# URL, cached in memory per photo and size.
+_COVER_CACHE: "OrderedDict[tuple, str]" = OrderedDict()
+_COVER_CACHE_MAX = 400
+
+
+def _first_image(images, thumbnail):
+    try:
+        lst = json.loads(images) if images else []
+    except ValueError:
+        lst = []
+    if isinstance(lst, list):
+        for it in lst:
+            if isinstance(it, str) and it.startswith("data:"):
+                return it
+    return thumbnail if isinstance(thumbnail, str) and thumbnail.startswith("data:") else None
+
+
+def _resize_data_url(data_url: str, size: int) -> str:
+    try:
+        from PIL import Image  # optional: without Pillow the photo goes as stored
+    except ImportError:
+        return data_url
+    try:
+        raw = base64.b64decode(data_url.split(",", 1)[1])
+        img = Image.open(io.BytesIO(raw))
+        if max(img.size) <= size:
+            return data_url
+        img = img.convert("RGB")
+        img.thumbnail((size, size), Image.LANCZOS)
+        out = io.BytesIO()
+        img.save(out, format="JPEG", quality=82, optimize=True, progressive=True)
+        return "data:image/jpeg;base64," + base64.b64encode(out.getvalue()).decode()
+    except Exception:
+        return data_url
+
+
+@router.get("/covers")
+def get_covers(
+    ids: str,
+    size: int = 640,
+    db: Session = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    if not user["shop_id"]:
+        return {"success": True, "data": {}}
+    wanted = [i for i in dict.fromkeys(x.strip() for x in ids.split(",")) if i][:30]
+    size = min(max(size, 160), 1280)
+    rows = (
+        db.query(Product.id, Product.images, Product.thumbnail)
+        .filter(Product.shop_id == user["shop_id"], Product.id.in_(wanted))
+        .all()
+    )
+    out = {}
+    for pid, images, thumbnail in rows:
+        src = _first_image(images, thumbnail)
+        if not src:
+            continue
+        key = (pid, len(src), src[-32:], size)
+        cover = _COVER_CACHE.get(key)
+        if cover is None:
+            cover = _resize_data_url(src, size)
+            _COVER_CACHE[key] = cover
+            while len(_COVER_CACHE) > _COVER_CACHE_MAX:
+                _COVER_CACHE.popitem(last=False)
+        else:
+            _COVER_CACHE.move_to_end(key)
+        out[pid] = cover
+    return {"success": True, "data": out}
 
 
 # -----------------------------

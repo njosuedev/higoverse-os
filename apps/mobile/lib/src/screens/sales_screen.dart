@@ -4,7 +4,6 @@ import '../config.dart';
 import '../format.dart';
 import '../i18n.dart';
 import '../live/live.dart';
-import '../live/live_widgets.dart';
 import '../session.dart';
 import '../sheets.dart';
 import '../theme.dart';
@@ -175,10 +174,6 @@ class _SalesScreenState extends State<SalesScreen> with LiveListener {
     final t = T.of(context);
     final sum = _summary;
     return Scaffold(
-      appBar: AppBar(
-        title: Text(t('nav.sales')),
-        actions: const [Padding(padding: EdgeInsets.only(right: 12), child: Center(child: LivePill()))],
-      ),
       body: Column(children: [
         Container(
           color: Hgv.of(context).surface,

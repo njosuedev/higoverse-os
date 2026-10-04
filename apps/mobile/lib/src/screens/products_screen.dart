@@ -159,7 +159,6 @@ class _ProductsScreenState extends State<ProductsScreen> with LiveListener {
     final s = SessionScope.of(context);
     final t = T.of(context);
     return Scaffold(
-      appBar: AppBar(title: Text(s.isCar ? t('nav.vehicles') : t('nav.stock'))),
       body: Column(children: [
         Container(
           color: Hgv.of(context).surface,

@@ -6,12 +6,13 @@ import '../charts.dart';
 import '../config.dart';
 import '../format.dart';
 import '../i18n.dart';
-import '../live/activity.dart';
 import '../live/live.dart';
 import '../live/live_widgets.dart';
 import '../session.dart';
 import '../sheets.dart';
+import '../stock_circles.dart';
 import '../stories.dart';
+import '../covers.dart';
 import '../theme.dart';
 import '../widgets.dart';
 import 'activity_screen.dart';
@@ -26,14 +27,11 @@ class DashboardScreen extends StatefulWidget {
     super.key,
     required this.onOpenTab,
     required this.onOpenProducts,
-    required this.onSearch,
-    required this.onNotifications,
   });
   final ValueChanged<int> onOpenTab;
 
   /// Opens Vehicles / Stock already filtered ("pending", "penalties"…).
   final ValueChanged<String> onOpenProducts;
-  final VoidCallback onSearch, onNotifications;
 
   @override
   State<DashboardScreen> createState() => _DashboardScreenState();
@@ -165,7 +163,7 @@ class _DashboardScreenState extends State<DashboardScreen> with LiveListener {
           _stock = _data(r[0]);
           _alerts = (_list((r[1] as Map)['data'])
                 ..sort((a, b) => (a['quantity'] as num? ?? 0).compareTo(b['quantity'] as num? ?? 0)))
-              .take(5)
+              .take(8)
               .toList();
           _newest = _items(r[2]);
           _pending = s.isCar ? _items(r[3]) : const [];
@@ -185,49 +183,6 @@ class _DashboardScreenState extends State<DashboardScreen> with LiveListener {
     } catch (_) {/* optional card: simply not shown */}
   }
 
-  // ── Top bar ─────────────────────────────────────────────
-
-  Widget _topBar(Session s, T t) {
-    final c = Hgv.of(context);
-    final live = LiveScope.of(context);
-    final unread = FeedScope.of(context)?.unread ?? 0;
-    final (liveLabel, liveColor) = switch (live?.status) {
-      LiveStatus.live => (t('live.live'), c.success),
-      LiveStatus.connecting => (t('live.connecting'), c.warning),
-      _ => (t('live.offline'), c.faint),
-    };
-    final name = s.shop?.name ?? 'Higoverse';
-    return SliverAppBar(
-      floating: true,
-      snap: true,
-      toolbarHeight: 58,
-      titleSpacing: 14,
-      title: Row(children: [
-        ShopLogo(name: name, url: s.shop?.logoUrl, size: 38),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-            Text(name,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, letterSpacing: -0.3)),
-            Row(children: [
-              PulseDot(color: liveColor, active: live?.status == LiveStatus.live, size: 6),
-              Text(liveLabel, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: liveColor)),
-            ]),
-          ]),
-        ),
-      ]),
-      actions: [
-        RoundIconButton(icon: Icons.search_rounded, tooltip: t('search.title'), onTap: widget.onSearch),
-        const SizedBox(width: 8),
-        RoundIconButton(
-            icon: Icons.notifications_rounded, tooltip: t('acc.notifications'), onTap: widget.onNotifications, badge: unread),
-        const SizedBox(width: 12),
-      ],
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final s = SessionScope.of(context);
@@ -238,13 +193,11 @@ class _DashboardScreenState extends State<DashboardScreen> with LiveListener {
     return Scaffold(
       body: RefreshIndicator(
         onRefresh: _load,
-        edgeOffset: 58 + MediaQuery.paddingOf(context).top,
         child: CustomScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
           slivers: [
-            _topBar(s, t),
             SliverPadding(
-              padding: const EdgeInsets.fromLTRB(12, 8, 12, 28),
+              padding: const EdgeInsets.fromLTRB(12, 12, 12, 28),
               sliver: SliverList.list(children: [
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 2),
@@ -397,32 +350,26 @@ class _DashboardScreenState extends State<DashboardScreen> with LiveListener {
             onTap: () => widget.onOpenProducts('available'),
           ),
         ),
-      if (!s.isCar) ...[
-        SectionHeader(t('dash.stock_alerts'), count: low.toInt(), action: t('app.view_all'), onAction: () => widget.onOpenTab(1)),
-        if (_alerts.isEmpty)
-          _AlertCard(icon: Icons.check_circle_rounded, color: c.success, title: t('dash.all_healthy'))
-        else
-          _ListCard(children: [
-            for (final a in _alerts)
-              Builder(builder: (context) {
-                final qty = a['quantity'] as num? ?? 0;
-                final tone = qty <= 0 ? c.danger : c.warning;
-                return _Row(
-                  onTap: () => showProductSheet(context, a),
-                  leading: RingBadge(color: tone, size: 36, child: Text(groupDigits(qty))),
-                  title: '${a['name'] ?? ''}',
-                  subtitle: qty <= 0 ? t('dash.out_of_stock') : t('dash.left', {'n': groupDigits(qty)}),
-                  subtitleColor: tone,
-                  trailing: money(a['selling_price'] as num? ?? 0, s.currency),
-                );
-              }),
-          ]),
-      ],
+      // ── Stock alerts: nested circles, as on the website ──
+      SectionHeader(t('dash.stock_alerts'), count: low.toInt(), action: t('app.view_all'), onAction: () => widget.onOpenTab(1)),
+      if (_alerts.isEmpty)
+        _AlertCard(icon: Icons.check_circle_rounded, color: c.success, title: t('dash.all_healthy'), body: t('dash.no_restock'))
+      else
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+            child: StockCircles(
+              items: _alerts,
+              total: low.toInt() > _alerts.length ? low.toInt() : _alerts.length,
+              onAll: () => widget.onOpenProducts('all'),
+            ),
+          ),
+        ),
       // ── Newly added ──
       if (_newest.isNotEmpty) ...[
         SectionHeader(t('dash.new_arrivals'), action: t('app.view_all'), onAction: () => widget.onOpenProducts('all')),
         SizedBox(
-          height: 186,
+          height: 202,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             itemCount: _newest.length,
@@ -464,7 +411,15 @@ class _DashboardScreenState extends State<DashboardScreen> with LiveListener {
               flash: _flash.remove('${r['id']}'),
               child: _Row(
                 onTap: () => showSaleSheet(context, r),
-                leading: IconAvatar(icon: Icons.receipt_long_rounded, color: c.success, size: 36),
+                leading: CoverPhoto(
+                  id: '${r['product_id'] ?? ''}',
+                  thumbnail: null,
+                  isCar: s.isCar,
+                  width: 44,
+                  height: 44,
+                  radius: 10,
+                  fallback: IconAvatar(icon: Icons.receipt_long_rounded, color: c.success, size: 44),
+                ),
                 title: '${r['product_name'] ?? t('sale.default')}',
                 subtitle: '${r['quantity'] ?? 1} × · ${t.ago(parseTimestamp(r['created_at']) ?? DateTime.now())}',
                 trailing: money(r['total_amount'] as num? ?? 0, s.currency),
@@ -651,12 +606,10 @@ class _Row extends StatelessWidget {
     required this.subtitle,
     required this.onTap,
     this.trailing,
-    this.subtitleColor,
   });
   final Widget leading;
   final String title, subtitle;
   final String? trailing;
-  final Color? subtitleColor;
   final VoidCallback onTap;
 
   @override
@@ -676,7 +629,7 @@ class _Row extends StatelessWidget {
                 Text(subtitle,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(fontSize: 12, color: subtitleColor ?? c.faint, fontWeight: FontWeight.w500)),
+                    style: TextStyle(fontSize: 12, color: c.faint, fontWeight: FontWeight.w500)),
             ]),
           ),
           const SizedBox(width: 8),
@@ -711,7 +664,7 @@ class _ArrivalCard extends StatelessWidget {
         : (qty <= 0 ? t('dash.out_of_stock') : t('stock.in_stock_n', {'n': groupDigits(qty)}));
     final added = parseTimestamp(item['created_at']);
     return SizedBox(
-      width: 148,
+      width: 156,
       child: Card(
         clipBehavior: Clip.antiAlias,
         child: InkWell(
@@ -720,7 +673,7 @@ class _ArrivalCard extends StatelessWidget {
             flash: flash,
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Stack(children: [
-                ProductThumb(item['thumbnail'] as String?, isCar: s.isCar, width: 148, height: 98, radius: 0),
+                CoverPhoto(id: '${item['id']}', thumbnail: item['thumbnail'] as String?, isCar: s.isCar, width: 156, height: 112),
                 if (status != null || fines > 0)
                   Positioned(
                     left: 6,
@@ -788,9 +741,18 @@ class _TopSellers extends StatelessWidget {
               padding: EdgeInsets.only(top: i == 0 ? 0 : 10),
               child: Row(children: [
                 SizedBox(
-                  width: 22,
+                  width: 18,
                   child: Text('${i + 1}', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14, color: i == 0 ? c.ink : c.faint)),
                 ),
+                CoverPhoto(
+                  id: '${top[i]['product_id'] ?? ''}',
+                  thumbnail: null,
+                  isCar: s.isCar,
+                  width: 40,
+                  height: 40,
+                  radius: 10,
+                ),
+                const SizedBox(width: 10),
                 Expanded(
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Row(children: [

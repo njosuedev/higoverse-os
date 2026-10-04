@@ -73,7 +73,6 @@ class MoreScreen extends StatelessWidget {
       _ => (t('live.status_offline'), c.faint),
     };
     return Scaffold(
-      appBar: AppBar(title: Text(t('nav.menu'))),
       body: ListView(padding: const EdgeInsets.fromLTRB(16, 8, 16, 24), children: [
         Card(
           child: ListTile(
