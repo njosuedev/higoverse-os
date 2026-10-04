@@ -17,7 +17,7 @@ export function restockHref(item: StockAlertItem, isCar: boolean) {
   const qs = new URLSearchParams({ name: item.name, selling: String(item.selling_price ?? "") });
   if (item.cost_price != null) qs.set("cost", String(item.cost_price));
   if (item.supplier_id) qs.set("supplierId", item.supplier_id);
-  return `/PurchaseManagement?${qs}`;
+  return `/purchases?${qs}`;
 }
 
 /** Low and empty stock as overlapping circles: the count in the middle, the

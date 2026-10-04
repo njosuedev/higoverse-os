@@ -12,10 +12,14 @@
          (Android asks once to allow installs from Higoverse). Left out of the
          Google Play bundle: see src/play/AndroidManifest.xml. -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <!-- "Save to phone" on car photos (gal): Android 10 and older need this to
+         write to the gallery; newer versions need no permission. -->
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="29" />
     <application
         android:label="Higoverse"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:requestLegacyExternalStorage="true">
         <activity
             android:name=".MainActivity"
             android:exported="true"

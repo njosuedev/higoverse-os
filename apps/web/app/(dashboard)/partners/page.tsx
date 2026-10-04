@@ -347,7 +347,7 @@ export default function PartnerManagementPage() {
             { label: t("partners.suppliers"),         value: stats.suppliers,       color: "text-slate-900" },
             { label: t("partners.customers"),         value: stats.customers,       color: "text-slate-900" },
             { label: t("partners.active_suppliers"),  value: stats.activeSuppliers, color: "text-slate-900" },
-            { label: t("partners.items_supplied"),    value: stats.itemsSupplied,   color: "text-amber-600" },
+            { label: t("partners.items_supplied"),    value: stats.itemsSupplied,   color: "text-slate-900" },
           ]).map((card) => (
             <div key={card.label} className="bg-white rounded-lg border border-slate-200 px-2.5 py-2">
               <div className="flex items-center gap-1 mb-1">
@@ -381,11 +381,11 @@ export default function PartnerManagementPage() {
                 <Upload size={10} /> {t("common.import")}
               </button>
               <button onClick={exportExcel} title={t("common.export_excel")}
-                className="flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium border border-green-200 text-green-600 bg-white hover:bg-green-50 transition">
+                className="flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 transition">
                 <FileSpreadsheet size={10} /> Excel
               </button>
               <button onClick={exportPDF} title={t("common.export_pdf")}
-                className="flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium border border-red-200 text-red-600 bg-white hover:bg-red-50 transition">
+                className="flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 transition">
                 <FileText size={10} /> PDF
               </button>
             </div>
@@ -443,11 +443,11 @@ export default function PartnerManagementPage() {
                       ) : <td className="px-3 py-1.5">
                         {isSupplier ? (
                           <div className="flex items-center gap-1">
-                            <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[11px] font-semibold ${itemCount && itemCount > 0 ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-400"}`}>
+                            <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[11px] font-semibold ${itemCount && itemCount > 0 ? "bg-slate-100 text-slate-800" : "bg-slate-50 text-slate-400"}`}>
                               <Package size={9} />{itemCount} {t("partners.item_word")}
                             </span>
                             {itemCount === 0 && (
-                              <Link href="/PurchaseManagement" className="text-[11px] text-[#0a66c2] hover:underline flex items-center gap-0.5"><ShoppingCart size={10} /> {t("common.buy")}</Link>
+                              <Link href="/purchases" className="text-[11px] text-[#0a66c2] hover:underline flex items-center gap-0.5"><ShoppingCart size={10} /> {t("common.buy")}</Link>
                             )}
                           </div>
                         ) : <span className="text-[11px] text-slate-400 italic">{t("partners.customer_singular")}</span>}
@@ -457,7 +457,7 @@ export default function PartnerManagementPage() {
                           <button onClick={() => openEditModal(p)} title={t("common.edit")}
                             className="p-1 rounded bg-[#EBF2FD] hover:bg-[#D5E8FB] text-[#0a66c2] transition"><Pencil size={11} /></button>
                           <button onClick={() => deletePartner(p.id)} disabled={deletingId === p.id} title={t("common.delete")}
-                            className="p-1 rounded bg-red-50 hover:bg-red-100 text-red-500 transition disabled:opacity-40"><Trash2 size={11} /></button>
+                            className="p-1 rounded text-slate-500 hover:bg-red-50 hover:text-red-600 transition disabled:opacity-40"><Trash2 size={11} /></button>
                         </div>
                       </td>
                     </tr>
@@ -534,7 +534,7 @@ export default function PartnerManagementPage() {
               </div>
               <div className="flex justify-end gap-2.5 px-4 sm:px-6 py-4 border-t border-slate-100 shrink-0">
                 <button onClick={closeModal} className="px-4 py-2 rounded-lg border border-slate-200 text-slate-600 text-sm font-medium hover:bg-slate-50 transition">{t("common.cancel")}</button><button onClick={modalMode === "edit" ? updatePartner : createPartner} disabled={submitting}
-                  className="px-5 py-2 rounded-lg bg-green-600 text-white text-sm font-semibold hover:bg-green-700 transition disabled:opacity-60">
+                  className="px-5 py-2 rounded-lg bg-[#0a66c2] text-white text-sm font-semibold hover:bg-[#004182] transition disabled:opacity-60">
                   {submitting ? (modalMode === "edit" ? t("common.saving") : t("common.adding")) : (modalMode === "edit" ? t("common.save") : t("partners.add"))}
                 </button>
               </div>

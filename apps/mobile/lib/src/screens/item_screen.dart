@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../car_photos.dart';
 import '../charts.dart';
 import '../config.dart';
 import '../covers.dart';
@@ -33,6 +34,7 @@ class _ItemScreenState extends State<ItemScreen> {
   late Map<String, dynamic> _item = widget.item;
   List<String> _photos = const [];
   int _page = 0;
+  bool _savingPhoto = false;
   late Future<dynamic> _recent;
   Future<CarHolder?>? _holder;
 
@@ -71,11 +73,88 @@ class _ItemScreenState extends State<ItemScreen> {
 
   void _openViewer(int index) {
     if (_photos.isEmpty) return;
+    final s = SessionScope.of(context);
     Navigator.of(context).push(PageRouteBuilder<void>(
       opaque: false,
-      pageBuilder: (_, __, ___) => _PhotoViewer(photos: _photos, initial: index),
+      pageBuilder: (_, __, ___) => _PhotoViewer(
+        photos: _photos,
+        initial: index,
+        onSave: (photo) async => _say(await savePhotoToPhone(photo) ? 'photo.saved_to_phone' : 'photo.save_to_phone_failed'),
+        onDelete: s.isCar ? _deletePhoto : null,
+      ),
       transitionsBuilder: (_, a, __, child) => FadeTransition(opacity: a, child: child),
     ));
+  }
+
+  void _say(String key) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(T.of(context)(key))));
+  }
+
+  /// Camera or gallery → stored on the car, like adding it on the website.
+  Future<void> _addPhoto() async {
+    if (_savingPhoto) return;
+    if (_photos.length >= maxCarPhotos) return _say('photo.limit');
+    final s = SessionScope.of(context);
+    CarPhoto? picked;
+    try {
+      picked = await pickCarPhoto(context);
+    } catch (_) {
+      return _say('photo.unreadable');
+    }
+    if (picked == null || !mounted) return;
+    final photo = picked;
+    setState(() => _savingPhoto = true);
+    try {
+      final next = await updateCarPhotos(s, _id, (fresh) => [...fresh, photo.photo], thumbs: {photo.photo: photo.thumb});
+      if (!mounted) return;
+      setState(() {
+        _photos = next;
+        _page = next.length - 1;
+        if (next.length == 1) _item = {..._item, 'thumbnail': photo.thumb};
+      });
+      _say(next.contains(photo.photo) ? 'photo.added' : 'photo.limit');
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(errorText(T.of(context), e))));
+    } finally {
+      if (mounted) setState(() => _savingPhoto = false);
+    }
+  }
+
+  /// Removes a photo from the car (asked first). True when it was removed.
+  Future<bool> _deletePhoto(String photo) async {
+    final t = T.of(context);
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: Text(t('photo.delete_q')),
+        content: Text(t('photo.delete_body')),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c, false), child: Text(t('app.cancel'))),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Hgv.of(context).danger),
+            onPressed: () => Navigator.pop(c, true),
+            child: Text(t('photo.delete')),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return false;
+    final s = SessionScope.of(context);
+    try {
+      final next = await updateCarPhotos(s, _id, (fresh) => fresh.where((x) => x != photo).toList());
+      if (!mounted) return true;
+      setState(() {
+        _photos = next;
+        _page = 0;
+        if (next.isEmpty) _item = {..._item, 'thumbnail': null};
+      });
+      _say('photo.deleted');
+      return true;
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(errorText(t, e))));
+      return false;
+    }
   }
 
   @override
@@ -134,6 +213,31 @@ class _ItemScreenState extends State<ItemScreen> {
                 itemBuilder: (_, i) => GestureDetector(
                   onTap: () => _openViewer(i),
                   child: UrlImage(url: _photos[i], fallback: ColoredBox(color: c.paper)),
+                ),
+              ),
+            if (s.isCar)
+              Positioned(
+                right: 10,
+                bottom: 10,
+                child: Material(
+                  color: Colors.black54,
+                  shape: const StadiumBorder(),
+                  child: InkWell(
+                    customBorder: const StadiumBorder(),
+                    onTap: _savingPhoto ? null : _addPhoto,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      child: Row(mainAxisSize: MainAxisSize.min, children: [
+                        if (_savingPhoto)
+                          const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                        else
+                          const Icon(Icons.add_a_photo_outlined, size: 16, color: Colors.white),
+                        const SizedBox(width: 6),
+                        Text(T.of(context)(_savingPhoto ? 'photo.saving' : 'photo.add'),
+                            style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700)),
+                      ]),
+                    ),
+                  ),
                 ),
               ),
             if (_photos.length > 1)
@@ -281,9 +385,13 @@ class _ItemScreenState extends State<ItemScreen> {
 /// Photos full screen on black: swipe between them, pinch to zoom, tap ✕
 /// or swipe back to close.
 class _PhotoViewer extends StatefulWidget {
-  const _PhotoViewer({required this.photos, required this.initial});
+  const _PhotoViewer({required this.photos, required this.initial, required this.onSave, this.onDelete});
   final List<String> photos;
   final int initial;
+  final Future<void> Function(String photo) onSave;
+
+  /// Null when this person can't remove photos.
+  final Future<bool> Function(String photo)? onDelete;
 
   @override
   State<_PhotoViewer> createState() => _PhotoViewerState();
@@ -323,9 +431,23 @@ class _PhotoViewerState extends State<_PhotoViewer> {
             const Spacer(),
             if (widget.photos.length > 1)
               Padding(
-                padding: const EdgeInsets.only(right: 14),
+                padding: const EdgeInsets.only(right: 6),
                 child: Text('${_page + 1}/${widget.photos.length}',
                     style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+              ),
+            IconButton(
+              tooltip: T.of(context)('photo.save_to_phone'),
+              onPressed: () => widget.onSave(widget.photos[_page]),
+              icon: const Icon(Icons.download_rounded, color: Colors.white),
+            ),
+            if (widget.onDelete != null)
+              IconButton(
+                tooltip: T.of(context)('photo.delete'),
+                onPressed: () async {
+                  final nav = Navigator.of(context);
+                  if (await widget.onDelete!(widget.photos[_page])) nav.pop();
+                },
+                icon: const Icon(Icons.delete_outline_rounded, color: Colors.white),
               ),
           ]),
         ),

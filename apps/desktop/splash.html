@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self' file:; style-src 'unsafe-inline'">
+<title>Higoverse</title>
+<style>
+  /* Shown the moment the app opens, until Higoverse has loaded (main.js
+     closes it). A sliding bar only: no percentage. Follows Windows
+     light/dark and "reduce motion". */
+  :root { --bg: #ffffff; --text: #191919; --muted: #474747; --track: #e8e7e4; --line: #e0dfdc; --ink: #0a66c2; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #1b1e23; --text: #e8eaed; --muted: #c4c8ce; --track: #2c3138; --line: #2c3138; --ink: #4a9eed; }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); overflow: hidden;
+    font: 400 13px/1.45 "Segoe UI", system-ui, sans-serif; -webkit-user-select: none; user-select: none; cursor: default; }
+  body { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0;
+    border: 1px solid var(--line); -webkit-app-region: drag; }
+  img { width: 56px; height: 56px; border-radius: 12px; }
+  .name { margin-top: 14px; font-size: 18px; font-weight: 600; letter-spacing: -0.01em; }
+  .status { margin-top: 2px; color: var(--muted); }
+  .bar { position: relative; width: 168px; height: 3px; margin-top: 18px; border-radius: 2px; background: var(--track); overflow: hidden; }
+  .bar span { position: absolute; top: 0; bottom: 0; left: 0; width: 35%; border-radius: 2px; background: var(--ink);
+    animation: slide 1.1s ease-in-out infinite; }
+  @keyframes slide { from { transform: translateX(-100%); } to { transform: translateX(300%); } }
+  @media (prefers-reduced-motion: reduce) { .bar span { animation: none; width: 100%; opacity: .7; } }
+</style>
+</head>
+<body>
+  <img src="assets/icon.png" alt="">
+  <div class="name">Higoverse</div>
+  <div class="status" role="status">Loading…</div>
+  <div class="bar" role="progressbar" aria-label="Loading"><span></span></div>
+</body>
+</html>

@@ -55,12 +55,12 @@ export default function CarImagesPicker({
               <span className="absolute bottom-0 inset-x-0 text-center text-[11px] font-bold text-white bg-black/55 py-0.5">{t("vehicle.cover")}</span>
             ) : (
               <button type="button" onClick={() => makeCover(i)} title={t("vehicle.make_cover")} aria-label={t("vehicle.make_cover")}
-                className="absolute bottom-1 left-1 w-5 h-5 rounded-full bg-white/90 text-amber-500 flex items-center justify-center shadow">
+                className="absolute bottom-1 left-1 w-5 h-5 rounded-full bg-white/90 text-[#0a66c2] flex items-center justify-center shadow">
                 <Star size={11} />
               </button>
             )}
             <button type="button" onClick={() => remove(i)} title={t("common.delete")} aria-label={t("common.delete")}
-              className="absolute top-1 right-1 w-5 h-5 rounded-full bg-red-500 text-white flex items-center justify-center shadow hover:bg-red-600">
+              className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/70 text-white flex items-center justify-center shadow hover:bg-red-600">
               <X size={11} />
             </button>
           </div>

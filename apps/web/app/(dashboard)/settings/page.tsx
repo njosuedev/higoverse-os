@@ -791,7 +791,7 @@ export default function SettingsPage() {
         <div className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-slate-200 shadow-lg">
           <div className="max-w-3xl mx-auto px-6 py-3 flex items-center justify-between gap-4">
             <div className="flex items-center gap-2.5 text-sm text-slate-600">
-              <Pencil size={14} className="text-amber-500" />
+              <Pencil size={14} className="text-slate-500" />
               <span>
                 {[shopDirty && t("settings.shop_profile_label"), opsDirty && t("settings.operational_settings_label"), carDirty && t("settings.car_types")]
                   .filter(Boolean).join(" & ")} {t("settings.unsaved_suffix")}
@@ -931,8 +931,8 @@ function PasswordStrength({ pw }: { pw: string }) {
 
   const score = [hasLower, hasUpper, hasNumber, hasSymbol, longEnough].filter(Boolean).length;
   const label = score <= 2 ? t("settings.pw_weak") : score === 3 ? t("settings.pw_fair") : score === 4 ? t("settings.pw_good") : t("settings.pw_strong");
-  const color = score <= 2 ? "bg-red-400" : score === 3 ? "bg-amber-400" : score === 4 ? "bg-blue-500" : "bg-green-500";
-  const textColor = score <= 2 ? "text-red-500" : score === 3 ? "text-amber-600" : score === 4 ? "text-blue-600" : "text-green-600";
+  const color = score <= 2 ? "bg-red-500" : "bg-[#0a66c2]";
+  const textColor = score <= 2 ? "text-red-600" : "text-slate-700";
 
   return (
     <div className="mt-1.5">

@@ -581,7 +581,6 @@ export default function AdminPage() {
             </div>
             <div className="flex items-center gap-2.5">
               <div className="text-[11px] text-white/60 flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                 {refreshing ? t("admin.updating") : `${t("admin.refreshes_in")} ${countdown}s`}
                 {lastUpdated && !refreshing && <span className="text-white/30">· {timeAgo(lastUpdated.toISOString(), t)}</span>}
               </div>
@@ -895,7 +894,7 @@ export default function AdminPage() {
                             )}
                             {shop.owner_email ? (
                               shop.email_verified ? (
-                                <span className="flex items-center gap-1 text-[11px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200">
+                                <span className="flex items-center gap-1 text-[11px] font-bold px-1.5 py-0.5 rounded-full bg-slate-50 text-slate-700 border border-slate-200">
                                   <CheckCircle size={9} /> {t("admin.verified")}
                                 </span>
                               ) : (
@@ -986,7 +985,7 @@ export default function AdminPage() {
                                     <span className="text-gray-300 mt-0.5 shrink-0"><ShieldCheck size={11} /></span>
                                     <span className="text-gray-400 w-12 shrink-0">{t("common.email")}</span>
                                     {shop.email_verified ? (
-                                      <span className="text-emerald-600 font-medium flex items-center gap-1"><CheckCircle size={11} /> {t("admin.verified")}</span>
+                                      <span className="text-slate-700 font-medium flex items-center gap-1"><CheckCircle size={11} /> {t("admin.verified")}</span>
                                     ) : (
                                       <button onClick={() => handleVerifyEmail(shop.id)} disabled={actionId === shop.id}
                                         className="text-amber-600 font-medium flex items-center gap-1 hover:underline disabled:opacity-40">
@@ -1013,7 +1012,7 @@ export default function AdminPage() {
                                 ].map((r) => (
                                   <div key={r.label} className="flex justify-between gap-2">
                                     <span className="text-gray-400">{r.label}</span>
-                                    <span className={`font-medium ${r.highlight ? "text-green-700" : "text-gray-700"}`}>{r.value}</span>
+                                    <span className={`${r.highlight ? "font-bold text-gray-900" : "font-medium text-gray-700"}`}>{r.value}</span>
                                   </div>
                                 ))}
                               </div>
@@ -1161,7 +1160,7 @@ export default function AdminPage() {
                       </div>
                       <div className="flex items-center gap-1.5 shrink-0">
                         {u.is_active
-                          ? <CheckCircle size={13} className="text-green-500" />
+                          ? <CheckCircle size={13} className="text-slate-700" />
                           : <XCircle size={13} className="text-gray-300" />}
                         <span className="text-xs text-gray-500">{u.is_active ? t("admin.status_active") : t("admin.status_inactive")}</span>
                       </div>
@@ -1181,7 +1180,7 @@ export default function AdminPage() {
                               onClick={() => setConfirm({ type: "delete-user", id: u.id, label: u.email, extra: u.shop_name ?? undefined, shopId: u.shop_id ?? undefined })}
                               disabled={busy}
                               title={t("admin.delete_user_shop_title")}
-                              className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg bg-red-50 text-red-500 hover:bg-red-500 hover:text-white font-medium border border-red-200 hover:border-red-500 transition disabled:opacity-40">
+                              className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg text-slate-600 hover:bg-red-50 hover:text-red-600 font-medium border border-slate-200 hover:border-red-200 transition disabled:opacity-40">
                               <UserX size={11} /> {t("common.delete")}
                             </button>
                           </>
@@ -1330,7 +1329,7 @@ export default function AdminPage() {
                                 {/* Payment Method */}
                                 <td className="px-3 py-1.5 whitespace-nowrap">
                                   {e.payment_method === "mtn" && (
-                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[11px] font-semibold bg-yellow-100 text-yellow-700">{t("admin.payment_mtn")}</span>
+                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[11px] font-semibold bg-slate-100 text-slate-700">{t("admin.payment_mtn")}</span>
                                   )}
                                   {e.payment_method === "bank" && (
                                     <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[11px] font-semibold bg-blue-100 text-blue-700">{t("admin.payment_bank")}</span>
@@ -1462,12 +1461,9 @@ export default function AdminPage() {
                       onClick={() => setEditForm({ ...editForm, payment_method: m, bank_name: "", bank_account: "", receiver_phone: "" })}
                       className={`flex-1 py-1 rounded-md text-[11px] font-semibold border transition-all ${
                         editForm.payment_method === m
-                          ? m === "mtn"  ? "bg-yellow-400 border-yellow-400 text-white"
-                          : m === "bank" ? "border-[#0a66c2] text-white"
-                          : "bg-slate-200 border-slate-200 text-slate-700"
-                          : "bg-white border-slate-200 text-slate-400 hover:border-slate-300"
-                      }`}
-                      style={editForm.payment_method === m && m === "bank" ? { background: LI_BLUE } : {}}>
+                          ? "bg-[#0a66c2] border-[#0a66c2] text-white"
+                          : "bg-white border-slate-200 text-slate-600 hover:border-slate-300"
+                      }`}>
                       {m === "" ? t("admin.payment_none") : m === "mtn" ? t("admin.payment_mtn") : t("admin.payment_bank")}
                     </button>
                   ))}

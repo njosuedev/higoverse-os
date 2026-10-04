@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { isZero } from "@/lib/format";
 import Link from "next/link";
 import { itemRequest } from "@/lib/product-api";
-import { partnerRequest } from "@/lib/supplier-api";
+import { loadCustomers, partnerRequest } from "@/lib/supplier-api";
 import { saleRequest } from "@/lib/sale-api";
 import { settingsRequest } from "@/lib/settings-api";
 import { listProformas, deleteProforma, type Proforma, type ProformaStatus } from "@/lib/proforma-api";
@@ -39,9 +39,7 @@ interface Sale {
   created_at?: string;
 }
 interface Product { id: string; name: string; selling_price: number; cost_price: number; quantity: number; }
-interface Partner { id: string; name: string; phone?: string; address?: string; id_number?: string | null; }
-type Buyer = { name: string; phone: string; id_number: string; address: string };
-const EMPTY_BUYER: Buyer = { name: "", phone: "", id_number: "", address: "" };
+interface Partner { id: string; name: string; phone?: string | null; address?: string | null; id_number?: string | null; }
 interface LineItem { id: string; product_id: string; quantity: number; unit_price: number; }
 interface Debt {
   id: string; debtor_name: string; phone?: string;
@@ -116,9 +114,22 @@ export default function SaleManagementPage() {
 
   // Payment method state
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
-  // Car sales: the buyer's details (picked customer, or a new one to save).
-  const [buyer, setBuyer] = useState<Buyer>(EMPTY_BUYER);
+  // Car sales: the buyer is always one of the saved customers (added in
+  // Customers, never typed in here); these are their details.
   const [buyerTried, setBuyerTried] = useState(false);
+  const buyerCustomer = customers.find((c) => c.id === saleCustomer);
+  const buyer = {
+    name: buyerCustomer?.name ?? "", phone: buyerCustomer?.phone ?? "",
+    id_number: buyerCustomer?.id_number ?? "", address: buyerCustomer?.address ?? "",
+  };
+  const buyerIncomplete = !!buyerCustomer && ![buyer.name, buyer.phone, buyer.id_number, buyer.address].every((x) => x.trim());
+  // A customer just added in Customers (another tab) shows up on coming back.
+  useEffect(() => {
+    if (!isCar || !showModal) return;
+    const reload = () => loadCustomers().then(setCustomers).catch(() => {});
+    window.addEventListener("focus", reload);
+    return () => window.removeEventListener("focus", reload);
+  }, [isCar, showModal]);
   // New sale opens with the product search already open — just start typing.
   const [autoPick, setAutoPick] = useState(true);
   const [amountSent, setAmountSent] = useState("");
@@ -221,7 +232,7 @@ export default function SaleManagementPage() {
     setAutoPick(autoSearch);
     setLineItems([emptyLine()]); setSaleCustomer(""); setSaleNotes("");
     setPaymentMethod("cash"); setAmountSent(""); setDebtorName(""); setDebtorPhone("");
-    setBuyer(EMPTY_BUYER); setBuyerTried(false);
+    setBuyerTried(false);
     setEditingId(null); setModalMode("create"); setShowModal(true);
   }
   // Dashboard "Record sale" and vehicle-card "Sell" links: /sales?new=1[&product=<id>]
@@ -243,13 +254,7 @@ export default function SaleManagementPage() {
         if (a.buyer_name || a.buyer_phone) {
           const digits = (x?: string | null) => (x || "").replace(/\D/g, "");
           const match = a.buyer_phone ? customers.find((c) => digits(c.phone) && digits(c.phone) === digits(a.buyer_phone)) : undefined;
-          if (match) {
-            setSaleCustomer(match.id);
-            setBuyer({ name: match.name || a.buyer_name || "", phone: match.phone || a.buyer_phone || "", id_number: match.id_number || a.buyer_id_no || "", address: match.address || "" });
-          } else {
-            setSaleCustomer("");
-            setBuyer({ name: a.buyer_name || "", phone: a.buyer_phone || "", id_number: a.buyer_id_no || "", address: "" });
-          }
+          setSaleCustomer(match?.id ?? "");
         }
       })
       .catch(() => {});
@@ -267,7 +272,7 @@ export default function SaleManagementPage() {
     setShowModal(false); setForm(EMPTY_FORM); setEditingId(null);
     setLineItems([emptyLine()]); setSaleCustomer(""); setSaleNotes("");
     setPaymentMethod("cash"); setAmountSent(""); setDebtorName(""); setDebtorPhone("");
-    setBuyer(EMPTY_BUYER); setBuyerTried(false);
+    setBuyerTried(false);
   }
 
   function addLine() { setLineItems((prev) => [...prev, emptyLine()]); }
@@ -299,7 +304,6 @@ export default function SaleManagementPage() {
     setSaleCustomer(id);
     const c = customers.find((x) => x.id === id);
     if (c) { setDebtorName(c.name); setDebtorPhone(c.phone || ""); }
-    setBuyer(c ? { name: c.name || "", phone: c.phone || "", id_number: c.id_number || "", address: c.address || "" } : EMPTY_BUYER);
   }
   function setLinePrice(id: string, price: number) {
     setLineItems((prev) => prev.map((l) => l.id === id ? { ...l, unit_price: Math.max(0, price) } : l));
@@ -333,8 +337,8 @@ export default function SaleManagementPage() {
     if (validLines.length === 0) { notify(t("sales.need_one_item")); return; }
     if (isCar) {
       setBuyerTried(true);
-      if (![buyer.name, buyer.phone, buyer.id_number, buyer.address].every((x) => x.trim())) { notify(t("sales.buyer_required")); return; }
-      if (buyer.phone.replace(/\D/g, "").length < 9) { notify(t("vehicle.phone_invalid")); return; }
+      if (!buyerCustomer) { notify(t("buyer.pick_required")); return; }
+      if (buyerIncomplete) { notify(t("buyer.incomplete_sale")); return; }
     }
     const debtor = debtorName.trim() || (isCar ? buyer.name.trim() : "");
     if (paymentMethod === "debt" && !debtor) { notify(t("sales.need_debtor_name")); return; }
@@ -346,24 +350,7 @@ export default function SaleManagementPage() {
       const created: Sale[] = [];
       const errors: string[] = [];
 
-      let customerId = saleCustomer;
-      if (isCar) {
-        const details = { name: buyer.name.trim(), phone: buyer.phone.trim(), id_number: buyer.id_number.trim(), address: buyer.address.trim() };
-        try {
-          const digits = (x?: string | null) => (x || "").replace(/\D/g, "");
-          if (!customerId) customerId = customers.find((c) => digits(c.phone) && digits(c.phone) === digits(details.phone))?.id ?? "";
-          if (!customerId) {
-            const res = await partnerRequest("/suppliers", { method: "POST", body: JSON.stringify(details) });
-            customerId = res?.data?.id ?? "";
-          } else {
-            const c = customers.find((x) => x.id === customerId);
-            const changed = !c || c.name !== details.name || (c.phone || "") !== details.phone
-              || (c.id_number || "") !== details.id_number || (c.address || "") !== details.address;
-            if (changed) await partnerRequest(`/suppliers/${customerId}`, { method: "PUT", body: JSON.stringify(details) });
-          }
-        } catch { customerId = ""; }
-        if (!customerId) { notify(t("sales.buyer_save_failed")); return; }
-      }
+      const customerId = saleCustomer;
 
       for (const line of validLines) {
         try {
@@ -845,11 +832,11 @@ ${paymentHtml}
                 <Upload size={10} /> {t("common.import")}
               </button>
               <button onClick={exportSalesExcel} title={t("sales.export_excel_tooltip")}
-                className="flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium border border-green-200 text-green-600 bg-white hover:bg-green-50 transition">
+                className="flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 transition">
                 <FileSpreadsheet size={10} /> Excel
               </button>
               <button onClick={exportSalesPDF} title={t("sales.export_pdf_tooltip")}
-                className="flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium border border-red-200 text-red-600 bg-white hover:bg-red-50 transition">
+                className="flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 transition">
                 <FileText size={10} /> PDF
               </button>
             </div>
@@ -913,7 +900,7 @@ ${paymentHtml}
                     <td className="px-3 py-2 font-medium text-slate-700 tabular-nums">{s.quantity}</td>
                     <td className="px-3 py-2 text-slate-600 tabular-nums">{s.unit_price.toLocaleString()}</td>
                     <td className="px-3 py-2 font-semibold text-slate-800 tabular-nums">{s.total_amount.toLocaleString()}</td>
-                    {prof && <td className={`px-3 py-2 tabular-nums ${isProfit ? "text-green-600" : "text-red-500"}`}>
+                    {prof && <td className={`px-3 py-2 tabular-nums ${isProfit ? "text-slate-900" : "text-red-600"}`}>
                       <span className="font-semibold">{isProfit ? "+" : ""}{(s.profit || 0).toLocaleString()}</span>
                       {s.total_amount > 0 && (
                         <span className="block text-[11px] font-normal opacity-60">
@@ -921,7 +908,7 @@ ${paymentHtml}
                         </span>
                       )}
                     </td>}
-                    <td className="px-3 py-2 text-slate-400 text-xs max-w-28 truncate">{s.notes || <span className="text-slate-200">-</span>}</td>
+                    <td className="px-3 py-2 text-slate-400 text-xs max-w-28 truncate" title={s.notes || undefined}>{s.notes || <span className="text-slate-200">-</span>}</td>
                     <td className="px-3 py-2">
                       <div className="flex items-center gap-1.5">
                         <button onClick={() => printReceiptPopup([s])} title={t("common.print")}
@@ -933,7 +920,7 @@ ${paymentHtml}
                           <Pencil size={14} />
                         </button>
                         <button onClick={() => deleteSale(s.id)} disabled={deletingId === s.id}
-                          className="p-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 transition disabled:opacity-40">
+                          className="p-1.5 rounded-lg text-slate-500 hover:bg-red-50 hover:text-red-600 transition disabled:opacity-40">
                           <Trash2 size={14} />
                         </button>
                       </div>
@@ -949,7 +936,7 @@ ${paymentHtml}
                   <tr className="bg-slate-50 border-t-2 border-slate-200 text-xs font-semibold text-slate-500">
                     <td className="px-4 py-2" colSpan={6}>{t("sales.subtotal_label")} · {filtered.length} {t("sales.sales_word")}</td>
                     <td className="px-4 py-2 tabular-nums text-slate-700">{fRev.toLocaleString()}</td>
-                    {prof && <td className={`px-4 py-2 tabular-nums ${fProfit >= 0 ? "text-green-600" : "text-red-500"}`}>
+                    {prof && <td className={`px-4 py-2 tabular-nums ${fProfit >= 0 ? "text-slate-900" : "text-red-600"}`}>
                       {fProfit >= 0 ? "+" : ""}{fProfit.toLocaleString()}
                       <span className="block text-[11px] font-normal opacity-70">{fMargin.toFixed(1)}% {t("sales.margin_suffix")}</span>
                     </td>}
@@ -1003,7 +990,7 @@ ${paymentHtml}
             <div className="px-5 py-8 text-center text-xs text-slate-400">{t("sales.loading_debts")}</div>
           ) : debts.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-slate-400">
-              <CheckCircle2 size={32} className="mb-2 text-green-300" />
+              <CheckCircle2 size={32} className="mb-2 text-slate-300" />
               <p className="text-sm font-medium text-slate-500">{t("sales.no_debts")}</p>
             </div>
           ) : (
@@ -1018,7 +1005,7 @@ ${paymentHtml}
                         <div className="flex items-center gap-2 flex-wrap">
                           <p className="font-semibold text-slate-800 text-sm">{d.debtor_name}</p>
                           {d.is_paid
-                            ? <span className="text-[11px] font-semibold bg-green-100 text-green-700 border border-green-200 px-1.5 py-0.5 rounded">{t("sales.paid_badge")}</span>
+                            ? <span className="text-[11px] font-semibold bg-slate-100 text-slate-700 border border-slate-200 px-1.5 py-0.5 rounded">{t("sales.paid_badge")}</span>
                             : <span className="text-[11px] font-semibold bg-amber-100 text-amber-700 border border-amber-200 px-1.5 py-0.5 rounded">{t("sales.pending_badge")}</span>
                           }
                         </div>
@@ -1031,7 +1018,7 @@ ${paymentHtml}
                         )}
                         <div className="mt-2.5 flex items-center gap-2.5">
                           <div className="flex-1 bg-slate-100 rounded-full h-1.5 overflow-hidden">
-                            <div className="h-full rounded-full bg-green-500 transition-all" style={{ width: `${pct}%` }} />
+                            <div className="h-full rounded-full bg-[#0a66c2] transition-all" style={{ width: `${pct}%` }} />
                           </div>
                           <span className="text-[11px] text-slate-400 tabular-nums whitespace-nowrap">{Math.round(pct)}% {t("sales.paid_suffix")}</span>
                         </div>
@@ -1042,7 +1029,7 @@ ${paymentHtml}
                         {d.amount_paid > 0 && (
                           <>
                             <p className="text-xs text-slate-400 mt-0.5">{t("sales.paid_label")}</p>
-                            <p className="text-green-600 font-semibold tabular-nums text-sm">{d.amount_paid.toLocaleString()}</p>
+                            <p className="text-slate-900 font-semibold tabular-nums text-sm">{d.amount_paid.toLocaleString()}</p>
                           </>
                         )}
                         {!d.is_paid && (
@@ -1058,7 +1045,7 @@ ${paymentHtml}
                         <button
                           onClick={() => { setShowPayModal(d); setPaymentAmount(""); }}
                           disabled={payingDebtId === d.id}
-                          className="flex items-center gap-1 text-xs font-semibold bg-green-50 hover:bg-green-100 text-green-700 px-2.5 py-1.5 rounded-lg transition disabled:opacity-40"
+                          className="flex items-center gap-1 text-xs font-semibold bg-[#EBF2FD] hover:bg-[#D5E8FB] text-[#0a66c2] px-2.5 py-1.5 rounded-lg transition disabled:opacity-40"
                         >
                           <Wallet size={12} /> {t("sales.record_payment")}
                         </button>
@@ -1072,7 +1059,7 @@ ${paymentHtml}
                       <button
                         onClick={() => deleteDebt(d.id)}
                         disabled={deletingDebtId === d.id}
-                        className="flex items-center gap-1 text-xs font-semibold bg-red-50 hover:bg-red-100 text-red-600 px-2.5 py-1.5 rounded-lg transition disabled:opacity-40"
+                        className="flex items-center gap-1 text-xs font-semibold text-slate-500 hover:bg-red-50 hover:text-red-600 px-2.5 py-1.5 rounded-lg transition disabled:opacity-40"
                       >
                         <Trash2 size={12} /> {t("common.delete")}
                       </button>
@@ -1215,7 +1202,7 @@ ${paymentHtml}
                               className="border border-slate-200 text-gray-800 rounded-lg px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-[#0a66c2]/30 focus:border-[#0a66c2] transition w-full" />
                             <div className="text-right">
                               <p className="font-semibold text-slate-800 text-sm tabular-nums">{subtotal.toLocaleString()}</p>
-                              {prof && p && <p className={`text-xs tabular-nums ${profit >= 0 ? "text-green-500" : "text-red-400"}`}>
+                              {prof && p && <p className={`text-xs tabular-nums ${profit >= 0 ? "text-slate-900" : "text-red-600"}`}>
                                 {profit >= 0 ? "+" : ""}{profit.toLocaleString()}
                               </p>}
                             </div>
@@ -1228,7 +1215,7 @@ ${paymentHtml}
                           {p && (
                             <div className="flex gap-3 mt-1.5 text-[11px] text-slate-400">
                               {fin && p.cost_price != null && <span>{t("items.col_cost")}: <span className="font-medium">{p.cost_price.toLocaleString()}</span></span>}
-                              <span>{t("items.col_selling")}: <span className="font-medium text-green-600">{p.selling_price.toLocaleString()}</span></span>
+                              <span>{t("items.col_selling")}: <span className="font-medium text-slate-900">{p.selling_price.toLocaleString()}</span></span>
                               <span className={p.quantity <= lowStock ? "text-amber-500 font-medium" : ""}>{t("sales.stock_label")}: {p.quantity}</span>
                             </div>
                           )}
@@ -1244,7 +1231,7 @@ ${paymentHtml}
                     </div>
                     {prof && <div className="text-right">
                       <p className="text-[11px] text-slate-400 uppercase tracking-wide">{t("sales.est_profit")}</p>
-                      <p className={`font-bold text-lg tabular-nums ${createGrandProfit >= 0 ? "text-green-600" : "text-red-500"}`}>
+                      <p className={`font-bold text-lg tabular-nums ${createGrandProfit >= 0 ? "text-slate-900" : "text-red-600"}`}>
                         {createGrandProfit >= 0 ? "+" : ""}{createGrandProfit.toLocaleString()}
                       </p>
                     </div>}
@@ -1258,29 +1245,34 @@ ${paymentHtml}
                         <p className="text-xs font-semibold uppercase tracking-wide text-slate-600">{t("sales.buyer_title")} <span className="text-red-500">*</span></p>
                         <p className="text-xs text-slate-500">{t("sales.buyer_hint")}</p>
                       </div>
-                      <select className={`${inputCls} sm:max-w-[280px]`} value={saleCustomer} onChange={(e) => setSaleCustomerAndDebtor(e.target.value)} aria-label={t("sales.buyer_existing")}>
-                        <option value="">{t("sales.buyer_new")}</option>
+                      <select className={`${inputCls} sm:max-w-[280px] ${buyerTried && !buyerCustomer ? "border-red-400 ring-2 ring-red-200" : ""}`}
+                        value={saleCustomer} onChange={(e) => setSaleCustomerAndDebtor(e.target.value)} aria-label={t("buyer.customer")}>
+                        <option value="" disabled>{t(customers.length ? "buyer.pick_placeholder" : "buyer.none")}</option>
                         {customers.map((c) => <option key={c.id} value={c.id}>{c.name}{c.phone ? ` · ${c.phone}` : ""}</option>)}
                       </select>
                     </div>
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      {([
-                        ["name", t("sales.buyer_full_name"), "", "text"],
-                        ["phone", t("sales.buyer_phone"), "07XXXXXXXX", "tel"],
-                        ["id_number", t("sales.buyer_id"), "1 1990 8 0000000 0 00", "text"],
-                        ["address", t("sales.buyer_address"), t("sales.buyer_address_placeholder"), "text"],
-                      ] as const).map(([key, label, ph, mode]) => {
-                        const missing = buyerTried && !buyer[key].trim();
-                        return (
+                    <p className="mb-3 text-xs text-slate-500">
+                      {t("buyer.only_saved")}{" "}
+                      <Link href="/partners" target="_blank" className="font-semibold text-[#0a66c2] hover:underline">{t("buyer.add_link")}</Link>
+                    </p>
+                    {buyerCustomer && (
+                      <dl className="grid gap-3 sm:grid-cols-2">
+                        {([
+                          ["name", t("sales.buyer_full_name")],
+                          ["phone", t("sales.buyer_phone")],
+                          ["id_number", t("sales.buyer_id")],
+                          ["address", t("sales.buyer_address")],
+                        ] as const).map(([key, label]) => (
                           <div key={key}>
-                            <label className="block text-xs font-medium text-gray-600 mb-1">{label} <span className="text-red-500">*</span></label>
-                            <input className={`${inputCls} ${missing ? "border-red-400 ring-2 ring-red-200" : ""}`} placeholder={ph}
-                              inputMode={mode === "tel" ? "tel" : undefined}
-                              value={buyer[key]} onChange={(e) => setBuyer((b) => ({ ...b, [key]: e.target.value }))} />
+                            <dt className="block text-xs font-medium text-gray-600 mb-1">{label}</dt>
+                            <dd className={`truncate rounded-lg border px-3 py-2 text-sm ${buyer[key].trim() ? "border-slate-200 bg-slate-50 text-gray-800" : "border-red-300 bg-red-50 text-red-600"}`}>
+                              {buyer[key].trim() || t("buyer.missing")}
+                            </dd>
                           </div>
-                        );
-                      })}
-                    </div>
+                        ))}
+                      </dl>
+                    )}
+                    {buyerIncomplete && <p className="mt-2 text-xs font-semibold text-red-600">{t("buyer.incomplete_sale")}</p>}
                   </div>
                 )}
 
@@ -1331,8 +1323,8 @@ ${paymentHtml}
                           </button>
                         )}
                         {changeAmount > 0 && (
-                          <div className="shrink-0 bg-green-50 border border-green-200 rounded-lg px-3 py-2 text-sm whitespace-nowrap">
-                            {t("sales.change_label")}: <span className="font-bold text-green-700">{changeAmount.toLocaleString()} {currency}</span>
+                          <div className="shrink-0 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm whitespace-nowrap">
+                            {t("sales.change_label")}: <span className="font-bold text-slate-900">{changeAmount.toLocaleString()} {currency}</span>
                           </div>
                         )}
                       </div>
@@ -1411,7 +1403,7 @@ ${paymentHtml}
                   {selectedProduct && (
                     <div className="mt-1.5 flex gap-3 text-xs text-slate-500">
                       {fin && selectedProduct.cost_price != null && <span>{t("items.cost_price")}: <span className="font-medium text-slate-700">{selectedProduct.cost_price.toLocaleString()}</span></span>}
-                      <span>{t("items.selling_price")}: <span className="font-medium text-green-600">{selectedProduct.selling_price.toLocaleString()}</span></span>
+                      <span>{t("items.selling_price")}: <span className="font-medium text-slate-900">{selectedProduct.selling_price.toLocaleString()}</span></span>
                       <span className={`font-medium ${selectedProduct.quantity <= lowStock ? "text-amber-600" : "text-slate-700"}`}>{t("items.col_qty")}: {selectedProduct.quantity}</span>
                     </div>
                   )}
@@ -1438,7 +1430,7 @@ ${paymentHtml}
                     <div><p className="text-xs text-gray-400">{t("common.total")}</p><p className="font-bold text-slate-800">{(Number(form.quantity) * Number(form.unit_price)).toLocaleString()}</p></div>
                     {prof && selectedProduct && selectedProduct.cost_price != null && (
                       <div><p className="text-xs text-gray-400">{t("sales.col_profit")}</p>
-                        <p className={`font-bold ${(Number(form.unit_price) - selectedProduct.cost_price) * Number(form.quantity) >= 0 ? "text-green-600" : "text-red-500"}`}>
+                        <p className={`font-bold ${(Number(form.unit_price) - selectedProduct.cost_price) * Number(form.quantity) >= 0 ? "text-slate-900" : "text-red-600"}`}>
                           {((Number(form.unit_price) - selectedProduct.cost_price) * Number(form.quantity)).toLocaleString()}
                         </p>
                       </div>
@@ -1611,7 +1603,7 @@ ${paymentHtml}
                       <span>{receipts[0].amount_paid.toLocaleString()} {currency}</span>
                     </div>
                     {receipts[0].amount_paid > receipts.reduce((s, x) => s + x.total_amount, 0) && (
-                      <div className="flex justify-between text-xs text-green-600 font-semibold mt-0.5">
+                      <div className="flex justify-between text-xs text-slate-800 font-semibold mt-0.5">
                         <span>{t("sales.change_label")}</span>
                         <span>{(receipts[0].amount_paid - receipts.reduce((s, x) => s + x.total_amount, 0)).toLocaleString()} {currency}</span>
                       </div>
@@ -1619,7 +1611,7 @@ ${paymentHtml}
                   </>
                 )}
                 {receipts[0]?.payment_method === "debt" && (
-                  <div className="mt-2 text-xs text-amber-600 font-semibold text-center border border-amber-200 rounded-lg py-1">&#9888; {t("sales.on_credit_amount_owed")}</div>
+                  <div className="mt-2 text-xs text-amber-600 font-semibold text-center border border-amber-200 rounded-lg py-1">{t("sales.on_credit_amount_owed")}</div>
                 )}
                 <div className="border-t border-dashed border-slate-300 my-3" />
                 <p className="text-center text-xs text-slate-400">{t("sales.thank_you")}</p>

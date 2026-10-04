@@ -26,21 +26,62 @@ export function carTypeLabel(t: (key: string) => string, value: string): string 
 export const VEHICLE_FIELDS: {
   key: VehicleField; type: "text" | "number" | "select"; required: boolean; options?: readonly string[]; placeholder?: string;
 }[] = [
+  // Chassis and plate identify one physical car; no two vehicles share them.
+  { key: "chassis_no",    type: "text",   required: true,  placeholder: "LGXCE4CB0P0000000" },
+  { key: "plate_no",      type: "text",   required: true,  placeholder: "RAC 123 A" },
   { key: "car_type",      type: "select", required: true,  options: CAR_TYPES },
   { key: "year",          type: "number", required: true,  placeholder: "2023" },
   { key: "battery_range", type: "number", required: true,  placeholder: "400" },
   { key: "color",         type: "text",   required: true,  placeholder: "White" },
-  { key: "chassis_no",    type: "text",   required: false, placeholder: "LGXCE4CB0P0000000" },
-  { key: "plate_no",      type: "text",   required: false, placeholder: "RAC 123 A" },
 ];
+
+/** The fields that make a car unique (see VEHICLE_FIELDS). */
+export const VEHICLE_ID_FIELDS: readonly VehicleField[] = ["chassis_no", "plate_no"];
+
+/** Plate/chassis as stored: upper case, single spaces. */
+export function normalizeVehicleId(v: string): string {
+  return v.trim().replace(/\s+/g, " ").toUpperCase();
+}
+
+/** The car a 409 from the product API says already holds this plate or
+ *  chassis, or null when the error is something else. */
+export function duplicateVehicle(err: unknown): { field: string; name: string } | null {
+  const m = /Product API error: 409 ([\s\S]*)$/.exec(err instanceof Error ? err.message : "");
+  if (!m) return null;
+  try {
+    const d = JSON.parse(m[1])?.detail;
+    return d?.field ? { field: String(d.field), name: String(d.product_name ?? "") } : null;
+  } catch { return null; }
+}
 
 // Sale status + traffic penalties, also kept in attributes (set from the
 // vehicle cards, not the main form). Sold is derived from quantity = 0.
 export type VehicleStatusField =
   | "sale_status" | "buyer_name" | "buyer_phone" | "buyer_id_no" | "pending_since" | "pending_at" | "pending_note"
+  // A pending car is paid for in deposits: the agreed price, the customer it's
+  // reserved for (the sale goes to them), and every deposit as JSON text.
+  | "buyer_customer_id" | "agreed_price" | "deposits"
   | "penalty_count" | "penalty_amount" | "penalty_checked" | "penalty_saved_at";
 
 export type Attributes = Partial<Record<VehicleField | VehicleStatusField, string>>;
+
+export const DEPOSIT_METHODS = ["cash", "mtn", "airtel", "bank", "card"] as const;
+
+export interface Deposit { amount: number; method: string; date: string; at: string; }
+
+export function parseDeposits(a: Attributes): Deposit[] {
+  try {
+    const v = JSON.parse(a.deposits || "[]");
+    return Array.isArray(v) ? v.filter((d) => d && Number(d.amount) > 0).map((d) => ({ ...d, amount: Number(d.amount) })) : [];
+  } catch { return []; }
+}
+
+/** What the buyer has paid so far, what they owe in total, and what's left. */
+export function depositSummary(a: Attributes, sellingPrice: number) {
+  const price = Number(a.agreed_price) > 0 ? Number(a.agreed_price) : Number(sellingPrice) || 0;
+  const paid = parseDeposits(a).reduce((s, d) => s + d.amount, 0);
+  return { price, paid, balance: Math.max(0, price - paid), full: price > 0 && paid >= price };
+}
 
 export type VehicleStatus = "available" | "pending" | "sold";
 

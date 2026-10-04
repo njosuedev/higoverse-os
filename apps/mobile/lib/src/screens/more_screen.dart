@@ -1,3 +1,5 @@
+import 'dart:io' show Platform;
+
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
@@ -189,13 +191,20 @@ class MoreScreen extends StatelessWidget {
           child: Column(children: [
             FutureBuilder<PackageInfo>(
               future: PackageInfo.fromPlatform(),
-              builder: (context, snap) => ListTile(
-                leading: const Icon(Icons.system_update_outlined),
-                title: Text(t('acc.check_updates')),
-                subtitle: Text(snap.hasData ? t('acc.version', {'v': snap.data!.version}) : t('acc.version_bare')),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () => AppUpdates.instance.check(manual: true),
-              ),
+              builder: (context, snap) {
+                final version = snap.hasData ? t('acc.version', {'v': snap.data!.version}) : t('acc.version_bare');
+                // The APK updates itself; an iPhone gets updates from the App Store.
+                if (!Platform.isAndroid) {
+                  return ListTile(leading: const Icon(Icons.info_outline), title: Text(version));
+                }
+                return ListTile(
+                  leading: const Icon(Icons.system_update_outlined),
+                  title: Text(t('acc.check_updates')),
+                  subtitle: Text(version),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => AppUpdates.instance.check(manual: true),
+                );
+              },
             ),
             const Divider(indent: 16, endIndent: 16),
             ListTile(

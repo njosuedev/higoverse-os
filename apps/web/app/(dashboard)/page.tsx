@@ -127,7 +127,7 @@ export default function DashboardPage() {
   const lowStockRef = useRef(lowStock);
   lowStockRef.current = lowStock;
   // Car companies restock from Vehicles (stock in) — no Purchases page.
-  const restockHref = isCar ? "/items" : "/PurchaseManagement";
+  const restockHref = isCar ? "/items" : "/purchases";
 
   const SERVICES_ALL = [
     { title: t("dash.items_inventory"), icon: Package,      href: "/items" },
@@ -495,7 +495,7 @@ export default function DashboardPage() {
                 {prof && <span className="flex items-center gap-1 text-[11px] text-text-muted">
                   <span className="w-2 h-1.5 rounded-sm bg-success inline-block" /> {t("dash.profit_label")} {netPct}%
                 </span>}
-                <Link href="/ExpenseManagement" className="ml-auto text-[11px] font-semibold text-paper bg-ink hover:bg-ink-dark px-2.5 py-1 rounded-press flex items-center gap-1 transition-colors duration-200">
+                <Link href="/expenses" className="ml-auto text-[11px] font-semibold text-paper bg-ink hover:bg-ink-dark px-2.5 py-1 rounded-press flex items-center gap-1 transition-colors duration-200">
                   <Receipt size={10} /> {t("expenses.add")}
                 </Link>
               </div>
@@ -750,8 +750,8 @@ export default function DashboardPage() {
 
             <div className="border border-border rounded-data overflow-hidden">
               {[
-                ...(isCar ? [] : [{ href: "/PurchaseManagement", icon: Truck, label: t("dash.new_purchase"), desc: t("dash.new_purchase_desc") }]),
-                { href: "/ExpenseManagement",  icon: Wallet,    label: t("nav.expenses"),       desc: t("dash.expenses_desc") },
+                ...(isCar ? [] : [{ href: "/purchases", icon: Truck, label: t("dash.new_purchase"), desc: t("dash.new_purchase_desc") }]),
+                { href: "/expenses",  icon: Wallet,    label: t("nav.expenses"),       desc: t("dash.expenses_desc") },
                 { href: "/reports",            icon: BarChart3, label: t("dash.view_reports"),  desc: t("dash.charts_analytics") },
               ].map((a) => (
                 <Link key={a.href} href={a.href}

@@ -227,7 +227,7 @@ export default function ReportsPage() {
 
           <div className="relative flex items-center gap-1.5 px-4 pb-2">
             <p className="text-[11px] text-blue-100/70">
-              <span className="text-green-400 font-semibold">{t("reports.live_word")}</span>
+              <span className="font-semibold">{t("reports.live_word")}</span>
               {lastUpdated && <span className="ml-1 text-blue-200/50">· {t("common.updated")} {lastUpdated.toLocaleTimeString()}</span>}
             </p>
           </div>
@@ -309,9 +309,9 @@ export default function ReportsPage() {
             </Panel>
 
             <Panel title={t("reports.stock_alerts")} sub={stockAlerts.length > 0 ? `${stockAlerts.length} ${t("nav.items").toLowerCase()}` : undefined}
-              action={<Link href={isCar ? "/items" : "/PurchaseManagement"} className="text-xs font-semibold text-[#0a66c2] hover:underline">{t("dash.view_all")}</Link>}>
+              action={<Link href={isCar ? "/items" : "/purchases"} className="text-xs font-semibold text-[#0a66c2] hover:underline">{t("dash.view_all")}</Link>}>
               {stockAlerts.length === 0 ? (
-                <p className="flex items-center gap-2 px-4 py-6 text-sm font-medium text-emerald-700"><CheckCircle size={16} /> {t("reports.stock_healthy_full")}</p>
+                <p className="flex items-center gap-2 px-4 py-6 text-sm font-medium text-slate-700"><CheckCircle size={16} /> {t("reports.stock_healthy_full")}</p>
               ) : (
                 <div className="pt-2.5">
                   <StockAlertCircles items={[...stockAlerts].sort((x, y) => x.quantity - y.quantity).slice(0, 8)} total={stockAlerts.length}
@@ -325,7 +325,7 @@ export default function ReportsPage() {
         {/* ── RECENT PURCHASES (shops; car companies stock in from Vehicles) ── */}
         {!isCar && recentPurchases.length > 0 && (
           <Panel title={t("reports.recent_purchases")} sub={`${currency} ${fmtNum(purchaseTotalSpent)} ${t("reports.spent_word")}`}
-            action={<Link href="/PurchaseManagement" className="text-xs font-semibold text-[#0a66c2] hover:underline">{t("dash.view_all")}</Link>}>
+            action={<Link href="/purchases" className="text-xs font-semibold text-[#0a66c2] hover:underline">{t("dash.view_all")}</Link>}>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>

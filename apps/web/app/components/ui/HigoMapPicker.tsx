@@ -310,7 +310,7 @@ export default function HigoMapPicker({ initialLat, initialLng, onConfirm, onClo
               </div>
             )}
             {!geoError && geoAccuracy != null && (
-              <div className={`mt-2 flex items-center gap-2 text-xs rounded-lg px-3 py-1.5 ${geoAccuracy <= 100 ? "bg-emerald-50 border border-emerald-200 text-emerald-700" : "bg-amber-50 border border-amber-200 text-amber-700"}`}>
+              <div className={`mt-2 flex items-center gap-2 text-xs rounded-lg px-3 py-1.5 ${geoAccuracy <= 100 ? "bg-slate-50 border border-slate-200 text-slate-700" : "bg-amber-50 border border-amber-200 text-amber-700"}`}>
                 <Navigation size={11} className="shrink-0" />
                 {geoAccuracy <= 100
                   ? `${t("map.good_fix_label")} ±${geoAccuracy} m`

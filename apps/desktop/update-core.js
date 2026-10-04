@@ -47,7 +47,7 @@ function decide(release, currentVersion) {
   return release.force || current < release.minCode ? "required" : "optional";
 }
 
-const CHECK_EVERY_MS = 4 * 60 * 60 * 1000; // background checks
+const CHECK_EVERY_MS = 15 * 60 * 1000; // background checks: a new release arrives within ~15 min
 const SNOOZE_MS = 24 * 60 * 60 * 1000; // "Later"
 
 function dueForCheck(state, now = Date.now()) {

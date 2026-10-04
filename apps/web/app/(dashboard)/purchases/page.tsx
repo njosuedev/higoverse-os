@@ -445,7 +445,7 @@ export default function PurchaseManagementPage() {
               {invStats.outStock > 0 && invStats.lowStock > 0 && " · "}
               {invStats.lowStock > 0 && <><span className="font-bold">{invStats.lowStock}</span> {t("items.low_stock")}</>}
             </p>
-            {!isCar && <Link href="/PartnerManagement" className="text-[11px] font-bold text-amber-700 bg-amber-100 hover:bg-amber-200 px-2 py-0.5 rounded-md shrink-0 transition">
+            {!isCar && <Link href="/partners" className="text-[11px] font-bold text-amber-700 bg-amber-100 hover:bg-amber-200 px-2 py-0.5 rounded-md shrink-0 transition">
               {t("partners.suppliers")}
             </Link>}
           </div>
@@ -487,11 +487,11 @@ export default function PurchaseManagementPage() {
                   <Upload size={10} /> {t("common.import")}
                 </button>
                 <button onClick={exportExcel} title={t("common.export_excel_title")}
-                  className="flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium border border-green-200 text-green-600 bg-white hover:bg-green-50 transition">
+                  className="flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 transition">
                   <FileSpreadsheet size={10} /> {t("common.excel")}
                 </button>
                 <button onClick={exportPDF} title={t("common.export_pdf_title")}
-                  className="flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium border border-red-200 text-red-600 bg-white hover:bg-red-50 transition">
+                  className="flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 transition">
                   <FileText size={10} /> {t("common.pdf")}
                 </button>
               </div>
@@ -510,9 +510,8 @@ export default function PurchaseManagementPage() {
                 {paginatedProducts.map((p) => {
                   const supplier = supplierMap[p.supplier_id ?? ""];
                   const margin2 = p.cost_price > 0 ? ((p.selling_price - p.cost_price) / p.cost_price) * 100 : 0;
-                  const needsRestock = p.quantity <= lowStock;
                   return (
-                    <tr key={p.id} className={`hover:bg-slate-50/60 transition-colors ${p.quantity === 0 ? "bg-red-50/20" : needsRestock ? "bg-amber-50/20" : ""}`}>
+                    <tr key={p.id} className="hover:bg-slate-50/60 transition-colors">
                       <td className="px-3 py-1.5">
                         <p className="font-semibold text-slate-800 text-xs">{p.name}</p>
                         <p className="text-[11px] text-slate-400 font-mono">{p.id?.slice(0, 8)}</p>
@@ -520,22 +519,22 @@ export default function PurchaseManagementPage() {
                       {!isCar && <td className="px-3 py-1.5">
                         {supplier
                           ? <div><p className="font-medium text-slate-700 text-xs">{supplier.name}</p>{supplier.phone && <p className="text-[11px] text-slate-400">{supplier.phone}</p>}</div>
-                          : <Link href="/PartnerManagement" className="text-[11px] text-[#0a66c2] hover:underline flex items-center gap-0.5"><Truck size={10} /> {t("common.add")}</Link>}
+                          : <Link href="/partners" className="text-[11px] text-[#0a66c2] hover:underline flex items-center gap-0.5"><Truck size={10} /> {t("common.add")}</Link>}
                       </td>}
                       <td className="px-3 py-1.5 text-slate-600 font-medium tabular-nums text-xs">{Number(p.cost_price).toLocaleString()}</td>
-                      <td className="px-3 py-1.5 font-semibold text-green-600 tabular-nums text-xs">{Number(p.selling_price).toLocaleString()}</td>
+                      <td className="px-3 py-1.5 font-semibold text-slate-900 tabular-nums text-xs">{Number(p.selling_price).toLocaleString()}</td>
                       {prof && <td className="px-3 py-1.5">
-                        <span className={`text-[11px] font-bold ${margin2 >= 0 ? "text-green-600" : "text-red-500"}`}>
+                        <span className={`text-[11px] font-bold ${margin2 >= 0 ? "text-slate-900" : "text-red-600"}`}>
                           {margin2 >= 0 ? "+" : ""}{margin2.toFixed(1)}%
                         </span>
                       </td>}
                       <td className="px-3 py-1.5">
-                        <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[11px] font-semibold ${p.quantity === 0 ? "bg-red-100 text-red-700" : p.quantity <= lowStock ? "bg-amber-100 text-amber-700" : "bg-green-100 text-green-700"}`}>
+                        <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[11px] font-semibold ${p.quantity === 0 ? "bg-red-100 text-red-700" : p.quantity <= lowStock ? "bg-amber-100 text-amber-700" : "bg-slate-100 text-slate-700"}`}>
                           {p.quantity}
                         </span>
                       </td>
                       <td className="px-3 py-1.5">
-                        <span className={`inline-flex px-1.5 py-0.5 rounded-full text-[11px] font-semibold ${p.quantity === 0 ? "bg-red-100 text-red-700" : p.quantity <= lowStock ? "bg-amber-100 text-amber-700" : "bg-green-100 text-green-700"}`}>
+                        <span className={`inline-flex px-1.5 py-0.5 rounded-full text-[11px] font-semibold ${p.quantity === 0 ? "bg-red-100 text-red-700" : p.quantity <= lowStock ? "bg-amber-100 text-amber-700" : "bg-slate-100 text-slate-700"}`}>
                           {p.quantity === 0 ? t("items.out_stock") : p.quantity <= lowStock ? t("items.low_stock") : t("items.in_stock")}
                         </span>
                       </td>
@@ -585,11 +584,11 @@ export default function PurchaseManagementPage() {
                   <Upload size={10} /> {t("common.import")}
                 </button>
                 <button onClick={exportExcel} title={t("common.export_excel_title")}
-                  className="flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium border border-green-200 text-green-600 bg-white hover:bg-green-50 transition">
+                  className="flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 transition">
                   <FileSpreadsheet size={10} /> {t("common.excel")}
                 </button>
                 <button onClick={exportPDF} title={t("common.export_pdf_title")}
-                  className="flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium border border-red-200 text-red-600 bg-white hover:bg-red-50 transition">
+                  className="flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 transition">
                   <FileText size={10} /> {t("common.pdf")}
                 </button>
               </div>
@@ -642,7 +641,7 @@ export default function PurchaseManagementPage() {
                       <td className="px-3 py-1.5 font-semibold text-slate-800 tabular-nums text-xs">{p.total_cost.toLocaleString()}</td>
                       <td className="px-3 py-1.5">
                         <button onClick={() => deleteHistoryRecord(p.id)} disabled={deletingId === p.id}
-                          className="p-1 rounded bg-red-50 hover:bg-red-100 text-red-500 transition disabled:opacity-40">
+                          className="p-1 rounded text-slate-500 hover:bg-red-50 hover:text-red-600 transition disabled:opacity-40">
                           <Trash2 size={11} />
                         </button>
                       </td>
@@ -716,7 +715,7 @@ export default function PurchaseManagementPage() {
                 </div>
                 {prof && margin !== null && (
                   <div className="md:col-span-2 bg-slate-50 rounded-lg px-3 py-2 text-xs text-slate-500">
-                    {t("purchases.margin_label")}: <span className={`font-bold ${Number(margin) >= 0 ? "text-green-600" : "text-red-500"}`}>{Number(margin) >= 0 ? "+" : ""}{margin}%</span>
+                    {t("purchases.margin_label")}: <span className={`font-bold ${Number(margin) >= 0 ? "text-slate-900" : "text-red-600"}`}>{Number(margin) >= 0 ? "+" : ""}{margin}%</span>
                     {" · "}{t("purchases.unit_profit_label")}: <span className="font-bold text-slate-700">{(Number(form.selling_price) - Number(form.cost_price)).toLocaleString()}</span>
                   </div>
                 )}
@@ -740,7 +739,7 @@ export default function PurchaseManagementPage() {
                   </select>
                   {suppliers.length === 0 && (
                     <p className="text-xs text-[#0a66c2] mt-1">
-                      <Link href="/PartnerManagement" className="hover:underline">{t("purchases.add_supplier_link")}</Link>
+                      <Link href="/partners" className="hover:underline">{t("purchases.add_supplier_link")}</Link>
                     </p>
                   )}
                 </div>}

@@ -103,7 +103,7 @@ export default function WeeklyPerformance({ isCar, currency, fmt }: { isCar: boo
           const pct = before > 0 ? Math.round(((now - before) / before) * 100) : null;
           const up = now > before, flat = now === before;
           const good = flat ? null : up === c.goodUp;
-          const tone = good === null ? "text-slate-500" : good ? "text-emerald-700" : "text-red-600";
+          const tone = good === null ? "text-slate-500" : good ? "text-slate-900" : "text-red-600";
           return (
             <div key={c.key} className="min-w-0 rounded-lg border border-slate-200 p-2.5">
               <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-600">

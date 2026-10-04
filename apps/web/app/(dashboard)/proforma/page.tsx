@@ -818,7 +818,7 @@ function ProformaPageContent() {
               </button>
 
               {saveMsg && (
-                <p className={`text-center text-xs font-semibold ${saveMsg === "success" ? "text-green-600" : "text-red-500"}`}>
+                <p className={`text-center text-xs font-semibold ${saveMsg === "success" ? "text-slate-900" : "text-red-600"}`}>
                   {saveMsg === "success" ? t("proforma.saved_success") : t("proforma.save_failed")}
                 </p>
               )}

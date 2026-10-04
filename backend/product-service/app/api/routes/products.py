@@ -94,6 +94,12 @@ def _attr_matches(pattern: str):
     return func.coalesce(Product.attributes, "").op("~")(pattern)
 
 
+def _fined_car():
+    """Fines are tracked only while the company owns the car: once it's sold
+    (none left in stock) the buyer answers for its fines."""
+    return (Product.quantity > 0) & _attr_matches(_PENALTY_RE)
+
+
 def _attr_filled(key: str):
     """The attribute is present with a non-empty value (string or number)."""
     return _attr_matches(r'"%s"\s*:\s*"?[^"\s,}]' % key)
@@ -111,6 +117,53 @@ def _incomplete_car():
         func.coalesce(Product.thumbnail, "") == "",
         pending & ~(_attr_filled("buyer_phone") & _attr_filled("buyer_id_no")),
     )
+
+
+def _parse_attrs(attributes) -> dict:
+    try:
+        a = json.loads(attributes) if isinstance(attributes, str) and attributes else {}
+    except ValueError:
+        a = {}
+    return a if isinstance(a, dict) else {}
+
+
+def _car_key(value) -> str:
+    """Plate/chassis as compared: "rac 123 a" and "RAC123A" are the same car."""
+    return "".join(str(value or "").split()).upper()
+
+
+# Every car is one physical vehicle: no two products in a shop may share a
+# plate or chassis number (sold cars included, so a car is never re-added).
+_UNIQUE_CAR_IDS = (("chassis_no", "chassis number"), ("plate_no", "plate number"))
+
+
+def _ensure_unique_car(db: Session, shop_id: str, attributes, exclude_id: str | None = None, previous=None):
+    new = _parse_attrs(attributes)
+    old = _parse_attrs(previous)
+    wanted = {
+        k: _car_key(new.get(k)) for k, _ in _UNIQUE_CAR_IDS
+        # Only check values that changed, so an old duplicate never blocks
+        # unrelated edits (status, fines) to that car.
+        if _car_key(new.get(k)) and _car_key(new.get(k)) != _car_key(old.get(k))
+    }
+    if not wanted:
+        return
+    query = (
+        db.query(Product.id, Product.name, Product.attributes)
+        .filter(Product.shop_id == shop_id, Product.attributes.isnot(None))
+        .filter(or_(*[Product.attributes.ilike(f'%"{k}"%') for k in wanted]))
+    )
+    if exclude_id:
+        query = query.filter(Product.id != exclude_id)
+    for other_id, other_name, other_attrs in query.all():
+        a = _parse_attrs(other_attrs)
+        for k, label in _UNIQUE_CAR_IDS:
+            if k in wanted and _car_key(a.get(k)) == wanted[k]:
+                raise HTTPException(
+                    status_code=409,
+                    detail={"field": k, "product_id": other_id, "product_name": other_name,
+                            "message": f'Another vehicle ("{other_name}") already has this {label}.'},
+                )
 
 
 def calculate_profit(cost_price: float, selling_price: float):
@@ -151,7 +204,7 @@ def get_summary(
         func.sum(case((Product.quantity == 0, 1), else_=0)).label("out_of_stock"),
         func.sum(case(((Product.quantity > 0) & (Product.quantity <= threshold), 1), else_=0)).label("low_stock"),
         func.sum(case(((Product.quantity > 0) & _attr_matches(_PENDING_RE), 1), else_=0)).label("pending"),
-        func.sum(case((_attr_matches(_PENALTY_RE), 1), else_=0)).label("with_penalties"),
+        func.sum(case((_fined_car(), 1), else_=0)).label("with_penalties"),
         func.sum(case((_incomplete_car(), 1), else_=0)).label("incomplete"),
     ).one()
 
@@ -218,7 +271,7 @@ def get_products(
     q: str | None = None,         # name / barcode search (backed by the trigram index)
     category: str | None = None,
     stock: str | None = None,     # "low" | "out" | "restock" | "in"
-    status: str | None = None,    # car companies: "available" | "pending" | "sold" | "penalties" | "incomplete"
+    status: str | None = None,    # car companies: "in_stock" | "available" | "pending" | "sold" | "penalties" | "incomplete"
     threshold: int = 10,          # the shop's low-stock threshold, for stock="low"/"in"
 ):
     page = max(page, 1)
@@ -245,14 +298,16 @@ def get_products(
     elif stock == "in":
         query = query.filter(Product.quantity > threshold)
 
-    if status == "sold":
+    if status == "in_stock":  # not sold yet: available + pending
+        query = query.filter(Product.quantity > 0)
+    elif status == "sold":
         query = query.filter(Product.quantity == 0)
     elif status == "pending":
         query = query.filter(Product.quantity > 0, _attr_matches(_PENDING_RE))
     elif status == "available":
         query = query.filter(Product.quantity > 0, ~_attr_matches(_PENDING_RE))
     elif status == "penalties":
-        query = query.filter(_attr_matches(_PENALTY_RE))
+        query = query.filter(_fined_car())
     elif status == "incomplete":
         query = query.filter(_incomplete_car())
 
@@ -315,6 +370,8 @@ def create_product(
             user["shop_id"],
             (authorization or "").replace("Bearer ", "")
         )
+
+        _ensure_unique_car(db, user["shop_id"], payload.attributes)
 
         selling_price = payload.selling_price or payload.cost_price
 
@@ -501,6 +558,10 @@ def update_product(
                 user["shop_id"],
                 (authorization or "").replace("Bearer ", "")
             )
+
+        if "attributes" in update_data:
+            _ensure_unique_car(db, user["shop_id"], update_data["attributes"],
+                               exclude_id=product.id, previous=product.attributes)
 
         prev_quantity = product.quantity
         prev_car = _car_state(product.attributes)
