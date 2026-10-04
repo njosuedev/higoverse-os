@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/widgets.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import '../config.dart';
 import '../format.dart';
@@ -81,13 +82,41 @@ class ActivityItem {
 
 /// The business's recent activity, newest first: everything announced live
 /// while the app is open, plus the latest sales so it is never empty.
-/// Counts what hasn't been seen yet, for the badge on the Activity tab.
+/// Counts what hasn't been seen yet, for the badge on the bell: whatever
+/// came after Notifications was last opened on this phone, even across
+/// restarts. Everything counts, the signed-in account's own actions too:
+/// this app makes none, so they were done elsewhere (website, desktop).
 class ActivityFeed extends ChangeNotifier {
-  ActivityFeed(this.session, {Live? live}) {
+  ActivityFeed(this.session, {Live? live, FlutterSecureStorage? storage})
+      : _store = storage ?? const FlutterSecureStorage() {
     _sub = live?.events.listen(add);
   }
 
   final Session session;
+  final FlutterSecureStorage _store;
+
+  /// When Notifications was last opened here (null: never, or not loaded).
+  DateTime? _seenAt;
+  bool _seenLoaded = false;
+  String get _seenKey => 'hgv_seen_${session.shop?.id ?? ''}';
+
+  Future<DateTime?> _loadSeen() async {
+    if (_seenLoaded) return _seenAt;
+    _seenLoaded = true;
+    try {
+      final v = await _store.read(key: _seenKey);
+      _seenAt = v == null ? null : DateTime.tryParse(v);
+    } catch (_) {}
+    return _seenAt;
+  }
+
+  Future<void> _saveSeen(DateTime at) async {
+    _seenAt = at;
+    _seenLoaded = true;
+    try {
+      await _store.write(key: _seenKey, value: at.toUtc().toIso8601String());
+    } catch (_) {}
+  }
   StreamSubscription<LiveEvent>? _sub;
   final List<ActivityItem> items = [];
   static const _max = 150;
@@ -99,8 +128,11 @@ class ActivityFeed extends ChangeNotifier {
 
   int get unread => items.where((i) => !i.read).length;
 
-  /// Seeds the feed with the latest sales (already seen), once.
+  /// Seeds the feed with the latest sales; those after Notifications was
+  /// last opened count as unread. The first time, all count as seen.
   Future<void> seed() async {
+    final seen = await _loadSeen();
+    if (seen == null) unawaited(_saveSeen(DateTime.now()));
     try {
       final res = await session.api.get('${Svc.sales}/sales', query: {'page': '1', 'limit': '20'});
       final list = ((res as Map)['data'] as Map?)?['items'] as List? ?? const [];
@@ -113,7 +145,7 @@ class ActivityFeed extends ChangeNotifier {
           at: parseTimestamp(s['created_at']) ?? DateTime.now(),
           args: {'qty': s['quantity'] ?? 1, 'name': s['product_name'] ?? '', 'amount': s['total_amount']},
           data: s,
-          read: true,
+          read: seen == null || !(parseTimestamp(s['created_at']) ?? DateTime.now()).isAfter(seen),
         ));
       }
       items.sort((a, b) => b.at.compareTo(a.at));
@@ -163,8 +195,6 @@ class ActivityFeed extends ChangeNotifier {
     }
     final item = fromEvent(e, lowStock: session.lowStock, isCar: session.isCar);
     if (item == null) return;
-    // Own actions are listed, but already seen.
-    if (item.byId != null && item.byId == session.user?.id) item.read = true;
     items.insert(0, item);
     if (items.length > _max) items.removeRange(_max, items.length);
     notifyListeners();
@@ -233,6 +263,7 @@ class ActivityFeed extends ChangeNotifier {
   }
 
   void markAllRead() {
+    unawaited(_saveSeen(DateTime.now()));
     if (unread == 0) return;
     for (final i in items) {
       i.read = true;

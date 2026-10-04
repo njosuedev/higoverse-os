@@ -141,9 +141,9 @@ class _HomeShellState extends State<HomeShell> {
 
   void _openSearch(BuildContext context) => pushScoped<void>(context, const SearchScreen());
 
-  /// Something happened: count it on its tab and, unless it was this
-  /// person's own doing or they turned that alert off, notify: a phone
-  /// notification (sound, count) and, with the app on screen, a banner.
+  /// Something happened: count it on its tab and, unless that alert is
+  /// turned off, notify: a phone notification (sound, count) and, with the
+  /// app on screen, a banner.
   Future<void> _onFresh(ActivityItem item) async {
     if (!mounted || item.read) return;
     final session = SessionScope.of(context);
