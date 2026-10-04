@@ -391,7 +391,7 @@ class _ItemResult extends StatelessWidget {
     return _ResultRow(
       onTap: () {
         onOpen();
-        showProductSheet(context, item);
+        openItem(context, item);
       },
       leading: ProductThumb(item['thumbnail'] as String?, isCar: s.isCar, width: 50, height: 50, radius: 25),
       title: Highlighted('${item['name'] ?? ''}', query),

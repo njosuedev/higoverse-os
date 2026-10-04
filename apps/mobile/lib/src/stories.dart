@@ -418,7 +418,7 @@ class _StoryViewerState extends State<StoryViewer> with SingleTickerProviderStat
                   child: _VehicleCard(
                     story: story,
                     holder: carHolder(s, v),
-                    onDetails: () => _pausedWhile(() => showProductSheet(context, v)),
+                    onDetails: () => _pausedWhile(() => openItem(context, v)),
                     onCall: (phone) => _pausedWhile(() => launchUrl(Uri(scheme: 'tel', path: phone))),
                     onSms: (phone) => _pausedWhile(() => launchUrl(Uri(scheme: 'sms', path: phone))),
                     currency: s.currency,
@@ -524,7 +524,7 @@ class _VehicleCard extends StatelessWidget {
                   child: const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2.4)),
                 );
               }
-              return _HolderBlock(holder: snap.data, kind: story.kind, currency: currency);
+              return HolderBlock(holder: snap.data, currency: currency, finesNote: story.kind == StoryKind.fines);
             },
           ),
           const SizedBox(height: 10),
@@ -595,11 +595,13 @@ class _SquareButton extends StatelessWidget {
 }
 
 /// The customer who has the car: who, how to reach them, what they owe.
-class _HolderBlock extends StatelessWidget {
-  const _HolderBlock({required this.holder, required this.kind, required this.currency});
+class HolderBlock extends StatelessWidget {
+  const HolderBlock({super.key, required this.holder, required this.currency, this.finesNote = false});
   final CarHolder? holder;
-  final StoryKind kind;
   final String currency;
+
+  /// Adds why its fines still come to the company.
+  final bool finesNote;
 
   @override
   Widget build(BuildContext context) {
@@ -659,7 +661,7 @@ class _HolderBlock extends StatelessWidget {
                   style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: c.danger)),
           ]),
         ],
-        if (kind == StoryKind.fines) ...[
+        if (finesNote) ...[
           const SizedBox(height: 8),
           Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Icon(Icons.info_outline_rounded, size: 14, color: c.warning),

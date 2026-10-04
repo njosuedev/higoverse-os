@@ -81,7 +81,7 @@ class _DebtsScreenState extends State<DebtsScreen> with LiveListener {
       body: Column(children: [
         Container(
           color: c.chrome,
-          padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+          padding: const EdgeInsets.fromLTRB(10, 2, 10, 8),
           child: SegmentedButton<bool>(
             segments: [
               ButtonSegment(value: false, label: Text(t('debts.outstanding'))),
@@ -107,7 +107,7 @@ class _DebtsScreenState extends State<DebtsScreen> with LiveListener {
                     ? ListView(children: const [ListSkeleton(count: 8)])
                     : ListView(
                         physics: const AlwaysScrollableScrollPhysics(),
-                        padding: const EdgeInsets.fromLTRB(16, 14, 16, 24),
+                        padding: const EdgeInsets.fromLTRB(8, 8, 8, 20),
                         children: [
                           if (!_paid)
                             Panel(
@@ -175,7 +175,7 @@ class _DebtRow extends StatelessWidget {
       child: InkWell(
         onTap: () => showDebtSheet(context, debt),
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+          padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
           child: Row(children: [
             Avatar(name: '${debt['debtor_name'] ?? ''}', size: 44),
             const SizedBox(width: 14),

@@ -189,7 +189,7 @@ class _HomeShellState extends State<HomeShell> {
     if (item.kind == ActivityKind.sale) {
       showSaleSheet(context, item.data);
     } else {
-      showProductSheet(context, item.data);
+      openItem(context, item.data);
     }
   }
 
@@ -236,7 +236,7 @@ class _HomeShellState extends State<HomeShell> {
                     ),
                     NavItem(
                         label: t('nav.sales'), icon: Icons.receipt_long_outlined, activeIcon: Icons.receipt_long_rounded, badge: _newSales),
-                    NavItem(label: t('nav.menu'), avatarName: s.user?.name ?? '?'),
+                    NavItem(label: t('nav.menu'), logoName: s.shop?.name ?? s.user?.name ?? '?', logoUrl: s.shop?.logoUrl),
                   ],
                 ),
               ]),

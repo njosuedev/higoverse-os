@@ -73,10 +73,10 @@ class MoreScreen extends StatelessWidget {
       _ => (t('live.status_offline'), c.faint),
     };
     return Scaffold(
-      body: ListView(padding: const EdgeInsets.fromLTRB(16, 8, 16, 24), children: [
+      body: ListView(padding: const EdgeInsets.fromLTRB(8, 8, 8, 20), children: [
         Card(
           child: ListTile(
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
             leading: Avatar(name: u?.name ?? '?', size: 52, online: live?.status == LiveStatus.live),
             title: Text(u?.name ?? '', style: const TextStyle(fontWeight: FontWeight.w800)),
             subtitle: Text('${u?.email ?? ''}\n${const {'owner', 'admin', 'manager', 'cashier', 'staff'}.contains(role) ? t('role.$role') : role}'),
@@ -211,7 +211,7 @@ class MoreScreen extends StatelessWidget {
             ),
           ]),
         ),
-        const SizedBox(height: 22),
+        const SizedBox(height: 16),
         OutlinedButton.icon(
           onPressed: () => _confirmSignOut(context),
           // Neutral here; red is kept for the confirmation that actually signs out.

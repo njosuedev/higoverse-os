@@ -81,7 +81,7 @@ class _ActivityScreenState extends State<ActivityScreen> {
       case 'sales':
         if (item.kind == ActivityKind.sale) showSaleSheet(context, item.data);
       case 'stock':
-        if (item.kind != ActivityKind.purchase && item.data['id'] != null) showProductSheet(context, item.data);
+        if (item.kind != ActivityKind.purchase && item.data['id'] != null) openItem(context, item.data);
       case 'debts':
         if (item.data['id'] != null) showDebtSheet(context, item.data);
     }
@@ -130,7 +130,7 @@ class _ActivityScreenState extends State<ActivityScreen> {
             height: 52,
             child: ListView(
               scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
+              padding: const EdgeInsets.fromLTRB(10, 2, 10, 8),
               children: [
                 for (final f in filters)
                   Padding(
@@ -159,7 +159,7 @@ class _ActivityScreenState extends State<ActivityScreen> {
                 children: [
                   for (final g in groups) ...[
                     Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 6),
+                      padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
                       child: Text(g.$1, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
                     ),
                     for (final i in g.$2)
@@ -168,7 +168,7 @@ class _ActivityScreenState extends State<ActivityScreen> {
                         child: InkWell(
                           onTap: () => _open(i),
                           child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                             child: Row(children: [
                               ActivityIcon(item: i, size: 52),
                               const SizedBox(width: 14),

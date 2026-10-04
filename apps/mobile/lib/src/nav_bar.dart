@@ -2,27 +2,26 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'i18n.dart';
-import 'live/live.dart';
 import 'media.dart';
 import 'session.dart';
 import 'theme.dart';
-import 'ui.dart';
 
 /// One tab of [BottomBar].
 class NavItem {
-  const NavItem({required this.label, this.icon, this.activeIcon, this.avatarName, this.badge = 0});
+  const NavItem({required this.label, this.icon, this.activeIcon, this.logoName, this.logoUrl, this.badge = 0});
   final String label;
   final IconData? icon, activeIcon;
 
-  /// Shows this person's initials instead of an icon (the Menu tab).
-  final String? avatarName;
+  /// Shows the business logo (its initials when it has none) instead of an
+  /// icon (the Menu tab).
+  final String? logoName, logoUrl;
 
   /// Unread count shown on the icon (hidden at 0).
   final int badge;
 }
 
-/// The top of the signed-in app: the Higoverse logo and name (with live
-/// status) beside search and notifications.
+/// The top of the signed-in app: the Higoverse logo and name beside search
+/// and notifications.
 class TopBar extends StatelessWidget {
   const TopBar({
     super.key,
@@ -38,13 +37,7 @@ class TopBar extends StatelessWidget {
     final c = Hgv.of(context);
     final s = SessionScope.of(context);
     final t = T.of(context);
-    final live = LiveScope.of(context);
     final name = s.shop?.name ?? 'Higoverse';
-    final (liveLabel, liveColor) = switch (live?.status) {
-      LiveStatus.live => (t('live.live'), c.success),
-      LiveStatus.connecting => (t('live.connecting'), c.warning),
-      _ => (t('live.offline'), c.faint),
-    };
     return Material(
       color: c.chrome,
       elevation: 0,
@@ -52,22 +45,16 @@ class TopBar extends StatelessWidget {
         bottom: false,
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(14, 8, 12, 6),
+            padding: const EdgeInsets.fromLTRB(12, 6, 10, 6),
             child: Row(children: [
               // The Higoverse brand, as Facebook shows its own name up here.
-              Image.asset('assets/higoverse-logo.png', width: 36, height: 36, filterQuality: FilterQuality.medium,
+              Image.asset('assets/higoverse-logo.png', width: 32, height: 32, filterQuality: FilterQuality.medium,
                   semanticLabel: name),
-              const SizedBox(width: 9),
+              const SizedBox(width: 8),
               Expanded(
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-                  Text('Higoverse',
-                      maxLines: 1,
-                      style: TextStyle(fontSize: 23, height: 1.05, fontWeight: FontWeight.w900, letterSpacing: -0.8, color: c.ink)),
-                  Row(children: [
-                    PulseDot(color: liveColor, active: live?.status == LiveStatus.live, size: 6),
-                    Text(liveLabel, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: liveColor)),
-                  ]),
-                ]),
+                child: Text('Higoverse',
+                    maxLines: 1,
+                    style: TextStyle(fontSize: 23, height: 1.05, fontWeight: FontWeight.w900, letterSpacing: -0.8, color: c.ink)),
               ),
               RoundIconButton(icon: Icons.search_rounded, tooltip: t('search.title'), onTap: onSearch),
               const SizedBox(width: 8),
@@ -101,7 +88,7 @@ class BottomBar extends StatelessWidget {
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           Divider(height: 1, thickness: 0.6, color: c.border),
           SizedBox(
-            height: 58,
+            height: 54,
             child: Row(children: [
               for (var i = 0; i < items.length; i++)
                 Expanded(child: _Tab(item: items[i], selected: i == index, onTap: () => onTap(i))),
@@ -122,12 +109,13 @@ class _Tab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = Hgv.of(context);
-    Widget icon = item.avatarName != null
+    Widget icon = item.logoName != null
         ? Container(
             padding: const EdgeInsets.all(1.5),
             decoration: BoxDecoration(
-                shape: BoxShape.circle, border: Border.all(color: selected ? c.ink : Colors.transparent, width: 1.8)),
-            child: Avatar(name: item.avatarName!, size: 24),
+                borderRadius: BorderRadius.circular(9),
+                border: Border.all(color: selected ? c.ink : Colors.transparent, width: 1.8)),
+            child: ShopLogo(name: item.logoName!, url: item.logoUrl, size: 24),
           )
         : Icon(selected ? (item.activeIcon ?? item.icon) : item.icon, size: 25, color: selected ? c.ink : c.muted);
     if (item.badge > 0) {

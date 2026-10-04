@@ -51,21 +51,23 @@ class Hgv extends ThemeExtension<Hgv> {
     skeletonHi: Color(0xFFE2E8F0),
   );
 
+  /// Dark is Instagram's: pure black everywhere, cards and sheets set
+  /// apart only by thin #262626 lines, a near-black fill for fields.
   static const dark = Hgv(
-    ink: Color(0xFF4A9EED),
-    inkDark: Color(0xFF7CB9F2),
-    paper: Color(0xFF111317),
-    surface: Color(0xFF1B1E23),
+    ink: Color(0xFF0095F6),
+    inkDark: Color(0xFF4CB5F9),
+    paper: Color(0xFF121212),
+    surface: Colors.black,
     chrome: Colors.black,
-    border: Color(0xFF2C3138),
-    text: Color(0xFFE8EAED),
-    muted: Color(0xFFC4C8CE),
-    faint: Color(0xFFA3A9B1),
+    border: Color(0xFF262626),
+    text: Color(0xFFF5F5F5),
+    muted: Color(0xFFDBDBDB),
+    faint: Color(0xFFA8A8A8),
     success: Color(0xFF3DBF7D),
     warning: Color(0xFFE3AA48),
-    danger: Color(0xFFF0646A),
-    skeleton: Color(0xFF1F2329),
-    skeletonHi: Color(0xFF2A2F36),
+    danger: Color(0xFFED4956),
+    skeleton: Color(0xFF121212),
+    skeletonHi: Color(0xFF262626),
   );
 
   static Hgv of(BuildContext context) => Theme.of(context).extension<Hgv>() ?? light;
@@ -93,7 +95,10 @@ SystemUiOverlayStyle systemBars(Hgv c, Brightness brightness) {
 }
 
 ThemeData buildTheme(Brightness brightness) {
-  final c = brightness == Brightness.dark ? Hgv.dark : Hgv.light;
+  final dark = brightness == Brightness.dark;
+  final c = dark ? Hgv.dark : Hgv.light;
+  // Sheets and dialogs: on black they need a line to show where they start.
+  final sheetSide = dark ? BorderSide(color: c.border) : BorderSide.none;
   final scheme = ColorScheme.fromSeed(
     seedColor: c.ink,
     brightness: brightness,
@@ -130,15 +135,15 @@ ThemeData buildTheme(Brightness brightness) {
       elevation: 0,
       margin: EdgeInsets.zero,
       shape: RoundedRectangleBorder(
-        borderRadius: const BorderRadius.all(Radius.circular(12)),
-        side: BorderSide(color: c.border.withValues(alpha: 0.7)),
+        borderRadius: const BorderRadius.all(Radius.circular(10)),
+        side: BorderSide(color: dark ? c.border : c.border.withValues(alpha: 0.7)),
       ),
     ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
-      fillColor: c.surface,
+      fillColor: dark ? c.paper : c.surface,
       hintStyle: TextStyle(color: c.faint),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
       border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: c.border)),
       enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: c.border)),
       focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: c.ink, width: 1.5)),
@@ -147,7 +152,7 @@ ThemeData buildTheme(Brightness brightness) {
       style: FilledButton.styleFrom(
         backgroundColor: c.ink,
         foregroundColor: Colors.white,
-        minimumSize: const Size.fromHeight(50),
+        minimumSize: const Size.fromHeight(46),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
       ),
@@ -162,8 +167,8 @@ ThemeData buildTheme(Brightness brightness) {
     listTileTheme: ListTileThemeData(
       titleTextStyle: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: c.text),
       subtitleTextStyle: TextStyle(fontSize: 12.5, color: c.faint),
-      minVerticalPadding: 8,
-      horizontalTitleGap: 12,
+      minVerticalPadding: 4,
+      horizontalTitleGap: 10,
     ),
     navigationBarTheme: NavigationBarThemeData(
       height: 60,
@@ -179,9 +184,19 @@ ThemeData buildTheme(Brightness brightness) {
     dividerTheme: DividerThemeData(color: c.border, space: 1),
     bottomSheetTheme: BottomSheetThemeData(
       backgroundColor: c.surface,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      surfaceTintColor: Colors.transparent,
+      shape: RoundedRectangleBorder(side: sheetSide, borderRadius: const BorderRadius.vertical(top: Radius.circular(16))),
     ),
     badgeTheme: BadgeThemeData(backgroundColor: c.danger, textColor: Colors.white),
-    dialogTheme: DialogThemeData(backgroundColor: c.surface),
+    dialogTheme: DialogThemeData(
+      backgroundColor: c.surface,
+      surfaceTintColor: Colors.transparent,
+      shape: RoundedRectangleBorder(side: sheetSide, borderRadius: BorderRadius.circular(16)),
+    ),
+    popupMenuTheme: PopupMenuThemeData(
+      color: c.surface,
+      surfaceTintColor: Colors.transparent,
+      shape: RoundedRectangleBorder(side: sheetSide, borderRadius: BorderRadius.circular(12)),
+    ),
   );
 }

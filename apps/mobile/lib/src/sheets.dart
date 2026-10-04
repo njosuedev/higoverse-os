@@ -2,9 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'charts.dart';
-import 'config.dart';
 import 'format.dart';
 import 'i18n.dart';
+import 'live/scoped_route.dart';
+import 'screens/item_screen.dart';
 import 'session.dart';
 import 'theme.dart';
 import 'widgets.dart';
@@ -23,7 +24,6 @@ Future<void> _sheet(BuildContext context, WidgetBuilder builder) => showModalBot
       isScrollControlled: true,
       useSafeArea: true,
       backgroundColor: Hgv.of(context).surface,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (c) => DraggableScrollableSheet(
         expand: false,
         initialChildSize: 0.62,
@@ -31,7 +31,7 @@ Future<void> _sheet(BuildContext context, WidgetBuilder builder) => showModalBot
         maxChildSize: 0.95,
         builder: (c, scroll) => SingleChildScrollView(
           controller: scroll,
-          padding: const EdgeInsets.fromLTRB(20, 0, 20, 28),
+          padding: const EdgeInsets.fromLTRB(14, 0, 14, 20),
           child: builder(c),
         ),
       ),
@@ -98,95 +98,10 @@ Future<void> showSaleSheet(BuildContext context, Map<String, dynamic> sale) {
   });
 }
 
-/// One product or vehicle: price, stock, details, and its latest sales.
-Future<void> showProductSheet(BuildContext context, Map<String, dynamic> item) {
-  final s = SessionScope.of(context);
-  final recent = s.api.get('${Svc.sales}/sales', query: {'page': '1', 'limit': '5', 'product_id': '${item['id']}'});
-  return _sheet(context, (context) {
-    final t = T.of(context);
-    final c = Hgv.of(context);
-    final a = attributesOf(item['attributes']);
-    final qty = _n(item['quantity']);
-    final low = qty > 0 && qty <= s.lowStock;
-    final status = qty <= 0
-        ? (t('dash.out_of_stock'), c.danger)
-        : s.isCar
-            ? (a['sale_status'] == 'pending' ? (t('stock.f_pending'), c.warning) : (t('stock.f_available'), c.success))
-            : (low ? (t('detail.low'), c.warning) : (t('stock.in_stock_n', {'n': groupDigits(qty)}), c.success));
-    final rows = <(String, String)>[
-      if (!s.isCar) (t('detail.in_stock'), groupDigits(qty)),
-      if (s.isCar) ...[
-        (t('detail.plate'), a['plate_no'] ?? ''),
-        (t('detail.chassis'), a['chassis_no'] ?? ''),
-        (t('detail.year'), a['year'] ?? ''),
-        (t('detail.colour'), a['color'] ?? ''),
-        (t('detail.type'), a['car_type'] ?? ''),
-        if (a['sale_status'] == 'pending') ...[
-          (t('detail.buyer'), [a['buyer_name'], a['buyer_phone']].where((x) => x != null && x.isNotEmpty).join(' · ')),
-          (t('detail.buyer_id'), a['buyer_id_no'] ?? ''),
-        ],
-        if ((int.tryParse(a['penalty_count'] ?? '') ?? 0) > 0)
-          (t('detail.fines'), '${a['penalty_count']} · ${groupDigits(num.tryParse(a['penalty_amount'] ?? '') ?? 0)} ${s.currency}'),
-      ],
-      ('${item['category'] ?? ''}'.isEmpty ? '' : t('detail.category'), '${item['category'] ?? ''}'),
-      if (!s.isCar) (t('detail.barcode'), '${item['barcode'] ?? ''}'),
-    ].where((r) => r.$1.isNotEmpty && r.$2.isNotEmpty).toList();
-
-    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      _heading(context, '${item['name'] ?? ''}', null),
-      const SizedBox(height: 10),
-      Row(children: [
-        StatusChip(status.$1, status.$2),
-        const Spacer(),
-        Text(money(_n(item['selling_price']), s.currency), style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900)),
-      ]),
-      if (!s.isCar) ...[
-        const SizedBox(height: 14),
-        // Full bar at three times the low-stock level: plenty.
-        Meter(
-          value: s.lowStock <= 0 ? 1 : qty / (s.lowStock * 3),
-          color: qty <= 0 ? c.danger : (low ? c.warning : c.success),
-          height: 8,
-        ),
-      ],
-      const SizedBox(height: 10),
-      for (final r in rows) InfoRow(r.$1, r.$2),
-      const Divider(height: 28),
-      Text(t('detail.recent_sales'), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
-      const SizedBox(height: 6),
-      FutureBuilder<dynamic>(
-        future: recent,
-        builder: (context, snap) {
-          if (snap.connectionState != ConnectionState.done) {
-            return const Shimmer(child: Column(children: [RowSkeleton(leading: RowLead.none, titleWidth: 140)]));
-          }
-          final list = snap.hasData ? (((snap.data as Map)['data'] as Map?)?['items'] as List? ?? const []) : const [];
-          if (list.isEmpty) {
-            return Padding(
-              padding: const EdgeInsets.symmetric(vertical: 10),
-              child: Text(snap.hasError ? errorText(t, snap.error!) : t('detail.no_sales'), style: TextStyle(color: c.faint)),
-            );
-          }
-          return Column(children: [
-            for (final raw in list.whereType<Map>())
-              Builder(builder: (context) {
-                final sale = Map<String, dynamic>.from(raw);
-                return ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  dense: true,
-                  onTap: () => showSaleSheet(context, sale),
-                  title: Text('${sale['quantity'] ?? 1} × ${groupDigits(_n(sale['unit_price']))}',
-                      style: const TextStyle(fontWeight: FontWeight.w700)),
-                  subtitle: Text('${payLabel(t, sale['payment_method'] as String?)} · ${t.dateTime(sale['created_at'] as String?)}'),
-                  trailing: Text(money(_n(sale['total_amount']), s.currency), style: const TextStyle(fontWeight: FontWeight.w800)),
-                );
-              }),
-          ]);
-        },
-      ),
-    ]);
-  });
-}
+/// One product or vehicle on its own page (photos, details, who has the
+/// car, latest sales).
+Future<void> openItem(BuildContext context, Map<String, dynamic> item) =>
+    pushScoped<void>(context, ItemScreen(item: item));
 
 /// One debt: who, how much is left, and quick ways to reach them.
 Future<void> showDebtSheet(BuildContext context, Map<String, dynamic> d) {

@@ -82,7 +82,7 @@ class _StockCirclesState extends State<StockCircles> {
                       onTap: () {
                         HapticFeedback.selectionClick();
                         if (i == active) {
-                          showProductSheet(context, items[i]);
+                          openItem(context, items[i]);
                         } else {
                           setState(() => _active = i);
                         }
@@ -120,7 +120,7 @@ class _StockCirclesState extends State<StockCircles> {
             shape: const StadiumBorder(),
             child: InkWell(
               customBorder: const StadiumBorder(),
-              onTap: () => showProductSheet(context, it),
+              onTap: () => openItem(context, it),
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
                 child: Text(t('story.view_short'), style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: c.danger)),

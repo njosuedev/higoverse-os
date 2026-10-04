@@ -257,7 +257,7 @@ class InfoRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 7),
+        padding: const EdgeInsets.symmetric(vertical: 5),
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Expanded(
               flex: 4, child: Text(label, style: TextStyle(color: Hgv.of(context).muted, fontWeight: FontWeight.w500))),
@@ -277,7 +277,7 @@ class InfoRow extends StatelessWidget {
 
 /// A rounded card with a title row — the dashboard's building block.
 class Panel extends StatelessWidget {
-  const Panel({super.key, this.title, this.trailing, required this.child, this.padding = const EdgeInsets.all(16), this.onTap});
+  const Panel({super.key, this.title, this.trailing, required this.child, this.padding = const EdgeInsets.all(12), this.onTap});
   final String? title;
   final Widget? trailing;
   final Widget child;
@@ -295,7 +295,7 @@ class Panel extends StatelessWidget {
                 child: Text(title!, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, letterSpacing: -0.2))),
             if (trailing != null) trailing!,
           ]),
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
         ],
         child,
       ]),

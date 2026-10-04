@@ -206,7 +206,7 @@ class _DashboardScreenState extends State<DashboardScreen> with LiveListener {
           physics: const AlwaysScrollableScrollPhysics(),
           slivers: [
             SliverPadding(
-              padding: const EdgeInsets.fromLTRB(12, 12, 12, 28),
+              padding: const EdgeInsets.fromLTRB(8, 8, 8, 20),
               sliver: SliverList.list(children: [
                 if (_error != null && !_hasData)
                   EmptyState(icon: Icons.cloud_off_outlined, message: errorText(t, _error!), onRetry: _load)
@@ -307,9 +307,9 @@ class _DashboardScreenState extends State<DashboardScreen> with LiveListener {
         const SizedBox(height: 4),
       ],
       const ActiveNowRow(),
-      const SizedBox(height: 12),
+      const SizedBox(height: 8),
       _overview(s, t),
-      const SizedBox(height: 10),
+      const SizedBox(height: 8),
       // ── Status strip ──
       if (s.isCar)
         Row(children: [
@@ -353,7 +353,7 @@ class _DashboardScreenState extends State<DashboardScreen> with LiveListener {
       else
         Card(
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+            padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
             child: StockCircles(
               items: _alerts,
               total: low.toInt() > _alerts.length ? low.toInt() : _alerts.length,
@@ -435,7 +435,7 @@ class _DashboardScreenState extends State<DashboardScreen> with LiveListener {
     final weekTotal = bars.fold<double>(0, (a, b) => a + b.value);
     return Card(
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
+        padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
             Text(t('dash.today'), style: TextStyle(fontSize: 12, color: c.muted, fontWeight: FontWeight.w700)),
@@ -559,7 +559,7 @@ class _AlertCard extends StatelessWidget {
         onTap: onTap,
         child: Container(
           decoration: BoxDecoration(border: Border(left: BorderSide(color: color, width: 3))),
-          padding: const EdgeInsets.fromLTRB(12, 10, 10, 10),
+          padding: const EdgeInsets.fromLTRB(10, 8, 8, 8),
           child: Row(children: [
             IconAvatar(icon: icon, color: color, size: 34),
             const SizedBox(width: 10),
@@ -664,7 +664,7 @@ class _ArrivalCard extends StatelessWidget {
       child: Card(
         clipBehavior: Clip.antiAlias,
         child: InkWell(
-          onTap: () => showProductSheet(context, item),
+          onTap: () => openItem(context, item),
           child: Flash(
             flash: flash,
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -730,7 +730,7 @@ class _TopSellers extends StatelessWidget {
     final max = top.fold<num>(0, (m, p) => value(p) > m ? value(p) : m);
     return Card(
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+        padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
         child: Column(children: [
           for (var i = 0; i < top.length; i++)
             Padding(

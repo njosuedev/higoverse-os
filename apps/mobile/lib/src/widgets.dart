@@ -20,7 +20,7 @@ class SectionTitle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.fromLTRB(2, 18, 2, 8),
+        padding: const EdgeInsets.fromLTRB(4, 14, 4, 6),
         child: Row(children: [
           Expanded(
             child: Text(text.toUpperCase(),
@@ -42,7 +42,7 @@ class FigureTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Card(
         child: Padding(
-          padding: const EdgeInsets.all(14),
+          padding: const EdgeInsets.all(12),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [
               Expanded(

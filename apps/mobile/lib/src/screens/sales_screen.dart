@@ -177,7 +177,7 @@ class _SalesScreenState extends State<SalesScreen> with LiveListener {
       body: Column(children: [
         Container(
           color: Hgv.of(context).chrome,
-          padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+          padding: const EdgeInsets.fromLTRB(10, 2, 10, 8),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             SegmentedButton<int>(
               segments: [for (final p in _periods) ButtonSegment(value: p.$1, label: Text(t(p.$2), maxLines: 1, overflow: TextOverflow.ellipsis))],
@@ -269,7 +269,7 @@ class _SalesScreenState extends State<SalesScreen> with LiveListener {
                               if (!newDay) return tile;
                               return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                                 Padding(
-                                  padding: EdgeInsets.fromLTRB(16, i == 0 ? 8 : 18, 16, 4),
+                                  padding: EdgeInsets.fromLTRB(12, i == 0 ? 6 : 12, 12, 2),
                                   child: Text(_dayLabel(t, when),
                                       style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: Hgv.of(context).muted)),
                                 ),

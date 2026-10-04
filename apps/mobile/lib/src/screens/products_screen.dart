@@ -162,7 +162,7 @@ class _ProductsScreenState extends State<ProductsScreen> with LiveListener {
       body: Column(children: [
         Container(
           color: Hgv.of(context).chrome,
-          padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
+          padding: const EdgeInsets.fromLTRB(10, 2, 10, 8),
           child: Column(children: [
             TextField(
               controller: _search,
@@ -286,7 +286,7 @@ class _ProductRow extends StatelessWidget {
         ? [a['year'], a['color'], a['plate_no']].where((x) => x != null && x.isNotEmpty).join(' · ')
         : (qty <= 0 ? t('dash.out_of_stock') : t('stock.in_stock_n', {'n': groupDigits(qty)}));
     return ListTile(
-      onTap: () => showProductSheet(context, item),
+      onTap: () => openItem(context, item),
       leading: ProductThumb(item['thumbnail'] as String?, isCar: isCar),
       title: Text('${item['name'] ?? ''}', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700)),
       subtitle: Padding(
