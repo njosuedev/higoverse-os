@@ -4,9 +4,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import 'charts.dart';
 import 'config.dart';
 import 'covers.dart';
 import 'format.dart';
+import 'holder.dart';
 import 'i18n.dart';
 import 'session.dart';
 import 'sheets.dart';
@@ -81,7 +83,8 @@ class _StoryCard extends StatelessWidget {
     final c = Hgv.of(context);
     final a = story.attrs;
     final ring = _seen.contains(story.id) ? c.faint : _ring(context, story.kind);
-    final caption = story.kind == StoryKind.fines
+    // Fines: who has the car (the one to call about them); pending: the buyer.
+    final fallback = story.kind == StoryKind.fines
         ? _finesLine(t, s, a)
         : (a['buyer_name'] ?? '').isNotEmpty
             ? a['buyer_name']!
@@ -137,10 +140,28 @@ class _StoryCard extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(color: Colors.white, fontSize: 12.5, fontWeight: FontWeight.w800, height: 1.15)),
                   const SizedBox(height: 2),
-                  Text(caption,
+                  Text(fallback,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(color: Color(0xE6FFFFFF), fontSize: 11, fontWeight: FontWeight.w600)),
+                  if (story.kind == StoryKind.fines)
+                    FutureBuilder<CarHolder?>(
+                      future: carHolder(s, story.vehicle),
+                      builder: (context, snap) {
+                        final h = snap.data;
+                        if (h == null || h.name == '—') return const SizedBox.shrink();
+                        return Row(children: [
+                          const Icon(Icons.person_rounded, size: 11, color: Color(0xCCFFFFFF)),
+                          const SizedBox(width: 3),
+                          Expanded(
+                            child: Text(h.name,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(color: Color(0xCCFFFFFF), fontSize: 10.5, fontWeight: FontWeight.w600)),
+                          ),
+                        ]);
+                      },
+                    ),
                 ]),
               ),
             ]),
@@ -199,7 +220,7 @@ class StoryViewer extends StatefulWidget {
 
 class _StoryViewerState extends State<StoryViewer> with SingleTickerProviderStateMixin {
   late int _i = widget.initial;
-  late final _clock = AnimationController(vsync: this, duration: const Duration(seconds: 6))
+  late final _clock = AnimationController(vsync: this, duration: const Duration(seconds: 8))
     ..addStatusListener((s) {
       if (s == AnimationStatus.completed) _next();
     });
@@ -264,7 +285,6 @@ class _StoryViewerState extends State<StoryViewer> with SingleTickerProviderStat
     final s = SessionScope.of(context);
     final story = _story;
     final v = story.vehicle;
-    final a = story.attrs;
     final color = _ring(context, story.kind);
     final added = parseTimestamp(v['created_at']);
     final top = MediaQuery.paddingOf(context).top;
@@ -397,10 +417,10 @@ class _StoryViewerState extends State<StoryViewer> with SingleTickerProviderStat
                   bottom: MediaQuery.paddingOf(context).bottom + 12,
                   child: _VehicleCard(
                     story: story,
+                    holder: carHolder(s, v),
                     onDetails: () => _pausedWhile(() => showProductSheet(context, v)),
-                    onCall: (a['buyer_phone'] ?? '').isEmpty
-                        ? null
-                        : () => _pausedWhile(() => launchUrl(Uri(scheme: 'tel', path: a['buyer_phone']))),
+                    onCall: (phone) => _pausedWhile(() => launchUrl(Uri(scheme: 'tel', path: phone))),
+                    onSms: (phone) => _pausedWhile(() => launchUrl(Uri(scheme: 'sms', path: phone))),
                     currency: s.currency,
                   ),
                 ),
@@ -430,12 +450,23 @@ class _Pill extends StatelessWidget {
       );
 }
 
-/// The story's card: what the vehicle is, and what needs doing.
+/// The story's card: the vehicle, what is wrong, and who has it — with the
+/// customer's phone to call. A car sold on credit or partly paid stays in the
+/// company's name until it is fully paid and transferred, so its fines reach
+/// the company: the customer driving it is the one to call.
 class _VehicleCard extends StatelessWidget {
-  const _VehicleCard({required this.story, required this.onDetails, required this.currency, this.onCall});
+  const _VehicleCard({
+    required this.story,
+    required this.holder,
+    required this.onDetails,
+    required this.onCall,
+    required this.onSms,
+    required this.currency,
+  });
   final Story story;
+  final Future<CarHolder?> holder;
   final VoidCallback onDetails;
-  final VoidCallback? onCall;
+  final ValueChanged<String> onCall, onSms;
   final String currency;
 
   @override
@@ -447,18 +478,7 @@ class _VehicleCard extends StatelessWidget {
     final color = _ring(context, story.kind);
     final fines = int.tryParse(a['penalty_count'] ?? '') ?? 0;
     final fineAmount = num.tryParse(a['penalty_amount'] ?? '') ?? 0;
-    final specs = [a['plate_no'], a['year'], a['color'], a['car_type']].where((x) => x != null && x.isNotEmpty).join(' · ');
-
-    Widget fact(String label, String value, {Color? tone}) => Expanded(
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(label, style: TextStyle(fontSize: 11, color: c.faint, fontWeight: FontWeight.w600)),
-            const SizedBox(height: 1),
-            Text(value,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: tone ?? c.text)),
-          ]),
-        );
+    final specs = [a['plate_no'], a['year'], a['color']].where((x) => x != null && x.isNotEmpty).join(' · ');
 
     return Container(
       decoration: BoxDecoration(
@@ -469,60 +489,188 @@ class _VehicleCard extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
+          // ── The vehicle ──
           Row(children: [
             Expanded(
-              child: Text('${v['name'] ?? ''}',
-                  maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w900, letterSpacing: -0.3)),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('${v['name'] ?? ''}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 16.5, fontWeight: FontWeight.w900, letterSpacing: -0.3)),
+                if (specs.isNotEmpty) Text(specs, style: TextStyle(fontSize: 12, color: c.faint, fontWeight: FontWeight.w500)),
+              ]),
             ),
-            StatusChip(story.kind == StoryKind.fines ? (fines == 1 ? t('stock.fine_one') : t('stock.fines_n', {'n': fines})) : t('stock.f_pending'),
-                color),
+            if (story.kind == StoryKind.fines)
+              Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                StatusChip(fines == 1 ? t('stock.fine_one') : t('stock.fines_n', {'n': fines}), color),
+                if (fineAmount > 0) ...[
+                  const SizedBox(height: 3),
+                  Text(money(fineAmount, currency), style: TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: color)),
+                ],
+              ])
+            else
+              StatusChip(t('stock.f_pending'), color),
           ]),
-          if (specs.isNotEmpty) Text(specs, style: TextStyle(fontSize: 12.5, color: c.faint, fontWeight: FontWeight.w500)),
           const SizedBox(height: 10),
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(color: color.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(12)),
-            child: story.kind == StoryKind.fines
-                ? Row(children: [
-                    fact(t('story.fine_total'), fineAmount > 0 ? money(fineAmount, currency) : '—', tone: color),
-                    fact(t('detail.chassis'), a['chassis_no'] ?? '—'),
-                  ])
-                : Column(children: [
-                    Row(children: [
-                      fact(t('detail.buyer'), (a['buyer_name'] ?? '').isEmpty ? '—' : a['buyer_name']!),
-                      fact(t('story.phone'), (a['buyer_phone'] ?? '').isEmpty ? '—' : a['buyer_phone']!),
-                    ]),
-                    const SizedBox(height: 8),
-                    Row(children: [
-                      fact(t('detail.buyer_id'), (a['buyer_id_no'] ?? '').isEmpty ? '—' : a['buyer_id_no']!),
-                      fact(t('detail.price'), money(v['selling_price'] as num? ?? 0, currency)),
-                    ]),
-                  ]),
+          // ── Who has it ──
+          FutureBuilder<CarHolder?>(
+            future: holder,
+            builder: (context, snap) {
+              if (snap.connectionState != ConnectionState.done) {
+                return Container(
+                  height: 86,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(color: c.paper, borderRadius: BorderRadius.circular(12)),
+                  child: const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2.4)),
+                );
+              }
+              return _HolderBlock(holder: snap.data, kind: story.kind, currency: currency);
+            },
           ),
           const SizedBox(height: 10),
-          Row(children: [
-            Expanded(
-              child: FilledButton.icon(
-                style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(42), textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
-                onPressed: onDetails,
-                icon: const Icon(Icons.directions_car_rounded, size: 18),
-                label: Text(t('story.view')),
-              ),
-            ),
-            if (onCall != null) ...[
-              const SizedBox(width: 8),
-              Expanded(
-                child: OutlinedButton.icon(
-                  style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(42)),
-                  onPressed: onCall,
-                  icon: const Icon(Icons.call_rounded, size: 18),
-                  label: Text(t('story.call_buyer')),
+          // ── Actions ──
+          FutureBuilder<CarHolder?>(
+            future: holder,
+            builder: (context, snap) {
+              final phone = snap.data?.phone ?? '';
+              return Row(children: [
+                if (phone.isNotEmpty) ...[
+                  Expanded(
+                    flex: 3,
+                    child: FilledButton.icon(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: c.success,
+                        minimumSize: const Size.fromHeight(42),
+                        textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800),
+                      ),
+                      onPressed: () => onCall(phone),
+                      icon: const Icon(Icons.call_rounded, size: 18),
+                      label: Text(t('debts.call')),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  _SquareButton(icon: Icons.chat_bubble_outline_rounded, tooltip: t('debts.sms'), onTap: () => onSms(phone)),
+                  const SizedBox(width: 8),
+                ],
+                Expanded(
+                  flex: 2,
+                  child: OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(42)),
+                    onPressed: onDetails,
+                    icon: const Icon(Icons.directions_car_rounded, size: 18),
+                    label: Text(t('story.view_short')),
+                  ),
                 ),
-              ),
-            ],
-          ]),
+              ]);
+            },
+          ),
         ]),
       ),
+    );
+  }
+}
+
+class _SquareButton extends StatelessWidget {
+  const _SquareButton({required this.icon, required this.tooltip, required this.onTap});
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = Hgv.of(context);
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: c.paper,
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: onTap,
+          child: SizedBox(width: 46, height: 42, child: Icon(icon, size: 20, color: c.ink)),
+        ),
+      ),
+    );
+  }
+}
+
+/// The customer who has the car: who, how to reach them, what they owe.
+class _HolderBlock extends StatelessWidget {
+  const _HolderBlock({required this.holder, required this.kind, required this.currency});
+  final CarHolder? holder;
+  final StoryKind kind;
+  final String currency;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = T.of(context);
+    final c = Hgv.of(context);
+    final h = holder;
+    if (h == null) {
+      return Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(color: c.paper, borderRadius: BorderRadius.circular(12)),
+        child: Row(children: [
+          Icon(Icons.person_off_outlined, color: c.faint, size: 20),
+          const SizedBox(width: 10),
+          Expanded(child: Text(t('story.no_holder'), style: TextStyle(fontSize: 12.5, color: c.muted))),
+        ]),
+      );
+    }
+    final (payLabel, payColor) = switch (h.pay) {
+      PayState.paid => (t('story.paid_full'), c.success),
+      PayState.partial => (t('story.partly_paid'), c.warning),
+      PayState.credit => (t('story.on_credit'), c.danger),
+      PayState.unknown => (null, c.faint),
+    };
+    final contact = [h.phone, if (h.idNumber.isNotEmpty) '${t('story.id')} ${h.idNumber}'].where((x) => x.isNotEmpty).join(' · ');
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+      decoration: BoxDecoration(color: c.paper, borderRadius: BorderRadius.circular(12)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(t('story.holder').toUpperCase(),
+            style: TextStyle(fontSize: 10.5, letterSpacing: 0.6, fontWeight: FontWeight.w800, color: c.faint)),
+        const SizedBox(height: 6),
+        Row(children: [
+          Avatar(name: h.name, size: 40),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(h.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
+              if (contact.isNotEmpty)
+                Text(contact, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, color: c.muted)),
+              if (h.address.isNotEmpty)
+                Text(h.address, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, color: c.faint)),
+            ]),
+          ),
+          if (payLabel != null) StatusChip(payLabel, payColor),
+        ]),
+        if (h.total != null && h.paid != null && h.total! > 0) ...[
+          const SizedBox(height: 9),
+          Meter(value: h.paid! / h.total!, color: c.success, height: 6),
+          const SizedBox(height: 4),
+          Row(children: [
+            Expanded(
+              child: Text(t('debts.paid_of', {'paid': money(h.paid!, currency), 'owed': money(h.total!, currency)}),
+                  maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 11.5, color: c.muted)),
+            ),
+            if ((h.balance ?? 0) > 0)
+              Text(t('story.owes', {'amount': money(h.balance!, currency)}),
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: c.danger)),
+          ]),
+        ],
+        if (kind == StoryKind.fines) ...[
+          const SizedBox(height: 8),
+          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Icon(Icons.info_outline_rounded, size: 14, color: c.warning),
+            const SizedBox(width: 5),
+            Expanded(
+              child: Text(t('story.not_transferred'),
+                  style: TextStyle(fontSize: 11.5, color: c.warning, fontWeight: FontWeight.w600, height: 1.3)),
+            ),
+          ]),
+        ],
+      ]),
     );
   }
 }

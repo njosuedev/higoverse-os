@@ -13,6 +13,7 @@ import '../sheets.dart';
 import '../stock_circles.dart';
 import '../stories.dart';
 import '../covers.dart';
+import '../holder.dart';
 import '../theme.dart';
 import '../widgets.dart';
 import 'activity_screen.dart';
@@ -83,6 +84,8 @@ class _DashboardScreenState extends State<DashboardScreen> with LiveListener {
   @override
   void onLive(LiveEvent e) {
     final id = e.data['id'];
+    // Who has which car, and what they still owe, may have changed.
+    if (e.topic == 'sale' || e.topic == 'debt' || e.isResync) forgetHolders(SessionScope.of(context));
     switch (e.topic) {
       case 'sale':
         if (e.type == 'sale.created' && id != null) _flash.add('$id');
