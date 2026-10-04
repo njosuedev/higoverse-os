@@ -16,4 +16,5 @@ class Svc {
   static const sales = '/sales';
   static const settings = '/settings';
   static const suppliers = '/suppliers';
+  static const expenses = '/expenses';
 }

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../config.dart';
 import '../format.dart';
+import '../forms.dart';
 import '../i18n.dart';
 import '../live/live.dart';
 import '../session.dart';
@@ -159,6 +160,17 @@ class _ProductsScreenState extends State<ProductsScreen> with LiveListener {
     final s = SessionScope.of(context);
     final t = T.of(context);
     return Scaffold(
+      floatingActionButton: s.isCar
+          ? null
+          : FloatingActionButton.extended(
+              heroTag: 'product',
+              onPressed: () async {
+                final p = await editProduct(context);
+                if (p != null && mounted) _reload();
+              },
+              icon: const Icon(Icons.add),
+              label: Text(t('form.new_product')),
+            ),
       body: Column(children: [
         Container(
           color: Hgv.of(context).chrome,
@@ -233,7 +245,7 @@ class _ProductsScreenState extends State<ProductsScreen> with LiveListener {
                         : ListView.separated(
                             controller: _scroll,
                             physics: const AlwaysScrollableScrollPhysics(),
-                            padding: const EdgeInsets.symmetric(vertical: 6),
+                            padding: const EdgeInsets.fromLTRB(0, 6, 0, 88),
                             itemCount: _items.length + (_loading || _error != null ? 1 : 0),
                             separatorBuilder: (_, __) => const Divider(indent: 16, endIndent: 16),
                             itemBuilder: (context, i) => i < _items.length

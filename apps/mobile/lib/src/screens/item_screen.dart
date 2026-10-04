@@ -8,6 +8,7 @@ import '../charts.dart';
 import '../config.dart';
 import '../covers.dart';
 import '../format.dart';
+import '../forms.dart';
 import '../holder.dart';
 import '../i18n.dart';
 import '../session.dart';
@@ -84,6 +85,23 @@ class _ItemScreenState extends State<ItemScreen> {
       ),
       transitionsBuilder: (_, a, __, child) => FadeTransition(opacity: a, child: child),
     ));
+  }
+
+  Future<void> _sell() async {
+    if (!await recordSale(context, product: _item) || !mounted) return;
+    final s = SessionScope.of(context);
+    setState(() => _recent = s.api.get('${Svc.sales}/sales', query: {'page': '1', 'limit': '5', 'product_id': _id}));
+    _loadFull(s);
+  }
+
+  Future<void> _restock() async {
+    final next = await restock(context, _item);
+    if (next != null && mounted) setState(() => _item = {..._item, 'quantity': next});
+  }
+
+  Future<void> _edit() async {
+    final saved = await editProduct(context, product: _item);
+    if (saved != null && mounted) setState(() => _item = {..._item, ...saved}..remove('images'));
   }
 
   void _say(String key) {
@@ -188,12 +206,18 @@ class _ItemScreenState extends State<ItemScreen> {
       if (!s.isCar) (t('detail.barcode'), '${item['barcode'] ?? ''}'),
     ].where((r) => r.$1.isNotEmpty && r.$2.isNotEmpty).toList();
     final showHolder = s.isCar && (qty <= 0 || pending);
+    // A car waiting for its transfer is already sold.
+    final canSell = qty > 0 && !(s.isCar && pending);
     final width = MediaQuery.sizeOf(context).width;
 
     return Scaffold(
       appBar: AppBar(
         title: Text('${item['name'] ?? ''}', maxLines: 1, overflow: TextOverflow.ellipsis),
         titleTextStyle: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: c.text),
+        actions: [
+          if (!s.isCar && _id.isNotEmpty)
+            IconButton(tooltip: t('form.edit_product'), icon: const Icon(Icons.edit_outlined), onPressed: _edit),
+        ],
       ),
       body: ListView(padding: EdgeInsets.zero, children: [
         // ── Photos ──
@@ -295,6 +319,29 @@ class _ItemScreenState extends State<ItemScreen> {
             if ('${item['description'] ?? ''}'.trim().isNotEmpty) ...[
               const SizedBox(height: 8),
               Text('${item['description']}'.trim(), style: TextStyle(fontSize: 13.5, color: c.muted, height: 1.35)),
+            ],
+            if (_id.isNotEmpty && (canSell || !s.isCar)) ...[
+              const SizedBox(height: 12),
+              Row(children: [
+                if (canSell)
+                  Expanded(
+                    child: FilledButton.icon(
+                      onPressed: _sell,
+                      icon: const Icon(Icons.point_of_sale_outlined, size: 20),
+                      label: Text(t('form.sell')),
+                    ),
+                  ),
+                if (canSell && !s.isCar) const SizedBox(width: 10),
+                if (!s.isCar)
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(46)),
+                      onPressed: _restock,
+                      icon: const Icon(Icons.add_box_outlined, size: 20),
+                      label: Text(t('form.restock')),
+                    ),
+                  ),
+              ]),
             ],
             const SizedBox(height: 4),
             for (final r in rows) InfoRow(r.$1, r.$2),

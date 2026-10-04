@@ -12,6 +12,7 @@ import '../theme.dart';
 import '../updates/update_controller.dart';
 import '../widgets.dart';
 import 'activity_screen.dart';
+import 'expenses_screen.dart';
 
 /// Account: who is signed in, for which business, live updates and
 /// notifications, preferences and sign-out.
@@ -109,6 +110,16 @@ class MoreScreen extends StatelessWidget {
               trailing: const Icon(Icons.chevron_right),
               onTap: () => openDebts(context),
             ),
+            if (s.canSeeFinancials) ...[
+              const Divider(indent: 16, endIndent: 16),
+              ListTile(
+                leading: const Icon(Icons.request_quote_outlined),
+                title: Text(t('exp.title')),
+                subtitle: Text(t('exp.menu_sub')),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => openExpenses(context),
+              ),
+            ],
           ]),
         ),
         SectionTitle(t('acc.notifications')),

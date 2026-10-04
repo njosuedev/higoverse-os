@@ -3,6 +3,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import 'charts.dart';
 import 'format.dart';
+import 'forms.dart';
 import 'i18n.dart';
 import 'live/scoped_route.dart';
 import 'screens/item_screen.dart';
@@ -140,6 +141,17 @@ Future<void> showDebtSheet(BuildContext context, Map<String, dynamic> d) {
       InfoRow(t('sale.paid'), money(paid, s.currency)),
       InfoRow(t('debts.since'), t.dateTime(d['created_at'] as String?)),
       if ('${d['notes'] ?? ''}'.trim().isNotEmpty) InfoRow(t('sale.notes'), '${d['notes']}'),
+      if (!settled && balance > 0) ...[
+        const SizedBox(height: 16),
+        FilledButton.icon(
+          style: FilledButton.styleFrom(backgroundColor: c.success),
+          onPressed: () async {
+            if (await recordDebtPayment(context, d) && context.mounted) Navigator.pop(context);
+          },
+          icon: const Icon(Icons.payments_outlined),
+          label: Text(t('form.record_payment')),
+        ),
+      ],
       if (phone.isNotEmpty) ...[
         const SizedBox(height: 16),
         Row(children: [

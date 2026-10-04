@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../charts.dart';
 import '../config.dart';
 import '../format.dart';
+import '../forms.dart';
 import '../i18n.dart';
 import '../live/live.dart';
 import '../session.dart';
@@ -78,6 +79,13 @@ class _DebtsScreenState extends State<DebtsScreen> with LiveListener {
     final items = _items;
     return Scaffold(
       appBar: AppBar(title: Text(t('debts.title'))),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () async {
+          if (await recordDebt(context)) _load(quiet: true);
+        },
+        icon: const Icon(Icons.add),
+        label: Text(t('form.new_debt')),
+      ),
       body: Column(children: [
         Container(
           color: c.chrome,
@@ -107,7 +115,7 @@ class _DebtsScreenState extends State<DebtsScreen> with LiveListener {
                     ? ListView(children: const [ListSkeleton(count: 8)])
                     : ListView(
                         physics: const AlwaysScrollableScrollPhysics(),
-                        padding: const EdgeInsets.fromLTRB(8, 8, 8, 20),
+                        padding: const EdgeInsets.fromLTRB(8, 8, 8, 96),
                         children: [
                           if (!_paid)
                             Panel(

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../config.dart';
 import '../format.dart';
+import '../forms.dart';
 import '../i18n.dart';
 import '../live/live.dart';
 import '../session.dart';
@@ -174,6 +175,12 @@ class _SalesScreenState extends State<SalesScreen> with LiveListener {
     final t = T.of(context);
     final sum = _summary;
     return Scaffold(
+      floatingActionButton: FloatingActionButton.extended(
+        heroTag: 'sale',
+        onPressed: () => recordSale(context),
+        icon: const Icon(Icons.add),
+        label: Text(t('form.new_sale')),
+      ),
       body: Column(children: [
         Container(
           color: Hgv.of(context).chrome,
@@ -241,7 +248,7 @@ class _SalesScreenState extends State<SalesScreen> with LiveListener {
                         : ListView.separated(
                             controller: _scroll,
                             physics: const AlwaysScrollableScrollPhysics(),
-                            padding: const EdgeInsets.symmetric(vertical: 6),
+                            padding: const EdgeInsets.fromLTRB(0, 6, 0, 88),
                             itemCount: _items.length + (_loading || _error != null ? 1 : 0),
                             separatorBuilder: (_, __) => const Divider(indent: 16, endIndent: 16),
                             itemBuilder: (context, i) {
