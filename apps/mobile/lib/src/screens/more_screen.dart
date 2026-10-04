@@ -4,12 +4,15 @@ import 'package:package_info_plus/package_info_plus.dart';
 import '../app_settings.dart';
 import '../config.dart';
 import '../i18n.dart';
+import '../live/live.dart';
 import '../session.dart';
 import '../theme.dart';
 import '../updates/update_controller.dart';
 import '../widgets.dart';
+import 'activity_screen.dart';
 
-/// Account: who is signed in, for which business, preferences and sign-out.
+/// Account: who is signed in, for which business, live updates and
+/// notifications, preferences and sign-out.
 class MoreScreen extends StatelessWidget {
   const MoreScreen({super.key});
 
@@ -63,18 +66,19 @@ class MoreScreen extends StatelessWidget {
     final settings = AppSettingsScope.of(context);
     final role = u?.role ?? '';
     final langLabel = languages.firstWhere((l) => l.$1 == t.lang, orElse: () => languages.first).$2;
+    final live = LiveScope.of(context);
+    final (liveText, liveColor) = switch (live?.status) {
+      LiveStatus.live => (t('live.status_live'), c.success),
+      LiveStatus.connecting => (t('live.status_connecting'), c.warning),
+      _ => (t('live.status_offline'), c.faint),
+    };
     return Scaffold(
       appBar: AppBar(title: Text(t('nav.account'))),
       body: ListView(padding: const EdgeInsets.fromLTRB(16, 8, 16, 24), children: [
         Card(
           child: ListTile(
             contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            leading: RingBadge(
-              color: c.ink,
-              size: 48,
-              solid: true,
-              child: Text((u?.name.isNotEmpty ?? false) ? u!.name[0].toUpperCase() : '?'),
-            ),
+            leading: Avatar(name: u?.name ?? '?', size: 52, online: live?.status == LiveStatus.live),
             title: Text(u?.name ?? '', style: const TextStyle(fontWeight: FontWeight.w800)),
             subtitle: Text('${u?.email ?? ''}\n${const {'owner', 'admin', 'manager', 'cashier', 'staff'}.contains(role) ? t('role.$role') : role}'),
             isThreeLine: true,
@@ -95,6 +99,43 @@ class MoreScreen extends StatelessWidget {
               leading: const Icon(Icons.warning_amber_rounded),
               title: Text(t('acc.low_stock')),
               trailing: Text('${s.lowStock}'),
+            ),
+            const Divider(indent: 16, endIndent: 16),
+            ListTile(
+              leading: const Icon(Icons.account_balance_wallet_outlined),
+              title: Text(t('debts.title')),
+              subtitle: Text(t('acc.debts_sub')),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => openDebts(context),
+            ),
+          ]),
+        ),
+        SectionTitle(t('acc.notifications')),
+        Card(
+          child: Column(children: [
+            ListTile(
+              leading: PulseDot(color: liveColor, active: live?.status == LiveStatus.live, size: 9),
+              title: Text(t('acc.live')),
+              subtitle: Text(liveText),
+              trailing: (live?.online.length ?? 0) > 0
+                  ? Text(t('live.online_n', {'n': live!.online.length}), style: TextStyle(color: c.faint, fontSize: 12))
+                  : null,
+            ),
+            const Divider(indent: 16, endIndent: 16),
+            SwitchListTile(
+              secondary: const Icon(Icons.point_of_sale_outlined),
+              title: Text(t('acc.notify_sales')),
+              subtitle: Text(t('acc.notify_sales_sub')),
+              value: settings.alertSales,
+              onChanged: (v) => settings.setAlerts(sales: v),
+            ),
+            const Divider(indent: 16, endIndent: 16),
+            SwitchListTile(
+              secondary: const Icon(Icons.inventory_2_outlined),
+              title: Text(t('acc.notify_stock')),
+              subtitle: Text(t('acc.notify_stock_sub')),
+              value: settings.alertStock,
+              onChanged: (v) => settings.setAlerts(stock: v),
             ),
           ]),
         ),

@@ -89,15 +89,15 @@ ThemeData buildTheme(Brightness brightness) {
       elevation: 0,
       scrolledUnderElevation: 0.5,
       centerTitle: false,
-      titleTextStyle: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: c.text),
+      titleTextStyle: TextStyle(fontSize: 21, fontWeight: FontWeight.w800, letterSpacing: -0.3, color: c.text),
     ),
     cardTheme: CardThemeData(
       color: c.surface,
       elevation: 0,
       margin: EdgeInsets.zero,
       shape: RoundedRectangleBorder(
-        borderRadius: const BorderRadius.all(Radius.circular(8)),
-        side: BorderSide(color: c.border),
+        borderRadius: const BorderRadius.all(Radius.circular(14)),
+        side: BorderSide(color: c.border.withValues(alpha: 0.7)),
       ),
     ),
     inputDecorationTheme: InputDecorationTheme(
@@ -118,13 +118,25 @@ ThemeData buildTheme(Brightness brightness) {
         textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
       ),
     ),
+    chipTheme: ChipThemeData(
+      shape: const StadiumBorder(),
+      side: BorderSide(color: c.border),
+      backgroundColor: c.surface,
+      selectedColor: c.ink.withValues(alpha: 0.14),
+      labelStyle: TextStyle(fontWeight: FontWeight.w600, color: c.text),
+    ),
     navigationBarTheme: NavigationBarThemeData(
+      height: 66,
       backgroundColor: c.surface,
       indicatorColor: c.ink.withValues(alpha: 0.16),
       labelTextStyle: WidgetStateProperty.all(TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: c.text)),
     ),
     dividerTheme: DividerThemeData(color: c.border, space: 1),
-    bottomSheetTheme: BottomSheetThemeData(backgroundColor: c.surface),
+    bottomSheetTheme: BottomSheetThemeData(
+      backgroundColor: c.surface,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+    ),
+    badgeTheme: BadgeThemeData(backgroundColor: c.danger, textColor: Colors.white),
     dialogTheme: DialogThemeData(backgroundColor: c.surface),
   );
 }

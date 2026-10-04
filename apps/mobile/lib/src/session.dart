@@ -64,6 +64,9 @@ class Session extends ChangeNotifier implements TokenSource {
   /// (and every other kind of business) see them. Mirrors hides_financials().
   bool get canSeeFinancials => const {'owner', 'admin'}.contains(user?.role) || !isCar;
 
+  /// Profit and margins: never at car companies. Mirrors useShowsProfit().
+  bool get showsProfit => canSeeFinancials && !isCar;
+
   static const _kAccess = 'hgv_access', _kRefresh = 'hgv_refresh', _kUser = 'hgv_user';
 
   /// Picks up a session saved on this phone. Returns false when there is none

@@ -8,6 +8,7 @@ from app.models.sale import Sale
 from app.schemas.sale import SaleCreate, SaleUpdate
 from app.core.security import get_current_user, hides_financials
 from app.core.product_client import get_product, update_product_stock
+from app.core.events import emit
 
 router = APIRouter(prefix="/sales", tags=["Sales"])
 
@@ -56,6 +57,14 @@ def _fmt(s: Sale) -> dict:
         "amount_paid": float(s.amount_paid) if s.amount_paid is not None else None,
         "created_at": s.created_at.isoformat() if s.created_at else None,
     }
+
+
+def _live(s: Sale) -> dict:
+    """A sale as live apps receive it (created_at is set by the database
+    only on commit, so the event's own time stands in for it)."""
+    d = _fmt(s)
+    d.pop("notes", None)
+    return d
 
 
 def _token(authorization: str | None) -> str:
@@ -296,6 +305,8 @@ def create_sale(
         amount_paid=float(payload.amount_paid) if payload.amount_paid is not None else None,
     )
     db.add(sale)
+    db.flush()
+    emit(db, user, "sale.created", _live(sale))
     db.commit()
     db.refresh(sale)
 
@@ -357,6 +368,7 @@ def update_sale(
     sale.cost_at_sale = cost
     sale.total_amount = new_price * new_qty
     sale.profit = (new_price - cost) * new_qty
+    emit(db, user, "sale.updated", _live(sale))
     db.commit()
     db.refresh(sale)
 
@@ -389,6 +401,7 @@ def delete_sale(
     if product:
         update_product_stock(sale.product_id, product["quantity"] + sale.quantity, product, token)
 
+    emit(db, user, "sale.deleted", {"id": sale.id, "product_name": sale.product_name})
     db.delete(sale)
     db.commit()
     return {"success": True, "message": "Sale deleted"}

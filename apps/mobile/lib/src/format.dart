@@ -23,13 +23,36 @@ String ymd(DateTime d) =>
   return (from: ymd(now.subtract(Duration(days: days - 1))), to: ymd(now));
 }
 
+/// An API timestamp (UTC, sometimes without a zone) in local time.
+DateTime? parseTimestamp(Object? ts) {
+  if (ts is! String || ts.isEmpty) return null;
+  final hasZone = RegExp(r'[zZ]|[+-]\d\d:?\d\d$').hasMatch(ts);
+  return DateTime.tryParse(hasZone ? ts : '${ts}Z')?.toLocal();
+}
+
+/// How long ago, as the largest whole unit: (0, 'now'), (5, 'm'), (3, 'h'), (2, 'd').
+(int, String) shortAgo(DateTime then, [DateTime? now]) {
+  final s = (now ?? DateTime.now()).difference(then).inSeconds;
+  if (s < 60) return (0, 'now');
+  if (s < 3600) return (s ~/ 60, 'm');
+  if (s < 86400) return (s ~/ 3600, 'h');
+  return (s ~/ 86400, 'd');
+}
+
+/// Calendar days between [d] and today: 0 today, 1 yesterday…
+int daysAgo(DateTime d, [DateTime? now]) {
+  final n = now ?? DateTime.now();
+  return DateTime(n.year, n.month, n.day).difference(DateTime(d.year, d.month, d.day)).inDays;
+}
+
+/// Change from [before] to [now] in percent, or null when there is no base.
+double? percentChange(num now, num before) => before == 0 ? null : (now - before) / before * 100;
+
 /// "3 Oct, 14:05" from an API timestamp (UTC, sometimes without a zone).
 /// [months] gives the month names in the app's language (`T.months`);
 /// Chinese reads "10月3日 14:05".
 String shortDateTime(String? ts, [List<String>? months, String lang = 'en']) {
-  if (ts == null || ts.isEmpty) return '';
-  final hasZone = RegExp(r'[zZ]|[+-]\d\d:?\d\d$').hasMatch(ts);
-  final d = DateTime.tryParse(hasZone ? ts : '${ts}Z')?.toLocal();
+  final d = parseTimestamp(ts);
   if (d == null) return '';
   final m = (months ?? const ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'])[d.month - 1];
   final time = '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';

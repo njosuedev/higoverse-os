@@ -719,6 +719,42 @@ to the relevant `_MIGRATIONS`/idempotent-`ALTER` list in that service's
 `app/main.py` (the pattern already used throughout this codebase) so it
 self-heals on next restart, or run the ALTER by hand against `authdb`/`shopdb`.
 
+### Live updates (WebSocket)
+
+The mobile app follows each shop live at `wss://higoverse.com/svc/sales/ws`.
+sale-, product-, purchase- and expense-service announce every change with
+Postgres `pg_notify('hgv_events', …)` inside the request's own transaction
+(`backend/*/app/core/events.py`, identical copies), so only committed changes
+are sent. sale-service (`app/realtime.py`) LISTENs on `shopdb` in a background
+thread and forwards each event to that shop's open connections, blanking money
+fields for car-company staff and skipping expense/purchase events for them.
+
+Nothing new to install or configure: no new table, no new port, no new
+dependency (uvicorn[standard] already brings WebSocket support), and nginx
+already forwards `Upgrade`/`Connection` for every `/svc/` location (the
+`$connection_upgrade` map at the top of the site config). Cloudflare proxies
+WebSockets by default. To roll it out, pull and restart the four services:
+
+```bash
+systemctl restart higoverse-sale-service higoverse-product-service higoverse-purchase-service higoverse-expense-service
+journalctl -u higoverse-sale-service -n 20   # "[live] listener error" lines mean it cannot LISTEN
+```
+
+sale-service must stay a single uvicorn worker (as in §5): each worker would
+hold its own set of connections. The apps send a ping every 25 s, which keeps
+nginx (60 s `proxy_read_timeout`) and Cloudflare (100 s) from closing idle
+sockets; if the hub restarts, phones reconnect by themselves and reload.
+
+**Check by hand** (needs `pip install websockets`, any valid access token):
+
+```bash
+python -c "import asyncio,json,websockets as w
+async def m():
+  async with w.connect('wss://higoverse.com/svc/sales/ws') as s:
+    await s.send(json.dumps({'type':'auth','token':'<ACCESS_TOKEN>'})); print(await s.recv())
+asyncio.run(m())"      # → {"type": "hello", "online": [...]}
+```
+
 ### Publishing a desktop or Android app update
 
 One update system serves both apps:

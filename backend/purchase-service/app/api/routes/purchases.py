@@ -8,6 +8,7 @@ from app.models.purchase import Purchase
 from app.schemas.purchase import PurchaseCreate
 from app.core.security import get_current_user
 from app.core.product_client import get_product, restock_product, create_product
+from app.core.events import emit
 
 # The web app reaches this service through a Next.js rewrite, which can't
 # send a trailing slash. Without the "" aliases FastAPI 307-redirects to
@@ -167,6 +168,8 @@ def record_purchase(
         notes=payload.notes,
     )
     db.add(purchase)
+    db.flush()
+    emit(db, user, "purchase.created", _fmt(purchase), financial=True)
     db.commit()
     db.refresh(purchase)
 

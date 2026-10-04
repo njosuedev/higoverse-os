@@ -32,6 +32,7 @@ def get_current_user(
             "user_id": payload.get("sub"),
             "shop_id": payload.get("shop_id"),
             "email": payload.get("email"),
+            "name": payload.get("name"),
             "role": payload.get("role"),
             "layout": payload.get("layout"),
             "internal": hmac.compare_digest(

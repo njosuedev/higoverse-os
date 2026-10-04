@@ -5,6 +5,7 @@ from app.db.database import get_db
 from app.models.debt import Debt
 from app.schemas.debt import DebtCreate, DebtUpdate
 from app.core.security import get_current_user
+from app.core.events import emit
 
 router = APIRouter(prefix="/debts", tags=["Debts"])
 
@@ -30,6 +31,12 @@ def _fmt(d: Debt) -> dict:
         "is_paid": d.is_paid,
         "created_at": d.created_at.isoformat() if d.created_at else None,
     }
+
+
+def _live(d: Debt) -> dict:
+    out = _fmt(d)
+    out.pop("notes", None)
+    return out
 
 
 @router.get("")
@@ -77,6 +84,8 @@ def create_debt(
         is_paid=float(payload.amount_paid) >= float(payload.amount_owed),
     )
     db.add(debt)
+    db.flush()
+    emit(db, user, "debt.created", _live(debt))
     db.commit()
     db.refresh(debt)
     return {"success": True, "message": "Debt recorded", "data": _fmt(debt)}
@@ -105,6 +114,7 @@ def update_debt(
     paid = float(debt.amount_paid)
     if paid >= owed:
         debt.is_paid = True
+    emit(db, user, "debt.updated", _live(debt))
     db.commit()
     db.refresh(debt)
     return {"success": True, "message": "Debt updated", "data": _fmt(debt)}
@@ -117,6 +127,7 @@ def delete_debt(
     user: dict = Depends(get_current_user),
 ):
     debt = _get_or_404(db, debt_id, user["shop_id"])
+    emit(db, user, "debt.deleted", {"id": debt.id, "debtor_name": debt.debtor_name})
     db.delete(debt)
     db.commit()
     return {"success": True, "message": "Debt deleted"}

@@ -10,6 +10,7 @@ from app.db.database import get_db
 from app.models.expense import Expense, ExpenseCategory
 from app.schemas.expense import ExpenseCreate, ExpenseUpdate
 from app.core.security import require_financial_access
+from app.core.events import emit
 
 router = APIRouter(prefix="/expenses", tags=["Expenses"])
 
@@ -227,6 +228,11 @@ def create_expense(
         receiver_phone=payload.receiver_phone,
     )
     db.add(expense)
+    db.flush()
+    emit(db, user, "expense.created", {
+        k: v for k, v in _fmt(expense).items()
+        if k in ("id", "title", "category", "amount", "payment_method", "expense_date")
+    }, financial=True)
     db.commit()
     db.refresh(expense)
 

@@ -5,6 +5,7 @@ import 'i18n.dart';
 import 'theme.dart';
 
 export 'loading.dart';
+export 'ui.dart';
 
 /// A failure as text in the app's language. The server's own messages are
 /// shown as they come.

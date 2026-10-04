@@ -8,6 +8,7 @@ from app.models.product import Product
 from app.schemas.product import ProductCreate, ProductUpdate
 from app.core.security import get_current_user, hides_financials
 from app.core.supplier_client import validate_supplier
+from app.core.events import emit
 
 router = APIRouter(prefix="/products", tags=["Products"])
 
@@ -31,6 +32,22 @@ def _scrub(user: dict, value):
 # -----------------------------
 # HELPERS
 # -----------------------------
+def _live(product, **extra) -> dict:
+    """A product as live apps receive it — no photos (too big for an event)."""
+    attrs = product.attributes if isinstance(product.attributes, str) and len(product.attributes) < 2000 else None
+    return {
+        "id": product.id,
+        "name": product.name,
+        "quantity": product.quantity,
+        "selling_price": float(product.selling_price) if product.selling_price is not None else None,
+        "cost_price": float(product.cost_price) if product.cost_price is not None else None,
+        "category": product.category,
+        "barcode": product.barcode,
+        "attributes": attrs,
+        **extra,
+    }
+
+
 def get_product_or_404(db: Session, product_id: str, shop_id: str):
     product = (
         db.query(Product)
@@ -298,6 +315,8 @@ def create_product(
         )
 
         db.add(product)
+        db.flush()
+        emit(db, user, "product.created", _live(product))
         db.commit()
         db.refresh(product)
 
@@ -388,12 +407,14 @@ def update_product(
                 (authorization or "").replace("Bearer ", "")
             )
 
+        prev_quantity = product.quantity
         for key, value in update_data.items():
             setattr(product, key, value)
 
         if product.selling_price is None:
             product.selling_price = product.cost_price
 
+        emit(db, user, "product.updated", _live(product, prev_quantity=prev_quantity))
         db.commit()
         db.refresh(product)
 
@@ -436,6 +457,7 @@ def delete_product(
     try:
         product = get_product_or_404(db, product_id, user["shop_id"])
 
+        emit(db, user, "product.deleted", {"id": product.id, "name": product.name})
         db.delete(product)
         db.commit()
 

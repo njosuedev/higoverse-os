@@ -7,11 +7,14 @@ import 'package:flutter/material.dart';
 import '../config.dart';
 import '../format.dart';
 import '../i18n.dart';
+import '../live/live.dart';
 import '../session.dart';
+import '../sheets.dart';
 import '../theme.dart';
 import '../widgets.dart';
 
-/// Stock (shops) or Vehicles (car dealers): searchable, loads more as you scroll.
+/// Stock (shops) or Vehicles (car dealers): searchable, loads more as you
+/// scroll. Quantities and prices change in place as sales and restocks happen.
 class ProductsScreen extends StatefulWidget {
   const ProductsScreen({super.key});
 
@@ -19,7 +22,7 @@ class ProductsScreen extends StatefulWidget {
   State<ProductsScreen> createState() => _ProductsScreenState();
 }
 
-class _ProductsScreenState extends State<ProductsScreen> {
+class _ProductsScreenState extends State<ProductsScreen> with LiveListener {
   static const _pageSize = 20;
   final _search = TextEditingController();
   final _scroll = ScrollController();
@@ -32,6 +35,37 @@ class _ProductsScreenState extends State<ProductsScreen> {
   /// Bumped by every reload: answers to an older search or filter are dropped.
   int _gen = 0;
   String _status = 'all'; // car dealers: all | available | pending | sold | penalties
+
+  /// Items added elsewhere since this list loaded (shown as a pill).
+  bool _newItems = false;
+  final Set<String> _flash = {};
+
+  @override
+  void onLive(LiveEvent e) {
+    final id = '${e.data['id'] ?? ''}';
+    switch (e.type) {
+      case 'product.updated':
+        final i = _items.indexWhere((x) => '${x['id']}' == id);
+        if (i < 0) return;
+        final d = e.data;
+        setState(() {
+          _items[i] = {
+            ..._items[i],
+            for (final k in const ['name', 'quantity', 'selling_price', 'category', 'barcode', 'attributes'])
+              if (d.containsKey(k) && d[k] != null) k: d[k],
+          };
+          _flash.add(id);
+        });
+      case 'product.deleted':
+        final before = _items.length;
+        setState(() => _items.removeWhere((x) => '${x['id']}' == id));
+        if (_items.length < before) _total--;
+      case 'product.created':
+        setState(() => _newItems = true);
+      case 'resync':
+        _reload();
+    }
+  }
 
   @override
   void initState() {
@@ -65,6 +99,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
   Future<void> _reload() async {
     _gen++;
     setState(() {
+      _newItems = false;
       _items.clear();
       _page = 0;
       _total = 0;
@@ -165,7 +200,8 @@ class _ProductsScreenState extends State<ProductsScreen> {
         ),
         const Divider(),
         Expanded(
-          child: RefreshIndicator(
+          child: Stack(alignment: Alignment.topCenter, children: [
+          RefreshIndicator(
             onRefresh: _reload,
             child: _error != null && _items.isEmpty
                 ? ListView(
@@ -189,12 +225,29 @@ class _ProductsScreenState extends State<ProductsScreen> {
                             itemCount: _items.length + (_loading || _error != null ? 1 : 0),
                             separatorBuilder: (_, __) => const Divider(indent: 16, endIndent: 16),
                             itemBuilder: (context, i) => i < _items.length
-                                ? _ProductRow(item: _items[i], session: s)
+                                ? Flash(
+                                    // Keyed by stock too, so a change flashes again.
+                                    key: ValueKey('${_items[i]['id']}:${_items[i]['quantity']}'),
+                                    flash: _flash.remove('${_items[i]['id']}'),
+                                    child: _ProductRow(item: _items[i], session: s),
+                                  )
                                 : _error != null
                                     ? EmptyState(icon: Icons.cloud_off_outlined, message: errorText(t, _error!), onRetry: _loadMore)
                                     : const LoadMoreIndicator(),
                           ),
           ),
+          if (_newItems)
+            Positioned(
+              top: 10,
+              child: NewItemsPill(
+                label: t('stock.new_items'),
+                onTap: () {
+                  if (_scroll.hasClients) _scroll.jumpTo(0);
+                  _reload();
+                },
+              ),
+            ),
+          ]),
         ),
       ]),
     );
@@ -221,7 +274,7 @@ class _ProductRow extends StatelessWidget {
         ? [a['year'], a['color'], a['plate_no']].where((x) => x != null && x.isNotEmpty).join(' · ')
         : (qty <= 0 ? t('dash.out_of_stock') : t('stock.in_stock_n', {'n': groupDigits(qty)}));
     return ListTile(
-      onTap: () => _showDetails(context),
+      onTap: () => showProductSheet(context, item),
       leading: _Thumb(item['thumbnail'] as String?, isCar),
       title: Text('${item['name'] ?? ''}', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700)),
       subtitle: Padding(
@@ -233,52 +286,6 @@ class _ProductRow extends StatelessWidget {
         ]),
       ),
       trailing: Text(money(item['selling_price'] as num? ?? 0, session.currency), style: const TextStyle(fontWeight: FontWeight.w700)),
-    );
-  }
-
-  void _showDetails(BuildContext context) {
-    final a = attributesOf(item['attributes']);
-    final t = T.of(context);
-    final rows = <(String, String)>[
-      (t('detail.price'), money(item['selling_price'] as num? ?? 0, session.currency)),
-      (t('detail.in_stock'), '${item['quantity'] ?? 0}'),
-      if (session.isCar) ...[
-        (t('detail.plate'), a['plate_no'] ?? ''),
-        (t('detail.chassis'), a['chassis_no'] ?? ''),
-        (t('detail.year'), a['year'] ?? ''),
-        (t('detail.colour'), a['color'] ?? ''),
-        (t('detail.type'), a['car_type'] ?? ''),
-        if (a['sale_status'] == 'pending') ...[
-          (t('detail.buyer'), [a['buyer_name'], a['buyer_phone']].where((x) => x != null && x.isNotEmpty).join(' · ')),
-          (t('detail.buyer_id'), a['buyer_id_no'] ?? ''),
-        ],
-        if ((int.tryParse(a['penalty_count'] ?? '') ?? 0) > 0)
-          (t('detail.fines'), '${a['penalty_count']} · ${groupDigits(num.tryParse(a['penalty_amount'] ?? '') ?? 0)} ${session.currency}'),
-      ] else if ((item['barcode'] ?? '').toString().isNotEmpty)
-        (t('detail.barcode'), '${item['barcode']}'),
-    ].where((r) => r.$2.isNotEmpty).toList();
-    showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      isScrollControlled: true,
-      backgroundColor: Hgv.of(context).surface,
-      builder: (_) => SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('${item['name'] ?? ''}', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
-            const SizedBox(height: 12),
-            for (final r in rows)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 6),
-                child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  SizedBox(width: 120, child: Text(r.$1, style: TextStyle(color: Hgv.of(context).muted, fontWeight: FontWeight.w600))),
-                  Expanded(child: Text(r.$2, style: const TextStyle(fontWeight: FontWeight.w700))),
-                ]),
-              ),
-          ]),
-        ),
-      ),
     );
   }
 }

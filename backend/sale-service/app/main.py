@@ -7,6 +7,7 @@ from sqlalchemy import text
 from app.api.routes.sales import router as sale_router
 from app.api.routes.debts import router as debt_router
 from app.api.routes.proforma import router as proforma_router
+from app.realtime import router as live_router, hub
 from app.db.database import Base, engine
 
 app = FastAPI(title="Sale Service", version="1.0.0")
@@ -38,6 +39,7 @@ app.add_middleware(
 app.include_router(sale_router)
 app.include_router(debt_router)
 app.include_router(proforma_router)
+app.include_router(live_router)
 
 
 @app.on_event("startup")
@@ -59,6 +61,13 @@ def on_startup():
             conn.commit()
     except Exception:
         pass
+
+
+@app.on_event("startup")
+async def start_live_hub():
+    # Starts LISTENing for live events right away, not on the first phone.
+    import asyncio
+    hub.start(asyncio.get_running_loop())
 
 
 @app.get("/")
