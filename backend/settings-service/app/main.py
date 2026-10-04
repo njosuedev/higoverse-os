@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
 
+from app.api.routes.app_updates import router as app_updates_router
 from app.api.routes.settings import router as settings_router
 from app.db.database import Base, engine
 
@@ -37,6 +38,8 @@ app.add_middleware(
 )
 
 app.include_router(settings_router)
+# Public: latest Android / Windows releases for the apps' self-update.
+app.include_router(app_updates_router)
 
 
 @app.on_event("startup")

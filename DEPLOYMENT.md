@@ -721,21 +721,76 @@ self-heals on next restart, or run the ALTER by hand against `authdb`/`shopdb`.
 
 ### Publishing a desktop or Android app update
 
-The installed apps update themselves from `https://higoverse.com/downloads/`
-(nginx serves `/var/www/higoverse/downloads/`, see `deploy/nginx-higoverse.conf`).
+One update system serves both apps:
 
-- **Windows (Electron):** bump `version` in `apps/desktop/package.json`, run
-  `npm run dist`, then upload `dist/latest.yml`, `dist/Higoverse-Setup-<v>.exe`
-  and its `.blockmap` to `downloads/desktop/`. Upload `latest.yml` **last**:
-  installed apps download as soon as it changes.
-- **Android (APK installs):** bump `version: x.y.z+N` in `apps/mobile/pubspec.yaml`,
-  `flutter build apk --release`, upload the APK to `downloads/android/`, then
-  update `downloads/android/version.json` (`versionCode` = N). The app
-  downloads the APK itself (progress bar) and opens Android's installer.
-- **Android (Google Play):** `flutter build appbundle --release --android-project-arg=play=true`
-  and upload `build/app/outputs/bundle/release/app-release.aab` in Play Console.
-  The `play` flag leaves out `REQUEST_INSTALL_PACKAGES` (Play restricts it;
-  Play installs update through Play's in-app update).
+```text
+GET https://higoverse.com/svc/settings/api/app-updates/latest[?platform=android|windows]
+→ { "android": { version, version_code, download_url, sha256, size, force_update,
+                 min_supported_version_code, release_notes, published_at }, "windows": {...} }
+```
+
+It is read from `/var/www/higoverse/downloads/releases.json` (settings-service,
+`app/api/routes/app_updates.py`; no database, no credentials). Files sit next to
+it, served by nginx at `/downloads/`:
+
+```text
+/var/www/higoverse/downloads/
+├── releases.json                    ← the endpoint (written by publish-release.sh)
+├── android/Higoverse-<v>.apk        + version.json (for Android 1.1–1.2)
+└── desktop/Higoverse-Setup-<v>.exe  + .blockmap + latest.yml (electron-updater)
+```
+
+The apps check in the background (Android 3 s after start, then at most every
+6 h; Windows 8 s after start, then every 4 h), show a prompt only when a newer
+version exists, download with progress, verify the SHA-256 (and on Android the
+package name and versionCode inside the APK), then install. No server or no
+network: nothing is shown. Keep old installers and blockmaps on the server:
+Windows downloads only the changed blocks when the previous blockmap is there.
+
+**Release options** (`deploy/publish-release.sh`): `--force` (everyone must
+update, no "Later"), `--min-code N` (installs below version code N must
+update). Windows version codes are `major*10000 + minor*100 + patch`.
+
+**Android (APK installs):** bump `version: x.y.z+N` in `apps/mobile/pubspec.yaml` (N
+must go up every release), then
+
+```bash
+cd apps/mobile && flutter build apk --release
+scp build/app/outputs/flutter-apk/app-release.apk root@102.202.208.190:/tmp/
+ssh root@102.202.208.190 '/root/projects/higoverse/deploy/publish-release.sh   android /tmp/app-release.apk 1.3.0 4 "What changed, in one or two lines."'
+```
+
+The APK must be signed with the same upload key (`android/key.properties`):
+Android refuses anything else, and that is what keeps data and sign-in.
+
+**Android (Google Play):** `flutter build appbundle --release --android-project-arg=play=true`
+and upload `build/app/outputs/bundle/release/app-release.aab` in Play Console.
+The `play` flag leaves out `REQUEST_INSTALL_PACKAGES` (Play restricts it); Play
+installs update through Play's in-app update (immediate when the endpoint says
+the update is required).
+
+**Windows:** bump `version` in `apps/desktop/package.json`, then
+
+```bash
+cd apps/desktop && npm test && npm run dist
+scp dist/Higoverse-Setup-1.3.0.exe dist/Higoverse-Setup-1.3.0.exe.blockmap dist/latest.yml root@102.202.208.190:/tmp/
+ssh root@102.202.208.190 '/root/projects/higoverse/deploy/publish-release.sh   windows /tmp/Higoverse-Setup-1.3.0.exe 1.3.0 - "What changed."   --latest-yml /tmp/latest.yml --blockmap /tmp/Higoverse-Setup-1.3.0.exe.blockmap'
+```
+
+The script copies the file, computes SHA-256 and size, rewrites
+`releases.json`, keeps `android/version.json` in step and writes `latest.yml`
+last (older desktop versions update from it directly).
+
+**Check:** `curl -s https://higoverse.com/svc/settings/api/app-updates/latest`
+
+**Testing an update locally:** serve a folder with `python -m http.server 8090`
+holding `svc/settings/api/app-updates/latest` (the JSON above) and the files.
+Android: `flutter build apk --debug --build-name=1.3.1 --build-number=5
+--dart-define=API_BASE=http://10.0.2.2:8090/svc` (debug builds allow plain HTTP
+to the emulator host). Windows: start an installed build with
+`HIGOVERSE_UPDATE_API=http://127.0.0.1:8090/...`; `HIGOVERSE_UPDATE_PREVIEW=optional|required|fail npm start`
+shows the update window with a made-up release.
+
 - The web app needs nothing: open tabs show "Reload" after a deploy.
 
 ---
