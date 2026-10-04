@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../config.dart';
@@ -20,11 +22,25 @@ class _DashboardScreenState extends State<DashboardScreen> {
   List<Map<String, dynamic>> _alerts = [], _recent = [];
   bool _loading = true;
   String? _error;
+  Timer? _timer;
+  ValueNotifier<int>? _tick;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     if (_loading && _stock == null && _error == null) _load();
+    if (_tick == null) {
+      _tick = SessionScope.of(context).refreshTick..addListener(_load);
+      // Keep the figures current while the app is open.
+      _timer = Timer.periodic(const Duration(minutes: 1), (_) => _load());
+    }
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _tick?.removeListener(_load);
+    super.dispose();
   }
 
   Future<void> _load() async {
@@ -75,7 +91,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           Text('$greeting, ${s.user?.name.split(' ').first ?? ''}',
               style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
           const SizedBox(height: 2),
-          const Text('Last 7 days', style: TextStyle(color: Brand.muted, fontWeight: FontWeight.w500)),
+          Text('Last 7 days', style: TextStyle(color: Hgv.of(context).muted, fontWeight: FontWeight.w500)),
           if (_error != null)
             EmptyState(icon: Icons.cloud_off_outlined, message: _error!, onRetry: _load)
           else if (_loading)
@@ -105,7 +121,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           label: 'Revenue',
           value: money(sales['revenue'] as num? ?? 0, s.currency),
           icon: Icons.trending_up,
-          color: Brand.success,
+          color: Hgv.of(context).success,
         ),
       FigureTile(label: 'Sales', value: groupDigits(sales['sales_count'] as num? ?? 0), detail: 'transactions', icon: Icons.point_of_sale_outlined),
       FigureTile(
@@ -117,11 +133,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
         label: 'Need restock',
         value: groupDigits(low),
         icon: Icons.warning_amber_rounded,
-        color: low > 0 ? Brand.warning : null,
+        color: low > 0 ? Hgv.of(context).warning : null,
       ),
       if (s.isCar) ...[
-        FigureTile(label: 'Pending', value: groupDigits(stock['pending'] as num? ?? 0), detail: 'awaiting transfer', icon: Icons.schedule, color: Brand.warning),
-        FigureTile(label: 'With fines', value: groupDigits(stock['with_penalties'] as num? ?? 0), icon: Icons.gpp_maybe_outlined, color: Brand.danger),
+        FigureTile(label: 'Pending', value: groupDigits(stock['pending'] as num? ?? 0), detail: 'awaiting transfer', icon: Icons.schedule, color: Hgv.of(context).warning),
+        FigureTile(label: 'With fines', value: groupDigits(stock['with_penalties'] as num? ?? 0), icon: Icons.gpp_maybe_outlined, color: Hgv.of(context).danger),
       ],
     ];
     return [
@@ -137,7 +153,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ),
       SectionTitle('Stock alerts', trailing: TextButton(onPressed: () => widget.onOpenTab(1), child: const Text('View all'))),
       if (_alerts.isEmpty)
-        const Card(child: ListTile(leading: Icon(Icons.check_circle, color: Brand.success), title: Text('All stock is healthy')))
+        Card(child: ListTile(leading: Icon(Icons.check_circle, color: Hgv.of(context).success), title: Text('All stock is healthy')))
       else
         Card(
           child: Column(children: [
@@ -146,12 +162,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 dense: true,
                 leading: CircleAvatar(
                   radius: 16,
-                  backgroundColor: ((a['quantity'] as num? ?? 0) <= 0 ? Brand.danger : Brand.warning).withValues(alpha: 0.12),
+                  backgroundColor: ((a['quantity'] as num? ?? 0) <= 0 ? Hgv.of(context).danger : Hgv.of(context).warning).withValues(alpha: 0.12),
                   child: Text('${a['quantity'] ?? 0}',
                       style: TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w800,
-                          color: (a['quantity'] as num? ?? 0) <= 0 ? Brand.danger : Brand.warning)),
+                          color: (a['quantity'] as num? ?? 0) <= 0 ? Hgv.of(context).danger : Hgv.of(context).warning)),
                 ),
                 title: Text('${a['name'] ?? ''}', style: const TextStyle(fontWeight: FontWeight.w700)),
                 subtitle: Text((a['quantity'] as num? ?? 0) <= 0 ? 'Out of stock' : '${a['quantity']} left'),

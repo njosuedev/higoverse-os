@@ -42,6 +42,9 @@ class Session extends ChangeNotifier implements TokenSource {
   final FlutterSecureStorage _store;
   late final Api api = Api(this);
 
+  /// Bumped when the app comes back to the foreground: screens reload their data.
+  final refreshTick = ValueNotifier<int>(0);
+
   @override
   String? accessToken;
   String? _refreshToken;
@@ -180,7 +183,10 @@ class Session extends ChangeNotifier implements TokenSource {
     currency = 'RWF';
     lowStock = 10;
     try {
-      await _store.deleteAll();
+      // Only this account's keys: device preferences (appearance) stay.
+      for (final k in const [_kAccess, _kRefresh, _kUser]) {
+        await _store.delete(key: k);
+      }
     } catch (_) {}
   }
 }

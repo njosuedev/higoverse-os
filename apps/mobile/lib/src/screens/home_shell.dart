@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../session.dart';
+import '../updates.dart';
 import 'dashboard_screen.dart';
 import 'more_screen.dart';
 import 'products_screen.dart';
@@ -16,6 +17,26 @@ class HomeShell extends StatefulWidget {
 
 class _HomeShellState extends State<HomeShell> {
   int _tab = 0;
+  late final AppLifecycleListener _life;
+
+  @override
+  void initState() {
+    super.initState();
+    // Coming back to the app: every screen reloads its data.
+    _life = AppLifecycleListener(onResume: () => SessionScope.of(context).refreshTick.value++);
+    // Look for a newer version shortly after start.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Future.delayed(const Duration(seconds: 3), () {
+        if (mounted) AppUpdates.check(context);
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _life.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {

@@ -37,14 +37,19 @@ class _ProductsScreenState extends State<ProductsScreen> {
     });
   }
 
+  ValueNotifier<int>? _tick;
+  void _onResume() => _reload();
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     if (_page == 0 && !_loading && _error == null) _reload();
+    _tick ??= SessionScope.of(context).refreshTick..addListener(_onResume);
   }
 
   @override
   void dispose() {
+    _tick?.removeListener(_onResume);
     _debounce?.cancel();
     _search.dispose();
     _scroll.dispose();
@@ -84,7 +89,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
 
   void _onSearch(String _) {
     _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 350), () => setState(() => _reload()));
+    _debounce = Timer(const Duration(milliseconds: 350), () => _reload());
   }
 
   @override
@@ -94,7 +99,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
       appBar: AppBar(title: Text(s.isCar ? 'Vehicles' : 'Stock')),
       body: Column(children: [
         Container(
-          color: Colors.white,
+          color: Hgv.of(context).surface,
           padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
           child: Column(children: [
             TextField(
@@ -111,7 +116,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
                         icon: const Icon(Icons.close),
                         onPressed: () {
                           _search.clear();
-                          setState(() => _reload());
+                          _reload();
                         }),
               ),
             ),
@@ -142,7 +147,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
           child: RefreshIndicator(
             onRefresh: _reload,
             child: _error != null && _items.isEmpty
-                ? ListView(children: [EmptyState(icon: Icons.cloud_off_outlined, message: _error!, onRetry: () => setState(() => _reload()))])
+                ? ListView(children: [EmptyState(icon: Icons.cloud_off_outlined, message: _error!, onRetry: () => _reload())])
                 : !_loading && _items.isEmpty
                     ? ListView(children: [
                         EmptyState(
@@ -175,7 +180,7 @@ class _ProductRow extends StatelessWidget {
     final qty = (item['quantity'] as num? ?? 0).toInt();
     final a = attributesOf(item['attributes']);
     final isCar = session.isCar;
-    final status = qty <= 0 ? ('Sold', Brand.faint) : (a['sale_status'] == 'pending' ? ('Pending', Brand.warning) : ('Available', Brand.success));
+    final status = qty <= 0 ? ('Sold', Hgv.of(context).faint) : (a['sale_status'] == 'pending' ? ('Pending', Hgv.of(context).warning) : ('Available', Hgv.of(context).success));
     final fines = int.tryParse(a['penalty_count'] ?? '') ?? 0;
     final sub = isCar
         ? [a['year'], a['color'], a['plate_no']].where((x) => x != null && x.isNotEmpty).join(' · ')
@@ -188,8 +193,8 @@ class _ProductRow extends StatelessWidget {
         padding: const EdgeInsets.only(top: 2),
         child: Wrap(spacing: 6, runSpacing: 4, crossAxisAlignment: WrapCrossAlignment.center, children: [
           if (isCar) StatusChip(status.$1, status.$2),
-          if (isCar && fines > 0) StatusChip('$fines ${fines == 1 ? 'fine' : 'fines'}', Brand.danger),
-          if (sub.isNotEmpty) Text(sub, style: TextStyle(color: !isCar && qty <= session.lowStock ? Brand.warning : Brand.muted)),
+          if (isCar && fines > 0) StatusChip('$fines ${fines == 1 ? 'fine' : 'fines'}', Hgv.of(context).danger),
+          if (sub.isNotEmpty) Text(sub, style: TextStyle(color: !isCar && qty <= session.lowStock ? Hgv.of(context).warning : Hgv.of(context).muted)),
         ]),
       ),
       trailing: Text(money(item['selling_price'] as num? ?? 0, session.currency), style: const TextStyle(fontWeight: FontWeight.w700)),
@@ -219,7 +224,7 @@ class _ProductRow extends StatelessWidget {
     showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
-      backgroundColor: Colors.white,
+      backgroundColor: Hgv.of(context).surface,
       builder: (_) => SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
@@ -230,7 +235,7 @@ class _ProductRow extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 6),
                 child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  SizedBox(width: 96, child: Text(r.$1, style: const TextStyle(color: Brand.muted, fontWeight: FontWeight.w600))),
+                  SizedBox(width: 96, child: Text(r.$1, style: TextStyle(color: Hgv.of(context).muted, fontWeight: FontWeight.w600))),
                   Expanded(child: Text(r.$2, style: const TextStyle(fontWeight: FontWeight.w700))),
                 ]),
               ),
@@ -270,8 +275,8 @@ class _Thumb extends StatelessWidget {
         child: bytes != null && bytes.isNotEmpty
             ? Image.memory(bytes, fit: BoxFit.cover, gaplessPlayback: true)
             : Container(
-                color: Brand.paper,
-                child: Icon(isCar ? Icons.directions_car_outlined : Icons.inventory_2_outlined, color: Brand.faint, size: 20)),
+                color: Hgv.of(context).paper,
+                child: Icon(isCar ? Icons.directions_car_outlined : Icons.inventory_2_outlined, color: Hgv.of(context).faint, size: 20)),
       ),
     );
   }

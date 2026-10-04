@@ -1,63 +1,125 @@
 import 'package:flutter/material.dart';
 
-/// Colours from the website's design tokens (apps/web/app/globals.css).
-class Brand {
-  static const ink = Color(0xFF0A66C2);
-  static const inkDark = Color(0xFF004182);
-  static const paper = Color(0xFFF3F2EF);
-  static const border = Color(0xFFE0DFDC);
-  static const text = Color(0xFF191919);
-  static const muted = Color(0xFF333333);
-  static const faint = Color(0xFF474747);
-  static const success = Color(0xFF057642);
-  static const warning = Color(0xFF915907);
-  static const danger = Color(0xFFCC1016);
-  static const purple = Color(0xFF7C3AED);
+/// Colours from the website's design tokens (apps/web/app/globals.css), in a
+/// light and a dark set. Read them with `Hgv.of(context)`, so screens follow
+/// the current appearance (System / Light / Dark).
+@immutable
+class Hgv extends ThemeExtension<Hgv> {
+  const Hgv({
+    required this.ink,
+    required this.inkDark,
+    required this.paper,
+    required this.surface,
+    required this.border,
+    required this.text,
+    required this.muted,
+    required this.faint,
+    required this.success,
+    required this.warning,
+    required this.danger,
+    required this.purple,
+    required this.skeleton,
+  });
+
+  final Color ink, inkDark, paper, surface, border, text, muted, faint, success, warning, danger, purple, skeleton;
+
+  static const light = Hgv(
+    ink: Color(0xFF0A66C2),
+    inkDark: Color(0xFF004182),
+    paper: Color(0xFFF3F2EF),
+    surface: Colors.white,
+    border: Color(0xFFE0DFDC),
+    text: Color(0xFF191919),
+    muted: Color(0xFF333333),
+    faint: Color(0xFF474747),
+    success: Color(0xFF057642),
+    warning: Color(0xFF915907),
+    danger: Color(0xFFCC1016),
+    purple: Color(0xFF7C3AED),
+    skeleton: Color(0xFFE8E7E4),
+  );
+
+  static const dark = Hgv(
+    ink: Color(0xFF4A9EED),
+    inkDark: Color(0xFF7CB9F2),
+    paper: Color(0xFF111317),
+    surface: Color(0xFF1B1E23),
+    border: Color(0xFF2C3138),
+    text: Color(0xFFE8EAED),
+    muted: Color(0xFFC4C8CE),
+    faint: Color(0xFFA3A9B1),
+    success: Color(0xFF3DBF7D),
+    warning: Color(0xFFE3AA48),
+    danger: Color(0xFFF0646A),
+    purple: Color(0xFFB9A3F7),
+    skeleton: Color(0xFF22262C),
+  );
+
+  static Hgv of(BuildContext context) => Theme.of(context).extension<Hgv>() ?? light;
+
+  @override
+  Hgv copyWith() => this;
+
+  @override
+  Hgv lerp(ThemeExtension<Hgv>? other, double t) => t < 0.5 || other is! Hgv ? this : other;
 }
 
-ThemeData buildTheme() {
-  final scheme = ColorScheme.fromSeed(seedColor: Brand.ink, primary: Brand.ink, surface: Colors.white);
-  final base = ThemeData(useMaterial3: true, colorScheme: scheme, scaffoldBackgroundColor: Brand.paper);
+ThemeData buildTheme(Brightness brightness) {
+  final c = brightness == Brightness.dark ? Hgv.dark : Hgv.light;
+  final scheme = ColorScheme.fromSeed(
+    seedColor: c.ink,
+    brightness: brightness,
+    primary: c.ink,
+    surface: c.surface,
+    onSurface: c.text,
+    error: c.danger,
+  );
+  final base = ThemeData(useMaterial3: true, brightness: brightness, colorScheme: scheme, scaffoldBackgroundColor: c.paper);
   return base.copyWith(
-    textTheme: base.textTheme.apply(bodyColor: Brand.text, displayColor: Brand.text),
-    appBarTheme: const AppBarTheme(
-      backgroundColor: Colors.white,
-      foregroundColor: Brand.text,
+    extensions: [c],
+    textTheme: base.textTheme.apply(bodyColor: c.text, displayColor: c.text),
+    appBarTheme: AppBarTheme(
+      backgroundColor: c.surface,
+      foregroundColor: c.text,
       elevation: 0,
       scrolledUnderElevation: 0.5,
       centerTitle: false,
-      titleTextStyle: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Brand.text),
+      titleTextStyle: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: c.text),
     ),
-    cardTheme: const CardThemeData(
-      color: Colors.white,
+    cardTheme: CardThemeData(
+      color: c.surface,
       elevation: 0,
       margin: EdgeInsets.zero,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.all(Radius.circular(8)),
-        side: BorderSide(color: Brand.border),
+        borderRadius: const BorderRadius.all(Radius.circular(8)),
+        side: BorderSide(color: c.border),
       ),
     ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
-      fillColor: Colors.white,
+      fillColor: c.surface,
+      hintStyle: TextStyle(color: c.faint),
       contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Brand.border)),
-      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Brand.border)),
-      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Brand.ink, width: 1.5)),
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: c.border)),
+      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: c.border)),
+      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: c.ink, width: 1.5)),
     ),
     filledButtonTheme: FilledButtonThemeData(
       style: FilledButton.styleFrom(
-        backgroundColor: Brand.ink,
+        backgroundColor: c.ink,
+        foregroundColor: Colors.white,
         minimumSize: const Size.fromHeight(50),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
       ),
     ),
     navigationBarTheme: NavigationBarThemeData(
-      backgroundColor: Colors.white,
-      indicatorColor: Brand.ink.withValues(alpha: 0.12),
-      labelTextStyle: WidgetStateProperty.all(const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+      backgroundColor: c.surface,
+      indicatorColor: c.ink.withValues(alpha: 0.16),
+      labelTextStyle: WidgetStateProperty.all(TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: c.text)),
     ),
-    dividerTheme: const DividerThemeData(color: Brand.border, space: 1),
+    dividerTheme: DividerThemeData(color: c.border, space: 1),
+    bottomSheetTheme: BottomSheetThemeData(backgroundColor: c.surface),
+    dialogTheme: DialogThemeData(backgroundColor: c.surface),
   );
 }

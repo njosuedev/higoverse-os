@@ -32,14 +32,19 @@ class _SalesScreenState extends State<SalesScreen> {
     });
   }
 
+  ValueNotifier<int>? _tick;
+  void _onResume() => _reload();
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     if (_page == 0 && !_loading && _error == null) _reload();
+    _tick ??= SessionScope.of(context).refreshTick..addListener(_onResume);
   }
 
   @override
   void dispose() {
+    _tick?.removeListener(_onResume);
     _scroll.dispose();
     super.dispose();
   }
@@ -88,7 +93,7 @@ class _SalesScreenState extends State<SalesScreen> {
       appBar: AppBar(title: const Text('Sales')),
       body: Column(children: [
         Container(
-          color: Colors.white,
+          color: Hgv.of(context).surface,
           padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             SegmentedButton<int>(
@@ -116,7 +121,7 @@ class _SalesScreenState extends State<SalesScreen> {
                     label: 'Revenue',
                     value: _summary == null ? '-' : money(_summary!['revenue'] as num? ?? 0, s.currency),
                     icon: Icons.trending_up,
-                    color: Brand.success,
+                    color: Hgv.of(context).success,
                   ),
                 ),
               ],
@@ -128,7 +133,7 @@ class _SalesScreenState extends State<SalesScreen> {
           child: RefreshIndicator(
             onRefresh: _reload,
             child: _error != null && _items.isEmpty
-                ? ListView(children: [EmptyState(icon: Icons.cloud_off_outlined, message: _error!, onRetry: () => setState(() => _reload()))])
+                ? ListView(children: [EmptyState(icon: Icons.cloud_off_outlined, message: _error!, onRetry: () => _reload())])
                 : !_loading && _items.isEmpty
                     ? ListView(children: const [EmptyState(icon: Icons.receipt_long_outlined, message: 'No sales in this period.')])
                     : ListView.separated(

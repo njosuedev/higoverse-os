@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
+import '../app_settings.dart';
 import '../config.dart';
 import '../session.dart';
 import '../theme.dart';
+import '../updates.dart';
 import '../widgets.dart';
 
 /// Account: who is signed in, for which business, and sign-out.
@@ -19,7 +22,7 @@ class MoreScreen extends StatelessWidget {
         actions: [
           TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Cancel')),
           FilledButton(
-            style: FilledButton.styleFrom(minimumSize: const Size(0, 40), backgroundColor: Brand.danger),
+            style: FilledButton.styleFrom(minimumSize: const Size(0, 40), backgroundColor: Hgv.of(context).danger),
             onPressed: () => Navigator.pop(c, true),
             child: const Text('Sign out'),
           ),
@@ -33,6 +36,7 @@ class MoreScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final s = SessionScope.of(context);
     final u = s.user;
+    final settings = AppSettingsScope.of(context);
     const roles = {'owner': 'Owner', 'admin': 'Administrator', 'manager': 'Manager', 'cashier': 'Cashier', 'staff': 'Staff'};
     return Scaffold(
       appBar: AppBar(title: const Text('Account')),
@@ -41,7 +45,7 @@ class MoreScreen extends StatelessWidget {
           child: ListTile(
             contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             leading: CircleAvatar(
-              backgroundColor: Brand.ink,
+              backgroundColor: Hgv.of(context).ink,
               child: Text((u?.name.isNotEmpty ?? false) ? u!.name[0].toUpperCase() : '?',
                   style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800)),
             ),
@@ -68,9 +72,36 @@ class MoreScreen extends StatelessWidget {
             ),
           ]),
         ),
+        const SectionTitle('Appearance'),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: SegmentedButton<ThemeMode>(
+              segments: const [
+                ButtonSegment(value: ThemeMode.system, icon: Icon(Icons.brightness_auto_outlined), label: Text('System')),
+                ButtonSegment(value: ThemeMode.light, icon: Icon(Icons.light_mode_outlined), label: Text('Light')),
+                ButtonSegment(value: ThemeMode.dark, icon: Icon(Icons.dark_mode_outlined), label: Text('Dark')),
+              ],
+              selected: {settings.themeMode},
+              showSelectedIcon: false,
+              onSelectionChanged: (v) => settings.setThemeMode(v.first),
+            ),
+          ),
+        ),
         const SectionTitle('App'),
         Card(
           child: Column(children: [
+            FutureBuilder<PackageInfo>(
+              future: PackageInfo.fromPlatform(),
+              builder: (context, snap) => ListTile(
+                leading: const Icon(Icons.system_update_outlined),
+                title: const Text('Check for updates'),
+                subtitle: Text(snap.hasData ? 'Version ${snap.data!.version}' : 'Version'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => AppUpdates.check(context, manual: true),
+              ),
+            ),
+            const Divider(indent: 16, endIndent: 16),
             ListTile(
               leading: const Icon(Icons.dns_outlined),
               title: const Text('Server'),
@@ -87,9 +118,9 @@ class MoreScreen extends StatelessWidget {
         const SizedBox(height: 22),
         OutlinedButton.icon(
           onPressed: () => _confirmSignOut(context),
-          icon: const Icon(Icons.logout, color: Brand.danger),
-          label: const Text('Sign out', style: TextStyle(color: Brand.danger, fontWeight: FontWeight.w700)),
-          style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(48), side: const BorderSide(color: Brand.border)),
+          icon: Icon(Icons.logout, color: Hgv.of(context).danger),
+          label: Text('Sign out', style: TextStyle(color: Hgv.of(context).danger, fontWeight: FontWeight.w700)),
+          style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(48), side: BorderSide(color: Hgv.of(context).border)),
         ),
       ]),
     );

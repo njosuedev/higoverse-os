@@ -719,6 +719,21 @@ to the relevant `_MIGRATIONS`/idempotent-`ALTER` list in that service's
 `app/main.py` (the pattern already used throughout this codebase) so it
 self-heals on next restart, or run the ALTER by hand against `authdb`/`shopdb`.
 
+### Publishing a desktop or Android app update
+
+The installed apps update themselves from `https://higoverse.com/downloads/`
+(nginx serves `/var/www/higoverse/downloads/`, see `deploy/nginx-higoverse.conf`).
+
+- **Windows (Electron):** bump `version` in `apps/desktop/package.json`, run
+  `npm run dist`, then upload `dist/latest.yml`, `dist/Higoverse-Setup-<v>.exe`
+  and its `.blockmap` to `downloads/desktop/`. Upload `latest.yml` **last**:
+  installed apps download as soon as it changes.
+- **Android (APK installs):** bump `version: x.y.z+N` in `apps/mobile/pubspec.yaml`,
+  `flutter build apk --release`, upload the APK to `downloads/android/`, then
+  update `downloads/android/version.json` (`versionCode` = N). Google Play
+  installs update through Play (upload the `.aab` in Play Console).
+- The web app needs nothing: open tabs show "Reload" after a deploy.
+
 ---
 
 ## 7. First login

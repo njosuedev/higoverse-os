@@ -14,7 +14,7 @@ class SectionTitle extends StatelessWidget {
         child: Row(children: [
           Expanded(
             child: Text(text.toUpperCase(),
-                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 0.8, color: Brand.muted)),
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 0.8, color: Hgv.of(context).muted)),
           ),
           if (trailing != null) trailing!,
         ]),
@@ -39,20 +39,20 @@ class FigureTile extends StatelessWidget {
                 child: Text(label.toUpperCase(),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.6, color: Brand.muted)),
+                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.6, color: Hgv.of(context).muted)),
               ),
-              if (icon != null) Icon(icon, size: 16, color: color ?? Brand.ink),
+              if (icon != null) Icon(icon, size: 16, color: color ?? Hgv.of(context).ink),
             ]),
             const SizedBox(height: 6),
             // Long amounts shrink to fit instead of being cut off.
             FittedBox(
               fit: BoxFit.scaleDown,
               alignment: Alignment.centerLeft,
-              child: Text(value, maxLines: 1, style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: color ?? Brand.text)),
+              child: Text(value, maxLines: 1, style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: color ?? Hgv.of(context).text)),
             ),
             if (detail != null) ...[
               const SizedBox(height: 2),
-              Text(detail!, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, color: Brand.faint)),
+              Text(detail!, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, color: Hgv.of(context).faint)),
             ],
           ]),
         ),
@@ -84,9 +84,9 @@ class EmptyState extends StatelessWidget {
   Widget build(BuildContext context) => Padding(
         padding: const EdgeInsets.symmetric(vertical: 48, horizontal: 24),
         child: Column(children: [
-          Icon(icon, size: 36, color: Brand.faint),
+          Icon(icon, size: 36, color: Hgv.of(context).faint),
           const SizedBox(height: 10),
-          Text(message, textAlign: TextAlign.center, style: const TextStyle(color: Brand.muted)),
+          Text(message, textAlign: TextAlign.center, style: TextStyle(color: Hgv.of(context).muted)),
           if (onRetry != null) ...[
             const SizedBox(height: 12),
             OutlinedButton(onPressed: onRetry, child: const Text('Try again')),

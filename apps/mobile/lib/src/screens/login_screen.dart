@@ -49,7 +49,7 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: Hgv.of(context).surface,
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -69,11 +69,11 @@ class _LoginScreenState extends State<LoginScreen> {
                   const SizedBox(height: 36),
                   const Text('Log into Higoverse', style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800)),
                   const SizedBox(height: 6),
-                  const Text('Sign in to your Higoverse shop account',
-                      style: TextStyle(fontSize: 15, color: Brand.muted, fontWeight: FontWeight.w500)),
+                  Text('Sign in to your Higoverse shop account',
+                      style: TextStyle(fontSize: 15, color: Hgv.of(context).muted, fontWeight: FontWeight.w500)),
                   const SizedBox(height: 28),
                   if (_error != null) ...[
-                    _Banner(_error!, Brand.danger),
+                    _Banner(_error!, Hgv.of(context).danger),
                     const SizedBox(height: 14),
                   ],
                   const _Label('Email'),
@@ -124,8 +124,8 @@ class _LoginScreenState extends State<LoginScreen> {
                   const SizedBox(height: 16),
                   const Text("Don't have an account?", style: TextStyle(fontWeight: FontWeight.w700)),
                   const SizedBox(height: 4),
-                  const Text('Shop accounts are created by your Higoverse administrator.',
-                      style: TextStyle(color: Brand.muted, height: 1.4)),
+                  Text('Shop accounts are created by your Higoverse administrator.',
+                      style: TextStyle(color: Hgv.of(context).muted, height: 1.4)),
                 ]),
               ),
             ),
@@ -208,14 +208,14 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: Hgv.of(context).surface,
       appBar: AppBar(title: const Text('Reset password')),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
           child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             if (_done) ...[
-              const _Banner('Password updated. You can now sign in with your new password.', Brand.success),
+              _Banner('Password updated. You can now sign in with your new password.', Hgv.of(context).success),
               const SizedBox(height: 18),
               FilledButton(onPressed: () => Navigator.pop(context), child: const Text('Back to sign in')),
             ] else ...[
@@ -223,10 +223,10 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                 _codeSent
                     ? 'We sent a 6-digit code to ${_email.text.trim()}. Enter it with your new password. If it has not arrived, check your spam folder.'
                     : "Enter your account's email and we'll send you a 6-digit code.",
-                style: const TextStyle(color: Brand.muted, height: 1.4),
+                style: TextStyle(color: Hgv.of(context).muted, height: 1.4),
               ),
               const SizedBox(height: 18),
-              if (_error != null) ...[_Banner(_error!, Brand.danger), const SizedBox(height: 14)],
+              if (_error != null) ...[_Banner(_error!, Hgv.of(context).danger), const SizedBox(height: 14)],
               if (!_codeSent) ...[
                 const _Label('Email'),
                 TextField(

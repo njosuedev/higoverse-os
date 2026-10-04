@@ -6,7 +6,7 @@ import 'package:higoverse_inventory_mobile/src/session.dart';
 import 'package:higoverse_inventory_mobile/src/theme.dart';
 
 Widget _wrap(Widget child) =>
-    SessionScope(session: Session(), child: MaterialApp(theme: buildTheme(), home: child));
+    SessionScope(session: Session(), child: MaterialApp(theme: buildTheme(Brightness.light), home: child));
 
 void main() {
   testWidgets('login screen shows the sign-in form and no fake options', (tester) async {
