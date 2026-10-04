@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
@@ -10,7 +12,8 @@ class AppSettings extends ChangeNotifier {
   AppSettings({FlutterSecureStorage? storage}) : _store = storage ?? const FlutterSecureStorage();
 
   final FlutterSecureStorage _store;
-  static const _kTheme = 'hgv_theme', _kLang = 'hgv_lang', _kAlertSales = 'hgv_alert_sales', _kAlertStock = 'hgv_alert_stock';
+  static const _kTheme = 'hgv_theme', _kLang = 'hgv_lang', _kAlertSales = 'hgv_alert_sales', _kAlertStock = 'hgv_alert_stock',
+      _kAlertFines = 'hgv_alert_fines', _kSound = 'hgv_alert_sound', _kRecent = 'hgv_recent_searches';
 
   ThemeMode themeMode = ThemeMode.system;
 
@@ -20,6 +23,15 @@ class AppSettings extends ChangeNotifier {
   /// Banner when a sale is recorded / when stock runs low or out. On by default.
   bool alertSales = true, alertStock = true;
 
+  /// Car dealers: a traffic fine recorded / a vehicle waiting for transfer.
+  bool alertFines = true;
+
+  /// Notifications ring (and vibrate); off = silent.
+  bool sound = true;
+
+  /// The last searches, newest first (shown when the search box is empty).
+  List<String> recentSearches = const [];
+
   Future<void> load() async {
     try {
       final v = await _store.read(key: _kTheme);
@@ -28,6 +40,10 @@ class AppSettings extends ChangeNotifier {
       language = supportedLangs.contains(l) ? l : null;
       alertSales = await _store.read(key: _kAlertSales) != 'off';
       alertStock = await _store.read(key: _kAlertStock) != 'off';
+      alertFines = await _store.read(key: _kAlertFines) != 'off';
+      sound = await _store.read(key: _kSound) != 'off';
+      final r = await _store.read(key: _kRecent);
+      recentSearches = r == null ? const [] : List<String>.from(jsonDecode(r) as List);
     } catch (_) {/* defaults: system appearance, no language picked */}
     notifyListeners();
   }
@@ -48,13 +64,28 @@ class AppSettings extends ChangeNotifier {
     } catch (_) {}
   }
 
-  Future<void> setAlerts({bool? sales, bool? stock}) async {
+  Future<void> setAlerts({bool? sales, bool? stock, bool? fines, bool? sound}) async {
     alertSales = sales ?? alertSales;
     alertStock = stock ?? alertStock;
+    alertFines = fines ?? alertFines;
+    this.sound = sound ?? this.sound;
     notifyListeners();
     try {
       await _store.write(key: _kAlertSales, value: alertSales ? 'on' : 'off');
       await _store.write(key: _kAlertStock, value: alertStock ? 'on' : 'off');
+      await _store.write(key: _kAlertFines, value: alertFines ? 'on' : 'off');
+      await _store.write(key: _kSound, value: this.sound ? 'on' : 'off');
+    } catch (_) {}
+  }
+
+  /// Remembers a search (or forgets one with [remove]); keeps the last 8.
+  Future<void> rememberSearch(String q, {bool remove = false}) async {
+    final v = q.trim();
+    if (v.isEmpty) return;
+    recentSearches = [if (!remove) v, ...recentSearches.where((x) => x.toLowerCase() != v.toLowerCase())].take(8).toList();
+    notifyListeners();
+    try {
+      await _store.write(key: _kRecent, value: jsonEncode(recentSearches));
     } catch (_) {}
   }
 

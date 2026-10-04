@@ -1,3 +1,4 @@
+import json
 from fastapi import APIRouter, Depends, HTTPException, Header
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from sqlalchemy import case, func, or_
@@ -32,6 +33,21 @@ def _scrub(user: dict, value):
 # -----------------------------
 # HELPERS
 # -----------------------------
+def _car_state(attributes) -> dict:
+    """The parts of a car's details that live apps alert on."""
+    try:
+        a = json.loads(attributes) if isinstance(attributes, str) and attributes else {}
+    except ValueError:
+        a = {}
+    if not isinstance(a, dict):
+        a = {}
+    try:
+        fines = int(a.get("penalty_count") or 0)
+    except (TypeError, ValueError):
+        fines = 0
+    return {"penalty_count": fines, "sale_status": a.get("sale_status") or None}
+
+
 def _live(product, **extra) -> dict:
     """A product as live apps receive it — no photos (too big for an event)."""
     attrs = product.attributes if isinstance(product.attributes, str) and len(product.attributes) < 2000 else None
@@ -408,13 +424,19 @@ def update_product(
             )
 
         prev_quantity = product.quantity
+        prev_car = _car_state(product.attributes)
         for key, value in update_data.items():
             setattr(product, key, value)
 
         if product.selling_price is None:
             product.selling_price = product.cost_price
 
-        emit(db, user, "product.updated", _live(product, prev_quantity=prev_quantity))
+        emit(db, user, "product.updated", _live(
+            product,
+            prev_quantity=prev_quantity,
+            prev_penalty_count=prev_car["penalty_count"],
+            prev_sale_status=prev_car["sale_status"],
+        ))
         db.commit()
         db.refresh(product)
 

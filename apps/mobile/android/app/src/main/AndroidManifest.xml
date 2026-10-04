@@ -2,6 +2,9 @@
     xmlns:tools="http://schemas.android.com/tools">
     <!-- Needed in release builds to reach the Higoverse servers. -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Notifications for live sales, fines and stock alerts (Android 13+ asks once). -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.VIBRATE" />
     <!-- APK installs: the downloaded update is handed to Android's installer
          (Android asks once to allow installs from Higoverse). Left out of the
          Google Play bundle: see src/play/AndroidManifest.xml. -->

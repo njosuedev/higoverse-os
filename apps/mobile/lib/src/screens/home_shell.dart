@@ -8,8 +8,10 @@ import '../format.dart';
 import '../i18n.dart';
 import '../live/activity.dart';
 import '../live/live.dart';
+import '../live/notifier.dart';
 import '../live/scoped_route.dart';
 import '../session.dart';
+import '../nav_bar.dart';
 import '../sheets.dart';
 import '../theme.dart';
 import 'activity_screen.dart';
@@ -20,8 +22,8 @@ import 'sales_screen.dart';
 import 'search_screen.dart';
 
 /// Signed-in app: four tabs, each keeping its place when you switch, with
-/// search and notifications at the top of Home. Owns the live connection
-/// and the activity feed for this account.
+/// search and notifications at the top of Home. Owns the live connection,
+/// the activity feed and phone notifications for this account.
 class HomeShell extends StatefulWidget {
   const HomeShell({super.key});
 
@@ -44,18 +46,43 @@ class _HomeShellState extends State<HomeShell> {
   ActivityItem? _banner;
   Timer? _bannerTimer;
 
+  /// Lets go of the live connection a while after the app is left.
+  Timer? _sleep;
+  bool _foreground = true;
+
+  /// New since the tab was last opened: sales (Sales tab), fines,
+  /// transfers and stock alerts (Vehicles/Stock tab).
+  int _newSales = 0, _newStock = 0;
+
+  /// A context below the live/feed scopes, for pages opened from a
+  /// notification tap.
+  BuildContext? _scoped;
+
+  /// After leaving the app, live updates (and so notifications) keep coming
+  /// for this long; then the connection is let go to save battery.
+  static const _awake = Duration(minutes: 30);
+
   @override
   void initState() {
     super.initState();
     _life = AppLifecycleListener(
-      // Coming back: reconnect, and every screen reloads its data.
+      // Coming back: reconnect if needed, and every screen reloads its data.
       onResume: () {
+        _foreground = true;
+        _sleep?.cancel();
         _live?.start();
         SessionScope.of(context).refreshTick.value++;
       },
-      // In the background the socket is let go — no battery spent on it.
-      onPause: () => _live?.pause(),
+      // In the background: stay connected a while so alerts still ring.
+      onPause: () {
+        _foreground = false;
+        _sleep?.cancel();
+        _sleep = Timer(_awake, () => _live?.pause());
+      },
     );
+    AppNotifier.instance
+      ..onOpen = _openFromNotification
+      ..init();
   }
 
   @override
@@ -74,17 +101,23 @@ class _HomeShellState extends State<HomeShell> {
     _life.dispose();
     _freshSub?.cancel();
     _bannerTimer?.cancel();
+    _sleep?.cancel();
+    AppNotifier.instance.onOpen = null;
     _feed?.dispose();
     _live?.dispose();
     _productFilter.dispose();
     super.dispose();
   }
 
-  void _openTab(int i) => setState(() => _tab = i);
+  void _openTab(int i) => setState(() {
+        _tab = i;
+        if (i == 1) _newStock = 0;
+        if (i == 2) _newSales = 0;
+      });
 
   void _openProducts(String filter) {
     _productFilter.value = filter;
-    setState(() => _tab = 1);
+    _openTab(1);
   }
 
   Future<void> _openActivity(BuildContext context) async {
@@ -92,20 +125,39 @@ class _HomeShellState extends State<HomeShell> {
       _activityOpen = true;
       _banner = null;
     });
+    AppNotifier.instance.clear();
     await pushScoped<void>(context, const ActivityScreen(visible: true));
     if (mounted) setState(() => _activityOpen = false);
   }
 
+  void _openFromNotification() {
+    final ctx = _scoped;
+    if (ctx != null && !_activityOpen) _openActivity(ctx);
+  }
+
   void _openSearch(BuildContext context) => pushScoped<void>(context, const SearchScreen());
 
-  /// Something happened: a banner at the top, unless it was this person's
-  /// own doing, the Activity tab is already open, or they turned it off.
+  /// Something happened: count it on its tab and, unless it was this
+  /// person's own doing or they turned that alert off, notify: a phone
+  /// notification (sound, count) and, with the app on screen, a banner.
   void _onFresh(ActivityItem item) {
     if (!mounted || item.read) return;
+    setState(() {
+      if (item.kind == ActivityKind.sale && _tab != 2) _newSales++;
+      if ((item.kind.isStockAlert || item.kind.isVehicleAlert) && _tab != 1) _newStock++;
+    });
     final settings = AppSettingsScope.of(context);
-    final wanted = (item.kind == ActivityKind.sale && settings.alertSales) || (item.kind.isStockAlert && settings.alertStock);
-    if (_activityOpen || !wanted) return;
-    HapticFeedback.lightImpact();
+    if (_activityOpen || !AppNotifier.wanted(item, settings)) return;
+    AppNotifier.instance.show(
+      item,
+      t: T.of(context),
+      session: SessionScope.of(context),
+      sound: settings.sound,
+      foreground: _foreground,
+      unread: _feed?.unread ?? 1,
+    );
+    if (!_foreground) return;
+    HapticFeedback.mediumImpact();
     setState(() => _banner = item);
     _bannerTimer?.cancel();
     _bannerTimer = Timer(const Duration(seconds: 4), () {
@@ -134,6 +186,7 @@ class _HomeShellState extends State<HomeShell> {
       child: FeedScope(
         feed: _feed!,
         child: Builder(builder: (context) {
+          _scoped = context;
           return Scaffold(
             body: Stack(children: [
               IndexedStack(index: _tab, children: [
@@ -149,19 +202,19 @@ class _HomeShellState extends State<HomeShell> {
               ]),
               _BannerHost(item: _banner, onTap: _openBanner, onDismiss: () => setState(() => _banner = null)),
             ]),
-            bottomNavigationBar: NavigationBar(
-              selectedIndex: _tab,
-              onDestinationSelected: _openTab,
-              destinations: [
-                NavigationDestination(icon: const Icon(Icons.home_outlined), selectedIcon: const Icon(Icons.home_rounded), label: t('nav.home')),
-                NavigationDestination(
-                  icon: Icon(s.isCar ? Icons.directions_car_outlined : Icons.inventory_2_outlined),
-                  selectedIcon: Icon(s.isCar ? Icons.directions_car : Icons.inventory_2),
+            bottomNavigationBar: AppNavBar(
+              index: _tab,
+              onTap: _openTab,
+              items: [
+                NavItem(label: t('nav.home'), icon: Icons.home_outlined, activeIcon: Icons.home_rounded),
+                NavItem(
                   label: s.isCar ? t('nav.vehicles') : t('nav.stock'),
+                  icon: s.isCar ? Icons.directions_car_outlined : Icons.inventory_2_outlined,
+                  activeIcon: s.isCar ? Icons.directions_car_rounded : Icons.inventory_2_rounded,
+                  badge: _newStock,
                 ),
-                NavigationDestination(
-                    icon: const Icon(Icons.point_of_sale_outlined), selectedIcon: const Icon(Icons.point_of_sale), label: t('nav.sales')),
-                NavigationDestination(icon: const Icon(Icons.person_outline), selectedIcon: const Icon(Icons.person), label: t('nav.account')),
+                NavItem(label: t('nav.sales'), icon: Icons.receipt_long_outlined, activeIcon: Icons.receipt_long_rounded, badge: _newSales),
+                NavItem(label: t('nav.menu'), avatarName: s.user?.name ?? '?'),
               ],
             ),
           );

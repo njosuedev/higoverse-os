@@ -4,6 +4,7 @@ import '../format.dart';
 import '../i18n.dart';
 import '../live/activity.dart';
 import '../live/live_widgets.dart';
+import '../live/notifier.dart';
 import '../live/scoped_route.dart';
 import '../session.dart';
 import '../sheets.dart';
@@ -12,17 +13,7 @@ import '../widgets.dart';
 import 'debts_screen.dart';
 
 /// The entry's sentence in the app's language.
-String activityText(T t, ActivityItem item) {
-  final args = <String, Object?>{
-    ...item.args,
-    'by': item.by ?? t('act.someone'),
-    if (item.args['qty'] is num) 'qty': groupDigits(item.args['qty'] as num),
-    if (item.args['n'] is num) 'n': groupDigits(item.args['n'] as num),
-  };
-  // Sales loaded at start-up don't say who made them.
-  if (item.kind == ActivityKind.sale && item.by == null) return t('act.sale_anon', args);
-  return t(item.kind.key, args);
-}
+String activityText(T t, ActivityItem item) => activityLine(t, item);
 
 /// Who did it (initials) with a small badge saying what — or, for things
 /// nobody "did" (low stock), just the icon.
@@ -40,6 +31,8 @@ class ActivityIcon extends StatelessWidget {
       ActivityKind.lowStock => (Icons.warning_amber_rounded, c.warning),
       ActivityKind.outOfStock => (Icons.remove_shopping_cart_outlined, c.danger),
       ActivityKind.restocked => (Icons.inventory_rounded, c.success),
+      ActivityKind.fineRecorded => (Icons.local_police_rounded, c.danger),
+      ActivityKind.transferPending => (Icons.swap_horiz_rounded, c.warning),
       ActivityKind.productNew => (Icons.add_box_outlined, c.ink),
       ActivityKind.debtNew => (Icons.account_balance_wallet_outlined, c.warning),
       ActivityKind.debtPayment => (Icons.payments_outlined, c.success),

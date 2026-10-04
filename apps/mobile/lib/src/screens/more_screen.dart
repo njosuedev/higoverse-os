@@ -73,7 +73,7 @@ class MoreScreen extends StatelessWidget {
       _ => (t('live.status_offline'), c.faint),
     };
     return Scaffold(
-      appBar: AppBar(title: Text(t('nav.account'))),
+      appBar: AppBar(title: Text(t('nav.menu'))),
       body: ListView(padding: const EdgeInsets.fromLTRB(16, 8, 16, 24), children: [
         Card(
           child: ListTile(
@@ -136,6 +136,24 @@ class MoreScreen extends StatelessWidget {
               subtitle: Text(t('acc.notify_stock_sub')),
               value: settings.alertStock,
               onChanged: (v) => settings.setAlerts(stock: v),
+            ),
+            if (s.isCar) ...[
+              const Divider(indent: 16, endIndent: 16),
+              SwitchListTile(
+                secondary: const Icon(Icons.local_police_outlined),
+                title: Text(t('acc.notify_fines')),
+                subtitle: Text(t('acc.notify_fines_sub')),
+                value: settings.alertFines,
+                onChanged: (v) => settings.setAlerts(fines: v),
+              ),
+            ],
+            const Divider(indent: 16, endIndent: 16),
+            SwitchListTile(
+              secondary: Icon(settings.sound ? Icons.volume_up_outlined : Icons.volume_off_outlined),
+              title: Text(t('acc.sound')),
+              subtitle: Text(t('acc.sound_sub')),
+              value: settings.sound,
+              onChanged: (v) => settings.setAlerts(sound: v),
             ),
           ]),
         ),

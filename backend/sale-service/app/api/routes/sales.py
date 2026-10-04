@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta, timezone
-from fastapi import APIRouter, Depends, HTTPException, Header
+from fastapi import APIRouter, Depends, HTTPException, Header, Query
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -85,6 +85,7 @@ def list_sales(
     from_date: str | None = None,
     to_date: str | None = None,
     product_id: str | None = None,  # e.g. who bought this car (latest first)
+    search: str | None = Query(None, alias="q"),  # what was sold (the app's search)
 ):
     if not user["shop_id"]:
         return _scrub(user, {"success": True, "data": {"items": [], "total": 0, "page": page, "limit": limit}})
@@ -92,6 +93,8 @@ def list_sales(
     q = db.query(Sale).filter(Sale.shop_id == user["shop_id"])
     if product_id:
         q = q.filter(Sale.product_id == product_id)
+    if search and search.strip():
+        q = q.filter(Sale.product_name.ilike(f"%{search.strip()}%"))
 
     if from_date:
         q = q.filter(Sale.created_at >= datetime.fromisoformat(from_date + "T00:00:00"))

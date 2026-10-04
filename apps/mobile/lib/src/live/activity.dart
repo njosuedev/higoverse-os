@@ -13,6 +13,8 @@ enum ActivityKind {
   sale,
   saleDeleted,
   lowStock,
+  fineRecorded,
+  transferPending,
   outOfStock,
   restocked,
   productNew,
@@ -26,6 +28,8 @@ enum ActivityKind {
         sale => 'act.sale',
         saleDeleted => 'act.sale_deleted',
         lowStock => 'act.low_stock',
+        fineRecorded => 'act.fine_recorded',
+        transferPending => 'act.transfer_pending',
         outOfStock => 'act.out_of_stock',
         restocked => 'act.restocked',
         productNew => 'act.product_new',
@@ -39,12 +43,15 @@ enum ActivityKind {
   /// The Activity screen's filters.
   String get filter => switch (this) {
         sale || saleDeleted => 'sales',
-        lowStock || outOfStock || restocked || productNew || purchase => 'stock',
+        lowStock || outOfStock || restocked || productNew || purchase || fineRecorded || transferPending => 'stock',
         debtNew || debtPayment || debtPaid => 'debts',
         expense => 'money',
       };
 
   bool get isStockAlert => this == lowStock || this == outOfStock;
+
+  /// Car dealers: a traffic fine was added, or a vehicle awaits transfer.
+  bool get isVehicleAlert => this == fineRecorded || this == transferPending;
 }
 
 class ActivityItem {
@@ -116,7 +123,7 @@ class ActivityFeed extends ChangeNotifier {
 
   /// Turns a live event into an entry, when it is worth one.
   void add(LiveEvent e) {
-    final item = fromEvent(e, lowStock: session.lowStock);
+    final item = fromEvent(e, lowStock: session.lowStock, isCar: session.isCar);
     if (item == null) return;
     // Own actions are listed, but already seen.
     if (item.byId != null && item.byId == session.user?.id) item.read = true;
@@ -127,8 +134,10 @@ class ActivityFeed extends ChangeNotifier {
   }
 
   /// Pure: which entry (if any) an event makes. [lowStock] is the shop's
-  /// "running low" level.
-  static ActivityItem? fromEvent(LiveEvent e, {required int lowStock}) {
+  /// "running low" level; car dealers ([isCar]) hold one of each vehicle, so
+  /// "out of stock" just means sold there — they get fine and transfer
+  /// alerts instead.
+  static ActivityItem? fromEvent(LiveEvent e, {required int lowStock, bool isCar = false}) {
     final d = e.data;
     ActivityItem make(ActivityKind kind, Map<String, Object?> args, {bool withActor = true}) => ActivityItem(
           kind: kind,
@@ -148,7 +157,14 @@ class ActivityFeed extends ChangeNotifier {
       case 'product.created':
         return make(ActivityKind.productNew, {'name': d['name'] ?? '', 'qty': d['quantity'] ?? 0});
       case 'product.updated':
-        if (!d.containsKey('prev_quantity') || !d.containsKey('quantity')) return null;
+        final car = _carState(d['attributes']);
+        if (d.containsKey('prev_penalty_count') && car.fines > n(d['prev_penalty_count'])) {
+          return make(ActivityKind.fineRecorded, {'name': d['name'] ?? '', 'n': car.fines, 'amount': car.fineAmount});
+        }
+        if (d.containsKey('prev_sale_status') && car.status == 'pending' && d['prev_sale_status'] != 'pending') {
+          return make(ActivityKind.transferPending, {'name': d['name'] ?? '', 'buyer': car.buyer ?? ''});
+        }
+        if (isCar || !d.containsKey('prev_quantity') || !d.containsKey('quantity')) return null;
         final q = n(d['quantity']), prev = n(d['prev_quantity']);
         final args = {'name': d['name'] ?? '', 'n': q};
         if (q <= 0 && prev > 0) return make(ActivityKind.outOfStock, args, withActor: false);
@@ -166,6 +182,16 @@ class ActivityFeed extends ChangeNotifier {
         return make(ActivityKind.purchase, {'name': d['product_name'] ?? '', 'qty': d['quantity_added'] ?? 0});
     }
     return null;
+  }
+
+  static ({int fines, num? fineAmount, String? status, String? buyer}) _carState(Object? attributes) {
+    final a = attributesOf(attributes);
+    return (
+      fines: int.tryParse(a['penalty_count'] ?? '') ?? 0,
+      fineAmount: num.tryParse(a['penalty_amount'] ?? ''),
+      status: a['sale_status'],
+      buyer: a['buyer_name'],
+    );
   }
 
   void markAllRead() {

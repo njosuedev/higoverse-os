@@ -46,6 +46,27 @@ void main() {
       expect(activityText(const T('en'), i), 'Rice is out of stock');
     });
 
+    test('car dealers: fines and transfers alert, "sold out" does not', () {
+      ActivityItem? car(Map<String, dynamic> d) => ActivityFeed.fromEvent(_ev('product.updated', d), lowStock: 10, isCar: true);
+      final fine = car({
+        'id': 'v', 'name': 'Swift', 'quantity': 1, 'prev_quantity': 1, 'prev_penalty_count': 1,
+        'prev_sale_status': null, 'attributes': '{"penalty_count": "2", "penalty_amount": "50000"}',
+      })!;
+      expect(fine.kind, ActivityKind.fineRecorded);
+      expect(activityText(const T('en'), fine), 'Swift got a traffic fine (2 in total)');
+      final transfer = car({
+        'id': 'v', 'name': 'Tucson', 'quantity': 1, 'prev_quantity': 1, 'prev_penalty_count': 0,
+        'prev_sale_status': null, 'attributes': '{"sale_status": "pending", "buyer_name": "Jean"}',
+      })!;
+      expect(transfer.kind, ActivityKind.transferPending);
+      expect(activityText(const T('en'), transfer), 'Tucson sold to Jean: awaiting transfer');
+      // Already pending with the same fines: nothing new.
+      expect(car({'id': 'v', 'name': 'Tucson', 'quantity': 1, 'prev_quantity': 1, 'prev_penalty_count': 0,
+          'prev_sale_status': 'pending', 'attributes': '{"sale_status": "pending"}'}), isNull);
+      // A car sold (1 → 0) is not a stock alert.
+      expect(car({'id': 'v', 'name': 'RAV4', 'quantity': 0, 'prev_quantity': 1, 'attributes': '{}'}), isNull);
+    });
+
     test('debts: payment vs paid in full', () {
       expect(make(_ev('debt.updated', {'debtor_name': 'Jo', 'is_paid': false, 'balance': 500}))!.kind, ActivityKind.debtPayment);
       expect(make(_ev('debt.updated', {'debtor_name': 'Jo', 'is_paid': true, 'balance': 0}))!.kind, ActivityKind.debtPaid);
