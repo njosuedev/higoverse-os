@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 import '../app_settings.dart';
@@ -112,6 +113,36 @@ class AppNotifier {
     } catch (_) {
       _allowed = false; // no notifications; the in-app banner still works
     }
+  }
+
+  /// Asks the phone again whether notifications are allowed (they may have
+  /// been turned on in Settings since).
+  Future<void> recheck() async {
+    if (!_ready) return init();
+    try {
+      final android = _plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+      if (android != null) _allowed = await android.areNotificationsEnabled() ?? _allowed;
+    } catch (_) {}
+  }
+
+  static const _live = MethodChannel('com.higoverse.app/live');
+
+  /// Android freezes an app seconds after it is left, which would cut the
+  /// live connection and every alert with it. A foreground service (a quiet
+  /// "Higoverse" line in the tray) keeps it going. Must start while the app
+  /// is on screen.
+  static Future<void> keepAlive(String title, String text) async {
+    if (!Platform.isAndroid) return;
+    try {
+      await _live.invokeMethod<void>('start', {'title': title, 'text': text});
+    } catch (_) {}
+  }
+
+  static Future<void> letGo() async {
+    if (!Platform.isAndroid) return;
+    try {
+      await _live.invokeMethod<void>('stop');
+    } catch (_) {}
   }
 
   /// Whether this entry should alert, given the person's settings.

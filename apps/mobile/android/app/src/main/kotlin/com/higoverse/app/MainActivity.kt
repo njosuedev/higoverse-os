@@ -22,6 +22,9 @@ import java.io.File
  *
  * The APK lives in the app's cache (cache/updates/), shared with the
  * installer through a FileProvider: no storage permission is needed.
+ *
+ * Channel "com.higoverse.app/live": start(title, text) / stop() the
+ * [LiveService] that keeps live alerts coming in the background.
  */
 class MainActivity : FlutterActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
@@ -43,6 +46,18 @@ class MainActivity : FlutterActivity() {
                 }
             } catch (e: Exception) {
                 result.error("update", e.message, null)
+            }
+        }
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "com.higoverse.app/live").setMethodCallHandler { call, result ->
+            try {
+                when (call.method) {
+                    "start" -> LiveService.start(this, call.argument<String>("title") ?: "Higoverse", call.argument<String>("text") ?: "")
+                    "stop" -> LiveService.stop(this)
+                    else -> return@setMethodCallHandler result.notImplemented()
+                }
+                result.success(null)
+            } catch (e: Exception) {
+                result.error("live", e.message, null)
             }
         }
     }

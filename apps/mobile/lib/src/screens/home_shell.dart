@@ -48,8 +48,6 @@ class _HomeShellState extends State<HomeShell> {
   ActivityItem? _banner;
   Timer? _bannerTimer;
 
-  /// Lets go of the live connection a while after the app is left.
-  Timer? _sleep;
   bool _foreground = true;
 
   /// New since the tab was last opened: sales (Sales tab), fines,
@@ -60,10 +58,6 @@ class _HomeShellState extends State<HomeShell> {
   /// notification tap.
   BuildContext? _scoped;
 
-  /// After leaving the app, live updates (and so notifications) keep coming
-  /// for this long; then the connection is let go to save battery.
-  static const _awake = Duration(minutes: 30);
-
   @override
   void initState() {
     super.initState();
@@ -71,21 +65,26 @@ class _HomeShellState extends State<HomeShell> {
       // Coming back: reconnect if needed, and every screen reloads its data.
       onResume: () {
         _foreground = true;
-        _sleep?.cancel();
         _live?.start();
+        AppNotifier.instance.recheck();
+        _keepAlive();
         SessionScope.of(context).refreshTick.value++;
       },
-      // In the background: stay connected a while so alerts still ring.
-      onPause: () {
-        _foreground = false;
-        _sleep?.cancel();
-        _sleep = Timer(_awake, () => _live?.pause());
-      },
+      // In the background the connection stays (LiveService keeps the app
+      // awake), so alerts ring and count as they happen.
+      onPause: () => _foreground = false,
     );
     AppNotifier.instance
       ..onOpen = _openFromNotification
       ..onMarkRead = (() => _feed?.markAllRead())
       ..init();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _keepAlive());
+  }
+
+  void _keepAlive() {
+    if (!mounted) return;
+    final s = SessionScope.of(context);
+    AppNotifier.keepAlive(s.shop?.name ?? 'Higoverse', T.of(context)('notif.live'));
   }
 
   @override
@@ -104,7 +103,7 @@ class _HomeShellState extends State<HomeShell> {
     _life.dispose();
     _freshSub?.cancel();
     _bannerTimer?.cancel();
-    _sleep?.cancel();
+    AppNotifier.letGo();
     AppNotifier.instance
       ..onOpen = null
       ..onMarkRead = null;

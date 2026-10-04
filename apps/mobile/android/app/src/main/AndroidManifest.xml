@@ -5,6 +5,9 @@
     <!-- Notifications for live sales, fines and stock alerts (Android 13+ asks once). -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- LiveService: keeps the live connection, so alerts ring with the app in the background. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_REMOTE_MESSAGING" />
     <!-- APK installs: the downloaded update is handed to Android's installer
          (Android asks once to allow installs from Higoverse). Left out of the
          Google Play bundle: see src/play/AndroidManifest.xml. -->
@@ -35,6 +38,11 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
+        <service
+            android:name=".LiveService"
+            android:exported="false"
+            android:stopWithTask="true"
+            android:foregroundServiceType="remoteMessaging" />
         <!-- Shares the downloaded update APK with Android's installer (MainActivity.kt). -->
         <provider
             android:name="androidx.core.content.FileProvider"

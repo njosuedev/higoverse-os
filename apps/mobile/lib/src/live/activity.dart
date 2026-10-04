@@ -121,8 +121,46 @@ class ActivityFeed extends ChangeNotifier {
     } catch (_) {/* the live entries still come */}
   }
 
+  /// Back after a drop (the phone slept, the network went): sales made
+  /// meanwhile never came live, so fetch them and count them as new.
+  Future<void> catchUp() async {
+    final since = items.where((i) => i.kind == ActivityKind.sale).map((i) => i.at).fold<DateTime?>(
+        null, (a, b) => a == null || b.isAfter(a) ? b : a);
+    if (since == null) return seed();
+    try {
+      final res = await session.api.get('${Svc.sales}/sales', query: {'page': '1', 'limit': '20'});
+      final list = ((res as Map)['data'] as Map?)?['items'] as List? ?? const [];
+      final known = items.map((i) => i.data['id']).toSet();
+      final missed = <ActivityItem>[];
+      for (final raw in list.whereType<Map>()) {
+        final s = Map<String, dynamic>.from(raw);
+        final at = parseTimestamp(s['created_at']);
+        if (known.contains(s['id']) || at == null || !at.isAfter(since)) continue;
+        missed.add(ActivityItem(
+          kind: ActivityKind.sale,
+          at: at,
+          args: {'qty': s['quantity'] ?? 1, 'name': s['product_name'] ?? '', 'amount': s['total_amount']},
+          data: s,
+        ));
+      }
+      if (missed.isEmpty) return;
+      items.addAll(missed);
+      items.sort((a, b) => b.at.compareTo(a.at));
+      if (items.length > _max) items.removeRange(_max, items.length);
+      notifyListeners();
+      missed.sort((a, b) => a.at.compareTo(b.at));
+      for (final m in missed) {
+        _fresh.add(m);
+      }
+    } catch (_) {/* the next reconnect tries again */}
+  }
+
   /// Turns a live event into an entry, when it is worth one.
   void add(LiveEvent e) {
+    if (e.isResync) {
+      catchUp();
+      return;
+    }
     final item = fromEvent(e, lowStock: session.lowStock, isCar: session.isCar);
     if (item == null) return;
     // Own actions are listed, but already seen.
