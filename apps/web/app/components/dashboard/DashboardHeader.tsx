@@ -187,11 +187,11 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
                       <p className="mt-0.5 truncate text-[11px] text-paper/60">{user?.email ?? ""}</p>
                       <div className="mt-2">
                         {isAdmin ? (
-                          <span className="hgv-stamp text-[9px] text-accent border-accent/60">
+                          <span className="hgv-stamp text-[11px] text-accent border-accent/60">
                             {t("nav.admin")}
                           </span>
                         ) : (
-                          <span className="hgv-stamp text-[9px] text-paper/85 border-paper/40">
+                          <span className="hgv-stamp text-[11px] text-paper/85 border-paper/40">
                             {t("common.shop_owner")}
                           </span>
                         )}
@@ -250,7 +250,7 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
                     </div>
                     <div className="min-w-0">
                       <p className="text-sm font-medium text-text">{t("nav.settings")}</p>
-                      <p className="text-[10px] leading-snug text-text-faint">{t("nav.settings_hint")}</p>
+                      <p className="text-[11px] leading-snug text-text-faint">{t("nav.settings_hint")}</p>
                     </div>
                     <ChevronDown size={13} className="ml-auto shrink-0 -rotate-90 text-text-faint transition-colors duration-200 group-hover:text-text-muted" />
                   </Link>
@@ -338,7 +338,7 @@ function NavLink({
       }`}
     >
       <Icon size={20} strokeWidth={active ? 2.25 : 1.75} />
-      <span className="hidden whitespace-nowrap text-[10px] font-semibold leading-none md:block">{t(menu.key)}</span>
+      <span className="hidden whitespace-nowrap text-[11px] font-semibold leading-none md:block">{t(menu.key)}</span>
       {active && <span className={`absolute bottom-0 left-2.5 right-2.5 h-[2px] ${underlineColor}`} />}
     </Link>
   );

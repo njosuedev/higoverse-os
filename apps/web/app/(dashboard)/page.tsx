@@ -327,12 +327,12 @@ export default function DashboardPage() {
         {productServiceError && (
           <div className="flex items-center gap-2 bg-accent-soft border border-accent/30 rounded-press px-3 py-1.5">
             <AlertTriangle size={11} className="text-accent-dark shrink-0" />
-            <p className="text-[10px] text-accent-dark flex-1 min-w-0">
+            <p className="text-[11px] text-accent-dark flex-1 min-w-0">
               {t("dash.service_error")}
             </p>
             <button
               onClick={manualRefresh}
-              className="text-[10px] font-bold text-accent-dark bg-white hover:bg-accent-soft px-2 py-0.5 rounded-press shrink-0 transition-colors duration-200"
+              className="text-[11px] font-bold text-accent-dark bg-white hover:bg-accent-soft px-2 py-0.5 rounded-press shrink-0 transition-colors duration-200"
             >
               {t("common.retry")}
             </button>
@@ -354,8 +354,6 @@ export default function DashboardPage() {
           ];
           return (
             <section className="relative overflow-hidden rounded-data border border-border bg-white shadow-[0_1px_2px_rgb(0_0_0_/_0.04)]">
-              {/* soft brand tint toward the right */}
-              <div aria-hidden="true" className="pointer-events-none absolute inset-y-0 right-0 w-2/3 bg-gradient-to-l from-ink/[0.05] to-transparent" />
               <div className="relative flex flex-wrap items-center gap-x-6 gap-y-3 px-4 py-3.5 sm:px-5">
                 {/* Business */}
                 <div className="order-1 flex min-w-0 flex-1 basis-[220px] items-center gap-3 sm:order-none">
@@ -368,10 +366,6 @@ export default function DashboardPage() {
                     <h1 className="truncate font-display text-[17px] font-bold leading-tight text-text" title={name}>{name}</h1>
                     <p className="mt-0.5 flex min-w-0 items-center gap-1.5 text-xs text-text-muted">
                       <span className="truncate">{greeting}{firstName ? `, ${firstName}` : ""} · {user.role || t("dash.owner_role")}</span>
-                      <span className="relative ml-0.5 flex h-2 w-2 shrink-0" title={lastUpdated ? `${t("dash.last_updated")} ${timeAgo(lastUpdated, t)}` : undefined}>
-                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-success opacity-40" />
-                        <span className="relative inline-flex h-2 w-2 rounded-full bg-success" />
-                      </span>
                     </p>
                   </div>
                 </div>
@@ -383,7 +377,7 @@ export default function DashboardPage() {
                       className="group flex min-w-0 flex-1 items-center gap-2.5 rounded-press px-2 py-1.5 transition-colors duration-200 hover:bg-paper sm:flex-none sm:px-3">
                       <span className={`hidden h-8 w-8 shrink-0 items-center justify-center rounded-full sm:flex ${f.tint}`}>{f.icon}</span>
                       <span className="min-w-0">
-                        <span className="block whitespace-nowrap text-[10px] font-semibold uppercase tracking-wider text-text-muted">
+                        <span className="block whitespace-nowrap text-[11px] font-semibold uppercase tracking-wider text-text-muted">
                           <span className="sm:hidden">{f.short}</span><span className="hidden sm:inline">{f.long}</span>
                         </span>
                         <span className={`hgv-figure block whitespace-nowrap text-base font-bold leading-tight ${f.tone}`}>{f.value}</span>
@@ -459,26 +453,26 @@ export default function DashboardPage() {
 
           <div className={`grid grid-cols-2 ${isCar ? "sm:grid-cols-2" : "sm:grid-cols-4"} divide-y sm:divide-y-0 sm:divide-x divide-border border border-border rounded-data overflow-hidden`}>
             <div className="p-3">
-              <p className="text-[9px] text-text-faint uppercase tracking-wide font-medium">{t("dash.revenue_week")}</p>
+              <p className="text-[11px] text-text-faint uppercase tracking-wide font-medium">{t("dash.revenue_week")}</p>
               <p className="hgv-figure text-lg font-semibold text-success mt-0.5">{stats.revenue > 0 ? fmtCurrency(stats.revenue) : "-"}</p>
-              <p className="text-[10px] text-text-faint mt-0.5">{stats.sales} {t("dash.sales_week")}</p>
+              <p className="text-[11px] text-text-faint mt-0.5">{stats.sales} {t("dash.sales_week")}</p>
             </div>
             {!isCar && <div className="p-3">
-              <p className="text-[9px] text-text-faint uppercase tracking-wide font-medium">{t("nav.purchases")}</p>
+              <p className="text-[11px] text-text-faint uppercase tracking-wide font-medium">{t("nav.purchases")}</p>
               <p className="hgv-figure text-lg font-semibold text-text mt-0.5">{purchaseCostToday > 0 ? fmtCurrency(purchaseCostToday) : "-"}</p>
-              <p className="text-[10px] text-text-faint mt-0.5">{t("dash.stock_cost")}</p>
+              <p className="text-[11px] text-text-faint mt-0.5">{t("dash.stock_cost")}</p>
             </div>}
             <div className="p-3">
-              <p className="text-[9px] text-text-faint uppercase tracking-wide font-medium">{t("nav.expenses")}</p>
+              <p className="text-[11px] text-text-faint uppercase tracking-wide font-medium">{t("nav.expenses")}</p>
               <p className="hgv-figure text-lg font-semibold text-warning mt-0.5">{expenseToday.total_expenses > 0 ? fmtCurrency(expenseToday.total_expenses) : "-"}</p>
-              <p className="text-[10px] text-text-faint mt-0.5">{expenseToday.count} {t("expenses.records")}</p>
+              <p className="text-[11px] text-text-faint mt-0.5">{expenseToday.count} {t("expenses.records")}</p>
             </div>
             {prof && <div className="p-3">
-              <p className="text-[9px] text-text-faint uppercase tracking-wide font-medium">{t("dash.net_profit")}</p>
+              <p className="text-[11px] text-text-faint uppercase tracking-wide font-medium">{t("dash.net_profit")}</p>
               <p className={`hgv-figure text-lg font-semibold mt-0.5 ${netProfit >= 0 ? "text-ink" : "text-accent-dark"}`}>
                 {totalCosts > 0 || stats.revenue > 0 ? fmtCurrency(netProfit) : "-"}
               </p>
-              <p className="text-[10px] text-text-faint mt-0.5">
+              <p className="text-[11px] text-text-faint mt-0.5">
                 {netProfit >= 0 ? t("dash.profitable") : t("dash.at_loss")}
               </p>
             </div>}
@@ -492,16 +486,16 @@ export default function DashboardPage() {
                 {prof && netPct > 0 && <div className="bg-success flex-1" />}
               </div>
               <div className="flex flex-wrap items-center gap-3 mt-2">
-                {!isCar && <span className="flex items-center gap-1 text-[10px] text-text-muted">
+                {!isCar && <span className="flex items-center gap-1 text-[11px] text-text-muted">
                   <span className="w-2 h-1.5 rounded-sm bg-border-strong inline-block" /> {t("nav.purchases")} {purchasePct}%
                 </span>}
-                <span className="flex items-center gap-1 text-[10px] text-text-muted">
+                <span className="flex items-center gap-1 text-[11px] text-text-muted">
                   <span className="w-2 h-1.5 rounded-sm bg-warning inline-block" /> {t("nav.expenses")} {expensePct}%
                 </span>
-                {prof && <span className="flex items-center gap-1 text-[10px] text-text-muted">
+                {prof && <span className="flex items-center gap-1 text-[11px] text-text-muted">
                   <span className="w-2 h-1.5 rounded-sm bg-success inline-block" /> {t("dash.profit_label")} {netPct}%
                 </span>}
-                <Link href="/ExpenseManagement" className="ml-auto text-[10px] font-semibold text-paper bg-ink hover:bg-ink-dark px-2.5 py-1 rounded-press flex items-center gap-1 transition-colors duration-200">
+                <Link href="/ExpenseManagement" className="ml-auto text-[11px] font-semibold text-paper bg-ink hover:bg-ink-dark px-2.5 py-1 rounded-press flex items-center gap-1 transition-colors duration-200">
                   <Receipt size={10} /> {t("expenses.add")}
                 </Link>
               </div>
@@ -522,7 +516,7 @@ export default function DashboardPage() {
             return (
               <div className="bg-white border border-border rounded-data p-3.5">
                 <div className="flex items-center justify-between mb-2.5">
-                  <p className="text-[10px] font-semibold uppercase tracking-wide text-text-muted flex items-center gap-1.5">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-text-muted flex items-center gap-1.5">
                     <Package size={11} className="text-ink" /> {t("dash.stock_health")}
                   </p>
                   <span className={`hgv-figure text-[11px] font-bold ${
@@ -535,9 +529,9 @@ export default function DashboardPage() {
                   {stats.outOfStock > 0 && <div className="bg-accent" style={{ width: `${outPct}%` }} />}
                 </div>
                 <div className="flex flex-wrap gap-2.5">
-                  <span className="flex items-center gap-1 text-[9px] text-text-muted"><span className="w-2 h-1.5 rounded-sm bg-success inline-block" /> {healthy} {t("dash.healthy")}</span>
-                  {stats.lowStock   > 0 && <span className="flex items-center gap-1 text-[9px] text-text-muted"><span className="w-2 h-1.5 rounded-sm bg-warning inline-block" /> {stats.lowStock} {t("items.low_stock")}</span>}
-                  {stats.outOfStock > 0 && <span className="flex items-center gap-1 text-[9px] text-text-muted"><span className="w-2 h-1.5 rounded-sm bg-accent inline-block" /> {stats.outOfStock} {t("items.out_stock")}</span>}
+                  <span className="flex items-center gap-1 text-[11px] text-text-muted"><span className="w-2 h-1.5 rounded-sm bg-success inline-block" /> {healthy} {t("dash.healthy")}</span>
+                  {stats.lowStock   > 0 && <span className="flex items-center gap-1 text-[11px] text-text-muted"><span className="w-2 h-1.5 rounded-sm bg-warning inline-block" /> {stats.lowStock} {t("items.low_stock")}</span>}
+                  {stats.outOfStock > 0 && <span className="flex items-center gap-1 text-[11px] text-text-muted"><span className="w-2 h-1.5 rounded-sm bg-accent inline-block" /> {stats.outOfStock} {t("items.out_stock")}</span>}
                 </div>
               </div>
             );
@@ -553,7 +547,7 @@ export default function DashboardPage() {
             return (
               <div className="bg-white border border-border rounded-data p-3.5">
                 <div className="flex items-center justify-between mb-2.5">
-                  <p className="text-[10px] font-semibold uppercase tracking-wide text-text-muted flex items-center gap-1.5">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-text-muted flex items-center gap-1.5">
                     <TrendingUp size={11} className="text-ink" /> {t("dash.profit_margin")}
                   </p>
                   <span className={`hgv-figure text-[11px] font-bold ${textColor}`}>{margin}%</span>
@@ -561,7 +555,7 @@ export default function DashboardPage() {
                 <div className="relative h-1.5 bg-paper-dim rounded-full overflow-hidden mb-2.5">
                   <div className="absolute inset-y-0 left-0 rounded-full transition-all duration-700" style={{ width: `${capped}%`, backgroundColor: barColor }} />
                 </div>
-                <div className="flex items-center justify-between text-[9px] text-text-faint">
+                <div className="flex items-center justify-between text-[11px] text-text-faint">
                   <span>{t("dash.revenue_week")}: {fmtCurrency(stats.revenue)}</span>
                   <span className={isGood ? "text-success font-semibold" : ""}>{isGood ? t("dash.margin_healthy") : margin < 0 ? t("dash.margin_loss") : t("dash.margin_fair")}</span>
                 </div>
@@ -575,7 +569,7 @@ export default function DashboardPage() {
             return (
               <div className="bg-white border border-border rounded-data p-3.5">
                 <div className="flex items-center justify-between mb-2.5">
-                  <p className="text-[10px] font-semibold uppercase tracking-wide text-text-muted flex items-center gap-1.5">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-text-muted flex items-center gap-1.5">
                     <Globe size={11} className="text-ink" /> {t("dash.shops_live")}
                   </p>
                   <span className="hgv-figure flex items-center gap-1 text-[11px] font-bold text-success">
@@ -585,7 +579,7 @@ export default function DashboardPage() {
                 <div className="relative h-1.5 bg-paper-dim rounded-full overflow-hidden mb-2.5">
                   <div className="absolute inset-y-0 left-0 rounded-full bg-success transition-all duration-700" style={{ width: `${pct}%` }} />
                 </div>
-                <div className="flex items-center justify-between text-[9px] text-text-faint">
+                <div className="flex items-center justify-between text-[11px] text-text-faint">
                   <span>{onlineCount} {t("dash.online_now")}</span>
                   <span>{pct}% {t("common.active")}</span>
                 </div>
@@ -606,7 +600,7 @@ export default function DashboardPage() {
                   <Activity size={13} className="text-ink" />
                   {t("dash.revenue_7d")}
                 </h2>
-                <p className="text-[10px] text-text-faint mt-0.5">
+                <p className="text-[11px] text-text-faint mt-0.5">
                   {t("common.total")}: <span className="hgv-figure">{fmtCurrency(chartData.reduce((s, d) => s + d.revenue, 0))}</span>
                 </p>
               </div>
@@ -627,7 +621,7 @@ export default function DashboardPage() {
                     <stop offset="95%" stopColor="#057642" stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <XAxis dataKey="day" tick={{ fontSize: 9, fill: "#8c8c8c" }} tickLine={false} axisLine={false} />
+                <XAxis dataKey="day" tick={{ fontSize: 11, fill: "#767676" }} tickLine={false} axisLine={false} />
                 <YAxis hide />
                 <Tooltip
                   contentStyle={{ fontSize: 10, borderRadius: 2, border: "1px solid #e0dfdc", boxShadow: "0 2px 8px rgba(0,0,0,.1)" }}
@@ -641,10 +635,10 @@ export default function DashboardPage() {
               </AreaChart>
             </ResponsiveContainer>
             <div className="flex items-center gap-3 mt-1.5">
-              <span className="flex items-center gap-1 text-[10px] text-text-muted">
+              <span className="flex items-center gap-1 text-[11px] text-text-muted">
                 <span className="w-2.5 h-0.5 rounded bg-ink inline-block" /> {t("dash.revenue_label")}
               </span>
-              <span className="flex items-center gap-1 text-[10px] text-text-muted">
+              <span className="flex items-center gap-1 text-[11px] text-text-muted">
                 <span className="w-2.5 h-0.5 rounded bg-success inline-block" /> {t("dash.profit_label")}
               </span>
             </div>
@@ -674,7 +668,7 @@ export default function DashboardPage() {
                     <ShoppingCart size={13} className="text-text-faint shrink-0" />
                     <div className="flex-1 min-w-0">
                       <p className="text-xs font-semibold text-text truncate">{sale.product_name || t("nav.sales")}</p>
-                      <p className="text-[10px] text-text-faint">
+                      <p className="text-[11px] text-text-faint">
                         {sale.quantity} {sale.quantity !== 1 ? t("dash.unit_plural") : t("dash.unit_singular")}
                         {sale.created_at ? ` · ${timeAgo(parseUTC(sale.created_at), t)}` : ""}
                       </p>
@@ -682,7 +676,7 @@ export default function DashboardPage() {
                     <div className="text-right shrink-0">
                       <p className="hgv-figure text-xs font-semibold text-text">{fmtCurrency(sale.total_amount)}</p>
                       {prof && sale.profit != null && sale.profit > 0 && (
-                        <p className="hgv-figure text-[9px] text-success">+{fmtCurrency(sale.profit)}</p>
+                        <p className="hgv-figure text-[11px] text-success">+{fmtCurrency(sale.profit)}</p>
                       )}
                     </div>
                   </div>
@@ -708,7 +702,7 @@ export default function DashboardPage() {
                 <AlertTriangle size={13} className="text-accent" />
                 {t("reports.stock_alerts")}
                 {stats.lowStock + stats.outOfStock > 0 && (
-                  <span className="hgv-stamp text-[9px] text-accent-dark border-accent/50">
+                  <span className="hgv-stamp text-[11px] text-accent-dark border-accent/50">
                     {stats.lowStock + stats.outOfStock}
                   </span>
                 )}
@@ -723,7 +717,7 @@ export default function DashboardPage() {
                 <CheckCircle size={16} className="text-success" />
                 <div>
                   <p className="font-semibold text-text text-xs">{t("dash.all_stock_healthy")}</p>
-                  <p className="text-text-faint text-[10px]">{t("dash.no_restock_needed")}</p>
+                  <p className="text-text-faint text-[11px]">{t("dash.no_restock_needed")}</p>
                 </div>
               </div>
             ) : (
@@ -750,7 +744,7 @@ export default function DashboardPage() {
               <Plus size={18} strokeWidth={2.25} className="shrink-0" />
               <div className="min-w-0">
                 <p className="text-sm font-semibold leading-tight">{t("dash.new_sale")}</p>
-                <p className="text-[10px] text-paper/75 mt-0.5 truncate">{t("dash.new_sale_desc")}</p>
+                <p className="text-[11px] text-paper/75 mt-0.5 truncate">{t("dash.new_sale_desc")}</p>
               </div>
             </Link>
 
@@ -765,7 +759,7 @@ export default function DashboardPage() {
                   <a.icon size={15} className="text-text-muted shrink-0" />
                   <div className="min-w-0 flex-1">
                     <p className="text-xs font-semibold text-text leading-tight">{a.label}</p>
-                    <p className="text-[10px] text-text-faint mt-0.5 truncate">{a.desc}</p>
+                    <p className="text-[11px] text-text-faint mt-0.5 truncate">{a.desc}</p>
                   </div>
                   <ChevronRight size={13} className="text-text-faint shrink-0" />
                 </Link>
@@ -780,7 +774,7 @@ export default function DashboardPage() {
                     <span className="hgv-figure">{stats.sales}</span> {stats.sales !== 1 ? t("dash.sale_plural") : t("dash.sale_singular")} · <span className="hgv-figure">{fmtCurrency(stats.revenue)}</span>
                   </p>
                   {revDeltaPct !== null && (
-                    <p className={`text-[10px] font-medium mt-0.5 flex items-center gap-1 ${revDeltaPct >= 0 ? "text-success" : "text-accent-dark"}`}>
+                    <p className={`text-[11px] font-medium mt-0.5 flex items-center gap-1 ${revDeltaPct >= 0 ? "text-success" : "text-accent-dark"}`}>
                       {revDeltaPct >= 0 ? <TrendingUp size={9} /> : <TrendingDown size={9} />}
                       <span className="hgv-figure">{Math.abs(revDeltaPct)}%</span> {t("dash.vs_yesterday")}
                     </p>
@@ -821,12 +815,12 @@ export default function DashboardPage() {
               <img src="/higoverse-logo.png" alt="Higoverse" className="w-7 h-7 rounded-press object-cover" />
               <div>
                 <p className="font-display text-xs font-semibold text-text">Higoverse</p>
-                <p className="text-[9px] text-text-faint">{t("dash.footer_tagline")}</p>
+                <p className="text-[11px] text-text-faint">{t("dash.footer_tagline")}</p>
               </div>
             </div>
 
             {/* Live business snapshot — plain text, separated by middots */}
-            <div className="flex items-center gap-2.5 flex-wrap justify-center text-[10px] text-text-muted">
+            <div className="flex items-center gap-2.5 flex-wrap justify-center text-[11px] text-text-muted">
               <span className="flex items-center gap-1 font-medium">
                 <Package size={11} className="text-text-faint" /> {stats.products} {t("dash.products")}
               </span>
@@ -867,9 +861,9 @@ export default function DashboardPage() {
 
             {/* Copyright + sync */}
             <div className="text-center sm:text-right">
-              <p className="text-[9px] text-text-faint font-medium">© {new Date().getFullYear()} Higoverse</p>
+              <p className="text-[11px] text-text-faint font-medium">© {new Date().getFullYear()} Higoverse</p>
               {lastUpdated && (
-                <p className="text-[9px] text-text-faint/70 mt-0.5">{t("dash.synced")} {fmtTime(lastUpdated)}</p>
+                <p className="text-[11px] text-text-faint/70 mt-0.5">{t("dash.synced")} {fmtTime(lastUpdated)}</p>
               )}
             </div>
 

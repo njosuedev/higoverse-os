@@ -425,7 +425,7 @@ export default function LoginPage() {
 
           {/* Language row */}
           <div>
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-text-faint mb-2">{t("login.footer_language")}</p>
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-text-faint mb-2">{t("login.footer_language")}</p>
             <div className="flex flex-wrap gap-x-4 gap-y-1.5">
               {LANGUAGES.map((l) => (
                 <button
@@ -443,7 +443,7 @@ export default function LoginPage() {
 
           {/* Platform index */}
           <div>
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-text-faint mb-2">{t("login.footer_explore")}</p>
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-text-faint mb-2">{t("login.footer_explore")}</p>
             <div className="flex flex-wrap gap-x-5 gap-y-2">
               {PLATFORM_LINKS.map((p) => {
                 const Icon = p.icon;

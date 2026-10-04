@@ -127,9 +127,10 @@ class RoundIconButton extends StatelessWidget {
           child: InkWell(
             customBorder: const CircleBorder(),
             onTap: onTap,
+            // 44px: the smallest target a thumb hits reliably.
             child: SizedBox(
-              width: 38,
-              height: 38,
+              width: 44,
+              height: 44,
               child: Badge(
                 isLabelVisible: badge > 0,
                 offset: const Offset(4, -4),

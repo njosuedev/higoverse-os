@@ -1,6 +1,7 @@
 ﻿"use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { isZero } from "@/lib/format";
 import Link from "next/link";
 import { partnerRequest } from "@/lib/supplier-api";
 import { itemRequest } from "@/lib/product-api";
@@ -84,11 +85,11 @@ export default function PartnerManagementPage() {
     const XLSX = await import("xlsx");
     const ws = XLSX.utils.aoa_to_sheet(isCar ? [
       ["name", "phone", "email", "address"],
-      ["John Doe", "0781234567", "john@example.com", "Musanze"],
+      ["Jean Mugisha", "0781234567", "jean.mugisha@example.com", "Musanze"],
     ] : [
       ["name", "phone", "tin", "email", "address"],
       ["INYANGE Industries", "", "123456789", "inyange@example.com", "KN 5 Ave Kigali"],
-      ["John Doe", "0781234567", "", "john@example.com", "Musanze"],
+      ["Jean Mugisha", "0781234567", "", "jean.mugisha@example.com", "Musanze"],
     ]);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Partners");
@@ -279,9 +280,7 @@ export default function PartnerManagementPage() {
         {/* HEADER BANNER */}
         <div
           className="hgv-surface relative rounded-2xl mb-2 overflow-hidden"
-          style={{ background: "linear-gradient(135deg, #0a66c2 0%, #004182 50%, #00376b 100%)" }}
         >
-          <div style={{ position: "absolute", inset: 0, pointerEvents: "none", backgroundImage: "radial-gradient(circle, rgba(255,255,255,0.06) 1px, transparent 1px)", backgroundSize: "20px 20px" }} />
 
           {/* Row 1: icon+title · actions */}
           <div className="relative flex items-center gap-3 px-4 pt-3 pb-2">
@@ -290,7 +289,7 @@ export default function PartnerManagementPage() {
                 <Users size={15} className="text-white" strokeWidth={2} />
               </div>
               <div>
-                <p className="text-[10px] font-semibold text-blue-200 uppercase tracking-widest leading-none">{t("nav.partners")}</p>
+                <p className="text-[11px] font-semibold text-blue-200 uppercase tracking-widest leading-none">{t("nav.partners")}</p>
                 <h1 className="text-base font-extrabold text-white leading-tight tracking-tight">{t("partners.title")}</h1>
               </div>
             </div>
@@ -308,11 +307,7 @@ export default function PartnerManagementPage() {
 
           {/* Row 2: live indicator */}
           <div className="relative flex items-center gap-1.5 px-4 pb-2">
-            <span className="relative flex h-1.5 w-1.5">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
-              <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-green-400" />
-            </span>
-            <p className="text-[10px] text-blue-100/70 flex-1">
+            <p className="text-[11px] text-blue-100/70 flex-1">
               {t("common.live")} · <span className="font-semibold text-white/80">{partners.length.toLocaleString()} {t("partners.count_label")}</span>
               {lastUpdated && <span className="ml-1 text-blue-200/50">· {t("common.updated")} {lastUpdated.toLocaleTimeString()}</span>}
             </p>
@@ -346,20 +341,19 @@ export default function PartnerManagementPage() {
         {/* STAT CARDS */}
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5 mb-2">
           {(isCar ? [
-            { label: t("partners.total"),            value: stats.total,           color: "text-[#0a66c2]", dot: "bg-[#0a66c2]" },
+            { label: t("partners.total"),            value: stats.total,           color: "text-slate-900" },
           ] : [
-            { label: t("partners.total"),            value: stats.total,           color: "text-[#0a66c2]", dot: "bg-[#0a66c2]" },
-            { label: t("partners.suppliers"),         value: stats.suppliers,       color: "text-blue-600",  dot: "bg-blue-500" },
-            { label: t("partners.customers"),         value: stats.customers,       color: "text-slate-700", dot: "bg-slate-400" },
-            { label: t("partners.active_suppliers"),  value: stats.activeSuppliers, color: "text-green-600", dot: "bg-green-500" },
-            { label: t("partners.items_supplied"),    value: stats.itemsSupplied,   color: "text-amber-600", dot: "bg-amber-500" },
+            { label: t("partners.total"),            value: stats.total,           color: "text-slate-900" },
+            { label: t("partners.suppliers"),         value: stats.suppliers,       color: "text-slate-900" },
+            { label: t("partners.customers"),         value: stats.customers,       color: "text-slate-900" },
+            { label: t("partners.active_suppliers"),  value: stats.activeSuppliers, color: "text-slate-900" },
+            { label: t("partners.items_supplied"),    value: stats.itemsSupplied,   color: "text-amber-600" },
           ]).map((card) => (
             <div key={card.label} className="bg-white rounded-lg border border-slate-200 px-2.5 py-2">
               <div className="flex items-center gap-1 mb-1">
-                <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${card.dot}`} />
-                <p className="text-[9px] font-semibold text-slate-400 uppercase tracking-wider leading-none truncate">{card.label}</p>
+                <p className="text-[11px] font-medium text-slate-500 leading-none truncate">{card.label}</p>
               </div>
-              <p className={`text-xl font-bold leading-none tabular-nums ${card.color}`}>{card.value}</p>
+              <p className={`text-xl font-bold leading-none tabular-nums ${isZero(card.value) ? "text-slate-900" : card.color}`}>{card.value}</p>
             </div>
           ))}
         </div>
@@ -368,30 +362,30 @@ export default function PartnerManagementPage() {
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
           {/* Toolbar */}
           <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 px-3 py-1.5 border-b border-slate-100 bg-slate-50/60">
-            <p className="text-[10px] text-slate-500">
+            <p className="text-[11px] text-slate-500">
               {t("common.showing")} <span className="font-semibold text-slate-700">{paginated.length}</span> {t("common.of")} <span className="font-semibold text-slate-700">{filtered.length}</span> {t("partners.count_label")}
             </p>
             <div className="flex flex-wrap items-center gap-1.5">
               {(debouncedSearch || typeFilter !== "all") && (
                 <button onClick={() => { setSearch(""); setTypeFilter("all"); setPage(1); }}
-                  className="flex items-center gap-1 text-[10px] text-slate-400 hover:text-slate-600 transition mr-1">
+                  className="flex items-center gap-1 text-[11px] text-slate-400 hover:text-slate-600 transition mr-1">
                   <X size={10} /> {t("common.clear_filters")}
                 </button>
               )}
               <button onClick={downloadTemplate} title={t("common.download_template")}
-                className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium border border-violet-200 text-violet-600 bg-white hover:bg-violet-50 transition">
+                className="flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 transition">
                 <Download size={10} /> {t("common.template")}
               </button>
               <button onClick={() => fileInputRef.current?.click()} title={t("partners.import_tooltip")}
-                className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium border border-violet-200 text-violet-600 bg-white hover:bg-violet-50 transition">
+                className="flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 transition">
                 <Upload size={10} /> {t("common.import")}
               </button>
               <button onClick={exportExcel} title={t("common.export_excel")}
-                className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium border border-green-200 text-green-600 bg-white hover:bg-green-50 transition">
+                className="flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium border border-green-200 text-green-600 bg-white hover:bg-green-50 transition">
                 <FileSpreadsheet size={10} /> Excel
               </button>
               <button onClick={exportPDF} title={t("common.export_pdf")}
-                className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium border border-red-200 text-red-600 bg-white hover:bg-red-50 transition">
+                className="flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium border border-red-200 text-red-600 bg-white hover:bg-red-50 transition">
                 <FileText size={10} /> PDF
               </button>
             </div>
@@ -406,7 +400,7 @@ export default function PartnerManagementPage() {
                     ? [t("common.name"), t("common.phone"), t("partners.id_number"), t("common.email"), t("common.address"), ""]
                     : [t("common.name"), t("common.type"), t("common.phone"), "TIN", t("common.email"), t("partners.items_supplied"), ""]
                   ).map((h) => (
-                    <th key={h} className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-500 whitespace-nowrap">{h}</th>
+                    <th key={h} className="px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -418,10 +412,10 @@ export default function PartnerManagementPage() {
                     <tr key={p.id} className="group border-b border-slate-50 last:border-0 hover:bg-slate-50/70 transition-colors">
                       <td className="px-3 py-1.5">
                         <p className="font-semibold text-slate-800 text-xs leading-tight">{p.name}</p>
-                        <p className="text-[10px] text-slate-400 font-mono">{p.id?.slice(0, 8)}</p>
+                        <p className="text-[11px] text-slate-400 font-mono">{p.id?.slice(0, 8)}</p>
                       </td>
                       {!isCar && <td className="px-3 py-1.5">
-                        <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${isSupplier ? "bg-[#D5E8FB] text-[#0a66c2]" : "bg-slate-100 text-slate-600"}`}>
+                        <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[11px] font-semibold ${isSupplier ? "bg-[#D5E8FB] text-[#0a66c2]" : "bg-slate-100 text-slate-600"}`}>
                           {isSupplier ? <Building2 size={9} /> : <UserCheck size={9} />}
                           {isSupplier ? t("partners.suppliers") : t("partners.customers")}
                         </span>
@@ -436,7 +430,7 @@ export default function PartnerManagementPage() {
                       </td>}
                       {!isCar && <td className="px-3 py-1.5">
                         {p.tin
-                          ? <span className="font-mono text-[10px] bg-[#EBF2FD] text-[#0a66c2] px-1.5 py-0.5 rounded-md">{p.tin}</span>
+                          ? <span className="font-mono text-[11px] bg-[#EBF2FD] text-[#0a66c2] px-1.5 py-0.5 rounded-md">{p.tin}</span>
                           : <span className="text-slate-300 text-xs">-</span>}
                       </td>}
                       <td className="px-3 py-1.5">
@@ -449,14 +443,14 @@ export default function PartnerManagementPage() {
                       ) : <td className="px-3 py-1.5">
                         {isSupplier ? (
                           <div className="flex items-center gap-1">
-                            <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${itemCount && itemCount > 0 ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-400"}`}>
+                            <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[11px] font-semibold ${itemCount && itemCount > 0 ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-400"}`}>
                               <Package size={9} />{itemCount} {t("partners.item_word")}
                             </span>
                             {itemCount === 0 && (
-                              <Link href="/PurchaseManagement" className="text-[10px] text-[#0a66c2] hover:underline flex items-center gap-0.5"><ShoppingCart size={10} /> {t("common.buy")}</Link>
+                              <Link href="/PurchaseManagement" className="text-[11px] text-[#0a66c2] hover:underline flex items-center gap-0.5"><ShoppingCart size={10} /> {t("common.buy")}</Link>
                             )}
                           </div>
-                        ) : <span className="text-[10px] text-slate-400 italic">{t("partners.customer_singular")}</span>}
+                        ) : <span className="text-[11px] text-slate-400 italic">{t("partners.customer_singular")}</span>}
                       </td>}
                       <td className="px-3 py-1.5">
                         <div className="flex items-center justify-center gap-1 opacity-60 group-hover:opacity-100 transition-opacity">
@@ -557,7 +551,7 @@ function PartnersSkeleton() {
     <div className="min-h-screen">
       <style>{`@keyframes ptr-sh{0%{background-position:-200% 0}100%{background-position:200% 0}}.ptr-sh{background:linear-gradient(90deg,#f1f5f9 25%,#e2e8f0 50%,#f1f5f9 75%);background-size:200% 100%;animation:ptr-sh 1.4s infinite;border-radius:5px}.ptr-sh-w{background:linear-gradient(90deg,rgba(255,255,255,.1) 25%,rgba(255,255,255,.22) 50%,rgba(255,255,255,.1) 75%);background-size:200% 100%;animation:ptr-sh 1.4s infinite;border-radius:5px}`}</style>
       <div className="max-w-7xl mx-auto px-3 sm:px-5 py-3 sm:py-4">
-        <div className="hgv-surface relative rounded-2xl mb-2 overflow-hidden" style={{background:"linear-gradient(135deg,#0a66c2 0%,#004182 50%,#00376b 100%)"}}>
+        <div className="hgv-surface relative rounded-2xl mb-2 overflow-hidden">
           <div className="relative flex items-center gap-3 px-4 pt-3 pb-2">
             <div className="w-8 h-8 rounded-xl ptr-sh-w shrink-0" />
             <div><div className="ptr-sh-w h-2 w-14 mb-1 rounded" /><div className="ptr-sh-w h-4 w-32 rounded" /></div>

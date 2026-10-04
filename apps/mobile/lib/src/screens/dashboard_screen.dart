@@ -505,6 +505,10 @@ class _StatusTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = Hgv.of(context);
     final s = SessionScope.of(context);
+    // Colour only for what needs attention (fines, pending, restock) and
+    // only when there is something; the rest stay neutral.
+    final alert = (color == c.danger || color == c.warning) && value > 0;
+    final tint = alert ? color : c.muted;
     return Expanded(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 3),
@@ -518,8 +522,8 @@ class _StatusTile extends StatelessWidget {
                 Container(
                   width: 26,
                   height: 26,
-                  decoration: BoxDecoration(color: color.withValues(alpha: 0.13), shape: BoxShape.circle),
-                  child: Icon(icon, size: 15, color: color),
+                  decoration: BoxDecoration(color: alert ? color.withValues(alpha: 0.13) : c.paper, shape: BoxShape.circle),
+                  child: Icon(icon, size: 15, color: tint),
                 ),
                 const SizedBox(height: 6),
                 FittedBox(
@@ -557,8 +561,7 @@ class _AlertCard extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
-        child: Container(
-          decoration: BoxDecoration(border: Border(left: BorderSide(color: color, width: 3))),
+        child: Padding(
           padding: const EdgeInsets.fromLTRB(10, 8, 8, 8),
           child: Row(children: [
             IconAvatar(icon: icon, color: color, size: 34),

@@ -109,15 +109,21 @@ class _Tab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = Hgv.of(context);
-    Widget icon = item.logoName != null
-        ? Container(
-            padding: const EdgeInsets.all(1.5),
-            decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(9),
-                border: Border.all(color: selected ? c.ink : Colors.transparent, width: 1.8)),
-            child: ShopLogo(name: item.logoName!, url: item.logoUrl, size: 24),
-          )
-        : Icon(selected ? (item.activeIcon ?? item.icon) : item.icon, size: 25, color: selected ? c.ink : c.muted);
+    // Every tab's picture sits in the same 26px box, so the labels line up.
+    Widget icon = SizedBox.square(
+      dimension: 26,
+      child: Center(
+        child: item.logoName != null
+            ? Container(
+                padding: const EdgeInsets.all(1),
+                decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: selected ? c.ink : Colors.transparent, width: 1.5)),
+                child: ShopLogo(name: item.logoName!, url: item.logoUrl, size: 21),
+              )
+            : Icon(selected ? (item.activeIcon ?? item.icon) : item.icon, size: 25, color: selected ? c.ink : c.muted),
+      ),
+    );
     if (item.badge > 0) {
       icon = Badge(
         backgroundColor: c.danger,

@@ -1,6 +1,7 @@
 ﻿"use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { isZero } from "@/lib/format";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { itemRequest } from "@/lib/product-api";
@@ -350,11 +351,7 @@ export default function PurchaseManagementPage() {
       <div className="max-w-7xl mx-auto px-3 sm:px-5 py-3 sm:py-4">
 
         {/* HEADER */}
-        <div className="hgv-surface relative rounded-2xl mb-2 overflow-hidden"
-          style={{ background: "linear-gradient(135deg, #0a66c2 0%, #004182 50%, #00376b 100%)" }}>
-          <div style={{ position: "absolute", inset: 0, pointerEvents: "none",
-            backgroundImage: "radial-gradient(circle, rgba(255,255,255,0.06) 1px, transparent 1px)",
-            backgroundSize: "20px 20px" }} />
+        <div className="hgv-surface relative rounded-2xl mb-2 overflow-hidden">
 
           {/* Row 1: icon + title + tabs + actions */}
           <div className="relative flex items-center gap-3 px-4 pt-3 pb-2">
@@ -363,7 +360,7 @@ export default function PurchaseManagementPage() {
                 <ShoppingCart size={15} className="text-white" strokeWidth={2} />
               </div>
               <div>
-                <p className="text-[10px] font-semibold text-blue-200 uppercase tracking-widest leading-none">{t("nav.purchases")}</p>
+                <p className="text-[11px] font-semibold text-blue-200 uppercase tracking-widest leading-none">{t("nav.purchases")}</p>
                 <h1 className="text-base font-extrabold text-white leading-tight tracking-tight">{t("purchases.title")}</h1>
               </div>
             </div>
@@ -391,11 +388,7 @@ export default function PurchaseManagementPage() {
 
           {/* Row 2: live indicator */}
           <div className="relative flex items-center gap-1.5 px-4 pb-2">
-            <span className="relative flex h-1.5 w-1.5">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
-              <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-green-400" />
-            </span>
-            <p className="text-[10px] text-blue-100/70 flex-1">
+            <p className="text-[11px] text-blue-100/70 flex-1">
               {t("common.live")} · <span className="font-semibold text-white/80">{productsTotal.toLocaleString()} {t("purchases.items_unit")}</span>
               {lastUpdated && <span className="ml-1 text-blue-200/50">· {t("common.updated")} {lastUpdated.toLocaleTimeString()}</span>}
             </p>
@@ -447,12 +440,12 @@ export default function PurchaseManagementPage() {
         {(invStats.lowStock > 0 || invStats.outStock > 0) && (
           <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5 mb-2">
             <AlertCircle size={11} className="text-amber-500 shrink-0" />
-            <p className="text-[10px] text-amber-700 flex-1">
+            <p className="text-[11px] text-amber-700 flex-1">
               {invStats.outStock > 0 && <><span className="font-bold">{invStats.outStock}</span> {t("items.out_stock")}</>}
               {invStats.outStock > 0 && invStats.lowStock > 0 && " · "}
               {invStats.lowStock > 0 && <><span className="font-bold">{invStats.lowStock}</span> {t("items.low_stock")}</>}
             </p>
-            {!isCar && <Link href="/PartnerManagement" className="text-[10px] font-bold text-amber-700 bg-amber-100 hover:bg-amber-200 px-2 py-0.5 rounded-md shrink-0 transition">
+            {!isCar && <Link href="/PartnerManagement" className="text-[11px] font-bold text-amber-700 bg-amber-100 hover:bg-amber-200 px-2 py-0.5 rounded-md shrink-0 transition">
               {t("partners.suppliers")}
             </Link>}
           </div>
@@ -461,19 +454,18 @@ export default function PurchaseManagementPage() {
         {/* STAT CARDS */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-1.5 mb-2">
           {[
-            { label: t("purchases.stat_total_products"),   value: productsTotal,                         color: "text-[#0a66c2]", dot: "bg-[#0a66c2]" },
-            { label: t("purchases.stat_what_you_paid"),    value: invStats.costValue.toLocaleString(),    color: "text-[#0a66c2]", dot: "bg-blue-500" },
-            { label: t("purchases.stat_if_sell_all"),      value: invStats.retailValue.toLocaleString(),  color: "text-[#0a66c2]", dot: "bg-indigo-500" },
-            ...(prof ? [{ label: t("purchases.stat_profit_to_make"),   value: invStats.grossProfit.toLocaleString(),  color: "text-green-600", dot: "bg-green-500" }] : []),
-            { label: t("purchases.stat_almost_finished"),  value: invStats.lowStock,                      color: "text-amber-500", dot: "bg-amber-400" },
-            { label: t("purchases.stat_finished_empty"),   value: invStats.outStock,                      color: "text-red-600",   dot: "bg-red-500" },
+            { label: t("purchases.stat_total_products"),   value: productsTotal,                         color: "text-slate-900" },
+            { label: t("purchases.stat_what_you_paid"),    value: invStats.costValue.toLocaleString(),    color: "text-slate-900" },
+            { label: t("purchases.stat_if_sell_all"),      value: invStats.retailValue.toLocaleString(),  color: "text-slate-900" },
+            ...(prof ? [{ label: t("purchases.stat_profit_to_make"),   value: invStats.grossProfit.toLocaleString(),  color: "text-slate-900" }] : []),
+            { label: t("purchases.stat_almost_finished"),  value: invStats.lowStock,                      color: "text-amber-600" },
+            { label: t("purchases.stat_finished_empty"),   value: invStats.outStock,                      color: "text-red-600" },
           ].map((card) => (
             <div key={card.label} className="bg-white rounded-lg border border-slate-200 px-2.5 py-2">
               <div className="flex items-center gap-1 mb-1">
-                <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${card.dot}`} />
-                <p className="text-[9px] font-semibold text-slate-400 uppercase tracking-wider leading-none truncate">{card.label}</p>
+                <p className="text-[11px] font-medium text-slate-500 leading-none truncate">{card.label}</p>
               </div>
-              <p className={`text-xl font-bold leading-none tabular-nums ${card.color}`}>{card.value}</p>
+              <p className={`text-xl font-bold leading-none tabular-nums ${isZero(card.value) ? "text-slate-900" : card.color}`}>{card.value}</p>
             </div>
           ))}
         </div>
@@ -482,24 +474,24 @@ export default function PurchaseManagementPage() {
         {tab === "inventory" && (
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
             <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 px-3 py-1.5 border-b border-slate-100 bg-slate-50/60">
-              <p className="text-[10px] text-slate-500">
+              <p className="text-[11px] text-slate-500">
                 <span className="font-semibold text-slate-700">{paginatedProducts.length}</span> {t("common.of")} <span className="font-semibold text-slate-700">{filteredProducts.length}</span> {t("purchases.products_word")}
               </p>
               <div className="flex flex-wrap items-center gap-1.5">
                 <button onClick={downloadTemplate} title={t("common.download_template_title")}
-                  className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium border border-violet-200 text-violet-600 bg-white hover:bg-violet-50 transition">
+                  className="flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 transition">
                   <Download size={10} /> {t("common.template")}
                 </button>
                 <button onClick={() => fileInputRef.current?.click()} title={t("common.import_title")}
-                  className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium border border-violet-200 text-violet-600 bg-white hover:bg-violet-50 transition">
+                  className="flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 transition">
                   <Upload size={10} /> {t("common.import")}
                 </button>
                 <button onClick={exportExcel} title={t("common.export_excel_title")}
-                  className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium border border-green-200 text-green-600 bg-white hover:bg-green-50 transition">
+                  className="flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium border border-green-200 text-green-600 bg-white hover:bg-green-50 transition">
                   <FileSpreadsheet size={10} /> {t("common.excel")}
                 </button>
                 <button onClick={exportPDF} title={t("common.export_pdf_title")}
-                  className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium border border-red-200 text-red-600 bg-white hover:bg-red-50 transition">
+                  className="flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium border border-red-200 text-red-600 bg-white hover:bg-red-50 transition">
                   <FileText size={10} /> {t("common.pdf")}
                 </button>
               </div>
@@ -510,7 +502,7 @@ export default function PurchaseManagementPage() {
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200">
                   {[t("items.col_product"), ...(isCar ? [] : [t("items.col_supplier")]), t("items.cost_price"), t("items.selling_price"), ...(prof ? [t("items.col_margin")] : []), t("items.col_qty"), t("common.status"), ""].map((h) => (
-                    <th key={h} className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-500 whitespace-nowrap">{h}</th>
+                    <th key={h} className="px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -523,34 +515,34 @@ export default function PurchaseManagementPage() {
                     <tr key={p.id} className={`hover:bg-slate-50/60 transition-colors ${p.quantity === 0 ? "bg-red-50/20" : needsRestock ? "bg-amber-50/20" : ""}`}>
                       <td className="px-3 py-1.5">
                         <p className="font-semibold text-slate-800 text-xs">{p.name}</p>
-                        <p className="text-[10px] text-slate-400 font-mono">{p.id?.slice(0, 8)}</p>
+                        <p className="text-[11px] text-slate-400 font-mono">{p.id?.slice(0, 8)}</p>
                       </td>
                       {!isCar && <td className="px-3 py-1.5">
                         {supplier
-                          ? <div><p className="font-medium text-slate-700 text-xs">{supplier.name}</p>{supplier.phone && <p className="text-[10px] text-slate-400">{supplier.phone}</p>}</div>
-                          : <Link href="/PartnerManagement" className="text-[10px] text-[#0a66c2] hover:underline flex items-center gap-0.5"><Truck size={10} /> {t("common.add")}</Link>}
+                          ? <div><p className="font-medium text-slate-700 text-xs">{supplier.name}</p>{supplier.phone && <p className="text-[11px] text-slate-400">{supplier.phone}</p>}</div>
+                          : <Link href="/PartnerManagement" className="text-[11px] text-[#0a66c2] hover:underline flex items-center gap-0.5"><Truck size={10} /> {t("common.add")}</Link>}
                       </td>}
                       <td className="px-3 py-1.5 text-slate-600 font-medium tabular-nums text-xs">{Number(p.cost_price).toLocaleString()}</td>
                       <td className="px-3 py-1.5 font-semibold text-green-600 tabular-nums text-xs">{Number(p.selling_price).toLocaleString()}</td>
                       {prof && <td className="px-3 py-1.5">
-                        <span className={`text-[10px] font-bold ${margin2 >= 0 ? "text-green-600" : "text-red-500"}`}>
+                        <span className={`text-[11px] font-bold ${margin2 >= 0 ? "text-green-600" : "text-red-500"}`}>
                           {margin2 >= 0 ? "+" : ""}{margin2.toFixed(1)}%
                         </span>
                       </td>}
                       <td className="px-3 py-1.5">
-                        <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${p.quantity === 0 ? "bg-red-100 text-red-700" : p.quantity <= lowStock ? "bg-amber-100 text-amber-700" : "bg-green-100 text-green-700"}`}>
+                        <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[11px] font-semibold ${p.quantity === 0 ? "bg-red-100 text-red-700" : p.quantity <= lowStock ? "bg-amber-100 text-amber-700" : "bg-green-100 text-green-700"}`}>
                           {p.quantity}
                         </span>
                       </td>
                       <td className="px-3 py-1.5">
-                        <span className={`inline-flex px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${p.quantity === 0 ? "bg-red-100 text-red-700" : p.quantity <= lowStock ? "bg-amber-100 text-amber-700" : "bg-green-100 text-green-700"}`}>
+                        <span className={`inline-flex px-1.5 py-0.5 rounded-full text-[11px] font-semibold ${p.quantity === 0 ? "bg-red-100 text-red-700" : p.quantity <= lowStock ? "bg-amber-100 text-amber-700" : "bg-green-100 text-green-700"}`}>
                           {p.quantity === 0 ? t("items.out_stock") : p.quantity <= lowStock ? t("items.low_stock") : t("items.in_stock")}
                         </span>
                       </td>
                       <td className="px-3 py-1.5">
                         <button
                           onClick={() => { setForm({ product_id: p.id, product_name: p.name, description: p.description || "", cost_price: String(p.cost_price), selling_price: String(p.selling_price), quantity: "", supplier_id: p.supplier_id || "" }); setIsRestocking(true); setShowModal(true); }}
-                          className="px-2 py-0.5 rounded bg-[#EBF2FD] hover:bg-[#D5E8FB] text-[#0a66c2] text-[10px] font-semibold transition">
+                          className="px-2 py-0.5 rounded bg-[#EBF2FD] hover:bg-[#D5E8FB] text-[#0a66c2] text-[11px] font-semibold transition">
                           + {t("purchases.restock")}
                         </button>
                       </td>
@@ -580,30 +572,30 @@ export default function PurchaseManagementPage() {
         {tab === "history" && (
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
             <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 px-3 py-1.5 border-b border-slate-100 bg-slate-50/60">
-              <p className="text-[10px] text-slate-500">
+              <p className="text-[11px] text-slate-500">
                 <span className="font-semibold text-slate-700">{purchases.length}</span> {t("common.of")} <span className="font-semibold text-slate-700">{purchasesTotal}</span> {t("common.records")}
               </p>
               <div className="flex flex-wrap items-center gap-1.5">
                 <button onClick={downloadTemplate} title={t("common.download_template_title")}
-                  className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium border border-violet-200 text-violet-600 bg-white hover:bg-violet-50 transition">
+                  className="flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 transition">
                   <Download size={10} /> {t("common.template")}
                 </button>
                 <button onClick={() => fileInputRef.current?.click()} title={t("common.import_title")}
-                  className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium border border-violet-200 text-violet-600 bg-white hover:bg-violet-50 transition">
+                  className="flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 transition">
                   <Upload size={10} /> {t("common.import")}
                 </button>
                 <button onClick={exportExcel} title={t("common.export_excel_title")}
-                  className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium border border-green-200 text-green-600 bg-white hover:bg-green-50 transition">
+                  className="flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium border border-green-200 text-green-600 bg-white hover:bg-green-50 transition">
                   <FileSpreadsheet size={10} /> {t("common.excel")}
                 </button>
                 <button onClick={exportPDF} title={t("common.export_pdf_title")}
-                  className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium border border-red-200 text-red-600 bg-white hover:bg-red-50 transition">
+                  className="flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium border border-red-200 text-red-600 bg-white hover:bg-red-50 transition">
                   <FileText size={10} /> {t("common.pdf")}
                 </button>
               </div>
             </div>
             {hasDateFilter && (
-              <div className="flex items-center gap-2 px-4 py-1.5 border-b border-slate-100 text-[10px] text-[#0a66c2] bg-[#EBF2FD]">
+              <div className="flex items-center gap-2 px-4 py-1.5 border-b border-slate-100 text-[11px] text-[#0a66c2] bg-[#EBF2FD]">
                 <Calendar size={12} />
                 <span>
                   {dateFrom && <> {t("common.date")}: <span className="font-semibold">{dateFrom}</span></>}
@@ -618,7 +610,7 @@ export default function PurchaseManagementPage() {
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200">
                   {[t("purchases.col_date"), t("purchases.col_product"), ...(isCar ? [] : [t("purchases.col_supplier")]), t("purchases.col_qty"), t("purchases.col_unit"), t("purchases.col_total"), ""].map((h) => (
-                    <th key={h} className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-500 whitespace-nowrap">{h}</th>
+                    <th key={h} className="px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -631,18 +623,18 @@ export default function PurchaseManagementPage() {
                       <td className="px-3 py-1.5 whitespace-nowrap">
                         {d ? (
                           <div>
-                            <p className="text-[10px] font-medium text-slate-700">{toDateStr(d)}</p>
-                            <p className="text-[9px] text-slate-400">{d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</p>
+                            <p className="text-[11px] font-medium text-slate-700">{toDateStr(d)}</p>
+                            <p className="text-[11px] text-slate-400">{d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</p>
                           </div>
                         ) : <span className="text-slate-300 text-xs">-</span>}
                       </td>
                       <td className="px-3 py-1.5">
                         <p className="font-semibold text-slate-800 text-xs">{p.product_name}</p>
-                        {p.product_id && <p className="text-[10px] text-slate-400 font-mono">{p.product_id.slice(0, 8)}</p>}
+                        {p.product_id && <p className="text-[11px] text-slate-400 font-mono">{p.product_id.slice(0, 8)}</p>}
                       </td>
                       {!isCar && <td className="px-3 py-1.5">
                         {supplier
-                          ? <div><p className="font-medium text-slate-700 text-xs">{supplier.name}</p>{supplier.phone && <p className="text-[10px] text-slate-400">{supplier.phone}</p>}</div>
+                          ? <div><p className="font-medium text-slate-700 text-xs">{supplier.name}</p>{supplier.phone && <p className="text-[11px] text-slate-400">{supplier.phone}</p>}</div>
                           : <span className="text-slate-300 text-xs italic">-</span>}
                       </td>}
                       <td className="px-3 py-1.5 font-medium text-slate-700 tabular-nums text-xs">{p.quantity_added}</td>
@@ -776,7 +768,7 @@ function PurchasesSkeleton() {
     <div className="min-h-screen">
       <style>{`@keyframes pur-sh{0%{background-position:-200% 0}100%{background-position:200% 0}}.pur-sh{background:linear-gradient(90deg,#f1f5f9 25%,#e2e8f0 50%,#f1f5f9 75%);background-size:200% 100%;animation:pur-sh 1.4s infinite;border-radius:5px}.pur-sh-w{background:linear-gradient(90deg,rgba(255,255,255,.1) 25%,rgba(255,255,255,.22) 50%,rgba(255,255,255,.1) 75%);background-size:200% 100%;animation:pur-sh 1.4s infinite;border-radius:5px}`}</style>
       <div className="max-w-7xl mx-auto px-3 sm:px-5 py-3 sm:py-4">
-        <div className="hgv-surface relative rounded-2xl mb-2 overflow-hidden" style={{background:"linear-gradient(135deg,#0a66c2 0%,#004182 50%,#00376b 100%)"}}>
+        <div className="hgv-surface relative rounded-2xl mb-2 overflow-hidden">
           <div className="relative flex items-center gap-3 px-4 pt-3 pb-2">
             <div className="w-8 h-8 rounded-xl pur-sh-w shrink-0" />
             <div><div className="pur-sh-w h-2 w-14 mb-1 rounded" /><div className="pur-sh-w h-4 w-32 rounded" /></div>

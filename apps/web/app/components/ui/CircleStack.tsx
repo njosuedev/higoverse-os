@@ -44,7 +44,7 @@ export default function CircleStack({ items, extra = 0, extraHref, caption, foot
             style={{ zIndex: shown?.id === it.id ? 30 : items.length - i }}>
             <Ring {...it} />
             {!!it.badge && (
-              <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full border border-white bg-accent px-1 text-[10px] font-bold leading-none text-white">
+              <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full border border-white bg-accent px-1 text-[11px] font-bold leading-none text-white">
                 {it.badge}
               </span>
             )}

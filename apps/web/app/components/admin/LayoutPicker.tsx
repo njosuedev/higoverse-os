@@ -36,13 +36,13 @@ export default function LayoutPicker({
               <Icon size={14} className={`mt-0.5 shrink-0 ${active ? "text-ink" : "text-gray-400"}`} />
               <span className="min-w-0">
                 <span className={`block text-xs font-semibold ${active ? "text-ink" : "text-gray-800"}`}>{t(`layout.${l}`)}</span>
-                <span className="block text-[10px] leading-snug text-gray-500">{t(`layout.${l}_desc`)}</span>
+                <span className="block text-[11px] leading-snug text-gray-500">{t(`layout.${l}_desc`)}</span>
               </span>
             </button>
           );
         })}
       </div>
-      <p className="mt-1 text-[10px] text-gray-400">{t("admin.layout_hint")}</p>
+      <p className="mt-1 text-[11px] text-gray-400">{t("admin.layout_hint")}</p>
     </div>
   );
 }

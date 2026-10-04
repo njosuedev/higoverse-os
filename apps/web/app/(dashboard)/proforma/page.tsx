@@ -50,7 +50,7 @@ function StatusBadge({ status }: { status: ProformaStatus }) {
   const { t } = useLanguage();
   const m = STATUS_META[status] ?? STATUS_META.draft;
   return (
-    <span className={`inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full border ${m.color}`}>
+    <span className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full border ${m.color}`}>
       {m.icon} {t(STATUS_LABEL_KEY[status] ?? STATUS_LABEL_KEY.draft)}
     </span>
   );
@@ -426,7 +426,7 @@ function ProformaPageContent() {
                 >
                   <History size={12} /> {t("proforma.tab_history")}
                   {proformas.length > 0 && (
-                    <span className="bg-white/20 text-white rounded-full px-1.5 text-[10px]">{proformas.length}</span>
+                    <span className="bg-white/20 text-white rounded-full px-1.5 text-[11px]">{proformas.length}</span>
                   )}
                 </button>
               </div>
@@ -494,8 +494,17 @@ function ProformaPageContent() {
             </div>
 
             {histLoading && proformas.length === 0 ? (
-              <div className="flex items-center justify-center py-16 text-slate-400 text-sm">
-                <RefreshCw size={16} className="animate-spin mr-2" /> {t("common.loading")}
+              <div className="divide-y divide-slate-100" role="status" aria-label={t("common.loading")}>
+                {[0, 1, 2, 3, 4].map((i) => (
+                  <div key={i} className="flex items-center gap-3 px-4 py-3">
+                    <div className="hgv-shimmer h-8 w-8 rounded-lg shrink-0" />
+                    <div className="flex-1 space-y-1.5">
+                      <div className="hgv-shimmer h-3 rounded" style={{ width: `${40 + (i % 3) * 15}%` }} />
+                      <div className="hgv-shimmer h-2.5 w-1/4 rounded" />
+                    </div>
+                    <div className="hgv-shimmer h-3 w-20 rounded" />
+                  </div>
+                ))}
               </div>
             ) : filteredHistory.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-16 text-center">
@@ -532,7 +541,7 @@ function ProformaPageContent() {
                     </div>
                     <div className="text-right shrink-0">
                       <p className="font-bold text-slate-800 tabular-nums">{p.grand_total.toLocaleString()} <span className="text-xs font-normal text-slate-400">{p.currency}</span></p>
-                      <p className="text-[10px] text-slate-400">{p.lines.length} {t("proforma.items_unit")}</p>
+                      <p className="text-[11px] text-slate-400">{p.lines.length} {t("proforma.items_unit")}</p>
                     </div>
                     <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition">
                       <button
@@ -650,7 +659,7 @@ function ProformaPageContent() {
                   </button>
                 </div>
 
-                <div className="grid grid-cols-[1fr_80px_110px_100px_32px] gap-2 px-5 py-2.5 bg-slate-50 border-b border-slate-100 text-[10px] font-semibold uppercase text-slate-400 tracking-wide">
+                <div className="grid grid-cols-[1fr_80px_110px_100px_32px] gap-2 px-5 py-2.5 bg-slate-50 border-b border-slate-100 text-[11px] font-semibold uppercase text-slate-400 tracking-wide">
                   <span>{t("proforma.description_col")}</span><span className="text-center">{t("proforma.col_qty")}</span><span className="text-center">{t("proforma.col_price")}</span><span className="text-right">{t("proforma.subtotal")}</span><span />
                 </div>
 
@@ -810,7 +819,7 @@ function ProformaPageContent() {
 
               {saveMsg && (
                 <p className={`text-center text-xs font-semibold ${saveMsg === "success" ? "text-green-600" : "text-red-500"}`}>
-                  {saveMsg === "success" ? `✓ ${t("proforma.saved_success")}` : `✗ ${t("proforma.save_failed")}`}
+                  {saveMsg === "success" ? t("proforma.saved_success") : t("proforma.save_failed")}
                 </p>
               )}
 
@@ -850,7 +859,7 @@ function ProformaPageContent() {
                         className="w-full text-left flex items-center justify-between gap-2 p-2 rounded-lg hover:bg-slate-50 transition group">
                         <div className="min-w-0">
                           <p className="font-mono text-xs font-semibold text-blue-700 truncate">{p.invoice_no}</p>
-                          <p className="text-[10px] text-slate-400 truncate">{p.customer || t("proforma.no_customer")}</p>
+                          <p className="text-[11px] text-slate-400 truncate">{p.customer || t("proforma.no_customer")}</p>
                         </div>
                         <div className="shrink-0 text-right">
                           <StatusBadge status={p.status} />

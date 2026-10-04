@@ -94,6 +94,19 @@ SystemUiOverlayStyle systemBars(Hgv c, Brightness brightness) {
   );
 }
 
+/// Every digit the same width, so amounts and counts line up in columns and
+/// don't jiggle when they change live. Texts inherit it from the theme.
+TextTheme _tabular(TextTheme t) {
+  TextStyle? f(TextStyle? s) => s?.copyWith(fontFeatures: const [FontFeature.tabularFigures()]);
+  return t.copyWith(
+    displayLarge: f(t.displayLarge), displayMedium: f(t.displayMedium), displaySmall: f(t.displaySmall),
+    headlineLarge: f(t.headlineLarge), headlineMedium: f(t.headlineMedium), headlineSmall: f(t.headlineSmall),
+    titleLarge: f(t.titleLarge), titleMedium: f(t.titleMedium), titleSmall: f(t.titleSmall),
+    bodyLarge: f(t.bodyLarge), bodyMedium: f(t.bodyMedium), bodySmall: f(t.bodySmall),
+    labelLarge: f(t.labelLarge), labelMedium: f(t.labelMedium), labelSmall: f(t.labelSmall),
+  );
+}
+
 ThemeData buildTheme(Brightness brightness) {
   final dark = brightness == Brightness.dark;
   final c = dark ? Hgv.dark : Hgv.light;
@@ -118,7 +131,7 @@ ThemeData buildTheme(Brightness brightness) {
   );
   return base.copyWith(
     extensions: [c],
-    textTheme: base.textTheme.apply(bodyColor: c.text, displayColor: c.text),
+    textTheme: _tabular(base.textTheme.apply(bodyColor: c.text, displayColor: c.text)),
     appBarTheme: AppBarTheme(
       backgroundColor: c.chrome,
       surfaceTintColor: Colors.transparent,

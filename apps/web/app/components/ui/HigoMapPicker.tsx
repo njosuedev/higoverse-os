@@ -249,7 +249,7 @@ export default function HigoMapPicker({ initialLat, initialLng, onConfirm, onClo
         <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col overflow-hidden" style={{ maxHeight: "90vh" }}>
 
           {/* Header */}
-          <div className="hgv-surface !border-0 !border-b !border-border flex items-center justify-between px-5 py-3.5" style={{ background: "linear-gradient(135deg,#0a66c2 0%,#0a58ca 100%)" }}>
+          <div className="hgv-surface !border-0 !border-b !border-border flex items-center justify-between px-5 py-3.5">
             <div className="flex items-center gap-3 text-white">
               <div className="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center">
                 <MapPin size={16} />
@@ -351,9 +351,9 @@ export default function HigoMapPicker({ initialLat, initialLng, onConfirm, onClo
               <div className="mb-3 flex items-start gap-2.5 bg-[#EBF2FD] border border-blue-100 rounded-xl px-3.5 py-2.5">
                 <MapPin size={14} className="text-[#0a66c2] mt-0.5 shrink-0" />
                 <div className="flex-1 min-w-0">
-                  <p className="text-[10px] text-slate-500 font-semibold uppercase tracking-wide mb-0.5">{t("map.pinned_location")}</p>
+                  <p className="text-[11px] text-slate-500 font-semibold uppercase tracking-wide mb-0.5">{t("map.pinned_location")}</p>
                   <p className="text-xs font-bold text-slate-800 line-clamp-2">{label || t("map.location_selected")}</p>
-                  <p className="text-[10px] text-slate-400 font-mono mt-0.5">{pos.lat.toFixed(6)}, {pos.lng.toFixed(6)}</p>
+                  <p className="text-[11px] text-slate-400 font-mono mt-0.5">{pos.lat.toFixed(6)}, {pos.lng.toFixed(6)}</p>
                 </div>
               </div>
             )}

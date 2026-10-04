@@ -196,11 +196,7 @@ export default function ReportsPage() {
       <div className="max-w-7xl mx-auto px-3 sm:px-5 py-3 sm:py-4 space-y-3">
 
         {/* ── HEADER ─────────────────────────────────────────────────────────── */}
-        <div className="hgv-surface relative rounded-2xl mb-2 overflow-hidden"
-          style={{ background: "linear-gradient(135deg, #0a66c2 0%, #004182 50%, #00376b 100%)" }}>
-          <div style={{ position:"absolute",inset:0,pointerEvents:"none",
-            backgroundImage:"radial-gradient(circle, rgba(255,255,255,0.06) 1px, transparent 1px)",
-            backgroundSize:"20px 20px" }} />
+        <div className="hgv-surface relative rounded-2xl mb-2 overflow-hidden">
 
           <div className="relative flex items-center gap-3 px-4 pt-3 pb-2">
             <div className="flex items-center gap-2.5 min-w-0 mr-auto">
@@ -208,13 +204,13 @@ export default function ReportsPage() {
                 <BarChart3 size={15} className="text-white" strokeWidth={2}/>
               </div>
               <div>
-                <p className="text-[10px] font-semibold text-blue-200 uppercase tracking-widest leading-none">{t("reports.analytics_label")}</p>
+                <p className="text-[11px] font-semibold text-blue-200 uppercase tracking-widest leading-none">{t("reports.analytics_label")}</p>
                 <h1 className="text-base font-extrabold text-white leading-tight tracking-tight">{t("reports.title")}</h1>
               </div>
             </div>
             <div className="flex items-center gap-1.5 shrink-0">
               {lastUpdated && (
-                <span className="text-[10px] text-blue-200/60 hidden sm:block">
+                <span className="text-[11px] text-blue-200/60 hidden sm:block">
                   {timeAgo(lastUpdated)}
                 </span>
               )}
@@ -230,11 +226,7 @@ export default function ReportsPage() {
           </div>
 
           <div className="relative flex items-center gap-1.5 px-4 pb-2">
-            <span className="relative flex h-1.5 w-1.5">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"/>
-              <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-green-400"/>
-            </span>
-            <p className="text-[10px] text-blue-100/70">
+            <p className="text-[11px] text-blue-100/70">
               <span className="text-green-400 font-semibold">{t("reports.live_word")}</span>
               {lastUpdated && <span className="ml-1 text-blue-200/50">· {t("common.updated")} {lastUpdated.toLocaleTimeString()}</span>}
             </p>
@@ -406,7 +398,7 @@ function ReportsSkeleton() {
       <style>{`@keyframes rep-sh{0%{background-position:-200% 0}100%{background-position:200% 0}}.rep-sh{background:linear-gradient(90deg,#f1f5f9 25%,#e2e8f0 50%,#f1f5f9 75%);background-size:200% 100%;animation:rep-sh 1.4s infinite;border-radius:5px}.rep-sh-w{background:linear-gradient(90deg,rgba(255,255,255,.1) 25%,rgba(255,255,255,.22) 50%,rgba(255,255,255,.1) 75%);background-size:200% 100%;animation:rep-sh 1.4s infinite;border-radius:5px}`}</style>
       <div className="max-w-7xl mx-auto px-3 sm:px-5 py-3 sm:py-4 space-y-3">
         {/* Header */}
-        <div className="hgv-surface relative rounded-2xl overflow-hidden" style={{background:"linear-gradient(135deg,#0a66c2 0%,#004182 50%,#00376b 100%)"}}>
+        <div className="hgv-surface relative rounded-2xl overflow-hidden">
           <div className="relative flex items-center gap-3 px-4 pt-3 pb-2">
             <div className="w-8 h-8 rounded-xl rep-sh-w shrink-0" />
             <div><div className="rep-sh-w h-2 w-16 mb-1 rounded" /><div className="rep-sh-w h-4 w-28 rounded" /></div>

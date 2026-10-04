@@ -1,5 +1,4 @@
 import type { Metadata, Viewport } from "next";
-import { Inter } from "next/font/google";
 import "./globals.css";
 
 import { LanguageProvider } from "@/lib/language-context";
@@ -10,9 +9,6 @@ import UpdateNotice from "@/app/components/UpdateNotice";
 import { SITE } from "@/lib/site";
 import { THEME_BOOT_SCRIPT } from "@/lib/theme-boot";
 
-// Inter: a typeface drawn for screens — crisp at small sizes, with real
-// semibold/bold weights. Downloaded at build time and served by the app.
-const inter = Inter({ subsets: ["latin", "latin-ext"], variable: "--font-inter", display: "swap" });
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE.url),
@@ -106,7 +102,7 @@ export default function RootLayout({
 }) {
   return (
     // suppressHydrationWarning: the head script sets data-theme before React loads.
-    <html lang="en" className={inter.variable} suppressHydrationWarning>
+    <html lang="en" suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />
       </head>

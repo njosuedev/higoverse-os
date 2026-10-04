@@ -519,9 +519,21 @@ class _VehicleCard extends StatelessWidget {
               if (snap.connectionState != ConnectionState.done) {
                 return Container(
                   height: 86,
-                  alignment: Alignment.center,
+                  padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(color: c.paper, borderRadius: BorderRadius.circular(12)),
-                  child: const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2.4)),
+                  child: const Shimmer(
+                    child: Row(children: [
+                      Bone(height: 40, circle: true),
+                      SizedBox(width: 10),
+                      Expanded(
+                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [
+                          Bone(width: 120, height: 12),
+                          SizedBox(height: 8),
+                          Bone(width: 90, height: 9),
+                        ]),
+                      ),
+                    ]),
+                  ),
                 );
               }
               return HolderBlock(holder: snap.data, currency: currency, finesNote: story.kind == StoryKind.fines);

@@ -105,7 +105,7 @@ export default function CarPerformanceChart({ daily, fmtCurrency }: { daily: Dai
       <div className="mb-1.5 grid grid-cols-2 gap-x-3 gap-y-1 sm:grid-cols-4">
         {SERIES.map((s) => (
           <div key={s.key} className="min-w-0">
-            <p className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-text-muted">
+            <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-text-muted">
               <span className="inline-block h-2 w-2 shrink-0 rounded-sm" style={{ background: s.color }} /> {s.label}
             </p>
             <p className="hgv-figure truncate text-sm font-semibold text-text">
@@ -123,7 +123,7 @@ export default function CarPerformanceChart({ daily, fmtCurrency }: { daily: Dai
               <stop offset="95%" stopColor="#0a66c2" stopOpacity={0} />
             </linearGradient>
           </defs>
-          <XAxis dataKey="day" tick={{ fontSize: 9, fill: "#8c8c8c" }} tickLine={false} axisLine={false} />
+          <XAxis dataKey="day" tick={{ fontSize: 11, fill: "#767676" }} tickLine={false} axisLine={false} />
           <YAxis yAxisId="money" hide />
           <YAxis yAxisId="count" orientation="right" hide allowDecimals={false} domain={[0, (max: number) => Math.max(4, max * 1.6)]} />
           <Tooltip

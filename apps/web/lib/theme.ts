@@ -26,7 +26,7 @@ export function applyTheme(pref: ThemePref) {
   const dark = pref === "dark" || (pref === "system" && systemDark());
   const root = document.documentElement;
   root.dataset.theme = dark ? "dark" : "light";
-  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", dark ? "#111317" : "#0a66c2");
+  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", dark ? "#000000" : "#0a66c2");
 }
 
 /** Current preference + setter; follows OS changes while on "system". */

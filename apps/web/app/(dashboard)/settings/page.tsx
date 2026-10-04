@@ -510,7 +510,7 @@ export default function SettingsPage() {
                     {pinLat != null ? t("settings.update_pin") : t("settings.pin_location")}
                   </button>
                   {pinLat != null && (
-                    <span className="text-[10px] font-mono text-slate-400">
+                    <span className="text-[11px] font-mono text-slate-400">
                       {pinLat.toFixed(5)}, {pinLng?.toFixed(5)}
                     </span>
                   )}
@@ -577,7 +577,7 @@ export default function SettingsPage() {
                 value={opsForm.low_stock_threshold}
                 onChange={(e) => setOpsForm({ ...opsForm, low_stock_threshold: Number(e.target.value) })}
               />
-              <p className="text-[10px] text-slate-400 mt-1">{t("settings.low_threshold_hint")}</p>
+              <p className="text-[11px] text-slate-400 mt-1">{t("settings.low_threshold_hint")}</p>
             </Field>
 
             <Field label={t("settings.tax_rate")}>
@@ -588,7 +588,7 @@ export default function SettingsPage() {
                 value={opsForm.tax_rate}
                 onChange={(e) => setOpsForm({ ...opsForm, tax_rate: Number(e.target.value) })}
               />
-              <p className="text-[10px] text-slate-400 mt-1">{t("settings.tax_rate_hint")}</p>
+              <p className="text-[11px] text-slate-400 mt-1">{t("settings.tax_rate_hint")}</p>
             </Field>
           </div>
         </Section>
@@ -864,7 +864,7 @@ function Section({
           </div>
           <h2 className="text-sm font-semibold text-slate-700">{title}</h2>
           {dirty && (
-            <span className="text-[10px] font-semibold text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
+            <span className="text-[11px] font-semibold text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
               {t("settings.modified")}
             </span>
           )}
@@ -941,7 +941,7 @@ function PasswordStrength({ pw }: { pw: string }) {
           <div key={i} className={`h-1 flex-1 rounded-full transition-all ${i <= score ? color : "bg-slate-200"}`} />
         ))}
       </div>
-      <p className={`text-[10px] font-medium ${textColor}`}>{label} {t("settings.password_label")}</p>
+      <p className={`text-[11px] font-medium ${textColor}`}>{label} {t("settings.password_label")}</p>
     </div>
   );
 }

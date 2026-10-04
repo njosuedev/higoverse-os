@@ -239,3 +239,105 @@ class LoadMoreIndicator extends StatelessWidget {
   Widget build(BuildContext context) =>
       const Padding(padding: EdgeInsets.all(18), child: Center(child: RingsLoader(size: 26)));
 }
+
+/// The whole app while it starts: top bar, stories, the day's card, the
+/// status tiles and the tab bar, all as placeholders — no spinner.
+class AppSkeleton extends StatelessWidget {
+  const AppSkeleton({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final c = Hgv.of(context);
+    return Scaffold(
+      backgroundColor: c.chrome,
+      body: Shimmer(
+        child: Column(children: [
+          SafeArea(
+            bottom: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 6, 10, 6),
+              child: Row(children: [
+                const Bone(width: 32, height: 32, radius: 9),
+                const SizedBox(width: 8),
+                const Bone(width: 120, height: 20, radius: 6),
+                const Spacer(),
+                for (var i = 0; i < 2; i++) ...const [SizedBox(width: 8), Bone(height: 44, circle: true)],
+              ]),
+            ),
+          ),
+          Divider(height: 1, thickness: 0.6, color: c.border),
+          Expanded(
+            child: ListView(
+              physics: const NeverScrollableScrollPhysics(),
+              padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
+              children: [
+                const SizedBox(
+                  height: 150,
+                  child: Row(children: [
+                    SizedBox(width: 112, child: Bone(height: 150, radius: 14)),
+                    SizedBox(width: 8),
+                    SizedBox(width: 112, child: Bone(height: 150, radius: 14)),
+                    SizedBox(width: 8),
+                    SizedBox(width: 112, child: Bone(height: 150, radius: 14)),
+                  ]),
+                ),
+                const SizedBox(height: 8),
+                const Card(
+                  child: Padding(
+                    padding: EdgeInsets.all(12),
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Bone(width: 50, height: 9),
+                      SizedBox(height: 10),
+                      Bone(width: 180, height: 24, radius: 7),
+                      SizedBox(height: 8),
+                      Bone(width: 110, height: 9),
+                      SizedBox(height: 16),
+                      Bone(height: 90, radius: 8),
+                    ]),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Row(children: [
+                  for (var i = 0; i < 4; i++) ...[
+                    if (i > 0) const SizedBox(width: 8),
+                    const Expanded(
+                      child: Card(
+                        child: Padding(
+                          padding: EdgeInsets.all(10),
+                          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                            Bone(height: 26, circle: true),
+                            SizedBox(height: 8),
+                            Bone(width: 24, height: 16),
+                            SizedBox(height: 6),
+                            Bone(width: 50, height: 9),
+                          ]),
+                        ),
+                      ),
+                    ),
+                  ],
+                ]),
+              ],
+            ),
+          ),
+          Divider(height: 1, thickness: 0.6, color: c.border),
+          SafeArea(
+            top: false,
+            child: SizedBox(
+              height: 54,
+              child: Row(children: [
+                for (var i = 0; i < 4; i++)
+                  const Expanded(
+                    child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                      Bone(width: 24, height: 24, radius: 7),
+                      SizedBox(height: 5),
+                      Bone(width: 40, height: 8),
+                    ]),
+                  ),
+              ]),
+            ),
+          ),
+        ]),
+      ),
+    );
+  }
+}

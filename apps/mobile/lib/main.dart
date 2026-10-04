@@ -80,7 +80,7 @@ class _HigoverseAppState extends State<HigoverseApp> {
               home: FutureBuilder<bool>(
                 future: _restored,
                 builder: (context, snap) {
-                  if (snap.connectionState != ConnectionState.done) return const _Splash();
+                  if (snap.connectionState != ConnectionState.done) return const AppSkeleton();
                   // Keyed by account so nothing from a previous account survives.
                   return widget.session.signedIn
                       ? HomeShell(key: ValueKey(widget.session.user!.id))
@@ -93,23 +93,4 @@ class _HigoverseAppState extends State<HigoverseApp> {
       ),
     );
   }
-}
-
-class _Splash extends StatelessWidget {
-  const _Splash();
-
-  @override
-  Widget build(BuildContext context) => Scaffold(
-        backgroundColor: Hgv.of(context).chrome,
-        body: Center(
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(14),
-              child: Image.asset('assets/higoverse-logo.png', width: 64, height: 64),
-            ),
-            const SizedBox(height: 22),
-            const RingsLoader(size: 34),
-          ]),
-        ),
-      );
 }

@@ -189,7 +189,7 @@ function Panel({ kind, icon, title, total, loading, empty, children }: {
       <div className="flex items-center justify-between gap-2 px-3.5 pb-2 pt-3.5">
         <h2 className="flex min-w-0 items-center gap-2 font-display text-base font-semibold text-text">
           {icon} <span className="truncate">{title}</span>
-          {total > 0 && <span className="hgv-stamp text-[9px] text-accent-dark border-accent/50">{total}</span>}
+          {total > 0 && <span className="hgv-stamp text-[11px] text-accent-dark border-accent/50">{total}</span>}
         </h2>
         <Link href={`/items?status=${kind}`} className="flex shrink-0 items-center gap-0.5 text-[11px] font-semibold text-ink hover:text-ink-dark">
           {t("dash.view_all")} <ChevronRight size={12} />

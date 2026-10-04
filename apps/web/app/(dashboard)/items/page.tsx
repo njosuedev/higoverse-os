@@ -1,6 +1,7 @@
 ﻿"use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { isZero } from "@/lib/format";
 import Link from "next/link";
 import { itemRequest } from "@/lib/product-api";
 import { partnerRequest } from "@/lib/supplier-api";
@@ -599,14 +600,7 @@ export default function ItemManagementPage() {
         {/* HEADER BANNER */}
         <div
           className="hgv-surface relative rounded-2xl mb-2 overflow-hidden"
-          style={{ background: "linear-gradient(135deg, #0a66c2 0%, #004182 50%, #00376b 100%)" }}
         >
-          {/* Dot-grid texture */}
-          <div style={{
-            position: "absolute", inset: 0, pointerEvents: "none",
-            backgroundImage: "radial-gradient(circle, rgba(255,255,255,0.06) 1px, transparent 1px)",
-            backgroundSize: "20px 20px",
-          }} />
 
           {/* ── Row 1: title · stat chips · actions ── */}
           <div className="relative flex items-center gap-3 px-4 pt-3 pb-2">
@@ -617,7 +611,7 @@ export default function ItemManagementPage() {
                 <Package size={15} className="text-white" strokeWidth={2} />
               </div>
               <div>
-                <p className="text-[10px] font-semibold text-blue-200 uppercase tracking-widest leading-none">{t("nav.inventory")}</p>
+                <p className="text-[11px] font-semibold text-blue-200 uppercase tracking-widest leading-none">{t("nav.inventory")}</p>
                 <h1 className="text-base font-extrabold text-white leading-tight tracking-tight">{t("items.title")}</h1>
               </div>
             </div>
@@ -640,7 +634,7 @@ export default function ItemManagementPage() {
                       ? "bg-white/20 border-white/30"
                       : "bg-white/10 border-white/15"}`}
                 >
-                  <p className="text-[9px] font-bold text-white/60 uppercase tracking-wider leading-none">{s.label}</p>
+                  <p className="text-[11px] font-bold text-white/60 uppercase tracking-wider leading-none">{s.label}</p>
                   <p className={`text-lg font-extrabold leading-tight tabular-nums mt-0.5 ${s.accent}`}>{s.value}</p>
                 </div>
               ))}
@@ -667,11 +661,7 @@ export default function ItemManagementPage() {
 
           {/* ── Row 2: live indicator ── */}
           <div className="relative flex items-center gap-1.5 px-4 pb-2">
-            <span className="relative flex h-1.5 w-1.5">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
-              <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-green-400" />
-            </span>
-            <p className="text-[10px] text-blue-100/70 flex-1">
+            <p className="text-[11px] text-blue-100/70 flex-1">
               {t("items.live_label")} · <span className="font-semibold text-white/80">{stats.total.toLocaleString()} {t("items.count_suffix")}</span>
               {lastUpdated && <span className="ml-1 text-blue-200/50">· {t("common.updated")} {lastUpdated.toLocaleTimeString()}</span>}
             </p>
@@ -741,12 +731,12 @@ export default function ItemManagementPage() {
         {loadError && (
           <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-lg px-3 py-1.5 mb-2">
             <AlertCircle size={11} className="text-red-500 shrink-0" />
-            <p className="text-[10px] text-red-700 flex-1 min-w-0">
+            <p className="text-[11px] text-red-700 flex-1 min-w-0">
               {t("items.load_error")}
             </p>
             <button
               onClick={manualRefresh}
-              className="text-[10px] font-bold text-red-700 bg-red-100 hover:bg-red-200 px-2 py-0.5 rounded-md shrink-0 transition"
+              className="text-[11px] font-bold text-red-700 bg-red-100 hover:bg-red-200 px-2 py-0.5 rounded-md shrink-0 transition"
             >
               {t("common.retry")}
             </button>
@@ -757,12 +747,12 @@ export default function ItemManagementPage() {
         {!isCar && alertItems.length > 0 && (
           <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5 mb-2">
             <AlertCircle size={11} className="text-amber-500 shrink-0" />
-            <p className="text-[10px] text-amber-700 flex-1 min-w-0 sm:truncate">
+            <p className="text-[11px] text-amber-700 flex-1 min-w-0 sm:truncate">
               <span className="font-bold">{alertItems.length}</span> {t("items.restock_alert")} ·{" "}
               <span className="text-amber-600">{alertItems.slice(0, 3).map((i) => i.name).join(", ")}{alertItems.length > 3 ? ` +${alertItems.length - 3} ${t("items.more")}` : ""}</span>
             </p>
             {!isCar && <Link href="/PurchaseManagement"
-              className="text-[10px] font-bold text-amber-700 bg-amber-100 hover:bg-amber-200 px-2 py-0.5 rounded-md shrink-0 transition">
+              className="text-[11px] font-bold text-amber-700 bg-amber-100 hover:bg-amber-200 px-2 py-0.5 rounded-md shrink-0 transition">
               {t("items.purchase_short")}
             </Link>}
           </div>
@@ -771,26 +761,25 @@ export default function ItemManagementPage() {
         {/* STAT CARDS */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-1.5 mb-2">
           {(isCar ? [
-            { label: t("items.total"),              value: stats.total,         color: "text-[#0a66c2]", dot: "bg-[#0a66c2]" },
-            { label: t("vehicle.status_available"), value: Math.max(0, stats.total - stats.outStock - stats.pending), color: "text-green-600", dot: "bg-green-500" },
-            { label: t("vehicle.status_pending"),   value: stats.pending,       color: "text-amber-500", dot: "bg-amber-400" },
-            { label: t("vehicle.status_sold"),      value: stats.outStock,      color: "text-slate-600", dot: "bg-slate-400" },
-            { label: t("vehicle.has_fines"),        value: stats.withPenalties, color: "text-red-600",   dot: "bg-red-500" },
-            ...(fin ? [{ label: t("items.stock_value"), value: stats.stockValue.toLocaleString(), color: "text-slate-700", dot: "bg-slate-400" }] : []),
+            { label: t("items.total"),              value: stats.total,         color: "text-slate-900" },
+            { label: t("vehicle.status_available"), value: Math.max(0, stats.total - stats.outStock - stats.pending), color: "text-slate-900" },
+            { label: t("vehicle.status_pending"),   value: stats.pending,       color: "text-amber-600" },
+            { label: t("vehicle.status_sold"),      value: stats.outStock,      color: "text-slate-900" },
+            { label: t("vehicle.has_fines"),        value: stats.withPenalties, color: "text-red-600" },
+            ...(fin ? [{ label: t("items.stock_value"), value: stats.stockValue.toLocaleString(), color: "text-slate-900" }] : []),
           ] : [
-            { label: t("items.total"),       value: stats.total,                            color: "text-[#0a66c2]", dot: "bg-[#0a66c2]" },
-            { label: t("items.in_stock"),    value: stats.inStock,                          color: "text-green-600", dot: "bg-green-500" },
-            { label: t("items.low_stock"),   value: stats.lowStock,                         color: "text-amber-500", dot: "bg-amber-400" },
-            { label: t("items.out_stock"),   value: stats.outStock,                         color: "text-red-600",   dot: "bg-red-500"   },
-            ...(fin ? [{ label: t("items.stock_value"), value: stats.stockValue.toLocaleString(),      color: "text-slate-700", dot: "bg-slate-400" }] : []),
-            ...(prof ? [{ label: t("items.pot_profit"),  value: stats.potentialProfit.toLocaleString(), color: "text-green-700", dot: "bg-green-600" }] : []),
+            { label: t("items.total"),       value: stats.total,                            color: "text-slate-900" },
+            { label: t("items.in_stock"),    value: stats.inStock,                          color: "text-slate-900" },
+            { label: t("items.low_stock"),   value: stats.lowStock,                         color: "text-amber-600" },
+            { label: t("items.out_stock"),   value: stats.outStock,                         color: "text-red-600"   },
+            ...(fin ? [{ label: t("items.stock_value"), value: stats.stockValue.toLocaleString(),      color: "text-slate-900" }] : []),
+            ...(prof ? [{ label: t("items.pot_profit"),  value: stats.potentialProfit.toLocaleString(), color: "text-slate-900" }] : []),
           ]).map((card) => (
             <div key={card.label} className="bg-white rounded-lg border border-slate-200 px-2.5 py-2">
               <div className="flex items-center gap-1 mb-1">
-                <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${card.dot}`} />
-                <p className="text-[9px] font-semibold text-slate-400 uppercase tracking-wider leading-none truncate">{card.label}</p>
+                <p className="text-[11px] font-medium text-slate-500 leading-none truncate">{card.label}</p>
               </div>
-              <p className={`text-xl font-bold leading-none tabular-nums ${card.color}`}>{card.value}</p>
+              <p className={`text-xl font-bold leading-none tabular-nums ${isZero(card.value) ? "text-slate-900" : card.color}`}>{card.value}</p>
             </div>
           ))}
         </div>
@@ -843,7 +832,7 @@ export default function ItemManagementPage() {
 
           {/* Table toolbar */}
           <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 px-3 py-1.5 border-b border-slate-100 bg-slate-50/60">
-            <p className="text-[10px] text-slate-500">
+            <p className="text-[11px] text-slate-500">
               {t("common.showing")}{" "}
               <span className="font-semibold text-slate-700">{paginated.length.toLocaleString()}</span>{" "}
               {t("common.of")}{" "}
@@ -857,7 +846,7 @@ export default function ItemManagementPage() {
               {(debouncedSearch || filter !== "all") && (
                 <button
                   onClick={() => { setSearch(""); setFilter("all"); setPage(1); }}
-                  className="flex items-center gap-1 text-[10px] text-slate-400 hover:text-slate-600 transition"
+                  className="flex items-center gap-1 text-[11px] text-slate-400 hover:text-slate-600 transition"
                 >
                   <X size={10} /> {t("common.clear_filters")}
                 </button>
@@ -869,7 +858,7 @@ export default function ItemManagementPage() {
               <button
                 onClick={downloadTemplate}
                 title={t("common.download_template")}
-                className="flex items-center gap-1 text-[10px] font-semibold text-violet-700 bg-violet-50 hover:bg-violet-100 border border-violet-200 px-2 py-0.5 rounded transition"
+                className="flex items-center gap-1 text-[11px] font-semibold text-slate-700 bg-slate-50 hover:bg-slate-100 border border-slate-200 px-2 py-0.5 rounded transition"
               >
                 <Download size={11} /> {t("common.template")}
               </button>
@@ -877,7 +866,7 @@ export default function ItemManagementPage() {
                 onClick={() => importInputRef.current?.click()}
                 disabled={importLoading}
                 title={t("items.import_title_hint")}
-                className="flex items-center gap-1 text-[10px] font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 px-2 py-0.5 rounded transition disabled:opacity-50"
+                className="flex items-center gap-1 text-[11px] font-semibold text-slate-700 bg-slate-50 hover:bg-slate-100 border border-slate-200 px-2 py-0.5 rounded transition disabled:opacity-50"
               >
                 {importLoading ? <RefreshCw size={11} className="animate-spin" /> : <Upload size={11} />}
                 {importLoading ? t("common.importing") : t("common.import")}
@@ -889,7 +878,7 @@ export default function ItemManagementPage() {
                 onClick={exportExcel}
                 disabled={exporting}
                 title={t("common.export_excel_hint")}
-                className="flex items-center gap-1 text-[10px] font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-2 py-0.5 rounded transition"
+                className="flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-2 py-0.5 rounded transition"
               >
                 <FileSpreadsheet size={11} /> Excel
               </button>
@@ -897,7 +886,7 @@ export default function ItemManagementPage() {
                 onClick={exportPDF}
                 disabled={exporting}
                 title={t("common.export_pdf_hint")}
-                className="flex items-center gap-1 text-[10px] font-semibold text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 px-2 py-0.5 rounded transition"
+                className="flex items-center gap-1 text-[11px] font-semibold text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 px-2 py-0.5 rounded transition"
               >
                 <FileText size={11} /> PDF
               </button>
@@ -909,31 +898,31 @@ export default function ItemManagementPage() {
               <thead>
                 {isCar ? (
                 <tr className="border-b border-slate-200 bg-slate-50">
-                  <th className="w-8 px-3 py-2 text-left text-[10px] font-semibold text-slate-400">#</th>
-                  <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-500">{t("items.col_product")}</th>
-                  <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-500">{t("vehicle.car_type")}</th>
-                  <th className="px-3 py-2 text-center text-[10px] font-semibold uppercase tracking-wider text-slate-500">{t("vehicle.year")}</th>
-                  <th className="px-3 py-2 text-right text-[10px] font-semibold uppercase tracking-wider text-slate-500">{t("vehicle.battery_range")}</th>
-                  <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-500">{t("vehicle.color")}</th>
-                  <th className="px-3 py-2 text-right text-[10px] font-semibold uppercase tracking-wider text-slate-500">{t("items.col_selling")}</th>
-                  <th className="px-3 py-2 text-center text-[10px] font-semibold uppercase tracking-wider text-slate-500">{t("items.col_qty")}</th>
-                  <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-500">{t("items.col_added")}</th>
-                  <th className="px-3 py-2 text-center text-[10px] font-semibold uppercase tracking-wider text-slate-500">{t("common.actions")}</th>
+                  <th className="w-8 px-3 py-2 text-left text-[11px] font-semibold text-slate-400">#</th>
+                  <th className="px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">{t("items.col_product")}</th>
+                  <th className="px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">{t("vehicle.car_type")}</th>
+                  <th className="px-3 py-2 text-center text-[11px] font-semibold uppercase tracking-wider text-slate-500">{t("vehicle.year")}</th>
+                  <th className="px-3 py-2 text-right text-[11px] font-semibold uppercase tracking-wider text-slate-500">{t("vehicle.battery_range")}</th>
+                  <th className="px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">{t("vehicle.color")}</th>
+                  <th className="px-3 py-2 text-right text-[11px] font-semibold uppercase tracking-wider text-slate-500">{t("items.col_selling")}</th>
+                  <th className="px-3 py-2 text-center text-[11px] font-semibold uppercase tracking-wider text-slate-500">{t("items.col_qty")}</th>
+                  <th className="px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">{t("items.col_added")}</th>
+                  <th className="px-3 py-2 text-center text-[11px] font-semibold uppercase tracking-wider text-slate-500">{t("common.actions")}</th>
                 </tr>
                 ) : (
                 <tr className="border-b border-slate-200 bg-slate-50">
-                  <th className="w-8 px-3 py-2 text-left text-[10px] font-semibold text-slate-400">#</th>
-                  <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-500">{t("items.col_product")}</th>
+                  <th className="w-8 px-3 py-2 text-left text-[11px] font-semibold text-slate-400">#</th>
+                  <th className="px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">{t("items.col_product")}</th>
                   <th className="hidden lg:table-cell px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{t("items.col_supplier")}</th>
-                  <th className="px-3 py-2 text-right text-[10px] font-semibold uppercase tracking-wider text-slate-500">{t("items.col_cost")}</th>
-                  <th className="px-3 py-2 text-right text-[10px] font-semibold uppercase tracking-wider text-slate-500">{t("items.col_selling")}</th>
-                  <th className="px-3 py-2 text-center text-[10px] font-semibold uppercase tracking-wider text-slate-500">{t("items.col_margin")}</th>
-                  <th className="px-3 py-2 text-center text-[10px] font-semibold uppercase tracking-wider text-slate-500">{t("items.col_qty")}</th>
+                  <th className="px-3 py-2 text-right text-[11px] font-semibold uppercase tracking-wider text-slate-500">{t("items.col_cost")}</th>
+                  <th className="px-3 py-2 text-right text-[11px] font-semibold uppercase tracking-wider text-slate-500">{t("items.col_selling")}</th>
+                  <th className="px-3 py-2 text-center text-[11px] font-semibold uppercase tracking-wider text-slate-500">{t("items.col_margin")}</th>
+                  <th className="px-3 py-2 text-center text-[11px] font-semibold uppercase tracking-wider text-slate-500">{t("items.col_qty")}</th>
                   <th className="hidden lg:table-cell px-3 py-2 text-center text-xs font-semibold uppercase tracking-wider text-slate-500">{t("common.status")}</th>
                   <th className="hidden lg:table-cell px-3 py-2 text-right text-xs font-semibold uppercase tracking-wider text-slate-500">{t("items.col_unit_profit")}</th>
-                  <th className="px-3 py-2 text-right text-[10px] font-semibold uppercase tracking-wider text-slate-500">{t("items.col_total_profit")}</th>
-                  <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-500">{t("items.col_added")}</th>
-                  <th className="px-3 py-2 text-center text-[10px] font-semibold uppercase tracking-wider text-slate-500">{t("common.actions")}</th>
+                  <th className="px-3 py-2 text-right text-[11px] font-semibold uppercase tracking-wider text-slate-500">{t("items.col_total_profit")}</th>
+                  <th className="px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">{t("items.col_added")}</th>
+                  <th className="px-3 py-2 text-center text-[11px] font-semibold uppercase tracking-wider text-slate-500">{t("common.actions")}</th>
                 </tr>
                 )}
               </thead>
@@ -955,7 +944,7 @@ export default function ItemManagementPage() {
                         ${isOutOfStock ? "bg-red-50/30" : needsRestock ? "bg-amber-50/20" : "hover:bg-slate-50/70"}`}
                     >
                       {/* Row number */}
-                      <td className="px-3 py-1.5 text-[10px] text-slate-300 tabular-nums">{rowNum}</td>
+                      <td className="px-3 py-1.5 text-[11px] text-slate-300 tabular-nums">{rowNum}</td>
 
                       {/* Product */}
                       <td className="px-3 py-1.5">
@@ -978,10 +967,10 @@ export default function ItemManagementPage() {
                               <p className="font-semibold text-slate-800 text-xs leading-tight">{p.name}</p>
                             </div>
                             {isCar && carIds(parseAttributes(p.attributes)) && (
-                              <p className="text-[10px] text-slate-500 max-w-[240px] truncate">{carIds(parseAttributes(p.attributes))}</p>
+                              <p className="text-[11px] text-slate-500 max-w-[240px] truncate">{carIds(parseAttributes(p.attributes))}</p>
                             )}
                             {!isCar && p.description && (
-                              <p className="text-[10px] text-slate-400 max-w-[160px] truncate">{p.description}</p>
+                              <p className="text-[11px] text-slate-400 max-w-[160px] truncate">{p.description}</p>
                             )}
                           </div>
                         </div>
@@ -998,7 +987,7 @@ export default function ItemManagementPage() {
                             <span className="text-xs font-semibold text-slate-800 tabular-nums">{Number(p.selling_price || 0).toLocaleString()}</span>
                           </td>
                           <td className="px-3 py-1.5 text-center">
-                            <span className={`inline-flex items-center justify-center min-w-[1.5rem] px-1.5 py-0.5 rounded text-[10px] font-bold tabular-nums
+                            <span className={`inline-flex items-center justify-center min-w-[1.5rem] px-1.5 py-0.5 rounded text-[11px] font-bold tabular-nums
                               ${isOutOfStock ? "bg-red-100 text-red-700" : needsRestock ? "bg-amber-100 text-amber-700" : "bg-green-100 text-green-700"}`}>
                               {p.quantity}
                             </span>
@@ -1028,7 +1017,7 @@ export default function ItemManagementPage() {
 
                       {/* Margin */}
                       <td className="px-3 py-1.5 text-center">
-                        <span className={`inline-block text-[10px] font-bold px-1.5 py-0.5 rounded tabular-nums
+                        <span className={`inline-block text-[11px] font-bold px-1.5 py-0.5 rounded tabular-nums
                           ${margin >= 20 ? "bg-green-100 text-green-700"
                           : margin >= 0  ? "bg-blue-50 text-[#0a66c2]"
                           :               "bg-red-100 text-red-600"}`}>
@@ -1038,7 +1027,7 @@ export default function ItemManagementPage() {
 
                       {/* Quantity */}
                       <td className="px-3 py-1.5 text-center">
-                        <span className={`inline-flex items-center justify-center min-w-[1.5rem] px-1.5 py-0.5 rounded text-[10px] font-bold tabular-nums
+                        <span className={`inline-flex items-center justify-center min-w-[1.5rem] px-1.5 py-0.5 rounded text-[11px] font-bold tabular-nums
                           ${isOutOfStock  ? "bg-red-100 text-red-700"
                           : needsRestock  ? "bg-amber-100 text-amber-700"
                           :                "bg-green-100 text-green-700"}`}>
@@ -1048,7 +1037,7 @@ export default function ItemManagementPage() {
 
                       {/* Status */}
                       <td className="hidden lg:table-cell px-3 py-2.5 text-center">
-                        <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold
+                        <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[11px] font-semibold
                           ${isProfit ? "bg-green-50 text-green-700 border border-green-200"
                           :           "bg-red-50 text-red-600 border border-red-200"}`}>
                           {isProfit
@@ -1077,10 +1066,10 @@ export default function ItemManagementPage() {
                       <td className="px-3 py-1.5 whitespace-nowrap">
                         {p.created_at ? (
                           <div>
-                            <p className="text-[10px] font-medium text-slate-600">
+                            <p className="text-[11px] font-medium text-slate-600">
                               {new Date(p.created_at).toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "numeric" })}
                             </p>
-                            <p className="text-[9px] text-slate-400">
+                            <p className="text-[11px] text-slate-400">
                               {new Date(p.created_at).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
                             </p>
                           </div>
@@ -1300,10 +1289,10 @@ export default function ItemManagementPage() {
                   <div className="space-y-1.5">
                     {importResults.failed.map((f) => (
                       <div key={`${f.row}-${f.name}`} className="flex items-start gap-2 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
-                        <span className="text-[10px] font-bold text-red-400 tabular-nums mt-0.5 shrink-0">{t("common.row")} {f.row}</span>
+                        <span className="text-[11px] font-bold text-red-400 tabular-nums mt-0.5 shrink-0">{t("common.row")} {f.row}</span>
                         <div className="min-w-0">
                           <p className="text-xs font-semibold text-slate-700 truncate">{f.name}</p>
-                          <p className="text-[10px] text-red-500">{f.reason}</p>
+                          <p className="text-[11px] text-red-500">{f.reason}</p>
                         </div>
                       </div>
                     ))}
@@ -1320,7 +1309,7 @@ export default function ItemManagementPage() {
               {importResults.failed.length > 0 && (
                 <button
                   onClick={() => importInputRef.current?.click()}
-                  className="px-3 py-1.5 rounded-lg border border-indigo-200 text-indigo-700 text-xs font-semibold hover:bg-indigo-50 transition"
+                  className="px-3 py-1.5 rounded-lg border border-slate-200 text-slate-700 text-xs font-semibold hover:bg-slate-50 transition"
                 >
                   {t("items.reimport")}
                 </button>
@@ -1344,7 +1333,7 @@ function ItemsSkeleton() {
     <div className="min-h-screen">
       <style>{`@keyframes itm-sh{0%{background-position:-200% 0}100%{background-position:200% 0}}.itm-sh{background:linear-gradient(90deg,#f1f5f9 25%,#e2e8f0 50%,#f1f5f9 75%);background-size:200% 100%;animation:itm-sh 1.4s infinite;border-radius:5px}.itm-sh-w{background:linear-gradient(90deg,rgba(255,255,255,.1) 25%,rgba(255,255,255,.22) 50%,rgba(255,255,255,.1) 75%);background-size:200% 100%;animation:itm-sh 1.4s infinite;border-radius:5px}`}</style>
       <div className="max-w-7xl mx-auto px-3 sm:px-5 py-3 sm:py-4">
-        <div className="hgv-surface relative rounded-2xl mb-2 overflow-hidden" style={{background:"linear-gradient(135deg,#0a66c2 0%,#004182 50%,#00376b 100%)"}}>
+        <div className="hgv-surface relative rounded-2xl mb-2 overflow-hidden">
           <div className="relative flex items-center gap-3 px-4 pt-3 pb-2">
             <div className="w-8 h-8 rounded-xl itm-sh-w shrink-0" />
             <div><div className="itm-sh-w h-2 w-14 mb-1 rounded" /><div className="itm-sh-w h-4 w-28 rounded" /></div>

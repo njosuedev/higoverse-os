@@ -22,7 +22,7 @@ import {
   UserX,
   Receipt, Pencil, X, ChevronLeft,
   Plus, Loader2, Lock, User as UserIcon, UserPlus,
-  LayoutDashboard, Users, Activity, Sparkles, TrendingUp, Car,
+  LayoutDashboard, Users, Activity, TrendingUp, Car,
 } from "lucide-react";
 import { expenseRequest } from "@/lib/expense-api";
 import LayoutPicker from "@/app/components/admin/LayoutPicker";
@@ -558,16 +558,11 @@ export default function AdminPage() {
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-100 to-slate-50">
+    <div className="min-h-screen bg-slate-50">
       <main className="max-w-6xl mx-auto px-3 sm:px-4 py-2.5 sm:py-3 space-y-3">
 
         {/* ── Hero header ─────────────────────────────────────────────────── */}
         <div className="hgv-header-in relative overflow-hidden rounded-2xl hgv-surface px-4 sm:px-5 py-3.5">
-          <div
-            className="pointer-events-none absolute inset-0 opacity-[0.06]"
-            style={{ backgroundImage: "radial-gradient(circle, #fff 1px, transparent 1px)", backgroundSize: "18px 18px" }}
-          />
-          <div className="hgv-header-glow pointer-events-none absolute -right-10 -top-16 h-56 w-56 rounded-full blur-3xl" style={{ background: LI_BLUE, opacity: 0.25 }} />
 
           <div className="relative flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2.5">
@@ -577,8 +572,8 @@ export default function AdminPage() {
               <div>
                 <div className="flex items-center gap-2">
                   <h1 className="font-bold text-white text-sm leading-tight tracking-tight">{t("admin.panel_title")}</h1>
-                  <span className="hidden sm:inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-white/10 border border-white/15 text-white/80">
-                    <Sparkles size={9} /> {t("admin.platform_badge")}
+                  <span className="hidden sm:inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-white/10 border border-white/15 text-white/80">
+                    {t("admin.platform_badge")}
                   </span>
                 </div>
                 <p className="text-[11px] text-white/50 mt-0.5">{user.email}</p>
@@ -604,7 +599,7 @@ export default function AdminPage() {
           <div className="flex items-center gap-2 text-sm text-red-600 bg-white border border-red-200 rounded-2xl px-4 py-3 shadow-sm">
             <AlertTriangle size={14} />
             {error}
-            <button onClick={() => setError(null)} className="ml-auto text-red-300 hover:text-red-500">✕</button>
+            <button onClick={() => setError(null)} aria-label={t("common.close")} className="ml-auto text-red-300 hover:text-red-500"><X size={14} /></button>
           </div>
         )}
 
@@ -617,11 +612,11 @@ export default function AdminPage() {
                 className={`relative flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all ${
                   active ? "text-white shadow-sm" : "text-gray-500 hover:text-gray-800 hover:bg-gray-50"
                 }`}
-                style={active ? { background: `linear-gradient(135deg, ${LI_BLUE}, #004182)` } : undefined}>
+                style={active ? { background: LI_BLUE } : undefined}>
                 <t.icon size={12} className={active ? "text-white" : "text-gray-400"} />
                 {t.label}
                 {t.count !== undefined && t.count > 0 && (
-                  <span className="ml-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full"
+                  <span className="ml-0.5 text-[11px] font-bold px-1.5 py-0.5 rounded-full"
                     style={{
                       background: active ? "rgba(255,255,255,0.2)" : "#eef2f6",
                       color: active ? "#fff" : "#8a94a6",
@@ -649,20 +644,20 @@ export default function AdminPage() {
                 {/* KPI row */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
                   {[
-                    { label: t("admin.tab_shops"),      value: stats.active_shops,   sub: `${stats.inactive_shops} ${t("admin.inactive_suffix")}`, color: LI_BLUE,    bg: "#EBF2FD", icon: Store    },
-                    { label: t("admin.total_users"),    value: stats.total_users,    sub: `${stats.active_users} ${t("common.active")}`,            color: LI_BLUE,    bg: "#EBF2FD", icon: Users    },
-                    { label: t("admin.online_now"),     value: onlineNow,            sub: t("admin.shops_live_sub"),                                color: "#057642",  bg: "#E7F7EF", icon: Activity },
-                    { label: t("admin.new_this_week"),  value: newThisWeek,          sub: t("admin.new_shops_joined_sub"),                          color: "#915907",  bg: "#FEF3E2", icon: Sparkles },
+                    { label: t("admin.tab_shops"),      value: stats.active_shops,   sub: `${stats.inactive_shops} ${t("admin.inactive_suffix")}`, icon: Store    },
+                    { label: t("admin.total_users"),    value: stats.total_users,    sub: `${stats.active_users} ${t("common.active")}`, icon: Users    },
+                    { label: t("admin.online_now"),     value: onlineNow,            sub: t("admin.shops_live_sub"), icon: Activity },
+                    { label: t("admin.new_this_week"),  value: newThisWeek,          sub: t("admin.new_shops_joined_sub"), icon: UserPlus },
                   ].map((k) => (
                     <div key={k.label} className="hgv-card-hover bg-white rounded-xl shadow-sm border border-gray-200 p-3">
                       <div className="flex items-center justify-between mb-2">
-                        <p className="text-[11px] text-gray-400 font-medium">{k.label}</p>
-                        <div className="w-6 h-6 rounded-lg flex items-center justify-center shrink-0" style={{ background: k.bg }}>
-                          <k.icon size={12} style={{ color: k.color }} />
+                        <p className="text-[11px] text-gray-500 font-medium">{k.label}</p>
+                        <div className="w-6 h-6 rounded-lg flex items-center justify-center shrink-0 bg-slate-100 text-slate-500">
+                          <k.icon size={12} />
                         </div>
                       </div>
-                      <p className="text-2xl font-bold" style={{ color: k.color }}>{k.value}</p>
-                      <p className="text-[11px] text-gray-400 mt-0.5">{k.sub}</p>
+                      <p className="text-2xl font-bold tabular-nums text-slate-900">{k.value}</p>
+                      <p className="text-[11px] text-gray-500 mt-0.5">{k.sub}</p>
                     </div>
                   ))}
                 </div>
@@ -745,7 +740,7 @@ export default function AdminPage() {
                     ) : (
                       <ResponsiveContainer width="100%" height={170}>
                         <BarChart data={topShopsData} layout="vertical" margin={{ left: 0, right: 16, top: 0, bottom: 0 }}>
-                          <XAxis type="number" tick={{ fontSize: 10, fill: "#999" }} axisLine={false} tickLine={false} />
+                          <XAxis type="number" tick={{ fontSize: 11, fill: "#767676" }} axisLine={false} tickLine={false} />
                           <YAxis type="category" dataKey="name" tick={{ fontSize: 11, fill: "#444" }} axisLine={false} tickLine={false} width={90} />
                           <Tooltip contentStyle={{ fontSize: 12, border: "1px solid #e5e7eb", borderRadius: 8 }} formatter={(v: unknown) => [String(v), t("admin.users_label")]} />
                           <Bar dataKey="users" radius={[0, 4, 4, 0]} fill={LI_BLUE} />
@@ -763,8 +758,8 @@ export default function AdminPage() {
                     </h3>
                     <ResponsiveContainer width="100%" height={170}>
                       <BarChart data={presenceData} margin={{ left: 0, right: 16, top: 0, bottom: 0 }}>
-                        <XAxis dataKey="name" tick={{ fontSize: 10, fill: "#999" }} axisLine={false} tickLine={false} />
-                        <YAxis tick={{ fontSize: 10, fill: "#999" }} axisLine={false} tickLine={false} />
+                        <XAxis dataKey="name" tick={{ fontSize: 11, fill: "#767676" }} axisLine={false} tickLine={false} />
+                        <YAxis tick={{ fontSize: 11, fill: "#767676" }} axisLine={false} tickLine={false} />
                         <Tooltip contentStyle={{ fontSize: 12, border: "1px solid #e5e7eb", borderRadius: 8 }} formatter={(v: unknown, name: unknown) => [String(v), String(name)]} />
                         <Bar dataKey="value" radius={[4, 4, 0, 0]}>
                           {presenceData.map((d, i) => <Cell key={i} fill={d.fill} />)}
@@ -794,7 +789,7 @@ export default function AdminPage() {
                           <span className="font-bold text-gray-900">{m.pct}%</span>
                         </div>
                         <div className="h-2 rounded-full overflow-hidden" style={{ background: "#F1F0EC" }}>
-                          <div className="h-full rounded-full transition-all" style={{ width: `${m.pct}%`, background: `linear-gradient(90deg, ${LI_BLUE}, #004182)` }} />
+                          <div className="h-full rounded-full transition-all" style={{ width: `${m.pct}%`, background: LI_BLUE }} />
                         </div>
                         <p className="text-xs text-gray-400 mt-1">{m.sub}</p>
                       </div>
@@ -810,7 +805,7 @@ export default function AdminPage() {
         {tab === "shops" && (
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
             {/* Toolbar */}
-            <div className="flex flex-col sm:flex-row sm:items-center gap-2 px-4 py-2.5 border-b border-gray-100 bg-gradient-to-r from-slate-50/60 to-transparent">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2 px-4 py-2.5 border-b border-gray-100 bg-slate-50/60">
               <div className="flex items-center gap-2 flex-wrap">
                 <div className="relative">
                   <select value={shopSort} onChange={(e) => setShopSort(e.target.value as ShopSort)}
@@ -841,7 +836,7 @@ export default function AdminPage() {
               <span className="text-xs text-gray-400 shrink-0 font-medium">{filteredShops.length} / {activeShops.length}</span>
               <button onClick={openCreateShop}
                 className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg text-white font-semibold transition shrink-0 shadow-sm hover:opacity-90"
-                style={{ background: `linear-gradient(135deg, ${LI_BLUE}, #004182)` }}>
+                style={{ background: LI_BLUE }}>
                 <Plus size={12} /> {t("admin.add_shop")}
               </button>
             </div>
@@ -870,7 +865,7 @@ export default function AdminPage() {
                         {/* Avatar */}
                         <div className="relative shrink-0">
                           <div className="w-8 h-8 rounded-full overflow-hidden flex items-center justify-center text-xs font-bold text-white ring-2 ring-white shadow-sm"
-                            style={{ background: shop.logo_url ? "transparent" : online ? "linear-gradient(135deg,#0ea672,#057642)" : `linear-gradient(135deg, ${LI_BLUE}, #004182)` }}>
+                            style={{ background: shop.logo_url ? "transparent" : online ? "#057642" : LI_BLUE }}>
                             {shop.logo_url
                               // eslint-disable-next-line @next/next/no-img-element
                               ? <img src={shop.logo_url} alt={shop.name} className="w-8 h-8 object-cover" />
@@ -886,32 +881,32 @@ export default function AdminPage() {
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className="text-[13px] font-semibold text-gray-900">{shop.name}</span>
                             {online && (
-                              <span className="flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full text-white" style={{ background: "#057642" }}>
+                              <span className="flex items-center gap-1 text-[11px] font-bold px-1.5 py-0.5 rounded-full text-white" style={{ background: "#057642" }}>
                                 <span className="w-1 h-1 rounded-full bg-white animate-pulse" /> {t("admin.live")}
                               </span>
                             )}
                             {joinedThisWeek(shop.created_at) && (
-                              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full text-white" style={{ background: LI_BLUE }}>{t("admin.new_badge")}</span>
+                              <span className="text-[11px] font-bold px-1.5 py-0.5 rounded-full text-white" style={{ background: LI_BLUE }}>{t("admin.new_badge")}</span>
                             )}
                             {normalizeLayout(shop.layout) === "car" && (
-                              <span className="flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
+                              <span className="flex items-center gap-1 text-[11px] font-semibold px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
                                 <Car size={9} /> {t("layout.car")}
                               </span>
                             )}
                             {shop.owner_email ? (
                               shop.email_verified ? (
-                                <span className="flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200">
+                                <span className="flex items-center gap-1 text-[11px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200">
                                   <CheckCircle size={9} /> {t("admin.verified")}
                                 </span>
                               ) : (
                                 <button onClick={() => handleVerifyEmail(shop.id)} disabled={busy}
                                   title={t("admin.confirm_email_title")}
-                                  className="flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-600 border border-amber-200 hover:bg-amber-100 transition disabled:opacity-40">
+                                  className="flex items-center gap-1 text-[11px] font-bold px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-600 border border-amber-200 hover:bg-amber-100 transition disabled:opacity-40">
                                   <AlertTriangle size={9} /> {t("admin.unverified_verify")}
                                 </button>
                               )
                             ) : (
-                              <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-gray-50 text-gray-400 border border-gray-200">{t("admin.no_account")}</span>
+                              <span className="text-[11px] font-medium px-1.5 py-0.5 rounded-full bg-gray-50 text-gray-400 border border-gray-200">{t("admin.no_account")}</span>
                             )}
                           </div>
                           <div className="flex items-center gap-3 mt-0.5 flex-wrap">
@@ -924,15 +919,15 @@ export default function AdminPage() {
                         {/* Stats */}
                         <div className="hidden md:flex items-center gap-4 shrink-0 text-xs text-gray-500">
                           <div className="text-center">
-                            <p className="text-gray-400 text-[10px]">{t("admin.users_label")}</p>
+                            <p className="text-gray-400 text-[11px]">{t("admin.users_label")}</p>
                             <p className="font-bold text-gray-800 text-xs">{shop.user_count}</p>
                           </div>
                           <div className="text-center">
-                            <p className="text-gray-400 text-[10px]">{t("dash.last_seen")}</p>
+                            <p className="text-gray-400 text-[11px]">{t("dash.last_seen")}</p>
                             <p className="font-semibold text-gray-800">{online ? t("common.online") : timeAgo(shop.last_seen_at, t)}</p>
                           </div>
                           <div className="text-center">
-                            <p className="text-gray-400 text-[10px]">{t("admin.joined")}</p>
+                            <p className="text-gray-400 text-[11px]">{t("admin.joined")}</p>
                             <p className="font-semibold text-gray-800">{fmtDate(shop.created_at)}</p>
                           </div>
                         </div>
@@ -968,7 +963,7 @@ export default function AdminPage() {
                           <div className="grid sm:grid-cols-3 gap-2.5 mt-2">
                             {/* Info */}
                             <div className="bg-white rounded-lg border border-gray-200 p-3">
-                              <p className="text-[10px] uppercase tracking-wider text-gray-400 font-semibold mb-2.5">{t("admin.shop_info")}</p>
+                              <p className="text-[11px] uppercase tracking-wider text-gray-400 font-semibold mb-2.5">{t("admin.shop_info")}</p>
                               {shop.logo_url && (
                                 // eslint-disable-next-line @next/next/no-img-element
                                 <img src={shop.logo_url} alt={shop.name} className="w-16 h-16 rounded-xl object-cover mb-3 border border-gray-100" />
@@ -1006,7 +1001,7 @@ export default function AdminPage() {
 
                             {/* Activity */}
                             <div className="bg-white rounded-lg border border-gray-200 p-3">
-                              <p className="text-[10px] uppercase tracking-wider text-gray-400 font-semibold mb-2.5">{t("admin.activity")}</p>
+                              <p className="text-[11px] uppercase tracking-wider text-gray-400 font-semibold mb-2.5">{t("admin.activity")}</p>
                               <div className="space-y-2 text-xs">
                                 {[
                                   { label: t("common.status"),      value: isOnline(shop.last_seen_at) ? t("common.online") : t("admin.offline"), highlight: isOnline(shop.last_seen_at) },
@@ -1027,13 +1022,13 @@ export default function AdminPage() {
                             {/* Users */}
                             <div className="bg-white rounded-lg border border-gray-200 p-3">
                               <div className="flex items-center justify-between mb-2.5">
-                                <p className="text-[10px] uppercase tracking-wider text-gray-400 font-semibold flex items-center gap-1.5">
+                                <p className="text-[11px] uppercase tracking-wider text-gray-400 font-semibold flex items-center gap-1.5">
                                   {t("admin.team_members")} <span className="font-bold text-gray-600 normal-case">{members.length}</span>
                                 </p>
                                 <button onClick={() => openCreateUser(shop.id)}
                                   title={t("admin.register_user_for_shop_title")}
-                                  className="flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-lg hover:opacity-90 transition text-white shadow-sm"
-                                  style={{ background: `linear-gradient(135deg, ${LI_BLUE}, #004182)` }}>
+                                  className="flex items-center gap-1 text-[11px] font-semibold px-2 py-1 rounded-lg hover:opacity-90 transition text-white shadow-sm"
+                                  style={{ background: LI_BLUE }}>
                                   <UserPlus size={10} /> {t("common.add")}
                                 </button>
                               </div>
@@ -1043,7 +1038,7 @@ export default function AdminPage() {
                                 <div className="space-y-2">
                                   {members.map((m) => (
                                     <div key={m.id} className="flex items-center gap-2 text-xs">
-                                      <div className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0"
+                                      <div className="w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold text-white shrink-0"
                                         style={{ background: LI_BLUE }}>
                                         {m.email[0].toUpperCase()}
                                       </div>
@@ -1074,7 +1069,7 @@ export default function AdminPage() {
         {/* ══ USERS ═══════════════════════════════════════════════════════════ */}
         {tab === "users" && (
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-            <div className="flex flex-col sm:flex-row sm:items-center gap-2 px-4 py-2.5 border-b border-gray-100 bg-gradient-to-r from-slate-50/60 to-transparent">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2 px-4 py-2.5 border-b border-gray-100 bg-slate-50/60">
               <div className="flex text-xs rounded-lg overflow-hidden border border-gray-200">
                 {(["all", "admin", "owner", "staff"] as const).map((r) => (
                   <button key={r} onClick={() => setUserRoleFilter(r)}
@@ -1094,7 +1089,7 @@ export default function AdminPage() {
               <button onClick={() => openCreateUser()} disabled={activeShops.length === 0}
                 title={activeShops.length === 0 ? t("admin.no_shops_available_title") : t("admin.register_new_shop_user_title")}
                 className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg text-white font-semibold transition disabled:opacity-40 shrink-0 shadow-sm hover:opacity-90"
-                style={{ background: `linear-gradient(135deg, ${LI_BLUE}, #004182)` }}>
+                style={{ background: LI_BLUE }}>
                 <UserPlus size={12} /> {t("admin.register_user")}
               </button>
             </div>
@@ -1102,7 +1097,7 @@ export default function AdminPage() {
             {/* Header */}
             <div className="hidden sm:grid grid-cols-[1fr_1fr_auto_auto_auto] gap-4 px-4 py-1.5 border-b border-gray-100" style={{ background: "#F9F8F6" }}>
               {[t("common.user"), t("admin.shop_label"), t("admin.role_label"), t("common.status"), t("common.actions")].map((h) => (
-                <span key={h} className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">{h}</span>
+                <span key={h} className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">{h}</span>
               ))}
             </div>
 
@@ -1127,12 +1122,12 @@ export default function AdminPage() {
                       className={`grid grid-cols-[1fr_1fr_auto_auto_auto] gap-4 items-center px-4 py-2 hover:bg-slate-50/70 transition ${!u.is_active ? "opacity-50" : ""}`}>
                       <div className="min-w-0 flex items-center gap-2">
                         <div className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold text-white shrink-0 ring-2 ring-white shadow-sm"
-                          style={{ background: `linear-gradient(135deg, ${LI_BLUE}, #004182)` }}>
+                          style={{ background: LI_BLUE }}>
                           {u.email[0].toUpperCase()}
                         </div>
                         <div className="min-w-0">
                           <p className="text-xs font-medium text-gray-900 truncate">{u.email}</p>
-                          <p className="text-[10px] text-gray-400">{fmtDate(u.created_at)}</p>
+                          <p className="text-[11px] text-gray-400">{fmtDate(u.created_at)}</p>
                         </div>
                       </div>
                       <div className="min-w-0">
@@ -1155,7 +1150,7 @@ export default function AdminPage() {
                             <button onClick={handleRoleChange} disabled={busy}
                               className="text-xs px-2 py-1 rounded-lg text-white font-medium transition disabled:opacity-40"
                               style={{ background: LI_BLUE }}>{t("admin.save")}</button>
-                            <button onClick={() => setRoleEdit(null)} className="text-xs text-gray-400 hover:text-gray-600 px-1">✕</button>
+                            <button onClick={() => setRoleEdit(null)} aria-label={t("common.close")} className="text-gray-400 hover:text-gray-600 px-1"><X size={14} /></button>
                           </div>
                         ) : (
                           <span className="text-xs font-semibold capitalize px-2 py-0.5 rounded-full"
@@ -1208,7 +1203,7 @@ export default function AdminPage() {
             {/* Shop selector / back bar */}
             {!expShopId ? (
               <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                <div className="flex items-center justify-between px-4 py-2.5 border-b border-gray-100 bg-gradient-to-r from-slate-50/60 to-transparent">
+                <div className="flex items-center justify-between px-4 py-2.5 border-b border-gray-100 bg-slate-50/60">
                   <h2 className="font-semibold text-gray-800 text-sm flex items-center gap-2">
                     <span className="w-5 h-5 rounded-lg flex items-center justify-center" style={{ background: "#EBF2FD" }}>
                       <Receipt size={10} style={{ color: LI_BLUE }} />
@@ -1249,7 +1244,7 @@ export default function AdminPage() {
                           <div className="flex items-center gap-4 text-xs text-gray-400 shrink-0">
                             <span>{shop.user_count} {t("admin.users_suffix")}</span>
                             {isOnline(shop.last_seen_at) && (
-                              <span className="flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full text-white" style={{ background: "#057642" }}>
+                              <span className="flex items-center gap-1 text-[11px] font-bold px-1.5 py-0.5 rounded-full text-white" style={{ background: "#057642" }}>
                                 <span className="w-1 h-1 rounded-full bg-white animate-pulse" />{t("admin.live")}
                               </span>
                             )}
@@ -1301,7 +1296,7 @@ export default function AdminPage() {
                         <thead>
                           <tr className="bg-slate-50 border-b border-slate-100">
                             {[t("common.date"),t("expenses.title_field"),t("expenses.category"),t("expenses.amount"),t("admin.col_payment"),t("admin.col_bank_name"),t("admin.col_account_ref"),t("admin.col_receiver_phone"),t("common.notes"),""].map((h) => (
-                              <th key={h} className="px-3 py-2 text-left text-[9px] font-semibold uppercase tracking-wider text-slate-400 whitespace-nowrap">{h}</th>
+                              <th key={h} className="px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-400 whitespace-nowrap">{h}</th>
                             ))}
                           </tr>
                         </thead>
@@ -1315,18 +1310,18 @@ export default function AdminPage() {
                                   {d ? (
                                     <div>
                                       <p className="text-xs font-medium text-slate-700">{d.toLocaleDateString()}</p>
-                                      <p className="text-[10px] text-slate-400">{d.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})}</p>
+                                      <p className="text-[11px] text-slate-400">{d.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})}</p>
                                     </div>
                                   ) : <span className="text-slate-300 text-xs">-</span>}
                                 </td>
                                 {/* Title */}
                                 <td className="px-3 py-1.5">
                                   <p className="text-xs font-semibold text-slate-800">{e.title}</p>
-                                  <p className="text-[10px] text-slate-400 font-mono">{e.id.slice(0,8)}</p>
+                                  <p className="text-[11px] text-slate-400 font-mono">{e.id.slice(0,8)}</p>
                                 </td>
                                 {/* Category */}
                                 <td className="px-3 py-1.5">
-                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-blue-100 text-blue-700 capitalize">{t(`expenses.cat.${e.category}`)}</span>
+                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[11px] font-semibold bg-blue-100 text-blue-700 capitalize">{t(`expenses.cat.${e.category}`)}</span>
                                 </td>
                                 {/* Amount */}
                                 <td className="px-3 py-1.5 text-xs font-bold tabular-nums" style={{ color: LI_BLUE }}>
@@ -1335,27 +1330,27 @@ export default function AdminPage() {
                                 {/* Payment Method */}
                                 <td className="px-3 py-1.5 whitespace-nowrap">
                                   {e.payment_method === "mtn" && (
-                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-yellow-100 text-yellow-700">{t("admin.payment_mtn")}</span>
+                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[11px] font-semibold bg-yellow-100 text-yellow-700">{t("admin.payment_mtn")}</span>
                                   )}
                                   {e.payment_method === "bank" && (
-                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-blue-100 text-blue-700">{t("admin.payment_bank")}</span>
+                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[11px] font-semibold bg-blue-100 text-blue-700">{t("admin.payment_bank")}</span>
                                   )}
-                                  {!e.payment_method && <span className="text-slate-300 text-[10px]">-</span>}
+                                  {!e.payment_method && <span className="text-slate-300 text-[11px]">-</span>}
                                 </td>
                                 {/* Bank Name */}
-                                <td className="px-3 py-1.5 text-[10px] text-slate-600 whitespace-nowrap">
+                                <td className="px-3 py-1.5 text-[11px] text-slate-600 whitespace-nowrap">
                                   {e.bank_name || <span className="text-slate-300">-</span>}
                                 </td>
                                 {/* Account / Ref */}
-                                <td className="px-3 py-1.5 text-[10px] text-slate-600 font-mono whitespace-nowrap">
+                                <td className="px-3 py-1.5 text-[11px] text-slate-600 font-mono whitespace-nowrap">
                                   {e.bank_account || <span className="text-slate-300 font-sans">-</span>}
                                 </td>
                                 {/* Receiver Phone */}
-                                <td className="px-3 py-1.5 text-[10px] text-slate-600 whitespace-nowrap">
+                                <td className="px-3 py-1.5 text-[11px] text-slate-600 whitespace-nowrap">
                                   {e.receiver_phone || <span className="text-slate-300">-</span>}
                                 </td>
                                 {/* Notes */}
-                                <td className="px-3 py-1.5 text-[10px] text-slate-500 max-w-[140px] truncate">
+                                <td className="px-3 py-1.5 text-[11px] text-slate-500 max-w-[140px] truncate">
                                   {e.notes || <span className="text-slate-300 italic">-</span>}
                                 </td>
                                 {/* Edit */}
@@ -1404,14 +1399,14 @@ export default function AdminPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col max-h-[90vh]">
             {/* Header */}
-            <div className="flex items-center justify-between px-3.5 py-2.5 border-b border-slate-100 shrink-0 bg-gradient-to-r from-slate-50 to-white">
+            <div className="flex items-center justify-between px-3.5 py-2.5 border-b border-slate-100 shrink-0 bg-slate-50">
               <div className="flex items-center gap-2.5">
-                <span className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{ background: `linear-gradient(135deg, ${LI_BLUE}, #004182)` }}>
+                <span className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{ background: LI_BLUE }}>
                   <Pencil size={13} className="text-white" />
                 </span>
                 <div>
                   <p className="text-sm font-bold text-slate-800">{t("admin.edit_expense")}</p>
-                  <p className="text-[10px] text-slate-400">{expShopName} · {editingExp.id.slice(0,8)}</p>
+                  <p className="text-[11px] text-slate-400">{expShopName} · {editingExp.id.slice(0,8)}</p>
                 </div>
               </div>
               <button onClick={() => setEditingExp(null)} className="p-1 rounded-md hover:bg-slate-100 text-slate-400 transition">
@@ -1423,7 +1418,7 @@ export default function AdminPage() {
             <div className="px-4 py-3 grid gap-2 overflow-y-auto flex-1">
               {/* Title */}
               <div>
-                <label className="block text-[10px] font-medium text-gray-500 mb-0.5">{t("expenses.title_field")} <span className="text-red-400">*</span></label>
+                <label className="block text-[11px] font-medium text-gray-500 mb-0.5">{t("expenses.title_field")} <span className="text-red-400">*</span></label>
                 <input className="border border-slate-200 rounded-md px-2 py-1 w-full text-[11px] text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#0a66c2]/30 focus:border-[#0a66c2] transition"
                   value={editForm.title} onChange={(e) => setEditForm({ ...editForm, title: e.target.value })} />
               </div>
@@ -1431,14 +1426,14 @@ export default function AdminPage() {
               {/* Category + Amount */}
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-[10px] font-medium text-gray-500 mb-0.5">{t("expenses.category")}</label>
+                  <label className="block text-[11px] font-medium text-gray-500 mb-0.5">{t("expenses.category")}</label>
                   <select className="border border-slate-200 rounded-md px-2 py-1 w-full text-[11px] text-gray-800 focus:outline-none focus:ring-1 focus:ring-[#0a66c2]/30 focus:border-[#0a66c2] transition"
                     value={editForm.category} onChange={(e) => setEditForm({ ...editForm, category: e.target.value })}>
                     {EXP_CATEGORIES.map((c) => <option key={c} value={c} className="capitalize">{t(`expenses.cat.${c}`)}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className="block text-[10px] font-medium text-gray-500 mb-0.5">{t("expenses.amount")} <span className="text-red-400">*</span></label>
+                  <label className="block text-[11px] font-medium text-gray-500 mb-0.5">{t("expenses.amount")} <span className="text-red-400">*</span></label>
                   <input type="number" min="0" className="border border-slate-200 rounded-md px-2 py-1 w-full text-[11px] text-gray-800 focus:outline-none focus:ring-1 focus:ring-[#0a66c2]/30 focus:border-[#0a66c2] transition"
                     value={editForm.amount} onChange={(e) => setEditForm({ ...editForm, amount: e.target.value })} />
                 </div>
@@ -1447,12 +1442,12 @@ export default function AdminPage() {
               {/* Date + Notes */}
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-[10px] font-medium text-gray-500 mb-0.5">{t("common.date")}</label>
+                  <label className="block text-[11px] font-medium text-gray-500 mb-0.5">{t("common.date")}</label>
                   <input type="date" className="border border-slate-200 rounded-md px-2 py-1 w-full text-[11px] text-gray-800 focus:outline-none focus:ring-1 focus:ring-[#0a66c2]/30 focus:border-[#0a66c2] transition"
                     value={editForm.expense_date} onChange={(e) => setEditForm({ ...editForm, expense_date: e.target.value })} />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-medium text-gray-500 mb-0.5">{t("common.notes")}</label>
+                  <label className="block text-[11px] font-medium text-gray-500 mb-0.5">{t("common.notes")}</label>
                   <input className="border border-slate-200 rounded-md px-2 py-1 w-full text-[11px] text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#0a66c2]/30 focus:border-[#0a66c2] transition"
                     placeholder={`${t("common.optional")}…`} value={editForm.notes} onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })} />
                 </div>
@@ -1460,12 +1455,12 @@ export default function AdminPage() {
 
               {/* Payment method */}
               <div className="border border-slate-100 rounded-lg p-2 bg-slate-50/50">
-                <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">{t("admin.payment_method")}</p>
+                <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">{t("admin.payment_method")}</p>
                 <div className="flex gap-1.5 mb-1.5">
                   {(["","mtn","bank"] as const).map((m) => (
                     <button key={m} type="button"
                       onClick={() => setEditForm({ ...editForm, payment_method: m, bank_name: "", bank_account: "", receiver_phone: "" })}
-                      className={`flex-1 py-1 rounded-md text-[10px] font-semibold border transition-all ${
+                      className={`flex-1 py-1 rounded-md text-[11px] font-semibold border transition-all ${
                         editForm.payment_method === m
                           ? m === "mtn"  ? "bg-yellow-400 border-yellow-400 text-white"
                           : m === "bank" ? "border-[#0a66c2] text-white"
@@ -1480,7 +1475,7 @@ export default function AdminPage() {
                 {editForm.payment_method === "bank" && (
                   <div className="grid grid-cols-2 gap-1.5 mb-1.5">
                     <div>
-                      <label className="block text-[10px] font-medium text-gray-500 mb-0.5">{t("admin.col_bank_name")}</label>
+                      <label className="block text-[11px] font-medium text-gray-500 mb-0.5">{t("admin.col_bank_name")}</label>
                       <select className="border border-slate-200 rounded-md px-2 py-1 w-full text-[11px] text-gray-800 focus:outline-none focus:ring-1 focus:ring-[#0a66c2]/30 focus:border-[#0a66c2] transition"
                         value={editForm.bank_name} onChange={(e) => setEditForm({ ...editForm, bank_name: e.target.value })}>
                         <option value="">{t("admin.select_bank_placeholder")}</option>
@@ -1488,7 +1483,7 @@ export default function AdminPage() {
                       </select>
                     </div>
                     <div>
-                      <label className="block text-[10px] font-medium text-gray-500 mb-0.5">{t("admin.col_account_ref")}</label>
+                      <label className="block text-[11px] font-medium text-gray-500 mb-0.5">{t("admin.col_account_ref")}</label>
                       <input className="border border-slate-200 rounded-md px-2 py-1 w-full text-[11px] text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#0a66c2]/30 focus:border-[#0a66c2] transition"
                         placeholder={t("admin.account_ref_placeholder")} value={editForm.bank_account} onChange={(e) => setEditForm({ ...editForm, bank_account: e.target.value })} />
                     </div>
@@ -1496,7 +1491,7 @@ export default function AdminPage() {
                 )}
                 {editForm.payment_method !== "" && (
                   <div>
-                    <label className="block text-[10px] font-medium text-gray-500 mb-0.5">{t("admin.col_receiver_phone")}</label>
+                    <label className="block text-[11px] font-medium text-gray-500 mb-0.5">{t("admin.col_receiver_phone")}</label>
                     <input className="border border-slate-200 rounded-md px-2 py-1 w-full text-[11px] text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#0a66c2]/30 focus:border-[#0a66c2] transition"
                       placeholder="+250 7XX XXX XXX" value={editForm.receiver_phone} onChange={(e) => setEditForm({ ...editForm, receiver_phone: e.target.value })} />
                   </div>
@@ -1512,7 +1507,7 @@ export default function AdminPage() {
               </button>
               <button onClick={saveEditExp} disabled={editSaving || !editForm.title.trim() || !editForm.amount}
                 className="px-3 py-1 rounded-md text-[11px] font-semibold text-white transition disabled:opacity-60 hover:opacity-90 shadow-sm"
-                style={{ background: `linear-gradient(135deg, ${LI_BLUE}, #004182)` }}>
+                style={{ background: LI_BLUE }}>
                 {editSaving ? t("common.saving") : t("common.save")}
               </button>
             </div>
@@ -1525,14 +1520,14 @@ export default function AdminPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col max-h-[90vh]">
             {/* Header */}
-            <div className="flex items-center justify-between px-3.5 py-2.5 border-b border-slate-100 shrink-0 bg-gradient-to-r from-slate-50 to-white">
+            <div className="flex items-center justify-between px-3.5 py-2.5 border-b border-slate-100 shrink-0 bg-slate-50">
               <div className="flex items-center gap-2.5">
-                <span className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{ background: `linear-gradient(135deg, ${LI_BLUE}, #004182)` }}>
+                <span className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{ background: LI_BLUE }}>
                   <Store size={14} className="text-white" />
                 </span>
                 <div>
                   <p className="text-sm font-bold text-slate-800">{t("admin.register_new_shop")}</p>
-                  <p className="text-[10px] text-slate-400">{t("admin.register_shop_sub")}</p>
+                  <p className="text-[11px] text-slate-400">{t("admin.register_shop_sub")}</p>
                 </div>
               </div>
               <button onClick={() => setShowCreateShop(false)} className="p-1 rounded-md hover:bg-slate-100 text-slate-400 transition">
@@ -1614,7 +1609,7 @@ export default function AdminPage() {
                         placeholder="owner@example.com"
                         className="w-full pl-8 pr-3 py-2 text-xs border border-slate-200 rounded-lg text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#0a66c2]/30 focus:border-[#0a66c2] transition" />
                     </div>
-                    <p className="text-[10px] text-amber-600 mt-1 flex items-center gap-1">
+                    <p className="text-[11px] text-amber-600 mt-1 flex items-center gap-1">
                       <AlertTriangle size={9} /> {t("admin.new_shop_email_warning")}
                     </p>
                   </div>
@@ -1657,7 +1652,7 @@ export default function AdminPage() {
               </button>
               <button onClick={handleCreateShop} disabled={creatingShop}
                 className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold text-white transition disabled:opacity-60 hover:opacity-90 shadow-sm"
-                style={{ background: `linear-gradient(135deg, ${LI_BLUE}, #004182)` }}>
+                style={{ background: LI_BLUE }}>
                 {creatingShop ? <><Loader2 size={12} className="animate-spin" /> {t("admin.creating")}</> : <><Plus size={12} /> {t("admin.create_shop")}</>}
               </button>
             </div>
@@ -1670,14 +1665,14 @@ export default function AdminPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col max-h-[90vh]">
             {/* Header */}
-            <div className="flex items-center justify-between px-3.5 py-2.5 border-b border-slate-100 shrink-0 bg-gradient-to-r from-slate-50 to-white">
+            <div className="flex items-center justify-between px-3.5 py-2.5 border-b border-slate-100 shrink-0 bg-slate-50">
               <div className="flex items-center gap-2.5">
-                <span className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{ background: `linear-gradient(135deg, ${LI_BLUE}, #004182)` }}>
+                <span className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{ background: LI_BLUE }}>
                   <Pencil size={13} className="text-white" />
                 </span>
                 <div>
                   <p className="text-sm font-bold text-slate-800">{t("admin.edit_shop")}</p>
-                  <p className="text-[10px] text-slate-400">{editingShop.owner_email ?? editingShop.id.slice(0, 8)}</p>
+                  <p className="text-[11px] text-slate-400">{editingShop.owner_email ?? editingShop.id.slice(0, 8)}</p>
                 </div>
               </div>
               <button onClick={() => setEditingShop(null)} className="p-1 rounded-md hover:bg-slate-100 text-slate-400 transition">
@@ -1735,7 +1730,7 @@ export default function AdminPage() {
               </button>
               <button onClick={handleUpdateShop} disabled={editShopSaving || !editShopForm.name.trim()}
                 className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold text-white transition disabled:opacity-60 hover:opacity-90 shadow-sm"
-                style={{ background: `linear-gradient(135deg, ${LI_BLUE}, #004182)` }}>
+                style={{ background: LI_BLUE }}>
                 {editShopSaving ? <><Loader2 size={12} className="animate-spin" /> {t("common.saving")}</> : t("common.save")}
               </button>
             </div>
@@ -1748,14 +1743,14 @@ export default function AdminPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col max-h-[90vh]">
             {/* Header */}
-            <div className="flex items-center justify-between px-3.5 py-2.5 border-b border-slate-100 shrink-0 bg-gradient-to-r from-slate-50 to-white">
+            <div className="flex items-center justify-between px-3.5 py-2.5 border-b border-slate-100 shrink-0 bg-slate-50">
               <div className="flex items-center gap-2.5">
-                <span className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{ background: `linear-gradient(135deg, ${LI_BLUE}, #004182)` }}>
+                <span className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{ background: LI_BLUE }}>
                   <UserPlus size={14} className="text-white" />
                 </span>
                 <div>
                   <p className="text-sm font-bold text-slate-800">{t("admin.register_shop_user")}</p>
-                  <p className="text-[10px] text-slate-400">{t("admin.add_staff_sub")}</p>
+                  <p className="text-[11px] text-slate-400">{t("admin.add_staff_sub")}</p>
                 </div>
               </div>
               <button onClick={() => setShowCreateUser(false)} className="p-1 rounded-md hover:bg-slate-100 text-slate-400 transition">
@@ -1851,7 +1846,7 @@ export default function AdminPage() {
               </button>
               <button onClick={handleCreateUser} disabled={creatingUser}
                 className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold text-white transition disabled:opacity-60 hover:opacity-90 shadow-sm"
-                style={{ background: `linear-gradient(135deg, ${LI_BLUE}, #004182)` }}>
+                style={{ background: LI_BLUE }}>
                 {creatingUser ? <><Loader2 size={12} className="animate-spin" /> {t("admin.registering")}</> : <><UserPlus size={12} /> {t("admin.register_user")}</>}
               </button>
             </div>

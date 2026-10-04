@@ -153,11 +153,11 @@ export default function TodayStatus() {
                 </span>
                 <span className="block px-2 py-1.5">
                   <span className="block truncate text-[11px] font-semibold leading-tight text-text group-hover:text-ink">{e.car.name}</span>
-                  <span className="mt-0.5 flex items-center gap-1 text-[10px] leading-tight text-text-muted">
+                  <span className="mt-0.5 flex items-center gap-1 text-[11px] leading-tight text-text-muted">
                     <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: COLOR[e.kind] }} />
                     <span className="truncate">{line}</span>
                   </span>
-                  <span className="block truncate text-[10px] leading-tight text-text-faint">{when(e)}</span>
+                  <span className="block truncate text-[11px] leading-tight text-text-faint">{when(e)}</span>
                 </span>
               </Link>
             );
@@ -166,7 +166,7 @@ export default function TodayStatus() {
             <Link href="/items" title={`+${extra}`}
               className="flex w-[128px] flex-col items-center justify-center rounded-press border border-dashed border-border-strong bg-paper text-text transition hover:border-ink hover:text-ink">
               <span className="font-display text-xl font-semibold">+{extra}</span>
-              <span className="text-[10px] text-text-muted">{t("dash.view_all")}</span>
+              <span className="text-[11px] text-text-muted">{t("dash.view_all")}</span>
             </Link>
           )}
         </div>

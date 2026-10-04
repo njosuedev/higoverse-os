@@ -121,7 +121,7 @@ function VehicleCard({ v, currency, onGallery, onEdit, onPending, onRelease, onP
             ? <img src={v.thumbnail} alt={v.name} loading="lazy" className={`h-full w-full object-cover transition group-hover:scale-[1.03] ${status === "sold" ? "grayscale" : ""}`} />
             : <span className="flex h-full w-full items-center justify-center"><Car size={30} className="text-text-faint" /></span>}
         </button>
-        <span className={`pointer-events-none absolute left-2 top-2 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide shadow-sm ${STATUS.cls}`}>{STATUS.label}</span>
+        <span className={`pointer-events-none absolute left-2 top-2 rounded-full px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide shadow-sm ${STATUS.cls}`}>{STATUS.label}</span>
         <PenaltyBadge a={a} onClick={onPenalties} />
       </div>
 
