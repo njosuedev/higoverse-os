@@ -72,6 +72,21 @@ void main() {
     expect(h.balance, 0);
   });
 
+  test('released only when sold, not pending and paid in full', () async {
+    final s = _session();
+    final cash = {'id': 'cash', 'quantity': 0, 'attributes': jsonEncode({'buyer_name': 'Eric H'})};
+    final partly = {'id': 'partly', 'quantity': 0, 'attributes': '{}'};
+    final credit = {'id': 'credit', 'quantity': 0, 'attributes': '{}'};
+    final pendingPaid = {'id': 'cash', 'quantity': 0, 'attributes': jsonEncode({'sale_status': 'pending'})};
+    final inYard = {'id': 'none', 'quantity': 1, 'attributes': '{}'};
+    expect(isReleased(cash, await carHolder(s, cash)), isTrue);
+    expect(isReleased(partly, await carHolder(s, partly)), isFalse);
+    expect(isReleased(credit, await carHolder(s, credit)), isFalse);
+    expect(isReleased(pendingPaid, await carHolder(s, cash)), isFalse);
+    final tracked = await trackedForFines(s, [cash, partly, credit, inYard]);
+    expect(tracked.map((v) => v['id']), ['partly', 'credit', 'none']);
+  });
+
   test('never sold and no buyer: nobody', () async {
     expect(await carHolder(_session(), {'id': 'none', 'attributes': '{}'}), isNull);
   });

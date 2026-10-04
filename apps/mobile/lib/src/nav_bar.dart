@@ -21,8 +21,8 @@ class NavItem {
   final int badge;
 }
 
-/// The top of the signed-in app, fixed like Facebook's: the business (logo,
-/// name, live status) with search and notifications, then a row of icon tabs
+/// The top of the signed-in app, fixed like Facebook's: the Higoverse logo
+/// and name (with live status) beside search and notifications, then a row of icon tabs
 /// with a blue line under the open one and red counts for what's new.
 class TopBar extends StatelessWidget {
   const TopBar({
@@ -61,14 +61,15 @@ class TopBar extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.fromLTRB(14, 8, 12, 6),
             child: Row(children: [
-              ShopLogo(name: name, url: s.shop?.logoUrl, size: 38),
-              const SizedBox(width: 10),
+              // The Higoverse brand, as Facebook shows its own name up here.
+              Image.asset('assets/higoverse-logo.png', width: 36, height: 36, filterQuality: FilterQuality.medium,
+                  semanticLabel: name),
+              const SizedBox(width: 9),
               Expanded(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-                  Text(name,
+                  Text('Higoverse',
                       maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w900, letterSpacing: -0.4)),
+                      style: TextStyle(fontSize: 23, height: 1.05, fontWeight: FontWeight.w900, letterSpacing: -0.8, color: c.ink)),
                   Row(children: [
                     PulseDot(color: liveColor, active: live?.status == LiveStatus.live, size: 6),
                     Text(liveLabel, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: liveColor)),

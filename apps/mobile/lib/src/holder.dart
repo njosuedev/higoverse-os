@@ -32,6 +32,27 @@ class CarHolder {
   }
 }
 
+/// Whether the company has let go of [vehicle]: sold (out of stock), not
+/// waiting for a transfer, and paid in full. Its traffic fines are then the
+/// owner's, not the company's, so they are no longer followed. Anything
+/// else — in the yard, pending transfer, on credit or partly paid — is still
+/// in the company's name, and its fines are.
+bool isReleased(Map<String, dynamic> vehicle, CarHolder? holder) {
+  final qty = vehicle['quantity'] is num ? vehicle['quantity'] as num : num.tryParse('${vehicle['quantity']}') ?? 0;
+  final pending = attributesOf(vehicle['attributes'])['sale_status'] == 'pending';
+  return qty <= 0 && !pending && holder?.pay == PayState.paid;
+}
+
+/// The vehicles in [list] the company still follows fines for.
+Future<List<Map<String, dynamic>>> trackedForFines(Session s, List<Map<String, dynamic>> list) async {
+  final keep = await Future.wait(list.map((v) async {
+    final qty = v['quantity'] is num ? v['quantity'] as num : 0;
+    if (qty > 0) return true; // still the company's car
+    return !isReleased(v, await carHolder(s, v));
+  }));
+  return [for (var i = 0; i < list.length; i++) if (keep[i]) list[i]];
+}
+
 final _cache = Expando<Map<String, Future<CarHolder?>>>();
 final _debtsCache = Expando<Future<List<Map<String, dynamic>>>>();
 

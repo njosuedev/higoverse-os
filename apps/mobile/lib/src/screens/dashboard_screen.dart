@@ -43,6 +43,9 @@ class _DashboardScreenState extends State<DashboardScreen> with LiveListener {
   List<Map<String, dynamic>> _alerts = [], _recent = [], _top = [], _daily = [], _newest = [], _pending = [], _fined = [];
   num _owed = 0;
   int _owedCount = 0;
+
+  /// Vehicles with fines the company still answers for (see isReleased).
+  int? _trackedFines;
   Object? _error;
   Timer? _timer;
   ValueNotifier<int>? _tick;
@@ -158,11 +161,17 @@ class _DashboardScreenState extends State<DashboardScreen> with LiveListener {
           s.api.get(p, query: {'page': '1', 'limit': '10'}),
           if (s.isCar) ...[
             s.api.get(p, query: {'page': '1', 'limit': '10', 'status': 'pending'}),
-            s.api.get(p, query: {'page': '1', 'limit': '10', 'status': 'penalties'}),
+            s.api.get(p, query: {'page': '1', 'limit': '40', 'status': 'penalties'}),
           ],
         ]);
+        // Fully paid and transferred cars are the owners' now: their fines
+        // are not followed.
+        final finedAll = s.isCar ? _items(r[4]) : <Map<String, dynamic>>[];
+        final finedTotal = s.isCar ? ((((r[4] as Map)['data'] as Map?)?['total'] as num?) ?? 0).toInt() : 0;
+        final tracked = s.isCar ? await trackedForFines(s, finedAll) : <Map<String, dynamic>>[];
         if (!mounted) return;
         setState(() {
+          _trackedFines = s.isCar ? tracked.length + (finedTotal - finedAll.length).clamp(0, finedTotal) : null;
           _stock = _data(r[0]);
           _alerts = (_list((r[1] as Map)['data'])
                 ..sort((a, b) => (a['quantity'] as num? ?? 0).compareTo(b['quantity'] as num? ?? 0)))
@@ -170,7 +179,7 @@ class _DashboardScreenState extends State<DashboardScreen> with LiveListener {
               .toList();
           _newest = _items(r[2]);
           _pending = s.isCar ? _items(r[3]) : const [];
-          _fined = s.isCar ? _items(r[4]) : const [];
+          _fined = tracked.take(10).toList();
         });
       });
 
@@ -281,7 +290,7 @@ class _DashboardScreenState extends State<DashboardScreen> with LiveListener {
     final c = Hgv.of(context);
     final stock = _stock ?? {};
     num n(String k) => stock[k] as num? ?? 0;
-    final total = n('total_products'), sold = n('out_of_stock'), pending = n('pending'), fined = n('with_penalties');
+    final total = n('total_products'), sold = n('out_of_stock'), pending = n('pending'), fined = _trackedFines ?? n('with_penalties');
     final available = (total - sold - pending).clamp(0, total);
     final low = n('low_stock') + sold;
 

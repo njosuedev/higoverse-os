@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 
 import '../app_settings.dart';
 import '../covers.dart';
+import '../holder.dart';
 import '../format.dart';
 import '../i18n.dart';
 import '../live/activity.dart';
@@ -144,15 +145,22 @@ class _HomeShellState extends State<HomeShell> {
   /// Something happened: count it on its tab and, unless it was this
   /// person's own doing or they turned that alert off, notify: a phone
   /// notification (sound, count) and, with the app on screen, a banner.
-  void _onFresh(ActivityItem item) {
+  Future<void> _onFresh(ActivityItem item) async {
     if (!mounted || item.read) return;
+    final session = SessionScope.of(context);
+    // A fine on a car that is paid and transferred is the owner's business.
+    if (item.kind == ActivityKind.fineRecorded) {
+      final holder = await carHolder(session, item.data);
+      if (!mounted || isReleased(item.data, holder)) return;
+    }
     setState(() {
-      if (item.kind == ActivityKind.sale && _tab != 2) _newSales++;
+      // Red counts: sales and money owed on Sales; fines, transfers and
+      // stock alerts on Vehicles/Stock.
+      if ((item.kind == ActivityKind.sale || item.kind == ActivityKind.debtNew) && _tab != 2) _newSales++;
       if ((item.kind.isStockAlert || item.kind.isVehicleAlert) && _tab != 1) _newStock++;
     });
     final settings = AppSettingsScope.of(context);
     if (_activityOpen || !AppNotifier.wanted(item, settings)) return;
-    final session = SessionScope.of(context);
     final productId = '${item.data['product_id'] ?? item.data['id'] ?? ''}';
     AppNotifier.instance.show(
       item,

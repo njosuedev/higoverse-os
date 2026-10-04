@@ -116,7 +116,7 @@ class AppNotifier {
 
   /// Whether this entry should alert, given the person's settings.
   static bool wanted(ActivityItem item, AppSettings settings) =>
-      (item.kind == ActivityKind.sale && settings.alertSales) ||
+      ((item.kind == ActivityKind.sale || item.kind == ActivityKind.debtNew) && settings.alertSales) ||
       (item.kind.isStockAlert && settings.alertStock) ||
       (item.kind.isVehicleAlert && settings.alertFines);
 
