@@ -17,9 +17,9 @@
 // Higoverse site may load inside the app; any other link opens in the
 // default browser.
 
-const { app, BrowserWindow, Menu, shell, dialog, session, nativeTheme, ipcMain } = require("electron");
+const { app, BrowserWindow, Menu, shell, dialog, session, nativeTheme, ipcMain, powerMonitor } = require("electron");
 const { autoUpdater } = require("electron-updater");
-const { parseRelease, decide, dueForCheck, isSnoozed, sha256File } = require("./update-core");
+const { parseRelease, decide, dueForCheck, sha256File } = require("./update-core");
 const fs = require("fs");
 const path = require("path");
 
@@ -66,6 +66,30 @@ function showOffline() {
   win.loadFile(path.join(__dirname, "offline.html"), { query: { url: APP_URL } });
 }
 
+/** The startup screen: logo and a sliding bar (no percentage), centred,
+ *  frameless. Closed by createWindow once the main window is ready. */
+function showSplash() {
+  const s = new BrowserWindow({
+    width: 340,
+    height: 220,
+    frame: false,
+    resizable: false,
+    movable: true,
+    minimizable: false,
+    maximizable: false,
+    fullscreenable: false,
+    center: true,
+    show: false,
+    title: "Higoverse",
+    backgroundColor: nativeTheme.shouldUseDarkColors ? "#1b1e23" : "#ffffff",
+    icon: path.join(__dirname, "assets", "icon.png"),
+    webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false },
+  });
+  s.once("ready-to-show", () => { if (!s.isDestroyed() && win && !win.isVisible()) s.show(); });
+  s.loadFile(path.join(__dirname, "splash.html"));
+  return s;
+}
+
 function createWindow() {
   const state = loadState();
   const b = state.bounds || {};
@@ -93,9 +117,13 @@ function createWindow() {
   // Identify the desktop app to the website (it can adapt if it wants to).
   win.webContents.setUserAgent(`${win.webContents.getUserAgent()} HigoverseDesktop/${app.getVersion()}`);
 
+  // Until Higoverse has painted (or the offline screen has), a small
+  // startup window shows a sliding bar instead of nothing.
+  const splash = showSplash();
   win.once("ready-to-show", () => {
     if (state.maximized) win.maximize();
     win.show();
+    if (splash && !splash.isDestroyed()) splash.destroy();
   });
   for (const ev of ["resize", "move", "close"]) win.on(ev, saveState);
   win.on("closed", () => { win = null; });
@@ -104,7 +132,8 @@ function createWindow() {
   win.on("page-title-updated", (e, title) => {
     e.preventDefault();
     const clean = String(title || "").replace(/\s*[|·-]\s*Higoverse.*$/i, "").trim();
-    win.setTitle(clean && clean.toLowerCase() !== "higoverse" ? `${clean} - Higoverse` : "Higoverse");
+    // The site's default title ("Higoverse | Inventory, Sales…") is just "Higoverse".
+    win.setTitle(clean && !/^higoverse\b/i.test(clean) ? `${clean} - Higoverse` : "Higoverse");
   });
 
   // Only Higoverse pages load inside the app.
@@ -276,6 +305,8 @@ const updates = {
   win: null, ready: false, hidden: false,
   stage: "idle", // idle | prompt | downloading | verifying | ready | installing | failed
   release: null, kind: "none", manual: false, checking: false,
+  // A background check found it: download and install without asking.
+  silent: false, idleTimer: null,
   percent: null, received: 0, total: 0, error: null,
 };
 const updateStateFile = () => path.join(app.getPath("userData"), "update-state.json");
@@ -311,7 +342,7 @@ function setupUpdates() {
   autoUpdater.on("update-downloaded", (info) => { onUpdateDownloaded(info).catch((err) => failUpdate("storage", err)); });
   autoUpdater.on("error", (err) => { if (updates.stage === "downloading") failUpdate("network", err); });
   setTimeout(() => checkForUpdates(false), 8_000);
-  setInterval(() => checkForUpdates(false), 60 * 60 * 1000); // dueForCheck keeps it to every 4 h
+  setInterval(() => checkForUpdates(false), 5 * 60 * 1000); // dueForCheck keeps it to every 15 min
 }
 
 async function checkForUpdates(manual) {
@@ -350,9 +381,16 @@ async function checkForUpdates(manual) {
     }
     return;
   }
-  if (kind === "optional" && !manual && isSnoozed(state, release.version)) return;
   updates.release = release;
   updates.kind = kind;
+  if (!manual) {
+    // Automatic: download quietly now, install when Higoverse is idle or closes.
+    updates.silent = true;
+    updates.hidden = true;
+    startUpdateDownload();
+    return;
+  }
+  updates.silent = false;
   updates.stage = "prompt";
   updates.hidden = false;
   showUpdateWindow();
@@ -418,10 +456,41 @@ async function onUpdateDownloaded(info) {
   }
   if (win && !win.isDestroyed()) win.setProgressBar(-1);
   updates.stage = "ready";
+  // A required update installs right away; otherwise when nobody is using the app.
+  if (updates.silent && updates.kind !== "required") { installWhenIdle(); return; }
   // Asked for with "Update now" and still watching: straight to installing.
   // Hidden while it downloaded: ask, since it closes the app.
   if (updates.hidden && updates.kind !== "required") showUpdateWindow();
   else installUpdate();
+}
+
+/** Someone is typing in a field or has a form / dialog open on the page
+ *  (same test the website uses before reloading itself). */
+async function pageBusy() {
+  if (!win || win.isDestroyed()) return false;
+  try {
+    return await win.webContents.executeJavaScript(`(() => {
+      const el = document.activeElement;
+      if (el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName))) return true;
+      return !!document.querySelector('[role="dialog"], [aria-modal="true"], .fixed.inset-0');
+    })()`, true);
+  } catch { return false; }
+}
+
+/** A downloaded update installs itself when nobody is using Higoverse:
+ *  2 minutes without keyboard or mouse and nothing half-filled on the page.
+ *  Closing the app installs it too. */
+const IDLE_BEFORE_INSTALL_S = 120;
+function installWhenIdle() {
+  autoUpdater.autoInstallOnAppQuit = true;
+  if (updates.idleTimer) clearInterval(updates.idleTimer);
+  updates.idleTimer = setInterval(async () => {
+    if (updates.stage !== "ready") { clearInterval(updates.idleTimer); updates.idleTimer = null; return; }
+    if (powerMonitor.getSystemIdleTime() < IDLE_BEFORE_INSTALL_S || (await pageBusy())) return;
+    clearInterval(updates.idleTimer);
+    updates.idleTimer = null;
+    installUpdate();
+  }, 30 * 1000);
 }
 
 function installUpdate() {
@@ -437,6 +506,11 @@ function installUpdate() {
 
 function failUpdate(kind, err) {
   if (err) console.warn("update failed:", kind, err && err.message);
+  if (updates.silent) {
+    Object.assign(updates, { stage: "idle", error: kind, silent: false, hidden: false });
+    if (win && !win.isDestroyed()) win.setProgressBar(-1);
+    return;
+  }
   Object.assign(updates, { stage: "failed", error: kind });
   if (win && !win.isDestroyed()) win.setProgressBar(-1);
   updates.hidden = false;
