@@ -155,6 +155,8 @@ export default function ItemManagementPage() {
     const qs = new URLSearchParams({ page: String(pageNo), limit: String(limit), threshold: String(lowStock) });
     if (debouncedSearch.trim()) qs.set("q", debouncedSearch.trim());
     if (isCar && CAR_STATUS[filter]) qs.set("status", CAR_STATUS[filter]);
+    // A sold car has left the stock: by default only cars still owned show.
+    else if (isCar) qs.set("status", "in_stock");
     else if (STOCK_PARAM[filter]) qs.set("stock", STOCK_PARAM[filter]);
     return qs.toString();
   }
@@ -703,7 +705,7 @@ export default function ItemManagementPage() {
                 onChange={(e) => { setFilter(e.target.value); setPage(1); }}
                 
               >
-                <option value="all" className="text-gray-800">{t("items.all")}</option>
+                <option value="all" className="text-gray-800">{t(isCar ? "vehicle.in_stock" : "items.all")}</option>
                 {isCar ? (<>
                   <option value="available" className="text-gray-800">{t("vehicle.status_available")}</option>
                   <option value="pending" className="text-gray-800">{t("vehicle.status_pending")}</option>
@@ -768,7 +770,7 @@ export default function ItemManagementPage() {
         {/* STAT CARDS */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-1.5 mb-2">
           {(isCar ? [
-            { label: t("items.total"),              value: stats.total,         color: "text-slate-900" },
+            { label: t("vehicle.in_stock"),         value: Math.max(0, stats.total - stats.outStock), color: "text-slate-900" },
             { label: t("vehicle.status_available"), value: Math.max(0, stats.total - stats.outStock - stats.pending), color: "text-slate-900" },
             { label: t("vehicle.status_pending"),   value: stats.pending,       color: "text-amber-600" },
             { label: t("vehicle.status_sold"),      value: stats.outStock,      color: "text-slate-900" },

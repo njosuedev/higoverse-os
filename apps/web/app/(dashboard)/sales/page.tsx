@@ -908,7 +908,7 @@ ${paymentHtml}
                         </span>
                       )}
                     </td>}
-                    <td className="px-3 py-2 text-slate-400 text-xs max-w-28 truncate">{s.notes || <span className="text-slate-200">-</span>}</td>
+                    <td className="px-3 py-2 text-slate-400 text-xs max-w-28 truncate" title={s.notes || undefined}>{s.notes || <span className="text-slate-200">-</span>}</td>
                     <td className="px-3 py-2">
                       <div className="flex items-center gap-1.5">
                         <button onClick={() => printReceiptPopup([s])} title={t("common.print")}

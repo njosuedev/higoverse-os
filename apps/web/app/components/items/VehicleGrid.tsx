@@ -53,9 +53,11 @@ const CLEAR_PENDING: Attributes = {
 };
 
 /** Record the sale of a fully paid pending car to the customer it's reserved
- *  for, at the agreed price; sale-service takes it out of stock. False when
- *  the reservation has no customer record (older ones): sell it by hand. */
-async function sellPaidCar(v: Vehicle, a: Attributes, note: string): Promise<boolean> {
+ *  for, at the agreed price; sale-service takes it out of stock. The sale
+ *  keeps the record the company holds on to: the car's plate and chassis and
+ *  every deposit with its date and method. False when the reservation has no
+ *  customer record (older ones): sell it by hand. */
+async function sellPaidCar(v: Vehicle, a: Attributes, t: (k: string) => string): Promise<boolean> {
   if (!a.buyer_customer_id) return false;
   const deposits = parseDeposits(a);
   // The sale carries one payment method: the one most of the money came by.
@@ -63,11 +65,13 @@ async function sellPaidCar(v: Vehicle, a: Attributes, note: string): Promise<boo
   deposits.forEach((d) => { byMethod[d.method] = (byMethod[d.method] ?? 0) + d.amount; });
   const method = Object.entries(byMethod).sort((x, y) => y[1] - x[1])[0]?.[0] ?? "cash";
   const { price } = depositSummary(a, v.selling_price);
+  const paid = deposits.map((d) => `${d.date} ${money(d.amount)} ${t(`sales.pm_${d.method}`)}`).join("; ");
+  const car = [a.plate_no && `${t("vehicle.plate_no")} ${a.plate_no}`, a.chassis_no && `${t("vehicle.chassis_no")} ${a.chassis_no}`].filter(Boolean).join(" · ");
   await saleRequest("/sales", {
     method: "POST",
     body: JSON.stringify({
       product_id: v.id, customer_id: a.buyer_customer_id, quantity: 1, unit_price: price,
-      payment_method: method, amount_paid: price, notes: `${note} (${deposits.length})`,
+      payment_method: method, amount_paid: price, notes: [`${t("vehicle.deposit_sale_note")}: ${paid}.`, car].filter(Boolean).join(" "),
     }),
   });
   return true;
@@ -110,7 +114,7 @@ export default function VehicleGrid({ vehicles, currency, onOpenGallery, onEdit,
   async function completeSale(v: Vehicle) {
     try {
       const a = parseAttributes((await itemRequest(`/products/${v.id}`))?.data?.attributes);
-      if (!(await sellPaidCar(v, a, t("vehicle.deposit_sale_note")))) {
+      if (!(await sellPaidCar(v, a, t))) {
         notify(t("vehicle.no_buyer_customer")); router.push(`/sales?new=1&product=${v.id}`); return;
       }
       notify(t("vehicle.paid_sold"), "success"); onChanged();
@@ -177,7 +181,8 @@ function VehicleCard({ v, currency, onGallery, onEdit, onPending, onDeposit, onC
             : <span className="flex h-full w-full items-center justify-center"><Car size={30} className="text-text-faint" /></span>}
         </button>
         <span className={`pointer-events-none absolute left-2 top-2 rounded-full px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide shadow-sm ${STATUS.cls}`}>{STATUS.label}</span>
-        <PenaltyBadge a={a} onClick={onPenalties} />
+        {/* Fines are tracked while the company owns the car; a sold car is the buyer's. */}
+        {status !== "sold" && <PenaltyBadge a={a} onClick={onPenalties} />}
       </div>
 
       {/* Details */}
@@ -217,7 +222,11 @@ function VehicleCard({ v, currency, onGallery, onEdit, onPending, onDeposit, onC
             <Wallet size={13} className="shrink-0" /> <span className="truncate">{t("vehicle.add_deposit")}</span>
           </button>
         ))}
-        {status === "sold" && <span className="flex-1" />}
+        {status === "sold" && (
+          <span className="min-w-0 flex-1 truncate px-1 text-xs text-text-muted" title={a.buyer_name ? `${t("vehicle.sold_to")} ${a.buyer_name}` : undefined}>
+            {a.buyer_name ? `${t("vehicle.sold_to")} ${a.buyer_name}` : t("vehicle.status_sold")}
+          </span>
+        )}
         {status === "available" && (
           <IconBtn onClick={onPending} label={t("vehicle.mark_pending")} className="hover:text-warning"><UserCheck size={15} /></IconBtn>
         )}
@@ -446,7 +455,7 @@ function DepositForm({ v, currency, onClose, onSaved, onSellByHand }: {
       if (tooBig) { notify(t("vehicle.deposit_invalid")); onSaved(); return; }
       if (!depositSummary(merged, v.selling_price).full) { notify(t("vehicle.deposit_saved"), "success"); onSaved(); return; }
       try {
-        if (await sellPaidCar(v, merged, t("vehicle.deposit_sale_note"))) { notify(t("vehicle.paid_sold"), "success"); onSaved(); }
+        if (await sellPaidCar(v, merged, t)) { notify(t("vehicle.paid_sold"), "success"); onSaved(); }
         else { notify(t("vehicle.no_buyer_customer")); onSellByHand(); }
       } catch { notify(t("vehicle.sale_failed")); onSaved(); }
     } catch { notify(t("items.update_failed")); }

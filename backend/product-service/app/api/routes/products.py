@@ -94,6 +94,12 @@ def _attr_matches(pattern: str):
     return func.coalesce(Product.attributes, "").op("~")(pattern)
 
 
+def _fined_car():
+    """Fines are tracked only while the company owns the car: once it's sold
+    (none left in stock) the buyer answers for its fines."""
+    return (Product.quantity > 0) & _attr_matches(_PENALTY_RE)
+
+
 def _attr_filled(key: str):
     """The attribute is present with a non-empty value (string or number)."""
     return _attr_matches(r'"%s"\s*:\s*"?[^"\s,}]' % key)
@@ -198,7 +204,7 @@ def get_summary(
         func.sum(case((Product.quantity == 0, 1), else_=0)).label("out_of_stock"),
         func.sum(case(((Product.quantity > 0) & (Product.quantity <= threshold), 1), else_=0)).label("low_stock"),
         func.sum(case(((Product.quantity > 0) & _attr_matches(_PENDING_RE), 1), else_=0)).label("pending"),
-        func.sum(case((_attr_matches(_PENALTY_RE), 1), else_=0)).label("with_penalties"),
+        func.sum(case((_fined_car(), 1), else_=0)).label("with_penalties"),
         func.sum(case((_incomplete_car(), 1), else_=0)).label("incomplete"),
     ).one()
 
@@ -265,7 +271,7 @@ def get_products(
     q: str | None = None,         # name / barcode search (backed by the trigram index)
     category: str | None = None,
     stock: str | None = None,     # "low" | "out" | "restock" | "in"
-    status: str | None = None,    # car companies: "available" | "pending" | "sold" | "penalties" | "incomplete"
+    status: str | None = None,    # car companies: "in_stock" | "available" | "pending" | "sold" | "penalties" | "incomplete"
     threshold: int = 10,          # the shop's low-stock threshold, for stock="low"/"in"
 ):
     page = max(page, 1)
@@ -292,14 +298,16 @@ def get_products(
     elif stock == "in":
         query = query.filter(Product.quantity > threshold)
 
-    if status == "sold":
+    if status == "in_stock":  # not sold yet: available + pending
+        query = query.filter(Product.quantity > 0)
+    elif status == "sold":
         query = query.filter(Product.quantity == 0)
     elif status == "pending":
         query = query.filter(Product.quantity > 0, _attr_matches(_PENDING_RE))
     elif status == "available":
         query = query.filter(Product.quantity > 0, ~_attr_matches(_PENDING_RE))
     elif status == "penalties":
-        query = query.filter(_attr_matches(_PENALTY_RE))
+        query = query.filter(_fined_car())
     elif status == "incomplete":
         query = query.filter(_incomplete_car())
 
