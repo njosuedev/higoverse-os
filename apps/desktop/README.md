@@ -14,7 +14,19 @@ installer (electron-builder / NSIS).
   Ctrl +/− zoom, Alt+←/→ back/forward.
 - Right-click menu: cut/copy/paste, spelling suggestions, open links in the browser.
 - Receipts and proforma invoices print as on the website; Excel/PDF exports use a Save dialog.
-- No internet: a "Can't reach Higoverse" screen that retries automatically.
+- Opens at once on the website's own loading layout (`loading.html`), in the
+  colours and language last used on the website; after 8 s it says the
+  connection is slow.
+- Its own screens when Higoverse can't be shown (`offline.html`), in the
+  website's five languages: no internet, the server answering with an error
+  (e.g. 502 during a deploy), no answer within 30 s, or the page crashing.
+  They go back to the page you were on, retrying after 5, 10, 20, then 30 s.
+- Stays up: a crashed page reloads by itself (a second crash within a minute
+  shows the crash screen); a frozen page offers Wait / Reload; if the graphics
+  card fails twice, the next start draws with the processor.
+- Live updates keep running while minimised (no background timer throttling).
+- A window last seen on a monitor that is no longer connected opens on the
+  main screen.
 
 **Security:** the page is sandboxed with no Node.js or file access; only
 higoverse.com loads inside the app (other links open in the default browser);
@@ -27,7 +39,14 @@ higoverse.com.
 npm install
 npm start                                   # opens https://higoverse.com
 HIGOVERSE_URL=http://localhost:3000/ npm start   # against the local web app
+HIGOVERSE_USER_DATA=D:/tmp/hgv npm start       # settings apart from the installed app
+npm test                                    # window placement, screen texts, updates
 ```
+
+Files: `main.js` (window, navigation, recovery, menus), `updates.js`
+(self-updating), `window-state.js` (where the window opens), `shell-text.js`
+(texts and colours of the app's own screens), `preload.js` (the page's only
+bridge: a read-only marker, and its theme/language for the next start).
 
 ## Build the installer
 

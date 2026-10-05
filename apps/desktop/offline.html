@@ -2,54 +2,71 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self'; style-src 'unsafe-inline'; script-src 'unsafe-inline'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; script-src 'unsafe-inline'">
   <title>Higoverse</title>
   <style>
-    :root { --ink: #0a66c2; --text: #191919; --muted: #555; --paper: #f3f2ef; --border: #e0dfdc; }
+    /* Shown instead of Higoverse when it can't be shown: no internet
+       (reason=offline), the server answering with an error (server), no
+       answer for too long (slow), or the page crashing (crash). main.js
+       passes the reason, the page to go back to, the attempt number, the
+       theme and the texts in the query. */
+    :root { --ink: #0a66c2; --text: #191919; --muted: #474747; --paper: #f4f2ee; --card: #fff; --border: #e0dfdc; }
+    :root[data-theme="dark"] { --ink: #4a9eed; --text: #f5f5f5; --muted: #a8a8a8; --paper: #000; --card: #000; --border: #262626; }
     * { box-sizing: border-box; }
     html, body { height: 100%; margin: 0; }
-    body {
-      display: flex; align-items: center; justify-content: center;
-      background: var(--paper); color: var(--text);
-      font-family: "Segoe UI", system-ui, sans-serif;
-    }
-    .card {
-      width: 420px; max-width: calc(100% - 32px); padding: 36px 32px 30px; text-align: center;
-      background: #fff; border: 1px solid var(--border); border-radius: 12px;
-      box-shadow: 0 8px 30px -12px rgb(0 0 0 / 0.18);
-    }
+    body { display: flex; align-items: center; justify-content: center; background: var(--paper); color: var(--text);
+      font-family: "Segoe UI", system-ui, sans-serif; }
+    .card { width: 440px; max-width: calc(100% - 32px); padding: 36px 32px 30px; text-align: center;
+      background: var(--card); border: 1px solid var(--border); border-radius: 12px; }
     img { width: 64px; height: 64px; border-radius: 14px; }
-    h1 { margin: 18px 0 6px; font-size: 20px; }
+    h1 { margin: 18px 0 6px; font-size: 20px; font-weight: 600; }
     p { margin: 0; color: var(--muted); line-height: 1.5; font-size: 14px; }
-    button {
-      margin-top: 22px; padding: 10px 26px; border: 0; border-radius: 8px; cursor: pointer;
-      background: var(--ink); color: #fff; font: 600 14px "Segoe UI", system-ui, sans-serif;
-    }
+    /* White on the deep blue in both themes: the light link blue is ~2.9:1. */
+    button { margin-top: 22px; padding: 10px 26px; border: 0; border-radius: 8px; cursor: pointer;
+      background: #0a66c2; color: #fff; font: 600 14px "Segoe UI", system-ui, sans-serif; }
     button:hover { background: #004182; }
-    @media (prefers-color-scheme: dark) {
-      :root { --ink: #4a9eed; --text: #e8eaed; --muted: #c4c8ce; --paper: #111317; --border: #2c3138; }
-      .card { background: #1b1e23; box-shadow: 0 8px 30px -12px rgb(0 0 0 / 0.6); }
-      /* white label on the deep blue: the light link blue is ~2.9:1 */
-      button { background: #0a66c2; }
-      button:hover { background: #0d74db; }
-    }
-    small { display: block; margin-top: 14px; color: var(--muted); font-size: 12px; }
+    :root[data-theme="dark"] button:hover { background: #0d74db; }
+    button:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+    small { display: block; margin-top: 14px; color: var(--muted); font-size: 12px; min-height: 1.4em; }
   </style>
+  <script>
+    const q = new URLSearchParams(location.search);
+    document.documentElement.dataset.theme = q.get("theme") === "dark" ? "dark" : "light";
+    document.documentElement.lang = q.get("lang") || "en";
+  </script>
 </head>
 <body>
-  <div class="card">
+  <main class="card" role="alert">
     <img src="assets/icon.png" alt="">
-    <h1>Can't reach Higoverse</h1>
-    <p>Check your internet connection. Higoverse will open as soon as you're back online.</p>
-    <button id="retry" type="button">Try again</button>
-    <small id="status">Trying again automatically…</small>
-  </div>
+    <h1 id="title"></h1>
+    <p id="body"></p>
+    <button id="retry" type="button"></button>
+    <small id="status"></small>
+  </main>
   <script>
-    const target = new URLSearchParams(location.search).get("url") || "https://higoverse.com/";
-    const retry = () => { location.href = target; };
-    document.getElementById("retry").addEventListener("click", retry);
-    window.addEventListener("online", retry);
-    setTimeout(retry, 15000);
+    const target = q.get("url") || "https://higoverse.com/";
+    const reason = q.get("reason") || "offline";
+    const set = (id, key, fallback) => { document.getElementById(id).textContent = q.get(key) || fallback; };
+    set("title", "title", "Can't reach Higoverse");
+    set("body", "body", "Check your internet connection. Higoverse opens again as soon as you're back online.");
+    set("retry", "button", "Try again");
+
+    let done = false;
+    const retry = () => { if (!done) { done = true; location.href = target; } };
+    const button = document.getElementById("retry");
+    button.addEventListener("click", retry);
+    button.focus();
+
+    // A crash waits for the button: reloading by itself could crash again.
+    // Otherwise: back as soon as Windows says we're online, and every few
+    // seconds anyway, waiting longer each time (5, 10, 20, then 30 s).
+    if (reason !== "crash") {
+      set("status", "auto", "Trying again automatically…");
+      window.addEventListener("online", retry);
+      const attempt = Math.max(0, Number(q.get("attempt")) || 0);
+      setTimeout(() => { if (navigator.onLine || reason !== "offline") retry(); else window.addEventListener("online", retry); },
+        Math.min(30, 5 * 2 ** attempt) * 1000);
+    }
   </script>
 </body>
 </html>
