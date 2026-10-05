@@ -6,86 +6,48 @@
 <title>Higoverse</title>
 <style>
   /* What the main window shows from the moment it opens until higoverse.com
-     has answered: the website's own loading layout (header, banner, figure
-     cards, chart — apps/web/app/components/dashboard/PageSkeleton.tsx) in
-     its colours, so the page that follows takes its place without a jump.
-     main.js passes the theme, language and texts in the query. */
-  :root { --paper: #f4f2ee; --surface: #fff; --dim: #ebe9e5; --deep: #e0dfdc; --border: #e0dfdc; --muted: #474747; }
-  :root[data-theme="dark"] { --paper: #000; --surface: #000; --dim: #121212; --deep: #262626; --border: #262626; --muted: #a8a8a8; }
+     has answered, filling the whole window like WhatsApp's: the logo in the
+     middle, a thin moving bar (no percentage), the name, and a privacy line
+     at the bottom. Website colours; main.js passes the theme, language and
+     texts in the query. Follows "reduce motion". */
+  :root { --paper: #f4f2ee; --track: #e0dfdc; --ink: #0a66c2; --text: #191919; --muted: #474747; }
+  :root[data-theme="dark"] { --paper: #000; --track: #262626; --ink: #4a9eed; --text: #f5f5f5; --muted: #a8a8a8; }
   * { box-sizing: border-box; }
-  html, body { margin: 0; height: 100%; background: var(--paper); overflow: hidden; cursor: progress;
+  html, body { margin: 0; height: 100%; background: var(--paper); color: var(--text); overflow: hidden; cursor: progress;
     font: 400 13px/1.45 "Segoe UI", system-ui, sans-serif; -webkit-user-select: none; user-select: none; }
-  .b { background: var(--deep); border-radius: 4px; }
-  .d { background: var(--dim); }
-  .pulse { animation: pulse 2s cubic-bezier(.4, 0, .6, 1) infinite; }
-  @keyframes pulse { 50% { opacity: .5; } }
-  @media (prefers-reduced-motion: reduce) { .pulse { animation: none; } }
-
-  header { height: 52px; display: flex; align-items: center; gap: 16px; padding: 0 16px;
-    border-bottom: 1px solid var(--border); background: var(--paper); }
-  header img { width: 32px; height: 32px; border-radius: 8px; }
-  .word { width: 84px; height: 14px; }
-  nav { flex: 1; display: flex; justify-content: center; gap: 8px; }
-  nav i { width: 64px; height: 32px; border-radius: 8px; }
-  .me { width: 32px; height: 32px; border-radius: 50%; }
-
-  main { max-width: 1280px; margin: 0 auto; padding: 16px 20px; display: grid; gap: 12px; }
-  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; }
-  .banner { padding: 16px; }
-  .row { display: flex; justify-content: space-between; align-items: center; }
-  .stats { display: grid; gap: 10px; grid-template-columns: repeat(4, 1fr); }
-  @media (min-width: 1024px) { .stats { grid-template-columns: repeat(6, 1fr); } }
-  .stat { padding: 12px; }
-  .chart { padding: 16px; }
-
-  #status { position: fixed; left: 0; right: 0; bottom: 18px; text-align: center; color: var(--muted);
-    opacity: 0; transition: opacity .4s; }
+  body { display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  img { width: 88px; height: 88px; border-radius: 20px; }
+  .bar { position: relative; width: 280px; height: 4px; margin-top: 40px; border-radius: 2px; background: var(--track); overflow: hidden; }
+  .bar span { position: absolute; top: 0; bottom: 0; left: 0; width: 35%; border-radius: 2px; background: var(--ink);
+    animation: slide 1.4s ease-in-out infinite; }
+  @keyframes slide { from { transform: translateX(-100%); } to { transform: translateX(290%); } }
+  @media (prefers-reduced-motion: reduce) { .bar span { animation: none; width: 100%; opacity: .7; } }
+  .name { margin-top: 22px; font-size: 22px; font-weight: 600; letter-spacing: -0.01em; }
+  #status { margin-top: 6px; min-height: 1.45em; color: var(--muted); opacity: 0; transition: opacity .4s; }
   #status.on { opacity: 1; }
-  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  footer { position: fixed; left: 0; right: 0; bottom: 28px; display: flex; align-items: center; justify-content: center; gap: 6px; color: var(--muted); }
+  footer svg { width: 13px; height: 13px; fill: currentColor; }
 </style>
 <script>
-  // Before the first paint, so dark mode never starts white.
+  // Before the first paint, so dark mode never starts light.
   const q = new URLSearchParams(location.search);
   document.documentElement.dataset.theme = q.get("theme") === "dark" ? "dark" : "light";
   document.documentElement.lang = q.get("lang") || "en";
 </script>
 </head>
 <body aria-busy="true">
-  <header>
-    <img src="assets/icon.png" alt="">
-    <div class="b word pulse"></div>
-    <nav aria-hidden="true">
-      <i class="d pulse"></i><i class="d pulse"></i><i class="d pulse"></i><i class="d pulse"></i>
-      <i class="d pulse"></i><i class="d pulse"></i><i class="d pulse"></i>
-    </nav>
-    <div class="b me pulse"></div>
-  </header>
-  <main aria-hidden="true">
-    <div class="card banner pulse">
-      <div class="row">
-        <div><div class="b" style="width:144px;height:12px"></div><div class="d" style="width:96px;height:8px;margin-top:6px;border-radius:4px"></div></div>
-        <div class="b" style="width:96px;height:28px;border-radius:8px"></div>
-      </div>
-      <div class="d" style="height:32px;margin-top:12px;border-radius:8px"></div>
-    </div>
-    <div class="stats">
-      <div class="card stat pulse"><div class="b" style="width:56px;height:8px;margin-bottom:8px"></div><div class="b" style="width:64px;height:20px"></div><div class="d" style="width:40px;height:6px;margin-top:8px;border-radius:4px"></div></div>
-      <div class="card stat pulse"><div class="b" style="width:56px;height:8px;margin-bottom:8px"></div><div class="b" style="width:64px;height:20px"></div><div class="d" style="width:40px;height:6px;margin-top:8px;border-radius:4px"></div></div>
-      <div class="card stat pulse"><div class="b" style="width:56px;height:8px;margin-bottom:8px"></div><div class="b" style="width:64px;height:20px"></div><div class="d" style="width:40px;height:6px;margin-top:8px;border-radius:4px"></div></div>
-      <div class="card stat pulse"><div class="b" style="width:56px;height:8px;margin-bottom:8px"></div><div class="b" style="width:64px;height:20px"></div><div class="d" style="width:40px;height:6px;margin-top:8px;border-radius:4px"></div></div>
-      <div class="card stat pulse"><div class="b" style="width:56px;height:8px;margin-bottom:8px"></div><div class="b" style="width:64px;height:20px"></div><div class="d" style="width:40px;height:6px;margin-top:8px;border-radius:4px"></div></div>
-      <div class="card stat pulse"><div class="b" style="width:56px;height:8px;margin-bottom:8px"></div><div class="b" style="width:64px;height:20px"></div><div class="d" style="width:40px;height:6px;margin-top:8px;border-radius:4px"></div></div>
-    </div>
-    <div class="card chart pulse">
-      <div class="b" style="width:112px;height:10px;margin-bottom:16px"></div>
-      <div class="d" style="height:160px;border-radius:8px"></div>
-    </div>
-  </main>
-  <p class="sr" role="status" id="opening"></p>
+  <img src="assets/icon.png" alt="">
+  <div class="bar" role="progressbar" id="bar"><span></span></div>
+  <div class="name">Higoverse</div>
   <div id="status" role="status"></div>
+  <footer>
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 1a5 5 0 0 0-5 5v3H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V11a2 2 0 0 0-2-2h-1V6a5 5 0 0 0-5-5zm-3 8V6a3 3 0 0 1 6 0v3H9z"/></svg>
+    <span id="private"></span>
+  </footer>
   <script>
-    document.getElementById("opening").textContent = q.get("loading") || "Opening Higoverse…";
-    // Only a slow start gets words: a quick one is just the layout filling in.
+    document.getElementById("bar").setAttribute("aria-label", q.get("loading") || "Opening Higoverse…");
+    document.getElementById("private").textContent = q.get("private") || "Your business records are private and secure";
+    // Only a slow start gets words.
     setTimeout(() => {
       const s = document.getElementById("status");
       s.textContent = q.get("slow") || "Still connecting. Your internet seems slow.";

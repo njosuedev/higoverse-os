@@ -9,6 +9,7 @@ const LANGS = ["en", "rw", "fr", "sw", "zh"];
 const TEXT = {
   en: {
     loading: "Opening Higoverse…",
+    private: "Your business records are private and secure",
     slow: "Still connecting. Your internet seems slow.",
     offline_title: "Can't reach Higoverse",
     offline_body: "Check your internet connection. Higoverse opens again as soon as you're back online.",
@@ -27,6 +28,7 @@ const TEXT = {
   },
   rw: {
     loading: "Higoverse irafunguka…",
+    private: "Amakuru y'ubucuruzi bwawe arabitswe neza kandi ni ibanga",
     slow: "Biracyahuza. Interineti yawe isa n'itinda.",
     offline_title: "Ntibishoboye kugera kuri Higoverse",
     offline_body: "Reba interineti yawe. Higoverse irongera ifunguke ukimara kubona interineti.",
@@ -45,6 +47,7 @@ const TEXT = {
   },
   fr: {
     loading: "Ouverture de Higoverse…",
+    private: "Les données de votre entreprise sont privées et sécurisées",
     slow: "Connexion en cours. Votre internet semble lent.",
     offline_title: "Impossible de joindre Higoverse",
     offline_body: "Vérifiez votre connexion internet. Higoverse s'ouvrira dès que vous serez reconnecté.",
@@ -63,6 +66,7 @@ const TEXT = {
   },
   sw: {
     loading: "Inafungua Higoverse…",
+    private: "Taarifa za biashara yako ni za siri na salama",
     slow: "Bado inaunganisha. Intaneti yako inaonekana kuwa ya polepole.",
     offline_title: "Haiwezi kufikia Higoverse",
     offline_body: "Angalia muunganisho wako wa intaneti. Higoverse itafunguka tena mara utakapounganishwa.",
@@ -81,6 +85,7 @@ const TEXT = {
   },
   zh: {
     loading: "正在打开 Higoverse…",
+    private: "您的业务数据私密且安全",
     slow: "仍在连接，网络似乎较慢。",
     offline_title: "无法连接 Higoverse",
     offline_body: "请检查网络连接。恢复联网后 Higoverse 会自动打开。",

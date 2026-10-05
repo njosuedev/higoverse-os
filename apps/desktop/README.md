@@ -14,7 +14,7 @@ installer (electron-builder / NSIS).
   Ctrl +/− zoom, Alt+←/→ back/forward.
 - Right-click menu: cut/copy/paste, spelling suggestions, open links in the browser.
 - Receipts and proforma invoices print as on the website; Excel/PDF exports use a Save dialog.
-- Opens at once on the website's own loading layout (`loading.html`), in the
+- Opens at once on a full-window loading screen like WhatsApp's (`loading.html`: logo, moving bar, name, privacy line), in the
   colours and language last used on the website; after 8 s it says the
   connection is slow.
 - Its own screens when Higoverse can't be shown (`offline.html`), in the

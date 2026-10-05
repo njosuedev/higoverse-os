@@ -6,9 +6,10 @@
 // file downloads with a Save dialog, and its own screens when Higoverse can't
 // be shown (no internet, server trouble, too slow, a crash).
 //
-// Starting: the window opens at once on the website's loading layout
-// (loading.html), in the colours and language last used on the website, and
-// higoverse.com takes its place as soon as it answers.
+// Starting: the window opens at once on a full-window loading screen like
+// WhatsApp's (loading.html: logo, moving bar, name), in the colours and
+// language last used on the website, and higoverse.com takes its place as
+// soon as it answers.
 //
 // Staying up: a crashed page reloads by itself (twice in a minute: the crash
 // screen asks first), a frozen one offers Wait / Reload, the graphics card
@@ -238,14 +239,14 @@ function createWindow() {
 
   watchPage(win.webContents);
 
-  // The loading layout paints in a few milliseconds from disk, so the window
+  // The loading screen paints in a few milliseconds from disk, so the window
   // can show right away; then higoverse.com loads behind it and replaces it.
   win.once("ready-to-show", () => {
     if (saved.maximized) win.maximize();
     win.show();
   });
   const t = shellText.text(lang());
-  win.loadFile(path.join(__dirname, "loading.html"), { query: { theme: theme(), lang: lang(), loading: t.loading, slow: t.slow } })
+  win.loadFile(path.join(__dirname, "loading.html"), { query: { theme: theme(), lang: lang(), loading: t.loading, slow: t.slow, private: t.private } })
     .catch(() => {})
     .finally(() => open(APP_URL));
 }
