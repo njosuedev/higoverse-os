@@ -1,6 +1,14 @@
+import path from "node:path";
 import type { NextConfig } from "next";
 
+// The repo root has its own (empty) package-lock.json, which makes Next.js
+// guess the root as the project folder. This app is self-contained here.
+const appRoot = path.resolve(__dirname);
+
 const nextConfig: NextConfig = {
+  turbopack: { root: appRoot },
+  outputFileTracingRoot: appRoot,
+
   images: {
     // Product/shop images are base64 data URIs today (no CDN), so this
     // matters only if a real remote image URL is ever introduced.
