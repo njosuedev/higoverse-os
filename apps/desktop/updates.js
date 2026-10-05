@@ -54,6 +54,9 @@ function taskbar(value) {
 /** Whether an update owns the taskbar bar (page loads leave it alone then). */
 const busy = () => state.stage !== "idle";
 
+/** The app is closing to install an update (it starts again by itself). */
+const installing = () => state.stage === "installing";
+
 function init({ getMainWindow, api }) {
   mainWindow = getMainWindow;
   updateApi = api;
@@ -322,7 +325,7 @@ function showWindow() {
     fullscreenable: false,
     show: false,
     title: "Higoverse update",
-    backgroundColor: nativeTheme.shouldUseDarkColors ? "#1b1e23" : "#ffffff",
+    backgroundColor: nativeTheme.shouldUseDarkColors ? "#212328" : "#ffffff",
     icon: path.join(__dirname, "assets", "icon.png"),
     webPreferences: { preload: path.join(__dirname, "updater-preload.js"), sandbox: true, contextIsolation: true, nodeIntegration: false },
   });
@@ -395,4 +398,4 @@ function previewDownload() {
   }, 350);
 }
 
-module.exports = { init, check, busy };
+module.exports = { init, check, busy, installing };

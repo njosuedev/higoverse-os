@@ -11,7 +11,7 @@
        passes the reason, the page to go back to, the attempt number, the
        theme and the texts in the query. */
     :root { --ink: #0a66c2; --text: #191919; --muted: #474747; --paper: #f4f2ee; --card: #fff; --border: #e0dfdc; }
-    :root[data-theme="dark"] { --ink: #4a9eed; --text: #f5f5f5; --muted: #a8a8a8; --paper: #000; --card: #000; --border: #262626; }
+    :root[data-theme="dark"] { --ink: #0095f6; --text: #f5f5f5; --muted: #a8a8a8; --paper: #0c1014; --card: #212328; --border: transparent; }
     * { box-sizing: border-box; }
     html, body { height: 100%; margin: 0; }
     body { display: flex; align-items: center; justify-content: center; background: var(--paper); color: var(--text);
@@ -25,7 +25,8 @@
     button { margin-top: 22px; padding: 10px 26px; border: 0; border-radius: 8px; cursor: pointer;
       background: #0a66c2; color: #fff; font: 600 14px "Segoe UI", system-ui, sans-serif; }
     button:hover { background: #004182; }
-    :root[data-theme="dark"] button:hover { background: #0d74db; }
+    :root[data-theme="dark"] button { background: #0095f6; }
+    :root[data-theme="dark"] button:hover { background: #1877f2; }
     button:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
     small { display: block; margin-top: 14px; color: var(--muted); font-size: 12px; min-height: 1.4em; }
   </style>

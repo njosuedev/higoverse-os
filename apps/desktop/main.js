@@ -248,7 +248,16 @@ function createWindow() {
   const t = shellText.text(lang());
   win.loadFile(path.join(__dirname, "loading.html"), { query: { theme: theme(), lang: lang(), loading: t.loading, slow: t.slow, private: t.private } })
     .catch(() => {})
-    .finally(() => open(APP_URL));
+    .finally(() => open(resumeUrl()));
+}
+
+/** After an update restart, the page that was open; otherwise Home. */
+function resumeUrl() {
+  const r = look.resume;
+  if (!r) return APP_URL;
+  delete look.resume;
+  saveLook.flush();
+  return isAppUrl(r.url) && Date.now() - r.at < 10 * 60 * 1000 ? r.url : APP_URL;
 }
 
 // ── Right-click menu (cut/copy/paste, spelling suggestions, links) ─────────
@@ -435,3 +444,11 @@ app.whenReady().then(() => {
 nativeTheme.on("updated", () => { if (win && !win.isDestroyed()) win.setBackgroundColor(bg()); });
 
 app.on("window-all-closed", () => app.quit());
+
+// Closing to install an update: the new version opens on the same page
+// (within 10 minutes; a normal start opens Home).
+app.on("before-quit", () => {
+  if (!updates.installing() || !isAppUrl(nav.lastUrl)) return;
+  look.resume = { url: nav.lastUrl, at: Date.now() };
+  saveLook.flush();
+});

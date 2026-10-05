@@ -104,10 +104,11 @@ const TEXT = {
   },
 };
 
-/** The website's colours (apps/web/app/globals.css), light and dark. */
+/** The website's colours (apps/web/app/globals.css), light and dark —
+ *  dark is Instagram's current theme: blue-black page, raised #212328. */
 const COLORS = {
-  light: { paper: "#f4f2ee", surface: "#ffffff", dim: "#ebe9e5", deep: "#e0dfdc", border: "#e0dfdc", text: "#191919", muted: "#474747", ink: "#0a66c2", button: "#0a66c2" },
-  dark: { paper: "#000000", surface: "#000000", dim: "#121212", deep: "#262626", border: "#262626", text: "#f5f5f5", muted: "#a8a8a8", ink: "#4a9eed", button: "#0a66c2" },
+  light: { paper: "#f4f2ee", surface: "#ffffff", dim: "#ebe9e5", deep: "#e0dfdc", border: "#e0dfdc", text: "#191919", muted: "#474747", ink: "#0a66c2", button: "#0a66c2", elevated: "#ffffff" },
+  dark: { paper: "#0c1014", surface: "#0c1014", dim: "#161a1f", deep: "#25292e", border: "#262626", text: "#f5f5f5", muted: "#a8a8a8", ink: "#0095f6", button: "#0095f6", elevated: "#212328" },
 };
 
 /** A supported language from a saved choice or the system's list ("fr-FR" → "fr"). */

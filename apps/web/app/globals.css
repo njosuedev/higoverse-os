@@ -424,40 +424,47 @@ select:-webkit-autofill {
    remapped here: tokens and grey scales are swapped, light tinted
    backgrounds (…-50/100) become dark tints and dark text shades (…-600+)
    become light ones. Print windows (receipts, invoices) are separate
-   documents and stay light. Dark is pure black, cards set apart by thin
-   #262626 lines, like the mobile app.
+   documents and stay light. Dark is Instagram's current theme (its web
+   tokens, the "/ig" dark scope), as in the mobile app: a blue-black page
+   (#0C1014) with flat cards set apart by thin #262626 lines; pop-ups,
+   dropdowns and toasts raised a step lighter (#212328) with no outline;
+   filled grey fields (#25292E, #2B3036 on a pop-up); blue #0095F6,
+   green #58C322, red #ED4956.
    ══════════════════════════════════════════════════════════════════════ */
 html[data-theme="dark"] {
   color-scheme: dark;
-  --btn-primary: #0a66c2;
-  --btn-primary-hover: #0d74db;
-  --surface: #000000;
-  --surface-2: #121212;
+  --btn-primary: #0095f6;
+  --btn-primary-hover: #1877f2;
+  --surface: #0c1014;          /* cards: flat on the page */
+  --surface-2: #25292e;        /* fields, chips, hovered rows */
+  --elevated: #212328;         /* pop-ups, dropdowns, toasts */
+  --elevated-2: #2b3036;       /* fields and hovers inside a pop-up */
+  --ig-button: #363636;        /* second-choice buttons */
 
-  --color-ink: #4a9eed;
-  --color-ink-dark: #7cb9f2;
-  --color-ink-soft: #15283d;
-  --color-paper: #000000;
-  --color-paper-dim: #121212;
-  --color-paper-deep: #262626;
+  --color-ink: #0095f6;
+  --color-ink-dark: #4cb5f9;
+  --color-ink-soft: #0d2b44;
+  --color-paper: #0c1014;
+  --color-paper-dim: #161a1f;
+  --color-paper-deep: #25292e;
   --color-border: #262626;
   --color-border-strong: #363636;
   --color-text: #f5f5f5;
-  --color-text-muted: #dbdbdb;
+  --color-text-muted: #c7c7c7;
   --color-text-faint: #a8a8a8;
-  --color-accent: #f0646a;
-  --color-accent-dark: #ff8a8f;
-  --color-accent-soft: #3a1518;
-  --color-success: #3dbf7d;
-  --color-success-soft: #10291c;
+  --color-accent: #ed4956;
+  --color-accent-dark: #ff6b77;
+  --color-accent-soft: #3a1519;
+  --color-success: #58c322;
+  --color-success-soft: #15290d;
   --color-warning: #e3aa48;
   --color-warning-soft: #2e2311;
 
   /* grey scales: light end ↔ dark end */
-  --color-slate-50: #0a0a0a;  --color-slate-100: #121212; --color-slate-200: #262626;
+  --color-slate-50: #11151a;  --color-slate-100: #1a1e23; --color-slate-200: #262626;
   --color-slate-300: #6b7380; --color-slate-400: #8d95a1; --color-slate-500: #a8afb8;
   --color-slate-600: #c2c7ce; --color-slate-700: #d3d7dc; --color-slate-800: #e2e5e8; --color-slate-900: #eef0f2;
-  --color-gray-50: #0a0a0a;   --color-gray-100: #121212;  --color-gray-200: #262626;
+  --color-gray-50: #11151a;   --color-gray-100: #1a1e23;  --color-gray-200: #262626;
   --color-gray-300: #6b7380;  --color-gray-400: #8d95a1;  --color-gray-500: #a8afb8;
   --color-gray-600: #c2c7ce;  --color-gray-700: #d3d7dc;  --color-gray-800: #e2e5e8;  --color-gray-900: #eef0f2;
 
@@ -465,8 +472,8 @@ html[data-theme="dark"] {
   --color-blue-50: #12233a;   --color-blue-100: #16304f;  --color-blue-200: #1d4370;
   --color-blue-600: #6aaef5;  --color-blue-700: #8cc1f7;  --color-blue-800: #a9d1fa;
   --color-green-50: #10261a;  --color-green-100: #143321; --color-green-200: #1c4a2f;
-  --color-green-400: #6fd59d; --color-green-500: #4cc985;
-  --color-green-600: #4cc985; --color-green-700: #6fd59d; --color-green-800: #94e2b6;
+  --color-green-400: #6fd59d; --color-green-500: #58c322;
+  --color-green-600: #58c322; --color-green-700: #6fd59d; --color-green-800: #94e2b6;
   --color-amber-400: #f0c270; --color-amber-500: #e8b04f;
   --color-red-400: #f58c90;   --color-red-500: #f26b70;
   --color-amber-50: #2b2010;  --color-amber-100: #3a2b12; --color-amber-200: #523c17;
@@ -481,7 +488,7 @@ html[data-theme="dark"] .bg-white,
 html[data-theme="dark"] .hgv-surface,
 html[data-theme="dark"] .hgv-search,
 html[data-theme="dark"] .hgv-filter { background-color: var(--surface) !important; }
-html[data-theme="dark"] [class*="bg-white/9"] { background-color: rgb(0 0 0 / 0.92); }
+html[data-theme="dark"] [class*="bg-white/9"] { background-color: rgb(12 16 20 / 0.92); }
 /* panels meant to sit flush on the page (the sign-in intro) stay page-coloured,
    not a lighter box with the text against its edge */
 html[data-theme="dark"] .hgv-surface.hgv-surface--paper { background: var(--color-paper) !important; }
@@ -533,12 +540,14 @@ html[data-theme="dark"] .hgv-surface :is(.bg-white, .bg-ink, .bg-blue-600, .bg-b
   [class~="bg-[#0a66c2]"]):is(button, a, label, [role="button"]),
 html[data-theme="dark"] .hgv-surface :is(.bg-white, .bg-ink, .bg-blue-600, .bg-blue-700, .bg-blue-800,
   [class~="bg-[#0a66c2]"]):is(button, a, label, [role="button"]) * { color: var(--color-ink) !important; }
+/* Fields: Instagram's filled grey, no outline until focused. */
 html[data-theme="dark"] input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
 html[data-theme="dark"] select,
-html[data-theme="dark"] textarea { background-color: var(--surface); color: var(--color-text); border-color: var(--color-border-strong); }
+html[data-theme="dark"] textarea { background-color: var(--surface-2); color: var(--color-text); border-color: transparent; }
+html[data-theme="dark"] :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), select, textarea):focus { border-color: #555555; }
 html[data-theme="dark"] input::placeholder,
 html[data-theme="dark"] textarea::placeholder { color: var(--color-text-faint); }
-html[data-theme="dark"] option { background-color: var(--surface); color: var(--color-text); }
+html[data-theme="dark"] option { background-color: var(--elevated); color: var(--color-text); }
 
 /* fixed brand colours written as raw hex in the pages */
 html[data-theme="dark"] [class*="text-[#0a66c2]"] { color: var(--color-ink) !important; }
@@ -549,11 +558,41 @@ html[data-theme="dark"] [class*="hover:bg-[#D5E8FB]"]:hover { background-color: 
 html[data-theme="dark"] [class*="bg-[#f9d6d8]"]:hover { background-color: #4a1d20 !important; }
 
 
-/* dialogs and overlays */
-html[data-theme="dark"] [class*="bg-black/"] { background-color: rgb(0 0 0 / 0.6); }
+/* Pop-ups, as Instagram shows them: the page dimmed behind, the panel
+   raised a step lighter with no outline and no glow. A panel is anything
+   inside a full-screen layer (every modal here is a .fixed.inset-0
+   backdrop) or marked as a dialog; dropdown menus and lists count too. */
+html[data-theme="dark"] [class*="bg-black/"] { background-color: rgb(0 0 0 / 0.65); }
+html[data-theme="dark"] :is(.fixed.inset-0, [role="dialog"], [aria-modal="true"]) :is(.bg-white, .hgv-surface, .bg-slate-50, .bg-gray-50),
+html[data-theme="dark"] :is([role="dialog"], [aria-modal="true"]):is(.bg-white, .hgv-surface),
+html[data-theme="dark"] :is([role="menu"], [role="listbox"]),
+html[data-theme="dark"] .absolute:is(.shadow-lg, .shadow-xl, .shadow-2xl):is(.bg-white, .hgv-surface) {
+  background-color: var(--elevated) !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+/* inside a pop-up: lines a little lighter, fields and hovers a step up */
+html[data-theme="dark"] :is(.fixed.inset-0, [role="dialog"], [aria-modal="true"], [role="menu"], [role="listbox"]) :is(.border-border, .border-slate-100, .border-slate-200, .border-gray-100, .border-gray-200, .divide-slate-100 > *, .divide-slate-200 > *) {
+  border-color: #363636;
+}
+html[data-theme="dark"] :is(.fixed.inset-0, [role="dialog"], [aria-modal="true"]) :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), select, textarea),
+html[data-theme="dark"] :is(.fixed.inset-0, [role="dialog"], [aria-modal="true"], [role="menu"], [role="listbox"]) :is(.bg-slate-100, .bg-gray-100, .bg-paper-dim) {
+  background-color: var(--elevated-2) !important;
+}
+html[data-theme="dark"] :is(.fixed.inset-0, [role="dialog"], [aria-modal="true"], [role="menu"], [role="listbox"]) :is(button, a, [role="menuitem"], [role="option"]):is([class*="hover:bg-slate"], [class*="hover:bg-gray"], [class*="hover:bg-paper"]):hover {
+  background-color: rgb(255 255 255 / 0.1) !important;
+}
+/* Second-choice buttons in a pop-up (Cancel, Close): Instagram's grey. */
+html[data-theme="dark"] :is(.fixed.inset-0, [role="dialog"]) button:is(.border, [class*="border-slate"], [class*="border-gray"]):not([class*="bg-ink"]):not([class*="bg-blue"]):not([class*="bg-red"]):not([class*="bg-accent"]):not([class*="bg-green"]):not([class*="bg-success"]):not([class*="bg-amber"]) {
+  background-color: var(--ig-button) !important;
+  border-color: transparent !important;
+  color: #fafafa;
+}
 html[data-theme="dark"] .shadow-2xl,
 html[data-theme="dark"] .shadow-lg,
-html[data-theme="dark"] .shadow-xl { box-shadow: 0 20px 50px -12px rgb(0 0 0 / 0.65); }
+html[data-theme="dark"] .shadow-xl { box-shadow: none; }
+/* Cards stay flat, like posts on Instagram: page colour, thin line. */
+html[data-theme="dark"] :is(.shadow, .shadow-sm, .shadow-md, [class*="shadow-["]) { box-shadow: none !important; }
 
 /* skeletons and soft rows */
 html[data-theme="dark"] .hgv-ledger-row:hover { background-color: var(--color-paper-dim); }
@@ -568,7 +607,7 @@ html[data-theme="dark"] .ptr-sh, html[data-theme="dark"] .ptr-sh-w,
 html[data-theme="dark"] .pur-sh, html[data-theme="dark"] .pur-sh-w,
 html[data-theme="dark"] .rep-sh, html[data-theme="dark"] .rep-sh-w,
 html[data-theme="dark"] .sal-sh, html[data-theme="dark"] .sal-sh-w {
-  background: linear-gradient(90deg, #121212 25%, #262626 50%, #121212 75%) !important;
+  background: linear-gradient(90deg, #1a1e23 25%, #2b3036 50%, #1a1e23 75%) !important;
   background-size: 200% 100% !important;
 }
 html[data-theme="dark"] .pf-sh, html[data-theme="dark"] .pf-sh-w { background-size: 700px 100% !important; }
@@ -581,11 +620,11 @@ html[data-theme="dark"] .pf-sh, html[data-theme="dark"] .pf-sh-w { background-si
 
 /* charts: grid lines and tooltips */
 html[data-theme="dark"] .recharts-cartesian-grid line { stroke: #262626; }
-html[data-theme="dark"] .recharts-default-tooltip { background-color: var(--surface-2) !important; border-color: var(--color-border-strong) !important; color: var(--color-text); }
+html[data-theme="dark"] .recharts-default-tooltip { background-color: var(--elevated) !important; border-color: transparent !important; color: var(--color-text); }
 html[data-theme="dark"] .recharts-text { fill: var(--color-text-faint); }
 
 /* scrollbars follow the theme */
-html[data-theme="dark"] { scrollbar-color: #3a4048 var(--color-paper); }
+html[data-theme="dark"] { scrollbar-color: #363636 var(--color-paper); }
 
 /* ── TOP LOADER (app/components/TopLoader.tsx) ─────────────────
    A 2px brand-blue line under the top of the window while a page loads,
