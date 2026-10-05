@@ -31,6 +31,12 @@
 		<string>tel</string>
 		<string>sms</string>
 	</array>
+	<key>NSCameraUsageDescription</key>
+	<string>Take photos of your vehicles to add them to Higoverse.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Choose vehicle photos to add to Higoverse.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Save vehicle photos from Higoverse to your photo library.</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>UIApplicationSceneManifest</key>
