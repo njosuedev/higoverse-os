@@ -85,7 +85,7 @@ function init({ getMainWindow, api }) {
   autoUpdater.on("update-downloaded", (info) => { onDownloaded(info).catch((err) => fail("storage", err)); });
   autoUpdater.on("error", (err) => { if (state.stage === "downloading") fail("network", err); });
   setTimeout(() => check(false), 8_000);
-  setInterval(() => check(false), 5 * 60 * 1000); // dueForCheck keeps it to every 15 min
+  setInterval(() => check(false), 60 * 1000); // dueForCheck keeps it to every 15 min
 }
 
 async function check(manual) {

@@ -54,7 +54,8 @@ bridge: a read-only marker, and its theme/language for the next start).
 npm run dist        # → dist/Higoverse-Setup-<version>.exe
 ```
 
-The installer offers "Only for me" / "All users", lets you choose the folder,
+The installer always installs for the current user (`%LOCALAPPDATA%\Programs\Higoverse`,
+`build/installer.nsh`), so updates never need an administrator; it
 creates Desktop and Start menu shortcuts, registers in **Settings → Apps** with
 an uninstaller, and can start Higoverse when it finishes.
 
