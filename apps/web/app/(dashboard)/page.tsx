@@ -24,7 +24,7 @@ import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer,
 } from "recharts";
 import {
-  Package, Truck, BarChart3, ShoppingCart, Users, Settings, RefreshCw, AlertTriangle, TrendingUp, TrendingDown, Globe, CheckCircle, FileText, Plus, Activity, Receipt, Wallet, DollarSign, ChevronRight,
+  Package, Truck, BarChart3, ShoppingCart, Users, Settings, AlertTriangle, TrendingUp, TrendingDown, Globe, CheckCircle, FileText, Plus, Activity, Receipt, Wallet, DollarSign, ChevronRight,
 } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -40,20 +40,12 @@ function toDateStr(d: Date) {
 function fmtTime(d: Date) {
   return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 }
-function fmtDate(d: Date) {
-  return d.toLocaleDateString([], { weekday: "short", day: "numeric", month: "short" });
-}
 function fmtMoney(n: number, currency: string) {
   try {
     return new Intl.NumberFormat("en-RW", { style: "currency", currency, maximumFractionDigits: 0 }).format(n);
   } catch {
     return `${Math.round(n).toLocaleString()} ${currency}`;
   }
-}
-function fmtShort(n: number) {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000)     return `${(n / 1_000).toFixed(0)}K`;
-  return String(n);
 }
 function timeAgo(d: Date, t: (key: string) => string) {
   const s = Math.floor((Date.now() - d.getTime()) / 1000);
@@ -120,7 +112,7 @@ export default function DashboardPage() {
   const prof = useShowsProfit();
   // Settings → currency and low stock threshold.
   const { currency, lowStock, loaded: settingsLoaded } = useShopSettings();
-  const { shop, loading: shopLoading } = useShop();
+  const { loading: shopLoading } = useShop();
   // Product/customer counts arrive in the second loading phase — show "-"
   // until then rather than a misleading 0.
   const [countsReady, setCountsReady] = useState(false);
@@ -153,9 +145,9 @@ export default function DashboardPage() {
   const [purchaseCostToday, setPurchaseCostToday] = useState(0);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [dataLoading, setDataLoading] = useState(true);
-  const [refreshing, setRefreshing]   = useState(false);
+  const [, setRefreshing]             = useState(false);
   const [productServiceError, setProductServiceError] = useState(false);
-  const [countdown, setCountdown]     = useState(REFRESH_INTERVAL);
+  const [, setCountdown]              = useState(REFRESH_INTERVAL);
   const [now, setNow]                 = useState(new Date());
 
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -309,7 +301,6 @@ export default function DashboardPage() {
   // Wait for the business too: what the home shows depends on its type.
   if (!user || dataLoading || shopLoading) return <HomeSkeleton />;
 
-  const currentShop = shops.find((s) => s.id === user.shop_id);
   const onlineCount = shops.filter((s) => shopPresence(s.last_seen_at, now).online).length;
   const revDeltaPct = yesterdayRevenue > 0
     ? Math.round(((stats.revenue - yesterdayRevenue) / yesterdayRevenue) * 100)
@@ -340,73 +331,7 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* ── HERO — business badge, greeting, three key figures, time ────────── */}
-        {(() => {
-          const name = shop?.name || currentShop?.name || user.name || t("dash.my_shop");
-          const initials = name.split(/\s+/).filter((w) => /[A-Za-z0-9]/.test(w[0] ?? "")).slice(0, 2).map((w) => w[0]).join("").toUpperCase() || "H";
-          const hour = now.getHours();
-          const greeting = t(hour < 12 ? "dash.good_morning" : hour < 18 ? "dash.good_afternoon" : "dash.good_evening");
-          const firstName = (user.name || "").split(" ")[0];
-          const restock = stats.lowStock + stats.outOfStock;
-          const figures = [
-            { href: "/sales", icon: <ShoppingCart size={15} />, tint: "bg-ink/10 text-ink", short: t("dash.chart_sales"), long: t("dash.sales_week"), value: String(stats.sales), tone: "text-text" },
-            ...(fin ? [{ href: "/reports", icon: <TrendingUp size={15} />, tint: "bg-success/10 text-success", short: t("dash.revenue_label"), long: t("dash.revenue_week"), value: stats.revenue > 0 ? `${currency} ${fmtShort(stats.revenue)}` : "-", tone: "text-success" }] : []),
-            ...(restock > 0 ? [{ href: "/items?stock=low", icon: <AlertTriangle size={15} />, tint: "bg-accent/10 text-accent", short: t("dash.restock_short"), long: t("dash.needs_restock"), value: String(restock), tone: "text-accent-dark" }] : []),
-          ];
-          return (
-            <section className="relative overflow-hidden rounded-data border border-border bg-white shadow-[0_1px_2px_rgb(0_0_0_/_0.04)]">
-              <div className="relative flex flex-wrap items-center gap-x-6 gap-y-3 px-4 py-3.5 sm:px-5">
-                {/* Business */}
-                <div className="order-1 flex min-w-0 flex-1 basis-[220px] items-center gap-3 sm:order-none">
-                  {currentShop?.logo_url ? (
-                    <img src={currentShop.logo_url} alt="" className="h-11 w-11 shrink-0 rounded-full border border-border object-cover" />
-                  ) : (
-                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-ink text-sm font-bold tracking-wide text-white">{initials}</span>
-                  )}
-                  <div className="min-w-0">
-                    <h1 className="truncate font-display text-[17px] font-bold leading-tight text-text" title={name}>{name}</h1>
-                    <p className="mt-0.5 flex min-w-0 items-center gap-1.5 text-xs text-text-muted">
-                      <span className="truncate">{greeting}{firstName ? `, ${firstName}` : ""} · {user.role || t("dash.owner_role")}</span>
-                    </p>
-                  </div>
-                </div>
-
-                {/* Key figures */}
-                <div className="order-3 flex w-full items-stretch gap-1 border-t border-border pt-2.5 sm:order-none sm:w-auto sm:border-0 sm:pt-0">
-                  {figures.map((f) => (
-                    <Link key={f.long} href={f.href}
-                      className="group flex min-w-0 flex-1 items-center gap-2.5 rounded-press px-2 py-1.5 transition-colors duration-200 hover:bg-paper sm:flex-none sm:px-3">
-                      <span className={`hidden h-8 w-8 shrink-0 items-center justify-center rounded-full sm:flex ${f.tint}`}>{f.icon}</span>
-                      <span className="min-w-0">
-                        <span className="block whitespace-nowrap text-[11px] font-semibold uppercase tracking-wider text-text-muted">
-                          <span className="sm:hidden">{f.short}</span><span className="hidden sm:inline">{f.long}</span>
-                        </span>
-                        <span className={`hgv-figure block whitespace-nowrap text-base font-bold leading-tight ${f.tone}`}>{f.value}</span>
-                      </span>
-                    </Link>
-                  ))}
-                </div>
-
-                {/* Time + refresh */}
-                <div className="order-2 ml-auto flex shrink-0 items-center gap-3 sm:order-none">
-                  <div className="hidden text-right xl:block">
-                    <p className="hgv-figure text-sm font-bold leading-tight text-text">{fmtTime(now)}</p>
-                    <p className="text-[11px] text-text-muted">{fmtDate(now)}</p>
-                  </div>
-                  <button
-                    onClick={manualRefresh} disabled={refreshing}
-                    className="flex h-9 w-9 items-center justify-center rounded-full border border-border bg-white text-text-muted transition-colors duration-200 hover:border-ink hover:text-ink disabled:opacity-50"
-                    title={t("common.refresh")} aria-label={t("common.refresh")}
-                  >
-                    <RefreshCw size={14} className={refreshing ? "animate-spin" : ""} />
-                  </button>
-                </div>
-              </div>
-            </section>
-          );
-        })()}
-
-        {/* ── STORIES — Facebook-style row: what needs a look today ───────────── */}
+        {/* ── STORIES first, as on Facebook: what needs a look, and what was added ── */}
         <Stories />
 
         {/* ── TODAY (car companies): new cars, new fines, new pending — like status ── */}

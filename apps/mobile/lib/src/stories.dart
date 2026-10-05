@@ -20,7 +20,8 @@ import 'widgets.dart';
 
 /// What a story is about. Car dealers: a vehicle with traffic fines, or one
 /// sold and waiting for its ownership transfer. Shops: an item sold out,
-/// one running low, a best seller this week, or new stock.
+/// one running low, a best seller this week. Both: everything added in the
+/// last 3 days ([fresh], like posts on Facebook).
 enum StoryKind { fines, pending, soldOut, low, best, fresh }
 
 extension StoryKindX on StoryKind {
@@ -60,6 +61,9 @@ class StoryGroup {
   bool get seen => stories.every((x) => StorySeen.instance.has(x.id));
 }
 
+/// How long something added stays a story.
+const freshFor = Duration(days: 3);
+
 /// The stories built from what Home already loaded; empty topics left out,
 /// topics not seen yet first, then what needs action first.
 List<StoryGroup> storyGroups({
@@ -72,11 +76,17 @@ List<StoryGroup> storyGroups({
   DateTime? now,
 }) {
   num q(Map<String, dynamic> m) => m['quantity'] is num ? m['quantity'] as num : num.tryParse('${m['quantity']}') ?? 0;
-  final week = (now ?? DateTime.now()).subtract(const Duration(days: 7));
+  final since = (now ?? DateTime.now()).subtract(freshFor);
+  // Everything added in the last 3 days, newest first.
+  final added = StoryGroup(StoryKind.fresh, [
+    for (final p in newest)
+      if (parseTimestamp(p['created_at'])?.isAfter(since) ?? false) Story(StoryKind.fresh, p),
+  ]);
   final groups = <StoryGroup>[
     if (isCar) ...[
       StoryGroup(StoryKind.fines, [for (final v in fined) Story(StoryKind.fines, v)]),
       StoryGroup(StoryKind.pending, [for (final v in pending) Story(StoryKind.pending, v)]),
+      added,
     ] else ...[
       StoryGroup(StoryKind.soldOut, [for (final p in alerts) if (q(p) <= 0) Story(StoryKind.soldOut, p)]),
       StoryGroup(StoryKind.low, [for (final p in alerts) if (q(p) > 0) Story(StoryKind.low, p)]),
@@ -84,10 +94,7 @@ List<StoryGroup> storyGroups({
         for (final p in top.take(5))
           if ((p['qty_sold'] as num? ?? 0) > 0) Story(StoryKind.best, {...p, 'id': p['product_id'], 'name': p['product_name']}),
       ]),
-      StoryGroup(StoryKind.fresh, [
-        for (final p in newest)
-          if ((parseTimestamp(p['created_at'])?.isAfter(week) ?? false) && q(p) > 0) Story(StoryKind.fresh, p),
-      ]),
+      added,
     ],
   ].where((g) => g.stories.isNotEmpty).toList();
   groups.sort((a, b) => a.seen != b.seen ? (a.seen ? 1 : -1) : a.kind.index.compareTo(b.kind.index));
@@ -149,6 +156,8 @@ String _title(T t, StoryKind k) => switch (k) {
       StoryKind.best => t('story.best'),
       StoryKind.fresh => t('story.fresh'),
     };
+
+String _titleFor(T t, StoryKind k, bool car) => k == StoryKind.fresh && car ? t('story.fresh_car') : _title(t, k);
 
 /// The topic's picture: its icon on its colour, in a ring that is blue
 /// until every story in it has been seen, then grey (as on Facebook).
@@ -227,14 +236,13 @@ class _StoryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = T.of(context);
+    final car = SessionScope.of(context).isCar;
     final first = group.stories.first;
     final n = group.stories.length;
-    final sub = n == 1
-        ? '${first.item['name'] ?? ''}'
-        : (group.kind.isCar ? t('story.n_cars', {'n': n}) : t('story.n_items', {'n': n}));
+    final sub = n == 1 ? '${first.item['name'] ?? ''}' : (car ? t('story.n_cars', {'n': n}) : t('story.n_items', {'n': n}));
     return Semantics(
       button: true,
-      label: '${_title(t, group.kind)}, $sub',
+      label: '${_titleFor(t, group.kind, car)}, $sub',
       child: GestureDetector(
         onTap: onTap,
         child: ClipRRect(
@@ -245,7 +253,7 @@ class _StoryCard extends StatelessWidget {
               CoverPhoto(
                 id: first.itemId,
                 thumbnail: first.item['thumbnail'] as String?,
-                isCar: group.kind.isCar,
+                isCar: car,
                 fallback: _Backdrop(url: null, kind: group.kind),
               ),
               // Darkens the top and bottom so the picture and words read on any photo.
@@ -265,7 +273,7 @@ class _StoryCard extends StatelessWidget {
                 right: 9,
                 bottom: 9,
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-                  Text(_title(t, group.kind),
+                  Text(_titleFor(t, group.kind, car),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700, height: 1.15)),
@@ -294,6 +302,7 @@ class _Backdrop extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final base = _color(context, kind);
+    final car = kind.isCar || SessionScope.of(context).isCar;
     return UrlImage(
       url: url,
       fit: fit,
@@ -306,7 +315,7 @@ class _Backdrop extends StatelessWidget {
           ),
         ),
         child: Center(
-          child: Icon(kind.isCar ? PhosphorIconsFill.car : PhosphorIconsFill.package, color: const Color(0x55FFFFFF), size: 52),
+          child: Icon(car ? PhosphorIconsFill.car : PhosphorIconsFill.package, color: const Color(0x55FFFFFF), size: 52),
         ),
       ),
     );
@@ -335,6 +344,15 @@ class _StoryViewerState extends State<StoryViewer> with SingleTickerProviderStat
       if (s == AnimationStatus.completed) _next();
     });
   double _drag = 0;
+
+  /// The card at the bottom, measured so the photo sits above it, uncovered.
+  final _cardKey = GlobalKey();
+  double _cardH = 230;
+
+  void _measureCard() {
+    final h = (_cardKey.currentContext?.findRenderObject() as RenderBox?)?.size.height;
+    if (h != null && (h - _cardH).abs() > 1 && mounted) setState(() => _cardH = h);
+  }
 
   /// The whole vehicle or item (lists carry a thumbnail only), fetched when shown.
   final Map<String, Future<Map<String, dynamic>?>> _full = {};
@@ -424,6 +442,8 @@ class _StoryViewerState extends State<StoryViewer> with SingleTickerProviderStat
     final added = parseTimestamp(story.item['created_at']);
     final top = MediaQuery.paddingOf(context).top;
     final full = _fullOf(story);
+    final bottom = MediaQuery.paddingOf(context).bottom;
+    WidgetsBinding.instance.addPostFrameCallback((_) => _measureCard());
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.light,
@@ -453,7 +473,14 @@ class _StoryViewerState extends State<StoryViewer> with SingleTickerProviderStat
                       return Stack(fit: StackFit.expand, children: [
                         // Blurred fill behind a photo that doesn't match the screen's shape.
                         Opacity(opacity: 0.35, child: _Backdrop(url: url, kind: story.kind)),
-                        _Backdrop(url: url, kind: story.kind, fit: BoxFit.contain),
+                        // The photo itself, whole, between the top bar and the card.
+                        Positioned(
+                          left: 0,
+                          right: 0,
+                          top: top + 64,
+                          bottom: bottom + 12 + _cardH + 12,
+                          child: _Backdrop(url: url, kind: story.kind, fit: BoxFit.contain),
+                        ),
                         if (photos.length > 1)
                           Positioned(right: 14, top: top + 64, child: _Pill(icon: PhosphorIconsRegular.images, text: '${photos.length}')),
                       ]);
@@ -522,7 +549,7 @@ class _StoryViewerState extends State<StoryViewer> with SingleTickerProviderStat
                         const SizedBox(width: 10),
                         Expanded(
                           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                            Text(_title(t, group.kind),
+                            Text(_titleFor(t, group.kind, s.isCar),
                                 style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 14.5)),
                             Text(
                               [
@@ -544,9 +571,10 @@ class _StoryViewerState extends State<StoryViewer> with SingleTickerProviderStat
                 ),
                 // ── Bottom: the vehicle's or item's card ──
                 Positioned(
+                  key: _cardKey,
                   left: 10,
                   right: 10,
-                  bottom: MediaQuery.paddingOf(context).bottom + 12,
+                  bottom: bottom + 12,
                   child: story.kind.isCar
                       ? _VehicleCard(
                           story: story,
@@ -586,6 +614,7 @@ class _ProductCard extends StatelessWidget {
     final item = {...story.item, ...?full}..remove('images');
     num n(Object? v) => v is num ? v : num.tryParse('$v') ?? 0;
     final qty = n(item['quantity']).toInt();
+    final added = parseTimestamp(item['created_at']);
     final color = _color(context, story.kind);
     final (headline, detail) = switch (story.kind) {
       StoryKind.soldOut => (t('story.sold_out'), t('story.sold_out_hint')),
@@ -594,9 +623,14 @@ class _ProductCard extends StatelessWidget {
           t('story.sold_week', {'n': groupDigits(n(story.item['qty_sold']))}),
           s.canSeeFinancials && story.item['revenue'] != null ? money(n(story.item['revenue']), s.currency) : '',
         ),
-      _ => (t('stock.in_stock_n', {'n': groupDigits(qty)}), ''),
+      _ => (
+          qty > 0 ? t('stock.in_stock_n', {'n': groupDigits(qty)}) : t('stock.f_sold'),
+          added == null ? '' : t('story.added', {'when': t.ago(added)}),
+        ),
     };
     final restockFirst = story.kind == StoryKind.soldOut || story.kind == StoryKind.low;
+    // Added and already sold (a car, say): nothing to sell, only to look at.
+    final canAct = restockFirst || qty > 0;
     final price = item['selling_price'];
     return Container(
       decoration: BoxDecoration(
@@ -627,7 +661,7 @@ class _ProductCard extends StatelessWidget {
         ],
         const SizedBox(height: 12),
         Row(children: [
-          Expanded(
+          if (canAct) Expanded(
             flex: 3,
             child: FilledButton.icon(
               style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(42)),
@@ -644,7 +678,7 @@ class _ProductCard extends StatelessWidget {
               label: Text(restockFirst ? t('form.restock') : t('form.sell')),
             ),
           ),
-          const SizedBox(width: 8),
+          if (canAct) const SizedBox(width: 8),
           Expanded(
             flex: 2,
             child: OutlinedButton(

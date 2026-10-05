@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -74,14 +75,13 @@ class _ItemScreenState extends State<ItemScreen> {
 
   void _openViewer(int index) {
     if (_photos.isEmpty) return;
-    final s = SessionScope.of(context);
     Navigator.of(context).push(PageRouteBuilder<void>(
       opaque: false,
       pageBuilder: (_, __, ___) => _PhotoViewer(
         photos: _photos,
         initial: index,
         onSave: (photo) async => _say(await savePhotoToPhone(photo) ? 'photo.saved_to_phone' : 'photo.save_to_phone_failed'),
-        onDelete: s.isCar ? _deletePhoto : null,
+        onDelete: _deletePhoto,
       ),
       transitionsBuilder: (_, a, __, child) => FadeTransition(opacity: a, child: child),
     ));
@@ -109,29 +109,34 @@ class _ItemScreenState extends State<ItemScreen> {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(T.of(context)(key))));
   }
 
-  /// Camera or gallery → stored on the car, like adding it on the website.
+  /// Camera, or several from the gallery → stored on the item, like adding
+  /// them on the website (up to 7 photos, cars and shop products alike).
   Future<void> _addPhoto() async {
     if (_savingPhoto) return;
-    if (_photos.length >= maxCarPhotos) return _say('photo.limit');
+    final room = maxCarPhotos - _photos.length;
+    if (room <= 0) return _say('photo.limit');
     final s = SessionScope.of(context);
-    CarPhoto? picked;
+    List<CarPhoto> picked;
     try {
-      picked = await pickCarPhoto(context);
+      picked = await pickPhotos(context, room: room);
     } catch (_) {
       return _say('photo.unreadable');
     }
-    if (picked == null || !mounted) return;
-    final photo = picked;
+    if (picked.isEmpty || !mounted) return;
     setState(() => _savingPhoto = true);
     try {
-      final next = await updateCarPhotos(s, _id, (fresh) => [...fresh, photo.photo], thumbs: {photo.photo: photo.thumb});
+      final next = await updateCarPhotos(s, _id, (fresh) => [...fresh, ...picked.map((p) => p.photo)],
+          thumbs: {for (final p in picked) p.photo: p.thumb});
       if (!mounted) return;
+      final added = picked.where((p) => next.contains(p.photo)).length;
       setState(() {
         _photos = next;
         _page = next.length - 1;
-        if (next.length == 1) _item = {..._item, 'thumbnail': photo.thumb};
+        if (next.isNotEmpty && added == next.length) _item = {..._item, 'thumbnail': picked.first.thumb};
       });
-      _say(next.contains(photo.photo) ? 'photo.added' : 'photo.limit');
+      final t = T.of(context);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(added == 0 ? t('photo.limit') : (added == 1 ? t('photo.added') : t('photo.added_n', {'n': added})))));
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(errorText(T.of(context), e))));
     } finally {
@@ -139,7 +144,7 @@ class _ItemScreenState extends State<ItemScreen> {
     }
   }
 
-  /// Removes a photo from the car (asked first). True when it was removed.
+  /// Removes a photo from the item (asked first). True when it was removed.
   Future<bool> _deletePhoto(String photo) async {
     final t = T.of(context);
     final ok = await showDialog<bool>(
@@ -236,10 +241,17 @@ class _ItemScreenState extends State<ItemScreen> {
                 onPageChanged: (i) => setState(() => _page = i),
                 itemBuilder: (_, i) => GestureDetector(
                   onTap: () => _openViewer(i),
-                  child: UrlImage(url: _photos[i], fallback: ColoredBox(color: c.paper)),
+                  // The whole photo, never cropped, over a soft blurred copy of itself.
+                  child: Stack(fit: StackFit.expand, children: [
+                    ImageFiltered(
+                      imageFilter: ui.ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+                      child: Opacity(opacity: 0.6, child: UrlImage(url: _photos[i], fallback: ColoredBox(color: c.paper))),
+                    ),
+                    UrlImage(url: _photos[i], fit: BoxFit.contain, fallback: ColoredBox(color: c.paper)),
+                  ]),
                 ),
               ),
-            if (s.isCar)
+            if (_id.isNotEmpty)
               Positioned(
                 right: 10,
                 bottom: 10,

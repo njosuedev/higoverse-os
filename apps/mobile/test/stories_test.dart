@@ -39,4 +39,14 @@ void main() {
     const b = Story(StoryKind.low, {'id': 'b', 'quantity': 1});
     expect(a.id == b.id, isFalse);
   });
+
+  test('everything added in the last 3 days is a story, for car dealers too, sold or not', () {
+    final g = storyGroups(isCar: true, now: now, newest: [
+      {'id': 'n1', 'name': 'RAV4', 'quantity': 1, 'created_at': days(1)},
+      {'id': 'n2', 'name': 'Corolla', 'quantity': 0, 'created_at': days(2)},
+      {'id': 'n3', 'name': 'Old one', 'quantity': 1, 'created_at': days(4)},
+    ]);
+    expect(g.single.kind, StoryKind.fresh);
+    expect(g.single.stories.map((s) => s.itemId), ['n1', 'n2']);
+  });
 }

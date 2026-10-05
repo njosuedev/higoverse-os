@@ -51,9 +51,12 @@ String? _thumbOf(String photo) {
   }
 }
 
-/// Asks camera or gallery, then prepares the picture. Null when cancelled;
-/// throws [FormatException] when the picture can't be read (e.g. HEIC).
-Future<CarPhoto?> pickCarPhoto(BuildContext context) async {
+/// Asks camera or gallery, then prepares the pictures: one from the
+/// camera, or up to [room] at once from the gallery (cars and shop products
+/// alike, at most [maxCarPhotos] each). Empty when cancelled; throws
+/// [FormatException] when none of the pictures can be read (e.g. HEIC).
+Future<List<CarPhoto>> pickPhotos(BuildContext context, {required int room}) async {
+  if (room <= 0) return const [];
   final t = T.of(context);
   final source = await showModalBottomSheet<ImageSource>(
     context: context,
@@ -76,13 +79,23 @@ Future<CarPhoto?> pickCarPhoto(BuildContext context) async {
       ]),
     ),
   );
-  if (source == null) return null;
+  if (source == null) return const [];
   // A first downscale on the device keeps memory low; the exact sizes come after.
-  final file = await ImagePicker().pickImage(source: source, maxWidth: 2560, maxHeight: 2560, imageQuality: 92);
-  if (file == null) return null;
-  final prepared = await compute(_prepare, await file.readAsBytes());
-  if (prepared == null) throw const FormatException('unreadable photo');
-  return prepared;
+  final picker = ImagePicker();
+  final List<XFile> files;
+  if (source == ImageSource.gallery && room > 1) {
+    files = await picker.pickMultiImage(limit: room, maxWidth: 2560, maxHeight: 2560, imageQuality: 92);
+  } else {
+    final one = await picker.pickImage(source: source, maxWidth: 2560, maxHeight: 2560, imageQuality: 92);
+    files = one == null ? const [] : [one];
+  }
+  final out = <CarPhoto>[];
+  for (final f in files.take(room)) {
+    final prepared = await compute(_prepare, await f.readAsBytes());
+    if (prepared != null) out.add(prepared);
+  }
+  if (files.isNotEmpty && out.isEmpty) throw const FormatException('unreadable photo');
+  return out;
 }
 
 /// Reads the car's photos from the server, applies [change] to that fresh

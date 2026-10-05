@@ -1,8 +1,10 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'car_photos.dart';
 import 'config.dart';
 import 'format.dart';
 import 'i18n.dart';
@@ -655,6 +657,24 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
   late final _description = TextEditingController(text: '${p?['description'] ?? ''}');
   bool _saving = false;
 
+  /// New products: up to 7 photos, the first is the cover. (An existing
+  /// product's photos are managed on its page.)
+  final List<CarPhoto> _photos = [];
+  bool _picking = false;
+
+  Future<void> _addPhotos() async {
+    if (_picking) return;
+    setState(() => _picking = true);
+    try {
+      final picked = await pickPhotos(context, room: maxCarPhotos - _photos.length);
+      if (mounted) setState(() => _photos.addAll(picked.take(maxCarPhotos - _photos.length)));
+    } catch (_) {
+      if (mounted) _say(context, T.of(context)('photo.unreadable'));
+    } finally {
+      if (mounted) setState(() => _picking = false);
+    }
+  }
+
   @override
   void dispose() {
     for (final c in [_name, _category, _cost, _price, _qty, _barcode, _description]) {
@@ -678,6 +698,10 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
       'quantity': int.tryParse(_qty.text.trim()) ?? 0,
       'barcode': opt(_barcode),
       'description': opt(_description),
+      if (p == null && _photos.isNotEmpty) ...{
+        'images': jsonEncode([for (final x in _photos) x.photo]),
+        'thumbnail': _photos.first.thumb,
+      },
     };
     setState(() => _saving = true);
     try {
@@ -730,8 +754,98 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
         ),
         _Field(t('detail.barcode'), _text(_barcode, hint: t('form.optional'), caps: false)),
         _Field(t('form.description'), _text(_description, hint: t('form.optional'), lines: 3)),
+        if (p == null)
+          _Field(
+            '${t('form.photos')} (${_photos.length}/$maxCarPhotos)',
+            _PhotoStrip(
+              photos: _photos,
+              busy: _picking,
+              onAdd: _photos.length < maxCarPhotos ? _addPhotos : null,
+              onRemove: (i) => setState(() => _photos.removeAt(i)),
+            ),
+            hint: t('form.photos_hint'),
+          ),
       ],
     );
+  }
+}
+
+/// Picked photos in a row: the first marked as the cover, ✕ to remove, and
+/// a tile to add more.
+class _PhotoStrip extends StatelessWidget {
+  const _PhotoStrip({required this.photos, required this.busy, required this.onAdd, required this.onRemove});
+  final List<CarPhoto> photos;
+  final bool busy;
+  final VoidCallback? onAdd;
+  final ValueChanged<int> onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = Hgv.of(context);
+    final t = T.of(context);
+    const size = 76.0;
+    return Wrap(spacing: 8, runSpacing: 8, children: [
+      for (var i = 0; i < photos.length; i++)
+        SizedBox.square(
+          dimension: size,
+          child: Stack(fit: StackFit.expand, children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: UrlImage(url: photos[i].thumb, fallback: ColoredBox(color: c.paper)),
+            ),
+            if (i == 0)
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 2),
+                  decoration: const BoxDecoration(
+                    color: Colors.black54,
+                    borderRadius: BorderRadius.vertical(bottom: Radius.circular(10)),
+                  ),
+                  child: Text(t('form.cover'),
+                      textAlign: TextAlign.center, style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700)),
+                ),
+              ),
+            Positioned(
+              top: 3,
+              right: 3,
+              child: InkWell(
+                onTap: () => onRemove(i),
+                customBorder: const CircleBorder(),
+                child: Container(
+                  width: 22,
+                  height: 22,
+                  decoration: const BoxDecoration(shape: BoxShape.circle, color: Colors.black87),
+                  child: const Icon(Icons.close_rounded, size: 14, color: Colors.white),
+                ),
+              ),
+            ),
+          ]),
+        ),
+      if (onAdd != null)
+        SizedBox.square(
+          dimension: size,
+          child: Material(
+            color: c.paper,
+            borderRadius: BorderRadius.circular(10),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(10),
+              onTap: busy ? null : onAdd,
+              child: Center(
+                child: busy
+                    ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2.4))
+                    : Column(mainAxisSize: MainAxisSize.min, children: [
+                        Icon(Icons.add_photo_alternate_outlined, color: c.ink),
+                        const SizedBox(height: 2),
+                        Text(t('photo.add'), style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: c.ink)),
+                      ]),
+              ),
+            ),
+          ),
+        ),
+    ]);
   }
 }
 

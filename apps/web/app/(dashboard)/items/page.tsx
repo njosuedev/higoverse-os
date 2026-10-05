@@ -144,6 +144,9 @@ export default function ItemManagementPage() {
   const [autoForm, setAutoForm] = useState<{ id: string; form: "fines" | "pending" } | null>(null);
   const showCards = isCar && (vehicleView === "cards" || !!focusId);
   const [loadingEdit, setLoadingEdit] = useState(false);
+  // Photos are saved only once the product's own were loaded (lists carry
+  // none): a failed load must not wipe them.
+  const [photosReady, setPhotosReady] = useState(true);
   // Keep figures current without polling hidden tabs.
   useAutoRefresh(() => loadData(true));
 
@@ -249,6 +252,7 @@ export default function ItemManagementPage() {
   function openCreateModal() {
     // Each car is one vehicle (unique chassis and plate), so it's added as 1.
     setForm(isCar ? { ...EMPTY_FORM, quantity: "1" } : EMPTY_FORM); setEditingId(null); setModalMode("create");
+    setPhotosReady(true);
     setShowModal(true);
   }
 
@@ -262,14 +266,12 @@ export default function ItemManagementPage() {
     });
     fill(p);
     setEditingId(p.id); setModalMode("edit"); setShowModal(true);
-    if (isCar) {
-      // Lists don't carry photos — fetch this car in full (also gets the latest quantity).
-      setLoadingEdit(true);
-      itemRequest(`/products/${p.id}`)
-        .then((res) => { if (res?.data) fill({ ...p, ...res.data }); })
-        .catch(() => {})
-        .finally(() => setLoadingEdit(false));
-    }
+    // Lists don't carry photos: fetch the product in full (also gets the latest quantity).
+    setLoadingEdit(true); setPhotosReady(false);
+    itemRequest(`/products/${p.id}`)
+      .then((res) => { if (res?.data) { fill({ ...p, ...res.data }); setPhotosReady(true); } })
+      .catch(() => {})
+      .finally(() => setLoadingEdit(false));
   }
 
   function closeModal() {
@@ -288,7 +290,9 @@ export default function ItemManagementPage() {
     } else if (!form.name.trim() || !form.cost_price || !form.selling_price || !form.quantity) {
       notify(t("items.validation_required")); return;
     }
-    const thumbnail = isCar && form.images[0] ? await shrinkDataUrl(form.images[0]).catch(() => "") : "";
+    const thumbnail = form.images[0] ? await shrinkDataUrl(form.images[0]).catch(() => "") : "";
+    // Up to 7 photos for every business; "" clears them when all were removed.
+    const photos = photosReady ? { images: form.images.length ? JSON.stringify(form.images) : "", thumbnail } : {};
     const payload = {
       name: form.name.trim(), description: form.description.trim() || null,
       // Car companies don't track cost; the API requires one, so store the
@@ -301,10 +305,8 @@ export default function ItemManagementPage() {
           ...form.attributes,
           ...Object.fromEntries(VEHICLE_ID_FIELDS.map((k) => [k, normalizeVehicleId(form.attributes[k] ?? "")])),
         }),
-        // "" clears them when every photo was removed.
-        images: form.images.length ? JSON.stringify(form.images) : "",
-        thumbnail,
       } : {}),
+      ...photos,
     };
     try {
       setSubmitting(true);
@@ -1219,6 +1221,11 @@ export default function ItemManagementPage() {
                       : <CarImagesPicker images={form.images} onChange={(images) => setForm((f) => ({ ...f, images }))} />}
                   </div>
                 </>) : (<>
+                <div className="md:col-span-2">
+                  {loadingEdit
+                    ? <p className="text-xs text-slate-400 flex items-center gap-1.5"><RefreshCw size={11} className="animate-spin" /> {t("vehicle.loading_photos")}</p>
+                    : <CarImagesPicker label={t("items.photos")} images={form.images} onChange={(images) => setForm((f) => ({ ...f, images }))} />}
+                </div>
                 <div className="md:col-span-2">
                   <label className="block text-xs font-medium text-gray-600 mb-1">{t("items.description")}</label>
                   <input className={inputCls} placeholder={t("items.description_placeholder")} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />

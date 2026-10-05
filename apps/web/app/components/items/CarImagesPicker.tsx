@@ -8,13 +8,16 @@ import { notify } from "@/lib/dialogs";
 
 export const MAX_CAR_IMAGES = 7;
 
-/** Up to 7 car photos; the first one is the cover shown in lists. */
+/** Up to 7 photos (cars and shop products); several can be picked at once.
+ *  The first one is the cover shown in lists and stories. */
 export default function CarImagesPicker({
   images,
   onChange,
+  label,
 }: {
   images: string[];
   onChange: (imgs: string[]) => void;
+  label?: string;
 }) {
   const { t } = useLanguage();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -43,7 +46,7 @@ export default function CarImagesPicker({
   return (
     <div>
       <label className="block text-xs font-medium text-gray-600 mb-1">
-        {t("vehicle.images")}{" "}
+        {label ?? t("vehicle.images")}{" "}
         <span className="text-gray-400 font-normal">({images.length}/{MAX_CAR_IMAGES} · {t("common.optional")})</span>
       </label>
       <div className="grid grid-cols-4 sm:grid-cols-7 gap-2">

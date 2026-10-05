@@ -158,7 +158,8 @@ class _DashboardScreenState extends State<DashboardScreen> with LiveListener {
         final r = await Future.wait([
           s.api.get('$p/summary', query: {'threshold': '${s.lowStock}'}),
           s.api.get('$p/stock-alerts', query: {'threshold': '${s.lowStock}'}),
-          s.api.get(p, query: {'page': '1', 'limit': '10'}),
+          // Newest first: enough for every item added in the last 3 days (stories).
+          s.api.get(p, query: {'page': '1', 'limit': '60'}),
           if (s.isCar) ...[
             s.api.get(p, query: {'page': '1', 'limit': '10', 'status': 'pending'}),
             s.api.get(p, query: {'page': '1', 'limit': '40', 'status': 'penalties'}),
@@ -367,7 +368,7 @@ class _DashboardScreenState extends State<DashboardScreen> with LiveListener {
           height: 202,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
-            itemCount: _newest.length,
+            itemCount: _newest.length.clamp(0, 10),
             separatorBuilder: (_, __) => const SizedBox(width: 8),
             itemBuilder: (context, i) => _ArrivalCard(
               key: ValueKey(_newest[i]['id']),

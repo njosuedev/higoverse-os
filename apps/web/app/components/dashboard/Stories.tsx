@@ -4,7 +4,10 @@
 // a row of tall cards, one per topic, with a blue ring until watched; a
 // click plays every vehicle or item of that topic full screen, then the
 // next topic. Car companies: traffic fines and cars awaiting transfer.
-// Shops: sold out, running low, best sellers this week, new stock.
+// Shops: sold out, running low, best sellers this week. Both: everything
+// added in the last 3 days (FRESH_DAYS), like posts. Photos are the sharp
+// cover (640 px in the row, 1280 px in the viewer), never the 160 px
+// list thumbnail, and the viewer keeps the photo clear of its card.
 // Each story has one clear action (receive stock, sell, record the fine,
 // finish the transfer) and "View".
 
@@ -27,6 +30,7 @@ interface Group { kind: Kind; stories: Story[] }
 const ORDER: Kind[] = ["fines", "pending", "soldOut", "low", "best", "fresh"];
 const PLAY_MS = 8000;
 const SEEN_KEY = "hgv_story_seen";
+const FRESH_DAYS = 3;
 
 const LOOK: Record<Kind, { icon: typeof Car; color: string; title: string }> = {
   fines:   { icon: ShieldAlert,    color: "#e41e3f", title: "story.fines" },
@@ -37,6 +41,7 @@ const LOOK: Record<Kind, { icon: typeof Car; color: string; title: string }> = {
   fresh:   { icon: Sparkles,       color: "#0866ff", title: "story.fresh" },
 };
 const isCarKind = (k: Kind) => k === "fines" || k === "pending";
+const titleKey = (k: Kind, car: boolean) => (k === "fresh" && car ? "story.fresh_car" : LOOK[k].title);
 const num = (v: unknown) => (typeof v === "number" ? v : Number(v) || 0);
 const attrs = (it: Item): Record<string, string> => {
   try { return typeof it.attributes === "string" ? JSON.parse(it.attributes) : ((it.attributes as Record<string, string>) || {}); } catch { return {}; }
@@ -55,6 +60,14 @@ function readSeen(): string[] {
 }
 function writeSeen(ids: string[]) {
   try { localStorage.setItem(SEEN_KEY, JSON.stringify(ids.slice(-400))); } catch { /* storage blocked */ }
+}
+
+/** Everything added in the last FRESH_DAYS days, newest first (lists are). */
+function addedRecently(list: Item[]): Story[] {
+  const since = Date.now() - FRESH_DAYS * 86400000;
+  return list
+    .filter((p) => p.created_at && new Date(String(p.created_at)).getTime() > since)
+    .map((item) => ({ kind: "fresh" as Kind, item }));
 }
 
 function ymd(d: Date) {
@@ -82,22 +95,23 @@ export default function Stories() {
       try {
         let gs: Group[];
         if (isCar) {
-          const [fined, pending] = await Promise.all([
+          const [fined, pending, newest] = await Promise.all([
             itemRequest("/products?page=1&limit=40&status=penalties").catch(() => null),
             itemRequest("/products?page=1&limit=20&status=pending").catch(() => null),
+            itemRequest("/products?page=1&limit=60").catch(() => null),
           ]);
           gs = [
             { kind: "fines", stories: items(fined).map((item) => ({ kind: "fines" as Kind, item })) },
             { kind: "pending", stories: items(pending).map((item) => ({ kind: "pending" as Kind, item })) },
+            { kind: "fresh", stories: addedRecently(items(newest)) },
           ];
         } else {
           const now = new Date();
           const from = new Date(now); from.setDate(now.getDate() - 6);
-          const week = Date.now() - 7 * 86400000;
           const [alerts, top, newest] = await Promise.all([
             itemRequest(`/products/stock-alerts?threshold=${lowStock}`).catch(() => null),
             saleRequest(`/sales/top-products?limit=5&from_date=${ymd(from)}&to_date=${ymd(now)}`).catch(() => null),
-            itemRequest("/products?page=1&limit=10").catch(() => null),
+            itemRequest("/products?page=1&limit=60").catch(() => null),
           ]);
           const a = items(alerts).sort((x, y) => num(x.quantity) - num(y.quantity)).slice(0, 12);
           gs = [
@@ -105,16 +119,14 @@ export default function Stories() {
             { kind: "low", stories: a.filter((p) => num(p.quantity) > 0).map((item) => ({ kind: "low" as Kind, item })) },
             { kind: "best", stories: items(top).filter((p) => num(p.qty_sold) > 0)
                 .map((p) => ({ kind: "best" as Kind, item: { ...p, id: String(p.product_id), name: String(p.product_name ?? "") } })) },
-            { kind: "fresh", stories: items(newest)
-                .filter((p) => num(p.quantity) > 0 && p.created_at && new Date(String(p.created_at)).getTime() > week)
-                .map((item) => ({ kind: "fresh" as Kind, item })) },
+            { kind: "fresh", stories: addedRecently(items(newest)) },
           ];
         }
         gs = gs.filter((g) => g.stories.length > 0);
         if (!alive) return;
         setGroups(gs);
-        // Photos: lists without one (alerts, best sellers) get the item's cover.
-        const ids = [...new Set(gs.flatMap((g) => g.stories).filter((s) => !s.item.thumbnail).map((s) => s.item.id))].slice(0, 30);
+        // Sharp photos: every story's cover (lists only carry a 160 px thumbnail).
+        const ids = [...new Set(gs.flatMap((g) => g.stories).map((s) => s.item.id))].slice(0, 30);
         if (ids.length) {
           const r = await itemRequest(`/products/covers?ids=${ids.join(",")}&size=640`).catch(() => null);
           if (alive && r?.data) setCovers(r.data as Record<string, string>);
@@ -140,15 +152,15 @@ export default function Stories() {
   }, []);
 
   if (sorted.length === 0) return null;
-  const photo = (it: Item) => (it.thumbnail as string) || covers[it.id] || "";
+  const photo = (it: Item) => covers[it.id] || (it.thumbnail as string) || "";
 
   return (
     <>
-      <Tray groups={sorted} photo={photo} groupSeen={groupSeen} onOpen={setOpen} t={t} />
+      <Tray groups={sorted} photo={photo} groupSeen={groupSeen} onOpen={setOpen} t={t} car={isCar} />
       {open !== null && (
         <Viewer
           groups={sorted} start={open} photo={photo} isSeen={isSeen} markSeen={markSeen}
-          onClose={() => setOpen(null)} t={t} lowStock={lowStock}
+          onClose={() => setOpen(null)} t={t} lowStock={lowStock} car={isCar}
         />
       )}
     </>
@@ -156,8 +168,8 @@ export default function Stories() {
 }
 
 // ── The row of cards ─────────────────────────────────────────────────────
-function Tray({ groups, photo, groupSeen, onOpen, t }: {
-  groups: Group[]; photo: (it: Item) => string; groupSeen: (g: Group) => boolean; onOpen: (i: number) => void; t: (k: string) => string;
+function Tray({ groups, photo, groupSeen, onOpen, t, car }: {
+  groups: Group[]; photo: (it: Item) => string; groupSeen: (g: Group) => boolean; onOpen: (i: number) => void; t: (k: string) => string; car: boolean;
 }) {
   const row = useRef<HTMLDivElement>(null);
   const [edge, setEdge] = useState({ left: false, right: false });
@@ -178,17 +190,17 @@ function Tray({ groups, photo, groupSeen, onOpen, t }: {
         {groups.map((g, i) => {
           const first = g.stories[0];
           const n = g.stories.length;
-          const sub = n === 1 ? first.item.name : t(isCarKind(g.kind) ? "story.n_cars" : "story.n_items").replace("{n}", String(n));
+          const sub = n === 1 ? first.item.name : t(car ? "story.n_cars" : "story.n_items").replace("{n}", String(n));
           const img = photo(first.item);
           return (
             <button key={g.kind} type="button" onClick={() => onOpen(i)}
               className="group relative h-[220px] w-[124px] flex-none overflow-hidden rounded-xl text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-ink"
-              aria-label={`${t(LOOK[g.kind].title)}, ${sub}`}>
-              <Backdrop kind={g.kind} src={img} className="transition-transform duration-300 group-hover:scale-[1.04]" />
+              aria-label={`${t(titleKey(g.kind, car))}, ${sub}`}>
+              <Backdrop kind={g.kind} car={car} src={img} className="transition-transform duration-300 group-hover:scale-[1.04]" />
               <span className="absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-black/80 transition-colors group-hover:bg-black/10" />
               <span className="absolute left-2 top-2"><TopicAvatar kind={g.kind} seen={groupSeen(g)} /></span>
               <span className="absolute inset-x-2.5 bottom-2.5">
-                <span className="block text-[13px] font-semibold leading-tight text-white">{t(LOOK[g.kind].title)}</span>
+                <span className="block text-[13px] font-semibold leading-tight text-white">{t(titleKey(g.kind, car))}</span>
                 <span className="mt-0.5 block truncate text-[11.5px] text-white/85">{sub}</span>
               </span>
             </button>
@@ -225,12 +237,12 @@ function TopicAvatar({ kind, seen, size = 40 }: { kind: Kind; seen: boolean; siz
   );
 }
 
-function Backdrop({ kind, src, contain, className = "" }: { kind: Kind; src: string; contain?: boolean; className?: string }) {
+function Backdrop({ kind, car, src, contain, className = "" }: { kind: Kind; car: boolean; src: string; contain?: boolean; className?: string }) {
   if (src) {
     // eslint-disable-next-line @next/next/no-img-element
     return <img src={src} alt="" className={`absolute inset-0 h-full w-full ${contain ? "object-contain" : "object-cover"} ${className}`} />;
   }
-  const Icon = isCarKind(kind) ? Car : Package;
+  const Icon = car || isCarKind(kind) ? Car : Package;
   return (
     <span className={`absolute inset-0 flex items-center justify-center ${className}`}
       style={{ background: `linear-gradient(135deg, ${LOOK[kind].color}dd, #000000cc)` }}>
@@ -240,9 +252,9 @@ function Backdrop({ kind, src, contain, className = "" }: { kind: Kind; src: str
 }
 
 // ── Full-screen viewer ───────────────────────────────────────────────────
-function Viewer({ groups, start, photo, isSeen, markSeen, onClose, t, lowStock }: {
+function Viewer({ groups, start, photo, isSeen, markSeen, onClose, t, lowStock, car }: {
   groups: Group[]; start: number; photo: (it: Item) => string; isSeen: (s: Story) => boolean; markSeen: (s: Story) => void;
-  onClose: () => void; t: (k: string) => string; lowStock: number;
+  onClose: () => void; t: (k: string) => string; lowStock: number; car: boolean;
 }) {
   const [g, setG] = useState(start);
   const [i, setI] = useState(() => Math.max(0, groups[start].stories.findIndex((s) => !isSeen(s))));
@@ -264,6 +276,29 @@ function Viewer({ groups, start, photo, isSeen, markSeen, onClose, t, lowStock }
   }, [g, i, groups]);
 
   useEffect(() => { markSeen(story); }, [story, markSeen]);
+
+  // Full-size photo (1280 px) for the story on screen; the row's 640 px one meanwhile.
+  const [big, setBig] = useState<Record<string, string>>({});
+  useEffect(() => {
+    const id = story.item.id;
+    if (big[id] !== undefined) return;
+    let alive = true;
+    itemRequest(`/products/covers?ids=${id}&size=1280`)
+      .then((r) => { if (alive) setBig((b) => ({ ...b, [id]: (r?.data as Record<string, string> | undefined)?.[id] ?? "" })); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [story, big]);
+
+  // The photo sits between the top bar and the card, so nothing covers it.
+  const card = useRef<HTMLDivElement>(null);
+  const [cardH, setCardH] = useState(180);
+  useEffect(() => {
+    const el = card.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => setCardH(el.offsetHeight));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   // The clock: fills the bar, then the next story.
   useEffect(() => {
@@ -293,11 +328,11 @@ function Viewer({ groups, start, photo, isSeen, markSeen, onClose, t, lowStock }
   }, [next, prev, onClose]);
 
   const group = groups[g];
-  const src = photo(story.item);
+  const src = big[story.item.id] || photo(story.item);
   const atStart = g === 0 && i === 0;
 
   return (
-    <div role="dialog" aria-modal="true" aria-label={t(LOOK[group.kind].title)}
+    <div role="dialog" aria-modal="true" aria-label={t(titleKey(group.kind, car))}
       className="hgv-story-viewer fixed inset-0 z-[150] flex items-center justify-center bg-[#0c1014]/95 p-4" onClick={onClose}>
       <button type="button" onClick={onClose} aria-label={t("common.close")}
         className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20">
@@ -313,8 +348,10 @@ function Viewer({ groups, start, photo, isSeen, markSeen, onClose, t, lowStock }
         {/* The story, 9:16 like Facebook's */}
         <div className="relative aspect-[9/16] h-[min(88vh,860px)] max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl bg-black text-white"
           onPointerDown={() => setHeld(true)} onPointerUp={() => setHeld(false)} onPointerLeave={() => setHeld(false)}>
-          <span className="absolute inset-0 scale-110 opacity-40 blur-2xl"><Backdrop kind={story.kind} src={src} /></span>
-          <Backdrop kind={story.kind} src={src} contain />
+          <span className="absolute inset-0 scale-110 opacity-40 blur-2xl"><Backdrop kind={story.kind} car={car} src={src} /></span>
+          <span className="absolute inset-x-0" style={{ top: 72, bottom: cardH + 20 }}>
+            <Backdrop kind={story.kind} car={car} src={src} contain />
+          </span>
 
           {/* tap zones: left third back, the rest next */}
           <button type="button" aria-hidden="true" tabIndex={-1} onClick={prev} className="absolute inset-y-0 left-0 w-1/3 cursor-default" />
@@ -331,7 +368,7 @@ function Viewer({ groups, start, photo, isSeen, markSeen, onClose, t, lowStock }
             <div className="mt-3 flex items-center gap-2.5">
               <TopicAvatar kind={group.kind} seen={false} size={38} />
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold leading-tight">{t(LOOK[group.kind].title)}</p>
+                <p className="text-sm font-semibold leading-tight">{t(titleKey(group.kind, car))}</p>
                 {group.stories.length > 1 && <p className="text-xs text-white/75">{i + 1} / {group.stories.length}</p>}
               </div>
               <button type="button" onClick={(e) => { e.stopPropagation(); setPaused((p) => !p); }}
@@ -342,7 +379,7 @@ function Viewer({ groups, start, photo, isSeen, markSeen, onClose, t, lowStock }
             </div>
           </div>
 
-          <div className="absolute inset-x-3 bottom-3" onPointerDown={(e) => e.stopPropagation()}>
+          <div ref={card} className="absolute inset-x-3 bottom-3" onPointerDown={(e) => e.stopPropagation()}>
             <StoryCard story={story} t={t} lowStock={lowStock} onAction={() => setPaused(true)} />
           </div>
         </div>
@@ -392,8 +429,10 @@ function StoryCard({ story, t, lowStock, onAction }: { story: Story; t: (k: stri
         action: { label: t("vehicle.sell"), href: `/sales?new=1&product=${it.id}` },
       };
       default: return {
-        headline: fill("story.in_stock", num(it.quantity).toLocaleString()), detail: "",
-        action: { label: t("vehicle.sell"), href: `/sales?new=1&product=${it.id}` },
+        headline: num(it.quantity) > 0 ? fill("story.in_stock", num(it.quantity).toLocaleString()) : t("story.sold"),
+        detail: it.created_at ? new Date(String(it.created_at)).toLocaleString(undefined, { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "",
+        // Added and already sold (a car, say): nothing to sell, only to look at.
+        action: num(it.quantity) > 0 ? { label: t("vehicle.sell"), href: `/sales?new=1&product=${it.id}` } : null,
       };
     }
   })();
@@ -410,10 +449,10 @@ function StoryCard({ story, t, lowStock, onAction }: { story: Story; t: (k: stri
       </p>
       {detail && <p className="mt-0.5 text-[12.5px] text-white/65">{detail}</p>}
       <div className="mt-3 flex gap-2">
-        <Link href={action.href} onClick={onAction}
+        {action && <Link href={action.href} onClick={onAction}
           className="flex h-10 flex-[3] items-center justify-center rounded-lg bg-[#0095f6] text-sm font-semibold text-white hover:bg-[#1877f2]">
           {action.label}
-        </Link>
+        </Link>}
         <Link href={`/items?open=${it.id}`} onClick={onAction}
           className="flex h-10 flex-[2] items-center justify-center rounded-lg bg-[#363636] text-sm font-semibold text-[#fafafa] hover:bg-[#262626]">
           {t("common.view")}

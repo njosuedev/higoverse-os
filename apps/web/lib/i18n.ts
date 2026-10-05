@@ -11,6 +11,9 @@ export const LANGUAGES: { code: Lang; label: string; flag: string }[] = [
 const dict: Record<Lang, Record<string, string>> = {
   // ─── ENGLISH ─────────────────────────────────────────────
   en: {
+    "story.fresh_car": "New vehicles",
+    "story.sold": "Sold",
+    "items.photos": "Photos",
     "story.title": "Stories",
     "story.fines": "Traffic fines",
     "story.pending": "Awaiting transfer",
@@ -1293,6 +1296,9 @@ const dict: Record<Lang, Record<string, string>> = {
 
   // ─── KINYARWANDA ─────────────────────────────────────────
   rw: {
+    "story.fresh_car": "Imodoka nshya",
+    "story.sold": "Byagurishijwe",
+    "items.photos": "Amafoto",
     "story.title": "Inkuru",
     "story.fines": "Amande yo mu muhanda",
     "story.pending": "Bitegereje ihererekanya",
@@ -2559,6 +2565,9 @@ const dict: Record<Lang, Record<string, string>> = {
 
   // ─── FRANÇAIS ────────────────────────────────────────────
   fr: {
+    "story.fresh_car": "Nouveaux véhicules",
+    "story.sold": "Vendu",
+    "items.photos": "Photos",
     "story.title": "Stories",
     "story.fines": "Amendes",
     "story.pending": "En attente de transfert",
@@ -3825,6 +3834,9 @@ const dict: Record<Lang, Record<string, string>> = {
 
   // ─── KISWAHILI ───────────────────────────────────────────
   sw: {
+    "story.fresh_car": "Magari mapya",
+    "story.sold": "Imeuzwa",
+    "items.photos": "Picha",
     "story.title": "Hadithi",
     "story.fines": "Faini za barabarani",
     "story.pending": "Zinasubiri uhamisho",
@@ -5091,6 +5103,9 @@ const dict: Record<Lang, Record<string, string>> = {
 
   // ─── 中文（简体） ────────────────────────────────────────
   zh: {
+    "story.fresh_car": "新车辆",
+    "story.sold": "已售出",
+    "items.photos": "照片",
     "story.title": "快拍",
     "story.fines": "交通罚款",
     "story.pending": "等待过户",
