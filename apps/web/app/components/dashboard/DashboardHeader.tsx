@@ -97,9 +97,9 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
 
   return (
     <>
-      <div className="h-[60px]" />
+      <div className="h-[52px]" />
 
-      <header className="fixed top-0 left-0 right-0 z-50 flex h-[60px] items-center justify-between border-b border-border bg-paper px-3 sm:px-4">
+      <header className="fixed top-0 left-0 right-0 z-50 flex h-[52px] items-center justify-between border-b border-border bg-paper px-3 sm:px-4">
 
         {/* ── LEFT: Logo + mobile hamburger ── */}
         <div className="flex items-center gap-1">

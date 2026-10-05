@@ -19,7 +19,7 @@
 
 const { app, BrowserWindow, Menu, shell, dialog, session, nativeTheme, ipcMain } = require("electron");
 const { autoUpdater } = require("electron-updater");
-const { parseRelease, decide, dueForCheck, isSnoozed, sha256File, mb } = require("./update-core");
+const { parseRelease, decide, dueForCheck, isSnoozed, sha256File } = require("./update-core");
 const fs = require("fs");
 const path = require("path");
 
@@ -139,6 +139,17 @@ function createWindow() {
   });
 
   win.webContents.on("context-menu", (_e, p) => buildContextMenu(p).popup({ window: win }));
+
+  // While a page loads, the taskbar button shows a moving bar (no
+  // percentage). The website draws its own bar for moves between pages;
+  // this covers full loads (starting up, reloading after an update). An
+  // update download owns the taskbar bar, so it's left alone then.
+  const pageLoading = (on) => {
+    if (!win || win.isDestroyed() || updates.stage !== "idle") return;
+    win.setProgressBar(on ? 2 : -1, { mode: on ? "indeterminate" : "none" });
+  };
+  win.webContents.on("did-start-loading", () => pageLoading(true));
+  win.webContents.on("did-stop-loading", () => pageLoading(false));
 
   win.loadURL(APP_URL);
 }
@@ -448,7 +459,8 @@ function updateView() {
       const known = updates.total > 0;
       return { title: "Updating Higoverse", sub: `Higoverse ${v}`, text: "Downloading update…",
         progress: { percent: known ? updates.percent : null,
-          figures: known ? `${updates.percent}% • ${mb(updates.received)} MB / ${mb(updates.total)} MB` : `${mb(updates.received)} MB` },
+          // A moving bar only: no percentage or megabyte count.
+          figures: "" },
         actions: required ? [] : [{ id: "hide", label: "Hide" }] };
     }
     case "verifying":
