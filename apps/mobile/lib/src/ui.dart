@@ -306,3 +306,57 @@ class Panel extends StatelessWidget {
     );
   }
 }
+
+/// An unread count the way Facebook draws it: white bold figures on its red,
+/// a pill that grows with the number ("99+" at most), set apart from the
+/// icon by a ring in the bar's colour. Nothing at 0.
+class CountBadge extends StatelessWidget {
+  const CountBadge({super.key, required this.count, this.ring});
+  final int count;
+
+  /// The colour behind the badge (default: the page's).
+  final Color? ring;
+
+  @override
+  Widget build(BuildContext context) {
+    if (count <= 0) return const SizedBox.shrink();
+    return Container(
+      constraints: const BoxConstraints(minWidth: 20, minHeight: 20),
+      padding: const EdgeInsets.symmetric(horizontal: 5),
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: notifyRed,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: ring ?? Hgv.of(context).chrome, width: 2),
+      ),
+      child: Text(count > 99 ? '99+' : '$count',
+          style: const TextStyle(color: Colors.white, fontSize: 11, height: 1.1, fontWeight: FontWeight.w800)),
+    );
+  }
+}
+
+/// "Something new here" without a number: a small red dot (Instagram puts it
+/// under the tab's icon).
+class NewDot extends StatelessWidget {
+  const NewDot({super.key, this.size = 6});
+  final double size;
+
+  @override
+  Widget build(BuildContext context) =>
+      Container(width: size, height: size, decoration: const BoxDecoration(shape: BoxShape.circle, color: notifyRed));
+}
+
+/// [child] with [CountBadge] over its top-right corner.
+class WithCount extends StatelessWidget {
+  const WithCount({super.key, required this.count, required this.child, this.dx = -8, this.dy = -7, this.ring});
+  final int count;
+  final Widget child;
+  final double dx, dy;
+  final Color? ring;
+
+  @override
+  Widget build(BuildContext context) => Stack(clipBehavior: Clip.none, children: [
+        child,
+        if (count > 0) Positioned(right: dx, top: dy, child: CountBadge(count: count, ring: ring)),
+      ]);
+}

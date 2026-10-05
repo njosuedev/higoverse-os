@@ -120,7 +120,7 @@ class RoundIconButton extends StatelessWidget {
       message: tooltip,
       child: Semantics(
         button: true,
-        label: tooltip,
+        label: badge > 0 ? '$tooltip, $badge' : tooltip,
         child: Material(
           color: c.paper,
           shape: const CircleBorder(),
@@ -131,12 +131,10 @@ class RoundIconButton extends StatelessWidget {
             child: SizedBox(
               width: 44,
               height: 44,
-              child: Badge(
-                isLabelVisible: badge > 0,
-                offset: const Offset(4, -4),
-                label: Text(badge > 99 ? '99+' : '$badge'),
-                child: Center(child: Icon(icon, size: 21, color: c.text)),
-              ),
+              child: Stack(clipBehavior: Clip.none, children: [
+                Center(child: Icon(icon, size: 22, color: c.text)),
+                if (badge > 0) Positioned(right: -5, top: -4, child: CountBadge(count: badge)),
+              ]),
             ),
           ),
         ),

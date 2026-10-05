@@ -5,6 +5,11 @@ import 'package:flutter/services.dart';
 /// light and a dark set. Few colours on purpose: neutrals, the brand blue,
 /// and success / warning / danger only for status. Read them with `Hgv.of(context)`, so screens follow
 /// the current appearance (System / Light / Dark).
+/// Facebook's notification red (its `--notification-badge`, the same in
+/// light and dark): every unread count and "something new" dot, and nothing
+/// else — errors keep [Hgv.danger].
+const notifyRed = Color(0xFFE41E3F);
+
 @immutable
 class Hgv extends ThemeExtension<Hgv> {
   const Hgv({
@@ -200,7 +205,7 @@ ThemeData buildTheme(Brightness brightness) {
       surfaceTintColor: Colors.transparent,
       shape: RoundedRectangleBorder(side: sheetSide, borderRadius: const BorderRadius.vertical(top: Radius.circular(16))),
     ),
-    badgeTheme: BadgeThemeData(backgroundColor: c.danger, textColor: Colors.white),
+    badgeTheme: const BadgeThemeData(backgroundColor: notifyRed, textColor: Colors.white),
     dialogTheme: DialogThemeData(
       backgroundColor: c.surface,
       surfaceTintColor: Colors.transparent,

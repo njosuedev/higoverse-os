@@ -5,10 +5,11 @@ import 'i18n.dart';
 import 'media.dart';
 import 'session.dart';
 import 'theme.dart';
+import 'ui.dart';
 
 /// One tab of [BottomBar].
 class NavItem {
-  const NavItem({required this.label, this.icon, this.activeIcon, this.logoName, this.logoUrl, this.badge = 0});
+  const NavItem({required this.label, this.icon, this.activeIcon, this.logoName, this.logoUrl, this.badge = 0, this.dot = false});
   final String label;
   final IconData? icon, activeIcon;
 
@@ -16,8 +17,11 @@ class NavItem {
   /// icon (the Menu tab).
   final String? logoName, logoUrl;
 
-  /// Unread count shown on the icon (hidden at 0).
+  /// Unread count on the icon, in Facebook's red (hidden at 0).
   final int badge;
+
+  /// Something new to look at, without a number: a red dot under the icon.
+  final bool dot;
 }
 
 /// The top of the signed-in app: the Higoverse logo and name beside search
@@ -68,9 +72,10 @@ class TopBar extends StatelessWidget {
   }
 }
 
-/// The tabs, fixed at the bottom: icon and label, a blue line over the open
-/// one and red counts for what's new. Fills the gesture bar's safe area in
-/// the same colour.
+/// The tabs, fixed at the bottom like Instagram's: icons only (outlined,
+/// filled when open; the name is read out and shown on a long press), a
+/// red count for what's new (Facebook's red) or a red dot under the icon.
+/// It stays put: the keyboard covers it instead of pushing it up.
 class BottomBar extends StatelessWidget {
   const BottomBar({super.key, required this.items, required this.index, required this.onTap});
   final List<NavItem> items;
@@ -88,7 +93,7 @@ class BottomBar extends StatelessWidget {
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           Divider(height: 1, thickness: 0.6, color: c.border),
           SizedBox(
-            height: 54,
+            height: 52,
             child: Row(children: [
               for (var i = 0; i < items.length; i++)
                 Expanded(child: _Tab(item: items[i], selected: i == index, onTap: () => onTap(i))),
@@ -109,69 +114,51 @@ class _Tab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = Hgv.of(context);
-    // Every tab's picture sits in the same 26px box, so the labels line up.
-    Widget icon = SizedBox.square(
-      dimension: 26,
+    // Every tab's picture sits in the same 28px box, so they line up.
+    final Widget icon = SizedBox.square(
+      dimension: 28,
       child: Center(
         child: item.logoName != null
+            // The business logo, ringed in the text colour when open (as
+            // Instagram rings the profile picture).
             ? Container(
-                padding: const EdgeInsets.all(1),
+                padding: const EdgeInsets.all(1.5),
                 decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: selected ? c.ink : Colors.transparent, width: 1.5)),
-                child: ShopLogo(name: item.logoName!, url: item.logoUrl, size: 21),
+                    borderRadius: BorderRadius.circular(9),
+                    border: Border.all(color: selected ? c.text : Colors.transparent, width: 1.5)),
+                child: ShopLogo(name: item.logoName!, url: item.logoUrl, size: 22),
               )
-            : Icon(selected ? (item.activeIcon ?? item.icon) : item.icon, size: 25, color: selected ? c.ink : c.muted),
+            : Icon(selected ? (item.activeIcon ?? item.icon) : item.icon, size: 27, color: c.text),
       ),
     );
-    if (item.badge > 0) {
-      icon = Badge(
-        backgroundColor: c.danger,
-        offset: const Offset(9, -6),
-        label: Text(item.badge > 99 ? '99+' : '${item.badge}', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800)),
-        child: icon,
-      );
-    }
+    final label = [
+      item.label,
+      if (item.badge > 0) '${item.badge}',
+      if (item.dot && item.badge == 0) T.of(context)('nav.new'),
+    ].join(', ');
     return Semantics(
       selected: selected,
       button: true,
-      label: item.badge > 0 ? '${item.label}, ${item.badge}' : item.label,
+      label: label,
       excludeSemantics: true,
       child: Tooltip(
         message: item.label,
-        child: InkWell(
+        triggerMode: TooltipTriggerMode.longPress,
+        child: InkResponse(
+          radius: 28,
           onTap: () {
             HapticFeedback.selectionClick();
             onTap();
           },
-          child: Stack(children: [
-            Center(
-              child: Column(mainAxisSize: MainAxisSize.min, children: [
-                icon,
-                const SizedBox(height: 3),
-                Text(item.label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
-                        color: selected ? c.ink : c.muted)),
-              ]),
-            ),
-            Positioned(
-              left: 18,
-              right: 18,
-              top: 0,
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                height: 3,
-                decoration: BoxDecoration(
-                  color: selected ? c.ink : Colors.transparent,
-                  borderRadius: const BorderRadius.vertical(bottom: Radius.circular(3)),
-                ),
-              ),
-            ),
-          ]),
+          child: Center(
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              const SizedBox(height: 8),
+              WithCount(count: item.badge, dx: -10, dy: -6, child: icon),
+              const SizedBox(height: 4),
+              // The dot's place is kept, so icons don't move when it shows.
+              SizedBox(height: 6, child: item.dot && item.badge == 0 ? const NewDot() : null),
+            ]),
+          ),
         ),
       ),
     );

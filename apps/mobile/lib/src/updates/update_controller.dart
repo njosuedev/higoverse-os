@@ -43,6 +43,10 @@ class AppUpdates extends ChangeNotifier {
   UpdateStage stage = UpdateStage.idle;
   ReleaseInfo? release;
   UpdateKind kind = UpdateKind.none;
+
+  /// A newer version of the app is published (Android installs that update
+  /// from Higoverse).
+  bool get updateAvailable => kind != UpdateKind.none && release != null;
   int received = 0;
   int? total;
   DownloadError? error;
@@ -107,9 +111,11 @@ class AppUpdates extends ChangeNotifier {
         if (manual) _snack(T.of(_ctx!)('upd.latest_v', {'v': info.version}));
         return;
       }
-      if (k == UpdateKind.optional && !manual && await _snooze.isSnoozed(r!.versionCode)) return;
+      // Known even when put off with "Later": the Menu tab keeps a red dot.
       release = r;
       kind = k;
+      notifyListeners();
+      if (k == UpdateKind.optional && !manual && await _snooze.isSnoozed(r!.versionCode)) return;
       if (stage == UpdateStage.ready && _apk != null) {
         _showProgress();
       } else {

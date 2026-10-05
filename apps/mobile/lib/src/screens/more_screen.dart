@@ -208,12 +208,22 @@ class MoreScreen extends StatelessWidget {
                 if (!Platform.isAndroid) {
                   return ListTile(leading: const Icon(Icons.info_outline), title: Text(version));
                 }
-                return ListTile(
-                  leading: const Icon(Icons.system_update_outlined),
-                  title: Text(t('acc.check_updates')),
-                  subtitle: Text(version),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () => AppUpdates.instance.check(manual: true),
+                return ListenableBuilder(
+                  listenable: AppUpdates.instance,
+                  builder: (context, _) {
+                    final u = AppUpdates.instance;
+                    return ListTile(
+                      leading: const Icon(Icons.system_update_outlined),
+                      title: Text(u.updateAvailable ? t('acc.update_ready', {'v': u.release!.version}) : t('acc.check_updates'),
+                          style: u.updateAvailable ? const TextStyle(fontWeight: FontWeight.w700) : null),
+                      subtitle: Text(version),
+                      trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                        if (u.updateAvailable) ...[const NewDot(size: 9), const SizedBox(width: 8)],
+                        const Icon(Icons.chevron_right),
+                      ]),
+                      onTap: () => u.check(manual: true),
+                    );
+                  },
                 );
               },
             ),

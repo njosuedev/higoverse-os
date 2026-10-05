@@ -16,6 +16,7 @@ import '../session.dart';
 import '../nav_bar.dart';
 import '../sheets.dart';
 import '../theme.dart';
+import '../updates/update_controller.dart';
 import 'activity_screen.dart';
 import 'dashboard_screen.dart';
 import 'more_screen.dart';
@@ -53,6 +54,9 @@ class _HomeShellState extends State<HomeShell> {
   /// New since the tab was last opened: sales (Sales tab), fines,
   /// transfers and stock alerts (Vehicles/Stock tab).
   int _newSales = 0, _newStock = 0;
+
+  /// Something happened while another tab was open: a red dot on Home.
+  bool _newHome = false;
 
   /// A context below the live/feed scopes, for pages opened from a
   /// notification tap.
@@ -115,6 +119,7 @@ class _HomeShellState extends State<HomeShell> {
 
   void _openTab(int i) => setState(() {
         _tab = i;
+        if (i == 0) _newHome = false;
         if (i == 1) _newStock = 0;
         if (i == 2) _newSales = 0;
       });
@@ -157,6 +162,7 @@ class _HomeShellState extends State<HomeShell> {
       // stock alerts on Vehicles/Stock.
       if ((item.kind == ActivityKind.sale || item.kind == ActivityKind.debtNew) && _tab != 2) _newSales++;
       if ((item.kind.isStockAlert || item.kind.isVehicleAlert) && _tab != 1) _newStock++;
+      if (_tab != 0) _newHome = true;
     });
     final settings = AppSettingsScope.of(context);
     if (_activityOpen || !AppNotifier.wanted(item, settings)) return;
@@ -204,6 +210,34 @@ class _HomeShellState extends State<HomeShell> {
         child: Builder(builder: (context) {
           _scoped = context;
           return Scaffold(
+            // Fixed like Instagram's: the keyboard covers the tabs instead of
+            // pushing them up over the page.
+            bottomNavigationBar: ListenableBuilder(
+              listenable: AppUpdates.instance,
+              builder: (context, _) => BottomBar(
+                index: _tab,
+                onTap: _openTab,
+                items: [
+                  NavItem(
+                      label: t('nav.home'), icon: Icons.home_outlined, activeIcon: Icons.home_rounded, dot: _newHome && _tab != 0),
+                  NavItem(
+                    label: s.isCar ? t('nav.vehicles') : t('nav.stock'),
+                    icon: s.isCar ? Icons.directions_car_outlined : Icons.inventory_2_outlined,
+                    activeIcon: s.isCar ? Icons.directions_car_rounded : Icons.inventory_2_rounded,
+                    badge: _newStock,
+                  ),
+                  NavItem(
+                      label: t('nav.sales'), icon: Icons.receipt_long_outlined, activeIcon: Icons.receipt_long_rounded, badge: _newSales),
+                  // The business: a red dot while a new version of the app waits.
+                  NavItem(
+                    label: t('nav.menu'),
+                    logoName: s.shop?.name ?? s.user?.name ?? '?',
+                    logoUrl: s.shop?.logoUrl,
+                    dot: AppUpdates.instance.updateAvailable,
+                  ),
+                ],
+              ),
+            ),
             body: Stack(children: [
               Column(children: [
                 TopBar(
@@ -222,22 +256,6 @@ class _HomeShellState extends State<HomeShell> {
                       const MoreScreen(),
                     ]),
                   ),
-                ),
-                BottomBar(
-                  index: _tab,
-                  onTap: _openTab,
-                  items: [
-                    NavItem(label: t('nav.home'), icon: Icons.home_outlined, activeIcon: Icons.home_rounded),
-                    NavItem(
-                      label: s.isCar ? t('nav.vehicles') : t('nav.stock'),
-                      icon: s.isCar ? Icons.directions_car_outlined : Icons.inventory_2_outlined,
-                      activeIcon: s.isCar ? Icons.directions_car_rounded : Icons.inventory_2_rounded,
-                      badge: _newStock,
-                    ),
-                    NavItem(
-                        label: t('nav.sales'), icon: Icons.receipt_long_outlined, activeIcon: Icons.receipt_long_rounded, badge: _newSales),
-                    NavItem(label: t('nav.menu'), logoName: s.shop?.name ?? s.user?.name ?? '?', logoUrl: s.shop?.logoUrl),
-                  ],
                 ),
               ]),
               _BannerHost(item: _banner, onTap: _openBanner, onDismiss: () => setState(() => _banner = null)),
