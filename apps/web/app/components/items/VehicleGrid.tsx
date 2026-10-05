@@ -2,14 +2,16 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Car, Clock, Pencil, ShieldAlert, ShieldCheck, ShieldQuestion, ShoppingCart, UserCheck, UserX, X } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Car, Clock, Pencil, ShieldAlert, ShieldCheck, ShieldQuestion, ShoppingCart, UserCheck, UserX, Wallet, X } from "lucide-react";
 import { itemRequest } from "@/lib/product-api";
+import { saleRequest } from "@/lib/sale-api";
 import { loadCustomers, type Customer } from "@/lib/supplier-api";
 import { useLanguage } from "@/lib/language-context";
 import { askConfirm, notify } from "@/lib/dialogs";
 import {
-  carTypeLabel, daysSince, parseAttributes, stringifyAttributes, vehicleStatus,
-  PENALTY_RECHECK_DAYS, type Attributes,
+  carTypeLabel, daysSince, depositSummary, parseAttributes, parseDeposits, stringifyAttributes, vehicleStatus,
+  DEPOSIT_METHODS, PENALTY_RECHECK_DAYS, type Attributes, type Deposit,
 } from "@/lib/business-layout";
 
 export interface Vehicle {
@@ -33,21 +35,49 @@ interface Props {
 }
 
 const today = () => new Date().toISOString().slice(0, 10);
+const money = (n: number) => Number(n || 0).toLocaleString();
 
 /** Re-read the vehicle and merge changes into its attributes, so a status
  *  update never overwrites details someone else just edited. Empty values
- *  remove a field. */
-async function patchAttributes(id: string, changes: Attributes) {
-  const fresh = await itemRequest(`/products/${id}`);
-  const merged = { ...parseAttributes(fresh?.data?.attributes), ...changes };
+ *  remove a field. `changes` may be computed from the fresh attributes. */
+async function patchAttributes(id: string, changes: Attributes | ((fresh: Attributes) => Attributes)) {
+  const fresh = parseAttributes((await itemRequest(`/products/${id}`))?.data?.attributes);
+  const merged = { ...fresh, ...(typeof changes === "function" ? changes(fresh) : changes) };
   await itemRequest(`/products/${id}`, { method: "PUT", body: JSON.stringify({ attributes: stringifyAttributes(merged) }) });
+  return merged;
 }
 
-const CLEAR_PENDING: Attributes = { sale_status: "", buyer_name: "", buyer_phone: "", buyer_id_no: "", pending_since: "", pending_at: "", pending_note: "" };
+const CLEAR_PENDING: Attributes = {
+  sale_status: "", buyer_name: "", buyer_phone: "", buyer_id_no: "", pending_since: "", pending_at: "", pending_note: "",
+  buyer_customer_id: "", agreed_price: "", deposits: "",
+};
+
+/** Record the sale of a fully paid pending car to the customer it's reserved
+ *  for, at the agreed price; sale-service takes it out of stock. False when
+ *  the reservation has no customer record (older ones): sell it by hand. */
+async function sellPaidCar(v: Vehicle, a: Attributes, note: string): Promise<boolean> {
+  if (!a.buyer_customer_id) return false;
+  const deposits = parseDeposits(a);
+  // The sale carries one payment method: the one most of the money came by.
+  const byMethod: Record<string, number> = {};
+  deposits.forEach((d) => { byMethod[d.method] = (byMethod[d.method] ?? 0) + d.amount; });
+  const method = Object.entries(byMethod).sort((x, y) => y[1] - x[1])[0]?.[0] ?? "cash";
+  const { price } = depositSummary(a, v.selling_price);
+  await saleRequest("/sales", {
+    method: "POST",
+    body: JSON.stringify({
+      product_id: v.id, customer_id: a.buyer_customer_id, quantity: 1, unit_price: price,
+      payment_method: method, amount_paid: price, notes: `${note} (${deposits.length})`,
+    }),
+  });
+  return true;
+}
 
 export default function VehicleGrid({ vehicles, currency, onOpenGallery, onEdit, onChanged, autoForm }: Props) {
   const { t } = useLanguage();
+  const router = useRouter();
   const [pendingFor, setPendingFor] = useState<Vehicle | null>(null);
+  const [depositFor, setDepositFor] = useState<Vehicle | null>(null);
   const [penaltyFor, setPenaltyFor] = useState<Vehicle | null>(null);
 
   // A link asked for this car's form: open it once, as soon as the car is
@@ -61,14 +91,30 @@ export default function VehicleGrid({ vehicles, currency, onOpenGallery, onEdit,
       const a = parseAttributes(v.attributes);
       if (autoForm.form === "fines") setPenaltyFor(v);
       else if (v.quantity > 0 && a.sale_status !== "pending") setPendingFor(v);
+      else if (v.quantity > 0) setDepositFor(v);
     }
   }
 
   async function release(v: Vehicle) {
-    const ok = await askConfirm({ title: t("vehicle.release_title"), message: t("vehicle.release_confirm"), confirmLabel: t("vehicle.release") });
+    const { paid } = depositSummary(parseAttributes(v.attributes), v.selling_price);
+    const message = paid > 0
+      ? `${t("vehicle.release_confirm")} ${t("vehicle.release_confirm_deposits")} ${money(paid)} ${currency}.`
+      : t("vehicle.release_confirm");
+    const ok = await askConfirm({ title: t("vehicle.release_title"), message, confirmLabel: t("vehicle.release"), danger: paid > 0 });
     if (!ok) return;
     try { await patchAttributes(v.id, CLEAR_PENDING); notify(t("vehicle.released"), "success"); onChanged(); }
     catch { notify(t("items.update_failed")); }
+  }
+
+  /** A paid-up car whose sale wasn't recorded yet (or failed): record it. */
+  async function completeSale(v: Vehicle) {
+    try {
+      const a = parseAttributes((await itemRequest(`/products/${v.id}`))?.data?.attributes);
+      if (!(await sellPaidCar(v, a, t("vehicle.deposit_sale_note")))) {
+        notify(t("vehicle.no_buyer_customer")); router.push(`/sales?new=1&product=${v.id}`); return;
+      }
+      notify(t("vehicle.paid_sold"), "success"); onChanged();
+    } catch { notify(t("vehicle.sale_failed")); }
   }
 
   return (
@@ -82,20 +128,26 @@ export default function VehicleGrid({ vehicles, currency, onOpenGallery, onEdit,
             onGallery={() => onOpenGallery(v)}
             onEdit={() => onEdit(v)}
             onPending={() => setPendingFor(v)}
+            onDeposit={() => setDepositFor(v)}
+            onCompleteSale={() => completeSale(v)}
             onRelease={() => release(v)}
             onPenalties={() => setPenaltyFor(v)}
           />
         ))}
       </div>
-      {pendingFor && <PendingForm v={pendingFor} onClose={() => setPendingFor(null)} onSaved={() => { setPendingFor(null); onChanged(); }} />}
+      {pendingFor && <PendingForm v={pendingFor} currency={currency} onClose={() => setPendingFor(null)} onSaved={() => { setPendingFor(null); onChanged(); }} />}
+      {depositFor && <DepositForm v={depositFor} currency={currency} onClose={() => setDepositFor(null)}
+        onSaved={() => { setDepositFor(null); onChanged(); }}
+        onSellByHand={() => { setDepositFor(null); onChanged(); router.push(`/sales?new=1&product=${depositFor.id}`); }} />}
       {penaltyFor && <PenaltyForm v={penaltyFor} onClose={() => setPenaltyFor(null)} onSaved={() => { setPenaltyFor(null); onChanged(); }} />}
     </>
   );
 }
 
-function VehicleCard({ v, currency, onGallery, onEdit, onPending, onRelease, onPenalties }: {
+function VehicleCard({ v, currency, onGallery, onEdit, onPending, onDeposit, onCompleteSale, onRelease, onPenalties }: {
   v: Vehicle; currency: string;
-  onGallery: () => void; onEdit: () => void; onPending: () => void; onRelease: () => void; onPenalties: () => void;
+  onGallery: () => void; onEdit: () => void; onPending: () => void; onDeposit: () => void;
+  onCompleteSale: () => void; onRelease: () => void; onPenalties: () => void;
 }) {
   const { t } = useLanguage();
   const a = parseAttributes(v.attributes);
@@ -103,6 +155,7 @@ function VehicleCard({ v, currency, onGallery, onEdit, onPending, onRelease, onP
   const meta = [a.year, a.color, a.car_type ? carTypeLabel(t, a.car_type) : ""].filter(Boolean).join(" · ");
   const ids = [a.plate_no, a.chassis_no].filter(Boolean).join(" · ");
   const pendingDays = daysSince(a.pending_since);
+  const pay = depositSummary(a, v.selling_price);
 
   const STATUS = {
     available: { label: t("vehicle.status_available"), cls: "bg-success text-white" },
@@ -111,6 +164,7 @@ function VehicleCard({ v, currency, onGallery, onEdit, onPending, onRelease, onP
   }[status];
 
   const sub = [a.year, a.color, a.plate_no].filter(Boolean).join(" · ");
+  const mainBtn = "flex h-8 min-w-0 flex-1 items-center justify-center gap-1 rounded-full px-2 text-xs font-semibold text-white";
 
   return (
     <article className={`flex flex-col overflow-hidden rounded-data border border-border bg-white transition hover:border-border-strong hover:shadow-[0_6px_18px_-10px_rgb(0_0_0_/_0.25)] ${status === "sold" ? "opacity-75" : ""}`}>
@@ -131,26 +185,39 @@ function VehicleCard({ v, currency, onGallery, onEdit, onPending, onRelease, onP
         <h3 className="truncate text-sm font-semibold text-text" title={[v.name, meta, ids].filter(Boolean).join(" · ")}>{v.name}</h3>
         {sub && <p className="truncate text-xs text-text-muted">{sub}</p>}
         <p className="hgv-figure mt-0.5 text-sm font-bold text-text">
-          {Number(v.selling_price || 0).toLocaleString()} <span className="text-[11px] font-medium text-text-muted">{currency}</span>
+          {money(status === "pending" ? pay.price : v.selling_price)} <span className="text-[11px] font-medium text-text-muted">{currency}</span>
         </p>
-        {status === "pending" && (
+        {status === "pending" && (<>
           <p className="mt-0.5 flex min-w-0 items-center gap-1 text-xs font-semibold text-warning"
             title={[t("vehicle.pending_docs"), a.buyer_name, a.buyer_phone, a.buyer_id_no && `${t("vehicle.id_short")}: ${a.buyer_id_no}`, a.pending_note].filter(Boolean).join(" · ")}>
             <Clock size={12} className="shrink-0" />
             <span className="truncate">{a.buyer_name || t("vehicle.pending_docs")}</span>
             {pendingDays !== null && <span className="shrink-0 font-normal text-text-muted">· {pendingDays} {t("vehicle.days")}</span>}
           </p>
-        )}
+          <PaidBar paid={pay.paid} price={pay.price} />
+          <p className="hgv-figure truncate text-[11px] text-text-muted" title={`${t("vehicle.balance")}: ${money(pay.balance)} ${currency}`}>
+            {pay.full ? t("vehicle.fully_paid") : <>{money(pay.paid)} {t("vehicle.paid_of")} {money(pay.price)}</>}
+          </p>
+        </>)}
       </div>
 
       {/* Actions: one compact row */}
       <div className="flex items-center gap-1 border-t border-border px-2 py-1.5">
-        {status !== "sold" ? (
-          <Link href={`/sales?new=1&product=${v.id}`} title={status === "pending" ? t("vehicle.complete_sale") : t("vehicle.sell")}
-            className="flex h-8 min-w-0 flex-1 items-center justify-center gap-1 rounded-full bg-ink px-2 text-xs font-semibold text-white hover:bg-ink-dark">
+        {status === "available" && (
+          <Link href={`/sales?new=1&product=${v.id}`} title={t("vehicle.sell")} className={`${mainBtn} bg-ink hover:bg-ink-dark`}>
             <ShoppingCart size={13} className="shrink-0" /> <span className="truncate">{t("vehicle.sell")}</span>
           </Link>
-        ) : <span className="flex-1" />}
+        )}
+        {status === "pending" && (pay.full ? (
+          <button type="button" onClick={onCompleteSale} title={t("vehicle.complete_sale")} className={`${mainBtn} bg-ink hover:bg-ink-dark`}>
+            <ShoppingCart size={13} className="shrink-0" /> <span className="truncate">{t("vehicle.complete_sale")}</span>
+          </button>
+        ) : (
+          <button type="button" onClick={onDeposit} title={t("vehicle.add_deposit")} className={`${mainBtn} bg-warning hover:opacity-90`}>
+            <Wallet size={13} className="shrink-0" /> <span className="truncate">{t("vehicle.add_deposit")}</span>
+          </button>
+        ))}
+        {status === "sold" && <span className="flex-1" />}
         {status === "available" && (
           <IconBtn onClick={onPending} label={t("vehicle.mark_pending")} className="hover:text-warning"><UserCheck size={15} /></IconBtn>
         )}
@@ -160,6 +227,15 @@ function VehicleCard({ v, currency, onGallery, onEdit, onPending, onRelease, onP
         <IconBtn onClick={onEdit} label={t("common.edit")} className="hover:text-ink"><Pencil size={14} /></IconBtn>
       </div>
     </article>
+  );
+}
+
+function PaidBar({ paid, price }: { paid: number; price: number }) {
+  const pct = price > 0 ? Math.min(100, Math.round((paid / price) * 100)) : 0;
+  return (
+    <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-paper-dim" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
+      <div className="h-full rounded-full bg-warning" style={{ width: `${pct}%` }} />
+    </div>
   );
 }
 
@@ -222,7 +298,7 @@ const inputCls = "w-full rounded-lg border border-border-strong bg-white px-3 py
 const labelCls = "mb-1 block text-sm font-medium text-text";
 const readOnlyCls = "truncate rounded-lg border border-border bg-paper-dim px-3 py-2.5 text-[15px] text-text";
 
-function PendingForm({ v, onClose, onSaved }: { v: Vehicle; onClose: () => void; onSaved: () => void }) {
+function PendingForm({ v, currency, onClose, onSaved }: { v: Vehicle; currency: string; onClose: () => void; onSaved: () => void }) {
   const { t } = useLanguage();
   const a = parseAttributes(v.attributes);
   // Plate and chassis identify the car and come from its record; they're
@@ -233,6 +309,9 @@ function PendingForm({ v, onClose, onSaved }: { v: Vehicle; onClose: () => void;
   // The buyer is always one of the saved customers (added in Customers).
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [customerId, setCustomerId] = useState("");
+  const [price, setPrice] = useState(String(v.selling_price || ""));
+  const [deposit, setDeposit] = useState("");
+  const [method, setMethod] = useState<string>("cash");
   const [note, setNote] = useState("");
   const [tried, setTried] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -252,11 +331,17 @@ function PendingForm({ v, onClose, onSaved }: { v: Vehicle; onClose: () => void;
     setTried(true);
     if (!buyer) { notify(t("buyer.pick_required")); return; }
     if (buyerIncomplete) { notify(t("buyer.incomplete")); return; }
+    const total = Number(price), first = Number(deposit || 0);
+    if (!(total > 0)) { notify(t("vehicle.price_invalid")); return; }
+    if (!(first >= 0)) { notify(t("vehicle.deposit_invalid")); return; }
+    if (first >= total) { notify(t("vehicle.deposit_is_full")); return; }
+    const deposits: Deposit[] = first > 0 ? [{ amount: first, method, date: today(), at: new Date().toISOString() }] : [];
     setSaving(true);
     try {
       await patchAttributes(v.id, {
-        sale_status: "pending", buyer_name: buyer.name.trim(), buyer_phone: (buyer.phone ?? "").trim(),
+        sale_status: "pending", buyer_customer_id: buyer.id, buyer_name: buyer.name.trim(), buyer_phone: (buyer.phone ?? "").trim(),
         buyer_id_no: (buyer.id_number ?? "").trim(), pending_note: note.trim(), pending_since: today(), pending_at: new Date().toISOString(),
+        agreed_price: String(total), deposits: deposits.length ? JSON.stringify(deposits) : "",
       });
       notify(t("vehicle.marked_pending"), "success");
       onSaved();
@@ -302,8 +387,115 @@ function PendingForm({ v, onClose, onSaved }: { v: Vehicle; onClose: () => void;
         </dl>
       )}
       {buyerIncomplete && <p className="text-xs font-semibold text-accent">{t("buyer.incomplete")}</p>}
+      <p className="pt-1 text-xs font-bold uppercase tracking-wide text-text-muted">{t("vehicle.section_payment")}</p>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:items-end">
+        <div><label className={labelCls}>{t("vehicle.agreed_price")} ({currency}) <span className="text-accent">*</span></label>
+          <input type="number" min="0" className={`${inputCls} hgv-figure`} value={price} onChange={(e) => setPrice(e.target.value)} /></div>
+        <div><label className={labelCls}>{t("vehicle.first_deposit")} ({currency})</label>
+          <input type="number" min="0" className={`${inputCls} hgv-figure`} value={deposit} onChange={(e) => setDeposit(e.target.value)} placeholder="0" /></div>
+      </div>
+      {Number(deposit) > 0 && <MethodPicker value={method} onChange={setMethod} />}
       <div><label className={labelCls}>{t("vehicle.pending_note")}</label>
         <input className={inputCls} value={note} onChange={(e) => setNote(e.target.value)} placeholder={t("vehicle.pending_note_placeholder")} /></div>
+      <p className="rounded-lg bg-paper-dim px-3 py-2 text-xs text-text-muted">{t("vehicle.fines_still_yours")}</p>
+    </Sheet>
+  );
+}
+
+function MethodPicker({ value, onChange }: { value: string; onChange: (m: string) => void }) {
+  const { t } = useLanguage();
+  return (
+    <div><span className={labelCls}>{t("vehicle.deposit_method")}</span>
+      <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label={t("vehicle.deposit_method")}>
+        {DEPOSIT_METHODS.map((m) => (
+          <button key={m} type="button" role="radio" aria-checked={value === m} onClick={() => onChange(m)}
+            className={`h-8 rounded-full border px-3 text-xs font-semibold ${value === m ? "border-ink bg-ink text-white" : "border-border-strong text-text hover:bg-paper-dim"}`}>
+            {t(`sales.pm_${m}`)}
+          </button>
+        ))}
+      </div></div>
+  );
+}
+
+/** Add a deposit to a pending car. The one that completes the price records
+ *  the sale to the reserved customer, which takes the car out of stock. */
+function DepositForm({ v, currency, onClose, onSaved, onSellByHand }: {
+  v: Vehicle; currency: string; onClose: () => void; onSaved: () => void; onSellByHand: () => void;
+}) {
+  const { t } = useLanguage();
+  const a = parseAttributes(v.attributes);
+  const pay = depositSummary(a, v.selling_price);
+  const history = parseDeposits(a);
+  const [amount, setAmount] = useState("");
+  const [method, setMethod] = useState<string>("cash");
+  const [date, setDate] = useState(today());
+  const [saving, setSaving] = useState(false);
+  const n = Number(amount);
+  const final = n > 0 && n >= pay.balance;
+
+  async function save() {
+    if (!(n > 0) || n > pay.balance) { notify(t("vehicle.deposit_invalid")); return; }
+    setSaving(true);
+    try {
+      let tooBig = false;
+      const merged = await patchAttributes(v.id, (fresh) => {
+        // Someone may have added a deposit meanwhile: check against the latest.
+        if (n > depositSummary(fresh, v.selling_price).balance) { tooBig = true; return {}; }
+        return { deposits: JSON.stringify([...parseDeposits(fresh), { amount: n, method, date, at: new Date().toISOString() }]) };
+      });
+      if (tooBig) { notify(t("vehicle.deposit_invalid")); onSaved(); return; }
+      if (!depositSummary(merged, v.selling_price).full) { notify(t("vehicle.deposit_saved"), "success"); onSaved(); return; }
+      try {
+        if (await sellPaidCar(v, merged, t("vehicle.deposit_sale_note"))) { notify(t("vehicle.paid_sold"), "success"); onSaved(); }
+        else { notify(t("vehicle.no_buyer_customer")); onSellByHand(); }
+      } catch { notify(t("vehicle.sale_failed")); onSaved(); }
+    } catch { notify(t("items.update_failed")); }
+    finally { setSaving(false); }
+  }
+
+  return (
+    <Sheet title={t("vehicle.add_deposit")} subtitle={[v.name, a.plate_no, a.buyer_name].filter(Boolean).join(" · ")} onClose={onClose}
+      footer={<>
+        <button onClick={onClose} className="h-10 rounded-full border border-border-strong px-5 text-sm font-semibold text-text hover:bg-paper-dim">{t("common.cancel")}</button>
+        <button onClick={save} disabled={saving} className={`h-10 rounded-full px-5 text-sm font-semibold text-white disabled:opacity-50 ${final ? "bg-ink hover:bg-ink-dark" : "bg-warning hover:opacity-90"}`}>
+          {t(final ? "vehicle.record_final" : "vehicle.add_deposit")}
+        </button>
+      </>}>
+      <dl className="grid grid-cols-3 gap-2 text-center">
+        {([["vehicle.agreed_price", pay.price], ["vehicle.paid", pay.paid], ["vehicle.balance", pay.balance]] as const).map(([k, val]) => (
+          <div key={k} className="rounded-lg bg-paper-dim px-2 py-2">
+            <dt className="text-[11px] font-medium text-text-muted">{t(k)}</dt>
+            <dd className="hgv-figure truncate text-sm font-bold text-text">{money(val)}</dd>
+          </div>
+        ))}
+      </dl>
+      <PaidBar paid={pay.paid} price={pay.price} />
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:items-end">
+        <div><label className={labelCls}>{t("vehicle.deposit_amount")} ({currency}) <span className="text-accent">*</span></label>
+          <input autoFocus type="number" min="0" max={pay.balance} className={`${inputCls} hgv-figure`} value={amount}
+            onChange={(e) => setAmount(e.target.value)} placeholder={money(pay.balance)} /></div>
+        <div><label className={labelCls}>{t("vehicle.deposit_date")}</label>
+          <input type="date" className={inputCls} value={date} max={today()} onChange={(e) => setDate(e.target.value)} /></div>
+      </div>
+      <button type="button" onClick={() => setAmount(String(pay.balance))} className="text-xs font-semibold text-ink hover:underline">
+        {t("vehicle.pay_balance")} ({money(pay.balance)} {currency})
+      </button>
+      <MethodPicker value={method} onChange={setMethod} />
+      {final && <p className="rounded-lg border border-ink/30 bg-ink/5 px-3 py-2 text-xs font-semibold text-text">{t("vehicle.final_payment_hint")}</p>}
+      <div>
+        <p className="text-xs font-bold uppercase tracking-wide text-text-muted">{t("vehicle.deposits_title")}</p>
+        {history.length === 0 ? <p className="mt-1 text-sm text-text-muted">{t("vehicle.no_deposits")}</p> : (
+          <ul className="mt-1 divide-y divide-border rounded-lg border border-border">
+            {history.map((d, i) => (
+              <li key={`${d.at}-${i}`} className="flex items-center justify-between gap-2 px-3 py-1.5 text-sm">
+                <span className="text-text-muted">{d.date} · {t(`sales.pm_${d.method}`)}</span>
+                <span className="hgv-figure font-semibold text-text">{money(d.amount)}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+      <p className="rounded-lg bg-paper-dim px-3 py-2 text-xs text-text-muted">{t("vehicle.fines_still_yours")}</p>
     </Sheet>
   );
 }

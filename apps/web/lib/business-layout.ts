@@ -58,9 +58,30 @@ export function duplicateVehicle(err: unknown): { field: string; name: string } 
 // vehicle cards, not the main form). Sold is derived from quantity = 0.
 export type VehicleStatusField =
   | "sale_status" | "buyer_name" | "buyer_phone" | "buyer_id_no" | "pending_since" | "pending_at" | "pending_note"
+  // A pending car is paid for in deposits: the agreed price, the customer it's
+  // reserved for (the sale goes to them), and every deposit as JSON text.
+  | "buyer_customer_id" | "agreed_price" | "deposits"
   | "penalty_count" | "penalty_amount" | "penalty_checked" | "penalty_saved_at";
 
 export type Attributes = Partial<Record<VehicleField | VehicleStatusField, string>>;
+
+export const DEPOSIT_METHODS = ["cash", "mtn", "airtel", "bank", "card"] as const;
+
+export interface Deposit { amount: number; method: string; date: string; at: string; }
+
+export function parseDeposits(a: Attributes): Deposit[] {
+  try {
+    const v = JSON.parse(a.deposits || "[]");
+    return Array.isArray(v) ? v.filter((d) => d && Number(d.amount) > 0).map((d) => ({ ...d, amount: Number(d.amount) })) : [];
+  } catch { return []; }
+}
+
+/** What the buyer has paid so far, what they owe in total, and what's left. */
+export function depositSummary(a: Attributes, sellingPrice: number) {
+  const price = Number(a.agreed_price) > 0 ? Number(a.agreed_price) : Number(sellingPrice) || 0;
+  const paid = parseDeposits(a).reduce((s, d) => s + d.amount, 0);
+  return { price, paid, balance: Math.max(0, price - paid), full: price > 0 && paid >= price };
+}
 
 export type VehicleStatus = "available" | "pending" | "sold";
 
