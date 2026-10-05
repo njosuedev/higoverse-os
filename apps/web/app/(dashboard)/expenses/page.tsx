@@ -807,11 +807,11 @@ export default function ExpenseManagementPage() {
                 <Upload size={10} /> {t("common.import")}
               </button>
               <button onClick={exportExcel} title={t("common.export_excel_title")}
-                className="flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium border border-green-200 text-green-600 bg-white hover:bg-green-50 transition">
+                className="flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 transition">
                 <FileSpreadsheet size={10} /> Excel
               </button>
               <button onClick={exportPDF} title={t("common.export_pdf_title")}
-                className="flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium border border-red-200 text-red-600 bg-white hover:bg-red-50 transition">
+                className="flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 transition">
                 <FileText size={10} /> PDF
               </button>
             </div>
@@ -880,7 +880,7 @@ export default function ExpenseManagementPage() {
                       {/* Payment Method */}
                       <td className="px-2.5 py-1 whitespace-nowrap">
                         {e.payment_method === "mtn" && (
-                          <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[11px] font-semibold bg-yellow-100 text-yellow-700">MTN MoMo</span>
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[11px] font-semibold bg-slate-100 text-slate-700">MTN MoMo</span>
                         )}
                         {e.payment_method === "bank" && (
                           <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[11px] font-semibold bg-blue-100 text-blue-700">{t("common.bank")}</span>
@@ -905,7 +905,7 @@ export default function ExpenseManagementPage() {
                       <td className="px-2.5 py-1">
                         {e.has_proof ? (
                           <button onClick={() => openProofViewer(e.id)} title={t("expenses.view_proof_title")}
-                            className="flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-emerald-50 hover:bg-emerald-100 text-emerald-600 transition text-[11px] font-medium">
+                            className="flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-[#EBF2FD] hover:bg-[#D5E8FB] text-[#0a66c2] transition text-[11px] font-medium">
                             <Paperclip size={9} /> {t("common.view")}
                           </button>
                         ) : (
@@ -914,7 +914,7 @@ export default function ExpenseManagementPage() {
                       </td>
                       <td className="px-2.5 py-1">
                         <button onClick={() => deleteExpense(e.id)} disabled={deletingId === e.id}
-                          className="p-0.5 rounded bg-red-50 hover:bg-red-100 text-red-500 transition disabled:opacity-40">
+                          className="p-0.5 rounded text-slate-500 hover:bg-red-50 hover:text-red-600 transition disabled:opacity-40">
                           <Trash2 size={10} />
                         </button>
                       </td>
@@ -1030,7 +1030,7 @@ export default function ExpenseManagementPage() {
                 {/* header */}
                 <div className="flex items-center justify-between px-5 py-3 border-b border-slate-100 shrink-0">
                   <div className="flex items-center gap-2 text-sm font-semibold text-slate-700">
-                    <Paperclip size={14} className="text-emerald-500" />
+                    <Paperclip size={14} className="text-slate-500" />
                     {t("expenses.proof_viewer_title")}
                     {viewingProofs.length > 1 && (
                       <span className="text-xs font-normal text-slate-400 ml-1">
@@ -1064,7 +1064,7 @@ export default function ExpenseManagementPage() {
                       <button key={i} onClick={() => setViewerIndex(i)}
                         className={`shrink-0 w-14 h-14 rounded-lg border-2 overflow-hidden flex items-center justify-center transition ${i === viewerIndex ? "border-[#0a66c2] shadow" : "border-slate-200 hover:border-slate-400"}`}>
                         {f.type === "application/pdf" ? (
-                          <FileIcon size={20} className="text-red-400" />
+                          <FileIcon size={20} className="text-slate-500" />
                         ) : (
                           <img src={f.data} alt={f.name} className="w-full h-full object-cover" />
                         )}
@@ -1148,12 +1148,9 @@ export default function ExpenseManagementPage() {
                         onClick={() => setForm({ ...form, payment_method: m, bank_name: "", bank_account: "", receiver_phone: "" })}
                         className={`flex-1 py-1 rounded-md text-[11px] font-semibold border transition-all ${
                           form.payment_method === m
-                            ? m === "mtn"  ? "bg-yellow-400 border-yellow-400 text-white"
-                            : m === "bank" ? "border-[#0a66c2] text-white"
-                            : "bg-slate-200 border-slate-200 text-slate-700"
-                            : "bg-white border-slate-200 text-slate-400 hover:border-slate-300"
-                        }`}
-                        style={form.payment_method === m && m === "bank" ? { background: "#0a66c2" } : {}}>
+                            ? "bg-[#0a66c2] border-[#0a66c2] text-white"
+                            : "bg-white border-slate-200 text-slate-600 hover:border-slate-300"
+                        }`}>
                         {m === "" ? t("common.none") : m === "mtn" ? "MTN MoMo" : t("common.bank")}
                       </button>
                     ))}
@@ -1203,7 +1200,7 @@ export default function ExpenseManagementPage() {
                         <div key={idx} className="relative rounded-md border border-slate-200 bg-slate-50 overflow-hidden">
                           {entry.preview === "pdf" ? (
                             <div className="flex flex-col items-center justify-center gap-0.5 py-1.5 px-1">
-                              <FileIcon size={14} className="text-red-400" />
+                              <FileIcon size={14} className="text-slate-500" />
                               <span className="text-[7px] text-slate-500 truncate w-full text-center">{entry.name}</span>
                             </div>
                           ) : (

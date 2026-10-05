@@ -29,9 +29,11 @@
     @media (prefers-color-scheme: dark) {
       :root { --ink: #4a9eed; --text: #e8eaed; --muted: #c4c8ce; --paper: #111317; --border: #2c3138; }
       .card { background: #1b1e23; box-shadow: 0 8px 30px -12px rgb(0 0 0 / 0.6); }
-      button:hover { background: #7cb9f2; }
+      /* white label on the deep blue: the light link blue is ~2.9:1 */
+      button { background: #0a66c2; }
+      button:hover { background: #0d74db; }
     }
-    small { display: block; margin-top: 14px; color: #888; font-size: 12px; }
+    small { display: block; margin-top: 14px; color: var(--muted); font-size: 12px; }
   </style>
 </head>
 <body>

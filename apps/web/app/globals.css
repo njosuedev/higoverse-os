@@ -39,6 +39,13 @@
   --color-gray-300: #6b7280;
   --color-gray-400: #4b5563;
   --color-gray-500: #374151;
+  /* The status shades pages use for small text, icons and white-on-colour
+     buttons are darkened the same way: Tailwind's red-500 (#ef4444),
+     green-600 (#16a34a) and amber-600 (#d97706) read at only 2–4:1 on white.
+     These are ≥4.5:1 on white and on the page colour (WCAG AA). */
+  --color-red-400: #d0393f;   --color-red-500: #c4161c;   --color-red-600: #b01217;
+  --color-green-400: #24804e; --color-green-500: #147a46; --color-green-600: #056a3b;
+  --color-amber-400: #a8670a; --color-amber-500: #966007; --color-amber-600: #855005;
   --color-accent: #cc1016;
   --color-accent-dark: #a30d12;
   --color-accent-soft: #fdeced;
@@ -457,7 +464,10 @@ html[data-theme="dark"] {
   --color-blue-50: #12233a;   --color-blue-100: #16304f;  --color-blue-200: #1d4370;
   --color-blue-600: #6aaef5;  --color-blue-700: #8cc1f7;  --color-blue-800: #a9d1fa;
   --color-green-50: #10261a;  --color-green-100: #143321; --color-green-200: #1c4a2f;
+  --color-green-400: #6fd59d; --color-green-500: #4cc985;
   --color-green-600: #4cc985; --color-green-700: #6fd59d; --color-green-800: #94e2b6;
+  --color-amber-400: #f0c270; --color-amber-500: #e8b04f;
+  --color-red-400: #f58c90;   --color-red-500: #f26b70;
   --color-amber-50: #2b2010;  --color-amber-100: #3a2b12; --color-amber-200: #523c17;
   --color-amber-600: #e8b04f; --color-amber-700: #f0c270; --color-amber-800: #f5d392;
   --color-red-50: #2e1416;    --color-red-100: #3e181b;   --color-red-200: #5a2125;
@@ -495,6 +505,13 @@ html[data-theme="dark"] :is(.bg-ink, .bg-ink-dark, .bg-blue-500, .bg-blue-600, .
   background-color: var(--btn-primary-hover) !important;
 }
 html[data-theme="dark"] .bg-ink.text-paper { color: #ffffff; }
+/* Same for white labels on a status fill (car status badges, danger and
+   confirm buttons): the dark theme's light status colours would leave white
+   text at ~2:1, so these keep a deep fill. */
+html[data-theme="dark"] :is(.bg-accent, .bg-red-500, .bg-red-600, .bg-red-700).text-white { background-color: #b01217 !important; }
+html[data-theme="dark"] :is(.bg-success, .bg-green-500, .bg-green-600, .bg-green-700, .bg-emerald-600).text-white { background-color: #056a3b !important; }
+html[data-theme="dark"] :is(.bg-warning, .bg-amber-500, .bg-amber-600).text-white { background-color: #855005 !important; }
+html[data-theme="dark"] .bg-text-muted.text-white { background-color: #363636 !important; }
 html[data-theme="dark"] .hgv-search:hover,
 html[data-theme="dark"] .hgv-filter:hover { border-color: var(--color-border-strong); }
 /* Page-header actions (Add, New, Export, Save on Sales, Expenses, Reports,

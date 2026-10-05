@@ -760,7 +760,7 @@ export default function ItemManagementPage() {
               <span className="font-bold">{alertItems.length}</span> {t("items.restock_alert")} ·{" "}
               <span className="text-amber-600">{alertItems.slice(0, 3).map((i) => i.name).join(", ")}{alertItems.length > 3 ? ` +${alertItems.length - 3} ${t("items.more")}` : ""}</span>
             </p>
-            {!isCar && <Link href="/PurchaseManagement"
+            {!isCar && <Link href="/purchases"
               className="text-[11px] font-bold text-amber-700 bg-amber-100 hover:bg-amber-200 px-2 py-0.5 rounded-md shrink-0 transition">
               {t("items.purchase_short")}
             </Link>}
@@ -887,7 +887,7 @@ export default function ItemManagementPage() {
                 onClick={exportExcel}
                 disabled={exporting}
                 title={t("common.export_excel_hint")}
-                className="flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-2 py-0.5 rounded transition"
+                className="flex items-center gap-1 text-[11px] font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 px-2 py-0.5 rounded transition"
               >
                 <FileSpreadsheet size={11} /> Excel
               </button>
@@ -895,7 +895,7 @@ export default function ItemManagementPage() {
                 onClick={exportPDF}
                 disabled={exporting}
                 title={t("common.export_pdf_hint")}
-                className="flex items-center gap-1 text-[11px] font-semibold text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 px-2 py-0.5 rounded transition"
+                className="flex items-center gap-1 text-[11px] font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 px-2 py-0.5 rounded transition"
               >
                 <FileText size={11} /> PDF
               </button>
@@ -943,14 +943,16 @@ export default function ItemManagementPage() {
                   const margin      = p.cost_price > 0 ? ((p.selling_price - p.cost_price) / p.cost_price) * 100 : 0;
                   const needsRestock = p.quantity <= lowStock;
                   const isOutOfStock = p.quantity === 0;
-                  const restockUrl  = `/PurchaseManagement?name=${encodeURIComponent(p.name)}&cost=${p.cost_price}&selling=${p.selling_price}&supplierId=${p.supplier_id || ""}`;
+                  // Said in words too, not by colour alone.
+                  const stockLabel = isOutOfStock ? t("items.out_stock") : needsRestock ? t("items.low_stock") : t("items.in_stock");
+                  const restockUrl  = `/purchases?name=${encodeURIComponent(p.name)}&cost=${p.cost_price}&selling=${p.selling_price}&supplierId=${p.supplier_id || ""}`;
                   const rowNum      = (page - 1) * pageSize + idx + 1;
 
                   return (
                     <tr
                       key={p.id}
                       className={`group border-b border-slate-50 transition-colors last:border-0
-                        ${isOutOfStock ? "bg-red-50/30" : needsRestock ? "bg-amber-50/20" : "hover:bg-slate-50/70"}`}
+                        hover:bg-slate-50/70`}
                     >
                       {/* Row number */}
                       <td className="px-3 py-1.5 text-[11px] text-slate-300 tabular-nums">{rowNum}</td>
@@ -997,7 +999,9 @@ export default function ItemManagementPage() {
                           </td>
                           <td className="px-3 py-1.5 text-center">
                             <span className={`inline-flex items-center justify-center min-w-[1.5rem] px-1.5 py-0.5 rounded text-[11px] font-bold tabular-nums
-                              ${isOutOfStock ? "bg-red-100 text-red-700" : needsRestock ? "bg-amber-100 text-amber-700" : "bg-green-100 text-green-700"}`}>
+                              ${isOutOfStock ? "bg-red-100 text-red-700" : needsRestock ? "bg-amber-100 text-amber-700" : "bg-slate-100 text-slate-700"}`}
+                              title={stockLabel} aria-label={`${stockLabel}: ${p.quantity}`}>
+                              {(isOutOfStock || needsRestock) && <AlertCircle size={9} className="mr-0.5 shrink-0" aria-hidden />}
                               {p.quantity}
                             </span>
                           </td>
@@ -1027,9 +1031,7 @@ export default function ItemManagementPage() {
                       {/* Margin */}
                       <td className="px-3 py-1.5 text-center">
                         <span className={`inline-block text-[11px] font-bold px-1.5 py-0.5 rounded tabular-nums
-                          ${margin >= 20 ? "bg-green-100 text-green-700"
-                          : margin >= 0  ? "bg-blue-50 text-[#0a66c2]"
-                          :               "bg-red-100 text-red-600"}`}>
+                          ${margin < 0 ? "bg-red-100 text-red-700" : "bg-slate-100 text-slate-700"}`}>
                           {margin >= 0 ? "+" : ""}{margin.toFixed(1)}%
                         </span>
                       </td>
@@ -1039,7 +1041,9 @@ export default function ItemManagementPage() {
                         <span className={`inline-flex items-center justify-center min-w-[1.5rem] px-1.5 py-0.5 rounded text-[11px] font-bold tabular-nums
                           ${isOutOfStock  ? "bg-red-100 text-red-700"
                           : needsRestock  ? "bg-amber-100 text-amber-700"
-                          :                "bg-green-100 text-green-700"}`}>
+                          :                "bg-slate-100 text-slate-700"}`}
+                          title={stockLabel} aria-label={`${stockLabel}: ${p.quantity}`}>
+                          {(isOutOfStock || needsRestock) && <AlertCircle size={9} className="mr-0.5 shrink-0" aria-hidden />}
                           {p.quantity}
                         </span>
                       </td>
@@ -1047,8 +1051,8 @@ export default function ItemManagementPage() {
                       {/* Status */}
                       <td className="hidden lg:table-cell px-3 py-2.5 text-center">
                         <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[11px] font-semibold
-                          ${isProfit ? "bg-green-50 text-green-700 border border-green-200"
-                          :           "bg-red-50 text-red-600 border border-red-200"}`}>
+                          ${isProfit ? "bg-slate-50 text-slate-700 border border-slate-200"
+                          :           "bg-red-50 text-red-700 border border-red-200"}`}>
                           {isProfit
                             ? <TrendingUp size={9} strokeWidth={2.5} />
                             : <TrendingDown size={9} strokeWidth={2.5} />}
@@ -1058,14 +1062,14 @@ export default function ItemManagementPage() {
 
                       {/* Unit profit */}
                       <td className="hidden lg:table-cell px-3 py-2.5 text-right">
-                        <span className={`text-xs font-semibold tabular-nums ${isProfit ? "text-green-600" : "text-red-500"}`}>
+                        <span className={`text-xs font-semibold tabular-nums ${isProfit ? "text-slate-800" : "text-red-600"}`}>
                           {isProfit ? "+" : ""}{Number(p.profit_money || 0).toLocaleString()}
                         </span>
                       </td>
 
                       {/* Total profit */}
                       <td className="px-3 py-1.5 text-right">
-                        <span className={`text-xs font-bold tabular-nums ${isProfit ? "text-green-600" : "text-red-500"}`}>
+                        <span className={`text-xs font-bold tabular-nums ${isProfit ? "text-slate-800" : "text-red-600"}`}>
                           {isProfit ? "+" : ""}{totalProfit.toLocaleString()}
                         </span>
                       </td>
@@ -1089,30 +1093,30 @@ export default function ItemManagementPage() {
 
                       {/* Actions */}
                       <td className="px-3 py-1.5">
-                        <div className="flex items-center justify-center gap-1 opacity-60 group-hover:opacity-100 transition-opacity">
+                        <div className="flex items-center justify-center gap-1">
                           {isCar ? (
                             <button onClick={() => { setStockInItem(p); setStockInQty(""); }} title={t("items.stock_in")}
-                              className="p-1 rounded bg-green-50 hover:bg-green-100 text-green-700 transition">
+                              className="p-1 rounded text-slate-500 hover:bg-slate-100 hover:text-slate-900 transition">
                               <PackagePlus size={11} />
                             </button>
                           ) : needsRestock && (
                             <Link href={restockUrl} title={t("purchases.restock")}
-                              className="p-1 rounded bg-amber-50 hover:bg-amber-100 text-amber-600 transition">
+                              className="p-1 rounded text-slate-500 hover:bg-slate-100 hover:text-slate-900 transition">
                               <RefreshCw size={11} />
                             </Link>
                           )}
                           {p.quantity > 0 && (
                             <Link href={`/sales?new=1&product=${p.id}`} title={t("vehicle.sell")}
-                              className="p-1 rounded bg-[#0a66c2] hover:opacity-90 text-white transition">
+                              className="p-1 rounded text-[#0a66c2] hover:bg-blue-50 transition">
                               <ShoppingCart size={11} />
                             </Link>
                           )}
                           <button onClick={() => openEditModal(p)} title={t("common.edit")}
-                            className="p-1 rounded bg-[#EBF2FD] hover:bg-[#D5E8FB] text-[#0a66c2] transition">
+                            className="p-1 rounded text-slate-500 hover:bg-slate-100 hover:text-slate-900 transition">
                             <Pencil size={11} />
                           </button>
                           <button onClick={() => deleteProduct(p.id)} disabled={deletingId === p.id} title={t("common.delete")}
-                            className="p-1 rounded bg-red-50 hover:bg-red-100 text-red-500 transition disabled:opacity-40">
+                            className="p-1 rounded text-slate-500 hover:bg-red-50 hover:text-red-600 transition disabled:opacity-40">
                             <Trash2 size={11} />
                           </button>
                         </div>
@@ -1171,13 +1175,13 @@ export default function ItemManagementPage() {
                 </div>
                 <p className="text-xs text-slate-500">
                   {t("items.stock_in_current")}: <span className="font-semibold tabular-nums">{stockInItem.quantity}</span>
-                  {Number(stockInQty) > 0 && <> → <span className="font-bold text-green-700 tabular-nums">{stockInItem.quantity + Number(stockInQty)}</span></>}
+                  {Number(stockInQty) > 0 && <> → <span className="font-bold text-slate-900 tabular-nums">{stockInItem.quantity + Number(stockInQty)}</span></>}
                 </p>
               </div>
               <div className="flex justify-end gap-2.5 px-5 py-4 border-t border-slate-100">
                 <button onClick={() => setStockInItem(null)} className="px-4 py-2 rounded-lg border border-slate-200 text-slate-600 text-sm font-medium hover:bg-slate-50 transition">{t("common.cancel")}</button>
                 <button onClick={submitStockIn} disabled={stockingIn || !(Number(stockInQty) > 0)}
-                  className="px-5 py-2 rounded-lg bg-green-600 text-white text-sm font-semibold hover:bg-green-700 transition disabled:opacity-60">
+                  className="px-5 py-2 rounded-lg bg-[#0a66c2] text-white text-sm font-semibold hover:bg-[#004182] transition disabled:opacity-60">
                   {stockingIn ? t("common.saving") : t("items.stock_in")}
                 </button>
               </div>
@@ -1229,7 +1233,7 @@ export default function ItemManagementPage() {
                 </div>
                 {form.cost_price && form.selling_price && (
                   <div className="md:col-span-2 bg-slate-50 rounded-lg px-3 py-2 text-xs text-slate-500">
-                    {t("items.margin_label")}: <span className={`font-bold ${Number(form.selling_price) >= Number(form.cost_price) ? "text-green-600" : "text-red-500"}`}>
+                    {t("items.margin_label")}: <span className={`font-bold ${Number(form.selling_price) >= Number(form.cost_price) ? "text-slate-900" : "text-red-600"}`}>
                       {Number(form.cost_price) > 0 ? (((Number(form.selling_price) - Number(form.cost_price)) / Number(form.cost_price)) * 100).toFixed(1) : 0}%
                     </span>{" · "}{t("items.col_unit_profit")}: <span className="font-bold text-slate-700">{(Number(form.selling_price) - Number(form.cost_price)).toLocaleString()}</span>
                   </div>

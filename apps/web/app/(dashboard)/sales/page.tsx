@@ -832,11 +832,11 @@ ${paymentHtml}
                 <Upload size={10} /> {t("common.import")}
               </button>
               <button onClick={exportSalesExcel} title={t("sales.export_excel_tooltip")}
-                className="flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium border border-green-200 text-green-600 bg-white hover:bg-green-50 transition">
+                className="flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 transition">
                 <FileSpreadsheet size={10} /> Excel
               </button>
               <button onClick={exportSalesPDF} title={t("sales.export_pdf_tooltip")}
-                className="flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium border border-red-200 text-red-600 bg-white hover:bg-red-50 transition">
+                className="flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 transition">
                 <FileText size={10} /> PDF
               </button>
             </div>
@@ -900,7 +900,7 @@ ${paymentHtml}
                     <td className="px-3 py-2 font-medium text-slate-700 tabular-nums">{s.quantity}</td>
                     <td className="px-3 py-2 text-slate-600 tabular-nums">{s.unit_price.toLocaleString()}</td>
                     <td className="px-3 py-2 font-semibold text-slate-800 tabular-nums">{s.total_amount.toLocaleString()}</td>
-                    {prof && <td className={`px-3 py-2 tabular-nums ${isProfit ? "text-green-600" : "text-red-500"}`}>
+                    {prof && <td className={`px-3 py-2 tabular-nums ${isProfit ? "text-slate-900" : "text-red-600"}`}>
                       <span className="font-semibold">{isProfit ? "+" : ""}{(s.profit || 0).toLocaleString()}</span>
                       {s.total_amount > 0 && (
                         <span className="block text-[11px] font-normal opacity-60">
@@ -920,7 +920,7 @@ ${paymentHtml}
                           <Pencil size={14} />
                         </button>
                         <button onClick={() => deleteSale(s.id)} disabled={deletingId === s.id}
-                          className="p-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 transition disabled:opacity-40">
+                          className="p-1.5 rounded-lg text-slate-500 hover:bg-red-50 hover:text-red-600 transition disabled:opacity-40">
                           <Trash2 size={14} />
                         </button>
                       </div>
@@ -936,7 +936,7 @@ ${paymentHtml}
                   <tr className="bg-slate-50 border-t-2 border-slate-200 text-xs font-semibold text-slate-500">
                     <td className="px-4 py-2" colSpan={6}>{t("sales.subtotal_label")} · {filtered.length} {t("sales.sales_word")}</td>
                     <td className="px-4 py-2 tabular-nums text-slate-700">{fRev.toLocaleString()}</td>
-                    {prof && <td className={`px-4 py-2 tabular-nums ${fProfit >= 0 ? "text-green-600" : "text-red-500"}`}>
+                    {prof && <td className={`px-4 py-2 tabular-nums ${fProfit >= 0 ? "text-slate-900" : "text-red-600"}`}>
                       {fProfit >= 0 ? "+" : ""}{fProfit.toLocaleString()}
                       <span className="block text-[11px] font-normal opacity-70">{fMargin.toFixed(1)}% {t("sales.margin_suffix")}</span>
                     </td>}
@@ -990,7 +990,7 @@ ${paymentHtml}
             <div className="px-5 py-8 text-center text-xs text-slate-400">{t("sales.loading_debts")}</div>
           ) : debts.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-slate-400">
-              <CheckCircle2 size={32} className="mb-2 text-green-300" />
+              <CheckCircle2 size={32} className="mb-2 text-slate-300" />
               <p className="text-sm font-medium text-slate-500">{t("sales.no_debts")}</p>
             </div>
           ) : (
@@ -1005,7 +1005,7 @@ ${paymentHtml}
                         <div className="flex items-center gap-2 flex-wrap">
                           <p className="font-semibold text-slate-800 text-sm">{d.debtor_name}</p>
                           {d.is_paid
-                            ? <span className="text-[11px] font-semibold bg-green-100 text-green-700 border border-green-200 px-1.5 py-0.5 rounded">{t("sales.paid_badge")}</span>
+                            ? <span className="text-[11px] font-semibold bg-slate-100 text-slate-700 border border-slate-200 px-1.5 py-0.5 rounded">{t("sales.paid_badge")}</span>
                             : <span className="text-[11px] font-semibold bg-amber-100 text-amber-700 border border-amber-200 px-1.5 py-0.5 rounded">{t("sales.pending_badge")}</span>
                           }
                         </div>
@@ -1018,7 +1018,7 @@ ${paymentHtml}
                         )}
                         <div className="mt-2.5 flex items-center gap-2.5">
                           <div className="flex-1 bg-slate-100 rounded-full h-1.5 overflow-hidden">
-                            <div className="h-full rounded-full bg-green-500 transition-all" style={{ width: `${pct}%` }} />
+                            <div className="h-full rounded-full bg-[#0a66c2] transition-all" style={{ width: `${pct}%` }} />
                           </div>
                           <span className="text-[11px] text-slate-400 tabular-nums whitespace-nowrap">{Math.round(pct)}% {t("sales.paid_suffix")}</span>
                         </div>
@@ -1029,7 +1029,7 @@ ${paymentHtml}
                         {d.amount_paid > 0 && (
                           <>
                             <p className="text-xs text-slate-400 mt-0.5">{t("sales.paid_label")}</p>
-                            <p className="text-green-600 font-semibold tabular-nums text-sm">{d.amount_paid.toLocaleString()}</p>
+                            <p className="text-slate-900 font-semibold tabular-nums text-sm">{d.amount_paid.toLocaleString()}</p>
                           </>
                         )}
                         {!d.is_paid && (
@@ -1045,7 +1045,7 @@ ${paymentHtml}
                         <button
                           onClick={() => { setShowPayModal(d); setPaymentAmount(""); }}
                           disabled={payingDebtId === d.id}
-                          className="flex items-center gap-1 text-xs font-semibold bg-green-50 hover:bg-green-100 text-green-700 px-2.5 py-1.5 rounded-lg transition disabled:opacity-40"
+                          className="flex items-center gap-1 text-xs font-semibold bg-[#EBF2FD] hover:bg-[#D5E8FB] text-[#0a66c2] px-2.5 py-1.5 rounded-lg transition disabled:opacity-40"
                         >
                           <Wallet size={12} /> {t("sales.record_payment")}
                         </button>
@@ -1059,7 +1059,7 @@ ${paymentHtml}
                       <button
                         onClick={() => deleteDebt(d.id)}
                         disabled={deletingDebtId === d.id}
-                        className="flex items-center gap-1 text-xs font-semibold bg-red-50 hover:bg-red-100 text-red-600 px-2.5 py-1.5 rounded-lg transition disabled:opacity-40"
+                        className="flex items-center gap-1 text-xs font-semibold text-slate-500 hover:bg-red-50 hover:text-red-600 px-2.5 py-1.5 rounded-lg transition disabled:opacity-40"
                       >
                         <Trash2 size={12} /> {t("common.delete")}
                       </button>
@@ -1202,7 +1202,7 @@ ${paymentHtml}
                               className="border border-slate-200 text-gray-800 rounded-lg px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-[#0a66c2]/30 focus:border-[#0a66c2] transition w-full" />
                             <div className="text-right">
                               <p className="font-semibold text-slate-800 text-sm tabular-nums">{subtotal.toLocaleString()}</p>
-                              {prof && p && <p className={`text-xs tabular-nums ${profit >= 0 ? "text-green-500" : "text-red-400"}`}>
+                              {prof && p && <p className={`text-xs tabular-nums ${profit >= 0 ? "text-slate-900" : "text-red-600"}`}>
                                 {profit >= 0 ? "+" : ""}{profit.toLocaleString()}
                               </p>}
                             </div>
@@ -1215,7 +1215,7 @@ ${paymentHtml}
                           {p && (
                             <div className="flex gap-3 mt-1.5 text-[11px] text-slate-400">
                               {fin && p.cost_price != null && <span>{t("items.col_cost")}: <span className="font-medium">{p.cost_price.toLocaleString()}</span></span>}
-                              <span>{t("items.col_selling")}: <span className="font-medium text-green-600">{p.selling_price.toLocaleString()}</span></span>
+                              <span>{t("items.col_selling")}: <span className="font-medium text-slate-900">{p.selling_price.toLocaleString()}</span></span>
                               <span className={p.quantity <= lowStock ? "text-amber-500 font-medium" : ""}>{t("sales.stock_label")}: {p.quantity}</span>
                             </div>
                           )}
@@ -1231,7 +1231,7 @@ ${paymentHtml}
                     </div>
                     {prof && <div className="text-right">
                       <p className="text-[11px] text-slate-400 uppercase tracking-wide">{t("sales.est_profit")}</p>
-                      <p className={`font-bold text-lg tabular-nums ${createGrandProfit >= 0 ? "text-green-600" : "text-red-500"}`}>
+                      <p className={`font-bold text-lg tabular-nums ${createGrandProfit >= 0 ? "text-slate-900" : "text-red-600"}`}>
                         {createGrandProfit >= 0 ? "+" : ""}{createGrandProfit.toLocaleString()}
                       </p>
                     </div>}
@@ -1323,8 +1323,8 @@ ${paymentHtml}
                           </button>
                         )}
                         {changeAmount > 0 && (
-                          <div className="shrink-0 bg-green-50 border border-green-200 rounded-lg px-3 py-2 text-sm whitespace-nowrap">
-                            {t("sales.change_label")}: <span className="font-bold text-green-700">{changeAmount.toLocaleString()} {currency}</span>
+                          <div className="shrink-0 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm whitespace-nowrap">
+                            {t("sales.change_label")}: <span className="font-bold text-slate-900">{changeAmount.toLocaleString()} {currency}</span>
                           </div>
                         )}
                       </div>
@@ -1403,7 +1403,7 @@ ${paymentHtml}
                   {selectedProduct && (
                     <div className="mt-1.5 flex gap-3 text-xs text-slate-500">
                       {fin && selectedProduct.cost_price != null && <span>{t("items.cost_price")}: <span className="font-medium text-slate-700">{selectedProduct.cost_price.toLocaleString()}</span></span>}
-                      <span>{t("items.selling_price")}: <span className="font-medium text-green-600">{selectedProduct.selling_price.toLocaleString()}</span></span>
+                      <span>{t("items.selling_price")}: <span className="font-medium text-slate-900">{selectedProduct.selling_price.toLocaleString()}</span></span>
                       <span className={`font-medium ${selectedProduct.quantity <= lowStock ? "text-amber-600" : "text-slate-700"}`}>{t("items.col_qty")}: {selectedProduct.quantity}</span>
                     </div>
                   )}
@@ -1430,7 +1430,7 @@ ${paymentHtml}
                     <div><p className="text-xs text-gray-400">{t("common.total")}</p><p className="font-bold text-slate-800">{(Number(form.quantity) * Number(form.unit_price)).toLocaleString()}</p></div>
                     {prof && selectedProduct && selectedProduct.cost_price != null && (
                       <div><p className="text-xs text-gray-400">{t("sales.col_profit")}</p>
-                        <p className={`font-bold ${(Number(form.unit_price) - selectedProduct.cost_price) * Number(form.quantity) >= 0 ? "text-green-600" : "text-red-500"}`}>
+                        <p className={`font-bold ${(Number(form.unit_price) - selectedProduct.cost_price) * Number(form.quantity) >= 0 ? "text-slate-900" : "text-red-600"}`}>
                           {((Number(form.unit_price) - selectedProduct.cost_price) * Number(form.quantity)).toLocaleString()}
                         </p>
                       </div>
@@ -1603,7 +1603,7 @@ ${paymentHtml}
                       <span>{receipts[0].amount_paid.toLocaleString()} {currency}</span>
                     </div>
                     {receipts[0].amount_paid > receipts.reduce((s, x) => s + x.total_amount, 0) && (
-                      <div className="flex justify-between text-xs text-green-600 font-semibold mt-0.5">
+                      <div className="flex justify-between text-xs text-slate-800 font-semibold mt-0.5">
                         <span>{t("sales.change_label")}</span>
                         <span>{(receipts[0].amount_paid - receipts.reduce((s, x) => s + x.total_amount, 0)).toLocaleString()} {currency}</span>
                       </div>
@@ -1611,7 +1611,7 @@ ${paymentHtml}
                   </>
                 )}
                 {receipts[0]?.payment_method === "debt" && (
-                  <div className="mt-2 text-xs text-amber-600 font-semibold text-center border border-amber-200 rounded-lg py-1">&#9888; {t("sales.on_credit_amount_owed")}</div>
+                  <div className="mt-2 text-xs text-amber-600 font-semibold text-center border border-amber-200 rounded-lg py-1">{t("sales.on_credit_amount_owed")}</div>
                 )}
                 <div className="border-t border-dashed border-slate-300 my-3" />
                 <p className="text-center text-xs text-slate-400">{t("sales.thank_you")}</p>
