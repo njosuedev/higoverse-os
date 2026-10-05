@@ -113,6 +113,53 @@ def _incomplete_car():
     )
 
 
+def _parse_attrs(attributes) -> dict:
+    try:
+        a = json.loads(attributes) if isinstance(attributes, str) and attributes else {}
+    except ValueError:
+        a = {}
+    return a if isinstance(a, dict) else {}
+
+
+def _car_key(value) -> str:
+    """Plate/chassis as compared: "rac 123 a" and "RAC123A" are the same car."""
+    return "".join(str(value or "").split()).upper()
+
+
+# Every car is one physical vehicle: no two products in a shop may share a
+# plate or chassis number (sold cars included, so a car is never re-added).
+_UNIQUE_CAR_IDS = (("chassis_no", "chassis number"), ("plate_no", "plate number"))
+
+
+def _ensure_unique_car(db: Session, shop_id: str, attributes, exclude_id: str | None = None, previous=None):
+    new = _parse_attrs(attributes)
+    old = _parse_attrs(previous)
+    wanted = {
+        k: _car_key(new.get(k)) for k, _ in _UNIQUE_CAR_IDS
+        # Only check values that changed, so an old duplicate never blocks
+        # unrelated edits (status, fines) to that car.
+        if _car_key(new.get(k)) and _car_key(new.get(k)) != _car_key(old.get(k))
+    }
+    if not wanted:
+        return
+    query = (
+        db.query(Product.id, Product.name, Product.attributes)
+        .filter(Product.shop_id == shop_id, Product.attributes.isnot(None))
+        .filter(or_(*[Product.attributes.ilike(f'%"{k}"%') for k in wanted]))
+    )
+    if exclude_id:
+        query = query.filter(Product.id != exclude_id)
+    for other_id, other_name, other_attrs in query.all():
+        a = _parse_attrs(other_attrs)
+        for k, label in _UNIQUE_CAR_IDS:
+            if k in wanted and _car_key(a.get(k)) == wanted[k]:
+                raise HTTPException(
+                    status_code=409,
+                    detail={"field": k, "product_id": other_id, "product_name": other_name,
+                            "message": f'Another vehicle ("{other_name}") already has this {label}.'},
+                )
+
+
 def calculate_profit(cost_price: float, selling_price: float):
     if cost_price == 0:
         return 0, 0
@@ -316,6 +363,8 @@ def create_product(
             (authorization or "").replace("Bearer ", "")
         )
 
+        _ensure_unique_car(db, user["shop_id"], payload.attributes)
+
         selling_price = payload.selling_price or payload.cost_price
 
         product = Product(
@@ -501,6 +550,10 @@ def update_product(
                 user["shop_id"],
                 (authorization or "").replace("Bearer ", "")
             )
+
+        if "attributes" in update_data:
+            _ensure_unique_car(db, user["shop_id"], update_data["attributes"],
+                               exclude_id=product.id, previous=product.attributes)
 
         prev_quantity = product.quantity
         prev_car = _car_state(product.attributes)

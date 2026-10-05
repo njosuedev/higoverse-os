@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Car, Clock, Pencil, ShieldAlert, ShieldCheck, ShieldQuestion, ShoppingCart, UserCheck, UserX, X } from "lucide-react";
 import { itemRequest } from "@/lib/product-api";
+import { partnerRequest } from "@/lib/supplier-api";
 import { useLanguage } from "@/lib/language-context";
 import { askConfirm, notify } from "@/lib/dialogs";
 import {
@@ -219,14 +220,20 @@ function Sheet({ title, subtitle, onClose, children, footer }: {
 
 const inputCls = "w-full rounded-lg border border-border-strong bg-white px-3 py-2.5 text-[15px] text-text outline-none focus:border-ink focus:ring-2 focus:ring-ink/20";
 const labelCls = "mb-1 block text-sm font-medium text-text";
+const readOnlyCls = "truncate rounded-lg border border-border bg-paper-dim px-3 py-2.5 font-mono text-[15px] uppercase text-text";
+
+interface Customer { id: string; name: string; phone?: string | null; address?: string | null; id_number?: string | null; }
 
 function PendingForm({ v, onClose, onSaved }: { v: Vehicle; onClose: () => void; onSaved: () => void }) {
   const { t } = useLanguage();
   const a = parseAttributes(v.attributes);
-  // Plate and chassis come from the vehicle record; filling them here also
-  // completes the vehicle's own details.
-  const [plate, setPlate] = useState(a.plate_no ?? "");
-  const [chassis, setChassis] = useState(a.chassis_no ?? "");
+  // Plate and chassis identify the car and come from its record; they're
+  // changed with Edit, never here.
+  const plate = a.plate_no ?? "";
+  const chassis = a.chassis_no ?? "";
+  const idsMissing = !plate.trim() || !chassis.trim();
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [customerId, setCustomerId] = useState("");
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [idNo, setIdNo] = useState("");
@@ -234,17 +241,33 @@ function PendingForm({ v, onClose, onSaved }: { v: Vehicle; onClose: () => void;
   const [tried, setTried] = useState(false);
   const [saving, setSaving] = useState(false);
 
+  useEffect(() => {
+    partnerRequest("/suppliers")
+      .then((res) => {
+        const all: Customer[] = res?.data?.items || res?.data || [];
+        // Suppliers carry a TIN in their address; the rest are customers.
+        setCustomers(all.filter((c) => !c.address?.startsWith("TIN:")));
+      })
+      .catch(() => {});
+  }, []);
+
+  function pickCustomer(id: string) {
+    setCustomerId(id);
+    const c = customers.find((x) => x.id === id);
+    setName(c?.name ?? ""); setPhone(c?.phone ?? ""); setIdNo(c?.id_number ?? "");
+  }
+
   const missing = (s: string) => tried && !s.trim();
   const field = (s: string) => `${inputCls} ${missing(s) ? "border-accent ring-2 ring-accent/20" : ""}`;
 
   async function save() {
+    if (idsMissing) { notify(t("vehicle.ids_missing")); return; }
     setTried(true);
-    if (![plate, chassis, name, phone, idNo].every((s) => s.trim())) { notify(t("vehicle.pending_missing")); return; }
+    if (![name, phone, idNo].every((s) => s.trim())) { notify(t("vehicle.pending_missing")); return; }
     if (phone.replace(/\D/g, "").length < 9) { notify(t("vehicle.phone_invalid")); return; }
     setSaving(true);
     try {
       await patchAttributes(v.id, {
-        plate_no: plate.trim().toUpperCase(), chassis_no: chassis.trim().toUpperCase(),
         sale_status: "pending", buyer_name: name.trim(), buyer_phone: phone.trim(),
         buyer_id_no: idNo.trim(), pending_note: note.trim(), pending_since: today(), pending_at: new Date().toISOString(),
       });
@@ -258,17 +281,23 @@ function PendingForm({ v, onClose, onSaved }: { v: Vehicle; onClose: () => void;
     <Sheet title={t("vehicle.mark_pending")} subtitle={v.name} onClose={onClose}
       footer={<>
         <button onClick={onClose} className="h-10 rounded-full border border-border-strong px-5 text-sm font-semibold text-text hover:bg-paper-dim">{t("common.cancel")}</button>
-        <button onClick={save} disabled={saving} className="h-10 rounded-full bg-warning px-5 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50">{t("vehicle.mark_pending")}</button>
+        <button onClick={save} disabled={saving || idsMissing} className="h-10 rounded-full bg-warning px-5 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50">{t("vehicle.mark_pending")}</button>
       </>}>
       <p className="text-sm text-text-muted">{t("vehicle.pending_explain")}</p>
       <p className="pt-1 text-xs font-bold uppercase tracking-wide text-text-muted">{t("vehicle.section_vehicle")}</p>
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:items-end">
-        <div><label className={labelCls}>{t("vehicle.plate_no")} <span className="text-accent">*</span></label>
-          <input className={`${field(plate)} font-mono uppercase`} value={plate} onChange={(e) => setPlate(e.target.value)} placeholder="RAC 123 A" /></div>
-        <div><label className={labelCls}>{t("vehicle.chassis_no")} <span className="text-accent">*</span></label>
-          <input className={`${field(chassis)} font-mono uppercase`} value={chassis} onChange={(e) => setChassis(e.target.value)} placeholder="LGXCE4CB0P0000000" /></div>
-      </div>
+      <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div><dt className={labelCls}>{t("vehicle.plate_no")}</dt>
+          <dd className={`${readOnlyCls} ${plate ? "" : "text-text-faint"}`}>{plate || "-"}</dd></div>
+        <div><dt className={labelCls}>{t("vehicle.chassis_no")}</dt>
+          <dd className={`${readOnlyCls} ${chassis ? "" : "text-text-faint"}`}>{chassis || "-"}</dd></div>
+      </dl>
+      <p className={`text-xs ${idsMissing ? "font-semibold text-accent" : "text-text-muted"}`}>{t(idsMissing ? "vehicle.ids_missing" : "vehicle.ids_locked")}</p>
       <p className="pt-1 text-xs font-bold uppercase tracking-wide text-text-muted">{t("vehicle.section_buyer")}</p>
+      <div><label className={labelCls}>{t("sales.buyer_existing")}</label>
+        <select className={inputCls} value={customerId} onChange={(e) => pickCustomer(e.target.value)}>
+          <option value="">{t("sales.buyer_new")}</option>
+          {customers.map((c) => <option key={c.id} value={c.id}>{c.name}{c.phone ? ` · ${c.phone}` : ""}</option>)}
+        </select></div>
       <div><label className={labelCls}>{t("vehicle.buyer_name")} <span className="text-accent">*</span></label>
         <input autoFocus className={field(name)} value={name} onChange={(e) => setName(e.target.value)} /></div>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:items-end">

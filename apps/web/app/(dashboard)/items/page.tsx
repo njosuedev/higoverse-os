@@ -7,7 +7,7 @@ import { itemRequest } from "@/lib/product-api";
 import { partnerRequest } from "@/lib/supplier-api";
 import { useAutoRefresh, useDebounce } from "@/lib/hooks";
 import { useLanguage } from "@/lib/language-context";
-import { VEHICLE_FIELDS, carTypeLabel, parseAttributes, stringifyAttributes, type Attributes } from "@/lib/business-layout";
+import { VEHICLE_FIELDS, VEHICLE_ID_FIELDS, carTypeLabel, duplicateVehicle, normalizeVehicleId, parseAttributes, stringifyAttributes, type Attributes } from "@/lib/business-layout";
 import { useShopSettings } from "@/lib/shop-settings-context";
 import { parseImages, shrinkDataUrl } from "@/lib/image";
 import CarImagesPicker from "@/app/components/items/CarImagesPicker";
@@ -245,7 +245,8 @@ export default function ItemManagementPage() {
   }
 
   function openCreateModal() {
-    setForm(EMPTY_FORM); setEditingId(null); setModalMode("create");
+    // Each car is one vehicle (unique chassis and plate), so it's added as 1.
+    setForm(isCar ? { ...EMPTY_FORM, quantity: "1" } : EMPTY_FORM); setEditingId(null); setModalMode("create");
     setShowModal(true);
   }
 
@@ -294,7 +295,10 @@ export default function ItemManagementPage() {
       quantity: Number(form.quantity), supplier_id: form.supplier_id || null,
       // Only car shops edit attributes; leave other layouts' rows untouched.
       ...(isCar ? {
-        attributes: stringifyAttributes(form.attributes),
+        attributes: stringifyAttributes({
+          ...form.attributes,
+          ...Object.fromEntries(VEHICLE_ID_FIELDS.map((k) => [k, normalizeVehicleId(form.attributes[k] ?? "")])),
+        }),
         // "" clears them when every photo was removed.
         images: form.images.length ? JSON.stringify(form.images) : "",
         thumbnail,
@@ -309,6 +313,8 @@ export default function ItemManagementPage() {
       }
       closeModal(); await loadData(true);
     } catch (err) {
+      const dup = duplicateVehicle(err);
+      if (dup) { notify(`${t(dup.field === "plate_no" ? "vehicle.err_dup_plate" : "vehicle.err_dup_chassis")} "${dup.name}".`); return; }
       console.error(err); notify(modalMode === "edit" ? t("items.update_failed") : t("items.add_failed"));
     } finally { setSubmitting(false); }
   }
@@ -582,7 +588,8 @@ export default function ItemManagementPage() {
             {selectOptions(f).map((o) => <option key={o} value={o}>{carTypeLabel(t, o)}</option>)}
           </select>
         ) : (
-          <input type={f.type} min={f.type === "number" ? "0" : undefined} className={inputCls}
+          <input type={f.type} min={f.type === "number" ? "0" : undefined}
+            className={VEHICLE_ID_FIELDS.includes(f.key) ? `${inputCls} font-mono uppercase` : inputCls}
             placeholder={f.placeholder} value={value} onChange={(e) => set(e.target.value)} />
         )}
       </div>
@@ -1193,16 +1200,13 @@ export default function ItemManagementPage() {
                   <input className={inputCls} placeholder={t("items.name_placeholder")} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
                 </div>
                 {isCar ? (<>
-                  {VEHICLE_FIELDS.filter((f) => f.required).map(renderCarField)}
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">{t("items.quantity")} <span className="text-red-400">*</span></label>
-                    <input type="number" min="0" className={inputCls} placeholder="0" value={form.quantity} onChange={(e) => setForm({ ...form, quantity: e.target.value })} />
-                  </div>
-                  <div>
+                  {VEHICLE_FIELDS.filter((f) => VEHICLE_ID_FIELDS.includes(f.key)).map(renderCarField)}
+                  <p className="md:col-span-2 -mt-2 text-xs text-slate-500">{t("vehicle.unique_hint")}</p>
+                  {VEHICLE_FIELDS.filter((f) => !VEHICLE_ID_FIELDS.includes(f.key)).map(renderCarField)}
+                  <div className="md:col-span-2">
                     <label className="block text-xs font-medium text-gray-600 mb-1">{t("items.selling_price")} <span className="text-red-400">*</span></label>
                     <input type="number" min="0" className={inputCls} placeholder="0" value={form.selling_price} onChange={(e) => setForm({ ...form, selling_price: e.target.value })} />
                   </div>
-                  {VEHICLE_FIELDS.filter((f) => !f.required).map(renderCarField)}
                   <div className="md:col-span-2">
                     {loadingEdit
                       ? <p className="text-xs text-slate-400 flex items-center gap-1.5"><RefreshCw size={11} className="animate-spin" /> {t("vehicle.loading_photos")}</p>
