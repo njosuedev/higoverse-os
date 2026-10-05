@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:phosphor_icons/phosphor_icons.dart';
 
 import '../app_settings.dart';
 import '../covers.dart';
@@ -219,15 +220,15 @@ class _HomeShellState extends State<HomeShell> {
                 onTap: _openTab,
                 items: [
                   NavItem(
-                      label: t('nav.home'), icon: Icons.home_outlined, activeIcon: Icons.home_rounded, dot: _newHome && _tab != 0),
+                      label: t('nav.home'), icon: PhosphorIconsRegular.house, activeIcon: PhosphorIconsFill.house, dot: _newHome && _tab != 0),
                   NavItem(
                     label: s.isCar ? t('nav.vehicles') : t('nav.stock'),
-                    icon: s.isCar ? Icons.directions_car_outlined : Icons.inventory_2_outlined,
-                    activeIcon: s.isCar ? Icons.directions_car_rounded : Icons.inventory_2_rounded,
+                    icon: s.isCar ? PhosphorIconsRegular.car : PhosphorIconsRegular.package,
+                    activeIcon: s.isCar ? PhosphorIconsFill.car : PhosphorIconsFill.package,
                     badge: _newStock,
                   ),
                   NavItem(
-                      label: t('nav.sales'), icon: Icons.receipt_long_outlined, activeIcon: Icons.receipt_long_rounded, badge: _newSales),
+                      label: t('nav.sales'), icon: PhosphorIconsRegular.receipt, activeIcon: PhosphorIconsFill.receipt, badge: _newSales),
                   // The business: a red dot while a new version of the app waits.
                   NavItem(
                     label: t('nav.menu'),

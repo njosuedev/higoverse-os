@@ -18,6 +18,7 @@ import VehicleWatch from "@/app/components/dashboard/VehicleWatch";
 import TodayStatus from "@/app/components/dashboard/TodayStatus";
 import CarPerformanceChart from "@/app/components/dashboard/CarPerformanceChart";
 import StockAlertCircles from "@/app/components/dashboard/StockAlertCircles";
+import Stories from "@/app/components/dashboard/Stories";
 import { useCanSeeFinancials, useShowsProfit } from "@/lib/permissions";
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer,
@@ -404,6 +405,9 @@ export default function DashboardPage() {
             </section>
           );
         })()}
+
+        {/* ── STORIES — Facebook-style row: what needs a look today ───────────── */}
+        <Stories />
 
         {/* ── TODAY (car companies): new cars, new fines, new pending — like status ── */}
         {isCar && <TodayStatus />}

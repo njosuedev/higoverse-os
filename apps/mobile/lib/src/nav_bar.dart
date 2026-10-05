@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:phosphor_icons/phosphor_icons.dart';
 
 import 'i18n.dart';
 import 'media.dart';
@@ -60,9 +61,9 @@ class TopBar extends StatelessWidget {
                     maxLines: 1,
                     style: TextStyle(fontSize: 23, height: 1.05, fontWeight: FontWeight.w900, letterSpacing: -0.8, color: c.ink)),
               ),
-              RoundIconButton(icon: Icons.search_rounded, tooltip: t('search.title'), onTap: onSearch),
+              RoundIconButton(icon: PhosphorIconsRegular.magnifyingGlass, tooltip: t('search.title'), onTap: onSearch),
               const SizedBox(width: 8),
-              RoundIconButton(icon: Icons.notifications_rounded, tooltip: t('acc.notifications'), onTap: onNotifications, badge: unread),
+              RoundIconButton(icon: PhosphorIconsRegular.bell, tooltip: t('acc.notifications'), onTap: onNotifications, badge: unread),
             ]),
           ),
           Divider(height: 1, thickness: 0.6, color: c.border),
@@ -72,8 +73,8 @@ class TopBar extends StatelessWidget {
   }
 }
 
-/// The tabs, fixed at the bottom like Instagram's: icons only (outlined,
-/// filled when open; the name is read out and shown on a long press), a
+/// The tabs, fixed at the bottom like Instagram's: icons only (Phosphor's
+/// Regular outline, its Fill twin when open — same shape, no size jump; the name is read out and shown on a long press), a
 /// red count for what's new (Facebook's red) or a red dot under the icon.
 /// It stays put: the keyboard covers it instead of pushing it up.
 class BottomBar extends StatelessWidget {
@@ -128,7 +129,7 @@ class _Tab extends StatelessWidget {
                     border: Border.all(color: selected ? c.text : Colors.transparent, width: 1.5)),
                 child: ShopLogo(name: item.logoName!, url: item.logoUrl, size: 22),
               )
-            : Icon(selected ? (item.activeIcon ?? item.icon) : item.icon, size: 27, color: c.text),
+            : Icon(selected ? (item.activeIcon ?? item.icon) : item.icon, size: 26, color: c.text),
       ),
     );
     final label = [

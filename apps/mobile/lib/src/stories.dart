@@ -2,12 +2,15 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:phosphor_icons/phosphor_icons.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'charts.dart';
 import 'config.dart';
 import 'covers.dart';
 import 'format.dart';
+import 'forms.dart';
 import 'holder.dart';
 import 'i18n.dart';
 import 'session.dart';
@@ -15,42 +18,187 @@ import 'sheets.dart';
 import 'theme.dart';
 import 'widgets.dart';
 
-/// What a story is about: a vehicle with traffic fines, or one sold and
-/// waiting for its ownership transfer.
-enum StoryKind { fines, pending }
+/// What a story is about. Car dealers: a vehicle with traffic fines, or one
+/// sold and waiting for its ownership transfer. Shops: an item sold out,
+/// one running low, a best seller this week, or new stock.
+enum StoryKind { fines, pending, soldOut, low, best, fresh }
 
-class Story {
-  const Story(this.kind, this.vehicle);
-  final StoryKind kind;
-  final Map<String, dynamic> vehicle;
-
-  String get id => '${kind.name}:${vehicle['id']}';
-  Map<String, String> get attrs => attributesOf(vehicle['attributes']);
+extension StoryKindX on StoryKind {
+  bool get isCar => this == StoryKind.fines || this == StoryKind.pending;
 }
 
-/// Stories already opened on this phone (this session): their ring turns grey.
-final _seen = <String>{};
+/// One frame: one vehicle or item.
+class Story {
+  const Story(this.kind, this.item);
+  final StoryKind kind;
+  final Map<String, dynamic> item;
+  Map<String, dynamic> get vehicle => item;
 
-Color _ring(BuildContext context, StoryKind k) => k == StoryKind.fines ? Hgv.of(context).danger : Hgv.of(context).warning;
-IconData _icon(StoryKind k) => k == StoryKind.fines ? Icons.local_police_rounded : Icons.swap_horiz_rounded;
+  String get itemId => '${item['id'] ?? item['product_id'] ?? ''}';
+  Map<String, String> get attrs => attributesOf(item['attributes']);
 
-/// The row of story cards: one per vehicle, fines first. Tapping one opens
-/// the viewer at that story and plays through the rest.
-class StoriesRow extends StatefulWidget {
-  const StoriesRow({super.key, required this.stories});
+  /// Seen-key: changes when the situation does (more fines, fewer left,
+  /// more sold), so the story counts as new again.
+  String get id {
+    final state = switch (kind) {
+      StoryKind.fines => attrs['penalty_count'] ?? '',
+      StoryKind.pending => attrs['sale_status'] ?? '',
+      StoryKind.soldOut || StoryKind.low => '${item['quantity'] ?? ''}',
+      StoryKind.best => '${item['qty_sold'] ?? ''}',
+      StoryKind.fresh => '',
+    };
+    return '${kind.name}:$itemId:$state';
+  }
+}
+
+/// A card in the tray, like one person's stories on Facebook: one topic,
+/// every vehicle or item in it played one after the other.
+class StoryGroup {
+  StoryGroup(this.kind, this.stories);
+  final StoryKind kind;
   final List<Story> stories;
+  bool get seen => stories.every((x) => StorySeen.instance.has(x.id));
+}
+
+/// The stories built from what Home already loaded; empty topics left out,
+/// topics not seen yet first, then what needs action first.
+List<StoryGroup> storyGroups({
+  required bool isCar,
+  List<Map<String, dynamic>> fined = const [],
+  List<Map<String, dynamic>> pending = const [],
+  List<Map<String, dynamic>> alerts = const [],
+  List<Map<String, dynamic>> top = const [],
+  List<Map<String, dynamic>> newest = const [],
+  DateTime? now,
+}) {
+  num q(Map<String, dynamic> m) => m['quantity'] is num ? m['quantity'] as num : num.tryParse('${m['quantity']}') ?? 0;
+  final week = (now ?? DateTime.now()).subtract(const Duration(days: 7));
+  final groups = <StoryGroup>[
+    if (isCar) ...[
+      StoryGroup(StoryKind.fines, [for (final v in fined) Story(StoryKind.fines, v)]),
+      StoryGroup(StoryKind.pending, [for (final v in pending) Story(StoryKind.pending, v)]),
+    ] else ...[
+      StoryGroup(StoryKind.soldOut, [for (final p in alerts) if (q(p) <= 0) Story(StoryKind.soldOut, p)]),
+      StoryGroup(StoryKind.low, [for (final p in alerts) if (q(p) > 0) Story(StoryKind.low, p)]),
+      StoryGroup(StoryKind.best, [
+        for (final p in top.take(5))
+          if ((p['qty_sold'] as num? ?? 0) > 0) Story(StoryKind.best, {...p, 'id': p['product_id'], 'name': p['product_name']}),
+      ]),
+      StoryGroup(StoryKind.fresh, [
+        for (final p in newest)
+          if ((parseTimestamp(p['created_at'])?.isAfter(week) ?? false) && q(p) > 0) Story(StoryKind.fresh, p),
+      ]),
+    ],
+  ].where((g) => g.stories.isNotEmpty).toList();
+  groups.sort((a, b) => a.seen != b.seen ? (a.seen ? 1 : -1) : a.kind.index.compareTo(b.kind.index));
+  return groups;
+}
+
+/// Stories watched on this phone, kept across restarts (newest 400).
+class StorySeen {
+  StorySeen._();
+  static final instance = StorySeen._();
+  static const _key = 'hgv_story_seen';
+  final _store = const FlutterSecureStorage();
+  final List<String> _ids = [];
+  bool _loaded = false;
+
+  bool has(String id) => _ids.contains(id);
+
+  Future<void> load() async {
+    if (_loaded) return;
+    _loaded = true;
+    try {
+      final raw = await _store.read(key: _key);
+      if (raw != null) _ids.addAll(List<String>.from(jsonDecode(raw) as List));
+    } catch (_) {}
+  }
+
+  void add(String id) {
+    if (has(id)) return;
+    _ids.add(id);
+    if (_ids.length > 400) _ids.removeRange(0, _ids.length - 400);
+    _store.write(key: _key, value: jsonEncode(_ids)).catchError((_) {});
+  }
+}
+
+Color _color(BuildContext context, StoryKind k) {
+  final c = Hgv.of(context);
+  return switch (k) {
+    StoryKind.fines || StoryKind.soldOut => c.danger,
+    StoryKind.pending || StoryKind.low => c.warning,
+    StoryKind.best => c.success,
+    StoryKind.fresh => c.ink,
+  };
+}
+
+IconData _icon(StoryKind k) => switch (k) {
+      StoryKind.fines => PhosphorIconsFill.policeCar,
+      StoryKind.pending => PhosphorIconsFill.arrowsLeftRight,
+      StoryKind.soldOut => PhosphorIconsFill.prohibit,
+      StoryKind.low => PhosphorIconsFill.warning,
+      StoryKind.best => PhosphorIconsFill.trendUp,
+      StoryKind.fresh => PhosphorIconsFill.sparkle,
+    };
+
+String _title(T t, StoryKind k) => switch (k) {
+      StoryKind.fines => t('story.fines'),
+      StoryKind.pending => t('story.pending'),
+      StoryKind.soldOut => t('story.sold_out'),
+      StoryKind.low => t('story.low'),
+      StoryKind.best => t('story.best'),
+      StoryKind.fresh => t('story.fresh'),
+    };
+
+/// The topic's picture: its icon on its colour, in a ring that is blue
+/// until every story in it has been seen, then grey (as on Facebook).
+class _TopicAvatar extends StatelessWidget {
+  const _TopicAvatar({required this.kind, required this.seen, this.size = 40});
+  final StoryKind kind;
+  final bool seen;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = Hgv.of(context);
+    return Container(
+      width: size,
+      height: size,
+      padding: EdgeInsets.all(size * 0.075),
+      decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: seen ? c.faint : c.ink, width: size * 0.075)),
+      child: Container(
+        decoration: BoxDecoration(shape: BoxShape.circle, color: _color(context, kind)),
+        child: Icon(_icon(kind), size: size * 0.44, color: Colors.white),
+      ),
+    );
+  }
+}
+
+/// The tray: one tall card per topic, like Facebook's stories row.
+/// Tapping one plays its stories, then the next topics'.
+class StoriesRow extends StatefulWidget {
+  const StoriesRow({super.key, required this.groups});
+  final List<StoryGroup> groups;
 
   @override
   State<StoriesRow> createState() => _StoriesRowState();
 }
 
 class _StoriesRowState extends State<StoriesRow> {
+  @override
+  void initState() {
+    super.initState();
+    StorySeen.instance.load().then((_) {
+      if (mounted) setState(() {});
+    });
+  }
+
   Future<void> _open(int i) async {
     await Navigator.of(context).push(PageRouteBuilder<void>(
       opaque: false,
       transitionDuration: const Duration(milliseconds: 260),
       reverseTransitionDuration: const Duration(milliseconds: 200),
-      pageBuilder: (_, __, ___) => StoryViewer(stories: widget.stories, initial: i),
+      pageBuilder: (_, __, ___) => StoryViewer(groups: widget.groups, initial: i),
       transitionsBuilder: (_, a, __, child) => FadeTransition(
         opacity: a,
         child: ScaleTransition(scale: Tween(begin: 0.94, end: 1.0).animate(CurvedAnimation(parent: a, curve: Curves.easeOut)), child: child),
@@ -61,107 +209,71 @@ class _StoriesRowState extends State<StoriesRow> {
 
   @override
   Widget build(BuildContext context) => SizedBox(
-        height: 176,
+        height: 200,
         child: ListView.separated(
           scrollDirection: Axis.horizontal,
-          itemCount: widget.stories.length,
+          itemCount: widget.groups.length,
           separatorBuilder: (_, __) => const SizedBox(width: 8),
-          itemBuilder: (context, i) => _StoryCard(story: widget.stories[i], onTap: () => _open(i)),
+          itemBuilder: (context, i) => _StoryCard(group: widget.groups[i], onTap: () => _open(i)),
         ),
       );
 }
 
 class _StoryCard extends StatelessWidget {
-  const _StoryCard({required this.story, required this.onTap});
-  final Story story;
+  const _StoryCard({required this.group, required this.onTap});
+  final StoryGroup group;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final t = T.of(context);
-    final s = SessionScope.of(context);
-    final c = Hgv.of(context);
-    final a = story.attrs;
-    final ring = _seen.contains(story.id) ? c.faint : _ring(context, story.kind);
-    // Fines: who has the car (the one to call about them); pending: the buyer.
-    final fallback = story.kind == StoryKind.fines
-        ? _finesLine(t, s, a)
-        : (a['buyer_name'] ?? '').isNotEmpty
-            ? a['buyer_name']!
-            : t('stock.f_pending');
+    final first = group.stories.first;
+    final n = group.stories.length;
+    final sub = n == 1
+        ? '${first.item['name'] ?? ''}'
+        : (group.kind.isCar ? t('story.n_cars', {'n': n}) : t('story.n_items', {'n': n}));
     return Semantics(
       button: true,
-      label: '${story.kind == StoryKind.fines ? t('story.fines') : t('story.pending')}: ${story.vehicle['name'] ?? ''}',
+      label: '${_title(t, group.kind)}, $sub',
       child: GestureDetector(
         onTap: onTap,
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(12),
           child: SizedBox(
-            width: 108,
+            width: 112,
             child: Stack(fit: StackFit.expand, children: [
               CoverPhoto(
-                id: '${story.vehicle['id']}',
-                thumbnail: story.vehicle['thumbnail'] as String?,
-                isCar: true,
-                fallback: _Backdrop(url: null, kind: story.kind),
+                id: first.itemId,
+                thumbnail: first.item['thumbnail'] as String?,
+                isCar: group.kind.isCar,
+                fallback: _Backdrop(url: null, kind: group.kind),
               ),
-              // Darkens the bottom so the white text reads on any photo.
+              // Darkens the top and bottom so the picture and words read on any photo.
               const DecoratedBox(
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
-                    stops: [0.35, 1],
-                    colors: [Colors.transparent, Color(0xD9000000)],
+                    stops: [0, 0.3, 0.55, 1],
+                    colors: [Color(0x66000000), Colors.transparent, Colors.transparent, Color(0xCC000000)],
                   ),
                 ),
               ),
+              Positioned(left: 8, top: 8, child: _TopicAvatar(kind: group.kind, seen: group.seen)),
               Positioned(
-                left: 8,
-                top: 8,
-                child: Container(
-                  padding: const EdgeInsets.all(2.5),
-                  decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: ring, width: 2.5)),
-                  child: Container(
-                    width: 28,
-                    height: 28,
-                    decoration: BoxDecoration(shape: BoxShape.circle, color: _ring(context, story.kind)),
-                    child: Icon(_icon(story.kind), size: 16, color: Colors.white),
-                  ),
-                ),
-              ),
-              Positioned(
-                left: 8,
-                right: 8,
-                bottom: 8,
+                left: 9,
+                right: 9,
+                bottom: 9,
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-                  Text('${story.vehicle['name'] ?? ''}',
+                  Text(_title(t, group.kind),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(color: Colors.white, fontSize: 12.5, fontWeight: FontWeight.w800, height: 1.15)),
+                      style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700, height: 1.15)),
                   const SizedBox(height: 2),
-                  Text(fallback,
+                  Text(sub,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(color: Color(0xE6FFFFFF), fontSize: 11, fontWeight: FontWeight.w600)),
-                  if (story.kind == StoryKind.fines)
-                    FutureBuilder<CarHolder?>(
-                      future: carHolder(s, story.vehicle),
-                      builder: (context, snap) {
-                        final h = snap.data;
-                        if (h == null || h.name == '—') return const SizedBox.shrink();
-                        return Row(children: [
-                          const Icon(Icons.person_rounded, size: 11, color: Color(0xCCFFFFFF)),
-                          const SizedBox(width: 3),
-                          Expanded(
-                            child: Text(h.name,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(color: Color(0xCCFFFFFF), fontSize: 10.5, fontWeight: FontWeight.w600)),
-                          ),
-                        ]);
-                      },
-                    ),
+                      style: const TextStyle(color: Color(0xD9FFFFFF), fontSize: 11.5, fontWeight: FontWeight.w500)),
                 ]),
               ),
             ]),
@@ -172,14 +284,7 @@ class _StoryCard extends StatelessWidget {
   }
 }
 
-String _finesLine(T t, Session s, Map<String, String> a) {
-  final n = int.tryParse(a['penalty_count'] ?? '') ?? 0;
-  final amount = num.tryParse(a['penalty_amount'] ?? '') ?? 0;
-  final count = n == 1 ? t('stock.fine_one') : t('stock.fines_n', {'n': n});
-  return amount > 0 ? '$count · ${compactMoney(amount, s.currency)}' : count;
-}
-
-/// The vehicle photo, or a coloured gradient with a car when there is none.
+/// The photo, or the topic's colour with a picture of what it is about.
 class _Backdrop extends StatelessWidget {
   const _Backdrop({required this.url, required this.kind, this.fit = BoxFit.cover});
   final String? url;
@@ -188,7 +293,7 @@ class _Backdrop extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final base = _ring(context, kind);
+    final base = _color(context, kind);
     return UrlImage(
       url: url,
       fit: fit,
@@ -200,18 +305,22 @@ class _Backdrop extends StatelessWidget {
             colors: [Color.lerp(base, Colors.black, 0.15)!, Color.lerp(base, Colors.black, 0.6)!],
           ),
         ),
-        child: const Center(child: Icon(Icons.directions_car_filled_rounded, color: Color(0x55FFFFFF), size: 48)),
+        child: Center(
+          child: Icon(kind.isCar ? PhosphorIconsFill.car : PhosphorIconsFill.package, color: const Color(0x55FFFFFF), size: 52),
+        ),
       ),
     );
   }
 }
 
-/// Full-screen stories: bars at the top fill as each one plays (6 s), tap
-/// the right side for the next, the left for the previous, hold to pause,
-/// swipe down to close. Each story shows the vehicle large with its card.
+/// Full-screen stories, as on Facebook: bars at the top fill as each frame
+/// plays (8 s); tap right for the next, left for the previous, hold to
+/// pause, swipe down to close. At the end of a topic the next one follows.
+/// Each frame shows the vehicle or item large with its card and one clear
+/// action (call, restock, sell, view).
 class StoryViewer extends StatefulWidget {
-  const StoryViewer({super.key, required this.stories, required this.initial});
-  final List<Story> stories;
+  const StoryViewer({super.key, required this.groups, required this.initial});
+  final List<StoryGroup> groups;
   final int initial;
 
   @override
@@ -219,21 +328,26 @@ class StoryViewer extends StatefulWidget {
 }
 
 class _StoryViewerState extends State<StoryViewer> with SingleTickerProviderStateMixin {
-  late int _i = widget.initial;
+  late int _g = widget.initial;
+  int _i = 0;
   late final _clock = AnimationController(vsync: this, duration: const Duration(seconds: 8))
     ..addStatusListener((s) {
       if (s == AnimationStatus.completed) _next();
     });
   double _drag = 0;
 
-  /// Full photos, fetched when a story is shown (lists only carry thumbnails).
-  final Map<String, Future<List<String>>> _photos = {};
+  /// The whole vehicle or item (lists carry a thumbnail only), fetched when shown.
+  final Map<String, Future<Map<String, dynamic>?>> _full = {};
 
-  Story get _story => widget.stories[_i];
+  StoryGroup get _group => widget.groups[_g];
+  Story get _story => _group.stories[_i];
 
   @override
   void initState() {
     super.initState();
+    // Like Facebook: a topic opens at its first frame not seen yet.
+    final firstNew = _group.stories.indexWhere((x) => !StorySeen.instance.has(x.id));
+    _i = firstNew < 0 ? 0 : firstNew;
     _show();
   }
 
@@ -244,34 +358,56 @@ class _StoryViewerState extends State<StoryViewer> with SingleTickerProviderStat
   }
 
   void _show() {
-    _seen.add(_story.id);
+    StorySeen.instance.add(_story.id);
     _clock.forward(from: 0);
     HapticFeedback.selectionClick();
   }
 
   void _next() {
-    if (_i < widget.stories.length - 1) {
+    if (_i < _group.stories.length - 1) {
       setState(() => _i++);
-      _show();
+    } else if (_g < widget.groups.length - 1) {
+      setState(() {
+        _g++;
+        _i = 0;
+      });
     } else {
       Navigator.of(context).maybePop();
+      return;
     }
-  }
-
-  void _prev() {
-    if (_i > 0) setState(() => _i--);
     _show();
   }
 
-  Future<List<String>> _photosOf(Map<String, dynamic> v) => _photos['${v['id']}'] ??= () async {
+  void _prev() {
+    if (_i > 0) {
+      setState(() => _i--);
+    } else if (_g > 0) {
+      setState(() {
+        _g--;
+        _i = _group.stories.length - 1;
+      });
+    }
+    _show();
+  }
+
+  Future<Map<String, dynamic>?> _fullOf(Story st) => _full[st.itemId] ??= () async {
         try {
-          final res = await SessionScope.of(context).api.get('${Svc.products}/products/${v['id']}');
-          final raw = ((res as Map)['data'] as Map?)?['images'];
-          final list = raw is String ? jsonDecode(raw) : raw;
-          if (list is List) return list.whereType<String>().toList();
-        } catch (_) {}
-        return const <String>[];
+          final res = await SessionScope.of(context).api.get('${Svc.products}/products/${st.itemId}');
+          final d = (res as Map)['data'];
+          return d is Map ? Map<String, dynamic>.from(d) : null;
+        } catch (_) {
+          return null;
+        }
       }();
+
+  List<String> _photos(Map<String, dynamic>? full) {
+    final raw = full?['images'];
+    try {
+      final list = raw is String ? jsonDecode(raw) : raw;
+      if (list is List) return list.whereType<String>().toList();
+    } catch (_) {}
+    return const [];
+  }
 
   Future<void> _pausedWhile(Future<void> Function() f) async {
     _clock.stop();
@@ -284,10 +420,10 @@ class _StoryViewerState extends State<StoryViewer> with SingleTickerProviderStat
     final t = T.of(context);
     final s = SessionScope.of(context);
     final story = _story;
-    final v = story.vehicle;
-    final color = _ring(context, story.kind);
-    final added = parseTimestamp(v['created_at']);
+    final group = _group;
+    final added = parseTimestamp(story.item['created_at']);
     final top = MediaQuery.paddingOf(context).top;
+    final full = _fullOf(story);
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.light,
@@ -309,20 +445,17 @@ class _StoryViewerState extends State<StoryViewer> with SingleTickerProviderStat
               body: Stack(children: [
                 // ── Photo ──
                 Positioned.fill(
-                  child: FutureBuilder<List<String>>(
-                    future: _photosOf(v),
+                  child: FutureBuilder<Map<String, dynamic>?>(
+                    future: full,
                     builder: (context, snap) {
-                      final url = (snap.data?.isNotEmpty ?? false) ? snap.data!.first : v['thumbnail'] as String?;
+                      final photos = _photos(snap.data);
+                      final url = photos.isNotEmpty ? photos.first : (story.item['thumbnail'] ?? snap.data?['thumbnail']) as String?;
                       return Stack(fit: StackFit.expand, children: [
                         // Blurred fill behind a photo that doesn't match the screen's shape.
                         Opacity(opacity: 0.35, child: _Backdrop(url: url, kind: story.kind)),
                         _Backdrop(url: url, kind: story.kind, fit: BoxFit.contain),
-                        if ((snap.data?.length ?? 0) > 1)
-                          Positioned(
-                            right: 14,
-                            top: top + 64,
-                            child: _Pill(icon: Icons.photo_library_outlined, text: '${snap.data!.length}'),
-                          ),
+                        if (photos.length > 1)
+                          Positioned(right: 14, top: top + 64, child: _Pill(icon: PhosphorIconsRegular.images, text: '${photos.length}')),
                       ]);
                     },
                   ),
@@ -349,7 +482,7 @@ class _StoryViewerState extends State<StoryViewer> with SingleTickerProviderStat
                     ),
                   ]),
                 ),
-                // ── Top: progress bars and who/what ──
+                // ── Top: one bar per frame of this topic, and the topic ──
                 Positioned(
                   left: 0,
                   right: 0,
@@ -365,7 +498,7 @@ class _StoryViewerState extends State<StoryViewer> with SingleTickerProviderStat
                     ),
                     child: Column(children: [
                       Row(children: [
-                        for (var k = 0; k < widget.stories.length; k++) ...[
+                        for (var k = 0; k < group.stories.length; k++) ...[
                           if (k > 0) const SizedBox(width: 3),
                           Expanded(
                             child: ClipRRect(
@@ -385,50 +518,143 @@ class _StoryViewerState extends State<StoryViewer> with SingleTickerProviderStat
                       ]),
                       const SizedBox(height: 10),
                       Row(children: [
-                        Container(
-                          width: 34,
-                          height: 34,
-                          decoration: BoxDecoration(shape: BoxShape.circle, color: color, border: Border.all(color: Colors.white, width: 2)),
-                          child: Icon(_icon(story.kind), size: 18, color: Colors.white),
-                        ),
+                        _TopicAvatar(kind: group.kind, seen: false, size: 38),
                         const SizedBox(width: 10),
                         Expanded(
                           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                            Text(story.kind == StoryKind.fines ? t('story.fines') : t('story.pending'),
-                                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 14)),
-                            if (added != null)
-                              Text(t('story.added', {'when': t.ago(added)}),
-                                  style: const TextStyle(color: Colors.white70, fontSize: 11.5)),
+                            Text(_title(t, group.kind),
+                                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 14.5)),
+                            Text(
+                              [
+                                if (group.stories.length > 1) '${_i + 1} / ${group.stories.length}',
+                                if (added != null && story.kind != StoryKind.best) t('story.added', {'when': t.ago(added)}),
+                              ].join(' · '),
+                              style: const TextStyle(color: Colors.white70, fontSize: 12),
+                            ),
                           ]),
                         ),
                         IconButton(
                           tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
                           onPressed: () => Navigator.of(context).maybePop(),
-                          icon: const Icon(Icons.close_rounded, color: Colors.white),
+                          icon: const Icon(PhosphorIconsRegular.x, color: Colors.white),
                         ),
                       ]),
                     ]),
                   ),
                 ),
-                // ── Bottom: the vehicle's card ──
+                // ── Bottom: the vehicle's or item's card ──
                 Positioned(
                   left: 10,
                   right: 10,
                   bottom: MediaQuery.paddingOf(context).bottom + 12,
-                  child: _VehicleCard(
-                    story: story,
-                    holder: carHolder(s, v),
-                    onDetails: () => _pausedWhile(() => openItem(context, v)),
-                    onCall: (phone) => _pausedWhile(() => launchUrl(Uri(scheme: 'tel', path: phone))),
-                    onSms: (phone) => _pausedWhile(() => launchUrl(Uri(scheme: 'sms', path: phone))),
-                    currency: s.currency,
-                  ),
+                  child: story.kind.isCar
+                      ? _VehicleCard(
+                          story: story,
+                          holder: carHolder(s, story.item),
+                          onDetails: () => _pausedWhile(() => openItem(context, story.item)),
+                          onCall: (phone) => _pausedWhile(() => launchUrl(Uri(scheme: 'tel', path: phone))),
+                          onSms: (phone) => _pausedWhile(() => launchUrl(Uri(scheme: 'sms', path: phone))),
+                          currency: s.currency,
+                        )
+                      : FutureBuilder<Map<String, dynamic>?>(
+                          future: full,
+                          builder: (context, snap) => _ProductCard(story: story, full: snap.data, run: _pausedWhile),
+                        ),
                 ),
               ]),
             ),
           ),
         ),
       ),
+    );
+  }
+}
+
+/// The card of a shop's story: the item, the one thing to know (how many
+/// are left, how many sold) and the action that goes with it.
+class _ProductCard extends StatelessWidget {
+  const _ProductCard({required this.story, required this.full, required this.run});
+  final Story story;
+  final Map<String, dynamic>? full;
+  final Future<void> Function(Future<void> Function()) run;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = T.of(context);
+    final c = Hgv.of(context);
+    final s = SessionScope.of(context);
+    final item = {...story.item, ...?full}..remove('images');
+    num n(Object? v) => v is num ? v : num.tryParse('$v') ?? 0;
+    final qty = n(item['quantity']).toInt();
+    final color = _color(context, story.kind);
+    final (headline, detail) = switch (story.kind) {
+      StoryKind.soldOut => (t('story.sold_out'), t('story.sold_out_hint')),
+      StoryKind.low => (t('story.left', {'n': groupDigits(qty)}), t('story.low_hint', {'n': s.lowStock})),
+      StoryKind.best => (
+          t('story.sold_week', {'n': groupDigits(n(story.item['qty_sold']))}),
+          s.canSeeFinancials && story.item['revenue'] != null ? money(n(story.item['revenue']), s.currency) : '',
+        ),
+      _ => (t('stock.in_stock_n', {'n': groupDigits(qty)}), ''),
+    };
+    final restockFirst = story.kind == StoryKind.soldOut || story.kind == StoryKind.low;
+    final price = item['selling_price'];
+    return Container(
+      decoration: BoxDecoration(
+        color: c.elevated,
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: const [BoxShadow(color: Color(0x40000000), blurRadius: 24, offset: Offset(0, 8))],
+      ),
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
+        Row(children: [
+          Expanded(
+            child: Text('${item['name'] ?? ''}',
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 16.5, fontWeight: FontWeight.w900, letterSpacing: -0.3)),
+          ),
+          if (price != null) Text(money(n(price), s.currency), style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: c.muted)),
+        ]),
+        const SizedBox(height: 8),
+        Row(children: [
+          Icon(_icon(story.kind), size: 20, color: color),
+          const SizedBox(width: 8),
+          Expanded(child: Text(headline, style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: color))),
+        ]),
+        if (detail.isNotEmpty) ...[
+          const SizedBox(height: 2),
+          Text(detail, style: TextStyle(fontSize: 12.5, color: c.faint)),
+        ],
+        const SizedBox(height: 12),
+        Row(children: [
+          Expanded(
+            flex: 3,
+            child: FilledButton.icon(
+              style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(42)),
+              onPressed: full == null
+                  ? null
+                  : () => run(() async {
+                        if (restockFirst) {
+                          await restock(context, item);
+                        } else {
+                          await recordSale(context, product: item);
+                        }
+                      }),
+              icon: Icon(restockFirst ? PhosphorIconsBold.plus : PhosphorIconsBold.receipt, size: 18),
+              label: Text(restockFirst ? t('form.restock') : t('form.sell')),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            flex: 2,
+            child: OutlinedButton(
+              style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(42)),
+              onPressed: full == null ? null : () => run(() => openItem(context, item)),
+              child: Text(t('story.view_short')),
+            ),
+          ),
+        ]),
+      ]),
     );
   }
 }
@@ -475,14 +701,14 @@ class _VehicleCard extends StatelessWidget {
     final c = Hgv.of(context);
     final v = story.vehicle;
     final a = story.attrs;
-    final color = _ring(context, story.kind);
+    final color = _color(context, story.kind);
     final fines = int.tryParse(a['penalty_count'] ?? '') ?? 0;
     final fineAmount = num.tryParse(a['penalty_amount'] ?? '') ?? 0;
     final specs = [a['plate_no'], a['year'], a['color']].where((x) => x != null && x.isNotEmpty).join(' · ');
 
     return Container(
       decoration: BoxDecoration(
-        color: c.surface,
+        color: c.elevated,
         borderRadius: BorderRadius.circular(18),
         boxShadow: const [BoxShadow(color: Color(0x40000000), blurRadius: 24, offset: Offset(0, 8))],
       ),

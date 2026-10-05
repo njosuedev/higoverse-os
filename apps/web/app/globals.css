@@ -626,6 +626,13 @@ html[data-theme="dark"] .recharts-text { fill: var(--color-text-faint); }
 /* scrollbars follow the theme */
 html[data-theme="dark"] { scrollbar-color: #363636 var(--color-paper); }
 
+/* ── STORIES (app/components/dashboard/Stories.tsx) ────────────
+   The row scrolls sideways without a scrollbar (arrows instead, as on
+   Facebook); the viewer is always dark, whatever the theme. */
+.hgv-stories { scrollbar-width: none; }
+.hgv-stories::-webkit-scrollbar { display: none; }
+@media (hover: none) { .hgv-story-arrow { display: none; } }
+
 /* ── TOP LOADER (app/components/TopLoader.tsx) ─────────────────
    A 2px brand-blue line under the top of the window while a page loads,
    like LinkedIn's: it slides, it never counts. */

@@ -295,15 +295,14 @@ class _DashboardScreenState extends State<DashboardScreen> with LiveListener {
     final low = n('low_stock') + sold;
 
     // Fines first (they cost money every day), then transfers waiting.
-    final stories = [
-      for (final v in _fined) Story(StoryKind.fines, v),
-      for (final v in _pending) Story(StoryKind.pending, v),
-    ];
+    // Car dealers: fines and transfers; shops: sold out, running low, best
+    // sellers this week and new stock.
+    final stories = storyGroups(isCar: s.isCar, fined: _fined, pending: _pending, alerts: _alerts, top: _top, newest: _newest);
 
     return [
       // Stories first, straight under the top bar, as on Facebook.
-      if (s.isCar && stories.isNotEmpty) ...[
-        StoriesRow(stories: stories),
+      if (stories.isNotEmpty) ...[
+        StoriesRow(groups: stories),
         const SizedBox(height: 4),
       ],
       const ActiveNowRow(),
