@@ -24,7 +24,7 @@ Future<void> _sheet(BuildContext context, WidgetBuilder builder) => showModalBot
       showDragHandle: true,
       isScrollControlled: true,
       useSafeArea: true,
-      backgroundColor: Hgv.of(context).surface,
+      backgroundColor: Hgv.of(context).elevated,
       builder: (c) => DraggableScrollableSheet(
         expand: false,
         initialChildSize: 0.62,

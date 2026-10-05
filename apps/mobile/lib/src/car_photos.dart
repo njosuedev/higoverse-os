@@ -59,7 +59,7 @@ Future<CarPhoto?> pickCarPhoto(BuildContext context) async {
     context: context,
     showDragHandle: true,
     useSafeArea: true,
-    backgroundColor: Hgv.of(context).surface,
+    backgroundColor: Hgv.of(context).elevated,
     builder: (c) => SafeArea(
       child: Column(mainAxisSize: MainAxisSize.min, children: [
         ListTile(

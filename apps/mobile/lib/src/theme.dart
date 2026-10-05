@@ -18,6 +18,7 @@ class Hgv extends ThemeExtension<Hgv> {
     required this.paper,
     required this.surface,
     required this.chrome,
+    required this.elevated,
     required this.border,
     required this.text,
     required this.muted,
@@ -35,6 +36,10 @@ class Hgv extends ThemeExtension<Hgv> {
   /// bar, gesture bar): white in light, black in dark.
   final Color chrome;
 
+  /// Sheets, dialogs, menus and toasts: white in light; in dark a step
+  /// lighter than the page, as Instagram raises them (no outline needed).
+  final Color elevated;
+
   /// Loading placeholders: base and the highlight that sweeps across it —
   /// the website's Reports skeleton (.rep-sh), light and dark.
   final Color skeleton, skeletonHi;
@@ -45,6 +50,7 @@ class Hgv extends ThemeExtension<Hgv> {
     paper: Color(0xFFF3F2EF),
     surface: Colors.white,
     chrome: Colors.white,
+    elevated: Colors.white,
     border: Color(0xFFE0DFDC),
     text: Color(0xFF191919),
     muted: Color(0xFF333333),
@@ -56,23 +62,28 @@ class Hgv extends ThemeExtension<Hgv> {
     skeletonHi: Color(0xFFE2E8F0),
   );
 
-  /// Dark is Instagram's: pure black everywhere, cards and sheets set
-  /// apart only by thin #262626 lines, a near-black fill for fields.
+  /// Dark is Instagram's current one (its web theme tokens, the "/ig" dark
+  /// scope): a blue-black page (primary background 12,16,20) instead of
+  /// pure black, raised layers a step lighter (elevated 33,35,40; fields,
+  /// chips and round buttons 37,41,46), #262626 lines, #F5F5F5 / #C7C7C7 /
+  /// #A8A8A8 text, its blue #0095F6, green #58C322 and red #ED4956.
+  /// Photo and story viewers stay true black, as on Instagram.
   static const dark = Hgv(
     ink: Color(0xFF0095F6),
     inkDark: Color(0xFF4CB5F9),
-    paper: Color(0xFF121212),
-    surface: Colors.black,
-    chrome: Colors.black,
+    paper: Color(0xFF25292E),
+    surface: Color(0xFF0C1014),
+    chrome: Color(0xFF0C1014),
+    elevated: Color(0xFF212328),
     border: Color(0xFF262626),
     text: Color(0xFFF5F5F5),
-    muted: Color(0xFFDBDBDB),
+    muted: Color(0xFFC7C7C7),
     faint: Color(0xFFA8A8A8),
-    success: Color(0xFF3DBF7D),
+    success: Color(0xFF58C322),
     warning: Color(0xFFE3AA48),
     danger: Color(0xFFED4956),
-    skeleton: Color(0xFF121212),
-    skeletonHi: Color(0xFF262626),
+    skeleton: Color(0xFF25292E),
+    skeletonHi: Color(0xFF2B3036),
   );
 
   static Hgv of(BuildContext context) => Theme.of(context).extension<Hgv>() ?? light;
@@ -115,8 +126,9 @@ TextTheme _tabular(TextTheme t) {
 ThemeData buildTheme(Brightness brightness) {
   final dark = brightness == Brightness.dark;
   final c = dark ? Hgv.dark : Hgv.light;
-  // Sheets and dialogs: on black they need a line to show where they start.
-  final sheetSide = dark ? BorderSide(color: c.border) : BorderSide.none;
+  // Instagram's grey button (secondary-button 250 on 54; pressed 38) and
+  // its field focus line (focus-stroke 85).
+  const igButton = Color(0xFF363636), igButtonPressed = Color(0xFF262626), igFocus = Color(0xFF555555);
   final scheme = ColorScheme.fromSeed(
     seedColor: c.ink,
     brightness: brightness,
@@ -129,7 +141,8 @@ ThemeData buildTheme(Brightness brightness) {
     useMaterial3: true,
     brightness: brightness,
     colorScheme: scheme,
-    // White (light) or black (dark) behind everything, safe areas included.
+    // White (light) or Instagram's blue-black (dark) behind everything,
+    // safe areas included.
     scaffoldBackgroundColor: c.chrome,
     // Denser, like the big social apps: more on screen, smaller touch padding.
     visualDensity: const VisualDensity(horizontal: -1, vertical: -1),
@@ -159,12 +172,16 @@ ThemeData buildTheme(Brightness brightness) {
     ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
-      fillColor: dark ? c.paper : c.surface,
+      // Dark: Instagram's filled grey fields with no outline until focused,
+      // in its lighter grey (secondary-elevated 43,48,54) so they also show
+      // on sheets and dialogs.
+      fillColor: dark ? const Color(0xFF2B3036) : c.surface,
       hintStyle: TextStyle(color: c.faint),
       contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: c.border)),
-      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: c.border)),
-      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: c.ink, width: 1.5)),
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: dark ? BorderSide.none : BorderSide(color: c.border)),
+      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: dark ? BorderSide.none : BorderSide(color: c.border)),
+      focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8), borderSide: dark ? const BorderSide(color: igFocus) : BorderSide(color: c.ink, width: 1.5)),
     ),
     filledButtonTheme: FilledButtonThemeData(
       style: FilledButton.styleFrom(
@@ -175,10 +192,22 @@ ThemeData buildTheme(Brightness brightness) {
         textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
       ),
     ),
+    // Second-choice buttons: Instagram's grey fill in dark (no outline).
+    outlinedButtonTheme: dark
+        ? OutlinedButtonThemeData(
+            style: OutlinedButton.styleFrom(
+              backgroundColor: igButton,
+              foregroundColor: const Color(0xFFFAFAFA),
+              side: BorderSide.none,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              textStyle: const TextStyle(fontWeight: FontWeight.w700),
+            ).copyWith(overlayColor: const WidgetStatePropertyAll(igButtonPressed)),
+          )
+        : null,
     chipTheme: ChipThemeData(
       shape: const StadiumBorder(),
-      side: BorderSide(color: c.border),
-      backgroundColor: c.surface,
+      side: dark ? BorderSide.none : BorderSide(color: c.border),
+      backgroundColor: dark ? c.paper : c.surface,
       selectedColor: c.ink.withValues(alpha: 0.14),
       labelStyle: TextStyle(fontWeight: FontWeight.w600, color: c.text),
     ),
@@ -201,20 +230,35 @@ ThemeData buildTheme(Brightness brightness) {
     ),
     dividerTheme: DividerThemeData(color: c.border, space: 1),
     bottomSheetTheme: BottomSheetThemeData(
-      backgroundColor: c.surface,
+      backgroundColor: c.elevated,
       surfaceTintColor: Colors.transparent,
-      shape: RoundedRectangleBorder(side: sheetSide, borderRadius: const BorderRadius.vertical(top: Radius.circular(16))),
+      dragHandleColor: dark ? const Color(0xFF555555) : null,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
     ),
     badgeTheme: const BadgeThemeData(backgroundColor: notifyRed, textColor: Colors.white),
     dialogTheme: DialogThemeData(
-      backgroundColor: c.surface,
+      backgroundColor: c.elevated,
       surfaceTintColor: Colors.transparent,
-      shape: RoundedRectangleBorder(side: sheetSide, borderRadius: BorderRadius.circular(16)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
     ),
     popupMenuTheme: PopupMenuThemeData(
-      color: c.surface,
+      color: c.elevated,
       surfaceTintColor: Colors.transparent,
-      shape: RoundedRectangleBorder(side: sheetSide, borderRadius: BorderRadius.circular(12)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
     ),
+    datePickerTheme: DatePickerThemeData(backgroundColor: c.elevated, surfaceTintColor: Colors.transparent),
+    // Toasts: a raised dark grey card in dark, as Instagram shows them.
+    snackBarTheme: dark
+        ? SnackBarThemeData(
+            backgroundColor: c.elevated,
+            contentTextStyle: TextStyle(color: c.text, fontSize: 14, fontWeight: FontWeight.w500),
+            actionTextColor: c.ink,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          )
+        : null,
+    // Presses and hovers: white at 10% in dark (Instagram's hover overlay).
+    splashColor: dark ? Colors.white.withValues(alpha: 0.10) : null,
+    highlightColor: dark ? Colors.white.withValues(alpha: 0.06) : null,
   );
 }
