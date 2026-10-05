@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Car, Clock, Pencil, ShieldAlert, ShieldCheck, ShieldQuestion, ShoppingCart, UserCheck, UserX, X } from "lucide-react";
 import { itemRequest } from "@/lib/product-api";
-import { partnerRequest } from "@/lib/supplier-api";
+import { loadCustomers, type Customer } from "@/lib/supplier-api";
 import { useLanguage } from "@/lib/language-context";
 import { askConfirm, notify } from "@/lib/dialogs";
 import {
@@ -220,9 +220,7 @@ function Sheet({ title, subtitle, onClose, children, footer }: {
 
 const inputCls = "w-full rounded-lg border border-border-strong bg-white px-3 py-2.5 text-[15px] text-text outline-none focus:border-ink focus:ring-2 focus:ring-ink/20";
 const labelCls = "mb-1 block text-sm font-medium text-text";
-const readOnlyCls = "truncate rounded-lg border border-border bg-paper-dim px-3 py-2.5 font-mono text-[15px] uppercase text-text";
-
-interface Customer { id: string; name: string; phone?: string | null; address?: string | null; id_number?: string | null; }
+const readOnlyCls = "truncate rounded-lg border border-border bg-paper-dim px-3 py-2.5 text-[15px] text-text";
 
 function PendingForm({ v, onClose, onSaved }: { v: Vehicle; onClose: () => void; onSaved: () => void }) {
   const { t } = useLanguage();
@@ -232,44 +230,33 @@ function PendingForm({ v, onClose, onSaved }: { v: Vehicle; onClose: () => void;
   const plate = a.plate_no ?? "";
   const chassis = a.chassis_no ?? "";
   const idsMissing = !plate.trim() || !chassis.trim();
+  // The buyer is always one of the saved customers (added in Customers).
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [customerId, setCustomerId] = useState("");
-  const [name, setName] = useState("");
-  const [phone, setPhone] = useState("");
-  const [idNo, setIdNo] = useState("");
   const [note, setNote] = useState("");
   const [tried, setTried] = useState(false);
   const [saving, setSaving] = useState(false);
+  const buyer = customers.find((c) => c.id === customerId);
+  const buyerIncomplete = !!buyer && !(buyer.name?.trim() && buyer.phone?.trim() && buyer.id_number?.trim());
 
+  // Load now, and again on coming back from Customers in another tab.
   useEffect(() => {
-    partnerRequest("/suppliers")
-      .then((res) => {
-        const all: Customer[] = res?.data?.items || res?.data || [];
-        // Suppliers carry a TIN in their address; the rest are customers.
-        setCustomers(all.filter((c) => !c.address?.startsWith("TIN:")));
-      })
-      .catch(() => {});
+    const load = () => loadCustomers().then(setCustomers).catch(() => {});
+    load();
+    window.addEventListener("focus", load);
+    return () => window.removeEventListener("focus", load);
   }, []);
-
-  function pickCustomer(id: string) {
-    setCustomerId(id);
-    const c = customers.find((x) => x.id === id);
-    setName(c?.name ?? ""); setPhone(c?.phone ?? ""); setIdNo(c?.id_number ?? "");
-  }
-
-  const missing = (s: string) => tried && !s.trim();
-  const field = (s: string) => `${inputCls} ${missing(s) ? "border-accent ring-2 ring-accent/20" : ""}`;
 
   async function save() {
     if (idsMissing) { notify(t("vehicle.ids_missing")); return; }
     setTried(true);
-    if (![name, phone, idNo].every((s) => s.trim())) { notify(t("vehicle.pending_missing")); return; }
-    if (phone.replace(/\D/g, "").length < 9) { notify(t("vehicle.phone_invalid")); return; }
+    if (!buyer) { notify(t("buyer.pick_required")); return; }
+    if (buyerIncomplete) { notify(t("buyer.incomplete")); return; }
     setSaving(true);
     try {
       await patchAttributes(v.id, {
-        sale_status: "pending", buyer_name: name.trim(), buyer_phone: phone.trim(),
-        buyer_id_no: idNo.trim(), pending_note: note.trim(), pending_since: today(), pending_at: new Date().toISOString(),
+        sale_status: "pending", buyer_name: buyer.name.trim(), buyer_phone: (buyer.phone ?? "").trim(),
+        buyer_id_no: (buyer.id_number ?? "").trim(), pending_note: note.trim(), pending_since: today(), pending_at: new Date().toISOString(),
       });
       notify(t("vehicle.marked_pending"), "success");
       onSaved();
@@ -287,25 +274,34 @@ function PendingForm({ v, onClose, onSaved }: { v: Vehicle; onClose: () => void;
       <p className="pt-1 text-xs font-bold uppercase tracking-wide text-text-muted">{t("vehicle.section_vehicle")}</p>
       <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div><dt className={labelCls}>{t("vehicle.plate_no")}</dt>
-          <dd className={`${readOnlyCls} ${plate ? "" : "text-text-faint"}`}>{plate || "-"}</dd></div>
+          <dd className={`${readOnlyCls} font-mono uppercase ${plate ? "" : "text-text-faint"}`}>{plate || "-"}</dd></div>
         <div><dt className={labelCls}>{t("vehicle.chassis_no")}</dt>
-          <dd className={`${readOnlyCls} ${chassis ? "" : "text-text-faint"}`}>{chassis || "-"}</dd></div>
+          <dd className={`${readOnlyCls} font-mono uppercase ${chassis ? "" : "text-text-faint"}`}>{chassis || "-"}</dd></div>
       </dl>
       <p className={`text-xs ${idsMissing ? "font-semibold text-accent" : "text-text-muted"}`}>{t(idsMissing ? "vehicle.ids_missing" : "vehicle.ids_locked")}</p>
       <p className="pt-1 text-xs font-bold uppercase tracking-wide text-text-muted">{t("vehicle.section_buyer")}</p>
-      <div><label className={labelCls}>{t("sales.buyer_existing")}</label>
-        <select className={inputCls} value={customerId} onChange={(e) => pickCustomer(e.target.value)}>
-          <option value="">{t("sales.buyer_new")}</option>
+      <div><label className={labelCls}>{t("buyer.customer")} <span className="text-accent">*</span></label>
+        <select autoFocus className={`${inputCls} ${tried && !buyer ? "border-accent ring-2 ring-accent/20" : ""}`}
+          value={customerId} onChange={(e) => setCustomerId(e.target.value)}>
+          <option value="" disabled>{t(customers.length ? "buyer.pick_placeholder" : "buyer.none")}</option>
           {customers.map((c) => <option key={c.id} value={c.id}>{c.name}{c.phone ? ` · ${c.phone}` : ""}</option>)}
-        </select></div>
-      <div><label className={labelCls}>{t("vehicle.buyer_name")} <span className="text-accent">*</span></label>
-        <input autoFocus className={field(name)} value={name} onChange={(e) => setName(e.target.value)} /></div>
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:items-end">
-        <div><label className={labelCls}>{t("vehicle.buyer_phone")} <span className="text-accent">*</span></label>
-          <input className={field(phone)} value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="07XXXXXXXX" inputMode="tel" /></div>
-        <div><label className={labelCls}>{t("vehicle.buyer_id")} <span className="text-accent">*</span></label>
-          <input className={field(idNo)} value={idNo} onChange={(e) => setIdNo(e.target.value)} placeholder="1 1990 8 0000000 0 00" /></div>
-      </div>
+        </select>
+        <p className="mt-1 text-xs text-text-muted">
+          {t("buyer.only_saved")}{" "}
+          <Link href="/partners" target="_blank" className="font-semibold text-ink hover:underline">{t("buyer.add_link")}</Link>
+        </p></div>
+      {buyer && (
+        <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          {([
+            [t("vehicle.buyer_phone"), buyer.phone],
+            [t("vehicle.buyer_id"), buyer.id_number],
+          ] as const).map(([label, value]) => (
+            <div key={label}><dt className={labelCls}>{label}</dt>
+              <dd className={`${readOnlyCls} ${value?.trim() ? "" : "border-accent text-accent"}`}>{value?.trim() || t("buyer.missing")}</dd></div>
+          ))}
+        </dl>
+      )}
+      {buyerIncomplete && <p className="text-xs font-semibold text-accent">{t("buyer.incomplete")}</p>}
       <div><label className={labelCls}>{t("vehicle.pending_note")}</label>
         <input className={inputCls} value={note} onChange={(e) => setNote(e.target.value)} placeholder={t("vehicle.pending_note_placeholder")} /></div>
     </Sheet>

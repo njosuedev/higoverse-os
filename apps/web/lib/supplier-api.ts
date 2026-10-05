@@ -39,3 +39,14 @@ export async function partnerRequest(
     return null;
   }
 }
+
+export interface Customer { id: string; name: string; phone?: string | null; address?: string | null; id_number?: string | null; }
+
+/** Customers saved in the Customers section (suppliers carry a TIN in their
+ *  address; everyone else is a customer). Buyers are only ever picked from
+ *  these, never typed in on a sale or pending form. */
+export async function loadCustomers(): Promise<Customer[]> {
+  const res = await partnerRequest("/suppliers");
+  const all: Customer[] = res?.data?.items || res?.data || [];
+  return all.filter((c) => !c.address?.startsWith("TIN:"));
+}

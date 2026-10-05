@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { isZero } from "@/lib/format";
 import Link from "next/link";
 import { itemRequest } from "@/lib/product-api";
-import { partnerRequest } from "@/lib/supplier-api";
+import { loadCustomers, partnerRequest } from "@/lib/supplier-api";
 import { saleRequest } from "@/lib/sale-api";
 import { settingsRequest } from "@/lib/settings-api";
 import { listProformas, deleteProforma, type Proforma, type ProformaStatus } from "@/lib/proforma-api";
@@ -39,9 +39,7 @@ interface Sale {
   created_at?: string;
 }
 interface Product { id: string; name: string; selling_price: number; cost_price: number; quantity: number; }
-interface Partner { id: string; name: string; phone?: string; address?: string; id_number?: string | null; }
-type Buyer = { name: string; phone: string; id_number: string; address: string };
-const EMPTY_BUYER: Buyer = { name: "", phone: "", id_number: "", address: "" };
+interface Partner { id: string; name: string; phone?: string | null; address?: string | null; id_number?: string | null; }
 interface LineItem { id: string; product_id: string; quantity: number; unit_price: number; }
 interface Debt {
   id: string; debtor_name: string; phone?: string;
@@ -116,9 +114,22 @@ export default function SaleManagementPage() {
 
   // Payment method state
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
-  // Car sales: the buyer's details (picked customer, or a new one to save).
-  const [buyer, setBuyer] = useState<Buyer>(EMPTY_BUYER);
+  // Car sales: the buyer is always one of the saved customers (added in
+  // Customers, never typed in here); these are their details.
   const [buyerTried, setBuyerTried] = useState(false);
+  const buyerCustomer = customers.find((c) => c.id === saleCustomer);
+  const buyer = {
+    name: buyerCustomer?.name ?? "", phone: buyerCustomer?.phone ?? "",
+    id_number: buyerCustomer?.id_number ?? "", address: buyerCustomer?.address ?? "",
+  };
+  const buyerIncomplete = !!buyerCustomer && ![buyer.name, buyer.phone, buyer.id_number, buyer.address].every((x) => x.trim());
+  // A customer just added in Customers (another tab) shows up on coming back.
+  useEffect(() => {
+    if (!isCar || !showModal) return;
+    const reload = () => loadCustomers().then(setCustomers).catch(() => {});
+    window.addEventListener("focus", reload);
+    return () => window.removeEventListener("focus", reload);
+  }, [isCar, showModal]);
   // New sale opens with the product search already open — just start typing.
   const [autoPick, setAutoPick] = useState(true);
   const [amountSent, setAmountSent] = useState("");
@@ -221,7 +232,7 @@ export default function SaleManagementPage() {
     setAutoPick(autoSearch);
     setLineItems([emptyLine()]); setSaleCustomer(""); setSaleNotes("");
     setPaymentMethod("cash"); setAmountSent(""); setDebtorName(""); setDebtorPhone("");
-    setBuyer(EMPTY_BUYER); setBuyerTried(false);
+    setBuyerTried(false);
     setEditingId(null); setModalMode("create"); setShowModal(true);
   }
   // Dashboard "Record sale" and vehicle-card "Sell" links: /sales?new=1[&product=<id>]
@@ -243,13 +254,7 @@ export default function SaleManagementPage() {
         if (a.buyer_name || a.buyer_phone) {
           const digits = (x?: string | null) => (x || "").replace(/\D/g, "");
           const match = a.buyer_phone ? customers.find((c) => digits(c.phone) && digits(c.phone) === digits(a.buyer_phone)) : undefined;
-          if (match) {
-            setSaleCustomer(match.id);
-            setBuyer({ name: match.name || a.buyer_name || "", phone: match.phone || a.buyer_phone || "", id_number: match.id_number || a.buyer_id_no || "", address: match.address || "" });
-          } else {
-            setSaleCustomer("");
-            setBuyer({ name: a.buyer_name || "", phone: a.buyer_phone || "", id_number: a.buyer_id_no || "", address: "" });
-          }
+          setSaleCustomer(match?.id ?? "");
         }
       })
       .catch(() => {});
@@ -267,7 +272,7 @@ export default function SaleManagementPage() {
     setShowModal(false); setForm(EMPTY_FORM); setEditingId(null);
     setLineItems([emptyLine()]); setSaleCustomer(""); setSaleNotes("");
     setPaymentMethod("cash"); setAmountSent(""); setDebtorName(""); setDebtorPhone("");
-    setBuyer(EMPTY_BUYER); setBuyerTried(false);
+    setBuyerTried(false);
   }
 
   function addLine() { setLineItems((prev) => [...prev, emptyLine()]); }
@@ -299,7 +304,6 @@ export default function SaleManagementPage() {
     setSaleCustomer(id);
     const c = customers.find((x) => x.id === id);
     if (c) { setDebtorName(c.name); setDebtorPhone(c.phone || ""); }
-    setBuyer(c ? { name: c.name || "", phone: c.phone || "", id_number: c.id_number || "", address: c.address || "" } : EMPTY_BUYER);
   }
   function setLinePrice(id: string, price: number) {
     setLineItems((prev) => prev.map((l) => l.id === id ? { ...l, unit_price: Math.max(0, price) } : l));
@@ -333,8 +337,8 @@ export default function SaleManagementPage() {
     if (validLines.length === 0) { notify(t("sales.need_one_item")); return; }
     if (isCar) {
       setBuyerTried(true);
-      if (![buyer.name, buyer.phone, buyer.id_number, buyer.address].every((x) => x.trim())) { notify(t("sales.buyer_required")); return; }
-      if (buyer.phone.replace(/\D/g, "").length < 9) { notify(t("vehicle.phone_invalid")); return; }
+      if (!buyerCustomer) { notify(t("buyer.pick_required")); return; }
+      if (buyerIncomplete) { notify(t("buyer.incomplete_sale")); return; }
     }
     const debtor = debtorName.trim() || (isCar ? buyer.name.trim() : "");
     if (paymentMethod === "debt" && !debtor) { notify(t("sales.need_debtor_name")); return; }
@@ -346,24 +350,7 @@ export default function SaleManagementPage() {
       const created: Sale[] = [];
       const errors: string[] = [];
 
-      let customerId = saleCustomer;
-      if (isCar) {
-        const details = { name: buyer.name.trim(), phone: buyer.phone.trim(), id_number: buyer.id_number.trim(), address: buyer.address.trim() };
-        try {
-          const digits = (x?: string | null) => (x || "").replace(/\D/g, "");
-          if (!customerId) customerId = customers.find((c) => digits(c.phone) && digits(c.phone) === digits(details.phone))?.id ?? "";
-          if (!customerId) {
-            const res = await partnerRequest("/suppliers", { method: "POST", body: JSON.stringify(details) });
-            customerId = res?.data?.id ?? "";
-          } else {
-            const c = customers.find((x) => x.id === customerId);
-            const changed = !c || c.name !== details.name || (c.phone || "") !== details.phone
-              || (c.id_number || "") !== details.id_number || (c.address || "") !== details.address;
-            if (changed) await partnerRequest(`/suppliers/${customerId}`, { method: "PUT", body: JSON.stringify(details) });
-          }
-        } catch { customerId = ""; }
-        if (!customerId) { notify(t("sales.buyer_save_failed")); return; }
-      }
+      const customerId = saleCustomer;
 
       for (const line of validLines) {
         try {
@@ -1258,29 +1245,34 @@ ${paymentHtml}
                         <p className="text-xs font-semibold uppercase tracking-wide text-slate-600">{t("sales.buyer_title")} <span className="text-red-500">*</span></p>
                         <p className="text-xs text-slate-500">{t("sales.buyer_hint")}</p>
                       </div>
-                      <select className={`${inputCls} sm:max-w-[280px]`} value={saleCustomer} onChange={(e) => setSaleCustomerAndDebtor(e.target.value)} aria-label={t("sales.buyer_existing")}>
-                        <option value="">{t("sales.buyer_new")}</option>
+                      <select className={`${inputCls} sm:max-w-[280px] ${buyerTried && !buyerCustomer ? "border-red-400 ring-2 ring-red-200" : ""}`}
+                        value={saleCustomer} onChange={(e) => setSaleCustomerAndDebtor(e.target.value)} aria-label={t("buyer.customer")}>
+                        <option value="" disabled>{t(customers.length ? "buyer.pick_placeholder" : "buyer.none")}</option>
                         {customers.map((c) => <option key={c.id} value={c.id}>{c.name}{c.phone ? ` · ${c.phone}` : ""}</option>)}
                       </select>
                     </div>
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      {([
-                        ["name", t("sales.buyer_full_name"), "", "text"],
-                        ["phone", t("sales.buyer_phone"), "07XXXXXXXX", "tel"],
-                        ["id_number", t("sales.buyer_id"), "1 1990 8 0000000 0 00", "text"],
-                        ["address", t("sales.buyer_address"), t("sales.buyer_address_placeholder"), "text"],
-                      ] as const).map(([key, label, ph, mode]) => {
-                        const missing = buyerTried && !buyer[key].trim();
-                        return (
+                    <p className="mb-3 text-xs text-slate-500">
+                      {t("buyer.only_saved")}{" "}
+                      <Link href="/partners" target="_blank" className="font-semibold text-[#0a66c2] hover:underline">{t("buyer.add_link")}</Link>
+                    </p>
+                    {buyerCustomer && (
+                      <dl className="grid gap-3 sm:grid-cols-2">
+                        {([
+                          ["name", t("sales.buyer_full_name")],
+                          ["phone", t("sales.buyer_phone")],
+                          ["id_number", t("sales.buyer_id")],
+                          ["address", t("sales.buyer_address")],
+                        ] as const).map(([key, label]) => (
                           <div key={key}>
-                            <label className="block text-xs font-medium text-gray-600 mb-1">{label} <span className="text-red-500">*</span></label>
-                            <input className={`${inputCls} ${missing ? "border-red-400 ring-2 ring-red-200" : ""}`} placeholder={ph}
-                              inputMode={mode === "tel" ? "tel" : undefined}
-                              value={buyer[key]} onChange={(e) => setBuyer((b) => ({ ...b, [key]: e.target.value }))} />
+                            <dt className="block text-xs font-medium text-gray-600 mb-1">{label}</dt>
+                            <dd className={`truncate rounded-lg border px-3 py-2 text-sm ${buyer[key].trim() ? "border-slate-200 bg-slate-50 text-gray-800" : "border-red-300 bg-red-50 text-red-600"}`}>
+                              {buyer[key].trim() || t("buyer.missing")}
+                            </dd>
                           </div>
-                        );
-                      })}
-                    </div>
+                        ))}
+                      </dl>
+                    )}
+                    {buyerIncomplete && <p className="mt-2 text-xs font-semibold text-red-600">{t("buyer.incomplete_sale")}</p>}
                   </div>
                 )}
 
