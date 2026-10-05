@@ -94,7 +94,10 @@ async function check(manual) {
     if (manual && win) dialog.showMessageBox(win, { type: "info", title: "Higoverse", message: "Updates are checked in the installed app." });
     return;
   }
-  if (!["idle", "failed", "prompt"].includes(state.stage)) { showWindow(); return; } // already under way
+  // Already under way: only "Check for updates…" shows it; a background
+  // check stays quiet (a quiet update waiting for an idle moment must not
+  // pop its window up again and again).
+  if (!["idle", "failed", "prompt"].includes(state.stage)) { if (manual) showWindow(); return; }
   if (state.checking) return;
   const saved = readState();
   let release = null;
