@@ -140,7 +140,46 @@ export function handleLiveEvent(m: LiveMsg) {
   items = [n, ...items].slice(0, MAX);
   save();
   emit();
+  playChime();
   showSystemNotification(n);
+}
+
+// ── Sound: the Higoverse chime (the phone's), unless muted on this device ──
+const SOUND_KEY = "hgv-notif-sound";
+const soundListeners = new Set<() => void>();
+let lastChime = 0;
+let audio: HTMLAudioElement | null = null;
+
+export function soundOn(): boolean {
+  try { return localStorage.getItem(SOUND_KEY) !== "off"; } catch { return true; }
+}
+export function setSoundOn(on: boolean) {
+  try { localStorage.setItem(SOUND_KEY, on ? "on" : "off"); } catch { /* best effort */ }
+  soundListeners.forEach((l) => l());
+}
+export function useSoundOn(): boolean {
+  return useSyncExternalStore(
+    (l) => { soundListeners.add(l); return () => { soundListeners.delete(l); }; },
+    soundOn,
+    () => true,
+  );
+}
+
+/** Plays the chime (at most once every 2 s, so a burst rings once).
+ *  `force` plays it even when muted — the "Test sound" button. */
+export function playChime(force = false) {
+  if (typeof window === "undefined" || (!force && !soundOn())) return;
+  const now = Date.now();
+  if (!force && now - lastChime < 2000) return;
+  lastChime = now;
+  try {
+    audio ??= new Audio("/sounds/chime.mp3");
+    audio.currentTime = 0;
+    audio.volume = 0.8;
+    // Browsers allow sound once the page has been clicked; before that this
+    // quietly does nothing (the desktop app always allows it).
+    void audio.play().catch(() => {});
+  } catch { /* no audio here */ }
 }
 
 /** A Windows / browser notification, only when the window isn't in front. */
@@ -149,7 +188,7 @@ function showSystemNotification(n: Notif) {
   if (document.visibilityState === "visible" && document.hasFocus()) return;
   const { title, body } = notifText(n);
   try {
-    const sys = new Notification(title, { body, tag: n.id, icon: "/icon.png" });
+    const sys = new Notification(title, { body, tag: n.id, icon: "/icon.png", silent: true });
     sys.onclick = () => { window.focus(); markRead(n.id); window.location.href = n.href; };
   } catch { /* not allowed here */ }
 }

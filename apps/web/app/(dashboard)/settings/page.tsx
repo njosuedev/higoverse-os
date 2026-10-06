@@ -11,12 +11,13 @@ import { type Lang } from "@/lib/i18n";
 import { parseShopAddress, decodeShopHumanInfo } from "@/lib/product-meta";
 import { cleanTin, normalizePhone, phoneError, prettyPhone, shopTin, splitAddress, tinError, bankErrors, RWANDA_BANKS, type BankAccount } from "@/lib/company";
 import { useAuth } from "@/lib/auth-context";
+import { playChime, setSoundOn, useSoundOn } from "@/lib/notifications";
 import { CAR_TYPES, carTypeLabel } from "@/lib/business-layout";
 import { useShopSettings } from "@/lib/shop-settings-context";
 import { compressImage } from "@/lib/image";
 import PageSkeleton from "@/app/components/dashboard/PageSkeleton";
 import {
-  Save, Store, Phone, MapPin, DollarSign, AlertCircle, FileText, Lock, Eye, EyeOff, CheckCircle2, ChevronDown, Globe, BarChart, ShieldCheck, Pencil, ImagePlus, X, Loader2, Target, Car, Plus, Settings, RefreshCw, Landmark,
+  Save, Store, Phone, MapPin, DollarSign, AlertCircle, FileText, Lock, Eye, EyeOff, CheckCircle2, ChevronDown, Globe, BarChart, ShieldCheck, Pencil, ImagePlus, X, Loader2, Target, Car, Plus, Settings, RefreshCw, Landmark, BellRing, BellOff, Volume2,
 } from "lucide-react";
 
 const HigoMapPicker = dynamic(() => import("@/app/components/ui/HigoMapPicker"), { ssr: false });
@@ -895,6 +896,9 @@ export default function SettingsPage() {
           </Section>
         )}
 
+        {/* ── NOTIFICATIONS (this device) ─────────── */}
+        <NotificationsCard />
+
         {/* ── LANGUAGE ─────────────────────────── */}
         <Section
           icon={<Globe size={15} />}
@@ -1139,6 +1143,64 @@ function Section({
         </div>
       </div>
       <div className="p-5">{children}</div>
+    </div>
+  );
+}
+
+/** Sound and desktop pop-ups for notifications, on this computer / browser.
+ *  Saved at once on this device (each person chooses for themselves). */
+function NotificationsCard() {
+  const { t } = useLanguage();
+  const sound = useSoundOn();
+  const [perm, setPerm] = useState<string>(() => (typeof Notification === "undefined" ? "unsupported" : Notification.permission));
+
+  async function enablePopups() {
+    if (typeof Notification === "undefined") return;
+    setPerm(await Notification.requestPermission().catch(() => "denied"));
+  }
+
+  return (
+    <div className="bg-white rounded-xl border border-slate-200">
+      <div className="flex items-center gap-2.5 px-5 py-4 border-b border-slate-100">
+        <div className="w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center text-slate-500">
+          {sound ? <BellRing size={15} /> : <BellOff size={15} />}
+        </div>
+        <h2 className="text-sm font-semibold text-slate-700">{t("notif.settings_title")}</h2>
+        <span className="text-[11px] text-slate-400">{t("notif.this_device")}</span>
+      </div>
+      <div className="divide-y divide-slate-100">
+        <div className="flex items-center gap-4 px-5 py-4">
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-slate-800">{t("notif.sound_label")}</p>
+            <p className="text-xs text-slate-500 mt-0.5">{t(sound ? "notif.sound_on_hint" : "notif.sound_off_hint")}</p>
+          </div>
+          <button type="button" onClick={() => playChime(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-medium text-slate-600 hover:bg-slate-50 transition shrink-0">
+            <Volume2 size={13} /> {t("notif.test_sound")}
+          </button>
+          {/* On = sound plays; off = muted. */}
+          <button type="button" role="switch" aria-checked={sound} aria-label={t("notif.sound_label")}
+            onClick={() => setSoundOn(!sound)}
+            className={`relative w-11 h-6 rounded-full transition-colors shrink-0 ${sound ? "bg-[#0a66c2]" : "bg-slate-300"}`}>
+            <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${sound ? "translate-x-5" : "translate-x-0.5"}`} />
+          </button>
+        </div>
+        <div className="flex items-center gap-4 px-5 py-4">
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-slate-800">{t("notif.popups_label")}</p>
+            <p className="text-xs text-slate-500 mt-0.5">
+              {perm === "granted" ? t("notif.popups_on") : perm === "denied" ? t("notif.blocked") : perm === "unsupported" ? t("notif.popups_unsupported") : t("notif.enable_hint")}
+            </p>
+          </div>
+          {perm === "default" && (
+            <button type="button" onClick={enablePopups}
+              className="px-3 py-1.5 rounded-lg bg-[#0a66c2] text-white text-xs font-semibold hover:bg-[#004182] transition shrink-0">
+              {t("notif.enable")}
+            </button>
+          )}
+          {perm === "granted" && <CheckCircle2 size={18} className="text-emerald-600 shrink-0" />}
+        </div>
+      </div>
     </div>
   );
 }

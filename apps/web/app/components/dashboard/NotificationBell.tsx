@@ -3,13 +3,13 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import {
-  Bell, BellRing, Car, CheckCheck, FileText, Package, Receipt, ShoppingCart, Trash2, TriangleAlert, Wallet, Clock,
+  Bell, BellOff, BellRing, Car, CheckCheck, FileText, Package, Receipt, ShoppingCart, Trash2, TriangleAlert, Wallet, Clock, Volume2, VolumeX,
 } from "lucide-react";
 import { useLanguage } from "@/lib/language-context";
 import { useAuth } from "@/lib/auth-context";
 import { useShopSettings } from "@/lib/shop-settings-context";
 import {
-  clearAll, configureNotifications, markAllRead, markRead, notifText, useNotifications, type Notif, type NotifKind,
+  clearAll, configureNotifications, markAllRead, markRead, notifText, playChime, setSoundOn, useNotifications, useSoundOn, type Notif, type NotifKind,
 } from "@/lib/notifications";
 
 const ICON: Record<NotifKind, { icon: typeof Bell; tone: string }> = {
@@ -44,6 +44,7 @@ export default function NotificationBell() {
   const { lowStock } = useShopSettings();
   const router = useRouter();
   const items = useNotifications();
+  const sound = useSoundOn();
   const [open, setOpen] = useState(false);
   // "5 min ago" stays true while the list is open.
   const [now, setNow] = useState(() => Date.now());
@@ -100,7 +101,7 @@ export default function NotificationBell() {
       <button type="button" onClick={() => { setNow(Date.now()); setOpen((o) => !o); }} aria-haspopup="dialog" aria-expanded={open}
         title={t("notif.title")} aria-label={unread ? `${t("notif.title")} (${unread})` : t("notif.title")}
         className={`relative flex h-9 w-9 items-center justify-center rounded-full transition-colors ${open ? "bg-paper-dim text-text" : "text-text-muted hover:bg-paper-dim hover:text-text"}`}>
-        {unread ? <BellRing size={18} /> : <Bell size={18} />}
+        {!sound ? <BellOff size={18} /> : unread ? <BellRing size={18} /> : <Bell size={18} />}
         {unread > 0 && (
           <span className="absolute -right-0.5 -top-0.5 min-w-[18px] h-[18px] rounded-full bg-accent px-1 text-[10px] font-bold leading-[18px] text-white text-center tabular-nums">
             {unread > 99 ? "99+" : unread}
@@ -114,6 +115,11 @@ export default function NotificationBell() {
           <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-3">
             <p className="text-sm font-semibold text-text">{t("notif.title")}</p>
             <div className="flex items-center gap-1">
+              <button type="button" onClick={() => { setSoundOn(!sound); if (!sound) playChime(true); }}
+                title={t(sound ? "notif.mute" : "notif.unmute")} aria-label={t(sound ? "notif.mute" : "notif.unmute")} aria-pressed={!sound}
+                className={`rounded-md p-1 hover:bg-paper-dim ${sound ? "text-text-faint hover:text-text" : "text-accent"}`}>
+                {sound ? <Volume2 size={14} /> : <VolumeX size={14} />}
+              </button>
               {unread > 0 && (
                 <button type="button" onClick={markAllRead} className="flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-ink hover:bg-paper-dim">
                   <CheckCheck size={13} /> {t("notif.mark_all")}

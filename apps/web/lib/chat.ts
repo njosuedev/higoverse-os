@@ -6,7 +6,7 @@
 // global search), with its own live connection to sale-service's hub
 // (wss://…/svc/sales/ws), which sends chat events only to the two people.
 
-import { handleLiveEvent } from "@/lib/notifications";
+import { handleLiveEvent, playChime } from "@/lib/notifications";
 import { useSyncExternalStore } from "react";
 import { authFetch, refreshAccessToken } from "@/lib/session";
 import { getToken, getUser } from "@/lib/auth";
@@ -311,6 +311,7 @@ async function onMessage(raw: Raw) {
       void markRead(other);
     } else {
       set({ unread: { ...state.unread, [other]: (state.unread[other] ?? 0) + 1 } });
+      playChime();
       notifyNew(other, m.text);
     }
   }
@@ -327,7 +328,7 @@ function notifyNew(from: string, text: string | null) {
   if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
   const name = state.members.find((m) => m.id === from)?.name ?? "Higoverse";
   try {
-    const n = new Notification(name, { body: text || "📷", tag: `chat-${from}`, icon: "/icon.png" });
+    const n = new Notification(name, { body: text || "📷", tag: `chat-${from}`, icon: "/icon.png", silent: true });
     n.onclick = () => { window.focus(); window.location.href = `/messages?with=${from}`; };
   } catch { /* not allowed here */ }
 }
