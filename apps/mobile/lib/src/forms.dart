@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:phosphor_icons/phosphor_icons.dart';
 
 import 'car_photos.dart';
 import 'api.dart';
@@ -463,6 +464,7 @@ class _ProductPickerScreenState extends State<ProductPickerScreen> {
             controller: _q,
             autofocus: true,
             hint: s.isCar ? t('stock.search_car') : t('stock.search'),
+            compact: true,
             onChanged: (_) {
               _debounce?.cancel();
               _debounce = Timer(const Duration(milliseconds: 300), _load);
@@ -1048,27 +1050,67 @@ const carTypes = ['sedan', 'suv', 'pickup', 'hatchback', 'van', 'bus', 'truck', 
 Future<Map<String, dynamic>?> addVehicle(BuildContext context) =>
     pushScoped<Map<String, dynamic>>(context, const VehicleFormScreen());
 
-/// A new vehicle with the website's required details: chassis and plate
+/// Edits [vehicle]'s details. Returns the saved one.
+Future<Map<String, dynamic>?> editVehicle(BuildContext context, Map<String, dynamic> vehicle) =>
+    pushScoped<Map<String, dynamic>>(context, VehicleFormScreen(vehicle: vehicle));
+
+/// Plate/chassis as compared: "rac 123 a" and "RAC123A" are the same car
+/// (product-service `_car_key`).
+String carKey(String? v) => (v ?? '').replaceAll(RegExp(r'\s+'), '').toUpperCase();
+
+/// A vehicle with the website's required details: chassis and plate
 /// (unique; stored upper case), type, year, battery range, colour, price,
-/// and up to 7 photos.
+/// and up to 7 photos when it's new. Editing changes only these details:
+/// a booking, deposits and fines on the car stay as they are.
 class VehicleFormScreen extends StatefulWidget {
-  const VehicleFormScreen({super.key});
+  const VehicleFormScreen({super.key, this.vehicle});
+  final Map<String, dynamic>? vehicle;
 
   @override
   State<VehicleFormScreen> createState() => _VehicleFormScreenState();
 }
 
+/// What the uniqueness check knows about a chassis or plate number.
+enum _Unique { unknown, checking, ok, taken }
+
 class _VehicleFormScreenState extends State<VehicleFormScreen> {
   final _form = GlobalKey<FormState>();
-  final _name = TextEditingController(), _chassis = TextEditingController(), _plate = TextEditingController();
-  final _year = TextEditingController(), _range = TextEditingController(), _color = TextEditingController();
-  final _price = TextEditingController();
-  String? _type;
+  late final Map<String, dynamic>? v = widget.vehicle;
+  late final Map<String, String> _a = attributesOf(v?['attributes']);
+  late final _name = TextEditingController(text: '${v?['name'] ?? ''}');
+  late final _chassis = TextEditingController(text: _a['chassis_no'] ?? '');
+  late final _plate = TextEditingController(text: _a['plate_no'] ?? '');
+  late final _year = TextEditingController(text: _a['year'] ?? '');
+  late final _range = TextEditingController(text: _a['battery_range'] ?? '');
+  late final _color = TextEditingController(text: _a['color'] ?? '');
+  late final _price = TextEditingController(text: _amountText(v == null ? null : _n(v!['selling_price'])));
+  late String? _type = (_a['car_type'] ?? '').isEmpty ? null : _a['car_type'];
   final List<CarPhoto> _photos = [];
   bool _saving = false, _picking = false;
 
+  // Each car is one physical vehicle: its chassis and plate are checked
+  // against the rest of the stock (sold cars too) while typing.
+  final Map<String, _Unique> _state = {'chassis_no': _Unique.unknown, 'plate_no': _Unique.unknown};
+  final Map<String, String> _takenBy = {};
+  final Map<String, Timer> _timers = {};
+
+  bool get _editing => v != null;
+
+  @override
+  void initState() {
+    super.initState();
+    // The car's own numbers are fine as they are.
+    if (_editing) {
+      if (_chassis.text.isNotEmpty) _state['chassis_no'] = _Unique.ok;
+      if (_plate.text.isNotEmpty) _state['plate_no'] = _Unique.ok;
+    }
+  }
+
   @override
   void dispose() {
+    for (final t in _timers.values) {
+      t.cancel();
+    }
     for (final c in [_name, _chassis, _plate, _year, _range, _color, _price]) {
       c.dispose();
     }
@@ -1076,6 +1118,66 @@ class _VehicleFormScreenState extends State<VehicleFormScreen> {
   }
 
   static String _id(String v) => v.trim().replaceAll(RegExp(r'\s+'), ' ').toUpperCase();
+
+  void _onIdChanged(String field, String value) {
+    _timers[field]?.cancel();
+    final key = carKey(value);
+    if (key.isEmpty || (_editing && key == carKey(_a[field]))) {
+      setState(() => _state[field] = key.isEmpty ? _Unique.unknown : _Unique.ok);
+      return;
+    }
+    setState(() => _state[field] = _Unique.checking);
+    _timers[field] = Timer(const Duration(milliseconds: 450), () => _checkUnique(field, value));
+  }
+
+  Future<void> _checkUnique(String field, String value) async {
+    final key = carKey(value);
+    try {
+      final res = await SessionScope.of(context).api.get('${Svc.products}/products', query: {'page': '1', 'limit': '25', 'q': value.trim()});
+      final items = ((res as Map)['data'] as Map?)?['items'] as List? ?? const [];
+      final other = items.whereType<Map>().where((p) => p['id'] != v?['id']).firstWhere(
+            (p) => carKey(attributesOf(p['attributes'])[field]) == key,
+            orElse: () => const {},
+          );
+      // A newer keystroke already moved on.
+      final now = field == 'chassis_no' ? _chassis.text : _plate.text;
+      if (!mounted || carKey(now) != key) return;
+      setState(() {
+        if (other.isEmpty) {
+          _state[field] = _Unique.ok;
+        } else {
+          _state[field] = _Unique.taken;
+          _takenBy[field] = '${other['name'] ?? ''}';
+        }
+      });
+      _form.currentState?.validate();
+    } catch (_) {
+      // Offline or the search failed: the server still checks on save.
+      if (mounted) setState(() => _state[field] = _Unique.unknown);
+    }
+  }
+
+  Widget? _uniqueIcon(String field) {
+    final c = Hgv.of(context);
+    return switch (_state[field]!) {
+      _Unique.checking => const Padding(padding: EdgeInsets.all(14), child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))),
+      _Unique.ok => Icon(PhosphorIconsFill.checkCircle, color: c.success, size: 20),
+      _Unique.taken => Icon(PhosphorIconsFill.warningCircle, color: c.danger, size: 20),
+      _Unique.unknown => null,
+    };
+  }
+
+  String? _idValidator(String field, String? value) {
+    final t = T.of(context);
+    final x = carKey(value);
+    if (x.isEmpty) return t('vehicle.required');
+    if (field == 'chassis_no' && !RegExp(r'^[A-Z0-9]{6,20}$').hasMatch(x)) return t('vehicle.bad_chassis');
+    if (field == 'plate_no' && !RegExp(r'^[A-Z0-9]{4,10}$').hasMatch(x)) return t('vehicle.bad_plate');
+    if (_state[field] == _Unique.taken) {
+      return t(field == 'chassis_no' ? 'vehicle.chassis_taken' : 'vehicle.plate_taken', {'name': _takenBy[field] ?? ''});
+    }
+    return null;
+  }
 
   Future<void> _addPhotos() async {
     if (_picking) return;
@@ -1094,33 +1196,62 @@ class _VehicleFormScreenState extends State<VehicleFormScreen> {
     final t = T.of(context);
     if (!_form.currentState!.validate()) return;
     if (_type == null) return _say(context, t('vehicle.need_type'));
+    if (_state.values.contains(_Unique.checking)) return _say(context, t('vehicle.checking'));
     final s = SessionScope.of(context);
     final price = parseAmount(_price.text) ?? 0;
-    final body = <String, dynamic>{
-      'name': _name.text.trim(),
-      // Car companies don't track cost: the API needs one, so the price is used (as on the website).
-      'cost_price': price,
-      'selling_price': price,
-      'quantity': 1,
-      'attributes': jsonEncode({
-        'chassis_no': _id(_chassis.text),
-        'plate_no': _id(_plate.text),
-        'car_type': _type,
-        'year': _year.text.trim(),
-        'battery_range': _range.text.trim(),
-        'color': _color.text.trim(),
-      }),
-      if (_photos.isNotEmpty) ...{'images': jsonEncode([for (final x in _photos) x.photo]), 'thumbnail': _photos.first.thumb},
+    final details = {
+      'chassis_no': _id(_chassis.text),
+      'plate_no': _id(_plate.text),
+      'car_type': _type,
+      'year': _year.text.trim(),
+      'battery_range': _range.text.trim(),
+      'color': _color.text.trim(),
     };
+    final Map<String, dynamic> body;
+    if (_editing) {
+      // Car companies don't track cost: it follows the price, as when added.
+      final costFollows = _n(v!['cost_price']) == _n(v!['selling_price']);
+      body = {
+        'name': _name.text.trim(),
+        'selling_price': price,
+        if (costFollows) 'cost_price': price,
+        // Booking, deposits, fines… are kept; only the details change.
+        'attributes': jsonEncode({..._a, ...details}),
+      };
+    } else {
+      body = {
+        'name': _name.text.trim(),
+        // Car companies don't track cost: the API needs one, so the price is used (as on the website).
+        'cost_price': price,
+        'selling_price': price,
+        'quantity': 1,
+        'attributes': jsonEncode(details),
+        if (_photos.isNotEmpty) ...{'images': jsonEncode([for (final x in _photos) x.photo]), 'thumbnail': _photos.first.thumb},
+      };
+    }
     setState(() => _saving = true);
     try {
-      final res = await s.api.post('${Svc.products}/products', body);
+      final res = _editing
+          ? await s.api.put('${Svc.products}/products/${v!['id']}', body)
+          : await s.api.post('${Svc.products}/products', body);
       final data = (res as Map?)?['data'];
       if (!mounted) return;
-      _say(context, t('vehicle.added'));
-      Navigator.pop(context, data is Map ? Map<String, dynamic>.from(data) : body);
+      HapticFeedback.mediumImpact();
+      _say(context, t(_editing ? 'vehicle.saved' : 'vehicle.added'));
+      Navigator.pop(context, data is Map ? Map<String, dynamic>.from(data) : <String, dynamic>{...?v, ...body});
     } on ApiException catch (e) {
-      if (mounted) _say(context, e.status == 409 ? t('vehicle.duplicate') : errorText(t, e));
+      if (!mounted) return;
+      final field = '${e.detail?['field'] ?? ''}';
+      if (e.status == 409 && _state.containsKey(field)) {
+        // Show it on the field that clashes.
+        setState(() {
+          _state[field] = _Unique.taken;
+          _takenBy[field] = '${e.detail?['product_name'] ?? ''}';
+        });
+        _form.currentState?.validate();
+      } else {
+        _say(context, e.status == 409 ? t('vehicle.duplicate') : errorText(t, e));
+      }
     } catch (e) {
       if (mounted) _say(context, errorText(t, e));
     } finally {
@@ -1133,25 +1264,33 @@ class _VehicleFormScreenState extends State<VehicleFormScreen> {
     final t = T.of(context);
     final s = SessionScope.of(context);
     String? need(String? v) => (v ?? '').trim().isEmpty ? t('vehicle.required') : null;
+    // A company's own type (added on the website) stays selectable as typed.
+    final types = [for (final k in carTypes) (k, t('vehicle.type_$k')), if (_type != null && !carTypes.contains(_type)) (_type!, _type!)];
+    Widget idField(String field, TextEditingController c, String hint) => TextFormField(
+          controller: c,
+          textCapitalization: TextCapitalization.characters,
+          autocorrect: false,
+          inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[A-Za-z0-9 ]')), LengthLimitingTextInputFormatter(24)],
+          decoration: InputDecoration(hintText: hint, suffixIcon: _uniqueIcon(field)),
+          onChanged: (x) => _onIdChanged(field, x),
+          validator: (x) => _idValidator(field, x),
+        );
     return _FormPage(
-      title: t('vehicle.new'),
+      title: t(_editing ? 'vehicle.edit' : 'vehicle.new'),
       formKey: _form,
       saving: _saving,
       saveLabel: t('form.save'),
       onSave: _save,
       children: [
-        _Field(t('vehicle.name'), _text(_name, hint: 'Toyota RAV4', validator: need)),
-        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Expanded(child: _Field(t('detail.chassis'), _text(_chassis, hint: 'LGXCE4CB0P…', caps: false, validator: need))),
-          const SizedBox(width: 10),
-          Expanded(child: _Field(t('detail.plate'), _text(_plate, hint: 'RAC 123 A', caps: false, validator: need))),
-        ]),
+        _Field(t('vehicle.name'), _text(_name, hint: 'BYD Yuan Up', validator: need)),
+        _Field(t('detail.chassis'), idField('chassis_no', _chassis, 'LL31233343'), hint: t('vehicle.unique_hint')),
+        _Field(t('detail.plate'), idField('plate_no', _plate, 'RAC 123 A')),
         _Field(
           t('detail.type'),
           _Choices<String>(
-            options: [for (final k in carTypes) (k, t('vehicle.type_$k'))],
+            options: types,
             value: _type,
-            onChanged: (v) => setState(() => _type = v),
+            onChanged: (x) => setState(() => _type = x),
           ),
         ),
         Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -1163,8 +1302,8 @@ class _VehicleFormScreenState extends State<VehicleFormScreen> {
                 keyboardType: TextInputType.number,
                 inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(4)],
                 decoration: const InputDecoration(hintText: '2023'),
-                validator: (v) {
-                  final y = int.tryParse((v ?? '').trim());
+                validator: (x) {
+                  final y = int.tryParse((x ?? '').trim());
                   return y == null || y < 1950 || y > DateTime.now().year + 1 ? t('vehicle.need_year') : null;
                 },
               ),
@@ -1177,26 +1316,30 @@ class _VehicleFormScreenState extends State<VehicleFormScreen> {
               TextFormField(
                 controller: _range,
                 keyboardType: TextInputType.number,
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(4)],
                 decoration: const InputDecoration(hintText: '400', suffixText: 'km'),
-                validator: need,
+                validator: (x) {
+                  final r = int.tryParse((x ?? '').trim());
+                  return r == null ? t('vehicle.required') : (r < 10 || r > 2000 ? t('vehicle.bad_range') : null);
+                },
               ),
             ),
           ),
         ]),
         _Field(t('detail.colour'), _text(_color, hint: t('vehicle.color_hint'), validator: need)),
         _Field(t('form.selling_price'),
-            _moneyField(_price, suffix: s.currency, validator: (v) => (parseAmount(v ?? '') ?? 0) <= 0 ? t('form.need_price') : null)),
-        _Field(
-          '${t('form.photos')} (${_photos.length}/$maxCarPhotos)',
-          _PhotoStrip(
-            photos: _photos,
-            busy: _picking,
-            onAdd: _photos.length < maxCarPhotos ? _addPhotos : null,
-            onRemove: (i) => setState(() => _photos.removeAt(i)),
+            _moneyField(_price, suffix: s.currency, validator: (x) => (parseAmount(x ?? '') ?? 0) <= 0 ? t('form.need_price') : null)),
+        if (!_editing)
+          _Field(
+            '${t('form.photos')} (${_photos.length}/$maxCarPhotos)',
+            _PhotoStrip(
+              photos: _photos,
+              busy: _picking,
+              onAdd: _photos.length < maxCarPhotos ? _addPhotos : null,
+              onRemove: (i) => setState(() => _photos.removeAt(i)),
+            ),
+            hint: t('form.photos_hint'),
           ),
-          hint: t('form.photos_hint'),
-        ),
       ],
     );
   }

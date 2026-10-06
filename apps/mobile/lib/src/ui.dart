@@ -363,9 +363,11 @@ class WithCount extends StatelessWidget {
       ]);
 }
 
-/// The app's search field: one style everywhere, as the big apps do — a
-/// filled, fully rounded box (no outline), the magnifying glass in front,
-/// a clear button once something is typed, a thin ring only while typing.
+/// The app's search field: one style everywhere, following Material 3's
+/// search bar — a fully rounded pill (56 dp; 48 dp inside an app bar) in a
+/// neutral "surface container" grey, no outline at rest. While typing it
+/// lifts to the page colour with a brand-blue edge and soft glow, the
+/// magnifying glass turns blue, and a clear button appears.
 class SearchField extends StatefulWidget {
   const SearchField({
     super.key,
@@ -375,6 +377,7 @@ class SearchField extends StatefulWidget {
     this.onSubmitted,
     this.focusNode,
     this.autofocus = false,
+    this.compact = false,
   });
   final TextEditingController controller;
   final String hint;
@@ -382,20 +385,29 @@ class SearchField extends StatefulWidget {
   final FocusNode? focusNode;
   final bool autofocus;
 
+  /// Inside an app bar: 48 dp instead of 56.
+  final bool compact;
+
   @override
   State<SearchField> createState() => _SearchFieldState();
 }
 
 class _SearchFieldState extends State<SearchField> {
+  FocusNode? _own;
+  FocusNode get _focus => widget.focusNode ?? (_own ??= FocusNode());
+
   @override
   void initState() {
     super.initState();
     widget.controller.addListener(_changed);
+    _focus.addListener(_changed);
   }
 
   @override
   void dispose() {
     widget.controller.removeListener(_changed);
+    _focus.removeListener(_changed);
+    _own?.dispose();
     super.dispose();
   }
 
@@ -407,49 +419,70 @@ class _SearchFieldState extends State<SearchField> {
   Widget build(BuildContext context) {
     final c = Hgv.of(context);
     final dark = Theme.of(context).brightness == Brightness.dark;
-    final fill = dark ? const Color(0xFF25292E) : const Color(0xFFEFEFEF);
-    final shape = OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none);
-    return SizedBox(
-      height: 44,
-      child: TextField(
-        controller: widget.controller,
-        focusNode: widget.focusNode,
-        autofocus: widget.autofocus,
-        onChanged: widget.onChanged,
-        onSubmitted: widget.onSubmitted,
-        textInputAction: TextInputAction.search,
-        textAlignVertical: TextAlignVertical.center,
-        style: TextStyle(fontSize: 15, color: c.text),
-        cursorColor: c.ink,
-        decoration: InputDecoration(
-          isCollapsed: true,
-          filled: true,
-          fillColor: fill,
-          hintText: widget.hint,
-          hintStyle: TextStyle(fontSize: 15, color: c.faint),
-          contentPadding: const EdgeInsets.symmetric(vertical: 12),
-          prefixIcon: Icon(PhosphorIconsRegular.magnifyingGlass, size: 19, color: c.faint),
-          prefixIconConstraints: const BoxConstraints(minWidth: 42),
-          suffixIcon: widget.controller.text.isEmpty
-              ? null
+    final focused = _focus.hasFocus;
+    // Rest: a calm cool grey (light) / raised slate (dark). Typing: the
+    // page's own surface with a blue edge, so the field reads as active.
+    final rest = dark ? const Color(0xFF1E2329) : const Color(0xFFEEF1F5);
+    final fill = focused ? (dark ? const Color(0xFF14181D) : Colors.white) : rest;
+    final edge = focused ? c.ink.withValues(alpha: dark ? 0.8 : 0.7) : Colors.transparent;
+    final h = widget.compact ? 48.0 : 56.0;
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 160),
+      curve: Curves.easeOut,
+      height: h,
+      decoration: BoxDecoration(
+        color: fill,
+        borderRadius: BorderRadius.circular(h / 2),
+        border: Border.all(color: edge, width: 1.4),
+        boxShadow: focused ? [BoxShadow(color: c.ink.withValues(alpha: dark ? 0.25 : 0.14), blurRadius: 10, spreadRadius: 1)] : const [],
+      ),
+      child: Row(children: [
+        const SizedBox(width: 16),
+        Icon(PhosphorIconsRegular.magnifyingGlass, size: 20, color: focused ? c.ink : c.muted),
+        const SizedBox(width: 10),
+        Expanded(
+          child: TextField(
+            controller: widget.controller,
+            focusNode: _focus,
+            autofocus: widget.autofocus,
+            onChanged: widget.onChanged,
+            onSubmitted: widget.onSubmitted,
+            textInputAction: TextInputAction.search,
+            textAlignVertical: TextAlignVertical.center,
+            style: TextStyle(fontSize: 16, color: c.text, fontWeight: FontWeight.w500),
+            cursorColor: c.ink,
+            decoration: InputDecoration(
+              isCollapsed: true,
+              filled: false,
+              hintText: widget.hint,
+              hintMaxLines: 1,
+              hintStyle: TextStyle(fontSize: 16, color: c.faint, fontWeight: FontWeight.w400),
+              border: InputBorder.none,
+              enabledBorder: InputBorder.none,
+              focusedBorder: InputBorder.none,
+            ),
+          ),
+        ),
+        AnimatedSwitcher(
+          duration: const Duration(milliseconds: 140),
+          child: widget.controller.text.isEmpty
+              ? const SizedBox(width: 12)
               : IconButton(
+                  key: const ValueKey('clear'),
                   tooltip: MaterialLocalizations.of(context).deleteButtonTooltip,
                   icon: Container(
-                    width: 20,
-                    height: 20,
-                    decoration: BoxDecoration(shape: BoxShape.circle, color: c.faint.withValues(alpha: 0.35)),
-                    child: Icon(Icons.close_rounded, size: 14, color: c.text),
+                    width: 22,
+                    height: 22,
+                    decoration: BoxDecoration(shape: BoxShape.circle, color: c.muted.withValues(alpha: 0.22)),
+                    child: Icon(Icons.close_rounded, size: 15, color: c.text),
                   ),
                   onPressed: () {
                     widget.controller.clear();
                     widget.onChanged?.call('');
                   },
                 ),
-          border: shape,
-          enabledBorder: shape,
-          focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: c.ink.withValues(alpha: 0.6))),
         ),
-      ),
+      ]),
     );
   }
 }

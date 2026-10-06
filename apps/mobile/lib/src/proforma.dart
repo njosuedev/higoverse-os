@@ -876,8 +876,9 @@ class _ProformaFormScreenState extends State<ProformaFormScreen> {
 }
 
 /// The proforma as an A4 PDF, to share (WhatsApp, email…) or print. Laid out
-/// like a car dealer's proforma: customer information, vehicle details,
-/// payment terms, terms & conditions and signatures.
+/// like a car dealer's proforma: customer information, vehicle details and
+/// payment terms, then a second sheet with the bank account, terms &
+/// conditions and signatures.
 Future<Uint8List> proformaPdf(Map<String, dynamic> p, Session s, T t) async {
   // Noto Sans covers Kinyarwanda, French and Swahili accents (and Chinese
   // when needed); without a connection the PDF's built-in font is used.
@@ -918,6 +919,7 @@ Future<Uint8List> proformaPdf(Map<String, dynamic> p, Session s, T t) async {
   // Two label/value pairs per row, like the dealer's form.
   pw.Widget grid(List<(String, String, bool)> pairs) => pw.Table(
         border: pw.TableBorder.all(color: line, width: 0.6),
+        defaultVerticalAlignment: pw.TableCellVerticalAlignment.full,
         columnWidths: const {0: pw.FlexColumnWidth(1.2), 1: pw.FlexColumnWidth(2), 2: pw.FlexColumnWidth(1.2), 3: pw.FlexColumnWidth(2)},
         children: [
           for (var i = 0; i < pairs.length; i += 2)
@@ -933,71 +935,60 @@ Future<Uint8List> proformaPdf(Map<String, dynamic> p, Session s, T t) async {
   final terms = v(p['terms']).split('\n').map((x) => x.trim()).where((x) => x.isNotEmpty).toList();
   final approved = const {'approved', 'accepted', 'sold'}.contains(v(p['status']));
 
-  doc.addPage(pw.MultiPage(
-    pageFormat: PdfPageFormat.a4,
-    margin: const pw.EdgeInsets.fromLTRB(36, 32, 36, 32),
-    footer: (ctx) => pw.Container(
-      padding: const pw.EdgeInsets.only(top: 4),
-      decoration: const pw.BoxDecoration(border: pw.Border(top: pw.BorderSide(color: navy, width: 0.6))),
-      child: pw.Row(children: [
-        pw.Expanded(child: pw.Text('${s.shop?.name ?? ''} — ${t('pf.title_doc')}   ${t('pf.not_tax_invoice')}', style: const pw.TextStyle(fontSize: 8, color: muted))),
-        pw.Text('${ctx.pageNumber}/${ctx.pagesCount}', style: const pw.TextStyle(fontSize: 8, color: muted)),
-      ]),
-    ),
-    build: (_) => [
-      pw.Row(crossAxisAlignment: pw.CrossAxisAlignment.center, children: [
-        if (logo != null) pw.Container(width: 72, height: 72, margin: const pw.EdgeInsets.only(right: 14), child: pw.Image(logo)),
-        pw.Expanded(
-          child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-            pw.Text((s.shop?.name ?? '').toUpperCase(), style: const pw.TextStyle(fontSize: 13)),
-            if (tin.isNotEmpty) pw.Text('TIN: $tin', style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
-            if ((s.shop?.phone ?? '').isNotEmpty) pw.Text('Tel: ${s.shop!.phone}', style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
-            if ((s.shop?.email ?? '').isNotEmpty) pw.Text('EMAIL: ${s.shop!.email}', style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
-            if (publicAddress.isNotEmpty) pw.Text(publicAddress.toUpperCase(), style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
-          ]),
-        ),
-        pw.Column(children: [
-          pw.Text(t('pf.title_doc').toUpperCase(), textAlign: pw.TextAlign.center, style: const pw.TextStyle(fontSize: 17)),
-          pw.Text(t('pf.non_binding'), style: const pw.TextStyle(fontSize: 8.5, color: muted)),
-          if (approved)
-            pw.Container(
-              margin: const pw.EdgeInsets.only(top: 4),
-              padding: const pw.EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-              decoration: pw.BoxDecoration(border: pw.Border.all(color: navy, width: 0.6), borderRadius: pw.BorderRadius.circular(3)),
-              child: pw.Text('${t('pf.status_approved')}${v(p['approved_by']).isEmpty ? '' : ' · ${v(p['approved_by'])}'}', style: const pw.TextStyle(fontSize: 8, color: navy)),
-            ),
+  // A4 sheets like the dealer's paper proforma (and the website's print):
+  // details, customer, vehicles and payment first; the last sheet carries the
+  // bank account, terms & conditions and signatures. Every sheet has the
+  // header and footer, and content that runs long is scaled down to fit its
+  // sheet instead of spilling onto a half-empty extra page.
+  const format = PdfPageFormat.a4;
+  const margin = pw.EdgeInsets.fromLTRB(36, 30, 36, 26);
+  final contentWidth = format.width - margin.horizontal;
+
+  final header = pw.Padding(
+    padding: const pw.EdgeInsets.only(bottom: 10),
+    child: pw.Row(crossAxisAlignment: pw.CrossAxisAlignment.center, children: [
+      if (logo != null) pw.Container(width: 68, height: 68, margin: const pw.EdgeInsets.only(right: 14), child: pw.Image(logo)),
+      pw.Expanded(
+        child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+          pw.Text((s.shop?.name ?? '').toUpperCase(), style: const pw.TextStyle(fontSize: 13)),
+          if (tin.isNotEmpty) pw.Text('TIN: $tin', style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
+          if ((s.shop?.phone ?? '').isNotEmpty) pw.Text('Tel: ${s.shop!.phone}', style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
+          if ((s.shop?.email ?? '').isNotEmpty) pw.Text('EMAIL: ${s.shop!.email}', style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
+          if (publicAddress.isNotEmpty) pw.Text(publicAddress.toUpperCase(), style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
         ]),
+      ),
+      pw.Column(children: [
+        pw.Text(t('pf.title_doc').toUpperCase(), textAlign: pw.TextAlign.center, style: const pw.TextStyle(fontSize: 17)),
+        pw.Text(t('pf.non_binding'), style: const pw.TextStyle(fontSize: 8.5, color: muted)),
+        if (approved)
+          pw.Container(
+            margin: const pw.EdgeInsets.only(top: 4),
+            padding: const pw.EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+            decoration: pw.BoxDecoration(border: pw.Border.all(color: navy, width: 0.6), borderRadius: pw.BorderRadius.circular(3)),
+            child: pw.Text('${t('pf.status_approved')}${v(p['approved_by']).isEmpty ? '' : ' · ${v(p['approved_by'])}'}', style: const pw.TextStyle(fontSize: 8, color: navy)),
+          ),
       ]),
-      pw.SizedBox(height: 14),
-      grid([
-        (t('pf.number'), v(p['invoice_no']), false), (t('pf.date'), dot(p['date']), false),
-        (t('pf.valid_until'), dot(p['valid_until']), false), (t('pf.salesperson'), v(p['salesperson']).isEmpty ? (s.shop?.name ?? '') : v(p['salesperson']), false),
-      ]),
-      h2(t('pf.customer_info')),
-      grid([
-        (t('pf.full_name'), v(p['customer']), true), (t('pf.id_no'), na(p['customer_id_no']), false),
-        (t('pf.tin'), na(p['customer_tin']), false), (t('form.phone'), na(p['customer_phone']), false),
-        (t('pf.address'), na(p['customer_address']), false), (t('pf.email'), na(p['customer_email']), false),
-        (t('pf.country'), na(p['customer_country']), false), (t('pf.company'), na(p['customer_company']), false),
-      ]),
-      h2(t(s.isCar ? 'pf.vehicle_details' : 'pf.items')),
-      if (s.isCar)
-        for (final (i, l) in lines.indexed) ...[
-          if (lines.length > 1) pw.Padding(padding: const pw.EdgeInsets.only(top: 4, bottom: 4), child: pw.Text('${t('pf.vehicle')} ${i + 1}', style: pw.TextStyle(color: navy, fontWeight: pw.FontWeight.bold, fontSize: 10))),
-          grid([
-            (t('pf.brand'), v(l['product_name']), true), (t('pf.genre'), v(l['car_type']), false),
-            (t('pf.year'), v(l['year']), false), (t('pf.energy'), v(l['energy']), false),
-            (t('pf.colour'), v(l['color']), false), (t('pf.condition'), v(l['condition']).isEmpty ? '' : t('pf.condition_${v(l['condition'])}'), false),
-            (t('pf.mileage'), v(l['mileage']), false), (t('pf.qty'), groupDigits(_n(l['qty'])), false),
-            (t('pf.chassis'), v(l['chassis_no']), false), (t('pf.plate'), v(l['plate_no']), false),
-            (t('sale.unit_price'), money(_n(l['unit_price']), cur), false), (t('pf.total_price'), money(_n(l['qty']) * _n(l['unit_price']), cur), true),
-          ]),
-        ]
-      else ...[
+    ]),
+  );
+
+  pw.Widget vehicle(Map l, int i) => pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.stretch, children: [
+        if (lines.length > 1)
+          pw.Padding(padding: const pw.EdgeInsets.only(top: 4, bottom: 4), child: pw.Text('${t('pf.vehicle')} ${i + 1}', style: pw.TextStyle(color: navy, fontWeight: pw.FontWeight.bold, fontSize: 10))),
+        grid([
+          (t('pf.brand'), v(l['product_name']), true), (t('pf.genre'), v(l['car_type']), false),
+          (t('pf.year'), v(l['year']), false), (t('pf.energy'), v(l['energy']), false),
+          (t('pf.colour'), v(l['color']), false), (t('pf.condition'), v(l['condition']).isEmpty ? '' : t('pf.condition_${v(l['condition'])}'), false),
+          (t('pf.mileage'), v(l['mileage']), false), (t('pf.qty'), groupDigits(_n(l['qty'])), false),
+          (t('pf.chassis'), v(l['chassis_no']), false), (t('pf.plate'), v(l['plate_no']), false),
+          (t('sale.unit_price'), money(_n(l['unit_price']), cur), false), (t('pf.total_price'), money(_n(l['qty']) * _n(l['unit_price']), cur), true),
+        ]),
+      ]);
+
+  pw.Widget items(List<Map> part, bool last) => pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.stretch, children: [
         pw.TableHelper.fromTextArray(
           headers: [t('pf.item_name'), t('pf.qty'), t('sale.unit_price'), t('pf.amount')],
           data: [
-            for (final l in lines)
+            for (final l in part)
               ['${l['product_name'] ?? ''}', groupDigits(_n(l['qty'])), money(_n(l['unit_price']), cur), money(_n(l['qty']) * _n(l['unit_price']), cur)],
           ],
           headerStyle: pw.TextStyle(fontSize: 9.5, fontWeight: pw.FontWeight.bold, color: PdfColors.white),
@@ -1008,26 +999,70 @@ Future<Uint8List> proformaPdf(Map<String, dynamic> p, Session s, T t) async {
           border: const pw.TableBorder(horizontalInside: pw.BorderSide(color: PdfColors.grey300, width: 0.5)),
           cellPadding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 5),
         ),
-        pw.SizedBox(height: 6),
-        pw.Align(
-          alignment: pw.Alignment.centerRight,
-          child: pw.Text(
-            [
-              '${t('pf.subtotal')}: ${money(_n(p['subtotal']), cur)}',
-              if (_n(p['tax_rate']) > 0) '${t('pf.tax', {'rate': _n(p['tax_rate'])})}: ${money(_n(p['tax_amount']), cur)}',
-              '${t('pf.total')}: ${money(total, cur)}',
-            ].join('\n'),
-            textAlign: pw.TextAlign.right,
-            style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold),
+        if (last) ...[
+          pw.SizedBox(height: 6),
+          pw.Align(
+            alignment: pw.Alignment.centerRight,
+            child: pw.Text(
+              [
+                '${t('pf.subtotal')}: ${money(_n(p['subtotal']), cur)}',
+                if (_n(p['tax_rate']) > 0) '${t('pf.tax', {'rate': _n(p['tax_rate'])})}: ${money(_n(p['tax_amount']), cur)}',
+                '${t('pf.total')}: ${money(total, cur)}',
+              ].join('\n'),
+              textAlign: pw.TextAlign.right,
+              style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold),
+            ),
           ),
-        ),
+        ],
+      ]);
+
+  // Vehicles (or item rows) per sheet before the rest move to the next one.
+  final perFirst = s.isCar ? 2 : 14, perMore = s.isCar ? 4 : 28;
+  final groups = <List<(int, Map)>>[];
+  final indexed = lines.indexed.toList();
+  groups.add(indexed.take(perFirst).toList());
+  for (var i = perFirst; i < indexed.length; i += perMore) {
+    groups.add(indexed.skip(i).take(perMore).toList());
+  }
+
+  final sheets = <List<pw.Widget>>[
+    for (final (gi, g) in groups.indexed)
+      [
+        if (gi == 0) ...[
+          grid([
+            (t('pf.number'), v(p['invoice_no']), false), (t('pf.date'), dot(p['date']), false),
+            (t('pf.valid_until'), dot(p['valid_until']), false), (t('pf.salesperson'), v(p['salesperson']).isEmpty ? (s.shop?.name ?? '') : v(p['salesperson']), false),
+          ]),
+          h2(t('pf.customer_info')),
+          grid([
+            (t('pf.full_name'), v(p['customer']), true), (t('pf.id_no'), na(p['customer_id_no']), false),
+            (t('pf.tin'), na(p['customer_tin']), false), (t('form.phone'), na(p['customer_phone']), false),
+            (t('pf.address'), na(p['customer_address']), false), (t('pf.email'), na(p['customer_email']), false),
+            (t('pf.country'), na(p['customer_country']), false), (t('pf.company'), na(p['customer_company']), false),
+          ]),
+        ],
+        h2(t(s.isCar ? 'pf.vehicle_details' : 'pf.items')),
+        if (s.isCar)
+          for (final (i, l) in g) vehicle(l, i)
+        else
+          items([for (final (_, l) in g) l], gi == groups.length - 1),
+        if (gi == groups.length - 1) ...[
+          h2(t('pf.payment_terms')),
+          grid([
+            (t('pf.payment_method'), v(p['payment_method']), false), (t('pf.currency'), cur, false),
+            (t('pf.deposit'), groupDigits(deposit), false), (t('pf.balance_due'), groupDigits(total - deposit), true),
+          ]),
+        ],
       ],
-      h2(t('pf.payment_terms')),
-      grid([
-        (t('pf.payment_method'), v(p['payment_method']), false), (t('pf.currency'), cur, false),
-        (t('pf.deposit'), groupDigits(deposit), false), (t('pf.balance_due'), groupDigits(total - deposit), true),
-        if (v(p['bank_details']).isNotEmpty) (t('pf.bank_details'), v(p['bank_details']), false),
-      ]),
+    // The closing sheet, as on the dealer's second page.
+    [
+      if (v(p['bank_details']).isNotEmpty)
+        pw.Table(
+          border: pw.TableBorder.all(color: line, width: 0.6),
+          defaultVerticalAlignment: pw.TableCellVerticalAlignment.full,
+          columnWidths: const {0: pw.FlexColumnWidth(1.2), 1: pw.FlexColumnWidth(5.2)},
+          children: [pw.TableRow(children: [cell(t('pf.bank_details'), head: true), cell(v(p['bank_details']))])],
+        ),
       if (terms.isNotEmpty) ...[
         h2(t('pf.terms')),
         pw.Container(
@@ -1060,6 +1095,35 @@ Future<Uint8List> proformaPdf(Map<String, dynamic> p, Session s, T t) async {
       pw.SizedBox(height: 16),
       pw.Center(child: pw.Text(t('pf.thanks', {'shop': s.shop?.name ?? ''}), style: pw.TextStyle(fontSize: 9.5, color: muted))),
     ],
-  ));
+  ];
+
+  for (final (i, content) in sheets.indexed) {
+    doc.addPage(pw.Page(
+      pageFormat: format,
+      margin: margin,
+      build: (_) => pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.stretch, children: [
+        header,
+        pw.Expanded(
+          // Shrinks (never grows) a long sheet to the room it has, full width.
+          child: pw.FittedBox(
+            fit: pw.BoxFit.scaleDown,
+            alignment: pw.Alignment.topLeft,
+            child: pw.SizedBox(
+              width: contentWidth,
+              child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.stretch, children: content),
+            ),
+          ),
+        ),
+        pw.Container(
+          padding: const pw.EdgeInsets.only(top: 4),
+          decoration: const pw.BoxDecoration(border: pw.Border(top: pw.BorderSide(color: navy, width: 0.6))),
+          child: pw.Row(children: [
+            pw.Expanded(child: pw.Text('${s.shop?.name ?? ''} — ${t('pf.title_doc')}   ${t('pf.not_tax_invoice')}', style: const pw.TextStyle(fontSize: 8, color: muted))),
+            pw.Text('${i + 1}/${sheets.length}', style: const pw.TextStyle(fontSize: 8, color: muted)),
+          ]),
+        ),
+      ]),
+    ));
+  }
   return doc.save();
 }

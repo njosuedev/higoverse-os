@@ -6,8 +6,12 @@ import 'package:http/http.dart' as http;
 import 'config.dart';
 
 class ApiException implements Exception {
-  ApiException(this.status, this.message, {this.key, this.args = const {}});
+  ApiException(this.status, this.message, {this.key, this.args = const {}, this.detail});
   final int status;
+
+  /// The server's structured `detail`, when it sent one (e.g. a duplicate
+  /// car: {field, product_id, product_name, message}).
+  final Map<String, dynamic>? detail;
 
   /// The server's own message, or the English text of [key].
   final String message;
@@ -94,6 +98,7 @@ class Api {
     final d = data is Map ? data['detail'] : null;
     final detail = d is String ? d : (d is List && d.isNotEmpty && d.first is Map ? '${d.first['msg']}' : null);
     if (detail != null) throw ApiException(res.statusCode, detail);
+    if (d is Map) throw ApiException(res.statusCode, '${d['message'] ?? generic}', detail: Map<String, dynamic>.from(d));
     throw ApiException(res.statusCode, generic, key: 'err.generic', args: {'code': res.statusCode});
   }
 }

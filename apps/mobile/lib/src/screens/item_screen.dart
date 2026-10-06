@@ -100,7 +100,7 @@ class _ItemScreenState extends State<ItemScreen> {
   }
 
   Future<void> _edit() async {
-    final saved = await editProduct(context, product: _item);
+    final saved = SessionScope.of(context).isCar ? await editVehicle(context, _item) : await editProduct(context, product: _item);
     if (saved != null && mounted) setState(() => _item = {..._item, ...saved}..remove('images'));
   }
 
@@ -220,8 +220,8 @@ class _ItemScreenState extends State<ItemScreen> {
         title: Text('${item['name'] ?? ''}', maxLines: 1, overflow: TextOverflow.ellipsis),
         titleTextStyle: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: c.text),
         actions: [
-          if (!s.isCar && _id.isNotEmpty)
-            IconButton(tooltip: t('form.edit_product'), icon: const Icon(Icons.edit_outlined), onPressed: _edit),
+          if (_id.isNotEmpty)
+            IconButton(tooltip: t(s.isCar ? 'vehicle.edit' : 'form.edit_product'), icon: const Icon(Icons.edit_outlined), onPressed: _edit),
         ],
       ),
       body: ListView(padding: EdgeInsets.zero, children: [

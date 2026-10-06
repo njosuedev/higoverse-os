@@ -144,6 +144,7 @@ class _SearchScreenState extends State<SearchScreen> {
             focusNode: _focus,
             autofocus: true,
             hint: t('search.hint'),
+            compact: true,
             onChanged: _changed,
             onSubmitted: (_) {
               _remember();

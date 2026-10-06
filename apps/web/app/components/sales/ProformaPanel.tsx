@@ -9,6 +9,7 @@ import { loadCustomers, partnerRequest, type Customer } from "@/lib/supplier-api
 import { formatPublicAddress, parseShopAddress, decodeShopHumanInfo } from "@/lib/product-meta";
 import { CAR_TYPES, carTypeLabel, parseAttributes } from "@/lib/business-layout";
 import ProductPicker, { type PickerProduct } from "@/app/components/ui/ProductPicker";
+import { proformaPrintHtml } from "@/lib/proforma-print";
 import {
   listProformas, createProforma, updateProforma, approveProforma, sellProforma, deleteProforma,
   proformaStage, PROFORMA_APPROVER_ROLES,
@@ -44,9 +45,6 @@ function today() { return toDateStr(new Date()); }
 /** 2026.10.05 — the way car dealers print dates. */
 function dotDate(s: string) { return (s || "").replaceAll("-", "."); }
 function money(n: number) { return Math.round(n || 0).toLocaleString(); }
-function esc(s: unknown) {
-  return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
-}
 /** The server's own message out of "Sale API error: 409 {"detail": "..."}". */
 function apiDetail(err: unknown, fallback: string): string {
   const m = /error: \d+ ([\s\S]*)$/.exec(err instanceof Error ? err.message : "");
@@ -355,123 +353,10 @@ export default function ProformaPanel({ onSold }: { onSold?: () => void }) {
     else if (current) printProforma(current);
   }
 
-  // ── Print (A4, laid out like a dealer's proforma) ─────────────────────────
+  // ── Print (A4 sheets, laid out like a dealer's proforma) ───────────────────
   function printProforma(p: Proforma) {
-    const publicAddr = formatPublicAddress(shop.address);
-    const row = (a: string, av: string, b?: string, bv?: string) => `
-      <tr><th>${esc(a)}</th><td>${av}</td>${b !== undefined ? `<th>${esc(b)}</th><td>${bv ?? ""}</td>` : `<td colspan="2" class="blank"></td>`}</tr>`;
-    const val = (v: unknown) => esc(v || "N/A");
-    const vehicles = isCar
-      ? p.lines.map((l, i) => `
-        ${p.lines.length > 1 ? `<p class="sub">${esc(t("proforma.vehicle"))} ${i + 1}</p>` : ""}
-        <table class="grid">
-          ${row(t("proforma.brand"), `<b>${esc(l.product_name)}</b>`, t("proforma.genre"), esc(l.car_type || ""))}
-          ${row(t("vehicle.year"), esc(l.year || ""), t("proforma.energy"), esc(l.energy || ""))}
-          ${row(t("proforma.colour"), esc(l.color || ""), t("proforma.condition"), esc(l.condition ? t(`proforma.condition_${l.condition}`) : ""))}
-          ${row(t("proforma.mileage"), esc(l.mileage || ""), t("proforma.quantity"), esc(l.qty))}
-          ${row(t("vehicle.chassis_no"), esc(l.chassis_no || ""), t("vehicle.plate_no"), esc(l.plate_no || ""))}
-          ${row(t("proforma.col_price"), `${money(l.unit_price)} ${esc(p.currency)}`, t("proforma.total_price"), `<b>${money(l.unit_price * l.qty)} ${esc(p.currency)}</b>`)}
-        </table>`).join("")
-      : `<table class="items">
-          <thead><tr><th>#</th><th>${esc(t("proforma.description_col"))}</th><th class="r">${esc(t("proforma.col_qty"))}</th><th class="r">${esc(t("proforma.col_price"))}</th><th class="r">${esc(t("proforma.col_total"))}</th></tr></thead>
-          <tbody>${p.lines.map((l, i) => `<tr><td>${i + 1}</td><td>${esc(l.product_name)}</td><td class="r">${esc(l.qty)}</td><td class="r">${money(l.unit_price)}</td><td class="r">${money(l.unit_price * l.qty)}</td></tr>`).join("")}</tbody>
-          <tfoot>
-            <tr><td colspan="4" class="r">${esc(t("proforma.subtotal"))}</td><td class="r">${money(p.subtotal)}</td></tr>
-            ${p.tax_rate > 0 ? `<tr><td colspan="4" class="r">${esc(t("proforma.tax"))} (${p.tax_rate}%)</td><td class="r">${money(p.tax_amount)}</td></tr>` : ""}
-            <tr class="gt"><td colspan="4" class="r">${esc(t("proforma.grand_total"))}</td><td class="r">${money(p.grand_total)} ${esc(p.currency)}</td></tr>
-          </tfoot>
-        </table>`;
-    const terms = (p.terms || "").split("\n").map((s) => s.trim()).filter(Boolean);
-    const due = Math.max(0, p.grand_total - (p.deposit_amount || 0));
-    const footer = `${esc(shop.name)} — ${esc(t("proforma.print_title"))} &nbsp; <i>${esc(t("proforma.not_tax_invoice"))}</i>`;
-
-    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${esc(t("proforma.print_title"))} ${esc(p.invoice_no)}</title>
-<style>
-  *{box-sizing:border-box;margin:0;padding:0}
-  body{font-family:Arial,Helvetica,sans-serif;color:#111;font-size:12.5px}
-  .page{max-width:794px;margin:0 auto;padding:36px 44px}
-  .head{display:flex;align-items:center;gap:22px;margin-bottom:22px}
-  .head img{width:110px;height:110px;object-fit:contain;border-radius:50%}
-  .co{flex:1;font-size:13px;line-height:1.35}
-  .co .n{font-size:15px;text-transform:uppercase}
-  .co b{display:block}
-  .title{text-align:center;min-width:180px}
-  .title .t{font-size:24px;letter-spacing:.5px;line-height:1.1;text-transform:uppercase}
-  .title .s{font-size:10.5px;color:#444;margin-top:2px}
-  h2{color:#1f3a68;font-size:14.5px;text-transform:uppercase;margin:24px 0 10px;padding:0 0 6px 10px;border-bottom:1px solid #1f3a68}
-  table{width:100%;border-collapse:collapse}
-  table.grid th,table.grid td{border:1px solid #d4d4d4;padding:7px 10px;text-align:left;vertical-align:top;font-size:12.5px}
-  table.grid th{background:#f3f3f3;color:#444;font-weight:bold;width:19%}
-  table.grid td{width:31%}
-  table.grid td.blank{border:none;background:none}
-  .sub{font-weight:bold;color:#1f3a68;margin:10px 0 6px}
-  table.items th{background:#1f3a68;color:#fff;padding:8px 10px;text-align:left;font-size:11px;text-transform:uppercase}
-  table.items td{padding:8px 10px;border-bottom:1px solid #e5e5e5}
-  table.items .r{text-align:right}
-  table.items tfoot td{border:none;color:#444}
-  table.items tr.gt td{background:#1f3a68;color:#fff;font-weight:bold}
-  .terms{background:#f3f3f3;border:1px solid #d4d4d4;padding:10px 14px;font-size:11.5px;color:#333;line-height:1.45}
-  .terms p{margin:2px 0}
-  .notes{margin-top:10px;font-size:11.5px;color:#333}
-  .sig{display:flex;gap:40px;margin-top:6px}
-  .sig>div{flex:1}
-  .sig h3{color:#1f3a68;font-size:12.5px;text-transform:uppercase;margin:10px 0 40px}
-  .sig .l{border-top:1px solid #333;margin-top:34px;padding-top:4px;font-size:11px;color:#555}
-  .thanks{text-align:center;font-style:italic;color:#444;margin:26px 0 10px}
-  .foot{border-top:1px solid #1f3a68;margin-top:18px;padding-top:4px;font-size:10px;color:#555}
-  .stamp{display:inline-block;margin-top:6px;font-size:10.5px;color:#1f3a68;border:1px solid #1f3a68;border-radius:4px;padding:2px 6px}
-  @media print{.page{padding:14mm 14mm}@page{size:A4 portrait;margin:0}.keep{break-inside:avoid}}
-</style></head><body><div class="page">
-  <div class="head">
-    ${shop.logo_url ? `<img src="${esc(shop.logo_url)}" alt="">` : ""}
-    <div class="co">
-      <div class="n">${esc(shop.name)}</div>
-      ${shop.tin ? `<b>TIN: ${esc(shop.tin)}</b>` : ""}
-      ${shop.phone ? `<b>Tel: ${esc(shop.phone)}</b>` : ""}
-      ${shop.email ? `<b>EMAIL: ${esc(shop.email)}</b>` : ""}
-      ${publicAddr ? `<b>${esc(publicAddr.toUpperCase())}</b>` : ""}
-    </div>
-    <div class="title"><div class="t">${esc(t("proforma.print_title_1"))}<br>${esc(t("proforma.print_title_2"))}</div><div class="s">${esc(t("proforma.non_binding"))}</div>
-      ${proformaStage(p.status) === "approved" || p.status === "sold" ? `<div class="stamp">${esc(t("proforma.stage_approved"))}${p.approved_by ? ` · ${esc(p.approved_by)}` : ""}</div>` : ""}
-    </div>
-  </div>
-  <table class="grid">
-    ${row(t("proforma.number_short"), esc(p.invoice_no), t("proforma.date_issued"), esc(dotDate(p.date)))}
-    ${row(t("proforma.valid_until"), esc(dotDate(p.valid_until)), t("proforma.salesperson"), esc(p.salesperson || shop.name))}
-  </table>
-
-  <div class="keep"><h2>${esc(t("proforma.customer_info"))}</h2>
-  <table class="grid">
-    ${row(t("proforma.full_name"), `<b>${esc(p.customer)}</b>`, t("proforma.id_passport"), val(p.customer_id_no))}
-    ${row("TIN", val(p.customer_tin), t("proforma.phone"), val(p.customer_phone))}
-    ${row(t("proforma.address"), val(p.customer_address), t("proforma.email"), val(p.customer_email))}
-    ${row(t("proforma.country"), val(p.customer_country), t("proforma.company"), val(p.customer_company))}
-  </table></div>
-
-  <h2>${esc(t(isCar ? "proforma.vehicle_details" : "proforma.items_services"))}</h2>
-  ${vehicles}
-
-  <div class="keep"><h2>${esc(t("proforma.payment_terms"))}</h2>
-  <table class="grid">
-    ${row(t("proforma.payment_method"), esc(p.payment_method || ""), t("proforma.currency"), esc(p.currency))}
-    ${row(t("proforma.deposit"), money(p.deposit_amount), t("proforma.balance_due"), `<b>${money(due)}</b>`)}
-    ${p.bank_details ? `<tr><th>${esc(t("proforma.bank_details"))}</th><td colspan="3">${esc(p.bank_details).replace(/\n/g, "<br>")}</td></tr>` : ""}
-  </table></div>
-
-  ${terms.length ? `<div class="keep"><h2>${esc(t("proforma.terms"))}</h2><div class="terms">${terms.map((s) => `<p>${esc(s)}</p>`).join("")}</div></div>` : ""}
-  ${p.notes ? `<div class="notes"><b>${esc(t("proforma.notes"))}:</b> ${esc(p.notes)}</div>` : ""}
-
-  <div class="keep"><h2>${esc(t("proforma.signatures"))}</h2>
-  <div class="sig">
-    <div><h3>${esc(t("proforma.sig_customer"))}</h3><div class="l">${esc(t("proforma.signature"))}</div><div class="l">${esc(t("proforma.name_date"))}</div></div>
-    <div><h3>${esc(t("proforma.sig_dealer"))}</h3><div class="l">${esc(t("proforma.signature"))}</div><div class="l">${esc(t("proforma.name_date"))}</div></div>
-  </div></div>
-  <p class="thanks">${esc(t("proforma.thanks").replace("{shop}", shop.name))}</p>
-  <div class="foot">${footer}</div>
-</div>
-<script>window.onload=function(){setTimeout(function(){window.print();},400);};window.onafterprint=function(){window.close();};</script>
-</body></html>`;
-    const w = window.open("", "_blank", "width=860,height=1000,scrollbars=yes,resizable=yes");
+    const html = proformaPrintHtml(p, { ...shop, address: formatPublicAddress(shop.address) }, t, isCar, { autoPrint: true });
+    const w = window.open("", "_blank", "width=900,height=1000,scrollbars=yes,resizable=yes");
     if (w) { w.document.open(); w.document.write(html); w.document.close(); }
   }
 
