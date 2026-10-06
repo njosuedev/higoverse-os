@@ -11,7 +11,8 @@ installer (electron-builder / NSIS).
 - Menu (press **Alt**): File, Edit, Go (Dashboard, Stock, Sales, Customers,
   Expenses, Reports), View (reload, zoom, full screen), Help (website, privacy,
   support, About). Shortcuts: Ctrl+P print, F5 reload, F11 full screen,
-  Ctrl +/− zoom, Alt+←/→ back/forward.
+  Ctrl +/− zoom, Alt+←/→ back/forward, Ctrl+F (or Ctrl+K) search everything,
+  like WhatsApp Desktop (Edit → Search…).
 - Right-click menu: cut/copy/paste, spelling suggestions, open links in the browser.
 - Receipts and proforma invoices print as on the website; Excel/PDF exports use a Save dialog.
 - Opens at once on a full-window loading screen like WhatsApp's (`loading.html`: logo, moving bar, name, privacy line), in the

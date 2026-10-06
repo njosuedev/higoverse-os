@@ -160,17 +160,15 @@ class _ProductsScreenState extends State<ProductsScreen> with LiveListener {
     final s = SessionScope.of(context);
     final t = T.of(context);
     return Scaffold(
-      floatingActionButton: s.isCar
-          ? null
-          : FloatingActionButton.extended(
-              heroTag: 'product',
-              onPressed: () async {
-                final p = await editProduct(context);
-                if (p != null && mounted) _reload();
-              },
-              icon: const Icon(Icons.add),
-              label: Text(t('form.new_product')),
-            ),
+      floatingActionButton: FloatingActionButton.extended(
+        heroTag: 'product',
+        onPressed: () async {
+          final p = s.isCar ? await addVehicle(context) : await editProduct(context);
+          if (p != null && mounted) _reload();
+        },
+        icon: const Icon(Icons.add),
+        label: Text(s.isCar ? t('vehicle.new') : t('form.new_product')),
+      ),
       body: Column(children: [
         Container(
           color: Hgv.of(context).chrome,

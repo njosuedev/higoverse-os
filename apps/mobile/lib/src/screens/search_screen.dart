@@ -1,6 +1,15 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:phosphor_icons/phosphor_icons.dart';
+
+import '../chat/chat_service.dart';
+import '../forms.dart';
+import '../live/scoped_route.dart';
+import 'activity_screen.dart' show openDebts;
+import 'chat_screen.dart';
+import 'messages_screen.dart' show roleLabel;
+import 'team_screen.dart';
 
 import '../app_settings.dart';
 import '../config.dart';
@@ -201,7 +210,36 @@ class _SearchScreenState extends State<SearchScreen> {
     if (_error != null) return EmptyState(icon: Icons.cloud_off_outlined, message: errorText(t, _error!), onRetry: _run);
     if (_query.isEmpty) return _recent(t, c, s);
     bool show(_Filter f) => _filter == _Filter.all || _filter == f;
+    final needle = _query.toLowerCase();
+    // Instant, on the phone: things to do and people to write to.
+    final actions = _filter == _Filter.all ? _actions(t, s).where((a) => a.$1.toLowerCase().contains(needle)).toList() : const [];
+    final people = _filter == _Filter.all
+        ? ChatService.of(s).others.where((m) => m.name.toLowerCase().contains(needle)).take(5).toList()
+        : const <Member>[];
     final sections = <Widget>[
+      if (actions.isNotEmpty) ...[
+        _Header(t('search.actions'), actions.length),
+        for (final a in actions)
+          ListTile(
+            leading: CircleAvatar(backgroundColor: c.paper, child: Icon(a.$2, color: c.ink, size: 20)),
+            title: Text(a.$1, style: const TextStyle(fontWeight: FontWeight.w700)),
+            onTap: () {
+              _remember();
+              a.$3();
+            },
+          ),
+      ],
+      if (people.isNotEmpty) ...[
+        _Header(t('search.people'), people.length),
+        for (final m in people)
+          ListTile(
+            leading: Avatar(name: m.name, size: 40),
+            title: Text(m.name, style: const TextStyle(fontWeight: FontWeight.w700)),
+            subtitle: Text(roleLabel(t, m.role)),
+            trailing: Icon(PhosphorIconsRegular.chatCircleDots, color: c.ink),
+            onTap: () => pushScoped<void>(context, ChatScreen(member: m)),
+          ),
+      ],
       if (show(_Filter.items) && _items.isNotEmpty) ...[
         _Header(itemsLabel, _itemsTotal),
         for (final item in _items) _ItemResult(item: item, query: _query, onOpen: _remember),
@@ -225,6 +263,19 @@ class _SearchScreenState extends State<SearchScreen> {
       children: sections,
     );
   }
+
+  /// What can be done from the search box (label, icon, action).
+  List<(String, IconData, VoidCallback)> _actions(T t, Session s) => [
+        (t('form.new_sale'), PhosphorIconsRegular.receipt, () => recordSale(context)),
+        if (s.isCar)
+          (t('vehicle.new'), PhosphorIconsRegular.car, () => addVehicle(context))
+        else
+          (t('form.new_product'), PhosphorIconsRegular.package, () => editProduct(context)),
+        if (s.canSeeFinancials) (t('form.new_expense'), PhosphorIconsRegular.wallet, () => recordExpense(context)),
+        (t('form.new_debt'), PhosphorIconsRegular.handCoins, () => recordDebt(context)),
+        (t('debts.title'), PhosphorIconsRegular.handCoins, () => openDebts(context)),
+        (t('team.title'), PhosphorIconsRegular.usersThree, () => pushScoped<void>(context, const TeamScreen())),
+      ];
 
   Widget _recent(T t, Hgv c, Session s) {
     final settings = AppSettingsScope.of(context);

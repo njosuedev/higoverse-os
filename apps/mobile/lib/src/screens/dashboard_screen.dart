@@ -17,6 +17,7 @@ import '../holder.dart';
 import '../theme.dart';
 import '../widgets.dart';
 import 'activity_screen.dart';
+import 'home_shell.dart';
 
 /// Home: the business at a glance, kept current live. Top bar with the
 /// logo, search and notifications; today and the week; for car dealers the
@@ -326,13 +327,13 @@ class _DashboardScreenState extends State<DashboardScreen> with LiveListener {
         Row(children: [
           if (s.canSeeFinancials)
             _StatusTile(label: t('dash.revenue'), value: _week?['revenue'] as num? ?? 0, money: true, icon: Icons.trending_up_rounded,
-                color: c.success, onTap: () => widget.onOpenTab(2)),
+                color: c.success, onTap: () => widget.onOpenTab(Tabs.sales)),
           _StatusTile(label: t('dash.sales'), value: _week?['sales_count'] as num? ?? 0, icon: Icons.receipt_long_rounded,
-              color: c.ink, onTap: () => widget.onOpenTab(2)),
+              color: c.ink, onTap: () => widget.onOpenTab(Tabs.sales)),
           _StatusTile(label: t('dash.products'), value: total, icon: Icons.inventory_2_rounded, color: c.ink,
-              onTap: () => widget.onOpenTab(1)),
+              onTap: () => widget.onOpenTab(Tabs.stock)),
           _StatusTile(label: t('dash.need_restock'), value: low, icon: Icons.warning_rounded,
-              color: low > 0 ? c.warning : c.success, onTap: () => widget.onOpenTab(1)),
+              color: low > 0 ? c.warning : c.success, onTap: () => widget.onOpenTab(Tabs.stock)),
         ]),
       // ── Stock alert ──
       if (s.isCar && total > 0 && available <= s.lowStock)
@@ -347,7 +348,7 @@ class _DashboardScreenState extends State<DashboardScreen> with LiveListener {
           ),
         ),
       // ── Stock alerts: nested circles, as on the website ──
-      SectionHeader(t('dash.stock_alerts'), count: low.toInt(), action: t('app.view_all'), onAction: () => widget.onOpenTab(1)),
+      SectionHeader(t('dash.stock_alerts'), count: low.toInt(), action: t('app.view_all'), onAction: () => widget.onOpenTab(Tabs.stock)),
       if (_alerts.isEmpty)
         _AlertCard(icon: Icons.check_circle_rounded, color: c.success, title: t('dash.all_healthy'), body: t('dash.no_restock'))
       else
@@ -396,7 +397,7 @@ class _DashboardScreenState extends State<DashboardScreen> with LiveListener {
         _TopSellers(top: _top, session: s),
       ],
       // ── Latest sales (live) ──
-      SectionHeader(t('dash.recent_sales'), action: t('app.view_all'), onAction: () => widget.onOpenTab(2)),
+      SectionHeader(t('dash.recent_sales'), action: t('app.view_all'), onAction: () => widget.onOpenTab(Tabs.sales)),
       if (_recent.isEmpty)
         _AlertCard(icon: Icons.receipt_long_outlined, color: c.faint, title: t('dash.no_sales'))
       else

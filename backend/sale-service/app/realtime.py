@@ -14,6 +14,7 @@ Protocol (JSON text frames):
   server → {"type": "presence", "online": [{"id", "name", "role"}]}
   server → {"type": "resync"}       events may have been missed: reload
   server → {"type": "sale.created", "at", "by", "data", ...}   (and the others)
+  server → {"type": "chat.message" | "chat.read", ...}  only to the two people
 Close codes: 4001 token missing, invalid or expired (renew and reconnect),
 4003 account without a shop, 4008 no message for too long.
 """
@@ -120,9 +121,13 @@ class Hub:
         if not clients:
             return
         financial = bool(event.pop("financial", False))
+        # Messages: only the people of that conversation, on all their devices.
+        to = set(event.pop("to", None) or ())
         full = json.dumps(event)
         scrubbed = None
         for c in list(clients):
+            if to and str(c.user["user_id"]) not in to:
+                continue
             if hides_financials(c.user):
                 if financial:
                     continue

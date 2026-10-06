@@ -19,7 +19,9 @@ import '../sheets.dart';
 import '../theme.dart';
 import '../updates/update_controller.dart';
 import 'activity_screen.dart';
+import '../chat/chat_service.dart';
 import 'dashboard_screen.dart';
+import 'messages_screen.dart';
 import 'more_screen.dart';
 import 'products_screen.dart';
 import 'sales_screen.dart';
@@ -28,6 +30,11 @@ import 'search_screen.dart';
 /// Signed-in app: four tabs, each keeping its place when you switch, with
 /// search and notifications at the top of Home. Owns the live connection,
 /// the activity feed and phone notifications for this account.
+/// The tabs, in order (Instagram-style bar, five at most).
+abstract final class Tabs {
+  static const home = 0, stock = 1, messages = 2, sales = 3, business = 4;
+}
+
 class HomeShell extends StatefulWidget {
   const HomeShell({super.key});
 
@@ -98,6 +105,8 @@ class _HomeShellState extends State<HomeShell> {
     if (_live == null) {
       final s = SessionScope.of(context);
       _live = Live(s)..start();
+      // Messages: this device's keys, the team and unread counts from the start.
+      ChatService.of(s).start(_live);
       _feed = ActivityFeed(s, live: _live)..seed();
       _freshSub = _feed!.fresh.listen(_onFresh);
     }
@@ -120,14 +129,14 @@ class _HomeShellState extends State<HomeShell> {
 
   void _openTab(int i) => setState(() {
         _tab = i;
-        if (i == 0) _newHome = false;
-        if (i == 1) _newStock = 0;
-        if (i == 2) _newSales = 0;
+        if (i == Tabs.home) _newHome = false;
+        if (i == Tabs.stock) _newStock = 0;
+        if (i == Tabs.sales) _newSales = 0;
       });
 
   void _openProducts(String filter) {
     _productFilter.value = filter;
-    _openTab(1);
+    _openTab(Tabs.stock);
   }
 
   Future<void> _openActivity(BuildContext context) async {
@@ -161,9 +170,9 @@ class _HomeShellState extends State<HomeShell> {
     setState(() {
       // Red counts: sales and money owed on Sales; fines, transfers and
       // stock alerts on Vehicles/Stock.
-      if ((item.kind == ActivityKind.sale || item.kind == ActivityKind.debtNew) && _tab != 2) _newSales++;
-      if ((item.kind.isStockAlert || item.kind.isVehicleAlert) && _tab != 1) _newStock++;
-      if (_tab != 0) _newHome = true;
+      if ((item.kind == ActivityKind.sale || item.kind == ActivityKind.debtNew) && _tab != Tabs.sales) _newSales++;
+      if ((item.kind.isStockAlert || item.kind.isVehicleAlert) && _tab != Tabs.stock) _newStock++;
+      if (_tab != Tabs.home) _newHome = true;
     });
     final settings = AppSettingsScope.of(context);
     if (_activityOpen || !AppNotifier.wanted(item, settings)) return;
@@ -214,13 +223,13 @@ class _HomeShellState extends State<HomeShell> {
             // Fixed like Instagram's: the keyboard covers the tabs instead of
             // pushing them up over the page.
             bottomNavigationBar: ListenableBuilder(
-              listenable: AppUpdates.instance,
+              listenable: Listenable.merge([AppUpdates.instance, ChatService.of(s)]),
               builder: (context, _) => BottomBar(
                 index: _tab,
                 onTap: _openTab,
                 items: [
                   NavItem(
-                      label: t('nav.home'), icon: PhosphorIconsRegular.house, activeIcon: PhosphorIconsFill.house, dot: _newHome && _tab != 0),
+                      label: t('nav.home'), icon: PhosphorIconsRegular.house, activeIcon: PhosphorIconsFill.house, dot: _newHome && _tab != Tabs.home),
                   NavItem(
                     label: s.isCar ? t('nav.vehicles') : t('nav.stock'),
                     icon: s.isCar ? PhosphorIconsRegular.car : PhosphorIconsRegular.package,
@@ -228,12 +237,19 @@ class _HomeShellState extends State<HomeShell> {
                     badge: _newStock,
                   ),
                   NavItem(
-                      label: t('nav.sales'), icon: PhosphorIconsRegular.receipt, activeIcon: PhosphorIconsFill.receipt, badge: _newSales),
-                  // The business: a red dot while a new version of the app waits.
+                    label: t('nav.messages'),
+                    icon: PhosphorIconsRegular.chatCircleDots,
+                    activeIcon: PhosphorIconsFill.chatCircleDots,
+                    badge: ChatService.of(s).unreadTotal,
+                  ),
                   NavItem(
-                    label: t('nav.menu'),
-                    logoName: s.shop?.name ?? s.user?.name ?? '?',
-                    logoUrl: s.shop?.logoUrl,
+                      label: t('nav.sales'), icon: PhosphorIconsRegular.receipt, activeIcon: PhosphorIconsFill.receipt, badge: _newSales),
+                  // The business profile: same size and style as the other icons;
+                  // a red dot while a new version of the app waits.
+                  NavItem(
+                    label: t('nav.business'),
+                    icon: PhosphorIconsRegular.storefront,
+                    activeIcon: PhosphorIconsFill.storefront,
                     dot: AppUpdates.instance.updateAvailable,
                   ),
                 ],
@@ -253,6 +269,7 @@ class _HomeShellState extends State<HomeShell> {
                     child: IndexedStack(index: _tab, children: [
                       DashboardScreen(onOpenTab: _openTab, onOpenProducts: _openProducts),
                       ProductsScreen(filter: _productFilter),
+                      const MessagesScreen(),
                       const SalesScreen(),
                       const MoreScreen(),
                     ]),

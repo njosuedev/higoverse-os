@@ -15,8 +15,10 @@ import { Sun, Moon, Monitor,
   Home, Package, Truck, ShoppingCart, BarChart3,
   Users, FileText, ChevronDown, ShieldCheck, Receipt,
   Settings, LogOut, Globe,
-  Menu, X,
+  Menu, X, MessageCircle, Search, UsersRound,
 } from "lucide-react";
+import GlobalSearch, { OPEN_SEARCH_EVENT } from "@/app/components/GlobalSearch";
+import { startChat, unreadTotal, useChat } from "@/lib/chat";
 
 type NavItem = { key: string; href: string; icon: typeof Home };
 
@@ -30,6 +32,7 @@ const BUSINESS_MENUS: NavItem[] = [
   { key: "nav.purchases", href: "/purchases", icon: Truck        },
   { key: "nav.partners",  href: "/partners",  icon: Users        },
   { key: "nav.sales",     href: "/sales",     icon: ShoppingCart },
+  { key: "nav.messages",  href: "/messages",  icon: MessageCircle },
   { key: "nav.proforma",  href: "/proforma",  icon: FileText     },
   { key: "nav.expenses",  href: "/expenses",  icon: Receipt      },
   { key: "nav.reports",   href: "/reports",   icon: BarChart3    },
@@ -49,6 +52,10 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
   const { shop, loading: shopLoading } = useShop();
 
   const [menuOpen, setMenuOpen]         = useState(false);
+  const chat = useChat();
+  const unread = unreadTotal(chat);
+  // Messages: keys, team and live unread counts once signed in to a business.
+  useEffect(() => { if (ready && user?.shop_id) void startChat(); }, [ready, user?.shop_id]);
   const [mobileOpen, setMobileOpen]     = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -128,7 +135,7 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
           ) : (
             <>
               {businessMenus.map((menu) => (
-                <NavLink key={menu.href} menu={menu} pathname={pathname} t={t} />
+                <NavLink key={menu.href} menu={menu} pathname={pathname} t={t} badge={menu.href === "/messages" ? unread : 0} />
               ))}
               {isAdmin && (
                 <>
@@ -140,8 +147,15 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
           )}
         </nav>
 
-        {/* ── RIGHT: account menu ── */}
+        {/* ── RIGHT: search and account menu ── */}
         <div className="flex items-center justify-end gap-2">
+          <button type="button" onClick={() => window.dispatchEvent(new Event(OPEN_SEARCH_EVENT))}
+            title={t("search.hint")} aria-label={t("search.hint")}
+            className="flex h-9 items-center gap-2 rounded-full bg-paper-dim px-3 text-text-muted transition-colors duration-200 hover:text-text">
+            <Search size={16} />
+            <span className="hidden text-xs font-semibold lg:inline">Ctrl K</span>
+          </button>
+          <GlobalSearch />
 
           <div ref={menuRef} className="relative">
 
@@ -242,6 +256,17 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
                     </div>
                   </div>
 
+                  {/* Team — the owner adds up to 3 employees; everyone sees who's in it */}
+                  <Link href="/team" onClick={() => setMenuOpen(false)}
+                    className="group flex items-center gap-3 rounded-press px-3 py-2.5 transition-colors duration-200 hover:bg-paper-dim">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-press bg-paper-dim text-text-muted transition-colors duration-200 group-hover:bg-paper-deep">
+                      <UsersRound size={15} />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-text">{t("team.title")}</p>
+                    </div>
+                  </Link>
+
                   {/* Settings — accessible to everyone */}
                   <Link href="/settings" onClick={() => setMenuOpen(false)}
                     className="group flex items-center gap-3 rounded-press px-3 py-2.5 transition-colors duration-200 hover:bg-paper-dim">
@@ -316,10 +341,12 @@ function NavLink({
   pathname,
   t,
   onNavigate,
+  badge = 0,
 }: {
   menu: NavItem;
   pathname: string;
   t: (key: string) => string;
+  badge?: number;
   onNavigate?: () => void;
 }) {
   const Icon = menu.icon;
@@ -337,7 +364,14 @@ function NavLink({
         active ? activeText : idleText
       }`}
     >
-      <Icon size={20} strokeWidth={active ? 2.25 : 1.75} />
+      <span className="relative">
+        <Icon size={20} strokeWidth={active ? 2.25 : 1.75} />
+        {badge > 0 && (
+          <span className="absolute -right-2.5 -top-1.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full border-2 border-paper bg-[#e41e3f] px-1 text-[10px] font-bold leading-none text-white">
+            {badge > 99 ? "99+" : badge}
+          </span>
+        )}
+      </span>
       <span className="hidden whitespace-nowrap text-[11px] font-semibold leading-none md:block">{t(menu.key)}</span>
       {active && <span className={`absolute bottom-0 left-2.5 right-2.5 h-[2px] ${underlineColor}`} />}
     </Link>

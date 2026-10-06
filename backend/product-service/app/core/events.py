@@ -19,11 +19,12 @@ CHANNEL = "hgv_events"
 _MAX_BYTES = 7900
 
 
-def emit(db, user: dict, kind: str, data: dict, financial: bool = False) -> None:
+def emit(db, user: dict, kind: str, data: dict, financial: bool = False, to: list[str] | None = None) -> None:
     """Queue `kind` (e.g. "sale.created") for the user's shop.
 
     `financial` marks events only people who may see money figures receive
     (see hides_financials); the hub also blanks financial fields per viewer.
+    `to` limits it to those user ids (messages); otherwise the whole shop.
     Best effort: a live update must never make the change itself fail.
     """
     shop_id = user.get("shop_id")
@@ -37,6 +38,8 @@ def emit(db, user: dict, kind: str, data: dict, financial: bool = False) -> None
         "financial": financial,
         "data": data,
     }
+    if to:
+        body["to"] = [str(u) for u in to]
     payload = json.dumps(body, default=str)
     if len(payload.encode()) >= _MAX_BYTES:
         # Too big to send whole: say what changed and let apps reload it.

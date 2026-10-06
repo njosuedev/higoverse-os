@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'car_photos.dart';
+import 'api.dart';
 import 'config.dart';
 import 'format.dart';
 import 'i18n.dart';
@@ -1024,6 +1025,169 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
         if (_method != null)
           _Field(t('form.receiver_phone'), _text(_phone, hint: t('form.optional'), keyboard: TextInputType.phone, caps: false)),
         _Field(t('sale.notes'), _text(_notes, hint: t('form.optional'), lines: 2)),
+      ],
+    );
+  }
+}
+
+// ─────────────────────────── Vehicles (car dealers) ───────────────────────────
+
+/// Built-in vehicle types, as on the website (VEHICLE_FIELDS / CAR_TYPES).
+const carTypes = ['sedan', 'suv', 'pickup', 'hatchback', 'van', 'bus', 'truck', 'coupe', 'other'];
+
+/// Adds a vehicle. Returns the saved one.
+Future<Map<String, dynamic>?> addVehicle(BuildContext context) =>
+    pushScoped<Map<String, dynamic>>(context, const VehicleFormScreen());
+
+/// A new vehicle with the website's required details: chassis and plate
+/// (unique; stored upper case), type, year, battery range, colour, price,
+/// and up to 7 photos.
+class VehicleFormScreen extends StatefulWidget {
+  const VehicleFormScreen({super.key});
+
+  @override
+  State<VehicleFormScreen> createState() => _VehicleFormScreenState();
+}
+
+class _VehicleFormScreenState extends State<VehicleFormScreen> {
+  final _form = GlobalKey<FormState>();
+  final _name = TextEditingController(), _chassis = TextEditingController(), _plate = TextEditingController();
+  final _year = TextEditingController(), _range = TextEditingController(), _color = TextEditingController();
+  final _price = TextEditingController();
+  String? _type;
+  final List<CarPhoto> _photos = [];
+  bool _saving = false, _picking = false;
+
+  @override
+  void dispose() {
+    for (final c in [_name, _chassis, _plate, _year, _range, _color, _price]) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+
+  static String _id(String v) => v.trim().replaceAll(RegExp(r'\s+'), ' ').toUpperCase();
+
+  Future<void> _addPhotos() async {
+    if (_picking) return;
+    setState(() => _picking = true);
+    try {
+      final picked = await pickPhotos(context, room: maxCarPhotos - _photos.length);
+      if (mounted) setState(() => _photos.addAll(picked.take(maxCarPhotos - _photos.length)));
+    } catch (_) {
+      if (mounted) _say(context, T.of(context)('photo.unreadable'));
+    } finally {
+      if (mounted) setState(() => _picking = false);
+    }
+  }
+
+  Future<void> _save() async {
+    final t = T.of(context);
+    if (!_form.currentState!.validate()) return;
+    if (_type == null) return _say(context, t('vehicle.need_type'));
+    final s = SessionScope.of(context);
+    final price = parseAmount(_price.text) ?? 0;
+    final body = <String, dynamic>{
+      'name': _name.text.trim(),
+      // Car companies don't track cost: the API needs one, so the price is used (as on the website).
+      'cost_price': price,
+      'selling_price': price,
+      'quantity': 1,
+      'attributes': jsonEncode({
+        'chassis_no': _id(_chassis.text),
+        'plate_no': _id(_plate.text),
+        'car_type': _type,
+        'year': _year.text.trim(),
+        'battery_range': _range.text.trim(),
+        'color': _color.text.trim(),
+      }),
+      if (_photos.isNotEmpty) ...{'images': jsonEncode([for (final x in _photos) x.photo]), 'thumbnail': _photos.first.thumb},
+    };
+    setState(() => _saving = true);
+    try {
+      final res = await s.api.post('${Svc.products}/products', body);
+      final data = (res as Map?)?['data'];
+      if (!mounted) return;
+      _say(context, t('vehicle.added'));
+      Navigator.pop(context, data is Map ? Map<String, dynamic>.from(data) : body);
+    } on ApiException catch (e) {
+      if (mounted) _say(context, e.status == 409 ? t('vehicle.duplicate') : errorText(t, e));
+    } catch (e) {
+      if (mounted) _say(context, errorText(t, e));
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = T.of(context);
+    final s = SessionScope.of(context);
+    String? need(String? v) => (v ?? '').trim().isEmpty ? t('vehicle.required') : null;
+    return _FormPage(
+      title: t('vehicle.new'),
+      formKey: _form,
+      saving: _saving,
+      saveLabel: t('form.save'),
+      onSave: _save,
+      children: [
+        _Field(t('vehicle.name'), _text(_name, hint: 'Toyota RAV4', validator: need)),
+        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Expanded(child: _Field(t('detail.chassis'), _text(_chassis, hint: 'LGXCE4CB0P…', caps: false, validator: need))),
+          const SizedBox(width: 10),
+          Expanded(child: _Field(t('detail.plate'), _text(_plate, hint: 'RAC 123 A', caps: false, validator: need))),
+        ]),
+        _Field(
+          t('detail.type'),
+          _Choices<String>(
+            options: [for (final k in carTypes) (k, t('vehicle.type_$k'))],
+            value: _type,
+            onChanged: (v) => setState(() => _type = v),
+          ),
+        ),
+        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Expanded(
+            child: _Field(
+              t('detail.year'),
+              TextFormField(
+                controller: _year,
+                keyboardType: TextInputType.number,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(4)],
+                decoration: const InputDecoration(hintText: '2023'),
+                validator: (v) {
+                  final y = int.tryParse((v ?? '').trim());
+                  return y == null || y < 1950 || y > DateTime.now().year + 1 ? t('vehicle.need_year') : null;
+                },
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: _Field(
+              t('vehicle.range'),
+              TextFormField(
+                controller: _range,
+                keyboardType: TextInputType.number,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                decoration: const InputDecoration(hintText: '400', suffixText: 'km'),
+                validator: need,
+              ),
+            ),
+          ),
+        ]),
+        _Field(t('detail.colour'), _text(_color, hint: t('vehicle.color_hint'), validator: need)),
+        _Field(t('form.selling_price'),
+            _moneyField(_price, suffix: s.currency, validator: (v) => (parseAmount(v ?? '') ?? 0) <= 0 ? t('form.need_price') : null)),
+        _Field(
+          '${t('form.photos')} (${_photos.length}/$maxCarPhotos)',
+          _PhotoStrip(
+            photos: _photos,
+            busy: _picking,
+            onAdd: _photos.length < maxCarPhotos ? _addPhotos : null,
+            onRemove: (i) => setState(() => _photos.removeAt(i)),
+          ),
+          hint: t('form.photos_hint'),
+        ),
       ],
     );
   }

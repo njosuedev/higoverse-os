@@ -50,6 +50,10 @@ class Api {
 
   Future<dynamic> put(String path, Object? body) => _send('PUT', uri(path), body: body);
 
+  Future<dynamic> patch(String path, Object? body) => _send('PATCH', uri(path), body: body);
+
+  Future<dynamic> delete(String path) => _send('DELETE', uri(path));
+
   Future<dynamic> _send(String method, Uri url, {Object? body, bool retried = false}) async {
     final headers = <String, String>{'Accept': 'application/json'};
     if (body != null) headers['Content-Type'] = 'application/json';

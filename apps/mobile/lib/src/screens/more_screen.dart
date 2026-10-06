@@ -13,6 +13,8 @@ import '../updates/update_controller.dart';
 import '../widgets.dart';
 import 'activity_screen.dart';
 import 'expenses_screen.dart';
+import 'team_screen.dart';
+import '../live/scoped_route.dart';
 
 /// Account: who is signed in, for which business, live updates and
 /// notifications, preferences and sign-out.
@@ -109,6 +111,14 @@ class MoreScreen extends StatelessWidget {
               subtitle: Text(t('acc.debts_sub')),
               trailing: const Icon(Icons.chevron_right),
               onTap: () => openDebts(context),
+            ),
+            const Divider(indent: 16, endIndent: 16),
+            ListTile(
+              leading: const Icon(Icons.groups_outlined),
+              title: Text(t('team.title')),
+              subtitle: Text(t('team.menu_sub')),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => pushScoped<void>(context, const TeamScreen()),
             ),
             if (s.canSeeFinancials) ...[
               const Divider(indent: 16, endIndent: 16),

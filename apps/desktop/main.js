@@ -290,6 +290,12 @@ function buildContextMenu(p) {
   return Menu.buildFromTemplate(items);
 }
 
+/** Opens the website's global search (app/components/GlobalSearch.tsx). */
+function openSearch() {
+  if (!win || win.isDestroyed() || !isAppUrl(win.webContents.getURL())) return;
+  win.webContents.executeJavaScript('window.dispatchEvent(new Event("hgv:search"))').catch(() => {});
+}
+
 // ── Application menu (press Alt to show; shortcuts always work) ────────────
 function buildMenu() {
   const go = (p) => () => open(new URL(p, APP_URL).toString());
@@ -307,7 +313,13 @@ function buildMenu() {
     },
     {
       label: "&Edit",
-      submenu: [{ role: "undo" }, { role: "redo" }, { type: "separator" }, { role: "cut" }, { role: "copy" }, { role: "paste" }, { role: "selectAll" }],
+      submenu: [
+        { role: "undo" }, { role: "redo" }, { type: "separator" }, { role: "cut" }, { role: "copy" }, { role: "paste" }, { role: "selectAll" },
+        { type: "separator" },
+        // Like WhatsApp Desktop: one search for everything (the website's global search).
+        { label: "Search…", accelerator: "Ctrl+F", click: openSearch },
+        { label: "Search", accelerator: "Ctrl+K", visible: false, click: openSearch },
+      ],
     },
     {
       label: "&Go",

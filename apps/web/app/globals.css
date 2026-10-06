@@ -582,6 +582,8 @@ html[data-theme="dark"] :is(.fixed.inset-0, [role="dialog"], [aria-modal="true"]
 html[data-theme="dark"] :is(.fixed.inset-0, [role="dialog"], [aria-modal="true"], [role="menu"], [role="listbox"]) :is(button, a, [role="menuitem"], [role="option"]):is([class*="hover:bg-slate"], [class*="hover:bg-gray"], [class*="hover:bg-paper"]):hover {
   background-color: rgb(255 255 255 / 0.1) !important;
 }
+/* A field that is the pop-up itself (global search): no box of its own. */
+html[data-theme="dark"] :is(.fixed.inset-0, [role="dialog"]) input.hgv-bare { background-color: transparent !important; }
 /* Second-choice buttons in a pop-up (Cancel, Close): Instagram's grey. */
 html[data-theme="dark"] :is(.fixed.inset-0, [role="dialog"]) button:is(.border, [class*="border-slate"], [class*="border-gray"]):not([class*="bg-ink"]):not([class*="bg-blue"]):not([class*="bg-red"]):not([class*="bg-accent"]):not([class*="bg-green"]):not([class*="bg-success"]):not([class*="bg-amber"]) {
   background-color: var(--ig-button) !important;
