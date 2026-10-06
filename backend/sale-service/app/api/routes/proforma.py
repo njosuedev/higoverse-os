@@ -1,5 +1,5 @@
 import json
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
 from sqlalchemy import or_
 from fastapi import APIRouter, Depends, HTTPException, Header
@@ -9,7 +9,9 @@ from app.db.database import get_db
 from app.models.debt import Debt
 from app.models.proforma import Proforma
 from app.models.sale import Sale
-from app.schemas.proforma import ProformaCreate, ProformaUpdate, ProformaSell
+import uuid
+
+from app.schemas.proforma import ProformaCreate, ProformaUpdate, ProformaSell, DepositIn
 from app.core.security import get_current_user
 from app.core.product_client import get_product, update_product_stock
 from app.core.events import emit
@@ -35,7 +37,7 @@ _CONTENT_KEYS = {
     "customer_id", "customer", "customer_phone", "customer_address", "customer_id_no",
     "customer_tin", "customer_email", "customer_country", "customer_company",
     "lines", "subtotal", "tax_rate", "tax_amount", "grand_total", "currency",
-    "payment_method", "bank_details", "deposit_amount", "terms", "valid_until",
+    "payment_method", "bank_details", "terms", "valid_until",
 }
 
 
@@ -138,6 +140,7 @@ def _fmt(p: Proforma) -> dict:
         "bank_details": p.bank_details or "",
         "bank_account_ids": p.bank_account_ids or [],
         "deposit_amount": _num(p.deposit_amount),
+        "deposits": p.deposits or [],
         "terms": p.terms or "",
         "status": p.status,
         "approved_by": p.approved_by or "",
@@ -169,6 +172,25 @@ def _live(p: Proforma) -> dict:
     """A proforma as the apps' notifications receive it."""
     return {"id": p.id, "invoice_no": p.invoice_no, "customer": p.customer or "",
             "grand_total": _num(p.grand_total), "status": p.status}
+
+
+def _deposit_entry(d: DepositIn, user: dict) -> dict:
+    return {
+        "id": uuid.uuid4().hex[:10],
+        "amount": float(d.amount),
+        "method": d.method,
+        "date": d.date,
+        "reference": d.reference,
+        "by": user.get("name") or user.get("email") or "",
+        "at": datetime.now(timezone.utc).isoformat(),
+    }
+
+
+def _paid_so_far(p: Proforma) -> float:
+    if not p.deposits:
+        # Made before deposits were itemised: only the amount was kept.
+        return round(_num(p.deposit_amount), 2)
+    return round(sum(float(x.get("amount") or 0) for x in p.deposits), 2)
 
 
 def _token(authorization: str | None) -> str:
@@ -240,6 +262,16 @@ def create_proforma(
         raise HTTPException(status_code=400, detail="You need a shop before creating proformas")
 
     data = _sync(payload.model_dump(mode="json"), user, _token(authorization))
+    given = payload.deposits or []
+    if not given and payload.deposit_amount and payload.deposit_amount > 0:
+        # An older app sends only an amount: keep it as one cash deposit.
+        given = [DepositIn(amount=payload.deposit_amount, method="cash", date=min(payload.date, date.today().isoformat()))]
+    deposits = [_deposit_entry(d, user) for d in given]
+    total = float(data.get("grand_total") or 0)
+    if sum(d["amount"] for d in deposits) > total + 0.005:
+        raise HTTPException(status_code=400, detail="The deposits can't be more than the proforma's total.")
+    data["deposits"] = deposits
+    data["deposit_amount"] = round(sum(d["amount"] for d in deposits), 2)
     # Every proforma starts unapproved; approval is its own step.
     data["status"] = data["status"] if data["status"] in ("draft", "sent") else "draft"
     proforma = Proforma(shop_id=user["shop_id"], **data)
@@ -274,6 +306,8 @@ def update_proforma(
 
     updates = payload.model_dump(exclude_unset=True, mode="json")
     status = updates.pop("status", None)
+    # Deposits are recorded with POST /{id}/deposits; their total follows them.
+    updates.pop("deposit_amount", None)
 
     changed = {k for k, v in updates.items() if _norm(k, getattr(proforma, k)) != _norm(k, v)}
     for key, value in updates.items():
@@ -301,6 +335,63 @@ def update_proforma(
     db.commit()
     db.refresh(proforma)
     return {"success": True, "message": "Proforma updated", "data": _fmt(proforma)}
+
+
+@router.post("/{proforma_id}/deposits")
+def add_deposit(
+    proforma_id: str,
+    payload: DepositIn,
+    db: Session = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    """A deposit or booking payment received on this proforma. It doesn't
+    change the proforma's content, so an approved one stays approved."""
+    proforma = _get_or_404(db, proforma_id, user["shop_id"])
+    if proforma.status == "sold":
+        raise HTTPException(status_code=409, detail="This proforma is already sold: record payments on the sale.")
+    if not proforma.deposits and _num(proforma.deposit_amount) > 0:
+        # Made before deposits were itemised: keep its amount as one cash
+        # deposit (as create does for older apps) rather than overwrite it.
+        today = date.today().isoformat()
+        try:
+            on = min(date.fromisoformat(str(proforma.date)[:10]).isoformat(), today)
+        except ValueError:
+            on = today
+        legacy = DepositIn(amount=proforma.deposit_amount, method="cash", date=on)
+        proforma.deposits = [{**_deposit_entry(legacy, user), "by": "", "at": ""}]
+    balance = round(_num(proforma.grand_total) - _paid_so_far(proforma), 2)
+    if float(payload.amount) > balance + 0.005:
+        raise HTTPException(status_code=400, detail=f"The deposit can't be more than the balance due ({balance:,.0f}).")
+    entry = _deposit_entry(payload, user)
+    proforma.deposits = [*(proforma.deposits or []), entry]
+    proforma.deposit_amount = _paid_so_far(proforma)
+    emit(db, user, "proforma.deposit", {**_live(proforma), "amount": entry["amount"], "method": entry["method"]})
+    db.commit()
+    db.refresh(proforma)
+    return {"success": True, "message": "Deposit recorded", "data": _fmt(proforma)}
+
+
+@router.delete("/{proforma_id}/deposits/{deposit_id}")
+def remove_deposit(
+    proforma_id: str,
+    deposit_id: str,
+    db: Session = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    """Corrects a deposit recorded by mistake (owner, admin or manager)."""
+    if not _is_approver(user):
+        raise HTTPException(status_code=403, detail="Only the owner or a manager can remove a deposit.")
+    proforma = _get_or_404(db, proforma_id, user["shop_id"])
+    if proforma.status == "sold":
+        raise HTTPException(status_code=409, detail="This proforma is already sold.")
+    kept = [d for d in (proforma.deposits or []) if d.get("id") != deposit_id]
+    if len(kept) == len(proforma.deposits or []):
+        raise HTTPException(status_code=404, detail="Deposit not found")
+    proforma.deposits = kept
+    proforma.deposit_amount = _paid_so_far(proforma)
+    db.commit()
+    db.refresh(proforma)
+    return {"success": True, "message": "Deposit removed", "data": _fmt(proforma)}
 
 
 @router.post("/{proforma_id}/approve")
@@ -392,14 +483,16 @@ def sell_proforma(
 
     grand_total = sum(float(l.get("unit_price") or 0) * int(round(float(l.get("qty") or 0))) for l in lines)
     on_credit = payload.payment_method == "debt"
-    # What the customer pays now; the rest (if any) is owed.
+    deposited = min(_paid_so_far(proforma), grand_total)
+    # What the customer pays now comes on top of the deposits already paid;
+    # the rest (if any) is owed.
     if payload.amount_paid is not None:
-        paid_now = min(float(payload.amount_paid), grand_total)
+        paid_now = min(deposited + float(payload.amount_paid), grand_total)
     else:
-        paid_now = 0.0 if on_credit else grand_total
-    track_paid = payload.amount_paid is not None or on_credit
+        paid_now = deposited if on_credit else grand_total
+    track_paid = payload.amount_paid is not None or on_credit or deposited > 0
     left = paid_now
-    note = f"Proforma {proforma.invoice_no}"
+    note = f"Proforma {proforma.invoice_no}" + (f" · deposit {deposited:,.0f} paid before" if deposited else "")
 
     sales: list[Sale] = []
     for l in lines:

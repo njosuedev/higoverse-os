@@ -105,12 +105,23 @@ export function proformaPrintHtml(
       </tfoot>` : ""}
     </table>`;
 
-  const due = Math.max(0, p.grand_total - (p.deposit_amount || 0));
+  const paidDeposits = (p.deposits ?? []).reduce((a, d) => a + (Number(d.amount) || 0), 0) || (p.deposit_amount || 0);
+  const due = Math.max(0, p.grand_total - paidDeposits);
+  // Every deposit received, as on a receipt (two per row).
+  const deps = (p.deposits ?? []).map((d, i) => [
+    `${t("deposit.n")} ${i + 1}`,
+    `${money(d.amount)} · ${esc(t(`sales.pm_${d.method}`))} · ${esc(dotDate(d.date))}${d.reference ? ` · ${esc(d.reference)}` : ""}`,
+  ] as const);
+  const depRows = Array.from({ length: Math.ceil(deps.length / 2) }, (_, i) => {
+    const [a, b] = [deps[i * 2], deps[i * 2 + 1]];
+    return b ? row(a[0], a[1], b[0], b[1]) : row(a[0], a[1]);
+  }).join("");
   const payment = `
     <h2>${esc(t("proforma.payment_terms"))}</h2>
     <table class="grid keep">
       ${row(t("proforma.payment_method"), esc(p.payment_method || ""), t("proforma.currency"), cur)}
-      ${row(t("proforma.deposit"), money(p.deposit_amount), t("proforma.balance_due"), `<b>${money(due)}</b>`)}
+      ${row(t("proforma.deposit"), money(paidDeposits), t("proforma.balance_due"), `<b>${money(due)}</b>`)}
+      ${depRows}
     </table>`;
 
   // ── Sheets: details + vehicles/items + payment, then terms & signatures ──

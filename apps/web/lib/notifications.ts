@@ -12,7 +12,7 @@ import { getUser } from "@/lib/auth";
 export type NotifKind =
   | "sale" | "sale_deleted" | "car_added" | "product_new" | "fine" | "pending"
   | "low_stock" | "out_of_stock" | "restocked" | "debt_new" | "debt_payment" | "debt_paid"
-  | "expense" | "purchase" | "proforma_new" | "proforma_approved" | "proforma_sold";
+  | "expense" | "purchase" | "proforma_new" | "proforma_approved" | "proforma_sold" | "proforma_deposit";
 
 export interface Notif {
   id: string;
@@ -121,6 +121,8 @@ export function fromEvent(m: LiveMsg, opts: { isCar: boolean; lowStock: number }
       return make("proforma_new", { no: s(d.invoice_no), customer: s(d.customer), detail: money(d.grand_total) }, "/sales?tab=proforma");
     case "proforma.approved":
       return make("proforma_approved", { no: s(d.invoice_no), customer: s(d.customer) }, "/sales?tab=proforma");
+    case "proforma.deposit":
+      return make("proforma_deposit", { no: s(d.invoice_no), customer: s(d.customer), detail: money(d.amount) }, "/sales?tab=proforma");
     case "proforma.sold":
       return make("proforma_sold", { no: s(d.invoice_no), customer: s(d.customer), detail: money(d.grand_total) }, "/sales");
   }

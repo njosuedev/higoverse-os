@@ -11,11 +11,12 @@ import { prettyPhone, shopTin, bankText, type BankAccount } from "@/lib/company"
 import Link from "next/link";
 import { CAR_TYPES, carTypeLabel, parseAttributes } from "@/lib/business-layout";
 import ProductPicker, { type PickerProduct } from "@/app/components/ui/ProductPicker";
+import DepositForm from "@/app/components/sales/DepositForm";
 import { proformaPrintHtml } from "@/lib/proforma-print";
 import {
-  listProformas, createProforma, updateProforma, approveProforma, sellProforma, deleteProforma,
+  listProformas, createProforma, updateProforma, approveProforma, sellProforma, deleteProforma, addDeposit, removeDeposit, depositTotals,
   proformaStage, PROFORMA_APPROVER_ROLES,
-  type Proforma, type ProformaLine, type ProformaPayload,
+  type Proforma, type ProformaLine, type ProformaPayload, type Deposit,
 } from "@/lib/proforma-api";
 import {
   Plus, Trash2, Printer, X, FileText, User, Car, Wallet, ScrollText, Save, CheckCircle2,
@@ -89,8 +90,6 @@ function validate(f: Form, isCar: boolean, total: number, accounts: BankAccount[
     if (!(Number(l.unit_price) > 0)) e[k + "unit_price"] = "proforma.err_price";
     if (!Number.isInteger(Number(l.qty)) || Number(l.qty) < 1) e[k + "qty"] = "proforma.err_qty";
   }
-  const dep = Number(f.deposit_amount) || 0;
-  if (dep < 0 || dep > total) e.deposit_amount = "proforma.err_deposit";
   // Where to pay: one or more of the company's accounts (Settings).
   if (accounts.length && !(f.bank_account_ids ?? []).length) e.bank_details = "bank.err_pick";
   if (isCar && !accounts.length) e.bank_details = "bank.err_required_pf";
@@ -179,6 +178,9 @@ export default function ProformaPanel({ onSold }: { onSold?: () => void }) {
   // Errors show once a save has been tried, then update as fields change.
   const [tried, setTried] = useState(false);
   const [selling, setSelling] = useState<Proforma | null>(null);
+  // Deposits: one given with a new proforma, or the form for a saved one.
+  const [newDeposit, setNewDeposit] = useState<Omit<Deposit, "id" | "by" | "at"> | null>(null);
+  const [depositOpen, setDepositOpen] = useState(false);
 
   function blankForm(prev?: Proforma): Form {
     const date = today();
@@ -243,7 +245,8 @@ export default function ProformaPanel({ onSold }: { onSold?: () => void }) {
   const rate = isCar ? 0 : taxRate;
   const taxAmount = Math.round(subtotal * rate / 100);
   const grandTotal = subtotal + taxAmount;
-  const balance = Math.max(0, grandTotal - (Number(form.deposit_amount) || 0));
+  const deposits: Deposit[] = current?.deposits ?? (newDeposit ? [newDeposit] : []);
+  const { paid: depositPaid, balance } = depositTotals({ grand_total: grandTotal, deposits, deposit_amount: current?.deposit_amount });
   const stage: Stage = current ? stageOf(current) : "draft";
   const locked = current?.status === "sold";
   const filled = form.lines.filter((l) => l.product_name.trim());
@@ -301,6 +304,8 @@ export default function ProformaPanel({ onSold }: { onSold?: () => void }) {
   }
 
   function newProforma() {
+    setNewDeposit(null);
+    setDepositOpen(false);
     setCurrent(null);
     setTried(false);
     setForm(blankForm(items[0]));
@@ -308,6 +313,8 @@ export default function ProformaPanel({ onSold }: { onSold?: () => void }) {
   }
 
   function openProforma(p: Proforma) {
+    setNewDeposit(null);
+    setDepositOpen(false);
     setCurrent(p);
     setTried(false);
     setForm({
@@ -332,7 +339,7 @@ export default function ProformaPanel({ onSold }: { onSold?: () => void }) {
       // `key` is only for React; undefined drops out of the JSON.
       lines: filled.map((l) => ({ ...l, key: undefined, qty: Number(l.qty) || 1, unit_price: Number(l.unit_price) || 0 })),
       subtotal, tax_rate: rate, tax_amount: taxAmount, grand_total: grandTotal,
-      deposit_amount: Number(form.deposit_amount) || 0,
+      deposit_amount: depositPaid,
     };
   }
 
@@ -347,7 +354,9 @@ export default function ProformaPanel({ onSold }: { onSold?: () => void }) {
     }
     setBusy(true);
     try {
-      const saved = current ? await updateProforma(current.id, payload()) : await createProforma(payload());
+      const saved = current
+        ? await updateProforma(current.id, payload())
+        : await createProforma({ ...payload(), ...(newDeposit ? { deposits: [newDeposit] } : {}) });
       if (saved) { setCurrent(saved); await loadList(); }
       return saved;
     } catch (e) { notify(apiDetail(e, t("proforma.save_failed"))); return null; }
@@ -370,6 +379,30 @@ export default function ProformaPanel({ onSold }: { onSold?: () => void }) {
       if (!p || current?.id === done.id) setCurrent(done);
       await loadList();
       notify(t("proforma.approved_ok"), "success");
+    } catch (e) { notify(apiDetail(e, t("common.error"))); }
+    finally { setBusy(false); }
+  }
+
+  async function recordDeposit(d: Omit<Deposit, "id" | "by" | "at">) {
+    if (!current) { setNewDeposit(d); setDepositOpen(false); return; }
+    setBusy(true);
+    try {
+      const updated = await addDeposit(current.id, d);
+      setCurrent(updated);
+      setDepositOpen(false);
+      await loadList();
+      notify(t("deposit.saved"), "success");
+    } catch (e) { notify(apiDetail(e, t("common.error"))); }
+    finally { setBusy(false); }
+  }
+
+  async function dropDeposit(d: Deposit) {
+    if (!current || !d.id) { setNewDeposit(null); return; }
+    if (!(await askConfirm({ message: t("deposit.remove_q"), danger: true }))) return;
+    setBusy(true);
+    try {
+      setCurrent(await removeDeposit(current.id, d.id));
+      await loadList();
     } catch (e) { notify(apiDetail(e, t("common.error"))); }
     finally { setBusy(false); }
   }
@@ -718,8 +751,44 @@ export default function ProformaPanel({ onSold }: { onSold?: () => void }) {
             <div className="grid md:grid-cols-2 gap-3">
               <div><label className={label}>{t("proforma.payment_method")}</label><input className={input} value={form.payment_method} onChange={(e) => set("payment_method", e.target.value)} placeholder={t("proforma.payment_method_ph")} /></div>
               <div><label className={label}>{t("proforma.currency")}</label><input className={input} value={currency} disabled /></div>
-              <div><label className={label}>{t("proforma.deposit")}</label><input type="number" min={0} className={cls("deposit_amount")} aria-invalid={!!bad("deposit_amount")} value={form.deposit_amount} onChange={(e) => set("deposit_amount", Math.max(0, Number(e.target.value) || 0))} />{msg("deposit_amount")}</div>
-              <div><label className={label}>{t("proforma.balance_due")}</label><input className={input + " font-semibold"} value={money(balance)} disabled /></div>
+              {/* Deposits / booking payments: count as paid when the car is sold */}
+              <div className="md:col-span-2 rounded-xl border border-slate-200 p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-xs font-bold uppercase tracking-wide text-slate-500">{t("deposit.title")}</p>
+                  {current?.status !== "sold" && !depositOpen && balance > 0 && (current || !newDeposit) && (
+                    <button type="button" onClick={() => setDepositOpen(true)} className="text-xs font-semibold text-blue-600 hover:underline">
+                      + {t(current ? "deposit.record" : "deposit.customer_paid")}
+                    </button>
+                  )}
+                </div>
+                <div className="mt-2 h-1.5 rounded-full bg-slate-100 overflow-hidden">
+                  <div className="h-full bg-emerald-500" style={{ width: `${grandTotal ? Math.min(100, (depositPaid / grandTotal) * 100) : 0}%` }} />
+                </div>
+                <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
+                  <div><span className="text-slate-500">{t("deposit.paid_so_far")}: </span><b className="tabular-nums">{money(depositPaid)} {currency}</b></div>
+                  <div className="text-right"><span className="text-slate-500">{t("proforma.balance_due")}: </span><b className="tabular-nums">{money(balance)} {currency}</b></div>
+                </div>
+                {deposits.length > 0 && (
+                  <ul className="mt-2 divide-y divide-slate-100 border-t border-slate-100">
+                    {deposits.map((d, i) => (
+                      <li key={d.id ?? i} className="flex items-center gap-2 py-1.5 text-sm">
+                        <span className="font-semibold tabular-nums">{money(d.amount)}</span>
+                        <span className="text-slate-600">· {t(`sales.pm_${d.method}`)} · {dotDate(d.date)}{d.reference ? ` · ${d.reference}` : ""}</span>
+                        {d.by && <span className="text-xs text-slate-400">· {d.by}</span>}
+                        {current?.status !== "sold" && (!current || canApprove) && (
+                          <button type="button" onClick={() => dropDeposit(d)} title={t("deposit.remove")} aria-label={t("deposit.remove")}
+                            className="ml-auto p-1 rounded text-slate-300 hover:text-red-500 hover:bg-red-50"><X size={13} /></button>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {depositOpen && (
+                  <div className="mt-2">
+                    <DepositForm balance={balance} currency={currency} busy={busy} onSubmit={recordDeposit} onCancel={() => setDepositOpen(false)} />
+                  </div>
+                )}
+              </div>
               <div className="md:col-span-2">
                 <div className="flex items-center justify-between gap-2">
                   <label className={label}>{t("proforma.bank_details")}{isCar && " *"}</label>
@@ -764,7 +833,8 @@ export default function ProformaPanel({ onSold }: { onSold?: () => void }) {
               <div className="flex justify-between"><span className="text-slate-500">{t(isCar ? "proforma.vehicles" : "proforma.line_items_label")}</span><span className="font-medium">{filled.length}</span></div>
               <div className="flex justify-between"><span className="text-slate-500">{t("proforma.subtotal")}</span><span className="tabular-nums">{money(subtotal)}</span></div>
               {rate > 0 && <div className="flex justify-between"><span className="text-slate-500">{t("proforma.tax")} ({rate}%)</span><span className="tabular-nums">{money(taxAmount)}</span></div>}
-              <div className="flex justify-between"><span className="text-slate-500">{t("proforma.deposit")}</span><span className="tabular-nums">{money(Number(form.deposit_amount) || 0)}</span></div>
+              <div className="flex justify-between"><span className="text-slate-500">{t("deposit.paid_so_far")}</span><span className="tabular-nums">{money(depositPaid)}</span></div>
+              <div className="flex justify-between"><span className="text-slate-500">{t("proforma.balance_due")}</span><span className="tabular-nums font-semibold">{money(balance)}</span></div>
               <div className="rounded-lg px-3 py-2.5 flex justify-between items-center text-white" style={{ background: "#1f3a68" }}>
                 <span className="text-xs font-semibold uppercase">{t("proforma.grand_total")}</span>
                 <span className="font-bold tabular-nums">{money(grandTotal)} {currency}</span>
@@ -826,11 +896,13 @@ function SellDialog({ p, customers, isCar, onClose, onDone, onCustomers }: {
   const linked = customers.find((c) => c.id === p.customer_id);
   const [customerId, setCustomerId] = useState(linked?.id ?? "");
   const [method, setMethod] = useState<string>("bank");
-  const [paid, setPaid] = useState(String(Math.round(p.grand_total)));
+  const dep = depositTotals(p);
+  // Paid now, on top of the deposits: the balance by default.
+  const [paid, setPaid] = useState(String(Math.round(dep.balance)));
   const [busy, setBusy] = useState(false);
   const typed = p.lines.filter((l) => !l.product_id);
   const expired = p.valid_until && p.valid_until < today();
-  const owed = Math.max(0, p.grand_total - (Number(paid) || 0));
+  const owed = Math.max(0, dep.balance - (Number(paid) || 0));
 
   // The buyer's details a car sale needs (as in Sales → the buyer).
   const missing = isCar
@@ -922,7 +994,13 @@ function SellDialog({ p, customers, isCar, onClose, onDone, onCustomers }: {
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">{t("proforma.paid_now")} ({p.currency})</label>
+            {dep.paid > 0 && (
+              <div className="mb-2 rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-2 text-sm flex justify-between">
+                <span className="text-emerald-800">{t("deposit.paid_before")}</span>
+                <b className="tabular-nums text-emerald-900">{money(dep.paid)} {p.currency}</b>
+              </div>
+            )}
+            <label className="block text-xs font-medium text-gray-500 mb-1">{t(dep.paid > 0 ? "deposit.paid_now_extra" : "proforma.paid_now")} ({p.currency})</label>
             <input type="number" min={0} value={paid} onChange={(e) => setPaid(e.target.value)}
               className="border border-slate-200 rounded-lg px-3 py-2 w-full text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20" />
             {owed > 0 && <p className="text-[11px] text-amber-700 mt-1">{t("proforma.rest_as_debt").replace("{amount}", `${money(owed)} ${p.currency}`)}</p>}

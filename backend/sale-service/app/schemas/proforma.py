@@ -1,12 +1,51 @@
 from decimal import Decimal
 from typing import Literal
-from pydantic import BaseModel, Field
+from datetime import date as date_cls
+
+from pydantic import BaseModel, Field, field_validator
 
 # "approved" and "sold" are only reached through /approve and /sell.
 # "sent" and "accepted" are older statuses kept so existing proformas load;
 # older phone apps still send "accepted", which the route treats as approve.
 ProformaStatus = Literal["draft", "sent", "accepted", "approved", "sold", "expired"]
 EditableStatus = Literal["draft", "sent", "accepted", "expired"]
+
+
+DEPOSIT_METHODS = ("cash", "mtn", "airtel", "bank", "card")
+
+
+class DepositIn(BaseModel):
+    """A deposit or booking payment received on a proforma."""
+    amount: Decimal = Field(gt=0)
+    method: str
+    date: str
+    reference: str = ""
+
+    @field_validator("method")
+    @classmethod
+    def method_known(cls, v: str) -> str:
+        if v not in DEPOSIT_METHODS:
+            raise ValueError("Choose how the deposit was paid (cash, MTN, Airtel, bank or card)")
+        return v
+
+    @field_validator("date")
+    @classmethod
+    def date_ok(cls, v: str) -> str:
+        try:
+            d = date_cls.fromisoformat(v)
+        except ValueError:
+            raise ValueError("Deposit date must be a date (YYYY-MM-DD)")
+        if d > date_cls.today():
+            raise ValueError("A deposit can't be dated in the future")
+        return v
+
+    @field_validator("reference")
+    @classmethod
+    def ref_ok(cls, v: str) -> str:
+        v = " ".join((v or "").split())
+        if len(v) > 60:
+            raise ValueError("Reference: at most 60 characters")
+        return v
 
 
 class ProformaLine(BaseModel):
@@ -51,6 +90,8 @@ class ProformaCreate(BaseModel):
     bank_details: str = ""
     bank_account_ids: list[str] | None = None
     deposit_amount: Decimal = Field(Decimal("0"), ge=0)
+    # Deposits already received when the proforma is made (optional).
+    deposits: list[DepositIn] | None = None
     terms: str = ""
     status: EditableStatus = "draft"
 

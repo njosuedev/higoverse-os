@@ -217,6 +217,35 @@ class _ProformaScreenState extends State<ProformaScreen> {
 
   Future<void> _approve() => _run((s) => s.api.post('${Svc.sales}/proforma/${_p['id']}/approve', null), done: 'pf.approved_ok');
 
+  Future<void> _addDeposit() async {
+    final s = SessionScope.of(context);
+    final pay = proformaPayments(_p);
+    final d = await askDeposit(context, balance: pay.balance, currency: '${_p['currency'] ?? s.currency}');
+    if (d == null || !mounted) return;
+    await _run((s) => s.api.post('${Svc.sales}/proforma/${_p['id']}/deposits', d), done: 'pf.deposit_saved');
+  }
+
+  Future<void> _removeDeposit(Map<String, dynamic> d) async {
+    final t = T.of(context);
+    final yes = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: Text(t('pf.remove_deposit_q')),
+        content: Text('${money(_n(d['amount']), '${_p['currency'] ?? ''}')} · ${t('pm.${d['method']}')} · ${d['date']}'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c, false), child: Text(t('app.cancel'))),
+          FilledButton(
+            style: FilledButton.styleFrom(minimumSize: const Size(0, 40), backgroundColor: Hgv.of(context).danger),
+            onPressed: () => Navigator.pop(c, true),
+            child: Text(t('pf.remove_deposit')),
+          ),
+        ],
+      ),
+    );
+    if (yes != true || !mounted) return;
+    await _run((s) => s.api.delete('${Svc.sales}/proforma/${_p['id']}/deposits/${d['id']}'), done: 'pf.deposit_removed');
+  }
+
   Future<void> _sell() async {
     final body = await showModalBottomSheet<Map<String, dynamic>>(
       context: context,
@@ -276,7 +305,7 @@ class _ProformaScreenState extends State<ProformaScreen> {
     final approved = const {'approved', 'accepted'}.contains('${_p['status']}');
     final canApprove = proformaApprovers.contains(s.user?.role);
     String v(String k) => '${_p[k] ?? ''}'.trim();
-    final deposit = _n(_p['deposit_amount']);
+    final pay = proformaPayments(_p);
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
@@ -373,10 +402,6 @@ class _ProformaScreenState extends State<ProformaScreen> {
                 InfoRow(t('pf.subtotal'), money(_n(_p['subtotal']), cur)),
                 if (_n(_p['tax_rate']) > 0) InfoRow(t('pf.tax', {'rate': _n(_p['tax_rate'])}), money(_n(_p['tax_amount']), cur)),
                 InfoRow(t('pf.total'), money(_n(_p['grand_total']), cur), strong: true),
-                if (deposit > 0) ...[
-                  InfoRow(t('pf.deposit'), money(deposit, cur)),
-                  InfoRow(t('pf.balance_due'), money(_n(_p['grand_total']) - deposit, cur), strong: true),
-                ],
                 if (v('payment_method').isNotEmpty) InfoRow(t('pf.payment_method'), v('payment_method')),
                 if (v('bank_details').isNotEmpty) ...[
                   const SizedBox(height: 4),
@@ -388,6 +413,12 @@ class _ProformaScreenState extends State<ProformaScreen> {
                 ],
               ]),
             ),
+          ),
+          // Deposits / booking payments received before the sale.
+          _PaymentsCard(
+            proforma: _p,
+            onAdd: stage == 'sold' || pay.balance <= 0 || _busy ? null : _addDeposit,
+            onRemove: stage == 'sold' || !canApprove || _busy ? null : _removeDeposit,
           ),
         ]),
       ),
@@ -440,7 +471,8 @@ class _SellSheetState extends State<_SellSheet> {
   List<Map<String, dynamic>>? _customers;
   String? _customerId;
   String _method = 'bank';
-  late final _paid = TextEditingController(text: groupDigits(_n(widget.proforma['grand_total'])));
+  // What's paid now, on top of the deposits: the balance by default.
+  late final _paid = TextEditingController(text: groupDigits(proformaPayments(widget.proforma).balance));
 
   @override
   void didChangeDependencies() {
@@ -471,7 +503,8 @@ class _SellSheetState extends State<_SellSheet> {
     final p = widget.proforma;
     final cur = '${p['currency'] ?? s.currency}';
     final total = _n(p['grand_total']);
-    final owed = total - (parseAmount(_paid.text) ?? 0);
+    final pay = proformaPayments(p);
+    final owed = pay.balance - (parseAmount(_paid.text) ?? 0);
     final typed = (p['lines'] as List? ?? []).whereType<Map>().where((l) => '${l['product_id'] ?? ''}'.isEmpty).toList();
     final needCustomer = s.isCar && _customerId == null;
     return Padding(
@@ -505,10 +538,23 @@ class _SellSheetState extends State<_SellSheet> {
               onSelected: (_) => setState(() {
                 _method = m;
                 if (m == 'debt') _paid.text = '0';
+                if (m != 'debt' && (parseAmount(_paid.text) ?? 0) == 0) _paid.text = groupDigits(pay.balance);
               }),
             ),
         ]),
-        SectionTitle(t('sale.paid')),
+        if (pay.paid > 0)
+          Padding(
+            padding: const EdgeInsets.only(top: 10),
+            child: Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(color: c.success.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(10)),
+              child: Column(children: [
+                InfoRow(t('pf.deposit_paid_before'), money(pay.paid, cur)),
+                InfoRow(t('pf.balance_due'), money(pay.balance, cur), strong: true),
+              ]),
+            ),
+          ),
+        SectionTitle(t(pay.paid > 0 ? 'pf.paid_now' : 'sale.paid')),
         TextField(
           controller: _paid,
           keyboardType: TextInputType.number,
@@ -578,6 +624,8 @@ class _ProformaFormScreenState extends State<ProformaFormScreen> {
   bool _banksSet = false;
   /// Payment method and terms from the last proforma.
   Map<String, dynamic> _carry = const {};
+  /// A deposit / booking payment received as the proforma is made.
+  Map<String, dynamic>? _deposit;
 
   @override
   void didChangeDependencies() {
@@ -676,6 +724,8 @@ class _ProformaFormScreenState extends State<ProformaFormScreen> {
       problem = 'pf.err_pick_vehicle';
     } else if (ss.bankAccounts.isNotEmpty && _banks.isEmpty) {
       problem = 'pf.err_pick_bank';
+    } else if (_deposit != null && _n(_deposit!['amount']) > _subtotal + _taxAmount) {
+      problem = 'pf.err_deposit_total';
     }
     if (problem != null) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(t(problem))));
@@ -718,6 +768,7 @@ class _ProformaFormScreenState extends State<ProformaFormScreen> {
       'customer_address': _address.text.trim(),
       'notes': _notes.text.trim(),
       'lines': lines,
+      if (_deposit != null) 'deposits': [_deposit],
       'subtotal': _subtotal,
       'tax_rate': _tax,
       'tax_amount': _taxAmount,
@@ -946,6 +997,40 @@ class _ProformaFormScreenState extends State<ProformaFormScreen> {
                 subtitle: Text('${a['bank_holder']}'),
               ),
           ],
+          // A deposit or booking amount the customer paid already.
+          SectionTitle(t('pf.deposit_section')),
+          if (_deposit == null)
+            OutlinedButton.icon(
+              icon: const Icon(PhosphorIconsRegular.wallet, size: 18),
+              label: Text(t('pf.customer_paid_deposit')),
+              onPressed: () async {
+                final total = _subtotal + _taxAmount;
+                if (total <= 0) {
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(t('pf.deposit_needs_total'))));
+                  return;
+                }
+                final d = await askDeposit(context, balance: total, currency: s.currency);
+                if (d != null && mounted) setState(() => _deposit = d);
+              },
+            )
+          else
+            Card(
+              margin: EdgeInsets.zero,
+              child: ListTile(
+                leading: Icon(PhosphorIconsRegular.wallet, color: c.success),
+                title: Text('${money(_n(_deposit!['amount']), s.currency)} · ${t('pm.${_deposit!['method']}')}', style: const TextStyle(fontWeight: FontWeight.w700)),
+                subtitle: Text([
+                  '${_deposit!['date']}'.replaceAll('-', '.'),
+                  if ('${_deposit!['reference']}'.isNotEmpty) '${_deposit!['reference']}',
+                  t('pf.balance_left', {'amount': money((_subtotal + _taxAmount - _n(_deposit!['amount'])).clamp(0, double.infinity), s.currency)}),
+                ].join(' · ')),
+                trailing: IconButton(
+                  tooltip: t('pf.remove_deposit'),
+                  icon: Icon(PhosphorIconsRegular.x, color: c.faint),
+                  onPressed: () => setState(() => _deposit = null),
+                ),
+              ),
+            ),
           SectionTitle(t('pf.tax_rate')),
           Row(children: [
             SizedBox(
@@ -1148,6 +1233,11 @@ Future<Uint8List> proformaPdf(Map<String, dynamic> p, Session s, T t) async {
           grid([
             (t('pf.payment_method'), v(p['payment_method']), false), (t('pf.currency'), cur, false),
             (t('pf.deposit'), groupDigits(deposit), false), (t('pf.balance_due'), groupDigits(total - deposit), true),
+            // Every deposit received, as on a receipt.
+            for (final (i, d) in proformaPayments(p).list.indexed)
+              (t('pf.deposit_n', {'n': i + 1}),
+                  '${groupDigits(_n(d['amount']))} · ${t('pm.${d['method']}')} · ${'${d['date'] ?? ''}'.replaceAll('-', '.')}${'${d['reference'] ?? ''}'.isEmpty ? '' : ' · ${d['reference']}'}',
+                  false),
           ]),
         ],
       ],
@@ -1273,5 +1363,200 @@ class FillSheet extends pw.SingleChildWidget {
       ..setTransform(mat);
     child!.paint(context);
     context.canvas.restoreContext();
+  }
+}
+
+// ─────────────────────────── Deposits ───────────────────────────
+
+const depositMethods = ['cash', 'mtn', 'airtel', 'bank', 'card'];
+
+/// The deposits already received on a proforma, and what's left to pay.
+({num paid, num balance, List<Map<String, dynamic>> list}) proformaPayments(Map p) {
+  final list = (p['deposits'] as List? ?? const []).whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
+  // Proformas made before deposits were itemised only have `deposit_amount`.
+  final paid = list.isEmpty ? _n(p['deposit_amount']) : list.fold<num>(0, (a, d) => a + _n(d['amount']));
+  return (paid: paid, balance: (_n(p['grand_total']) - paid).clamp(0, double.infinity), list: list);
+}
+
+/// Asks for a deposit / booking payment: amount (with quick 30 % / 50 % /
+/// full-balance picks), how it was paid, the date and a reference (MoMo
+/// transaction id, bank slip…). Returns {amount, method, date, reference}.
+Future<Map<String, dynamic>?> askDeposit(BuildContext context, {required num balance, required String currency}) =>
+    showModalBottomSheet<Map<String, dynamic>>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) => _DepositSheet(balance: balance, currency: currency),
+    );
+
+class _DepositSheet extends StatefulWidget {
+  const _DepositSheet({required this.balance, required this.currency});
+  final num balance;
+  final String currency;
+
+  @override
+  State<_DepositSheet> createState() => _DepositSheetState();
+}
+
+class _DepositSheetState extends State<_DepositSheet> {
+  final _form = GlobalKey<FormState>();
+  final _amount = TextEditingController(), _ref = TextEditingController();
+  String? _method;
+  DateTime _date = DateTime.now();
+  bool _tried = false;
+
+  @override
+  void dispose() {
+    _amount.dispose();
+    _ref.dispose();
+    super.dispose();
+  }
+
+  void _quick(num v) => setState(() => _amount.text = groupDigits(v.round()));
+
+  @override
+  Widget build(BuildContext context) {
+    final t = T.of(context);
+    final c = Hgv.of(context);
+    final cur = widget.currency;
+    final amount = parseAmount(_amount.text) ?? 0;
+    return Padding(
+      padding: EdgeInsets.fromLTRB(16, 0, 16, 16 + MediaQuery.of(context).viewInsets.bottom),
+      child: Form(
+        key: _form,
+        child: SingleChildScrollView(
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            Text(t('pf.deposit_title'), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
+            Text(t('pf.balance_left', {'amount': money(widget.balance, cur)}), style: TextStyle(color: c.muted)),
+            SectionTitle(t('pf.deposit_amount')),
+            TextFormField(
+              controller: _amount,
+              autofocus: true,
+              keyboardType: TextInputType.number,
+              inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9,]'))],
+              decoration: InputDecoration(isDense: true, suffixText: cur),
+              onChanged: (_) => setState(() {}),
+              validator: (v) {
+                final a = parseAmount(v ?? '') ?? 0;
+                if (a <= 0) return t('pf.err_deposit_amount');
+                if (a > widget.balance) return t('pf.err_deposit_over', {'amount': money(widget.balance, cur)});
+                return null;
+              },
+            ),
+            const SizedBox(height: 6),
+            // Common booking amounts: 30 % or 50 % of what's left, or all of it.
+            Wrap(spacing: 6, children: [
+              for (final (label, v) in [('30 %', widget.balance * 0.3), ('50 %', widget.balance * 0.5), (t('pf.deposit_full'), widget.balance)])
+                ActionChip(label: Text(label), onPressed: () => _quick(v)),
+            ]),
+            SectionTitle(t('pf.deposit_method')),
+            Wrap(spacing: 6, runSpacing: 6, children: [
+              for (final m in depositMethods)
+                ChoiceChip(label: Text(t('pm.$m')), selected: _method == m, showCheckmark: false, onSelected: (_) => setState(() => _method = m)),
+            ]),
+            if (_tried && _method == null)
+              Padding(padding: const EdgeInsets.only(top: 6), child: Text(t('pf.err_deposit_method'), style: TextStyle(color: c.danger, fontSize: 12.5))),
+            SectionTitle(t('pf.deposit_date')),
+            OutlinedButton.icon(
+              icon: const Icon(PhosphorIconsRegular.calendarBlank, size: 18),
+              label: Align(alignment: Alignment.centerLeft, child: Text(_ymd(_date))),
+              onPressed: () async {
+                final picked = await showDatePicker(
+                  context: context,
+                  initialDate: _date,
+                  firstDate: DateTime.now().subtract(const Duration(days: 365)),
+                  lastDate: DateTime.now(), // never in the future
+                );
+                if (picked != null) setState(() => _date = picked);
+              },
+            ),
+            SectionTitle(t('pf.deposit_ref')),
+            TextFormField(
+              controller: _ref,
+              maxLength: 60,
+              decoration: InputDecoration(isDense: true, hintText: t('pf.deposit_ref_hint'), counterText: ''),
+            ),
+            const SizedBox(height: 14),
+            FilledButton(
+              style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(48)),
+              onPressed: () {
+                setState(() => _tried = true);
+                if (!_form.currentState!.validate() || _method == null) return;
+                Navigator.pop(context, {
+                  'amount': amount,
+                  'method': _method,
+                  'date': _ymd(_date),
+                  'reference': _ref.text.trim(),
+                });
+              },
+              child: Text(amount > 0 ? '${t('pf.record_deposit')} · ${money(amount, cur)}' : t('pf.record_deposit')),
+            ),
+          ]),
+        ),
+      ),
+    );
+  }
+}
+
+/// The deposits received on a proforma, what's paid and what's left.
+class _PaymentsCard extends StatelessWidget {
+  const _PaymentsCard({required this.proforma, required this.onAdd, required this.onRemove});
+  final Map<String, dynamic> proforma;
+  final VoidCallback? onAdd;
+  final void Function(Map<String, dynamic> deposit)? onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = T.of(context);
+    final c = Hgv.of(context);
+    final s = SessionScope.of(context);
+    final cur = '${proforma['currency'] ?? s.currency}';
+    final pay = proformaPayments(proforma);
+    final total = _n(proforma['grand_total']);
+    final ratio = total > 0 ? (pay.paid / total).clamp(0, 1).toDouble() : 0.0;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Row(children: [
+            Expanded(child: Text(t('pf.payments').toUpperCase(), style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 0.6, color: c.faint))),
+            if (onAdd != null)
+              TextButton.icon(onPressed: onAdd, icon: const Icon(PhosphorIconsBold.plus, size: 16), label: Text(t('pf.record_deposit'))),
+          ]),
+          const SizedBox(height: 6),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(value: ratio, minHeight: 6, backgroundColor: c.paper, color: c.success),
+          ),
+          const SizedBox(height: 8),
+          InfoRow(t('pf.paid_so_far'), money(pay.paid, cur)),
+          InfoRow(t('pf.balance_due'), money(pay.balance, cur), strong: true),
+          if (pay.list.isEmpty)
+            Padding(padding: const EdgeInsets.only(top: 6), child: Text(t('pf.no_deposits'), style: TextStyle(color: c.muted, fontSize: 12.5)))
+          else ...[
+            const Divider(height: 18),
+            for (final d in pay.list)
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                dense: true,
+                leading: CircleAvatar(radius: 16, backgroundColor: c.paper, child: Icon(PhosphorIconsRegular.wallet, size: 16, color: c.success)),
+                title: Text('${money(_n(d['amount']), cur)} · ${t('pm.${d['method']}')}', style: const TextStyle(fontWeight: FontWeight.w700)),
+                subtitle: Text([
+                  '${d['date'] ?? ''}'.replaceAll('-', '.'),
+                  if ('${d['reference'] ?? ''}'.isNotEmpty) '${d['reference']}',
+                  if ('${d['by'] ?? ''}'.isNotEmpty) t('pf.recorded_by', {'name': '${d['by']}'}),
+                ].join(' · ')),
+                trailing: onRemove == null
+                    ? null
+                    : IconButton(
+                        tooltip: t('pf.remove_deposit'),
+                        icon: Icon(PhosphorIconsRegular.trash, size: 18, color: c.faint),
+                        onPressed: () => onRemove!(d),
+                      ),
+              ),
+          ],
+        ]),
+      ),
+    );
   }
 }

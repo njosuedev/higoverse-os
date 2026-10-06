@@ -30,6 +30,7 @@ const ICON: Record<NotifKind, { icon: typeof Bell; tone: string }> = {
   proforma_new: { icon: FileText, tone: "bg-blue-50 text-blue-700" },
   proforma_approved: { icon: FileText, tone: "bg-emerald-50 text-emerald-700" },
   proforma_sold: { icon: FileText, tone: "bg-emerald-50 text-emerald-700" },
+  proforma_deposit: { icon: Wallet, tone: "bg-emerald-50 text-emerald-700" },
 };
 
 // The browser's permission, kept in step when the person answers the prompt.

@@ -43,4 +43,32 @@ void main() {
     expect(pageCount(await proformaPdf(proforma(cars: 2), s, t)), 2);
     expect(pageCount(await proformaPdf(proforma(cars: 3), s, t)), 3);
   });
+
+  test('deposits: what is paid and what is left', () {
+    final pay = proformaPayments({
+      'grand_total': 20000000,
+      'deposits': [
+        {'amount': 5000000, 'method': 'mtn', 'date': '2026-10-05'},
+        {'amount': 3000000, 'method': 'bank', 'date': '2026-10-06'},
+      ],
+    });
+    expect(pay.paid, 8000000);
+    expect(pay.balance, 12000000);
+    expect(proformaPayments({'grand_total': 100}).balance, 100);
+  });
+
+  test('deposits are listed on the PDF, still two sheets', () async {
+    final withDeposits = {
+      ...proforma(),
+      'deposit_amount': 8000000,
+      'deposits': [
+        {'id': 'a', 'amount': 5000000, 'method': 'mtn', 'date': '2026-10-05', 'reference': 'MP2610.1234'},
+        {'id': 'b', 'amount': 3000000, 'method': 'bank', 'date': '2026-10-06', 'reference': ''},
+      ],
+    };
+    final bytes = await proformaPdf(withDeposits, s, t);
+    expect(pageCount(bytes), 2);
+    final out = Platform.environment['HGV_PDF_DEP_OUT'];
+    if (out != null) File(out).writeAsBytesSync(bytes);
+  });
 }

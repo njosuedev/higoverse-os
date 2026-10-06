@@ -34,6 +34,28 @@ export interface ProformaLine {
   condition?: string | null;
 }
 
+/** A deposit / booking payment received on a proforma (counts as paid at the sale). */
+export interface Deposit {
+  id?: string;
+  amount: number;
+  method: "cash" | "mtn" | "airtel" | "bank" | "card";
+  /** YYYY-MM-DD, never in the future. */
+  date: string;
+  reference?: string;
+  by?: string;
+  at?: string;
+}
+export const DEPOSIT_METHODS = ["cash", "mtn", "airtel", "bank", "card"] as const;
+
+/** What's been paid in deposits, and what's left. */
+export function depositTotals(p: { grand_total: number; deposits?: Deposit[] | null; deposit_amount?: number | null }) {
+  // Proformas made before deposits were itemised only have `deposit_amount`.
+  const paid = p.deposits?.length
+    ? p.deposits.reduce((a, d) => a + (Number(d.amount) || 0), 0)
+    : Number(p.deposit_amount) || 0;
+  return { paid, balance: Math.max(0, (Number(p.grand_total) || 0) - paid) };
+}
+
 export interface Proforma {
   id: string;
   invoice_no: string;
@@ -60,7 +82,9 @@ export interface Proforma {
   bank_details: string;
   /** Which of the company's bank accounts (Settings) are printed. */
   bank_account_ids?: string[];
+  /** The total of `deposits` (computed by the server). */
   deposit_amount: number;
+  deposits?: Deposit[];
   terms: string;
   status: ProformaStatus;
   approved_by?: string;
@@ -73,7 +97,7 @@ export interface Proforma {
 
 export type ProformaPayload = Omit<
   Proforma,
-  "id" | "created_at" | "updated_at" | "status" | "approved_by" | "approved_at" | "sold_at" | "sale_ids"
+  "id" | "created_at" | "updated_at" | "status" | "approved_by" | "approved_at" | "sold_at" | "sale_ids" | "deposits"
 >;
 
 export interface ProformaListResult {
@@ -99,7 +123,7 @@ export async function getProforma(id: string): Promise<Proforma | null> {
   return res?.data ?? null;
 }
 
-export async function createProforma(payload: ProformaPayload): Promise<Proforma> {
+export async function createProforma(payload: ProformaPayload & { deposits?: Deposit[] }): Promise<Proforma> {
   const res = await saleRequest("/proforma", { method: "POST", body: JSON.stringify(payload) });
   return res.data;
 }
@@ -121,6 +145,18 @@ export async function sellProforma(
   id: string, body: { payment_method: string; amount_paid?: number; customer_id?: string },
 ): Promise<Proforma> {
   const res = await saleRequest(`/proforma/${id}/sell`, { method: "POST", body: JSON.stringify(body) });
+  return res.data;
+}
+
+/** Records a deposit / booking payment (keeps the approval). */
+export async function addDeposit(id: string, d: Omit<Deposit, "id" | "by" | "at">): Promise<Proforma> {
+  const res = await saleRequest(`/proforma/${id}/deposits`, { method: "POST", body: JSON.stringify(d) });
+  return res.data;
+}
+
+/** Removes a deposit recorded by mistake (owner, admin or manager). */
+export async function removeDeposit(id: string, depositId: string): Promise<Proforma> {
+  const res = await saleRequest(`/proforma/${id}/deposits/${depositId}`, { method: "DELETE" });
   return res.data;
 }
 

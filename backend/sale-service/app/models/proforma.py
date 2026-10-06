@@ -43,7 +43,12 @@ class Proforma(Base):
     bank_details = Column(Text, nullable=True)
     # Which of the company's bank accounts (Settings) are printed.
     bank_account_ids = Column(JSON, nullable=True)
+    # The total of `deposits` (kept for older apps and the print).
     deposit_amount = Column(Numeric(12, 2), nullable=True)
+    # Deposits / booking payments received before the sale, as JSON:
+    # [{id, amount, method, date, reference, by, at}]. They count as paid
+    # when the proforma becomes a sale.
+    deposits = Column(JSON, nullable=True)
     terms = Column(Text, nullable=True)
 
     # draft → approved → sold (or expired). See routes/proforma.py.
