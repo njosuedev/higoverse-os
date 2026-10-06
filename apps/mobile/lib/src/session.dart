@@ -81,7 +81,11 @@ class Session extends ChangeNotifier implements TokenSource {
   /// The company's bank account (website Settings → Bank account), printed
   /// on proformas; car companies can't make one without it.
   String bankName = '', bankAccount = '', bankHolder = '';
-  bool get hasBank => bankName.isNotEmpty && bankAccount.isNotEmpty && bankHolder.isNotEmpty;
+
+  /// Every account (Settings → Bank accounts): {id, bank_name, bank_account,
+  /// bank_holder, is_default}. A proforma ticks which ones to print.
+  List<Map<String, dynamic>> bankAccounts = const [];
+  bool get hasBank => bankAccounts.isNotEmpty || (bankName.isNotEmpty && bankAccount.isNotEmpty && bankHolder.isNotEmpty);
 
   /// Language saved on the account (website settings); used until a language
   /// is picked on this phone.
@@ -152,6 +156,7 @@ class Session extends ChangeNotifier implements TokenSource {
       bankName = '${d['bank_name'] ?? ''}'.trim();
       bankAccount = '${d['bank_account'] ?? ''}'.trim();
       bankHolder = '${d['bank_holder'] ?? ''}'.trim();
+      bankAccounts = (d['bank_accounts'] as List? ?? const []).whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
       accountLanguage = d['language'] as String?;
     }
     notifyListeners();

@@ -72,7 +72,13 @@ export function mergeDescription(rawStored: string | null | undefined, text: str
 
 // ── Bank account (Settings → Bank account; printed on every proforma) ──────
 
-export interface BankAccount { bank_name: string; bank_account: string; bank_holder: string; }
+export interface BankAccount {
+  /** Set by the server once saved; proformas refer to accounts by it. */
+  id?: string;
+  bank_name: string; bank_account: string; bank_holder: string;
+  /** The account a new proforma starts with. */
+  is_default?: boolean;
+}
 
 /** Banks most Rwandan businesses use; any other name can be typed. */
 export const RWANDA_BANKS = [

@@ -571,7 +571,12 @@ class _ProformaFormScreenState extends State<ProformaFormScreen> {
   late num _tax;
   bool _saving = false, _taxSet = false;
   String? _customerId;
-  /// Payment method, bank account and terms from the last proforma.
+  /// The picked customer, as saved in Customers (car companies can't type one).
+  Map<String, dynamic>? _picked;
+  /// Which bank accounts (Settings) are printed; the default to start with.
+  Set<String> _banks = {};
+  bool _banksSet = false;
+  /// Payment method and terms from the last proforma.
   Map<String, dynamic> _carry = const {};
 
   @override
@@ -583,6 +588,11 @@ class _ProformaFormScreenState extends State<ProformaFormScreen> {
       _tax = s.isCar ? 0 : s.taxRate;
       _days = s.isCar ? 5 : 14;
       _taxSet = true;
+      if (!_banksSet) {
+        final def = s.bankAccounts.where((a) => a['is_default'] == true).followedBy(s.bankAccounts).take(1);
+        _banks = {for (final a in def) '${a['id']}'};
+        _banksSet = true;
+      }
       s.api.get('${Svc.sales}/proforma', query: {'page': '1', 'limit': '1'}).then((res) {
         final items = ((res as Map)['data'] as Map?)?['items'] as List? ?? const [];
         if (items.isNotEmpty && items.first is Map && mounted) _carry = Map<String, dynamic>.from(items.first as Map);
@@ -603,6 +613,7 @@ class _ProformaFormScreenState extends State<ProformaFormScreen> {
     );
     if (c == null) return;
     setState(() {
+      _picked = c;
       _customerId = '${c['id']}';
       _customer.text = '${c['name'] ?? ''}';
       _phone.text = '${c['phone'] ?? ''}';
@@ -641,6 +652,8 @@ class _ProformaFormScreenState extends State<ProformaFormScreen> {
         for (final k in ['car_type', 'year', 'color', 'chassis_no', 'plate_no'])
           if ((a[k] ?? '').isNotEmpty) k: a[k]!,
         if ((a['battery_range'] ?? '').isNotEmpty) 'energy': 'Full electric',
+        for (final k in ['mileage', 'condition'])
+          if ((a[k] ?? '').isNotEmpty) k: a[k]!,
       };
       _lines[i].name.text = '${p['name'] ?? ''}';
       if (p['selling_price'] != null) _lines[i].price.text = groupDigits(_n(p['selling_price']));
@@ -651,9 +664,21 @@ class _ProformaFormScreenState extends State<ProformaFormScreen> {
   Future<void> _save() async {
     final t = T.of(context);
     if (!_form.currentState!.validate()) return;
-    // Car companies always print where the customer pays.
-    if (SessionScope.of(context).isCar && !SessionScope.of(context).hasBank) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(t('pf.need_bank'))));
+    final ss = SessionScope.of(context);
+    String? problem;
+    // Car companies always print where the customer pays…
+    if (ss.isCar && !ss.hasBank) {
+      problem = 'pf.need_bank';
+    } else if (ss.isCar && _customerId == null) {
+      // …and pick the customer and every car from their own sections.
+      problem = 'pf.err_pick_customer';
+    } else if (ss.isCar && _lines.any((l) => l.name.text.trim().isNotEmpty && l.productId == null)) {
+      problem = 'pf.err_pick_vehicle';
+    } else if (ss.bankAccounts.isNotEmpty && _banks.isEmpty) {
+      problem = 'pf.err_pick_bank';
+    }
+    if (problem != null) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(t(problem))));
       return;
     }
     final lines = [
@@ -684,6 +709,7 @@ class _ProformaFormScreenState extends State<ProformaFormScreen> {
       'customer_country': '${_carry['customer_country'] ?? ''}',
       'payment_method': '${_carry['payment_method'] ?? (s.hasBank ? '${t('pf.bank_transfer')} · ${s.bankName}' : '')}',
       // Where to pay comes from Settings (the latest account), as on the website.
+      if (s.bankAccounts.isNotEmpty) 'bank_account_ids': [for (final a in s.bankAccounts) if (_banks.contains('${a['id']}')) '${a['id']}'],
       'bank_details': s.hasBank
           ? '${s.bankName} · ${t('pf.account_no')}: ${s.bankAccount}\n${t('pf.account_holder')}: ${s.bankHolder}'
           : '${_carry['bank_details'] ?? ''}',
@@ -761,6 +787,33 @@ class _ProformaFormScreenState extends State<ProformaFormScreen> {
         child: ListView(padding: const EdgeInsets.fromLTRB(14, 8, 14, 24), children: [
           SectionTitle(t('pf.customer'),
               trailing: TextButton.icon(onPressed: _pickCustomer, icon: const Icon(PhosphorIconsRegular.users, size: 16), label: Text(t('pf.saved_customer')))),
+          if (s.isCar) ...[
+            // A saved customer's details: changed only in Customers (website).
+            if (_picked == null)
+              OutlinedButton.icon(
+                onPressed: _pickCustomer,
+                icon: const Icon(PhosphorIconsRegular.userPlus, size: 18),
+                label: Text(t('pf.choose_customer')),
+              )
+            else
+              Card(
+                margin: EdgeInsets.zero,
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                    Text('${_picked!['name'] ?? ''}', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+                    for (final (k, label) in [('phone', 'form.phone'), ('id_number', 'pf.id_no'), ('address', 'pf.address'), ('tin', 'pf.tin'), ('company', 'pf.company')])
+                      if ('${_picked![k] ?? ''}'.isNotEmpty) InfoRow(t(label), '${_picked![k]}'),
+                    if (!customerComplete(_picked!))
+                      Padding(padding: const EdgeInsets.only(top: 6), child: Text(t('pf.err_customer_incomplete'), style: TextStyle(color: c.danger, fontSize: 12.5))),
+                  ]),
+                ),
+              ),
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Text(t('pf.customers_on_web'), style: TextStyle(fontSize: 12, color: c.faint)),
+            ),
+          ] else ...[
           TextFormField(
             controller: _customer,
             textCapitalization: TextCapitalization.words,
@@ -793,6 +846,7 @@ class _ProformaFormScreenState extends State<ProformaFormScreen> {
               ),
             ),
           ]),
+          ],
           SectionTitle(t('pf.valid_for')),
           Wrap(spacing: 6, children: [
             for (final d in const [5, 7, 14, 30])
@@ -809,7 +863,10 @@ class _ProformaFormScreenState extends State<ProformaFormScreen> {
                     Expanded(
                       child: TextFormField(
                         controller: _lines[i].name,
-                        decoration: dec(t('pf.item_name')).copyWith(
+                        // Car companies pick each car from stock; its details come from Vehicles.
+                        readOnly: s.isCar,
+                        onTap: s.isCar ? () => _pickProduct(i) : null,
+                        decoration: dec(t(s.isCar ? 'pf.pick_vehicle' : 'pf.item_name')).copyWith(
                           suffixIcon: IconButton(
                             tooltip: t('pf.from_stock'),
                             icon: Icon(PhosphorIconsRegular.package, color: c.ink),
@@ -840,7 +897,7 @@ class _ProformaFormScreenState extends State<ProformaFormScreen> {
                     ),
                   const SizedBox(height: 6),
                   Row(children: [
-                    SizedBox(
+                    if (!s.isCar) SizedBox(
                       width: 80,
                       child: TextFormField(
                         controller: _lines[i].qty,
@@ -851,7 +908,7 @@ class _ProformaFormScreenState extends State<ProformaFormScreen> {
                         onChanged: (_) => setState(() {}),
                       ),
                     ),
-                    const SizedBox(width: 8),
+                    if (!s.isCar) const SizedBox(width: 8),
                     Expanded(
                       child: TextFormField(
                         controller: _lines[i].price,
@@ -877,6 +934,18 @@ class _ProformaFormScreenState extends State<ProformaFormScreen> {
             icon: const Icon(PhosphorIconsRegular.plus, size: 18),
             label: Text(t('pf.add_line')),
           ),
+          if (s.bankAccounts.isNotEmpty) ...[
+            SectionTitle(t('pf.bank_accounts')),
+            for (final a in s.bankAccounts)
+              CheckboxListTile(
+                contentPadding: EdgeInsets.zero,
+                dense: true,
+                value: _banks.contains('${a['id']}'),
+                onChanged: (on) => setState(() => on == true ? _banks.add('${a['id']}') : _banks.remove('${a['id']}')),
+                title: Text('${a['bank_name']} · ${a['bank_account']}', style: const TextStyle(fontWeight: FontWeight.w700)),
+                subtitle: Text('${a['bank_holder']}'),
+              ),
+          ],
           SectionTitle(t('pf.tax_rate')),
           Row(children: [
             SizedBox(

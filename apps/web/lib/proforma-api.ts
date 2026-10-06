@@ -58,6 +58,8 @@ export interface Proforma {
   currency: string;
   payment_method: string;
   bank_details: string;
+  /** Which of the company's bank accounts (Settings) are printed. */
+  bank_account_ids?: string[];
   deposit_amount: number;
   terms: string;
   status: ProformaStatus;

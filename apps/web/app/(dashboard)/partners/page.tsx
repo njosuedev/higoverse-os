@@ -13,10 +13,14 @@ import {
 } from "lucide-react";
 import { askConfirm, notify } from "@/lib/dialogs";
 
-interface RawPartner { id: string; name: string; phone?: string; email?: string; address?: string; id_number?: string | null; }
-interface Partner extends RawPartner { tin: string; realAddress: string; partnerType: "supplier" | "customer"; }
+interface RawPartner {
+  id: string; name: string; phone?: string; email?: string; address?: string; id_number?: string | null;
+  // A customer's own TIN, company and country (printed on proformas).
+  tin?: string | null; company?: string | null; country?: string | null;
+}
+interface Partner extends RawPartner { tin: string; customer_tin: string; realAddress: string; partnerType: "supplier" | "customer"; }
 interface Product { id: string; supplier_id?: string | null; }
-interface FormErrors { name?: string; contact?: string; phone?: string; tin?: string; email?: string; }
+interface FormErrors { name?: string; contact?: string; phone?: string; tin?: string; email?: string; customer_tin?: string; }
 type ModalMode = "create" | "edit";
 
 function encodeAddress(tin: string, address: string): string {
@@ -34,10 +38,11 @@ function decodePartner(raw: RawPartner): Partner {
     if (pipe !== -1) { tin = addr.slice(4, pipe); realAddress = addr.slice(pipe + 1); }
     else tin = addr.slice(4);
   } else { realAddress = addr; }
-  return { ...raw, tin, realAddress, partnerType: tin ? "supplier" : "customer" };
+  // `tin` here is a supplier's (kept in the address); a customer's is its own field.
+  return { ...raw, tin, customer_tin: raw.tin ?? "", realAddress, partnerType: tin ? "supplier" : "customer" };
 }
 
-const EMPTY_FORM = { name: "", phone: "", tin: "", email: "", address: "", id_number: "" };
+const EMPTY_FORM = { name: "", phone: "", tin: "", email: "", address: "", id_number: "", customer_tin: "", company: "", country: "" };
 const PAGE_SIZES = [25, 50, 100, 250];
 
 const inputCls =
@@ -198,6 +203,7 @@ export default function PartnerManagementPage() {
       }
     }
     if (data.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email)) err.email = t("common.invalid_email");
+    if (data.customer_tin.trim() && !/^\d{9}$/.test(data.customer_tin.replace(/\s/g, ""))) err.customer_tin = t("company.err_tin");
     setErrors(err);
     return Object.keys(err).length === 0;
   }
@@ -209,7 +215,10 @@ export default function PartnerManagementPage() {
 
   function openCreateModal() { setForm(EMPTY_FORM); setErrors({}); setEditingId(null); setModalMode("create"); setShowModal(true); }
   function openEditModal(p: Partner) {
-    setForm({ name: p.name, phone: p.phone ?? "", tin: p.tin ?? "", email: p.email ?? "", address: p.realAddress ?? "", id_number: p.id_number ?? "" });
+    setForm({
+      name: p.name, phone: p.phone ?? "", tin: p.tin ?? "", email: p.email ?? "", address: p.realAddress ?? "", id_number: p.id_number ?? "",
+      customer_tin: p.customer_tin ?? "", company: p.company ?? "", country: p.country ?? "",
+    });
     setErrors({}); setEditingId(p.id); setModalMode("edit"); setShowModal(true);
   }
   function closeModal() { setShowModal(false); setForm(EMPTY_FORM); setErrors({}); setEditingId(null); }
@@ -217,8 +226,14 @@ export default function PartnerManagementPage() {
   const buildPayload = () => ({
     name: form.name.trim(), phone: form.phone.trim() || null,
     email: form.email.trim() || null, address: encodeAddress(form.tin, form.address) || null,
-    // Car companies record their customers' ID / passport number.
-    ...(isCar ? { id_number: form.id_number.trim() || null } : {}),
+    // Car companies record their customers' ID / passport number, TIN,
+    // company and country — the details printed on proformas.
+    ...(isCar ? {
+      id_number: form.id_number.trim() || null,
+      tin: form.customer_tin.replace(/\s/g, "") || null,
+      company: form.company.trim() || null,
+      country: form.country.trim() || null,
+    } : {}),
   });
 
   async function createPartner() {
@@ -529,6 +544,19 @@ export default function PartnerManagementPage() {
                   {isCar && <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1">{t("partners.id_number")}</label>
                     <input name="id_number" placeholder="1 1990 8 0000000 0 00" value={form.id_number} className={inputCls} onChange={handleChange} />
+                  </div>}
+                  {isCar && <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">TIN <span className="text-slate-400">({t("common.optional")})</span></label>
+                    <input name="customer_tin" placeholder="123456789" inputMode="numeric" maxLength={11} value={form.customer_tin} className={`${inputCls} font-mono`} onChange={handleChange} />
+                    {errors.customer_tin && <p className="text-red-500 text-xs mt-1">{errors.customer_tin}</p>}
+                  </div>}
+                  {isCar && <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">{t("proforma.company")}</label>
+                    <input name="company" value={form.company} className={inputCls} onChange={handleChange} />
+                  </div>}
+                  {isCar && <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">{t("proforma.country")}</label>
+                    <input name="country" placeholder="Rwanda" value={form.country} className={inputCls} onChange={handleChange} />
                   </div>}
                 </div>
               </div>

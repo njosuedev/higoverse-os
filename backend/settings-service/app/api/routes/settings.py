@@ -1,4 +1,5 @@
 import json
+import uuid
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
@@ -10,7 +11,7 @@ from app.core.security import get_current_user
 
 router = APIRouter(prefix="/settings", tags=["Settings"])
 
-BANK_FIELDS = ("bank_name", "bank_account", "bank_holder")
+BANK_FIELDS = ("bank_name", "bank_account", "bank_holder", "bank_accounts")
 BANK_EDITORS = {"owner", "admin"}
 
 
@@ -20,6 +21,21 @@ def _car_types(raw: str | None) -> list[str]:
     except ValueError:
         return []
     return [x for x in v if isinstance(x, str)] if isinstance(v, list) else []
+
+
+def _bank_accounts(s: ShopSettings) -> list[dict]:
+    """Every bank account; a shop that saved one before the list existed
+    shows it as its only (default) account — nothing is rewritten."""
+    try:
+        v = json.loads(s.bank_accounts) if s.bank_accounts else None
+    except ValueError:
+        v = None
+    if isinstance(v, list):
+        return [a for a in v if isinstance(a, dict)]
+    if s.bank_name and s.bank_account and s.bank_holder:
+        return [{"id": "main", "bank_name": s.bank_name, "bank_account": s.bank_account,
+                 "bank_holder": s.bank_holder, "is_default": True}]
+    return []
 
 
 def _fmt(s: ShopSettings) -> dict:
@@ -34,6 +50,7 @@ def _fmt(s: ShopSettings) -> dict:
         "low_stock_threshold": s.low_stock_threshold,
         "tax_rate": float(s.tax_rate) if s.tax_rate is not None else 0,
         "car_types": _car_types(s.car_types),
+        "bank_accounts": _bank_accounts(s),
         "bank_name": s.bank_name or "",
         "bank_account": s.bank_account or "",
         "bank_holder": s.bank_holder or "",
@@ -75,12 +92,25 @@ def update_settings(
     s = _get_or_create(db, user["shop_id"])
 
     changes = payload.model_dump(exclude_unset=True)
+    if "bank_accounts" in changes:
+        accounts = [{**a, "id": a.get("id") or uuid.uuid4().hex[:10]} for a in changes["bank_accounts"]]
+        default = next((a for a in accounts if a["is_default"]), None)
+        # The single-account columns follow the default (older apps read them).
+        changes.update(
+            bank_accounts=accounts,
+            bank_name=default["bank_name"] if default else None,
+            bank_account=default["bank_account"] if default else None,
+            bank_holder=default["bank_holder"] if default else None,
+        )
     # Where customers send money: only the owner (or a platform admin) may change it.
-    if any(k in changes and changes[k] != getattr(s, k) for k in BANK_FIELDS) and user.get("role") not in BANK_EDITORS:
-        raise HTTPException(status_code=403, detail="Only the owner can change the bank account.")
+    current = {**{k: getattr(s, k) for k in BANK_FIELDS}, "bank_accounts": _bank_accounts(s)}
+    if any(k in changes and changes[k] != current[k] for k in BANK_FIELDS) and user.get("role") not in BANK_EDITORS:
+        raise HTTPException(status_code=403, detail="Only the owner can change the bank accounts.")
 
     for key, value in changes.items():
         if key == "car_types":
+            value = json.dumps(value) if value else None
+        elif key == "bank_accounts":
             value = json.dumps(value) if value else None
         setattr(s, key, value)
 

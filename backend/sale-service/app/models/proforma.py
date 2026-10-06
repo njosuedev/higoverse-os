@@ -41,6 +41,8 @@ class Proforma(Base):
     # Payment & finance terms
     payment_method = Column(String, nullable=True)
     bank_details = Column(Text, nullable=True)
+    # Which of the company's bank accounts (Settings) are printed.
+    bank_account_ids = Column(JSON, nullable=True)
     deposit_amount = Column(Numeric(12, 2), nullable=True)
     terms = Column(Text, nullable=True)
 

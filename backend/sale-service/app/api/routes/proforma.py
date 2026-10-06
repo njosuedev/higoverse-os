@@ -13,6 +13,7 @@ from app.schemas.proforma import ProformaCreate, ProformaUpdate, ProformaSell
 from app.core.security import get_current_user
 from app.core.product_client import get_product, update_product_stock
 from app.core.events import emit
+from app.core import master_data
 from app.api.routes.sales import _live as _live_sale
 from app.api.routes.debts import _live as _live_debt
 
@@ -45,6 +46,54 @@ def _require_bank(user: dict, bank_details: str | None) -> None:
     """Car companies always tell the customer where to pay."""
     if user.get("layout") == "car" and not (bank_details or "").strip():
         raise HTTPException(status_code=400, detail=NEED_BANK)
+
+
+def _sync(data: dict, user: dict, token: str) -> dict:
+    """Copies the customer, vehicle and bank details in from where they live
+    (Customers, Vehicles, Settings): a proforma can't change them, whatever a
+    screen sends. Car companies must pick each of them; other businesses may
+    still type a walk-in customer or an item."""
+    car = user.get("layout") == "car"
+    data = dict(data)
+
+    if data.get("customer_id"):
+        data.update(master_data.customer_fields(data["customer_id"], token))
+    elif car:
+        raise HTTPException(status_code=400, detail="Pick the customer from Customers.")
+
+    lines = []
+    for line in data.get("lines") or []:
+        if line.get("product_id") and car:
+            lines.append(master_data.vehicle_line(line, token))
+        elif car:
+            raise HTTPException(status_code=400, detail="Pick each vehicle from stock.")
+        else:
+            lines.append(line)
+    data["lines"] = lines
+
+    accounts = master_data.bank_accounts(token)
+    if accounts:
+        wanted = data.get("bank_account_ids") or [a["id"] for a in accounts if a.get("is_default")][:1]
+        chosen = [a for a in accounts if a.get("id") in wanted]
+        if not chosen:
+            raise HTTPException(status_code=400, detail="Pick at least one of the company's bank accounts.")
+        data["bank_account_ids"] = [a["id"] for a in chosen]
+        data["bank_details"] = master_data.bank_text(chosen)
+    elif car:
+        raise HTTPException(status_code=400, detail=NEED_BANK)
+    return data
+
+
+_SYNCED = ("customer", "customer_phone", "customer_email", "customer_address", "customer_id_no",
+           "customer_tin", "customer_company", "customer_country", "lines", "bank_details", "bank_account_ids")
+
+
+def _apply_sync(p: Proforma, user: dict, token: str) -> None:
+    current = {c.name: getattr(p, c.name) for c in Proforma.__table__.columns}
+    synced = _sync(current, user, token)
+    for k in _SYNCED:
+        if synced.get(k) != current.get(k):
+            setattr(p, k, synced.get(k))
 
 
 def _is_approver(user: dict) -> bool:
@@ -87,6 +136,7 @@ def _fmt(p: Proforma) -> dict:
         "currency": p.currency,
         "payment_method": p.payment_method or "",
         "bank_details": p.bank_details or "",
+        "bank_account_ids": p.bank_account_ids or [],
         "deposit_amount": _num(p.deposit_amount),
         "terms": p.terms or "",
         "status": p.status,
@@ -178,12 +228,12 @@ def create_proforma(
     payload: ProformaCreate,
     db: Session = Depends(get_db),
     user: dict = Depends(get_current_user),
+    authorization: str = Header(None),
 ):
     if not user["shop_id"]:
         raise HTTPException(status_code=400, detail="You need a shop before creating proformas")
 
-    _require_bank(user, payload.bank_details)
-    data = payload.model_dump(mode="json")
+    data = _sync(payload.model_dump(mode="json"), user, _token(authorization))
     # Every proforma starts unapproved; approval is its own step.
     data["status"] = data["status"] if data["status"] in ("draft", "sent") else "draft"
     proforma = Proforma(shop_id=user["shop_id"], **data)
@@ -208,6 +258,7 @@ def update_proforma(
     payload: ProformaUpdate,
     db: Session = Depends(get_db),
     user: dict = Depends(get_current_user),
+    authorization: str = Header(None),
 ):
     proforma = _get_or_404(db, proforma_id, user["shop_id"])
     if proforma.status == "sold":
@@ -215,8 +266,6 @@ def update_proforma(
 
     updates = payload.model_dump(exclude_unset=True, mode="json")
     status = updates.pop("status", None)
-    if "bank_details" in updates:
-        _require_bank(user, updates["bank_details"])
 
     changed = {k for k, v in updates.items() if _norm(k, getattr(proforma, k)) != _norm(k, v)}
     for key, value in updates.items():
@@ -236,6 +285,11 @@ def update_proforma(
         proforma.approved_by = None
         proforma.approved_at = None
 
+    # A draft always carries the current customer, vehicle and bank details;
+    # an approved one keeps the copy it was approved with.
+    if proforma.status in _APPROVABLE or proforma.status == "expired":
+        _apply_sync(proforma, user, _token(authorization))
+
     db.commit()
     db.refresh(proforma)
     return {"success": True, "message": "Proforma updated", "data": _fmt(proforma)}
@@ -246,8 +300,12 @@ def approve_proforma(
     proforma_id: str,
     db: Session = Depends(get_db),
     user: dict = Depends(get_current_user),
+    authorization: str = Header(None),
 ):
     proforma = _get_or_404(db, proforma_id, user["shop_id"])
+    if proforma.status in _APPROVABLE:
+        # Approved as the details stand now; then frozen with the document.
+        _apply_sync(proforma, user, _token(authorization))
     _approve(proforma, user)
     db.commit()
     db.refresh(proforma)

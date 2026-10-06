@@ -10,7 +10,10 @@ export function normalizeLayout(v: string | null | undefined): BusinessLayout {
 }
 
 // ── Car layout: car details stored in product.attributes (JSON text) ──
-export type VehicleField = "year" | "car_type" | "battery_range" | "color" | "chassis_no" | "plate_no";
+export type VehicleField = "year" | "car_type" | "battery_range" | "color" | "chassis_no" | "plate_no" | "mileage" | "condition";
+
+/** A car's condition (printed on proformas). */
+export const CAR_CONDITIONS = ["new", "used"] as const;
 
 export const CAR_TYPES = ["sedan", "suv", "pickup", "hatchback", "van", "bus", "truck", "coupe", "other"] as const;
 
@@ -33,6 +36,9 @@ export const VEHICLE_FIELDS: {
   { key: "year",          type: "number", required: true,  placeholder: "2023" },
   { key: "battery_range", type: "number", required: true,  placeholder: "400" },
   { key: "color",         type: "text",   required: true,  placeholder: "White" },
+  // Optional; printed on proformas (which can't change them).
+  { key: "mileage",       type: "number", required: false, placeholder: "45000" },
+  { key: "condition",     type: "select", required: false, options: CAR_CONDITIONS },
 ];
 
 /** The fields that make a car unique (see VEHICLE_FIELDS). */

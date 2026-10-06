@@ -62,6 +62,9 @@ def create_supplier(
             email=payload.email,
             address=payload.address,
             id_number=payload.id_number,
+            tin=payload.tin,
+            company=payload.company,
+            country=payload.country,
         )
 
         db.add(supplier)
@@ -78,7 +81,10 @@ def create_supplier(
                 "phone": supplier.phone,
                 "email": supplier.email,
                 "address": supplier.address,
-                "id_number": supplier.id_number
+                "id_number": supplier.id_number,
+                "tin": supplier.tin,
+                "company": supplier.company,
+                "country": supplier.country
             }
         }
 
@@ -122,7 +128,10 @@ def get_suppliers(
                 "phone": supplier.phone,
                 "email": supplier.email,
                 "address": supplier.address,
-                "id_number": supplier.id_number
+                "id_number": supplier.id_number,
+                "tin": supplier.tin,
+                "company": supplier.company,
+                "country": supplier.country
             }
             for supplier in suppliers
         ]
@@ -154,7 +163,10 @@ def get_supplier(
             "phone": supplier.phone,
             "email": supplier.email,
             "address": supplier.address,
-            "id_number": supplier.id_number
+            "id_number": supplier.id_number,
+                "tin": supplier.tin,
+                "company": supplier.company,
+                "country": supplier.country
         }
     }
 
@@ -197,7 +209,10 @@ def update_supplier(
                 "phone": supplier.phone,
                 "email": supplier.email,
                 "address": supplier.address,
-                "id_number": supplier.id_number
+                "id_number": supplier.id_number,
+                "tin": supplier.tin,
+                "company": supplier.company,
+                "country": supplier.country
             }
         }
 

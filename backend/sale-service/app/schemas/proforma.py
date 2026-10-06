@@ -49,6 +49,7 @@ class ProformaCreate(BaseModel):
     currency: str = "RWF"
     payment_method: str = ""
     bank_details: str = ""
+    bank_account_ids: list[str] | None = None
     deposit_amount: Decimal = Field(Decimal("0"), ge=0)
     terms: str = ""
     status: EditableStatus = "draft"
@@ -77,6 +78,7 @@ class ProformaUpdate(BaseModel):
     currency: str | None = None
     payment_method: str | None = None
     bank_details: str | None = None
+    bank_account_ids: list[str] | None = None
     deposit_amount: Decimal | None = Field(None, ge=0)
     terms: str | None = None
     status: EditableStatus | None = None

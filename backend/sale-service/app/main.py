@@ -70,6 +70,7 @@ def on_startup():
                 ("terms", "TEXT"), ("approved_by", "VARCHAR"),
                 ("approved_at", "TIMESTAMP WITH TIME ZONE"),
                 ("sold_at", "TIMESTAMP WITH TIME ZONE"), ("sale_ids", "JSON"),
+                ("bank_account_ids", "JSON"),
             ):
                 conn.execute(text(f"ALTER TABLE proformas ADD COLUMN IF NOT EXISTS {col} {kind}"))
             conn.commit()

@@ -67,6 +67,8 @@ def on_startup():
         # Additive and idempotent: a new nullable column, existing rows untouched.
         with engine.connect() as conn:
             conn.execute(text("ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS id_number VARCHAR"))
+            for col, kind in (("tin", "VARCHAR(9)"), ("company", "VARCHAR"), ("country", "VARCHAR")):
+                conn.execute(text(f"ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS {col} {kind}"))
             conn.commit()
     except Exception:
         pass

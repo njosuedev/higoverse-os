@@ -589,7 +589,7 @@ export default function ItemManagementPage() {
         {f.type === "select" ? (
           <select className={inputCls} value={value} onChange={(e) => set(e.target.value)}>
             <option value="">-</option>
-            {selectOptions(f).map((o) => <option key={o} value={o}>{carTypeLabel(t, o)}</option>)}
+            {selectOptions(f).map((o) => <option key={o} value={o}>{f.key === "condition" ? t(`proforma.condition_${o}`) : carTypeLabel(t, o)}</option>)}
           </select>
         ) : (
           <input type={f.type} min={f.type === "number" ? "0" : undefined}

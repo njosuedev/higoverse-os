@@ -27,6 +27,9 @@ class ShopSettings(Base):
     bank_name = Column(String(100), nullable=True)
     bank_account = Column(String(50), nullable=True)
     bank_holder = Column(String(150), nullable=True)
+    # Every account, as JSON [{id, bank_name, bank_account, bank_holder,
+    # is_default}]. The three columns above mirror the default one (older apps).
+    bank_accounts = Column(Text, nullable=True)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())

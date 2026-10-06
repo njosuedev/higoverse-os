@@ -7,7 +7,7 @@ import { settingsRequest } from "@/lib/settings-api";
 import { getMyShop } from "@/lib/shop-api";
 import { loadCustomers, partnerRequest, type Customer } from "@/lib/supplier-api";
 import { formatPublicAddress, decodeShopHumanInfo } from "@/lib/product-meta";
-import { prettyPhone, shopTin, bankComplete, bankText, type BankAccount } from "@/lib/company";
+import { prettyPhone, shopTin, bankText, type BankAccount } from "@/lib/company";
 import Link from "next/link";
 import { CAR_TYPES, carTypeLabel, parseAttributes } from "@/lib/business-layout";
 import ProductPicker, { type PickerProduct } from "@/app/components/ui/ProductPicker";
@@ -62,55 +62,62 @@ function stageOf(p: Pick<Proforma, "status" | "valid_until">): Stage {
 
 type Errors = Record<string, string>;
 
-const YEAR_NOW = new Date().getFullYear();
-
 /** Field → i18n key of what's wrong with it. Lines are keyed `line.<key>.<field>`. */
-function validate(f: Form, isCar: boolean, total: number): Errors {
+function validate(f: Form, isCar: boolean, total: number, accounts: BankAccount[]): Errors {
   const e: Errors = {};
   const txt = (v: unknown) => String(v ?? "").trim();
-  const digits = (v: string) => v.replace(/\D/g, "");
   if (!txt(f.invoice_no)) e.invoice_no = "proforma.err_required";
   if (!f.date) e.date = "proforma.err_required";
   if (!f.valid_until) e.valid_until = "proforma.err_required";
   else if (f.date && f.valid_until < f.date) e.valid_until = "proforma.err_dates";
 
-  if (txt(f.customer).length < 2) e.customer = "proforma.err_required";
-  const phone = txt(f.customer_phone);
-  if (!phone) { if (isCar) e.customer_phone = "proforma.err_required"; }
-  // 07XXXXXXXX in Rwanda, or an international number (+250…).
-  else if (!/^\+?[\d\s-]+$/.test(phone) || digits(phone).length < 9 || digits(phone).length > 15
-    || (phone.startsWith("0") && !/^07\d{8}$/.test(digits(phone)))) e.customer_phone = "proforma.err_phone";
-  // National ID: 16 digits; passport: 6–12 letters/digits.
-  const idNo = txt(f.customer_id_no).replace(/\s/g, "");
-  if (!idNo) { if (isCar) e.customer_id_no = "proforma.err_required"; }
-  else if (!/^(\d{16}|[A-Za-z0-9]{6,12})$/.test(idNo)) e.customer_id_no = "proforma.err_id";
-  if (txt(f.customer_tin) && !/^\d{9}$/.test(txt(f.customer_tin).replace(/\s/g, ""))) e.customer_tin = "proforma.err_tin";
-  if (txt(f.customer_email) && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(txt(f.customer_email))) e.customer_email = "proforma.err_email";
-  if (isCar && !txt(f.customer_address)) e.customer_address = "proforma.err_required";
+  if (isCar) {
+    // The customer is one of the saved customers, complete in Customers.
+    if (!f.customer_id) e.customer = "proforma.err_pick_customer";
+    else if (!txt(f.customer_phone) || !txt(f.customer_id_no) || !txt(f.customer_address)) e.customer = "proforma.err_customer_incomplete";
+  } else if (!f.customer_id) {
+    if (txt(f.customer).length < 2) e.customer = "proforma.err_required";
+    validateTypedCustomer(f, e);
+  }
 
   const filled = f.lines.filter((l) => txt(l.product_name) || l.product_id);
   if (filled.length === 0) e.lines = isCar ? "proforma.need_vehicle" : "proforma.no_lines";
-  const seen = new Set<string>();
   for (const l of filled) {
     const k = `line.${l.key}.`;
-    if (!txt(l.product_name)) e[k + "product_name"] = "proforma.err_required";
+    if (isCar && !l.product_id) e[k + "product_name"] = "proforma.err_pick_vehicle";
+    else if (!txt(l.product_name)) e[k + "product_name"] = "proforma.err_required";
     if (!(Number(l.unit_price) > 0)) e[k + "unit_price"] = "proforma.err_price";
     if (!Number.isInteger(Number(l.qty)) || Number(l.qty) < 1) e[k + "qty"] = "proforma.err_qty";
-    if (!isCar) continue;
-    const ch = txt(l.chassis_no).toUpperCase();
-    if (!ch) e[k + "chassis_no"] = "proforma.err_required";
-    else if (!/^[A-Z0-9]{6,20}$/.test(ch)) e[k + "chassis_no"] = "proforma.err_chassis";
-    else if (seen.has(ch)) e[k + "chassis_no"] = "proforma.err_dup_chassis";
-    seen.add(ch);
-    if (txt(l.plate_no) && !/^[A-Z0-9 ]{4,10}$/i.test(txt(l.plate_no))) e[k + "plate_no"] = "proforma.err_plate";
-    const y = txt(l.year);
-    if (y && (!/^\d{4}$/.test(y) || Number(y) < 1950 || Number(y) > YEAR_NOW + 1)) e[k + "year"] = "proforma.err_year";
-    if (txt(l.mileage) && !/^\d[\d,. ]*$/.test(txt(l.mileage))) e[k + "mileage"] = "proforma.err_mileage";
   }
   const dep = Number(f.deposit_amount) || 0;
   if (dep < 0 || dep > total) e.deposit_amount = "proforma.err_deposit";
-  if (isCar && !String(f.bank_details ?? "").trim()) e.bank_details = "bank.err_required_pf";
+  // Where to pay: one or more of the company's accounts (Settings).
+  if (accounts.length && !(f.bank_account_ids ?? []).length) e.bank_details = "bank.err_pick";
+  if (isCar && !accounts.length) e.bank_details = "bank.err_required_pf";
   return e;
+}
+
+/** A walk-in customer typed on a shop's proforma (car companies pick one). */
+function validateTypedCustomer(f: Form, e: Errors) {
+  const txt = (v: unknown) => String(v ?? "").trim();
+  const digits = (v: string) => v.replace(/\D/g, "");
+  const phone = txt(f.customer_phone);
+  // 07XXXXXXXX in Rwanda, or an international number (+250…).
+  if (phone && (!/^\+?[\d\s-]+$/.test(phone) || digits(phone).length < 9 || digits(phone).length > 15
+    || (phone.startsWith("0") && !/^07\d{8}$/.test(digits(phone))))) e.customer_phone = "proforma.err_phone";
+  if (txt(f.customer_tin) && !/^\d{9}$/.test(txt(f.customer_tin).replace(/\s/g, ""))) e.customer_tin = "proforma.err_tin";
+  if (txt(f.customer_email) && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(txt(f.customer_email))) e.customer_email = "proforma.err_email";
+}
+
+/** Read-only detail copied from Customers / Vehicles / Settings. */
+function Info({ label, value }: { label: string; value?: string | number | null }) {
+  const v = String(value ?? "").trim();
+  return (
+    <div className="min-w-0">
+      <dt className="block text-xs font-medium text-gray-500 mb-1">{label}</dt>
+      <dd className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-gray-800 truncate min-h-[38px]">{v || <span className="text-slate-400">—</span>}</dd>
+    </div>
+  );
 }
 
 /** "BYD Yuan Up - LL31233343": the car and its chassis number. */
@@ -151,8 +158,11 @@ export default function ProformaPanel({ onSold }: { onSold?: () => void }) {
 
   const [shop, setShop] = useState<ShopInfo>({ name: "" });
   const [shopLoaded, setShopLoaded] = useState(false);
-  // The company's bank account (Settings → Bank account).
-  const [bank, setBank] = useState<BankAccount | null>(null);
+  // The company's bank accounts (Settings → Bank accounts); a proforma picks from them.
+  const [accounts, setAccounts] = useState<BankAccount[] | null>(null);
+  // Declared before the form state below: its first value (blankForm) reads them.
+  const bankList = accounts ?? [];
+  const defaultAccount = bankList.find((a) => a.is_default) ?? bankList[0];
   const [currency, setCurrency] = useState("RWF");
   const [taxRate, setTaxRate] = useState(0);
   const [customers, setCustomers] = useState<Cust[]>([]);
@@ -185,9 +195,10 @@ export default function ProformaPanel({ onSold }: { onSold?: () => void }) {
       subtotal: 0, tax_rate: 0, tax_amount: 0, grand_total: 0,
       currency,
       // A new proforma carries the business's usual payment terms over.
-      payment_method: prev?.payment_method || (bankComplete(bank) ? `${t("bank.transfer")} · ${bank!.bank_name}` : ""),
-      // Where to pay always comes from Settings, so a changed account is used at once.
-      bank_details: bankComplete(bank) ? bankText(bank!, t) : prev?.bank_details || "",
+      payment_method: prev?.payment_method || (defaultAccount ? `${t("bank.transfer")} · ${defaultAccount.bank_name}` : ""),
+      // Where to pay: the default account from Settings (others can be ticked).
+      bank_account_ids: defaultAccount?.id ? [defaultAccount.id] : [],
+      bank_details: defaultAccount ? bankText(defaultAccount, t) : "",
       deposit_amount: 0,
       terms: prev?.terms || t("proforma.default_terms"),
     };
@@ -199,7 +210,7 @@ export default function ProformaPanel({ onSold }: { onSold?: () => void }) {
         setCurrency(sett.value.data.currency || "RWF");
         setTaxRate(Number(sett.value.data.tax_rate) || 0);
         const d = sett.value.data;
-        setBank({ bank_name: d.bank_name ?? "", bank_account: d.bank_account ?? "", bank_holder: d.bank_holder ?? "" });
+        setAccounts(Array.isArray(d.bank_accounts) ? d.bank_accounts : []);
       }
       if (sh.status === "fulfilled" && sh.value) {
         const s = sh.value;
@@ -239,7 +250,7 @@ export default function ProformaPanel({ onSold }: { onSold?: () => void }) {
 
   const input = "border border-slate-200 text-gray-800 placeholder:text-gray-400 rounded-lg px-3 py-2 w-full text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition disabled:bg-slate-50 disabled:text-slate-600";
   const label = "block text-xs font-medium text-gray-500 mb-1";
-  const errors = validate(form, isCar, grandTotal);
+  const errors = validate(form, isCar, grandTotal, bankList);
   const bad = (k: string) => (tried ? errors[k] : undefined);
   const cls = (k: string) => (bad(k) ? `${input} !border-red-400 focus:!ring-red-500/20` : input);
   const msg = (k: string) => (bad(k) ? <p className="text-[11px] text-red-600 mt-0.5">{t(errors[k])}</p> : null);
@@ -263,6 +274,7 @@ export default function ProformaPanel({ onSold }: { onSold?: () => void }) {
         year: a.year ?? "", color: a.color ?? "",
         chassis_no: a.chassis_no ?? "", plate_no: a.plate_no ?? "",
         energy: a.battery_range ? "Full electric" : "",
+        mileage: (a as Record<string, string>).mileage ?? "", condition: (a as Record<string, string>).condition ?? "",
       } : {}),
     });
   }
@@ -272,8 +284,20 @@ export default function ProformaPanel({ onSold }: { onSold?: () => void }) {
     if (!c) { set("customer_id", null); return; }
     setForm((f) => ({
       ...f, customer_id: c.id, customer: c.name, customer_phone: c.phone || "",
-      customer_address: c.address || "", customer_id_no: c.id_number || "", customer_email: c.email || f.customer_email,
+      customer_address: c.address || "", customer_id_no: c.id_number || "", customer_email: c.email || "",
+      customer_tin: c.tin || "", customer_company: c.company || "", customer_country: c.country || "",
     }));
+  }
+
+  function toggleAccount(id: string) {
+    setForm((f) => {
+      const ids = (f.bank_account_ids ?? []).includes(id)
+        ? (f.bank_account_ids ?? []).filter((x) => x !== id)
+        : [...(f.bank_account_ids ?? []), id];
+      // Printed in the order they're listed in Settings.
+      const chosen = bankList.filter((a) => a.id && ids.includes(a.id));
+      return { ...f, bank_account_ids: chosen.map((a) => a.id!), bank_details: chosen.map((a) => bankText(a, t)).join("\n") };
+    });
   }
 
   function newProforma() {
@@ -295,6 +319,7 @@ export default function ProformaPanel({ onSold }: { onSold?: () => void }) {
       lines: (p.lines.length ? p.lines : [{ product_name: "", qty: 1, unit_price: 0 }]).map((l) => ({ ...l, key: key() })),
       subtotal: p.subtotal, tax_rate: p.tax_rate, tax_amount: p.tax_amount, grand_total: p.grand_total,
       currency: p.currency, payment_method: p.payment_method, bank_details: p.bank_details,
+      bank_account_ids: p.bank_account_ids ?? [],
       deposit_amount: p.deposit_amount, terms: p.terms,
     });
     setView("editor");
@@ -387,7 +412,7 @@ export default function ProformaPanel({ onSold }: { onSold?: () => void }) {
 
   // The company's TIN and phone go on every proforma: ask for them if missing.
   const missingTin = shopLoaded && !shop.tin;
-  const missingBank = isCar && bank !== null && !bankComplete(bank);
+  const missingBank = isCar && accounts !== null && accounts.length === 0;
   const tinBanner = missingTin && (
     <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 text-amber-800 text-xs rounded-lg px-3 py-2 mb-2">
       <AlertCircle size={13} className="shrink-0" />
@@ -570,24 +595,44 @@ export default function ProformaPanel({ onSold }: { onSold?: () => void }) {
           <section className="bg-white rounded-xl border border-slate-200 p-4">
             <h3 className="text-xs font-bold uppercase tracking-wide text-[#1f3a68] mb-3 flex items-center gap-2"><User size={14} /> {t("proforma.customer_info")}</h3>
             <div className="mb-3">
-              <label className={label}>{t("proforma.pick_customer")}</label>
-              <select className={input} value={form.customer_id ?? ""} onChange={(e) => pickCustomer(e.target.value)}>
-                <option value="">{t("proforma.new_customer_typed")}</option>
+              <div className="flex items-center justify-between gap-2">
+                <label className={label}>{t("proforma.pick_customer")}{isCar && " *"}</label>
+                <Link href="/partners" target="_blank" className="text-[11px] font-semibold text-blue-600 hover:underline mb-1">{t("proforma.edit_in_customers")}</Link>
+              </div>
+              <select className={cls("customer")} aria-invalid={!!bad("customer")} value={form.customer_id ?? ""} onChange={(e) => pickCustomer(e.target.value)}>
+                <option value="">{isCar ? t("proforma.choose_customer") : t("proforma.new_customer_typed")}</option>
                 {[...customers].sort((a, b) => a.name.localeCompare(b.name)).map((c) => (
                   <option key={c.id} value={c.id}>{c.name}{c.phone ? ` · ${c.phone}` : ""}</option>
                 ))}
               </select>
+              {msg("customer")}
             </div>
-            <div className="grid md:grid-cols-2 gap-3">
-              <div><label className={label}>{t("proforma.full_name")} *</label><input className={cls("customer")} aria-invalid={!!bad("customer")} value={form.customer} onChange={(e) => set("customer", e.target.value)} placeholder={t("partners.name_placeholder")} />{msg("customer")}</div>
-              <div><label className={label}>{t("proforma.id_passport")}{isCar && " *"}</label><input className={cls("customer_id_no")} aria-invalid={!!bad("customer_id_no")} value={form.customer_id_no} onChange={(e) => set("customer_id_no", e.target.value)} />{msg("customer_id_no")}</div>
-              <div><label className={label}>TIN</label><input className={cls("customer_tin")} aria-invalid={!!bad("customer_tin")} value={form.customer_tin} onChange={(e) => set("customer_tin", e.target.value)} />{msg("customer_tin")}</div>
-              <div><label className={label}>{t("proforma.phone")}{isCar && " *"}</label><input className={cls("customer_phone")} aria-invalid={!!bad("customer_phone")} value={form.customer_phone} onChange={(e) => set("customer_phone", e.target.value)} placeholder="07XXXXXXXX" />{msg("customer_phone")}</div>
-              <div><label className={label}>{t("proforma.address")}{isCar && " *"}</label><input className={cls("customer_address")} aria-invalid={!!bad("customer_address")} value={form.customer_address} onChange={(e) => set("customer_address", e.target.value)} placeholder={t("proforma.address_placeholder")} />{msg("customer_address")}</div>
-              <div><label className={label}>{t("proforma.email")}</label><input type="email" className={cls("customer_email")} aria-invalid={!!bad("customer_email")} value={form.customer_email} onChange={(e) => set("customer_email", e.target.value)} />{msg("customer_email")}</div>
-              <div><label className={label}>{t("proforma.country")}</label><input className={input} value={form.customer_country} onChange={(e) => set("customer_country", e.target.value)} /></div>
-              <div><label className={label}>{t("proforma.company")}</label><input className={input} value={form.customer_company} onChange={(e) => set("customer_company", e.target.value)} /></div>
-            </div>
+            {form.customer_id || isCar ? (
+              // A saved customer's details: changed only in Customers.
+              form.customer_id ? (
+                <dl className="grid md:grid-cols-2 gap-3">
+                  <Info label={t("proforma.full_name")} value={form.customer} />
+                  <Info label={t("proforma.id_passport")} value={form.customer_id_no} />
+                  <Info label="TIN" value={form.customer_tin} />
+                  <Info label={t("proforma.phone")} value={form.customer_phone} />
+                  <Info label={t("proforma.address")} value={form.customer_address} />
+                  <Info label={t("proforma.email")} value={form.customer_email} />
+                  <Info label={t("proforma.country")} value={form.customer_country} />
+                  <Info label={t("proforma.company")} value={form.customer_company} />
+                </dl>
+              ) : null
+            ) : (
+              <div className="grid md:grid-cols-2 gap-3">
+                <div><label className={label}>{t("proforma.full_name")} *</label><input className={cls("customer")} value={form.customer} onChange={(e) => set("customer", e.target.value)} placeholder={t("partners.name_placeholder")} /></div>
+                <div><label className={label}>{t("proforma.id_passport")}</label><input className={input} value={form.customer_id_no} onChange={(e) => set("customer_id_no", e.target.value)} /></div>
+                <div><label className={label}>TIN</label><input className={cls("customer_tin")} aria-invalid={!!bad("customer_tin")} value={form.customer_tin} onChange={(e) => set("customer_tin", e.target.value)} />{msg("customer_tin")}</div>
+                <div><label className={label}>{t("proforma.phone")}</label><input className={cls("customer_phone")} aria-invalid={!!bad("customer_phone")} value={form.customer_phone} onChange={(e) => set("customer_phone", e.target.value)} placeholder="07XXXXXXXX" />{msg("customer_phone")}</div>
+                <div><label className={label}>{t("proforma.address")}</label><input className={input} value={form.customer_address} onChange={(e) => set("customer_address", e.target.value)} placeholder={t("proforma.address_placeholder")} /></div>
+                <div><label className={label}>{t("proforma.email")}</label><input type="email" className={cls("customer_email")} aria-invalid={!!bad("customer_email")} value={form.customer_email} onChange={(e) => set("customer_email", e.target.value)} />{msg("customer_email")}</div>
+                <div><label className={label}>{t("proforma.country")}</label><input className={input} value={form.customer_country} onChange={(e) => set("customer_country", e.target.value)} /></div>
+                <div><label className={label}>{t("proforma.company")}</label><input className={input} value={form.customer_company} onChange={(e) => set("customer_company", e.target.value)} /></div>
+              </div>
+            )}
           </section>
 
           {/* Vehicles / items */}
@@ -605,7 +650,7 @@ export default function ProformaPanel({ onSold }: { onSold?: () => void }) {
                 <div key={l.key} className="rounded-lg border border-slate-200 p-3">
                   <div className="flex items-center gap-2 mb-2">
                     <span className="text-xs font-bold text-slate-500">{isCar ? `${t("proforma.vehicle")} ${i + 1}` : `#${i + 1}`}</span>
-                    {l.product_id
+                    {isCar ? null : l.product_id
                       ? <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-green-50 text-green-700 border border-green-200">{t("proforma.from_stock")}</span>
                       : <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200">{t("proforma.typed_in")}</span>}
                     {!locked && (
@@ -623,42 +668,43 @@ export default function ProformaPanel({ onSold }: { onSold?: () => void }) {
                     )}
                     <button type="button" onClick={() => removeLine(l.key)} className="ml-auto p-1 rounded hover:bg-red-50 text-slate-300 hover:text-red-500"><X size={14} /></button>
                   </div>
-                  <div className={`grid gap-2 ${isCar ? "grid-cols-2 md:grid-cols-4" : "grid-cols-[1fr_80px_120px]"}`}>
-                    <div className={isCar ? "col-span-2" : ""}>
-                      <label className={label}>{t(isCar ? "proforma.brand" : "proforma.description_col")}</label>
-                      <input className={cls(`line.${l.key}.product_name`)} aria-invalid={!!bad(`line.${l.key}.product_name`)} value={l.product_name} onChange={(e) => setLine(l.key, { product_name: e.target.value, product_id: null })} placeholder={isCar ? "Neta V" : t("proforma.product_placeholder")} />{msg(`line.${l.key}.product_name`)}
+                  {isCar ? (
+                    l.product_id ? (
+                      // The car's details: changed only in Vehicles.
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                        <div className="col-span-2"><Info label={t("proforma.brand")} value={l.product_name} /></div>
+                        <Info label={t("proforma.genre")} value={l.car_type} />
+                        <Info label={t("vehicle.year")} value={l.year} />
+                        <Info label={t("proforma.colour")} value={l.color} />
+                        <Info label={t("proforma.energy")} value={l.energy} />
+                        <Info label={t("proforma.mileage")} value={l.mileage} />
+                        <Info label={t("proforma.condition")} value={l.condition ? t(`proforma.condition_${l.condition}`) : ""} />
+                        <div className="col-span-2"><Info label={t("vehicle.chassis_no")} value={l.chassis_no} /></div>
+                        <div className="col-span-2"><Info label={t("vehicle.plate_no")} value={l.plate_no} /></div>
+                        <div className="col-span-2">
+                          <label className={label}>{t("proforma.offer_price")} ({currency}) *</label>
+                          <input type="number" min={0} className={cls(`line.${l.key}.unit_price`)} aria-invalid={!!bad(`line.${l.key}.unit_price`)} value={l.unit_price} onChange={(e) => setLine(l.key, { unit_price: Math.max(0, Number(e.target.value) || 0), qty: 1 })} />
+                          {msg(`line.${l.key}.unit_price`)}
+                        </div>
+                        <div className="col-span-2 flex items-end justify-end">
+                          <p className="text-sm text-slate-500">{t("proforma.total_price")}: <b className="text-slate-900 tabular-nums">{money(Number(l.unit_price) || 0)} {currency}</b></p>
+                        </div>
+                      </div>
+                    ) : (
+                      <p className={`text-xs rounded-lg px-3 py-2 ${bad(`line.${l.key}.product_name`) ? "bg-red-50 text-red-700 border border-red-200" : "bg-slate-50 text-slate-500"}`}>
+                        {t("proforma.pick_vehicle_hint")}
+                      </p>
+                    )
+                  ) : (
+                  <div className="grid gap-2 grid-cols-[1fr_80px_120px]">
+                    <div>
+                      <label className={label}>{t("proforma.description_col")}</label>
+                      <input className={cls(`line.${l.key}.product_name`)} aria-invalid={!!bad(`line.${l.key}.product_name`)} value={l.product_name} onChange={(e) => setLine(l.key, { product_name: e.target.value, product_id: null })} placeholder={t("proforma.product_placeholder")} />{msg(`line.${l.key}.product_name`)}
                     </div>
-                    {isCar && (<>
-                      <div>
-                        <label className={label}>{t("proforma.genre")}</label>
-                        <input className={input} list="pf-genres" value={l.car_type ?? ""} onChange={(e) => setLine(l.key, { car_type: e.target.value })} />
-                      </div>
-                      <div><label className={label}>{t("vehicle.year")}</label><input className={cls(`line.${l.key}.year`)} aria-invalid={!!bad(`line.${l.key}.year`)} inputMode="numeric" value={l.year ?? ""} onChange={(e) => setLine(l.key, { year: e.target.value })} />{msg(`line.${l.key}.year`)}</div>
-                      <div><label className={label}>{t("proforma.colour")}</label><input className={input} value={l.color ?? ""} onChange={(e) => setLine(l.key, { color: e.target.value })} /></div>
-                      <div><label className={label}>{t("proforma.mileage")}</label><input className={cls(`line.${l.key}.mileage`)} aria-invalid={!!bad(`line.${l.key}.mileage`)} value={l.mileage ?? ""} onChange={(e) => setLine(l.key, { mileage: e.target.value })} />{msg(`line.${l.key}.mileage`)}</div>
-                      <div>
-                        <label className={label}>{t("proforma.energy")}</label>
-                        <input className={input} list="pf-energy" value={l.energy ?? ""} onChange={(e) => setLine(l.key, { energy: e.target.value })} />
-                      </div>
-                      <div>
-                        <label className={label}>{t("proforma.condition")}</label>
-                        <select className={input} value={l.condition ?? ""} onChange={(e) => setLine(l.key, { condition: e.target.value })}>
-                          <option value="">—</option>
-                          <option value="new">{t("proforma.condition_new")}</option>
-                          <option value="used">{t("proforma.condition_used")}</option>
-                        </select>
-                      </div>
-                      <div className="col-span-2"><label className={label}>{t("vehicle.chassis_no")} *</label><input className={cls(`line.${l.key}.chassis_no`)} aria-invalid={!!bad(`line.${l.key}.chassis_no`)} value={l.chassis_no ?? ""} onChange={(e) => setLine(l.key, { chassis_no: e.target.value.toUpperCase() })} />{msg(`line.${l.key}.chassis_no`)}</div>
-                      <div className="col-span-2"><label className={label}>{t("vehicle.plate_no")}</label><input className={cls(`line.${l.key}.plate_no`)} aria-invalid={!!bad(`line.${l.key}.plate_no`)} value={l.plate_no ?? ""} onChange={(e) => setLine(l.key, { plate_no: e.target.value.toUpperCase() })} />{msg(`line.${l.key}.plate_no`)}</div>
-                    </>)}
                     <div><label className={label}>{t("proforma.quantity")}</label><input type="number" min={1} className={cls(`line.${l.key}.qty`)} aria-invalid={!!bad(`line.${l.key}.qty`)} value={l.qty} onChange={(e) => setLine(l.key, { qty: Math.max(1, Number(e.target.value) || 1) })} />{msg(`line.${l.key}.qty`)}</div>
                     <div><label className={label}>{t("proforma.col_price")} ({currency}) *</label><input type="number" min={0} className={cls(`line.${l.key}.unit_price`)} aria-invalid={!!bad(`line.${l.key}.unit_price`)} value={l.unit_price} onChange={(e) => setLine(l.key, { unit_price: Math.max(0, Number(e.target.value) || 0) })} />{msg(`line.${l.key}.unit_price`)}</div>
-                    {isCar && (
-                      <div className="col-span-2 flex items-end justify-end">
-                        <p className="text-sm text-slate-500">{t("proforma.total_price")}: <b className="text-slate-900 tabular-nums">{money((Number(l.qty) || 0) * (Number(l.unit_price) || 0))} {currency}</b></p>
-                      </div>
-                    )}
                   </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -677,13 +723,24 @@ export default function ProformaPanel({ onSold }: { onSold?: () => void }) {
               <div className="md:col-span-2">
                 <div className="flex items-center justify-between gap-2">
                   <label className={label}>{t("proforma.bank_details")}{isCar && " *"}</label>
-                  {bankComplete(bank) && form.bank_details.trim() !== bankText(bank!, t) && (
-                    <button type="button" onClick={() => set("bank_details", bankText(bank!, t))} className="text-[11px] font-semibold text-blue-600 hover:underline mb-1">
-                      {t("bank.use_settings")}
-                    </button>
-                  )}
+                  <Link href="/settings" target="_blank" className="text-[11px] font-semibold text-blue-600 hover:underline mb-1">{t("bank.manage_in_settings")}</Link>
                 </div>
-                <textarea rows={2} className={cls("bank_details") + " resize-y"} aria-invalid={!!bad("bank_details")} value={form.bank_details} onChange={(e) => set("bank_details", e.target.value)} placeholder={t("proforma.bank_details_ph")} />
+                {bankList.length ? (
+                  // The company's accounts: ticked here, changed only in Settings.
+                  <div className={`space-y-1.5 ${bad("bank_details") ? "rounded-lg ring-2 ring-red-200 p-1" : ""}`}>
+                    {bankList.map((a) => (
+                      <label key={a.id} className="flex items-center gap-2.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm cursor-pointer has-[:checked]:border-blue-300 has-[:checked]:bg-blue-50/60">
+                        <input type="checkbox" checked={(form.bank_account_ids ?? []).includes(a.id!)} onChange={() => toggleAccount(a.id!)} />
+                        <span className="font-semibold text-slate-800">{a.bank_name}</span>
+                        <span className="tabular-nums text-slate-600">{a.bank_account}</span>
+                        <span className="text-slate-500 truncate">· {a.bank_holder}</span>
+                        {a.is_default && <span className="ml-auto text-[10px] font-semibold text-blue-700">{t("bank.default")}</span>}
+                      </label>
+                    ))}
+                  </div>
+                ) : isCar ? null : (
+                  <textarea rows={2} className={input + " resize-y"} value={form.bank_details} onChange={(e) => set("bank_details", e.target.value)} placeholder={t("proforma.bank_details_ph")} />
+                )}
                 {msg("bank_details")}
               </div>
             </div>

@@ -88,9 +88,10 @@ export default function SettingsPage() {
   // companies; only the owner may change it (settings-service enforces it).
   const { user } = useAuth();
   const canEditBank = user?.role === "owner" || user?.role === "admin";
-  const EMPTY_BANK: BankAccount = { bank_name: "", bank_account: "", bank_holder: "" };
-  const [bank, setBank]             = useState<BankAccount>(EMPTY_BANK);
-  const savedBank                   = useRef<BankAccount>(EMPTY_BANK);
+  // Every bank account the company takes payments on; one is the default
+  // a new proforma starts with. Proformas pick from these, never edit them.
+  const [banks, setBanks]           = useState<BankAccount[]>([]);
+  const savedBanks                  = useRef<BankAccount[]>([]);
   const [bankStatus, setBankStatus] = useState<SectionStatus>("idle");
   const [bankErr, setBankErr]       = useState("");
   const [bankTried, setBankTried]   = useState(false);
@@ -158,7 +159,7 @@ export default function SettingsPage() {
   const opsDirty  = !deepEq(opsForm,  savedOps.current);
   const pwDirty   = pwForm.current.length > 0 || pwForm.next.length > 0;
   const carDirty  = isCar && !deepEq(carTypes, savedCarTypes.current);
-  const bankDirty = canEditBank && !deepEq(bank, savedBank.current);
+  const bankDirty = canEditBank && !deepEq(banks, savedBanks.current);
 
   const anyDirty = shopDirty || opsDirty || logoDirty || carDirty || bankDirty;
 
@@ -198,9 +199,9 @@ export default function SettingsPage() {
       if (parsed.lng != null) setPinLng(parsed.lng);
       setShopForm(newShop);
       setOpsForm(newOps);
-      const loadedBank: BankAccount = { bank_name: s?.bank_name ?? "", bank_account: s?.bank_account ?? "", bank_holder: s?.bank_holder ?? "" };
-      setBank(loadedBank);
-      savedBank.current = loadedBank;
+      const loadedBanks: BankAccount[] = Array.isArray(s?.bank_accounts) ? s.bank_accounts : [];
+      setBanks(loadedBanks);
+      savedBanks.current = loadedBanks;
       const types: string[] = Array.isArray(s?.car_types) ? s.car_types : [];
       setCarTypes(types);
       savedCarTypes.current = types;
@@ -350,24 +351,44 @@ export default function SettingsPage() {
     }
   }
 
-  const bankErrs = bankErrors(bank, isCar);
-  const bankBad = (k: keyof BankAccount) => (bankTried && bankErrs[k] ? t(bankErrs[k]!) : null);
+  const bankErrs = banks.map((b) => bankErrors(b, true));
+  const bankBad = (i: number, k: keyof BankAccount) => {
+    const key = bankTried ? bankErrs[i]?.[k as "bank_name" | "bank_account" | "bank_holder"] : undefined;
+    return key ? t(key) : null;
+  };
+  const setBankRow = (i: number, patch: Partial<BankAccount>) =>
+    setBanks((list) => list.map((b, j) => (j === i ? { ...b, ...patch } : b)));
+  const addBank = () =>
+    setBanks((list) => [...list, { bank_name: "", bank_account: "", bank_holder: list[0]?.bank_holder ?? "", is_default: list.length === 0 }]);
+  const removeBank = (i: number) =>
+    setBanks((list) => {
+      const next = list.filter((_, j) => j !== i);
+      if (next.length && !next.some((b) => b.is_default)) next[0] = { ...next[0], is_default: true };
+      return next;
+    });
+  const makeDefault = (i: number) => setBanks((list) => list.map((b, j) => ({ ...b, is_default: j === i })));
 
   async function saveBank() {
     setBankTried(true);
-    if (Object.keys(bankErrs).length) { setBankErr(t("company.fix_errors")); setBankStatus("error"); return; }
+    if (isCar && banks.length === 0) { setBankErr(t("bank.need_one")); setBankStatus("error"); return; }
+    if (bankErrs.some((e) => Object.keys(e).length)) { setBankErr(t("company.fix_errors")); setBankStatus("error"); return; }
     setBankStatus("saving"); setBankErr("");
     try {
       const res = await settingsRequest("/settings/", {
         method: "PUT",
         body: JSON.stringify({
-          bank_name: bank.bank_name.trim(), bank_account: bank.bank_account.trim(), bank_holder: bank.bank_holder.trim(),
+          bank_accounts: banks.map((b) => ({
+            ...(b.id ? { id: b.id } : {}),
+            bank_name: b.bank_name.trim(), bank_account: b.bank_account.trim(), bank_holder: b.bank_holder.trim(),
+            is_default: !!b.is_default,
+          })),
         }),
       });
       if (!res?.success) throw new Error(t("settings.err_save_settings_failed"));
-      const saved: BankAccount = { bank_name: res.data.bank_name ?? "", bank_account: res.data.bank_account ?? "", bank_holder: res.data.bank_holder ?? "" };
-      setBank(saved);
-      savedBank.current = saved;
+      const saved: BankAccount[] = Array.isArray(res.data.bank_accounts) ? res.data.bank_accounts : [];
+      setBanks(saved);
+      savedBanks.current = saved;
+      setBankTried(false);
       setBankStatus("saved");
       setLastSaved(new Date());
       statusTimer(setBankStatus);
@@ -691,41 +712,48 @@ export default function SettingsPage() {
           {bankErr && <ErrorBanner msg={bankErr} />}
           <p className="text-xs text-slate-500 mb-3">{t(isCar ? "bank.hint_required" : "bank.hint")}</p>
           {!canEditBank && <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-3">{t("bank.owner_only")}</p>}
-          <fieldset disabled={!canEditBank} className="grid md:grid-cols-3 gap-4">
-            <Field label={t("bank.bank_name")} required={isCar}>
-              <input
-                className={`${inputCls} ${bankBad("bank_name") ? "!border-red-400" : ""}`}
-                list="hgv-banks"
-                placeholder="Equity Bank"
-                aria-invalid={!!bankBad("bank_name")}
-                value={bank.bank_name}
-                onChange={(e) => setBank({ ...bank, bank_name: e.target.value })}
-              />
-              <datalist id="hgv-banks">{RWANDA_BANKS.map((b) => <option key={b} value={b} />)}</datalist>
-              {bankBad("bank_name") && <p className="text-[11px] text-red-600 mt-1">{bankBad("bank_name")}</p>}
-            </Field>
-            <Field label={t("bank.account_no")} required={isCar}>
-              <input
-                className={`${inputCls} ${bankBad("bank_account") ? "!border-red-400" : ""} tabular-nums tracking-wide`}
-                inputMode="numeric"
-                placeholder="4002201237868"
-                aria-invalid={!!bankBad("bank_account")}
-                value={bank.bank_account}
-                onChange={(e) => setBank({ ...bank, bank_account: e.target.value.replace(/[^\d -]/g, "").slice(0, 40) })}
-              />
-              {bankBad("bank_account") && <p className="text-[11px] text-red-600 mt-1">{bankBad("bank_account")}</p>}
-            </Field>
-            <Field label={t("bank.holder")} required={isCar}>
-              <input
-                className={`${inputCls} ${bankBad("bank_holder") ? "!border-red-400" : ""}`}
-                placeholder={t("bank.holder_ph")}
-                aria-invalid={!!bankBad("bank_holder")}
-                value={bank.bank_holder}
-                onChange={(e) => setBank({ ...bank, bank_holder: e.target.value })}
-              />
-              {bankBad("bank_holder") ? <p className="text-[11px] text-red-600 mt-1">{bankBad("bank_holder")}</p>
-                : <p className="text-[11px] text-slate-400 mt-1">{t("bank.holder_hint")}</p>}
-            </Field>
+          <datalist id="hgv-banks">{RWANDA_BANKS.map((b) => <option key={b} value={b} />)}</datalist>
+          <fieldset disabled={!canEditBank} className="space-y-3">
+            {banks.length === 0 && (
+              <p className="text-sm text-slate-500 border border-dashed border-slate-300 rounded-lg px-4 py-6 text-center">{t("bank.none_yet")}</p>
+            )}
+            {banks.map((b, i) => (
+              <div key={b.id ?? `new-${i}`} className={`rounded-xl border p-3 ${b.is_default ? "border-[#0a66c2]/40 bg-[#EBF2FD]/40" : "border-slate-200"}`}>
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <label className="flex items-center gap-2 text-xs font-semibold text-slate-600 cursor-pointer">
+                    <input type="radio" name="default-bank" checked={!!b.is_default} onChange={() => makeDefault(i)} />
+                    {b.is_default ? t("bank.default") : t("bank.make_default")}
+                  </label>
+                  <button type="button" onClick={() => removeBank(i)} className="flex items-center gap-1 text-xs text-slate-400 hover:text-red-600">
+                    <X size={12} /> {t("common.delete")}
+                  </button>
+                </div>
+                <div className="grid md:grid-cols-3 gap-3">
+                  <Field label={t("bank.bank_name")} required>
+                    <input className={`${inputCls} ${bankBad(i, "bank_name") ? "!border-red-400" : ""}`} list="hgv-banks" placeholder="Equity Bank" aria-invalid={!!bankBad(i, "bank_name")}
+                      value={b.bank_name} onChange={(e) => setBankRow(i, { bank_name: e.target.value })} />
+                    {bankBad(i, "bank_name") && <p className="text-[11px] text-red-600 mt-1">{bankBad(i, "bank_name")}</p>}
+                  </Field>
+                  <Field label={t("bank.account_no")} required>
+                    <input className={`${inputCls} ${bankBad(i, "bank_account") ? "!border-red-400" : ""} tabular-nums tracking-wide`} inputMode="numeric" placeholder="4002201237868" aria-invalid={!!bankBad(i, "bank_account")}
+                      value={b.bank_account} onChange={(e) => setBankRow(i, { bank_account: e.target.value.replace(/[^\d -]/g, "").slice(0, 40) })} />
+                    {bankBad(i, "bank_account") && <p className="text-[11px] text-red-600 mt-1">{bankBad(i, "bank_account")}</p>}
+                  </Field>
+                  <Field label={t("bank.holder")} required>
+                    <input className={`${inputCls} ${bankBad(i, "bank_holder") ? "!border-red-400" : ""}`} placeholder={t("bank.holder_ph")} aria-invalid={!!bankBad(i, "bank_holder")}
+                      value={b.bank_holder} onChange={(e) => setBankRow(i, { bank_holder: e.target.value })} />
+                    {bankBad(i, "bank_holder") && <p className="text-[11px] text-red-600 mt-1">{bankBad(i, "bank_holder")}</p>}
+                  </Field>
+                </div>
+              </div>
+            ))}
+            {banks.length < 10 && (
+              <button type="button" onClick={addBank}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-50 transition">
+                <Plus size={13} /> {t("bank.add")}
+              </button>
+            )}
+            <p className="text-[11px] text-slate-400">{t("bank.holder_hint")}</p>
           </fieldset>
         </Section>
 

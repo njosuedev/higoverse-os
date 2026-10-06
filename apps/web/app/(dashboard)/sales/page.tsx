@@ -315,7 +315,7 @@ export default function SaleManagementPage() {
       if (!buyerCustomer) { notify(t("buyer.pick_required")); return; }
       if (buyerIncomplete) { notify(t("buyer.incomplete_sale")); return; }
     }
-    const debtor = debtorName.trim() || (isCar ? buyer.name.trim() : "");
+    const debtor = isCar ? buyer.name.trim() : debtorName.trim();
     if (paymentMethod === "debt" && !debtor) { notify(t("sales.need_debtor_name")); return; }
 
     const grandTotal = validLines.reduce((s, l) => s + l.quantity * l.unit_price, 0);
@@ -353,7 +353,7 @@ export default function SaleManagementPage() {
             method: "POST",
             body: JSON.stringify({
               debtor_name: debtor,
-              phone: debtorPhone.trim() || undefined,
+              phone: (isCar ? buyer.phone : debtorPhone).trim() || undefined,
               amount_owed: grandTotal,
               amount_paid: 0,
               notes: saleNotes.trim() || undefined,
@@ -1256,16 +1256,17 @@ ${paymentHtml}
                         <label className="block text-xs font-medium text-gray-600 mb-1">
                           {t("sales.debtor_name")} <span className="text-red-400">*</span>
                         </label>
+                        {/* Car companies: the debtor is the buyer, as saved in Customers. */}
                         <input
-                          className={inputCls} placeholder={t("sales.debtor_name_placeholder")}
-                          value={debtorName} onChange={(e) => setDebtorName(e.target.value)}
+                          className={`${inputCls} ${isCar ? "bg-slate-50 text-slate-600" : ""}`} placeholder={t("sales.debtor_name_placeholder")}
+                          value={isCar ? buyer.name : debtorName} readOnly={isCar} onChange={(e) => setDebtorName(e.target.value)}
                         />
                       </div>
                       <div>
                         <label className="block text-xs font-medium text-gray-600 mb-1">{t("sales.phone_optional")}</label>
                         <input
-                          className={inputCls} placeholder="+250 7XX XXX XXX"
-                          value={debtorPhone} onChange={(e) => setDebtorPhone(e.target.value)}
+                          className={`${inputCls} ${isCar ? "bg-slate-50 text-slate-600" : ""}`} placeholder="+250 7XX XXX XXX"
+                          value={isCar ? buyer.phone : debtorPhone} readOnly={isCar} onChange={(e) => setDebtorPhone(e.target.value)}
                         />
                       </div>
                       <div className="sm:col-span-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-xs text-amber-700">

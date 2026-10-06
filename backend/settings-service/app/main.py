@@ -54,7 +54,7 @@ def on_startup():
         # create_all doesn't add columns to an existing table.
         with engine.begin() as conn:
             conn.execute(text("ALTER TABLE shop_settings ADD COLUMN IF NOT EXISTS car_types TEXT"))
-            for col, kind in (("bank_name", "VARCHAR(100)"), ("bank_account", "VARCHAR(50)"), ("bank_holder", "VARCHAR(150)")):
+            for col, kind in (("bank_name", "VARCHAR(100)"), ("bank_account", "VARCHAR(50)"), ("bank_holder", "VARCHAR(150)"), ("bank_accounts", "TEXT")):
                 conn.execute(text(f"ALTER TABLE shop_settings ADD COLUMN IF NOT EXISTS {col} {kind}"))
     except Exception:
         pass

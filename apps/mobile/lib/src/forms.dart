@@ -1083,6 +1083,9 @@ class _VehicleFormScreenState extends State<VehicleFormScreen> {
   late final _year = TextEditingController(text: _a['year'] ?? '');
   late final _range = TextEditingController(text: _a['battery_range'] ?? '');
   late final _color = TextEditingController(text: _a['color'] ?? '');
+  late final _mileage = TextEditingController(text: _a['mileage'] ?? '');
+  // Optional; printed on proformas: 'new' or 'used'.
+  late String? _condition = (_a['condition'] ?? '').isEmpty ? null : _a['condition'];
   late final _price = TextEditingController(text: _amountText(v == null ? null : _n(v!['selling_price'])));
   late String? _type = (_a['car_type'] ?? '').isEmpty ? null : _a['car_type'];
   final List<CarPhoto> _photos = [];
@@ -1111,7 +1114,7 @@ class _VehicleFormScreenState extends State<VehicleFormScreen> {
     for (final t in _timers.values) {
       t.cancel();
     }
-    for (final c in [_name, _chassis, _plate, _year, _range, _color, _price]) {
+    for (final c in [_name, _chassis, _plate, _year, _range, _color, _price, _mileage]) {
       c.dispose();
     }
     super.dispose();
@@ -1206,6 +1209,8 @@ class _VehicleFormScreenState extends State<VehicleFormScreen> {
       'year': _year.text.trim(),
       'battery_range': _range.text.trim(),
       'color': _color.text.trim(),
+      'mileage': _mileage.text.trim(),
+      'condition': _condition ?? '',
     };
     final Map<String, dynamic> body;
     if (_editing) {
@@ -1327,6 +1332,30 @@ class _VehicleFormScreenState extends State<VehicleFormScreen> {
           ),
         ]),
         _Field(t('detail.colour'), _text(_color, hint: t('vehicle.color_hint'), validator: need)),
+        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Expanded(
+            child: _Field(
+              '${t('pf.mileage')} (${t('form.optional')})',
+              TextFormField(
+                controller: _mileage,
+                keyboardType: TextInputType.number,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(7)],
+                decoration: const InputDecoration(hintText: '45000', suffixText: 'km'),
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: _Field(
+              '${t('pf.condition')} (${t('form.optional')})',
+              _Choices<String>(
+                options: [('new', t('pf.condition_new')), ('used', t('pf.condition_used'))],
+                value: _condition,
+                onChanged: (x) => setState(() => _condition = _condition == x ? null : x),
+              ),
+            ),
+          ),
+        ]),
         _Field(t('form.selling_price'),
             _moneyField(_price, suffix: s.currency, validator: (x) => (parseAmount(x ?? '') ?? 0) <= 0 ? t('form.need_price') : null)),
         if (!_editing)

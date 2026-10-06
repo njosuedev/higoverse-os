@@ -25,3 +25,8 @@ class Supplier(Base):
 
     # National ID / passport number (car companies require it for buyers).
     id_number = Column(String)
+
+    # Customers: as printed on proformas (a supplier's TIN stays in `address`).
+    tin = Column(String(9))
+    company = Column(String)
+    country = Column(String)
