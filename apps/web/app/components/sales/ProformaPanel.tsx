@@ -7,7 +7,7 @@ import { settingsRequest } from "@/lib/settings-api";
 import { getMyShop } from "@/lib/shop-api";
 import { loadCustomers, partnerRequest, type Customer } from "@/lib/supplier-api";
 import { formatPublicAddress, decodeShopHumanInfo } from "@/lib/product-meta";
-import { prettyPhone, shopTin } from "@/lib/company";
+import { prettyPhone, shopTin, bankComplete, bankText, type BankAccount } from "@/lib/company";
 import Link from "next/link";
 import { CAR_TYPES, carTypeLabel, parseAttributes } from "@/lib/business-layout";
 import ProductPicker, { type PickerProduct } from "@/app/components/ui/ProductPicker";
@@ -109,6 +109,7 @@ function validate(f: Form, isCar: boolean, total: number): Errors {
   }
   const dep = Number(f.deposit_amount) || 0;
   if (dep < 0 || dep > total) e.deposit_amount = "proforma.err_deposit";
+  if (isCar && !String(f.bank_details ?? "").trim()) e.bank_details = "bank.err_required_pf";
   return e;
 }
 
@@ -150,6 +151,8 @@ export default function ProformaPanel({ onSold }: { onSold?: () => void }) {
 
   const [shop, setShop] = useState<ShopInfo>({ name: "" });
   const [shopLoaded, setShopLoaded] = useState(false);
+  // The company's bank account (Settings → Bank account).
+  const [bank, setBank] = useState<BankAccount | null>(null);
   const [currency, setCurrency] = useState("RWF");
   const [taxRate, setTaxRate] = useState(0);
   const [customers, setCustomers] = useState<Cust[]>([]);
@@ -182,8 +185,9 @@ export default function ProformaPanel({ onSold }: { onSold?: () => void }) {
       subtotal: 0, tax_rate: 0, tax_amount: 0, grand_total: 0,
       currency,
       // A new proforma carries the business's usual payment terms over.
-      payment_method: prev?.payment_method || "",
-      bank_details: prev?.bank_details || "",
+      payment_method: prev?.payment_method || (bankComplete(bank) ? `${t("bank.transfer")} · ${bank!.bank_name}` : ""),
+      // Where to pay always comes from Settings, so a changed account is used at once.
+      bank_details: bankComplete(bank) ? bankText(bank!, t) : prev?.bank_details || "",
       deposit_amount: 0,
       terms: prev?.terms || t("proforma.default_terms"),
     };
@@ -194,6 +198,8 @@ export default function ProformaPanel({ onSold }: { onSold?: () => void }) {
       if (sett.status === "fulfilled" && sett.value?.data) {
         setCurrency(sett.value.data.currency || "RWF");
         setTaxRate(Number(sett.value.data.tax_rate) || 0);
+        const d = sett.value.data;
+        setBank({ bank_name: d.bank_name ?? "", bank_account: d.bank_account ?? "", bank_holder: d.bank_holder ?? "" });
       }
       if (sh.status === "fulfilled" && sh.value) {
         const s = sh.value;
@@ -381,6 +387,7 @@ export default function ProformaPanel({ onSold }: { onSold?: () => void }) {
 
   // The company's TIN and phone go on every proforma: ask for them if missing.
   const missingTin = shopLoaded && !shop.tin;
+  const missingBank = isCar && bank !== null && !bankComplete(bank);
   const tinBanner = missingTin && (
     <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 text-amber-800 text-xs rounded-lg px-3 py-2 mb-2">
       <AlertCircle size={13} className="shrink-0" />
@@ -389,9 +396,18 @@ export default function ProformaPanel({ onSold }: { onSold?: () => void }) {
     </div>
   );
 
+  const bankBanner = missingBank && (
+    <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-800 text-xs rounded-lg px-3 py-2 mb-2">
+      <AlertCircle size={13} className="shrink-0" />
+      <span className="flex-1">{t("bank.missing_banner")}</span>
+      <Link href="/settings" className="font-semibold underline whitespace-nowrap">{t("nav.settings")}</Link>
+    </div>
+  );
+
   if (view === "list") {
     return (
       <div>
+        {bankBanner}
         {tinBanner}
         <div className="bg-white rounded-xl border border-slate-200 p-4 mb-2">
           <div className="flex items-center justify-between gap-3 flex-wrap">
@@ -403,7 +419,8 @@ export default function ProformaPanel({ onSold }: { onSold?: () => void }) {
               <button onClick={() => { setListLoading(true); loadList(); }} title={t("common.refresh")} className="w-8 h-8 rounded-lg border border-slate-200 flex items-center justify-center text-slate-500 hover:text-blue-600">
                 <RefreshCw size={13} className={listLoading ? "animate-spin" : ""} />
               </button>
-              <button onClick={newProforma} className="flex items-center gap-1.5 text-white text-xs font-bold px-3 py-2 rounded-lg hover:opacity-90" style={{ background: "#0a66c2" }}>
+              <button onClick={newProforma} disabled={missingBank} title={missingBank ? t("bank.missing_banner") : undefined}
+                className="flex items-center gap-1.5 text-white text-xs font-bold px-3 py-2 rounded-lg hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed" style={{ background: "#0a66c2" }}>
                 <Plus size={13} strokeWidth={3} /> {t("sales.new_proforma")}
               </button>
             </div>
@@ -439,7 +456,7 @@ export default function ProformaPanel({ onSold }: { onSold?: () => void }) {
               <FileText size={30} className="text-slate-200 mb-2" />
               <p className="text-sm font-medium text-slate-500">{search || stageFilter !== "all" ? t("proforma.no_match_search") : t("sales.no_proformas")}</p>
               {!search && stageFilter === "all" && (
-                <button onClick={newProforma} className="mt-3 flex items-center gap-1.5 text-white text-xs font-semibold px-3 py-1.5 rounded-lg" style={{ background: "#0a66c2" }}>
+                <button onClick={newProforma} disabled={missingBank} className="mt-3 flex items-center gap-1.5 text-white text-xs font-semibold px-3 py-1.5 rounded-lg disabled:opacity-40" style={{ background: "#0a66c2" }}>
                   <Plus size={12} /> {t("sales.create_proforma")}
                 </button>
               )}
@@ -501,6 +518,7 @@ export default function ProformaPanel({ onSold }: { onSold?: () => void }) {
   // ── Editor view ───────────────────────────────────────────────────────────
   return (
     <div>
+      {bankBanner}
       {tinBanner}
       <div className="bg-white rounded-xl border border-slate-200 p-3 mb-2 flex items-center gap-3 flex-wrap">
         <button onClick={() => { setView("list"); setCurrent(null); }} className="flex items-center gap-1 text-xs font-semibold text-slate-600 border border-slate-200 hover:border-blue-300 hover:text-blue-600 px-2.5 py-1.5 rounded-lg">
@@ -657,8 +675,16 @@ export default function ProformaPanel({ onSold }: { onSold?: () => void }) {
               <div><label className={label}>{t("proforma.deposit")}</label><input type="number" min={0} className={cls("deposit_amount")} aria-invalid={!!bad("deposit_amount")} value={form.deposit_amount} onChange={(e) => set("deposit_amount", Math.max(0, Number(e.target.value) || 0))} />{msg("deposit_amount")}</div>
               <div><label className={label}>{t("proforma.balance_due")}</label><input className={input + " font-semibold"} value={money(balance)} disabled /></div>
               <div className="md:col-span-2">
-                <label className={label}>{t("proforma.bank_details")}</label>
-                <textarea rows={2} className={input + " resize-y"} value={form.bank_details} onChange={(e) => set("bank_details", e.target.value)} placeholder={t("proforma.bank_details_ph")} />
+                <div className="flex items-center justify-between gap-2">
+                  <label className={label}>{t("proforma.bank_details")}{isCar && " *"}</label>
+                  {bankComplete(bank) && form.bank_details.trim() !== bankText(bank!, t) && (
+                    <button type="button" onClick={() => set("bank_details", bankText(bank!, t))} className="text-[11px] font-semibold text-blue-600 hover:underline mb-1">
+                      {t("bank.use_settings")}
+                    </button>
+                  )}
+                </div>
+                <textarea rows={2} className={cls("bank_details") + " resize-y"} aria-invalid={!!bad("bank_details")} value={form.bank_details} onChange={(e) => set("bank_details", e.target.value)} placeholder={t("proforma.bank_details_ph")} />
+                {msg("bank_details")}
               </div>
             </div>
           </section>

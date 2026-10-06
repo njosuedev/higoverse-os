@@ -78,6 +78,11 @@ class Session extends ChangeNotifier implements TokenSource {
   /// Tax rate (%) from the website's settings, for proforma invoices.
   num taxRate = 0;
 
+  /// The company's bank account (website Settings → Bank account), printed
+  /// on proformas; car companies can't make one without it.
+  String bankName = '', bankAccount = '', bankHolder = '';
+  bool get hasBank => bankName.isNotEmpty && bankAccount.isNotEmpty && bankHolder.isNotEmpty;
+
   /// Language saved on the account (website settings); used until a language
   /// is picked on this phone.
   String? accountLanguage;
@@ -144,6 +149,9 @@ class Session extends ChangeNotifier implements TokenSource {
       currency = (d['currency'] as String?)?.trim().isNotEmpty == true ? d['currency'] as String : 'RWF';
       lowStock = int.tryParse('${d['low_stock_threshold']}') ?? 10;
       taxRate = num.tryParse('${d['tax_rate']}') ?? 0;
+      bankName = '${d['bank_name'] ?? ''}'.trim();
+      bankAccount = '${d['bank_account'] ?? ''}'.trim();
+      bankHolder = '${d['bank_holder'] ?? ''}'.trim();
       accountLanguage = d['language'] as String?;
     }
     notifyListeners();

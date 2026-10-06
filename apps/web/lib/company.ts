@@ -69,3 +69,35 @@ export function mergeDescription(rawStored: string | null | undefined, text: str
   } catch { /* stored as plain text */ }
   return text;
 }
+
+// ── Bank account (Settings → Bank account; printed on every proforma) ──────
+
+export interface BankAccount { bank_name: string; bank_account: string; bank_holder: string; }
+
+/** Banks most Rwandan businesses use; any other name can be typed. */
+export const RWANDA_BANKS = [
+  "Bank of Kigali", "Equity Bank", "I&M Bank", "BPR Bank", "Access Bank", "Ecobank", "NCBA Bank",
+  "GT Bank", "Cogebanque", "AB Bank", "Unguka Bank", "Zigama CSS", "Urwego Bank", "BRD",
+];
+
+/** Field → i18n key of the problem. All three are needed when `required`. */
+export function bankErrors(b: BankAccount, required: boolean): Partial<Record<keyof BankAccount, string>> {
+  const e: Partial<Record<keyof BankAccount, string>> = {};
+  const name = b.bank_name.trim(), acc = b.bank_account.trim(), holder = b.bank_holder.trim();
+  const any = !!(name || acc || holder);
+  if (!required && !any) return e;
+  if (name.length < 2) e.bank_name = "bank.err_name";
+  const digits = acc.replace(/\D/g, "");
+  if (!acc) e.bank_account = "bank.err_account_required";
+  else if (!/^[0-9][0-9 -]*[0-9]$/.test(acc) || digits.length < 6 || digits.length > 30) e.bank_account = "bank.err_account";
+  if (holder.length < 2) e.bank_holder = "bank.err_holder";
+  return e;
+}
+
+export const bankComplete = (b: BankAccount | null | undefined) =>
+  !!b && !!b.bank_name.trim() && !!b.bank_account.trim() && !!b.bank_holder.trim();
+
+/** As printed on the proforma ("Bank account" row). */
+export function bankText(b: BankAccount, t: (k: string) => string): string {
+  return `${b.bank_name.trim()} · ${t("bank.account_no")}: ${b.bank_account.trim()}\n${t("bank.holder")}: ${b.bank_holder.trim()}`;
+}

@@ -9,13 +9,14 @@ import { useLanguage } from "@/lib/language-context";
 import { useShop } from "@/lib/shop-context";
 import { type Lang } from "@/lib/i18n";
 import { parseShopAddress, decodeShopHumanInfo } from "@/lib/product-meta";
-import { cleanTin, normalizePhone, phoneError, prettyPhone, shopTin, splitAddress, tinError } from "@/lib/company";
+import { cleanTin, normalizePhone, phoneError, prettyPhone, shopTin, splitAddress, tinError, bankErrors, RWANDA_BANKS, type BankAccount } from "@/lib/company";
+import { useAuth } from "@/lib/auth-context";
 import { CAR_TYPES, carTypeLabel } from "@/lib/business-layout";
 import { useShopSettings } from "@/lib/shop-settings-context";
 import { compressImage } from "@/lib/image";
 import PageSkeleton from "@/app/components/dashboard/PageSkeleton";
 import {
-  Save, Store, Phone, MapPin, DollarSign, AlertCircle, FileText, Lock, Eye, EyeOff, CheckCircle2, ChevronDown, Globe, BarChart, ShieldCheck, Pencil, ImagePlus, X, Loader2, Target, Car, Plus, Settings, RefreshCw,
+  Save, Store, Phone, MapPin, DollarSign, AlertCircle, FileText, Lock, Eye, EyeOff, CheckCircle2, ChevronDown, Globe, BarChart, ShieldCheck, Pencil, ImagePlus, X, Loader2, Target, Car, Plus, Settings, RefreshCw, Landmark,
 } from "lucide-react";
 
 const HigoMapPicker = dynamic(() => import("@/app/components/ui/HigoMapPicker"), { ssr: false });
@@ -83,6 +84,17 @@ export default function SettingsPage() {
   const [carStatus, setCarStatus]   = useState<SectionStatus>("idle");
   const [carErr, setCarErr]         = useState("");
 
+  // Where customers pay: printed on every proforma. Required for car
+  // companies; only the owner may change it (settings-service enforces it).
+  const { user } = useAuth();
+  const canEditBank = user?.role === "owner" || user?.role === "admin";
+  const EMPTY_BANK: BankAccount = { bank_name: "", bank_account: "", bank_holder: "" };
+  const [bank, setBank]             = useState<BankAccount>(EMPTY_BANK);
+  const savedBank                   = useRef<BankAccount>(EMPTY_BANK);
+  const [bankStatus, setBankStatus] = useState<SectionStatus>("idle");
+  const [bankErr, setBankErr]       = useState("");
+  const [bankTried, setBankTried]   = useState(false);
+
   const [logoUrl, setLogoUrl]       = useState("");
   const savedLogoUrl                = useRef("");
   const rawDescRef                  = useRef<string>("");
@@ -146,8 +158,9 @@ export default function SettingsPage() {
   const opsDirty  = !deepEq(opsForm,  savedOps.current);
   const pwDirty   = pwForm.current.length > 0 || pwForm.next.length > 0;
   const carDirty  = isCar && !deepEq(carTypes, savedCarTypes.current);
+  const bankDirty = canEditBank && !deepEq(bank, savedBank.current);
 
-  const anyDirty = shopDirty || opsDirty || logoDirty || carDirty;
+  const anyDirty = shopDirty || opsDirty || logoDirty || carDirty || bankDirty;
 
   // Wait for shop context to be ready before loading settings (avoids redundant getMyShop call)
   useEffect(() => {
@@ -185,6 +198,9 @@ export default function SettingsPage() {
       if (parsed.lng != null) setPinLng(parsed.lng);
       setShopForm(newShop);
       setOpsForm(newOps);
+      const loadedBank: BankAccount = { bank_name: s?.bank_name ?? "", bank_account: s?.bank_account ?? "", bank_holder: s?.bank_holder ?? "" };
+      setBank(loadedBank);
+      savedBank.current = loadedBank;
       const types: string[] = Array.isArray(s?.car_types) ? s.car_types : [];
       setCarTypes(types);
       savedCarTypes.current = types;
@@ -334,11 +350,47 @@ export default function SettingsPage() {
     }
   }
 
+  const bankErrs = bankErrors(bank, isCar);
+  const bankBad = (k: keyof BankAccount) => (bankTried && bankErrs[k] ? t(bankErrs[k]!) : null);
+
+  async function saveBank() {
+    setBankTried(true);
+    if (Object.keys(bankErrs).length) { setBankErr(t("company.fix_errors")); setBankStatus("error"); return; }
+    setBankStatus("saving"); setBankErr("");
+    try {
+      const res = await settingsRequest("/settings/", {
+        method: "PUT",
+        body: JSON.stringify({
+          bank_name: bank.bank_name.trim(), bank_account: bank.bank_account.trim(), bank_holder: bank.bank_holder.trim(),
+        }),
+      });
+      if (!res?.success) throw new Error(t("settings.err_save_settings_failed"));
+      const saved: BankAccount = { bank_name: res.data.bank_name ?? "", bank_account: res.data.bank_account ?? "", bank_holder: res.data.bank_holder ?? "" };
+      setBank(saved);
+      savedBank.current = saved;
+      setBankStatus("saved");
+      setLastSaved(new Date());
+      statusTimer(setBankStatus);
+    } catch (err) {
+      // "Settings API error: 403 {"detail": "…"}" → the server's sentence.
+      const m = /error: \d+ ([\s\S]*)$/.exec(err instanceof Error ? err.message : "");
+      let msg = err instanceof Error ? err.message : t("settings.err_save_settings_failed");
+      try {
+        const d = m && JSON.parse(m[1])?.detail;
+        if (typeof d === "string") msg = d;
+        else if (Array.isArray(d)) msg = d.map((x) => String(x?.msg ?? "").replace(/^Value error, /, "")).join("; ");
+      } catch { /* keep msg */ }
+      setBankErr(msg);
+      setBankStatus("error");
+    }
+  }
+
   async function saveAll() {
     const ps: Promise<void>[] = [];
     if (shopDirty) ps.push(saveShop());
     if (opsDirty)  ps.push(saveOps());
     if (carDirty)  ps.push(saveCarTypes());
+    if (bankDirty) ps.push(saveBank());
     await Promise.allSettled(ps);
   }
 
@@ -625,6 +677,56 @@ export default function SettingsPage() {
               <p className="text-[11px] text-slate-400 mt-1">{t("settings.tax_rate_hint")}</p>
             </Field>
           </div>
+        </Section>
+
+        {/* ── BANK ACCOUNT (printed on proformas) ─── */}
+        <Section
+          icon={<Landmark size={15} />}
+          title={t("bank.section")}
+          dirty={bankDirty}
+          status={bankStatus}
+          onSave={saveBank}
+          saveLabel={t("settings.save")}
+        >
+          {bankErr && <ErrorBanner msg={bankErr} />}
+          <p className="text-xs text-slate-500 mb-3">{t(isCar ? "bank.hint_required" : "bank.hint")}</p>
+          {!canEditBank && <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-3">{t("bank.owner_only")}</p>}
+          <fieldset disabled={!canEditBank} className="grid md:grid-cols-3 gap-4">
+            <Field label={t("bank.bank_name")} required={isCar}>
+              <input
+                className={`${inputCls} ${bankBad("bank_name") ? "!border-red-400" : ""}`}
+                list="hgv-banks"
+                placeholder="Equity Bank"
+                aria-invalid={!!bankBad("bank_name")}
+                value={bank.bank_name}
+                onChange={(e) => setBank({ ...bank, bank_name: e.target.value })}
+              />
+              <datalist id="hgv-banks">{RWANDA_BANKS.map((b) => <option key={b} value={b} />)}</datalist>
+              {bankBad("bank_name") && <p className="text-[11px] text-red-600 mt-1">{bankBad("bank_name")}</p>}
+            </Field>
+            <Field label={t("bank.account_no")} required={isCar}>
+              <input
+                className={`${inputCls} ${bankBad("bank_account") ? "!border-red-400" : ""} tabular-nums tracking-wide`}
+                inputMode="numeric"
+                placeholder="4002201237868"
+                aria-invalid={!!bankBad("bank_account")}
+                value={bank.bank_account}
+                onChange={(e) => setBank({ ...bank, bank_account: e.target.value.replace(/[^\d -]/g, "").slice(0, 40) })}
+              />
+              {bankBad("bank_account") && <p className="text-[11px] text-red-600 mt-1">{bankBad("bank_account")}</p>}
+            </Field>
+            <Field label={t("bank.holder")} required={isCar}>
+              <input
+                className={`${inputCls} ${bankBad("bank_holder") ? "!border-red-400" : ""}`}
+                placeholder={t("bank.holder_ph")}
+                aria-invalid={!!bankBad("bank_holder")}
+                value={bank.bank_holder}
+                onChange={(e) => setBank({ ...bank, bank_holder: e.target.value })}
+              />
+              {bankBad("bank_holder") ? <p className="text-[11px] text-red-600 mt-1">{bankBad("bank_holder")}</p>
+                : <p className="text-[11px] text-slate-400 mt-1">{t("bank.holder_hint")}</p>}
+            </Field>
+          </fieldset>
         </Section>
 
         {/* ── CAR TYPES (car companies) ─── */}

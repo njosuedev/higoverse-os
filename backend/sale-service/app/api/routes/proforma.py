@@ -38,6 +38,15 @@ _CONTENT_KEYS = {
 }
 
 
+NEED_BANK = "Add the company's bank account and holder name in Settings before making a proforma."
+
+
+def _require_bank(user: dict, bank_details: str | None) -> None:
+    """Car companies always tell the customer where to pay."""
+    if user.get("layout") == "car" and not (bank_details or "").strip():
+        raise HTTPException(status_code=400, detail=NEED_BANK)
+
+
 def _is_approver(user: dict) -> bool:
     return user.get("role") in APPROVER_ROLES
 
@@ -119,6 +128,7 @@ def _approve(p: Proforma, user: dict) -> None:
         raise HTTPException(status_code=400, detail="Add the customer's name before approving.")
     if not p.lines:
         raise HTTPException(status_code=400, detail="Add at least one vehicle or item before approving.")
+    _require_bank(user, p.bank_details)
     p.status = "approved"
     p.approved_by = user.get("name") or user.get("email") or ""
     p.approved_at = datetime.now(timezone.utc)
@@ -172,6 +182,7 @@ def create_proforma(
     if not user["shop_id"]:
         raise HTTPException(status_code=400, detail="You need a shop before creating proformas")
 
+    _require_bank(user, payload.bank_details)
     data = payload.model_dump(mode="json")
     # Every proforma starts unapproved; approval is its own step.
     data["status"] = data["status"] if data["status"] in ("draft", "sent") else "draft"
@@ -204,6 +215,8 @@ def update_proforma(
 
     updates = payload.model_dump(exclude_unset=True, mode="json")
     status = updates.pop("status", None)
+    if "bank_details" in updates:
+        _require_bank(user, updates["bank_details"])
 
     changed = {k for k, v in updates.items() if _norm(k, getattr(proforma, k)) != _norm(k, v)}
     for key, value in updates.items():

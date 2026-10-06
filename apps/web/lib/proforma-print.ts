@@ -2,8 +2,9 @@
 // proforma. Sheet 1 carries the details, customer, vehicles and payment
 // terms; the last sheet the bank account, terms & conditions and signatures
 // (as on the dealer's own second page). Each sheet is a fixed A4 box with
-// its own header and footer, and a sheet whose content runs long is scaled
-// down to fit it, so nothing ever spills onto an extra half-empty page.
+// its own header and footer, and each sheet's content (header included) is
+// drawn at the largest size that fits its page: a short sheet is enlarged to
+// fill the page, a long one shrunk instead of spilling onto an extra page.
 //
 // Pure: builds an HTML string, so it can be rendered to PDF in tests.
 
@@ -156,8 +157,7 @@ export function proformaPrintHtml(
 
   const body = sheets.map((content, i) => `
     <section class="sheet">
-      ${head}
-      <div class="room"><div class="fit">${content}</div></div>
+      <div class="room"><div class="fit">${head}${content}</div></div>
       ${foot(i + 1)}
     </section>`).join("");
 
@@ -188,8 +188,8 @@ export function proformaPrintHtml(
   h2 { color: #1f3a68; font-size: 13.5px; text-transform: uppercase; margin: 16px 0 8px; padding: 0 0 5px 10px; border-bottom: 1px solid #1f3a68; }
   table { width: 100%; border-collapse: collapse; }
   table.grid th, table.grid td { border: 1px solid #d4d4d4; padding: 6px 9px; text-align: left; vertical-align: top; font-size: 12px; }
-  table.grid th { background: #f3f3f3; color: #444; font-weight: bold; width: 19%; }
-  table.grid td { width: 31%; }
+  table.grid th { background: #f3f3f3; color: #444; font-weight: bold; width: 21%; }
+  table.grid td { width: 29%; }
   table.grid td.blank { border: none; background: none; }
   table.bank th { width: 22%; }
   table.bank td { width: auto; }
@@ -205,7 +205,8 @@ export function proformaPrintHtml(
   .sigwrap { margin-top: 6px; }
   .sig { display: flex; gap: 40px; }
   .sig > div { flex: 1; }
-  .sig h3 { color: #1f3a68; font-size: 12px; text-transform: uppercase; margin: 6px 0 0; }
+  /* Same height for both titles, so the signature lines line up. */
+  .sig h3 { color: #1f3a68; font-size: 12px; text-transform: uppercase; margin: 6px 0 0; min-height: 2.6em; }
   .sig .l { border-top: 1px solid #333; margin-top: 38px; padding-top: 4px; font-size: 10.5px; color: #555; }
   .thanks { text-align: center; font-style: italic; color: #444; margin: 24px 0 0; }
   .foot { display: flex; justify-content: space-between; gap: 12px; border-top: 1px solid #1f3a68; padding-top: 4px; margin-top: 8px; font-size: 9.5px; color: #555; }
@@ -219,17 +220,21 @@ export function proformaPrintHtml(
 </style></head><body>
 ${body}
 <script>
-  // Shrink a sheet's content to its page when it runs long, keeping full width.
+  // Draw each sheet's content at the largest size that fits its page, full
+  // width: laid out narrower then scaled up (or wider then scaled down), so
+  // text re-wraps and the content always spans the page.
   function fitSheets() {
     document.querySelectorAll(".room").forEach(function (room) {
-      var fit = room.firstElementChild;
-      fit.style.transform = ""; fit.style.width = "";
-      var need = fit.scrollHeight, have = room.clientHeight;
-      if (need > have) {
-        var s = Math.max(0.55, have / need);
-        fit.style.transform = "scale(" + s + ")";
+      var fit = room.firstElementChild, have = room.clientHeight;
+      function heightAt(s) {
         fit.style.width = (100 / s) + "%";
+        fit.style.transform = "scale(" + s + ")";
+        return fit.scrollHeight * s;
       }
+      var lo = 0.5, hi = 1.6;
+      if (heightAt(hi) <= have) lo = hi;
+      else for (var i = 0; i < 16; i++) { var mid = (lo + hi) / 2; if (heightAt(mid) <= have) lo = mid; else hi = mid; }
+      heightAt(lo);
     });
   }
   window.addEventListener("load", function () {

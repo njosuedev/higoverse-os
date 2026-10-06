@@ -651,6 +651,11 @@ class _ProformaFormScreenState extends State<ProformaFormScreen> {
   Future<void> _save() async {
     final t = T.of(context);
     if (!_form.currentState!.validate()) return;
+    // Car companies always print where the customer pays.
+    if (SessionScope.of(context).isCar && !SessionScope.of(context).hasBank) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(t('pf.need_bank'))));
+      return;
+    }
     final lines = [
       for (final l in _lines)
         if (l.name.text.trim().isNotEmpty)
@@ -677,8 +682,11 @@ class _ProformaFormScreenState extends State<ProformaFormScreen> {
       'customer': _customer.text.trim(),
       'customer_id_no': _idNo.text.trim(),
       'customer_country': '${_carry['customer_country'] ?? ''}',
-      'payment_method': '${_carry['payment_method'] ?? ''}',
-      'bank_details': '${_carry['bank_details'] ?? ''}',
+      'payment_method': '${_carry['payment_method'] ?? (s.hasBank ? '${t('pf.bank_transfer')} · ${s.bankName}' : '')}',
+      // Where to pay comes from Settings (the latest account), as on the website.
+      'bank_details': s.hasBank
+          ? '${s.bankName} · ${t('pf.account_no')}: ${s.bankAccount}\n${t('pf.account_holder')}: ${s.bankHolder}'
+          : '${_carry['bank_details'] ?? ''}',
       'terms': '${_carry['terms'] ?? t('pf.default_terms')}',
       'customer_phone': _phone.text.trim(),
       'customer_address': _address.text.trim(),
@@ -712,7 +720,20 @@ class _ProformaFormScreenState extends State<ProformaFormScreen> {
     final s = SessionScope.of(context);
     InputDecoration dec(String hint) => InputDecoration(hintText: hint, isDense: true);
     return Scaffold(
-      appBar: AppBar(title: Text(t('pf.new'))),
+      appBar: AppBar(
+        title: Text(t('pf.new')),
+        bottom: s.isCar && !s.hasBank
+            ? PreferredSize(
+                preferredSize: const Size.fromHeight(44),
+                child: Container(
+                  width: double.infinity,
+                  color: c.danger.withValues(alpha: 0.12),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  child: Text(t('pf.need_bank'), style: TextStyle(color: c.danger, fontSize: 12.5, fontWeight: FontWeight.w600)),
+                ),
+              )
+            : null,
+      ),
       bottomNavigationBar: SafeArea(
         child: Container(
           decoration: BoxDecoration(color: c.surface, border: Border(top: BorderSide(color: c.border))),
@@ -926,7 +947,7 @@ Future<Uint8List> proformaPdf(Map<String, dynamic> p, Session s, T t) async {
   pw.Widget grid(List<(String, String, bool)> pairs) => pw.Table(
         border: pw.TableBorder.all(color: line, width: 0.6),
         defaultVerticalAlignment: pw.TableCellVerticalAlignment.full,
-        columnWidths: const {0: pw.FlexColumnWidth(1.2), 1: pw.FlexColumnWidth(2), 2: pw.FlexColumnWidth(1.2), 3: pw.FlexColumnWidth(2)},
+        columnWidths: const {0: pw.FlexColumnWidth(1.45), 1: pw.FlexColumnWidth(1.75), 2: pw.FlexColumnWidth(1.45), 3: pw.FlexColumnWidth(1.75)},
         children: [
           for (var i = 0; i < pairs.length; i += 2)
             pw.TableRow(children: [
@@ -948,7 +969,6 @@ Future<Uint8List> proformaPdf(Map<String, dynamic> p, Session s, T t) async {
   // sheet instead of spilling onto a half-empty extra page.
   const format = PdfPageFormat.a4;
   const margin = pw.EdgeInsets.fromLTRB(36, 30, 36, 26);
-  final contentWidth = format.width - margin.horizontal;
 
   final header = pw.Padding(
     padding: const pw.EdgeInsets.only(bottom: 10),
@@ -1087,7 +1107,11 @@ Future<Uint8List> proformaPdf(Map<String, dynamic> p, Session s, T t) async {
             child: pw.Padding(
               padding: const pw.EdgeInsets.only(right: 24),
               child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-                pw.Text(who.toUpperCase(), style: pw.TextStyle(fontSize: 10, color: navy, fontWeight: pw.FontWeight.bold)),
+                // Same height for both titles, so the signature lines line up.
+                pw.SizedBox(
+                  height: 26,
+                  child: pw.Text(who.toUpperCase(), style: pw.TextStyle(fontSize: 10, color: navy, fontWeight: pw.FontWeight.bold)),
+                ),
                 pw.SizedBox(height: 30),
                 pw.Divider(color: PdfColors.grey700, height: 1),
                 pw.Text(t('pf.signature'), style: const pw.TextStyle(fontSize: 8.5, color: muted)),
@@ -1108,18 +1132,12 @@ Future<Uint8List> proformaPdf(Map<String, dynamic> p, Session s, T t) async {
       pageFormat: format,
       margin: margin,
       build: (_) => pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.stretch, children: [
-        header,
         pw.Expanded(
-          // Shrinks (never grows) a long sheet to the room it has, full width.
-          child: pw.FittedBox(
-            fit: pw.BoxFit.scaleDown,
-            alignment: pw.Alignment.topLeft,
-            child: pw.SizedBox(
-              width: contentWidth,
-              child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.stretch, children: content),
-            ),
-          ),
+          // Grows a short sheet (or shrinks a long one) to fill its page,
+          // the company header included so it keeps in proportion.
+          child: FillSheet(child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.stretch, children: [header, ...content])),
         ),
+        pw.SizedBox(height: 8),
         pw.Container(
           padding: const pw.EdgeInsets.only(top: 4),
           decoration: const pw.BoxDecoration(border: pw.Border(top: pw.BorderSide(color: navy, width: 0.6))),
@@ -1132,4 +1150,57 @@ Future<Uint8List> proformaPdf(Map<String, dynamic> p, Session s, T t) async {
     ));
   }
   return doc.save();
+}
+
+/// Lays its child out at the largest size that still fits the room it's
+/// given, full width: a sheet with little on it is drawn bigger instead of
+/// leaving the page half empty, and a long one smaller instead of spilling
+/// over. The child is laid out narrower (then scaled up) or wider (then
+/// scaled down), so text re-wraps and the result always spans the width.
+class FillSheet extends pw.SingleChildWidget {
+  FillSheet({required pw.Widget child, this.minScale = 0.5, this.maxScale = 1.6}) : super(child: child);
+
+  final double minScale, maxScale;
+  double _scale = 1;
+
+  @override
+  void layout(pw.Context context, pw.BoxConstraints constraints, {bool parentUsesSize = false}) {
+    final w = constraints.maxWidth, h = constraints.maxHeight;
+    // The height the content takes when drawn at scale [s] across the width.
+    double heightAt(double s) {
+      child!.layout(context, pw.BoxConstraints(minWidth: w / s, maxWidth: w / s), parentUsesSize: true);
+      return child!.box!.height * s;
+    }
+
+    var lo = minScale, hi = maxScale;
+    if (heightAt(hi) <= h) {
+      lo = hi;
+    } else {
+      for (var i = 0; i < 16; i++) {
+        final mid = (lo + hi) / 2;
+        if (heightAt(mid) <= h) {
+          lo = mid;
+        } else {
+          hi = mid;
+        }
+      }
+    }
+    _scale = lo;
+    heightAt(_scale);
+    box = PdfRect(0, 0, w, h);
+  }
+
+  @override
+  void paint(pw.Context context) {
+    super.paint(context);
+    final childHeight = child!.box!.height * _scale;
+    // PDF space grows upwards: put the content's top at the top of the room.
+    final mat = Matrix4.translationValues(box!.left, box!.bottom + box!.height - childHeight, 0)
+      ..scaleByDouble(_scale, _scale, 1, 1);
+    context.canvas
+      ..saveContext()
+      ..setTransform(mat);
+    child!.paint(context);
+    context.canvas.restoreContext();
+  }
 }
