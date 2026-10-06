@@ -13,7 +13,7 @@ import { getEffectiveRole } from "@/lib/auth";
 import { useCanSeeFinancials } from "@/lib/permissions";
 import { Sun, Moon, Monitor,
   Home, Package, Truck, ShoppingCart, BarChart3,
-  Users, FileText, ChevronDown, ShieldCheck, Receipt,
+  Users, ChevronDown, ShieldCheck, Receipt,
   Settings, LogOut, Globe,
   Menu, X, MessageCircle, Search, UsersRound,
 } from "lucide-react";
@@ -33,7 +33,6 @@ const BUSINESS_MENUS: NavItem[] = [
   { key: "nav.partners",  href: "/partners",  icon: Users        },
   { key: "nav.sales",     href: "/sales",     icon: ShoppingCart },
   { key: "nav.messages",  href: "/messages",  icon: MessageCircle },
-  { key: "nav.proforma",  href: "/proforma",  icon: FileText     },
   { key: "nav.expenses",  href: "/expenses",  icon: Receipt      },
   { key: "nav.reports",   href: "/reports",   icon: BarChart3    },
 ];

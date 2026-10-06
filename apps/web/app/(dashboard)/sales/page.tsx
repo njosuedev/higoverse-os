@@ -7,7 +7,7 @@ import { itemRequest } from "@/lib/product-api";
 import { loadCustomers, partnerRequest } from "@/lib/supplier-api";
 import { saleRequest } from "@/lib/sale-api";
 import { settingsRequest } from "@/lib/settings-api";
-import { listProformas, deleteProforma, type Proforma, type ProformaStatus } from "@/lib/proforma-api";
+import ProformaPanel from "@/app/components/sales/ProformaPanel";
 import { useAutoRefresh, useDebounce } from "@/lib/hooks";
 import { useLanguage } from "@/lib/language-context";
 import { useShopSettings } from "@/lib/shop-settings-context";
@@ -20,16 +20,9 @@ import { useCanSeeFinancials, useShowsProfit } from "@/lib/permissions";
 import DeepLink from "@/app/components/DeepLink";
 import DateRangeFilter from "@/app/components/ui/DateRangeFilter";
 import {
-  ShoppingBag, Filter, Plus, Trash2, Pencil, X, ReceiptText, Calendar, Printer, Wallet, AlertCircle, CheckCircle2, Phone, ChevronDown, Download, Upload, FileSpreadsheet, FileText, RefreshCw, Search,
+  ShoppingBag, Filter, Plus, Trash2, Pencil, X, ReceiptText, Printer, Wallet, AlertCircle, CheckCircle2, Phone, ChevronDown, Download, Upload, FileSpreadsheet, FileText, RefreshCw, Search,
 } from "lucide-react";
 import { askConfirm, notify } from "@/lib/dialogs";
-
-const PROFORMA_STATUS_META: Record<ProformaStatus, { labelKey: string; color: string }> = {
-  draft:    { labelKey: "sales.status_draft",    color: "bg-slate-100 text-slate-600 border-slate-200" },
-  sent:     { labelKey: "sales.status_sent",     color: "bg-blue-50 text-blue-600 border-blue-200" },
-  accepted: { labelKey: "sales.status_accepted", color: "bg-green-50 text-green-700 border-green-200" },
-  expired:  { labelKey: "sales.status_expired",  color: "bg-red-50 text-red-600 border-red-200" },
-};
 
 interface Sale {
   id: string; product_id: string; product_name?: string;
@@ -154,10 +147,9 @@ export default function SaleManagementPage() {
   const [showPayModal, setShowPayModal] = useState<Debt | null>(null);
   const [deletingDebtId, setDeletingDebtId] = useState("");
 
-  // Proforma state
-  const [proformas, setProformas] = useState<Proforma[]>([]);
-  const [proformasLoading, setProformasLoading] = useState(false);
-  const [deletingProformaId, setDeletingProformaId] = useState("");
+  // Sales | Proforma. A proforma (vehicles + customer) is approved first and
+  // becomes sales once the customer decides to buy. /sales?tab=proforma
+  const [tab, setTab] = useState<"sales" | "proforma">("sales");
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   // Keep figures current without polling hidden tabs.
@@ -166,7 +158,7 @@ export default function SaleManagementPage() {
   const debouncedSearch = useDebounce(search, 350);
 
   useEffect(() => {
-    loadData(); loadDebts(); loadProformas();
+    loadData(); loadDebts();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { if (!loading) loadData(true); }, [dateFrom, dateTo, page, pageSize]);
@@ -209,25 +201,6 @@ export default function SaleManagementPage() {
     finally { setDebtsLoading(false); }
   }
 
-  async function loadProformas() {
-    try {
-      setProformasLoading(true);
-      const res = await listProformas({ limit: 10 });
-      setProformas(res.items || []);
-    } catch { /* non-fatal */ }
-    finally { setProformasLoading(false); }
-  }
-
-  async function handleDeleteProforma(id: string) {
-    if (!(await askConfirm({ message: t("sales.confirm_delete_proforma"), danger: true }))) return;
-    try {
-      setDeletingProformaId(id);
-      await deleteProforma(id);
-      await loadProformas();
-    } catch { notify(t("common.delete_failed")); }
-    finally { setDeletingProformaId(""); }
-  }
-
   function openCreateModal(autoSearch = true) {
     setAutoPick(autoSearch);
     setLineItems([emptyLine()]); setSaleCustomer(""); setSaleNotes("");
@@ -237,6 +210,8 @@ export default function SaleManagementPage() {
   }
   // Dashboard "Record sale" and vehicle-card "Sell" links: /sales?new=1[&product=<id>]
   function handleDeepLink(params: URLSearchParams) {
+    if (params.get("tab") === "proforma") { setTab("proforma"); return; }
+    setTab("sales");
     if (params.get("new") !== "1") return;
     const id = params.get("product");
     openCreateModal(!id);
@@ -703,7 +678,23 @@ ${paymentHtml}
     <div className="min-h-screen">
       <div className="max-w-7xl mx-auto px-3 sm:px-5 py-3 sm:py-4">
 
-        <DeepLink keys={["new", "product"]} onParams={handleDeepLink} />
+        <DeepLink keys={["new", "product", "tab"]} onParams={handleDeepLink} />
+
+        <div role="tablist" className="flex gap-1 mb-2 bg-white border border-slate-200 rounded-xl p-1 w-full sm:w-fit">
+          {([["sales", ShoppingBag, t("nav.sales")], ["proforma", FileText, t("nav.proforma")]] as const).map(([k, Icon, label]) => (
+            <button key={k} role="tab" aria-selected={tab === k} onClick={() => setTab(k)}
+              className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-semibold transition ${tab === k ? "text-white" : "text-slate-600 hover:bg-slate-50"}`}
+              style={tab === k ? { background: "#0a66c2" } : undefined}>
+              <Icon size={14} /> {label}
+            </button>
+          ))}
+        </div>
+
+        <div className={tab === "proforma" ? "" : "hidden"}>
+          <ProformaPanel onSold={() => { setTab("sales"); loadData(true); loadDebts(); }} />
+        </div>
+
+        <div className={tab === "sales" ? "" : "hidden"}>
 
         {/* HEADER */}
         <div className="hgv-surface relative rounded-2xl mb-2 overflow-hidden">
@@ -1071,78 +1062,6 @@ ${paymentHtml}
           )}
         </div>
 
-        {/* PROFORMA SECTION */}
-        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden mt-6">
-          <div className="flex justify-between items-center px-5 py-4 border-b border-slate-100">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-blue-50 rounded-lg"><FileText size={17} className="text-blue-500" /></div>
-              <div>
-                <h2 className="text-sm font-semibold text-slate-800">{t("sales.proforma_invoices")}</h2>
-                <p className="text-xs text-slate-400 mt-0.5">{proformas.length} {t("sales.recent_suffix")}</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <Link href="/proforma?view=history"
-                className="text-xs font-semibold text-slate-500 hover:text-blue-600 border border-slate-200 hover:border-blue-300 px-3 py-1.5 rounded-lg transition">
-                {t("dash.view_all")}
-              </Link>
-              <Link href="/proforma"
-                className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg text-white transition hover:opacity-90" style={{ background: "#0a66c2" }}>
-                <Plus size={13} /> {t("sales.new_proforma")}
-              </Link>
-            </div>
-          </div>
-
-          {proformasLoading ? (
-            <div className="px-5 py-8 text-center text-xs text-slate-400">{t("sales.loading_proformas")}</div>
-          ) : proformas.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-slate-400">
-              <FileText size={32} className="mb-2 text-slate-200" />
-              <p className="text-sm font-medium text-slate-500">{t("sales.no_proformas")}</p>
-              <Link href="/proforma"
-                className="mt-3 flex items-center gap-1.5 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition hover:opacity-90" style={{ background: "#0a66c2" }}>
-                <Plus size={12} /> {t("sales.create_proforma")}
-              </Link>
-            </div>
-          ) : (
-            <div className="divide-y divide-slate-100">
-              {proformas.map((p) => {
-                const meta = PROFORMA_STATUS_META[p.status] ?? PROFORMA_STATUS_META.draft;
-                return (
-                  <div key={p.id} className="flex items-center gap-4 px-5 py-3 hover:bg-slate-50 transition group">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-mono font-semibold text-sm text-blue-700">{p.invoice_no}</span>
-                        <span className={`inline-flex items-center text-[11px] font-semibold px-2 py-0.5 rounded-full border ${meta.color}`}>{t(meta.labelKey)}</span>
-                      </div>
-                      <div className="flex items-center gap-3 mt-0.5 text-xs text-slate-500 flex-wrap">
-                        <span className="font-medium text-slate-700 truncate max-w-40">
-                          {p.customer || <span className="italic text-slate-300">{t("sales.no_customer")}</span>}
-                        </span>
-                        <span className="flex items-center gap-1"><Calendar size={10} /> {p.date}</span>
-                      </div>
-                    </div>
-                    <div className="text-right shrink-0">
-                      <p className="font-bold text-slate-800 tabular-nums">
-                        {p.grand_total.toLocaleString()} <span className="text-xs font-normal text-slate-400">{p.currency}</span>
-                      </p>
-                      <p className="text-[11px] text-slate-400">{p.lines.length} {t(p.lines.length !== 1 ? "common.item_plural" : "common.item_singular")}</p>
-                    </div>
-                    <div className="flex items-center gap-1 shrink-0">
-                      <Link href={`/proforma?edit=${p.id}`} title={t("common.edit")}
-                        className="p-1.5 rounded-lg hover:bg-blue-50 text-slate-400 hover:text-blue-600 transition">
-                        <Pencil size={14} />
-                      </Link>
-                      <button onClick={() => handleDeleteProforma(p.id)} disabled={deletingProformaId === p.id} title={t("common.delete")}
-                        className="p-1.5 rounded-lg hover:bg-red-50 text-slate-300 hover:text-red-400 transition disabled:opacity-40">
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
         </div>
 
         {/* CREATE MODAL */}

@@ -11,7 +11,7 @@ import {
   Loader2, ArrowLeft, Eye, EyeOff, RefreshCw,
   CheckCircle2, KeyRound, Mail, Lock,
   Boxes, BarChart3, ShieldCheck, Truck,
-  Package, Users, FileText, Wallet, Settings, Home,
+  Package, Users, Wallet, Settings, Home,
 } from "lucide-react";
 import { AUTH_API as AUTH_URL } from "@/lib/api-config";
 
@@ -24,7 +24,6 @@ const PLATFORM_LINKS = [
   { key: "nav.purchases", href: "/purchases", icon: Truck },
   { key: "nav.partners",  href: "/partners",  icon: Users },
   { key: "nav.sales",     href: "/sales",     icon: Boxes },
-  { key: "nav.proforma",  href: "/proforma",  icon: FileText },
   { key: "nav.expenses",  href: "/expenses",  icon: Wallet },
   { key: "nav.reports",   href: "/reports",   icon: BarChart3 },
   { key: "nav.settings",  href: "/settings",  icon: Settings },

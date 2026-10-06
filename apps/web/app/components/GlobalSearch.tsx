@@ -63,7 +63,7 @@ export default function GlobalSearch() {
     { key: "p-team", group: "search.pages", title: t("team.title"), icon: Users, href: "/team" },
     { key: "p-partners", group: "search.pages", title: t("nav.partners"), icon: Users, href: "/partners" },
     ...(!isCar ? [{ key: "p-pur", group: "search.pages", title: t("nav.purchases"), icon: Truck, href: "/purchases" }] : []),
-    { key: "p-pf", group: "search.pages", title: t("nav.proforma"), icon: FileText, href: "/proforma" },
+    { key: "p-pf", group: "search.pages", title: t("nav.proforma"), icon: FileText, href: "/sales?tab=proforma" },
     ...(fin ? [
       { key: "p-exp", group: "search.pages", title: t("nav.expenses"), icon: Receipt, href: "/expenses" },
       { key: "p-rep", group: "search.pages", title: t("nav.reports"), icon: BarChart3, href: "/reports" },

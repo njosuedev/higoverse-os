@@ -29,6 +29,11 @@ interface Props<T extends PickerProduct> {
   className?: string;
   /** Open the search straight away (e.g. the first line of a new sale). */
   autoOpen?: boolean;
+  /** Car companies: only list cars in this state, e.g. "available" (in
+   *  stock and not booked for a buyer) — the products API's `status`. */
+  status?: string;
+  /** How each product reads in the list and once chosen (default: name). */
+  label?: (product: T) => string;
 }
 
 const RESULTS = 20;
@@ -49,8 +54,9 @@ function anchorFor(el: HTMLElement): Anchor {
 /** Searchable product field backed by the API, so it works for any catalogue
  *  size instead of listing every product in a <select>. */
 export default function ProductPicker<T extends PickerProduct = PickerProduct>({
-  selected, onSelect, disableOutOfStock = false, placeholder, className = "", autoOpen = false,
+  selected, onSelect, disableOutOfStock = false, placeholder, className = "", autoOpen = false, status, label,
 }: Props<T>) {
+  const show = (p: T) => (label ? label(p) : p.name);
   const { t } = useLanguage();
   const listId = useId();
   const rootRef = useRef<HTMLDivElement>(null);
@@ -72,6 +78,7 @@ export default function ProductPicker<T extends PickerProduct = PickerProduct>({
     let cancelled = false;
     const qs = new URLSearchParams({ page: "1", limit: String(RESULTS) });
     if (debounced.trim()) qs.set("q", debounced.trim());
+    if (status) qs.set("status", status);
     itemRequest(`/products?${qs}`)
       .then((res) => {
         if (cancelled) return;
@@ -81,7 +88,7 @@ export default function ProductPicker<T extends PickerProduct = PickerProduct>({
       })
       .catch(() => { if (!cancelled) { setResults([]); setResultsFor(debounced); } });
     return () => { cancelled = true; };
-  }, [open, debounced]);
+  }, [open, debounced, status]);
 
   useEffect(() => {
     if (!open) return;
@@ -132,8 +139,8 @@ export default function ProductPicker<T extends PickerProduct = PickerProduct>({
   return (
     <div ref={rootRef} className={`relative ${className}`}>
       {open ? (
-        <div className="flex items-center gap-2 rounded-lg border border-ink bg-white px-2.5 py-1.5 ring-2 ring-ink/20">
-          <Search size={15} className="shrink-0 text-text-faint" />
+        <div className="hgv-search hgv-search--sm">
+          <Search size={15} className="hgv-search-icon" />
           <input
             ref={inputRef}
             autoFocus
@@ -144,7 +151,7 @@ export default function ProductPicker<T extends PickerProduct = PickerProduct>({
             role="combobox"
             aria-expanded="true"
             aria-controls={listId}
-            className="min-w-0 flex-1 bg-transparent text-sm text-text outline-none"
+            className="hgv-search-input text-sm"
           />
           {loading && <Loader2 size={14} className="shrink-0 animate-spin text-text-faint" />}
         </div>
@@ -155,7 +162,7 @@ export default function ProductPicker<T extends PickerProduct = PickerProduct>({
           className="flex w-full items-center gap-2 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-left text-sm transition hover:border-border-strong focus:outline-none focus:ring-2 focus:ring-ink/30"
         >
           <span className={`min-w-0 flex-1 truncate ${selected ? "text-text" : "text-text-faint"}`}>
-            {selected ? selected.name : placeholder ?? t("sales.select_product")}
+            {selected ? show(selected) : placeholder ?? t("sales.select_product")}
           </span>
           <ChevronDown size={14} className="shrink-0 text-text-faint" />
         </button>
@@ -185,7 +192,7 @@ export default function ProductPicker<T extends PickerProduct = PickerProduct>({
                 onMouseDown={(e) => { e.preventDefault(); choose(p); }}
                 className={`flex cursor-pointer items-center gap-3 px-3 py-2 ${i === active ? "bg-paper-dim" : ""} ${disabled ? "cursor-not-allowed opacity-50" : ""}`}
               >
-                <span className="min-w-0 flex-1 truncate text-sm font-medium text-text">{p.name}</span>
+                <span className="min-w-0 flex-1 truncate text-sm font-medium text-text">{show(p)}</span>
                 {(() => {
                   // A car reserved for a buyer gathering transfer documents:
                   // still sellable (to that buyer), but flagged clearly.

@@ -34,8 +34,11 @@ export default function TopLoader() {
     };
 
     // The router records the new address once the next page is ready: that's the end.
+    // Next calls pushState from inside a React insertion effect, where a state
+    // update is forbidden ("useInsertionEffect must not schedule updates"),
+    // so the bar is hidden just after, not during, that call.
     const push = history.pushState;
-    history.pushState = function (...args) { stop(); return push.apply(this, args); };
+    history.pushState = function (...args) { window.setTimeout(stop, 0); return push.apply(this, args); };
 
     document.addEventListener("click", onClick, true);
     window.addEventListener("popstate", stop);

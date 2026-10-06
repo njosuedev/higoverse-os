@@ -129,7 +129,7 @@ export default function DashboardPage() {
     { title: t("nav.sales"),            icon: ShoppingCart, href: "/sales" },
     { title: t("nav.expenses"),         icon: Wallet,       href: "/expenses" },
     { title: t("nav.reports"),          icon: BarChart3,    href: "/reports" },
-    { title: t("nav.proforma"),         icon: FileText,     href: "/proforma" },
+    { title: t("nav.proforma"),         icon: FileText,     href: "/sales?tab=proforma" },
     { title: t("nav.settings"),         icon: Settings,     href: "/settings" },
   ];
   const SERVICES = isCar ? SERVICES_ALL.filter((x) => x.href !== "/purchases") : SERVICES_ALL;

@@ -401,7 +401,8 @@ bool customerComplete(Map<String, dynamic> c) =>
 class ProductPickerScreen extends StatefulWidget {
   const ProductPickerScreen({super.key, this.allowSoldOut = false});
 
-  /// Quotes (proformas) may list items that are sold out right now.
+  /// Quotes (proformas) may list items that are sold out right now. Car
+  /// companies only ever see cars in stock that nobody has booked.
   final bool allowSoldOut;
 
   @override
@@ -437,7 +438,7 @@ class _ProductPickerScreenState extends State<ProductPickerScreen> {
         'page': '1',
         'limit': '40',
         if (_q.text.trim().isNotEmpty) 'q': _q.text.trim(),
-        if (s.isCar && !widget.allowSoldOut) 'status': 'available',
+        if (s.isCar) 'status': 'available',
       });
       final data = (res as Map)['data'] as Map? ?? {};
       if (!mounted || gen != _gen) return;
@@ -485,7 +486,10 @@ class _ProductPickerScreenState extends State<ProductPickerScreen> {
                           enabled: qty > 0 || widget.allowSoldOut,
                           onTap: () => Navigator.pop(context, p),
                           leading: ProductThumb(p['thumbnail'] as String?, isCar: s.isCar),
-                          title: Text('${p['name'] ?? ''}',
+                          // Cars read "BYD Yuan Up - LL31233343" (name - chassis).
+                          title: Text(s.isCar && (attributesOf(p['attributes'])['chassis_no'] ?? '').isNotEmpty
+                                  ? '${p['name'] ?? ''} - ${attributesOf(p['attributes'])['chassis_no']}'
+                                  : '${p['name'] ?? ''}',
                               maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700)),
                           subtitle: Text(qty <= 0 ? t('dash.out_of_stock') : t('stock.in_stock_n', {'n': groupDigits(qty)}),
                               style: TextStyle(color: qty <= 0 ? c.danger : c.muted)),

@@ -215,26 +215,30 @@ input, textarea, select, button {
   animation: hgv-shimmer 1.6s ease-in-out infinite;
 }
 
-/* ── SEARCH + FILTER FIELDS (page banners) ───────────────────
-   Solid white fields with a clear border, readable placeholder and a
-   blue focus ring — one look on every page. */
+/* ── SEARCH + FILTER FIELDS ──────────────────────────────────
+   Clean and calm: a soft filled pill with no outline at rest, turning
+   white with a thin blue ring while typing — one look on every page
+   (and the same as the phone app's search field). */
 .hgv-search {
   display: flex;
   flex: 1;
   align-items: center;
-  gap: 0.6rem;
+  gap: 0.55rem;
   min-width: 0;
-  background: #ffffff;
-  border: 1px solid var(--color-border-strong);
-  border-radius: 10px;
-  padding: 0.6rem 0.85rem;
-  transition: border-color 150ms ease, box-shadow 150ms ease;
+  background: var(--color-paper-dim);
+  border: 1px solid transparent;
+  border-radius: 9999px;
+  padding: 0.55rem 0.95rem;
+  transition: background-color 150ms ease, border-color 150ms ease, box-shadow 150ms ease;
 }
-.hgv-search:hover { border-color: #a6a4a0; }
+.hgv-search:hover { background: var(--color-paper-deep); }
 .hgv-search:focus-within {
+  background: #ffffff;
   border-color: var(--color-ink);
-  box-shadow: 0 0 0 3px rgb(10 102 194 / 0.15);
+  box-shadow: 0 0 0 3px rgb(10 102 194 / 0.12);
 }
+/* Compact, for pickers and lists inside cards. */
+.hgv-search--sm { flex: none; padding: 0.4rem 0.75rem; gap: 0.45rem; }
 .hgv-search-icon { flex-shrink: 0; color: var(--color-text-faint); transition: color 150ms ease; }
 .hgv-search:focus-within .hgv-search-icon { color: var(--color-ink); }
 .hgv-search-input {
@@ -242,6 +246,7 @@ input, textarea, select, button {
   min-width: 0;
   background: transparent;
   outline: none;
+  border: none;
   font-size: 0.9375rem;
   font-weight: 500;
   color: var(--color-text);
@@ -258,21 +263,21 @@ input, textarea, select, button {
   color: var(--color-text-faint);
   transition: background-color 150ms ease, color 150ms ease;
 }
-.hgv-search-clear:hover { background: var(--color-paper-dim); color: var(--color-text); }
+.hgv-search-clear:hover { background: var(--color-paper-deep); color: var(--color-text); }
 
 .hgv-filter {
   display: flex;
   align-items: center;
   gap: 0.45rem;
-  background: #ffffff;
-  border: 1px solid var(--color-border-strong);
-  border-radius: 10px;
-  padding: 0.6rem 0.8rem;
+  background: var(--color-paper-dim);
+  border: 1px solid transparent;
+  border-radius: 9999px;
+  padding: 0.55rem 0.9rem;
   color: var(--color-text-muted);
-  transition: border-color 150ms ease, box-shadow 150ms ease;
+  transition: background-color 150ms ease, border-color 150ms ease, box-shadow 150ms ease;
 }
-.hgv-filter:hover { border-color: #a6a4a0; }
-.hgv-filter:focus-within { border-color: var(--color-ink); box-shadow: 0 0 0 3px rgb(10 102 194 / 0.15); }
+.hgv-filter:hover { background: var(--color-paper-deep); }
+.hgv-filter:focus-within { background: #ffffff; border-color: var(--color-ink); box-shadow: 0 0 0 3px rgb(10 102 194 / 0.12); }
 .hgv-filter select {
   background: transparent;
   outline: none;
@@ -485,9 +490,12 @@ html[data-theme="dark"] {
 /* surfaces that are plain white in the light theme */
 html[data-theme="dark"] body { background-color: var(--color-paper); color: var(--color-text); }
 html[data-theme="dark"] .bg-white,
-html[data-theme="dark"] .hgv-surface,
+html[data-theme="dark"] .hgv-surface { background-color: var(--surface) !important; }
+/* search pills: a step lighter than the card at rest, the card colour while typing */
 html[data-theme="dark"] .hgv-search,
-html[data-theme="dark"] .hgv-filter { background-color: var(--surface) !important; }
+html[data-theme="dark"] .hgv-filter { background-color: var(--color-paper-dim); }
+html[data-theme="dark"] .hgv-search:focus-within,
+html[data-theme="dark"] .hgv-filter:focus-within { background-color: var(--surface); }
 html[data-theme="dark"] [class*="bg-white/9"] { background-color: rgb(12 16 20 / 0.92); }
 /* panels meant to sit flush on the page (the sign-in intro) stay page-coloured,
    not a lighter box with the text against its edge */
@@ -521,7 +529,7 @@ html[data-theme="dark"] :is(.bg-success, .bg-green-500, .bg-green-600, .bg-green
 html[data-theme="dark"] :is(.bg-warning, .bg-amber-500, .bg-amber-600).text-white { background-color: #855005 !important; }
 html[data-theme="dark"] .bg-text-muted.text-white { background-color: #363636 !important; }
 html[data-theme="dark"] .hgv-search:hover,
-html[data-theme="dark"] .hgv-filter:hover { border-color: var(--color-border-strong); }
+html[data-theme="dark"] .hgv-filter:hover { background-color: var(--color-paper-deep); }
 /* Page-header actions (Add, New, Export, Save on Sales, Expenses, Reports,
    Proforma…): no fill in dark mode — a thin outline and a blue label, which
    reads calmer on the dark header than a solid blue block. */

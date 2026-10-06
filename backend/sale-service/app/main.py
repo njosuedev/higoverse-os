@@ -60,6 +60,18 @@ def on_startup():
             conn.execute(text(
                 "ALTER TABLE sales ADD COLUMN IF NOT EXISTS amount_paid NUMERIC(12, 2)"
             ))
+            # Vehicle proforma: customer, payment terms and approval → sale.
+            for col, kind in (
+                ("salesperson", "VARCHAR"), ("customer_id", "VARCHAR"),
+                ("customer_id_no", "VARCHAR"), ("customer_tin", "VARCHAR"),
+                ("customer_email", "VARCHAR"), ("customer_country", "VARCHAR"),
+                ("customer_company", "VARCHAR"), ("payment_method", "VARCHAR"),
+                ("bank_details", "TEXT"), ("deposit_amount", "NUMERIC(12, 2)"),
+                ("terms", "TEXT"), ("approved_by", "VARCHAR"),
+                ("approved_at", "TIMESTAMP WITH TIME ZONE"),
+                ("sold_at", "TIMESTAMP WITH TIME ZONE"), ("sale_ids", "JSON"),
+            ):
+                conn.execute(text(f"ALTER TABLE proformas ADD COLUMN IF NOT EXISTS {col} {kind}"))
             conn.commit()
     except Exception:
         pass
