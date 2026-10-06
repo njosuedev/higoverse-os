@@ -233,7 +233,7 @@ class _ItemScreenState extends State<ItemScreen> {
             if (_photos.isEmpty)
               GestureDetector(
                 onTap: () => _openViewer(0),
-                child: CoverPhoto(id: _id, thumbnail: item['thumbnail'] as String?, isCar: s.isCar, width: width, height: width * 0.75),
+                child: CoverPhoto(id: _id, thumbnail: item['thumbnail'] as String?, isCar: s.isCar, width: width, height: width * 0.75, size: CoverStore.full),
               )
             else
               PageView.builder(

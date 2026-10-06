@@ -13,18 +13,21 @@ import 'theme.dart';
 /// phone (`/products/covers`), a few ids per request, and remembers them for
 /// the session.
 class CoverStore extends ChangeNotifier {
-  CoverStore._(this._session);
+  CoverStore._(this._session, this.size);
   final Session _session;
 
-  static final _stores = Expando<CoverStore>();
-  static CoverStore of(Session s) => _stores[s] ??= CoverStore._(s);
+  /// Longest side asked for: [card] for cards and stories, [full] for a
+  /// photo across the whole screen (a car's page).
+  final int size;
+  static const card = 720, full = 1280;
+
+  static final _stores = Expando<Map<int, CoverStore>>();
+  static CoverStore of(Session s, {int size = card}) => (_stores[s] ??= {})[size] ??= CoverStore._(s, size);
 
   /// Product id → photo bytes, or null when it has no photo.
   final Map<String, Uint8List?> _covers = {};
   final Set<String> _wanted = {}, _inFlight = {};
   Timer? _batch;
-
-  static const size = 720;
 
   Uint8List? cover(String id) => _covers[id];
   bool known(String id) => _covers.containsKey(id);
@@ -71,6 +74,7 @@ class CoverPhoto extends StatefulWidget {
     this.height,
     this.radius = 0,
     this.fallback,
+    this.size = CoverStore.card,
   });
   final String id;
   final String? thumbnail;
@@ -78,6 +82,9 @@ class CoverPhoto extends StatefulWidget {
   final double? width, height;
   final double radius;
   final Widget? fallback;
+
+  /// Pixels asked for (see [CoverStore.card] / [CoverStore.full]).
+  final int size;
 
   @override
   State<CoverPhoto> createState() => _CoverPhotoState();
@@ -89,7 +96,7 @@ class _CoverPhotoState extends State<CoverPhoto> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    final store = CoverStore.of(SessionScope.of(context));
+    final store = CoverStore.of(SessionScope.of(context), size: widget.size);
     if (!identical(store, _store)) {
       _store?.removeListener(_changed);
       _store = store..addListener(_changed);

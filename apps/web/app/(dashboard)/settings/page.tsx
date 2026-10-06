@@ -296,7 +296,8 @@ export default function SettingsPage() {
     if (!file.type.startsWith("image/")) return;
     setLogoLoading(true);
     try {
-      const compressed = await compressImage(file);
+      // 512 px: sharp on the proforma's printed header (and still small).
+      const compressed = await compressImage(file, 512, 0.9);
       setLogoUrl(compressed);
     } finally {
       setLogoLoading(false);

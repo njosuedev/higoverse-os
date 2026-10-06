@@ -977,11 +977,13 @@ class _ProformaFormScreenState extends State<ProformaFormScreen> {
 /// conditions and signatures.
 Future<Uint8List> proformaPdf(Map<String, dynamic> p, Session s, T t) async {
   // Noto Sans covers Kinyarwanda, French and Swahili accents (and Chinese
-  // when needed); without a connection the PDF's built-in font is used.
+  // when needed); without a connection the PDF's built-in font is used. A
+  // slow or blocked connection must not hold the PDF up: give it 6 s.
   pw.ThemeData? theme;
   try {
-    final base = await PdfGoogleFonts.notoSansRegular(), bold = await PdfGoogleFonts.notoSansBold();
-    theme = pw.ThemeData.withFont(base: base, bold: bold, fontFallback: [if (t.lang == 'zh') await PdfGoogleFonts.notoSansSCRegular()]);
+    Future<pw.Font> font(Future<pw.Font> f) => f.timeout(const Duration(seconds: 6));
+    final base = await font(PdfGoogleFonts.notoSansRegular()), bold = await font(PdfGoogleFonts.notoSansBold());
+    theme = pw.ThemeData.withFont(base: base, bold: bold, fontFallback: [if (t.lang == 'zh') await font(PdfGoogleFonts.notoSansSCRegular())]);
   } catch (_) {}
   final doc = pw.Document(title: '${p['invoice_no']}', author: s.shop?.name ?? 'Higoverse', theme: theme);
   final cur = '${p['currency'] ?? s.currency}';

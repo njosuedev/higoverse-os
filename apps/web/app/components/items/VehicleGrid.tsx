@@ -1,5 +1,6 @@
 "use client";
 
+import { useCovers } from "@/lib/covers";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -78,6 +79,8 @@ async function sellPaidCar(v: Vehicle, a: Attributes, t: (k: string) => string):
 }
 
 export default function VehicleGrid({ vehicles, currency, onOpenGallery, onEdit, onChanged, autoForm }: Props) {
+  // Sharp photos for the cards (the list's thumbnail is only 160 px).
+  const covers = useCovers(vehicles.map((v) => v.id), 640);
   const { t } = useLanguage();
   const router = useRouter();
   const [pendingFor, setPendingFor] = useState<Vehicle | null>(null);
@@ -128,6 +131,7 @@ export default function VehicleGrid({ vehicles, currency, onOpenGallery, onEdit,
           <VehicleCard
             key={v.id}
             v={v}
+            cover={covers[v.id]}
             currency={currency}
             onGallery={() => onOpenGallery(v)}
             onEdit={() => onEdit(v)}
@@ -148,8 +152,8 @@ export default function VehicleGrid({ vehicles, currency, onOpenGallery, onEdit,
   );
 }
 
-function VehicleCard({ v, currency, onGallery, onEdit, onPending, onDeposit, onCompleteSale, onRelease, onPenalties }: {
-  v: Vehicle; currency: string;
+function VehicleCard({ v, cover, currency, onGallery, onEdit, onPending, onDeposit, onCompleteSale, onRelease, onPenalties }: {
+  v: Vehicle; cover?: string; currency: string;
   onGallery: () => void; onEdit: () => void; onPending: () => void; onDeposit: () => void;
   onCompleteSale: () => void; onRelease: () => void; onPenalties: () => void;
 }) {
@@ -175,9 +179,9 @@ function VehicleCard({ v, currency, onGallery, onEdit, onPending, onDeposit, onC
       {/* Photo with status (left) and fines shield (right) */}
       <div className="relative aspect-[16/10] w-full overflow-hidden bg-paper-dim">
         <button type="button" onClick={onGallery} className="group block h-full w-full" aria-label={t("vehicle.view_photos")} title={t("vehicle.view_photos")}>
-          {v.thumbnail
+          {cover || v.thumbnail
             // eslint-disable-next-line @next/next/no-img-element
-            ? <img src={v.thumbnail} alt={v.name} loading="lazy" className={`h-full w-full object-cover transition group-hover:scale-[1.03] ${status === "sold" ? "grayscale" : ""}`} />
+            ? <img src={cover || v.thumbnail!} alt={v.name} loading="lazy" decoding="async" className={`h-full w-full object-cover transition group-hover:scale-[1.03] ${status === "sold" ? "grayscale" : ""}`} />
             : <span className="flex h-full w-full items-center justify-center"><Car size={30} className="text-text-faint" /></span>}
         </button>
         <span className={`pointer-events-none absolute left-2 top-2 rounded-full px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide shadow-sm ${STATUS.cls}`}>{STATUS.label}</span>
