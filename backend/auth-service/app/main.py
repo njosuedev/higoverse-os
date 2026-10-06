@@ -102,6 +102,7 @@ _MIGRATIONS = [
     "CREATE INDEX IF NOT EXISTS ix_shops_active_created ON shops (is_active, created_at DESC)",
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS permissions JSON",
     "ALTER TABLE refresh_tokens ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE",
+    "ALTER TABLE refresh_tokens ADD COLUMN IF NOT EXISTS replaced_by UUID",
 ]
 
 @app.on_event("startup")

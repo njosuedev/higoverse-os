@@ -21,3 +21,9 @@ class RefreshToken(Base):
 
     expires_at = Column(DateTime(timezone=True), nullable=False)
     created_at = Column(DateTime(timezone=True), default=_utcnow)
+
+    # Set once this token has been exchanged at /auth/refresh: the id of the
+    # token that replaced it. The old token stays usable until that successor
+    # is used, so a refresh whose reply never reached the device (slow or
+    # dropped connection, app closed mid-request) doesn't sign the user out.
+    replaced_by = Column(UUID(as_uuid=True), nullable=True)

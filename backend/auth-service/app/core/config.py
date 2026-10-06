@@ -8,7 +8,9 @@ class Settings(BaseSettings):
     SECRET_KEY:                  str = os.getenv("SECRET_KEY") or os.getenv("AUTH_SERVICE_SECRET", "")
     ALGORITHM:                   str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
-    REFRESH_TOKEN_EXPIRE_DAYS:   int = int(os.getenv("REFRESH_TOKEN_EXPIRE_DAYS", "30"))
+    # Sliding: every renewal starts a new period, so only a device left unused
+    # this long is signed out. Users otherwise stay signed in until they sign out.
+    REFRESH_TOKEN_EXPIRE_DAYS:   int = int(os.getenv("REFRESH_TOKEN_EXPIRE_DAYS", "365"))
 
     # SMTP — set these in Vercel env vars to enable password reset emails
     SMTP_HOST: str = os.getenv("SMTP_HOST", "smtp.gmail.com")

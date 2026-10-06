@@ -1,10 +1,13 @@
 import { clearAuth, getRefreshToken, getToken, setAuth } from "@/lib/auth";
 import { AUTH_API } from "@/lib/api-config";
 
-// Access tokens live 60 minutes; the refresh token lives 30 days and is
-// single-use (the server rotates it on every /auth/refresh). Every API client
-// goes through authFetch so an expired access token is renewed silently
-// instead of logging the user out — or worse, making their data look empty.
+// Access tokens live 60 minutes; the refresh token is rotated on every
+// /auth/refresh and each renewal starts a new 365-day period, so people stay
+// signed in until they sign out. Every API client goes through authFetch so an
+// expired access token is renewed silently instead of logging the user out —
+// or worse, making their data look empty. Only the server rejecting the
+// refresh token (401/403) ends a session: being offline, a timeout or a server
+// restart never does — the renewal is simply tried again on the next request.
 
 
 /** Fired on window whenever the stored session changes (refresh or expiry). */
@@ -111,16 +114,28 @@ export async function authFetch(input: string, init: RequestInit = {}): Promise<
   if (res.status === 401 && token) {
     const fresh = await refreshAccessToken(token);
     if (fresh) res = await send(fresh);
-    // Expired token and no way to renew it: the session is over. A 401 with a
-    // still-valid token is left to the caller (e.g. accounts without a shop).
-    else if (isExpired(token) && getToken() === token) expireSession();
+    // An expired token with no refresh token at all can never be renewed.
+    // A renewal the server refused has already ended the session in
+    // runRefresh; any other failure (offline, server restarting) keeps it.
+    else if (!getRefreshToken() && isExpired(token) && getToken() === token) expireSession();
   }
   return res;
 }
 
+let warmListeners = false;
+
 /** Renew in the background on app start if the stored token has lapsed, so
  *  the first screen after reopening the app doesn't wait on a 401 round-trip. */
 export function warmSession() {
+  if (typeof window !== "undefined" && !warmListeners) {
+    warmListeners = true;
+    // Back online, or back to a tab/desktop window left open for hours:
+    // renew straight away so the next action doesn't start on a 401.
+    window.addEventListener("online", warmSession);
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") warmSession();
+    });
+  }
   const token = getToken();
   if (token && isExpired(token, EXPIRY_SKEW_MS) && getRefreshToken()) {
     void refreshAccessToken(token);

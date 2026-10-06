@@ -1,4 +1,4 @@
-import { authFetch, expireSession } from "@/lib/session";
+import { authFetch } from "@/lib/session";
 import { AUTH_API } from "@/lib/api-config";
 
 
@@ -9,8 +9,10 @@ export async function authRequest(endpoint: string, options: RequestInit = {}) {
   const res = await authFetch(`${AUTH_API}${endpoint}`, { ...options, headers });
 
   if (res.status === 401) {
-    expireSession();
-    throw new Error("Session expired. Please log in again.");
+    // authFetch has already ended the session if the server refused to renew
+    // it; reaching here means the renewal couldn't be made (offline, server
+    // restarting), so keep the user signed in and let them retry.
+    throw new Error("Couldn't reach Higoverse. Check your connection and try again.");
   }
   if (!res.ok) {
     const text = await res.text().catch(() => "");

@@ -25,11 +25,24 @@ class ApiException implements Exception {
   String toString() => message;
 }
 
+/// How an attempt to renew the access token went.
+enum Renewal {
+  renewed,
+
+  /// The server refused the refresh token (signed out elsewhere, account or
+  /// business deactivated): the session is over.
+  rejected,
+
+  /// No answer — offline, timeout, server restarting. The session stays;
+  /// renewal is tried again on the next request.
+  unavailable,
+}
+
 /// What the client needs from the session: the current token, a way to
-/// renew it, and a way to end the session when renewal is impossible.
+/// renew it, and a way to end the session when renewal is refused.
 abstract class TokenSource {
   String? get accessToken;
-  Future<bool> refresh();
+  Future<Renewal> refresh();
   Future<void> expire();
 }
 
@@ -77,9 +90,16 @@ class Api {
     }
 
     if (res.statusCode == 401 && token != null && !retried) {
-      if (await tokens.refresh()) return _send(method, url, body: body, retried: true);
-      await tokens.expire();
-      throw ApiException(401, 'Your session has ended. Please sign in again.', key: 'err.session');
+      switch (await tokens.refresh()) {
+        case Renewal.renewed:
+          return _send(method, url, body: body, retried: true);
+        case Renewal.rejected:
+          await tokens.expire();
+          throw ApiException(401, 'Your session has ended. Please sign in again.', key: 'err.session');
+        case Renewal.unavailable:
+          // Stay signed in: a slow or dropped connection must not end the session.
+          throw ApiException(0, 'No connection to Higoverse. Check your internet and try again.', key: 'err.network');
+      }
     }
     return decode(res);
   }

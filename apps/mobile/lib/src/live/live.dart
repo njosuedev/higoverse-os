@@ -5,6 +5,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/widgets.dart';
 
+import '../api.dart';
 import '../config.dart';
 import '../session.dart';
 
@@ -208,8 +209,8 @@ class Live extends ChangeNotifier {
     if (code == 4003) return; // an account without a business: nothing to follow
     if (code == 4001 && _authFailures++ < 2) {
       // Token expired: renew it, then come straight back.
-      session.refresh().then((ok) {
-        if (ok) {
+      session.refresh().then((r) {
+        if (r == Renewal.renewed) {
           _connect();
         } else {
           _scheduleRetry();

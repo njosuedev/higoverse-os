@@ -167,27 +167,29 @@ class Session extends ChangeNotifier implements TokenSource {
     notifyListeners();
   }
 
-  Completer<bool>? _refreshing;
+  Completer<Renewal>? _refreshing;
 
-  /// Renews the access token with the (single-use, rotating) refresh token.
-  /// Concurrent callers share one renewal.
+  /// Renews the access token with the rotating refresh token. Concurrent
+  /// callers share one renewal. Only the server refusing the refresh token
+  /// ends the session — being offline or a server restart never signs out.
   @override
-  Future<bool> refresh() {
+  Future<Renewal> refresh() {
     if (_refreshing != null) return _refreshing!.future;
-    final c = _refreshing = Completer<bool>();
+    final c = _refreshing = Completer<Renewal>();
     () async {
       try {
         final rt = _refreshToken;
-        if (rt == null) return c.complete(false);
+        if (rt == null) return c.complete(Renewal.rejected);
         final res = await http
             .post(Uri.parse('$apiBase${Svc.auth}/api/v1/auth/refresh'),
                 headers: {'Content-Type': 'application/json'}, body: jsonEncode({'refresh_token': rt}))
             .timeout(const Duration(seconds: 20));
-        if (res.statusCode != 200) return c.complete(false);
+        if (res.statusCode == 401 || res.statusCode == 403) return c.complete(Renewal.rejected);
+        if (res.statusCode != 200) return c.complete(Renewal.unavailable);
         await _save(Api.decode(res) as Map<String, dynamic>);
-        c.complete(true);
+        c.complete(Renewal.renewed);
       } catch (_) {
-        c.complete(false);
+        c.complete(Renewal.unavailable);
       } finally {
         _refreshing = null;
       }

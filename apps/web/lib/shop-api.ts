@@ -14,8 +14,8 @@ async function authShopRequest(endpoint: string, options: RequestInit = {}) {
   if (res.status === 401) {
     // Shop endpoints 401 for plenty of authenticated-but-shopless accounts
     // (e.g. no shop yet) — that's not a session expiry, so don't force a
-    // global logout here the way auth-api/admin-api do for explicit actions.
-    // Callers (heartbeat, ShopProvider) already treat a failure as "no shop".
+    // global logout here (authFetch ends the session itself when the server
+    // refuses to renew it). Callers (heartbeat, ShopProvider) already treat a failure as "no shop".
     if (!token) return null;
     throw new Error("Session expired. Please log in again.");
   }
