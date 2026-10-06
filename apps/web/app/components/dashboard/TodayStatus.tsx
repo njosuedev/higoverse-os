@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { Car, Images } from "lucide-react";
+import { Car, Images, Sparkles, TriangleAlert, Clock, X } from "lucide-react";
 import CarQuickView from "@/app/components/items/CarQuickView";
 import { itemRequest } from "@/lib/product-api";
 import { useLanguage } from "@/lib/language-context";
@@ -76,12 +76,19 @@ async function loadEntries(): Promise<Entry[]> {
  *  found, cars put on pending — as listing cards (sharp photo, price, specs,
  *  chassis and plate, what happened and when). A card opens the car's quick
  *  view: every photo and every detail. Eight, then "+N". */
-export default function TodayStatus() {
+export default function TodayStatus({ leading }: {
+  /** Shown first in the top band, at its own width (the stories tray); the
+   *  "last 3 days" counters take whatever room is left, so the band is never
+   *  half empty however many stories there are. */
+  leading?: ReactNode;
+}) {
   const { t } = useLanguage();
   const [entries, setEntries] = useState<Entry[] | null>(null);
   // Sharp covers (the list only carries a small thumbnail).
   const [covers, setCovers] = useState<Record<string, string>>({});
   const [open, setOpen] = useState<CarRow | null>(null);
+  // A counter, once tapped, shows only those cards.
+  const [filter, setFilter] = useState<Kind | null>(null);
   // Ticks so "Now" / "10 min ago" stay true while the page is open.
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
@@ -115,9 +122,11 @@ export default function TodayStatus() {
     added: t("dash.recent_added"), fines: t("dash.recent_fines"), pending: t("dash.recent_pending"),
   };
   const count = (k: Kind) => entries?.filter((e) => e.kind === k).length ?? 0;
-  const shown = entries?.slice(0, MAX_SHOWN) ?? [];
-  const extra = (entries?.length ?? 0) - shown.length;
-  const shownIds = [...new Set(shown.map((e) => e.car.id))].join(",");
+  const visible = (entries ?? []).filter((e) => !filter || e.kind === filter);
+  const shown = visible.slice(0, MAX_SHOWN);
+  const extra = visible.length - shown.length;
+  // Sharp photos for the cards and the counters' little faces (max 30).
+  const shownIds = [...new Set([...shown, ...(entries ?? [])].map((e) => e.car.id))].slice(0, 30).join(",");
   useEffect(() => {
     if (!shownIds) return;
     let alive = true;
@@ -127,28 +136,82 @@ export default function TodayStatus() {
     return () => { alive = false; };
   }, [shownIds]);
 
+  const TILE: Record<Kind, { icon: typeof Car; tone: string }> = {
+    added: { icon: Sparkles, tone: "bg-emerald-50 text-emerald-700" },
+    fines: { icon: TriangleAlert, tone: "bg-red-50 text-red-700" },
+    pending: { icon: Clock, tone: "bg-amber-50 text-amber-700" },
+  };
+
   return (
-    <section className="rounded-data border border-border bg-white px-4 py-4">
-      <div className="text-center">
-        <h2 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-text-muted">{t("dash.last_3_days")}</h2>
-        <p className="mt-1 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-xs text-text-muted">
-          {(["added", "fines", "pending"] as Kind[]).map((k) => (
-            <span key={k} className="inline-flex items-center gap-1.5">
-              <span className="inline-block h-1.5 w-1.5 rounded-full" style={{ background: COLOR[k] }} />
-              <span className="hgv-figure font-semibold text-text">{entries ? count(k) : "–"}</span> {kindLabel[k]}
-            </span>
-          ))}
-        </p>
+    <div className="space-y-3">
+      {/* ── Top band: stories at their own width, counters fill the rest ── */}
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-stretch">
+        {leading && <div className="min-w-0 max-w-full shrink-0 empty:hidden lg:max-w-[58%]">{leading}</div>}
+        <section aria-label={t("dash.last_3_days")} className="flex min-w-0 flex-1 flex-col rounded-xl border border-border bg-white p-3">
+          <div className="mb-2 flex items-center justify-between gap-2 px-1">
+            <h2 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-text-muted">{t("dash.last_3_days")}</h2>
+            {filter && (
+              <button type="button" onClick={() => setFilter(null)} className="flex items-center gap-1 text-xs font-semibold text-ink hover:underline">
+                <X size={12} /> {t("dash.show_all_recent")}
+              </button>
+            )}
+          </div>
+          <div className="grid flex-1 grid-cols-3 gap-2">
+            {(["added", "pending", "fines"] as Kind[]).map((k) => {
+              const n = count(k);
+              const { icon: Icon, tone } = TILE[k];
+              const ofKind = (entries ?? []).filter((e) => e.kind === k);
+              const faces = ofKind.slice(0, 3);
+              const active = filter === k;
+              return (
+                <button key={k} type="button" disabled={!entries || n === 0} aria-pressed={active}
+                  onClick={() => setFilter(active ? null : k)}
+                  className={`flex min-h-[96px] min-w-0 flex-col justify-start rounded-lg border p-2.5 text-left transition sm:p-3 disabled:cursor-default ${active ? "border-ink ring-2 ring-ink/20" : "border-border hover:border-border-strong hover:bg-paper"} disabled:hover:border-border disabled:hover:bg-white`}>
+                  <span className="flex items-start justify-between gap-2">
+                    <span className={`flex h-8 w-8 items-center justify-center rounded-full ${tone}`}><Icon size={15} /></span>
+                    {/* Who it is: up to three photos of those cars */}
+                    {faces.length > 0 && (
+                      <span className="hidden -space-x-2 sm:flex">
+                        {faces.map((e) => {
+                          const src = covers[e.car.id] || e.car.thumbnail;
+                          return src
+                            // eslint-disable-next-line @next/next/no-img-element
+                            ? <img key={e.key} src={src} alt="" className="h-7 w-7 rounded-full border-2 border-white object-cover" />
+                            : <span key={e.key} className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-white bg-paper-dim"><Car size={12} className="text-text-faint" /></span>;
+                        })}
+                      </span>
+                    )}
+                  </span>
+                  <span className="mt-2 block min-w-0">
+                    <span className="hgv-figure block text-2xl font-bold leading-none text-text">{entries ? n : "–"}</span>
+                    <span className="mt-1 block truncate text-xs text-text-muted">{kindLabel[k]}</span>
+                    {/* Which cars, on wide screens: the tile's spare room put to use */}
+                    {ofKind.length > 0 && (
+                      <span className="mt-2 hidden space-y-0.5 border-t border-border pt-2 lg:block">
+                        {ofKind.slice(0, 2).map((e) => {
+                          const plate = parseAttributes(e.car.attributes).plate_no;
+                          return <span key={e.key} className="block truncate text-[11px] text-text-faint">{e.car.name}{plate ? ` · ${plate}` : ""}</span>;
+                        })}
+                        {ofKind.length > 2 && <span className="block text-[11px] font-medium text-text-muted">{t("dash.n_more").replace("{n}", String(ofKind.length - 2))}</span>}
+                      </span>
+                    )}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </section>
       </div>
 
+    <section className={`rounded-xl border border-border bg-white px-3 py-3 ${entries && entries.length === 0 ? "hidden" : ""}`}>
       {entries === null ? (
-        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
           {Array.from({ length: 4 }, (_, i) => <div key={i} className="h-[230px] animate-pulse rounded-xl bg-paper-dim" />)}
         </div>
       ) : entries.length === 0 ? (
         <p className="mt-3 text-center text-sm text-text-muted">{t("dash.recent_nothing")}</p>
       ) : (
-        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
           {shown.map((e) => {
             const a = parseAttributes(e.car.attributes);
             const fineText = `${e.detail} ${Number(e.detail) === 1 ? t("vehicle.fine") : t("vehicle.fines")}`;
@@ -201,7 +264,8 @@ export default function TodayStatus() {
           )}
         </div>
       )}
-      {open && <CarQuickView productId={open.id} cover={covers[open.id] || open.thumbnail} onClose={() => setOpen(null)} />}
     </section>
+      {open && <CarQuickView productId={open.id} cover={covers[open.id] || open.thumbnail} onClose={() => setOpen(null)} />}
+    </div>
   );
 }

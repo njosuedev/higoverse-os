@@ -331,14 +331,18 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* ── STORIES first, as on Facebook: what needs a look, and what was added ── */}
-        <Stories />
+        {/* ── STORIES first, as on Facebook: what needs a look, and what was added.
+             Car companies: the stories share one band with the "last 3 days"
+             counters, which fill the room the stories don't need. ── */}
+        {isCar && <TodayStatus leading={<Stories />} />}
 
-        {/* ── TODAY (car companies): new cars, new fines, new pending — like status ── */}
-        {isCar && <TodayStatus />}
+        {/* Shops: the stories share one band with the key figures, which fill
+            the room the stories don't need (no half-empty row). */}
+        <div className={isCar ? "" : "flex flex-col gap-3 lg:flex-row lg:items-stretch"}>
+        {!isCar && <div className="min-w-0 max-w-full shrink-0 empty:hidden lg:max-w-[58%]"><Stories /></div>}
 
         {/* ── KEY FIGURES — one compact row ─────────────────────────────────── */}
-        <section className={`grid grid-cols-2 gap-2 sm:grid-cols-3 ${fin ? "lg:grid-cols-6" : "lg:grid-cols-5"}`}>
+        <section className={`grid grid-cols-2 gap-2 sm:grid-cols-3 ${isCar ? (fin ? "lg:grid-cols-6" : "lg:grid-cols-5") : "min-w-0 flex-1 content-center lg:grid-cols-3"}`}>
           {fin && <StatCard size="sm"
             label={t("dash.revenue_week")}
             value={fmtCurrency(stats.revenue)}
@@ -361,6 +365,7 @@ export default function DashboardPage() {
             icon={<Package size={15} strokeWidth={2} />}
             tone={stats.outOfStock > 0 ? "red" : "slate"} href="/items" />
         </section>
+        </div>
 
         {/* ── CAR WATCH — pending transfers, fines, missing details ─────────── */}
         {isCar && <VehicleWatch />}
