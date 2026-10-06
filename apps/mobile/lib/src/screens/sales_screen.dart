@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../config.dart';
 import '../format.dart';
 import '../forms.dart';
+import '../live/scoped_route.dart';
+import '../proforma.dart';
 import '../i18n.dart';
 import '../live/live.dart';
 import '../session.dart';
@@ -22,6 +24,18 @@ class SalesScreen extends StatefulWidget {
 class _SalesScreenState extends State<SalesScreen> with LiveListener {
   static const _periods = [(1, 'sales.today'), (7, 'sales.7d'), (30, 'sales.30d')];
   int _days = 7;
+
+  /// Sales, or the proforma invoices (quotes) sent before a sale.
+  bool _proforma = false;
+  final _proformaList = GlobalKey<ProformaListState>();
+
+  Future<void> _newProforma() async {
+    final p = await pushScoped<Map<String, dynamic>>(context, const ProformaFormScreen());
+    if (p == null || !mounted) return;
+    _proformaList.currentState?.reload();
+    await pushScoped<bool>(context, ProformaScreen(proforma: p));
+    _proformaList.currentState?.reload();
+  }
   final List<Map<String, dynamic>> _items = [];
   Map<String, dynamic>? _summary;
   int _page = 0, _total = 0;
@@ -177,11 +191,28 @@ class _SalesScreenState extends State<SalesScreen> with LiveListener {
     return Scaffold(
       floatingActionButton: FloatingActionButton.extended(
         heroTag: 'sale',
-        onPressed: () => recordSale(context),
+        onPressed: () => _proforma ? _newProforma() : recordSale(context),
         icon: const Icon(Icons.add),
-        label: Text(t('form.new_sale')),
+        label: Text(_proforma ? t('pf.new') : t('form.new_sale')),
       ),
       body: Column(children: [
+        Container(
+          color: Hgv.of(context).chrome,
+          padding: const EdgeInsets.fromLTRB(10, 8, 10, 0),
+          child: Row(children: [
+            for (final (pf, label) in [(false, t('nav.sales')), (true, t('pf.title'))])
+              Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: ChoiceChip(
+                  label: Text(label),
+                  selected: _proforma == pf,
+                  showCheckmark: false,
+                  onSelected: (_) => setState(() => _proforma = pf),
+                ),
+              ),
+          ]),
+        ),
+        if (_proforma) Expanded(child: ProformaList(key: _proformaList)) else ...[
         Container(
           color: Hgv.of(context).chrome,
           padding: const EdgeInsets.fromLTRB(10, 2, 10, 8),
@@ -295,6 +326,7 @@ class _SalesScreenState extends State<SalesScreen> with LiveListener {
             ),
           ]),
         ),
+        ],
       ]),
     );
   }

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'package:phosphor_icons/phosphor_icons.dart';
+
 import 'theme.dart';
 
 /// A person's initials in a circle, coloured from their name so everyone
@@ -359,4 +361,95 @@ class WithCount extends StatelessWidget {
         child,
         if (count > 0) Positioned(right: dx, top: dy, child: CountBadge(count: count, ring: ring)),
       ]);
+}
+
+/// The app's search field: one style everywhere, as the big apps do — a
+/// filled, fully rounded box (no outline), the magnifying glass in front,
+/// a clear button once something is typed, a thin ring only while typing.
+class SearchField extends StatefulWidget {
+  const SearchField({
+    super.key,
+    required this.controller,
+    required this.hint,
+    this.onChanged,
+    this.onSubmitted,
+    this.focusNode,
+    this.autofocus = false,
+  });
+  final TextEditingController controller;
+  final String hint;
+  final ValueChanged<String>? onChanged, onSubmitted;
+  final FocusNode? focusNode;
+  final bool autofocus;
+
+  @override
+  State<SearchField> createState() => _SearchFieldState();
+}
+
+class _SearchFieldState extends State<SearchField> {
+  @override
+  void initState() {
+    super.initState();
+    widget.controller.addListener(_changed);
+  }
+
+  @override
+  void dispose() {
+    widget.controller.removeListener(_changed);
+    super.dispose();
+  }
+
+  void _changed() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = Hgv.of(context);
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final fill = dark ? const Color(0xFF25292E) : const Color(0xFFEFEFEF);
+    final shape = OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none);
+    return SizedBox(
+      height: 44,
+      child: TextField(
+        controller: widget.controller,
+        focusNode: widget.focusNode,
+        autofocus: widget.autofocus,
+        onChanged: widget.onChanged,
+        onSubmitted: widget.onSubmitted,
+        textInputAction: TextInputAction.search,
+        textAlignVertical: TextAlignVertical.center,
+        style: TextStyle(fontSize: 15, color: c.text),
+        cursorColor: c.ink,
+        decoration: InputDecoration(
+          isCollapsed: true,
+          filled: true,
+          fillColor: fill,
+          hintText: widget.hint,
+          hintStyle: TextStyle(fontSize: 15, color: c.faint),
+          contentPadding: const EdgeInsets.symmetric(vertical: 12),
+          prefixIcon: Icon(PhosphorIconsRegular.magnifyingGlass, size: 19, color: c.faint),
+          prefixIconConstraints: const BoxConstraints(minWidth: 42),
+          suffixIcon: widget.controller.text.isEmpty
+              ? null
+              : IconButton(
+                  tooltip: MaterialLocalizations.of(context).deleteButtonTooltip,
+                  icon: Container(
+                    width: 20,
+                    height: 20,
+                    decoration: BoxDecoration(shape: BoxShape.circle, color: c.faint.withValues(alpha: 0.35)),
+                    child: Icon(Icons.close_rounded, size: 14, color: c.text),
+                  ),
+                  onPressed: () {
+                    widget.controller.clear();
+                    widget.onChanged?.call('');
+                  },
+                ),
+          border: shape,
+          enabledBorder: shape,
+          focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: c.ink.withValues(alpha: 0.6))),
+        ),
+      ),
+    );
+  }
 }

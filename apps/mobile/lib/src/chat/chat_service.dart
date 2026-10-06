@@ -3,6 +3,8 @@ import 'dart:io' show Platform;
 
 import 'package:flutter/foundation.dart';
 
+import '../car_photos.dart';
+
 import '../config.dart';
 import '../live/live.dart';
 import '../session.dart';
@@ -24,9 +26,13 @@ class Member {
 /// One message, already decrypted on this device ([text] null: it can't be
 /// read here — sent before this device was set up).
 class ChatMessage {
-  ChatMessage({required this.id, required this.from, required this.to, required this.text, required this.at, this.readAt, this.pending = false});
+  ChatMessage(
+      {required this.id, required this.from, required this.to, required this.text, required this.at, this.readAt, this.pending = false, this.files = const []});
   final String id, from, to;
   final String? text;
+
+  /// Photos: id, k(ey), n(once), w, h, th (tiny preview data URL).
+  final List<Map<String, dynamic>> files;
   final DateTime at;
   DateTime? readAt;
 
@@ -157,9 +163,9 @@ class ChatService extends ChangeNotifier {
   Future<ChatMessage> _decrypt(Map<String, dynamic> m, {Map? keys}) async {
     final d = _device!;
     final k = (keys?[d.id] ?? m['key']) as Map?;
-    String? text;
+    ChatBody? body;
     if (k != null && m['sender_public_key'] != null) {
-      text = await d.open(
+      body = await d.openBody(
         ciphertext: '${m['ciphertext']}',
         nonce: '${m['nonce']}',
         wrapped: '${k['wrapped']}',
@@ -174,7 +180,8 @@ class ChatService extends ChangeNotifier {
       id: '${m['id']}',
       from: '${m['sender_id']}',
       to: '${m['recipient_id']}',
-      text: text,
+      text: body?.text,
+      files: body?.files ?? const [],
       at: DateTime.tryParse('${m['created_at']}')?.toLocal() ?? DateTime.now(),
       readAt: DateTime.tryParse('${m['read_at']}')?.toLocal(),
     );
@@ -192,15 +199,56 @@ class ChatService extends ChangeNotifier {
   /// The people's device keys, for the security code.
   Future<List<String>> keysWith(String other) async => (await _devicesOf(other)).values.toList();
 
-  Future<void> send(String other, String text) async {
+  /// Decrypted photos, by attachment id (loaded once per session).
+  final Map<String, Future<Uint8List?>> _photoCache = {};
+
+  /// Photos chosen on this phone, shown at once while they upload.
+  final Map<String, Uint8List> _local = {};
+
+  /// A message's photo: fetched (encrypted) and opened on this device.
+  Future<Uint8List?> photo(Map<String, dynamic> f) {
+    final id = '${f['id']}';
+    if (_local[id] != null) return Future.value(_local[id]);
+    return _photoCache[id] ??= () async {
+      try {
+        final res = await _s.api.get('${Svc.sales}/chat/attachments/$id');
+        final data = '${((res as Map)['data'] as Map)['data']}';
+        return await openFile(data, key: '${f['k']}', nonce: '${f['n']}');
+      } catch (_) {
+        _photoCache.remove(id); // try again next time
+        return null;
+      }
+    }();
+  }
+
+  /// Sends [text] and up to 4 [photos] (prepared like the website's photos):
+  /// each photo is encrypted with its own key and uploaded first; their keys
+  /// go inside the encrypted message.
+  Future<void> send(String other, String text, {List<CarPhoto> photos = const []}) async {
     final d = _device ?? (throw StateError('Messages are not set up on this device yet.'));
     final clean = text.trim();
-    if (clean.isEmpty) return;
-    final temp = ChatMessage(id: 'tmp-${DateTime.now().microsecondsSinceEpoch}', from: me, to: other, text: clean, at: DateTime.now(), pending: true);
+    if (clean.isEmpty && photos.isEmpty) return;
+    final previews = <Map<String, dynamic>>[
+      for (var i = 0; i < photos.length; i++) {'id': 'local-${DateTime.now().microsecondsSinceEpoch}-$i'},
+    ];
+    for (var i = 0; i < photos.length; i++) {
+      _local[previews[i]['id'] as String] = photoBytes(photos[i].photo);
+    }
+    final temp = ChatMessage(
+        id: 'tmp-${DateTime.now().microsecondsSinceEpoch}', from: me, to: other, text: clean, at: DateTime.now(), pending: true, files: previews);
     (threads[other] ??= []).add(temp);
     notifyListeners();
     try {
-      final sealed = await d.seal(clean, senderId: me, recipientId: other, devices: await _devicesOf(other));
+      final files = <Map<String, dynamic>>[];
+      for (final p in photos) {
+        final bytes = photoBytes(p.photo);
+        final sealedFile = await sealFile(bytes);
+        final up = await _s.api.post('${Svc.sales}/chat/attachments', {'data': sealedFile.data});
+        final id = '${((up as Map)['data'] as Map)['id']}';
+        _local[id] = bytes;
+        files.add({'id': id, 'k': sealedFile.key, 'n': sealedFile.nonce, if (await tinyPreview(p.photo) case final th?) 'th': th});
+      }
+      final sealed = await d.seal(clean, senderId: me, recipientId: other, devices: await _devicesOf(other), files: files);
       final res = await _s.api.post('${Svc.sales}/chat/messages', {
         'recipient_id': other,
         'device_id': d.id,
@@ -212,7 +260,7 @@ class ChatService extends ChangeNotifier {
       final t = threads[other]!;
       t.remove(temp);
       if (!t.any((x) => x.id == saved['id'])) {
-        t.add(ChatMessage(id: '${saved['id']}', from: me, to: other, text: clean,
+        t.add(ChatMessage(id: '${saved['id']}', from: me, to: other, text: clean, files: files,
             at: DateTime.tryParse('${saved['created_at']}')?.toLocal() ?? temp.at));
       }
       t.sort((a, b) => a.at.compareTo(b.at));
@@ -252,7 +300,7 @@ class ChatService extends ChangeNotifier {
       final t = threads[other] ??= [];
       if (t.any((x) => x.id == msg.id)) return;
       // Our own message sent from this phone is already there (pending → saved).
-      if (msg.from == me && t.any((x) => x.pending && x.text == msg.text)) return;
+      if (msg.from == me && t.any((x) => x.pending && x.text == msg.text && x.files.length == msg.files.length)) return;
       t.add(msg);
       t.sort((a, b) => a.at.compareTo(b.at));
       if (msg.from != me) {

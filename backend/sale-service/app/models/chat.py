@@ -54,3 +54,16 @@ class ChatMessageKey(Base):
     device_id = Column(String, primary_key=True)
     wrapped = Column(String(128), nullable=False)          # base64(AES-GCM key + tag)
     nonce = Column(String(32), nullable=False)
+
+
+class ChatAttachment(Base):
+    """A photo sent in Messages, encrypted on the sender's device with its
+    own random key (AES-256-GCM). The key travels inside the (encrypted)
+    message, so this row alone can't be read by anyone, the server included."""
+    __tablename__ = "chat_attachments"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    shop_id = Column(String, nullable=False, index=True)
+    uploader_id = Column(String, nullable=False)
+    data = Column(Text, nullable=False)                   # base64(ciphertext + tag)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)

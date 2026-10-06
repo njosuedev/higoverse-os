@@ -137,40 +137,20 @@ class _SearchScreenState extends State<SearchScreen> {
           icon: const Icon(Icons.arrow_back_rounded),
           onPressed: () => Navigator.of(context).maybePop(),
         ),
-        title: TextField(
-          controller: _q,
-          focusNode: _focus,
-          autofocus: true,
-          onChanged: _changed,
-          textInputAction: TextInputAction.search,
-          onSubmitted: (_) {
-            _remember();
-            _run();
-          },
-          cursorColor: c.ink,
-          style: const TextStyle(fontSize: 17),
-          decoration: InputDecoration(
-            hintText: t('search.hint'),
-            hintStyle: TextStyle(color: c.faint, fontSize: 17),
-            filled: false,
-            border: InputBorder.none,
-            enabledBorder: InputBorder.none,
-            focusedBorder: InputBorder.none,
-            contentPadding: EdgeInsets.zero,
+        title: Padding(
+          padding: const EdgeInsets.only(right: 12),
+          child: SearchField(
+            controller: _q,
+            focusNode: _focus,
+            autofocus: true,
+            hint: t('search.hint'),
+            onChanged: _changed,
+            onSubmitted: (_) {
+              _remember();
+              _run();
+            },
           ),
         ),
-        actions: [
-          if (_q.text.isNotEmpty)
-            IconButton(
-              tooltip: t('app.clear'),
-              icon: const Icon(Icons.close_rounded),
-              onPressed: () {
-                _q.clear();
-                _changed('');
-                _focus.requestFocus();
-              },
-            ),
-        ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(50),
           child: Column(children: [

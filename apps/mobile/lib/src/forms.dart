@@ -399,7 +399,10 @@ bool customerComplete(Map<String, dynamic> c) =>
 
 /// Search the stock and pick one that can be sold.
 class ProductPickerScreen extends StatefulWidget {
-  const ProductPickerScreen({super.key});
+  const ProductPickerScreen({super.key, this.allowSoldOut = false});
+
+  /// Quotes (proformas) may list items that are sold out right now.
+  final bool allowSoldOut;
 
   @override
   State<ProductPickerScreen> createState() => _ProductPickerScreenState();
@@ -434,7 +437,7 @@ class _ProductPickerScreenState extends State<ProductPickerScreen> {
         'page': '1',
         'limit': '40',
         if (_q.text.trim().isNotEmpty) 'q': _q.text.trim(),
-        if (s.isCar) 'status': 'available',
+        if (s.isCar && !widget.allowSoldOut) 'status': 'available',
       });
       final data = (res as Map)['data'] as Map? ?? {};
       if (!mounted || gen != _gen) return;
@@ -452,16 +455,18 @@ class _ProductPickerScreenState extends State<ProductPickerScreen> {
     final items = _items;
     return Scaffold(
       appBar: AppBar(
-        title: TextField(
-          controller: _q,
-          autofocus: true,
-          textInputAction: TextInputAction.search,
-          onChanged: (_) {
-            _debounce?.cancel();
-            _debounce = Timer(const Duration(milliseconds: 300), _load);
-          },
-          decoration: InputDecoration(
-              hintText: s.isCar ? t('stock.search_car') : t('stock.search'), prefixIcon: const Icon(Icons.search)),
+        titleSpacing: 0,
+        title: Padding(
+          padding: const EdgeInsets.only(right: 12),
+          child: SearchField(
+            controller: _q,
+            autofocus: true,
+            hint: s.isCar ? t('stock.search_car') : t('stock.search'),
+            onChanged: (_) {
+              _debounce?.cancel();
+              _debounce = Timer(const Duration(milliseconds: 300), _load);
+            },
+          ),
         ),
       ),
       body: _error != null && items == null
@@ -477,7 +482,7 @@ class _ProductPickerScreenState extends State<ProductPickerScreen> {
                         final p = items[i];
                         final qty = _n(p['quantity']).toInt();
                         return ListTile(
-                          enabled: qty > 0,
+                          enabled: qty > 0 || widget.allowSoldOut,
                           onTap: () => Navigator.pop(context, p),
                           leading: ProductThumb(p['thumbnail'] as String?, isCar: s.isCar),
                           title: Text('${p['name'] ?? ''}',

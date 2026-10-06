@@ -93,11 +93,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
               ),
               Padding(
                 padding: const EdgeInsets.fromLTRB(12, 0, 12, 6),
-                child: TextField(
-                  controller: _q,
-                  onChanged: (_) => setState(() {}),
-                  decoration: InputDecoration(hintText: t('chat.search'), prefixIcon: const Icon(PhosphorIconsRegular.magnifyingGlass)),
-                ),
+                child: SearchField(controller: _q, hint: t('chat.search'), onChanged: (_) => setState(() {})),
               ),
               if (chat.error != null && chat.members.isEmpty)
                 EmptyState(icon: Icons.cloud_off_outlined, message: errorText(t, chat.error!), onRetry: _refresh)
@@ -147,7 +143,12 @@ class _PersonRow extends StatelessWidget {
     final unread = chat.unread[member.id] ?? 0;
     final preview = last == null
         ? roleLabel(t, member.role)
-        : [if (last.from == chat.me) t('chat.you'), last.text ?? t('chat.locked')].join(': ');
+        : [
+            if (last.from == chat.me) t('chat.you'),
+            last.text == null
+                ? t('chat.locked')
+                : (last.text!.isEmpty && last.files.isNotEmpty ? '📷 ${t('chat.photo_msg')}' : last.text!),
+          ].join(': ');
     return InkWell(
       onTap: () => pushScoped<void>(context, ChatScreen(member: member)),
       child: Padding(

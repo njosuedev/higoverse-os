@@ -98,6 +98,24 @@ Future<List<CarPhoto>> pickPhotos(BuildContext context, {required int room}) asy
   return out;
 }
 
+String? _tinyOf(String photo) {
+  final i = photo.indexOf(',');
+  if (i < 0) return null;
+  try {
+    final decoded = img.decodeImage(base64Decode(photo.substring(i + 1)));
+    return decoded == null ? null : _dataUrl(img.encodeJpg(_fit(decoded, 40), quality: 50));
+  } catch (_) {
+    return null;
+  }
+}
+
+/// A 40 px preview of a photo (about 1 KB): what Messages shows, blurred,
+/// until the photo itself has loaded.
+Future<String?> tinyPreview(String photo) => compute(_tinyOf, photo);
+
+/// The JPEG bytes inside a photo data URL.
+Uint8List photoBytes(String photo) => base64Decode(photo.substring(photo.indexOf(',') + 1));
+
 /// Reads the car's photos from the server, applies [change] to that fresh
 /// list (so photos someone else just added are kept), and saves the result
 /// with the matching thumbnail ([thumbs] holds ones already made, by photo).

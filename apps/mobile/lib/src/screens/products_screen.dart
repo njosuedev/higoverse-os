@@ -174,23 +174,10 @@ class _ProductsScreenState extends State<ProductsScreen> with LiveListener {
           color: Hgv.of(context).chrome,
           padding: const EdgeInsets.fromLTRB(10, 2, 10, 8),
           child: Column(children: [
-            TextField(
+            SearchField(
               controller: _search,
-              onChanged: _onSearch,
-              textInputAction: TextInputAction.search,
-              decoration: InputDecoration(
-                hintText: s.isCar ? t('stock.search_car') : t('stock.search'),
-                prefixIcon: const Icon(Icons.search),
-                suffixIcon: _search.text.isEmpty
-                    ? null
-                    : IconButton(
-                        tooltip: t('app.clear'),
-                        icon: const Icon(Icons.close),
-                        onPressed: () {
-                          _search.clear();
-                          _reload();
-                        }),
-              ),
+              hint: s.isCar ? t('stock.search_car') : t('stock.search'),
+              onChanged: (v) => v.isEmpty ? _reload() : _onSearch(v),
             ),
             if (s.isCar) ...[
               const SizedBox(height: 8),

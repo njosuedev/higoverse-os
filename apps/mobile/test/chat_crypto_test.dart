@@ -63,4 +63,22 @@ void main() {
     expect(RegExp(r'^\d{5}( \d{5}){5}$').hasMatch(a), isTrue);
     expect(a == await securityCode(['k1', 'k2', 'k4']), isFalse);
   });
+
+  test('photos: sealed on their own, keys inside the message', () async {
+    final a = await ChatDevice.fromSeed('d_a', List.filled(32, 5));
+    final b = await ChatDevice.fromSeed('d_b', List.filled(32, 6));
+    final photo = List<int>.generate(5000, (i) => i % 251);
+    final f = await sealFile(photo);
+    expect(await openFile(f.data, key: f.key, nonce: f.nonce), photo);
+    final bad = base64Decode(f.data)..[3] ^= 1;
+    expect(await openFile(base64Encode(bad), key: f.key, nonce: f.nonce), isNull, reason: 'tampered blob');
+    final s = await a.seal('', senderId: 'ua', recipientId: 'ub', devices: {b.id: b.publicKey},
+        files: [{'id': 'att1', 'k': f.key, 'n': f.nonce, 'w': 1280, 'h': 960}]);
+    final body = await b.openBody(ciphertext: s.ciphertext, nonce: s.nonce, wrapped: s.keys[b.id]!.wrapped, wrapNonce: s.keys[b.id]!.nonce,
+        senderDeviceId: a.id, senderPublicKey: a.publicKey, senderId: 'ua', recipientId: 'ub');
+    expect(body!.files.single['id'], 'att1');
+    expect(await openFile(f.data, key: body.files.single['k'] as String, nonce: body.files.single['n'] as String), photo);
+    final out = Platform.environment['HGV_FILE_FIXTURE'];
+    if (out != null) File(out).writeAsStringSync(jsonEncode({'data': f.data, 'key': f.key, 'nonce': f.nonce, 'len': photo.length}));
+  });
 }

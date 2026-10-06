@@ -1,7 +1,13 @@
+import 'dart:convert';
+import 'dart:ui' as ui;
+
+import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
+import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:phosphor_icons/phosphor_icons.dart';
 
+import '../car_photos.dart';
 import '../chat/chat_service.dart';
 import '../chat/crypto.dart';
 import '../format.dart';
@@ -14,7 +20,9 @@ import 'messages_screen.dart';
 
 /// One conversation: bubbles by day (mine on the right in blue), ✓ sent,
 /// ✓✓ read, older ones as you scroll up, and the security code behind the
-/// shield to check nobody is in the middle.
+/// shield to check nobody is in the middle. Photos (up to 4 a message,
+/// encrypted like the text) and emojis: the smiley swaps the keyboard for
+/// the emoji picker (categories, search, recent), as WhatsApp does.
 class ChatScreen extends StatefulWidget {
   const ChatScreen({super.key, required this.member});
   final Member member;
@@ -26,6 +34,12 @@ class ChatScreen extends StatefulWidget {
 class _ChatScreenState extends State<ChatScreen> {
   final _text = TextEditingController();
   final _scroll = ScrollController();
+  final _focus = FocusNode();
+  bool _emoji = false, _picking = false;
+
+  /// Photos chosen for the next message (up to 4).
+  final List<CarPhoto> _photos = [];
+  static const _maxPhotos = 4;
   late ChatService _chat;
   bool _more = true, _loading = false, _sending = false, _started = false;
 
@@ -47,6 +61,7 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   void dispose() {
     if (_chat.openWith == _with) _chat.openWith = null;
+    _focus.dispose();
     _text.dispose();
     _scroll.dispose();
     super.dispose();
@@ -68,17 +83,47 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Future<void> _send() async {
     final text = _text.text;
-    if (text.trim().isEmpty || _sending) return;
-    setState(() => _sending = true);
+    final photos = List<CarPhoto>.of(_photos);
+    if ((text.trim().isEmpty && photos.isEmpty) || _sending) return;
+    setState(() {
+      _sending = true;
+      _photos.clear();
+    });
     _text.clear();
     try {
-      await _chat.send(_with, text);
+      await _chat.send(_with, text, photos: photos);
       HapticFeedback.selectionClick();
     } catch (e) {
       _text.text = text;
+      setState(() => _photos.addAll(photos));
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(errorText(T.of(context), e))));
     } finally {
       if (mounted) setState(() => _sending = false);
+    }
+  }
+
+  Future<void> _attach() async {
+    if (_picking) return;
+    final room = _maxPhotos - _photos.length;
+    if (room <= 0) return;
+    setState(() => _picking = true);
+    try {
+      final picked = await pickPhotos(context, room: room);
+      if (mounted) setState(() => _photos.addAll(picked.take(room)));
+    } catch (_) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(T.of(context)('photo.unreadable'))));
+    } finally {
+      if (mounted) setState(() => _picking = false);
+    }
+  }
+
+  void _toggleEmoji() {
+    if (_emoji) {
+      setState(() => _emoji = false);
+      _focus.requestFocus();
+    } else {
+      _focus.unfocus();
+      setState(() => _emoji = true);
     }
   }
 
@@ -172,19 +217,61 @@ class _ChatScreenState extends State<ChatScreen> {
             },
           ),
         ),
+        if (_photos.isNotEmpty)
+          Container(
+            height: 86,
+            color: c.chrome,
+            padding: const EdgeInsets.fromLTRB(10, 8, 10, 4),
+            child: ListView(scrollDirection: Axis.horizontal, children: [
+              for (var i = 0; i < _photos.length; i++)
+                Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: Stack(children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: Image.memory(photoBytes(_photos[i].thumb), width: 74, height: 74, fit: BoxFit.cover),
+                    ),
+                    Positioned(
+                      top: 3,
+                      right: 3,
+                      child: InkWell(
+                        onTap: () => setState(() => _photos.removeAt(i)),
+                        child: Container(
+                          width: 22,
+                          height: 22,
+                          decoration: const BoxDecoration(shape: BoxShape.circle, color: Colors.black87),
+                          child: const Icon(Icons.close_rounded, size: 14, color: Colors.white),
+                        ),
+                      ),
+                    ),
+                  ]),
+                ),
+            ]),
+          ),
         SafeArea(
           top: false,
+          bottom: !_emoji,
           child: Container(
-            padding: const EdgeInsets.fromLTRB(10, 6, 8, 8),
+            padding: const EdgeInsets.fromLTRB(6, 6, 8, 8),
             decoration: BoxDecoration(color: c.chrome, border: Border(top: BorderSide(color: c.border, width: 0.6))),
             child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+              IconButton(
+                tooltip: t(_emoji ? 'chat.keyboard' : 'chat.emoji'),
+                onPressed: _toggleEmoji,
+                icon: Icon(_emoji ? PhosphorIconsRegular.keyboard : PhosphorIconsRegular.smiley, color: c.muted),
+              ),
               Expanded(
                 child: TextField(
                   controller: _text,
+                  focusNode: _focus,
                   minLines: 1,
                   maxLines: 5,
+                  onTap: () {
+                    if (_emoji) setState(() => _emoji = false);
+                  },
                   textCapitalization: TextCapitalization.sentences,
                   keyboardType: TextInputType.multiline,
+                  onChanged: (_) => setState(() {}),
                   decoration: InputDecoration(
                     hintText: t('chat.write'),
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(22), borderSide: BorderSide.none),
@@ -193,6 +280,13 @@ class _ChatScreenState extends State<ChatScreen> {
                     filled: true,
                     fillColor: c.paper,
                     contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                    suffixIcon: IconButton(
+                      tooltip: t('chat.photo'),
+                      onPressed: _photos.length < _maxPhotos && !_picking ? _attach : null,
+                      icon: _picking
+                          ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                          : Icon(PhosphorIconsRegular.image, color: c.muted),
+                    ),
                   ),
                 ),
               ),
@@ -206,6 +300,37 @@ class _ChatScreenState extends State<ChatScreen> {
             ]),
           ),
         ),
+        if (_emoji)
+          SizedBox(
+            height: 280 + MediaQuery.paddingOf(context).bottom,
+            child: EmojiPicker(
+              textEditingController: _text,
+              onEmojiSelected: (_, __) => setState(() {}),
+              config: Config(
+                height: 280,
+                checkPlatformCompatibility: true,
+                emojiViewConfig: EmojiViewConfig(
+                  backgroundColor: c.chrome,
+                  columns: 8,
+                  emojiSizeMax: 28 * (defaultTargetPlatform == TargetPlatform.iOS ? 1.2 : 1.0),
+                  noRecents: Text(t('chat.no_recent'), style: TextStyle(color: c.faint)),
+                ),
+                categoryViewConfig: CategoryViewConfig(
+                  backgroundColor: c.chrome,
+                  indicatorColor: c.ink,
+                  iconColorSelected: c.ink,
+                  iconColor: c.faint,
+                  backspaceColor: c.ink,
+                ),
+                bottomActionBarConfig: BottomActionBarConfig(
+                  backgroundColor: c.chrome,
+                  buttonColor: c.chrome,
+                  buttonIconColor: c.muted,
+                ),
+                searchViewConfig: SearchViewConfig(backgroundColor: c.chrome, buttonIconColor: c.muted, hintText: t('chat.emoji_search')),
+              ),
+            ),
+          ),
       ]),
     );
   }
@@ -249,7 +374,7 @@ class _Bubble extends StatelessWidget {
         constraints: BoxConstraints(maxWidth: MediaQuery.sizeOf(context).width * 0.78),
         child: Container(
           margin: const EdgeInsets.symmetric(vertical: 2),
-          padding: const EdgeInsets.fromLTRB(12, 8, 10, 6),
+          padding: m.files.isNotEmpty ? const EdgeInsets.fromLTRB(4, 4, 8, 6) : const EdgeInsets.fromLTRB(12, 8, 10, 6),
           decoration: BoxDecoration(
             color: mine ? c.ink : c.paper,
             borderRadius: BorderRadius.only(
@@ -260,9 +385,13 @@ class _Bubble extends StatelessWidget {
             ),
           ),
           child: Column(crossAxisAlignment: CrossAxisAlignment.end, mainAxisSize: MainAxisSize.min, children: [
-            if (m.text != null)
+            if (m.files.isNotEmpty) ...[
+              _PhotoGrid(files: m.files),
+              if ((m.text ?? '').isNotEmpty) const SizedBox(height: 6),
+            ],
+            if (m.text != null && m.text!.isNotEmpty)
               SelectableText(m.text!, style: TextStyle(fontSize: 15, height: 1.3, color: fg))
-            else
+            else if (m.text == null)
               Row(mainAxisSize: MainAxisSize.min, children: [
                 Icon(PhosphorIconsRegular.lockSimple, size: 14, color: fg.withValues(alpha: 0.7)),
                 const SizedBox(width: 5),
@@ -285,6 +414,108 @@ class _Bubble extends StatelessWidget {
             ]),
           ]),
         ),
+      ),
+    );
+  }
+}
+
+/// A message's photos: one large, or a 2-column grid; each shown blurred
+/// from its tiny preview until it has been fetched and opened on this phone.
+class _PhotoGrid extends StatelessWidget {
+  const _PhotoGrid({required this.files});
+  final List<Map<String, dynamic>> files;
+
+  @override
+  Widget build(BuildContext context) {
+    final w = MediaQuery.sizeOf(context).width * 0.7;
+    final one = files.length == 1;
+    final size = one ? w : (w - 4) / 2;
+    return SizedBox(
+      width: w,
+      child: Wrap(spacing: 4, runSpacing: 4, children: [
+        for (var i = 0; i < files.length; i++)
+          GestureDetector(
+            onTap: () => Navigator.of(context).push(PageRouteBuilder<void>(
+              opaque: false,
+              pageBuilder: (_, __, ___) => _PhotoView(files: files, initial: i),
+              transitionsBuilder: (_, a, __, child) => FadeTransition(opacity: a, child: child),
+            )),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(14),
+              child: SizedBox(width: size, height: one ? w * 0.75 : size, child: _ChatPhoto(file: files[i])),
+            ),
+          ),
+      ]),
+    );
+  }
+}
+
+class _ChatPhoto extends StatelessWidget {
+  const _ChatPhoto({required this.file, this.fit = BoxFit.cover});
+  final Map<String, dynamic> file;
+  final BoxFit fit;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = Hgv.of(context);
+    final chat = ChatService.of(SessionScope.of(context));
+    final th = file['th'] is String ? file['th'] as String : null;
+    final preview = th == null
+        ? ColoredBox(color: c.paper)
+        : ImageFiltered(imageFilter: ui.ImageFilter.blur(sigmaX: 6, sigmaY: 6), child: Image.memory(photoBytes(th), fit: BoxFit.cover));
+    return FutureBuilder<Uint8List?>(
+      future: chat.photo(file),
+      builder: (context, snap) {
+        if (snap.data != null) return Image.memory(snap.data!, fit: fit, gaplessPlayback: true);
+        return Stack(fit: StackFit.expand, children: [
+          preview,
+          if (snap.connectionState != ConnectionState.done)
+            const Center(child: SizedBox(width: 26, height: 26, child: CircularProgressIndicator(strokeWidth: 2.4, color: Colors.white)))
+          else
+            Center(child: Icon(PhosphorIconsRegular.lockSimple, color: c.faint)),
+        ]);
+      },
+    );
+  }
+}
+
+/// Full screen, swipe between the message's photos, save one to the phone.
+class _PhotoView extends StatefulWidget {
+  const _PhotoView({required this.files, required this.initial});
+  final List<Map<String, dynamic>> files;
+  final int initial;
+
+  @override
+  State<_PhotoView> createState() => _PhotoViewState();
+}
+
+class _PhotoViewState extends State<_PhotoView> {
+  late int _i = widget.initial;
+
+  Future<void> _save() async {
+    final t = T.of(context);
+    final bytes = await ChatService.of(SessionScope.of(context)).photo(widget.files[_i]);
+    if (bytes == null || !mounted) return;
+    final ok = await savePhotoToPhone('data:image/jpeg;base64,${base64Encode(bytes)}');
+    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(t(ok ? 'photo.saved_to_phone' : 'photo.save_to_phone_failed'))));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = T.of(context);
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        foregroundColor: Colors.white,
+        title: widget.files.length > 1 ? Text('${_i + 1} / ${widget.files.length}', style: const TextStyle(color: Colors.white)) : null,
+        actions: [IconButton(tooltip: t('photo.save_to_phone'), onPressed: _save, icon: const Icon(PhosphorIconsRegular.downloadSimple))],
+      ),
+      body: PageView.builder(
+        controller: PageController(initialPage: widget.initial),
+        itemCount: widget.files.length,
+        onPageChanged: (i) => setState(() => _i = i),
+        itemBuilder: (_, i) => InteractiveViewer(child: Center(child: _ChatPhoto(file: widget.files[i], fit: BoxFit.contain))),
       ),
     );
   }

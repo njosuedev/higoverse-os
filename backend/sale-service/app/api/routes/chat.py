@@ -8,6 +8,8 @@ POST /chat/messages                    send (ciphertext + key per device)
 GET  /chat/messages?with=&device_id=   a conversation, newest first
 GET  /chat/conversations?device_id=    last message and unread count per person
 POST /chat/read                        mark a conversation read
+POST /chat/attachments                 store an encrypted photo  → its id
+GET  /chat/attachments/{id}            the encrypted photo (same business only)
 
 Live: "chat.message" and "chat.read" go only to the two people concerned.
 """
@@ -21,12 +23,13 @@ from sqlalchemy.orm import Session
 from app.core.events import emit
 from app.core.security import get_current_user
 from app.db.database import get_db
-from app.models.chat import ChatDevice, ChatMessage, ChatMessageKey
+from app.models.chat import ChatAttachment, ChatDevice, ChatMessage, ChatMessageKey
 
 router = APIRouter(prefix="/chat", tags=["Messages"])
 
 _MAX_TEXT = 24_000   # base64 of a few thousand characters of text
 _MAX_KEYS = 24       # devices a message can be wrapped for
+_MAX_FILE = 4_000_000  # base64 of an encrypted photo (~3 MB; phones send ~300 KB)
 
 
 class DeviceIn(BaseModel):
@@ -47,6 +50,10 @@ class MessageIn(BaseModel):
     ciphertext: str = Field(..., max_length=_MAX_TEXT)
     nonce: str = Field(..., max_length=32)
     keys: list[WrappedKey] = Field(..., min_length=1, max_length=_MAX_KEYS)
+
+
+class AttachmentIn(BaseModel):
+    data: str = Field(..., min_length=16, max_length=_MAX_FILE)
 
 
 class ReadIn(BaseModel):
@@ -213,3 +220,20 @@ def mark_read(payload: ReadIn, db: Session = Depends(get_db), user: dict = Depen
         emit(db, user, "chat.read", {"by": me, "with": payload.with_user, "at": now.isoformat()}, to=[me, payload.with_user])
     db.commit()
     return {"success": True, "data": {"read": n}}
+
+
+@router.post("/attachments")
+def upload_attachment(payload: AttachmentIn, db: Session = Depends(get_db), user: dict = Depends(get_current_user)):
+    shop, me = _shop(user), str(user["user_id"])
+    a = ChatAttachment(shop_id=shop, uploader_id=me, data=payload.data)
+    db.add(a)
+    db.commit()
+    return {"success": True, "data": {"id": a.id}}
+
+
+@router.get("/attachments/{attachment_id}")
+def get_attachment(attachment_id: str, db: Session = Depends(get_db), user: dict = Depends(get_current_user)):
+    a = db.query(ChatAttachment).filter(ChatAttachment.id == attachment_id, ChatAttachment.shop_id == _shop(user)).first()
+    if not a:
+        raise HTTPException(status_code=404, detail="Photo not found.")
+    return {"success": True, "data": {"id": a.id, "data": a.data}}

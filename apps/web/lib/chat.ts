@@ -10,10 +10,11 @@ import { useSyncExternalStore } from "react";
 import { authFetch, refreshAccessToken } from "@/lib/session";
 import { getToken, getUser } from "@/lib/auth";
 import { AUTH_API, SALE_API } from "@/lib/api-config";
-import { loadDevice, open, seal, securityCode, supported, type Device } from "@/lib/chat-crypto";
+import { loadDevice, openBody, openFile, seal, sealFile, securityCode, supported, unb64, type Device, type FileRef } from "@/lib/chat-crypto";
+import { compressImage, shrinkDataUrl } from "@/lib/image";
 
 export interface Member { id: string; name: string; role: string; is_active: boolean; email?: string }
-export interface Msg { id: string; from: string; to: string; text: string | null; at: string; readAt: string | null; pending?: boolean }
+export interface Msg { id: string; from: string; to: string; text: string | null; at: string; readAt: string | null; pending?: boolean; files?: FileRef[] }
 interface Raw {
   id: string; sender_id: string; recipient_id: string; sender_device_id: string; sender_public_key: string | null;
   ciphertext: string; nonce: string; created_at: string; read_at: string | null; key: { wrapped: string; nonce: string } | null;
@@ -98,14 +99,14 @@ export async function loadTeam() {
 
 async function decrypt(m: Raw): Promise<Msg> {
   const k = (m.keys && device ? m.keys[device.id] : null) ?? m.key;
-  let text: string | null = null;
+  let body: { text: string; files: FileRef[] } | null = null;
   if (device && k && m.sender_public_key) {
-    text = await open(device, {
+    body = await openBody(device, {
       ciphertext: m.ciphertext, nonce: m.nonce, wrapped: k.wrapped, wrapNonce: k.nonce,
       senderDeviceId: m.sender_device_id, senderPublicKey: m.sender_public_key, senderId: m.sender_id, recipientId: m.recipient_id,
     });
   }
-  return { id: m.id, from: m.sender_id, to: m.recipient_id, text, at: m.created_at, readAt: m.read_at };
+  return { id: m.id, from: m.sender_id, to: m.recipient_id, text: body?.text ?? null, files: body?.files ?? [], at: m.created_at, readAt: m.read_at };
 }
 
 const byTime = (a: Msg, b: Msg) => a.at.localeCompare(b.at);
@@ -161,14 +162,58 @@ export async function codeWith(other: string) {
   return securityCode(Object.values(await devicesOf(other)));
 }
 
-export async function send(other: string, text: string) {
+// ── Photos ───────────────────────────────────────────────────────────────
+const photoUrls = new Map<string, Promise<string | null>>();
+const dataUrlBytes = (u: string) => unb64(u.slice(u.indexOf(",") + 1));
+
+/** A message's photo as an object URL: fetched encrypted, opened here. */
+export function photoUrl(f: FileRef): Promise<string | null> {
+  let p = photoUrls.get(f.id);
+  if (!p) {
+    p = (async () => {
+      try {
+        const d = (await chatApi(`/attachments/${f.id}`)) as { data: string };
+        const bytes = await openFile(d.data, f.k, f.n);
+        return bytes ? URL.createObjectURL(new Blob([bytes as BlobPart], { type: "image/jpeg" })) : null;
+      } catch {
+        photoUrls.delete(f.id);
+        return null;
+      }
+    })();
+    photoUrls.set(f.id, p);
+  }
+  return p;
+}
+
+export const MAX_PHOTOS = 4;
+
+/** Sends [text] and up to 4 photos: each is resized like product photos
+ *  (1280 px), encrypted with its own key and uploaded first; their keys go
+ *  inside the encrypted message, as WhatsApp does. */
+export async function send(other: string, text: string, images: File[] = []) {
   const clean = text.trim();
-  if (!clean || !device) return;
-  const temp: Msg = { id: `tmp-${Date.now()}`, from: state.me, to: other, text: clean, at: new Date().toISOString(), readAt: null, pending: true };
+  if ((!clean && images.length === 0) || !device) return;
+  const prepared = await Promise.all(images.slice(0, MAX_PHOTOS).map(async (file) => {
+    const photo = await compressImage(file, 1280, 0.78);
+    return { photo, tiny: await shrinkDataUrl(photo, 40, 0.5).catch(() => "") };
+  }));
+  const localRefs: FileRef[] = prepared.map((p, i) => {
+    const id = `local-${Date.now()}-${i}`;
+    photoUrls.set(id, Promise.resolve(p.photo));
+    return { id, k: "", n: "", th: p.tiny || undefined };
+  });
+  const temp: Msg = { id: `tmp-${Date.now()}`, from: state.me, to: other, text: clean, at: new Date().toISOString(), readAt: null, pending: true, files: localRefs };
   merge(other, [temp]);
   const drop = () => set({ threads: { ...state.threads, [other]: (state.threads[other] ?? []).filter((m) => m.id !== temp.id) } });
   try {
-    const sealed = await seal(device, clean, state.me, other, await devicesOf(other));
+    const files: FileRef[] = [];
+    for (const p of prepared) {
+      const sf = await sealFile(dataUrlBytes(p.photo));
+      const up = (await chatApi("/attachments", { method: "POST", body: JSON.stringify({ data: sf.data }) })) as { id: string };
+      photoUrls.set(up.id, Promise.resolve(p.photo));
+      files.push({ id: up.id, k: sf.key, n: sf.nonce, ...(p.tiny ? { th: p.tiny } : {}) });
+    }
+    const sealed = await seal(device, clean, state.me, other, await devicesOf(other), files);
     const saved = (await chatApi("/messages", {
       method: "POST",
       body: JSON.stringify({
@@ -177,7 +222,7 @@ export async function send(other: string, text: string) {
       }),
     })) as Raw;
     drop();
-    merge(other, [{ id: saved.id, from: state.me, to: other, text: clean, at: saved.created_at, readAt: null }]);
+    merge(other, [{ id: saved.id, from: state.me, to: other, text: clean, files, at: saved.created_at, readAt: null }]);
   } catch (e) {
     drop();
     throw e;
@@ -254,7 +299,7 @@ async function onMessage(raw: Raw) {
   const m = await decrypt(raw);
   const list = state.threads[other] ?? [];
   if (list.some((x) => x.id === m.id)) return;
-  if (m.from === state.me && list.some((x) => x.pending && x.text === m.text)) return;
+  if (m.from === state.me && list.some((x) => x.pending && x.text === m.text && (x.files?.length ?? 0) === (m.files?.length ?? 0))) return;
   merge(other, [m]);
   if (m.from !== state.me) {
     if (openWith === other && typeof document !== "undefined" && document.visibilityState === "visible") {
@@ -278,7 +323,7 @@ function notifyNew(from: string, text: string | null) {
   if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
   const name = state.members.find((m) => m.id === from)?.name ?? "Higoverse";
   try {
-    const n = new Notification(name, { body: text ?? "New message", tag: `chat-${from}`, icon: "/icon.png" });
+    const n = new Notification(name, { body: text || "📷", tag: `chat-${from}`, icon: "/icon.png" });
     n.onclick = () => { window.focus(); window.location.href = `/messages?with=${from}`; };
   } catch { /* not allowed here */ }
 }

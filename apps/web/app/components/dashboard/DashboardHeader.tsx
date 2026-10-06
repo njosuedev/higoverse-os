@@ -149,11 +149,13 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
 
         {/* ── RIGHT: search and account menu ── */}
         <div className="flex items-center justify-end gap-2">
+          {/* Search: a quiet, rounded field (the full search opens over the page). */}
           <button type="button" onClick={() => window.dispatchEvent(new Event(OPEN_SEARCH_EVENT))}
             title={t("search.hint")} aria-label={t("search.hint")}
-            className="flex h-9 items-center gap-2 rounded-full bg-paper-dim px-3 text-text-muted transition-colors duration-200 hover:text-text">
-            <Search size={16} />
-            <span className="hidden text-xs font-semibold lg:inline">Ctrl K</span>
+            className="group flex h-9 items-center gap-2 rounded-full border border-transparent bg-paper-dim px-2.5 text-text-faint transition-colors duration-200 hover:border-border-strong hover:text-text-muted lg:w-56 lg:px-3.5 xl:w-64">
+            <Search size={16} className="shrink-0" />
+            <span className="hidden flex-1 truncate text-left text-sm lg:inline">{t("search.short")}</span>
+            <kbd className="hidden rounded-md border border-border bg-white px-1.5 py-0.5 font-sans text-[10px] font-semibold text-text-faint lg:inline">Ctrl K</kbd>
           </button>
           <GlobalSearch />
 

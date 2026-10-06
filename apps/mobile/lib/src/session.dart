@@ -26,19 +26,25 @@ class User {
 }
 
 class Shop {
-  Shop({required this.id, required this.name, required this.layout, this.logoUrl});
+  Shop({required this.id, required this.name, required this.layout, this.logoUrl, this.phone = '', this.email = '', this.address = ''});
 
   factory Shop.fromJson(Map<String, dynamic> j) => Shop(
         id: '${j['id'] ?? ''}',
         name: '${j['name'] ?? ''}',
         layout: '${j['layout'] ?? 'retail'}',
         logoUrl: (j['logo_url'] as String?)?.trim().isNotEmpty == true ? j['logo_url'] as String : null,
+        phone: '${j['phone'] ?? ''}'.trim(),
+        email: '${j['email'] ?? ''}'.trim(),
+        address: '${j['address'] ?? ''}'.trim(),
       );
 
   final String id, name, layout;
 
   /// The business logo: an https URL or a data: URL (set on the website).
   final String? logoUrl;
+
+  /// Contact details (on proforma invoices).
+  final String phone, email, address;
 }
 
 /// The signed-in account: tokens, user, shop and shop settings.
@@ -62,6 +68,9 @@ class Session extends ChangeNotifier implements TokenSource {
   Shop? shop;
   String currency = 'RWF';
   int lowStock = 10;
+
+  /// Tax rate (%) from the website's settings, for proforma invoices.
+  num taxRate = 0;
 
   /// Language saved on the account (website settings); used until a language
   /// is picked on this phone.
@@ -128,6 +137,7 @@ class Session extends ChangeNotifier implements TokenSource {
       final d = st['data'] as Map;
       currency = (d['currency'] as String?)?.trim().isNotEmpty == true ? d['currency'] as String : 'RWF';
       lowStock = int.tryParse('${d['low_stock_threshold']}') ?? 10;
+      taxRate = num.tryParse('${d['tax_rate']}') ?? 0;
       accountLanguage = d['language'] as String?;
     }
     notifyListeners();

@@ -17,6 +17,10 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 ///   device, device) → HKDF-SHA256 (salt "hgv-chat-wrap-v1", info
 ///   `<sender device id>|<device id>`) → AES-256-GCM with its own random
 ///   nonce, associated data = the message's nonce (base64).
+/// * Photos: each file is encrypted on its own with a fresh random key and
+///   nonce (AES-256-GCM, associated data `hgv-chat-file-v1`) and stored as
+///   an opaque blob; its id, key, nonce, size and a tiny preview travel inside
+///   the encrypted message (`a` next to the text `t`), as WhatsApp does.
 /// * The server only ever stores ciphertexts, nonces and public keys.
 
 final _x25519 = X25519();
@@ -28,6 +32,39 @@ const _salt = 'hgv-chat-wrap-v1';
 Uint8List _random(int n) => Uint8List.fromList(List<int>.generate(n, (_) => _rand.nextInt(256)));
 String _b64(List<int> b) => base64Encode(b);
 Uint8List _unb64(String s) => base64Decode(s);
+
+/// A photo encrypted for upload: the blob for the server, the key and nonce
+/// for the message.
+class SealedFile {
+  SealedFile({required this.data, required this.key, required this.nonce});
+  final String data, key, nonce;
+}
+
+/// Encrypts a file with its own fresh key.
+Future<SealedFile> sealFile(List<int> bytes) async {
+  final key = _random(32), nonce = _random(12);
+  final box = await _aes.encrypt(bytes, secretKey: SecretKey(key), nonce: nonce, aad: utf8.encode('hgv-chat-file-v1'));
+  return SealedFile(data: _b64([...box.cipherText, ...box.mac.bytes]), key: _b64(key), nonce: _b64(nonce));
+}
+
+/// The file's bytes, or null when it doesn't open (wrong key, tampered).
+Future<Uint8List?> openFile(String data, {required String key, required String nonce}) async {
+  try {
+    final c = _unb64(data);
+    final clear = await _aes.decrypt(
+      SecretBox(c.sublist(0, c.length - 16), nonce: _unb64(nonce), mac: Mac(c.sublist(c.length - 16))),
+      secretKey: SecretKey(_unb64(key)),
+      aad: utf8.encode('hgv-chat-file-v1'),
+    );
+    return Uint8List.fromList(clear);
+  } catch (_) {
+    return null;
+  }
+}
+
+/// What a message holds once opened: its text and its photos (each a map
+/// with id, k(ey), n(once), w, h and th, a tiny preview data URL).
+typedef ChatBody = ({String text, List<Map<String, dynamic>> files});
 
 /// The parts of a sealed message as the API takes them.
 class Sealed {
@@ -84,9 +121,13 @@ class ChatDevice {
 
   /// Encrypts [text] from [senderId] to [recipientId], with the key wrapped
   /// for every device in [devices] (device id → public key).
-  Future<Sealed> seal(String text, {required String senderId, required String recipientId, required Map<String, String> devices}) async {
+  Future<Sealed> seal(String text,
+      {required String senderId,
+      required String recipientId,
+      required Map<String, String> devices,
+      List<Map<String, dynamic>> files = const []}) async {
     final key = _random(32), nonce = _random(12);
-    final box = await _aes.encrypt(utf8.encode(jsonEncode({'t': text})),
+    final box = await _aes.encrypt(utf8.encode(jsonEncode({'t': text, if (files.isNotEmpty) 'a': files})),
         secretKey: SecretKey(key), nonce: nonce, aad: utf8.encode('hgv-chat-v1|$senderId|$recipientId'));
     final nonceB64 = _b64(nonce);
     final keys = <String, ({String wrapped, String nonce})>{};
@@ -101,6 +142,29 @@ class ChatDevice {
   /// The text of a message to or from this device; null when it can't be
   /// read here (sent before this device was set up, or tampered with).
   Future<String?> open({
+    required String ciphertext,
+    required String nonce,
+    required String wrapped,
+    required String wrapNonce,
+    required String senderDeviceId,
+    required String senderPublicKey,
+    required String senderId,
+    required String recipientId,
+  }) async =>
+      (await openBody(
+        ciphertext: ciphertext,
+        nonce: nonce,
+        wrapped: wrapped,
+        wrapNonce: wrapNonce,
+        senderDeviceId: senderDeviceId,
+        senderPublicKey: senderPublicKey,
+        senderId: senderId,
+        recipientId: recipientId,
+      ))
+          ?.text;
+
+  /// The text and photos of a message; null when it can't be read here.
+  Future<ChatBody?> openBody({
     required String ciphertext,
     required String nonce,
     required String wrapped,
@@ -124,7 +188,9 @@ class ChatDevice {
         aad: utf8.encode('hgv-chat-v1|$senderId|$recipientId'),
       );
       final j = jsonDecode(utf8.decode(clear));
-      return j is Map && j['t'] is String ? j['t'] as String : null;
+      if (j is! Map || j['t'] is! String) return null;
+      final files = [for (final f in (j['a'] is List ? j['a'] as List : const [])) if (f is Map) Map<String, dynamic>.from(f)];
+      return (text: j['t'] as String, files: files);
     } catch (_) {
       return null;
     }

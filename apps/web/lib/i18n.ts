@@ -11,6 +11,18 @@ export const LANGUAGES: { code: Lang; label: string; flag: string }[] = [
 const dict: Record<Lang, Record<string, string>> = {
   // ─── ENGLISH ─────────────────────────────────────────────
   en: {
+    "search.short": "Search…",
+    "chat.emoji": "Emoji",
+    "chat.emoji_search": "Search emoji",
+    "chat.recent": "Recent",
+    "chat.emoji_none": "No emoji found",
+    "chat.em_smileys": "Smileys",
+    "chat.em_gestures": "Gestures",
+    "chat.em_business": "Business",
+    "chat.em_objects": "Objects",
+    "chat.em_symbols": "Symbols",
+    "chat.photo": "Photo",
+    "photo.download": "Download",
     "nav.messages": "Messages",
     "chat.title": "Messages",
     "chat.e2e": "End-to-end encrypted. Only you and the person you write to can read them.",
@@ -1357,6 +1369,18 @@ const dict: Record<Lang, Record<string, string>> = {
 
   // ─── KINYARWANDA ─────────────────────────────────────────
   rw: {
+    "search.short": "Shakisha…",
+    "chat.emoji": "Emoji",
+    "chat.emoji_search": "Shaka emoji",
+    "chat.recent": "Ziheruka",
+    "chat.emoji_none": "Nta emoji ibonetse",
+    "chat.em_smileys": "Isura",
+    "chat.em_gestures": "Ibimenyetso by'intoki",
+    "chat.em_business": "Ubucuruzi",
+    "chat.em_objects": "Ibintu",
+    "chat.em_symbols": "Ibimenyetso",
+    "chat.photo": "Ifoto",
+    "photo.download": "Kuramo",
     "nav.messages": "Ubutumwa",
     "chat.title": "Ubutumwa",
     "chat.e2e": "Bufunze kuva ku wohereje kugeza ku wakiriye. Ni wowe n'uwo wandikiye mwenyine mubusoma.",
@@ -2687,6 +2711,18 @@ const dict: Record<Lang, Record<string, string>> = {
 
   // ─── FRANÇAIS ────────────────────────────────────────────
   fr: {
+    "search.short": "Rechercher…",
+    "chat.emoji": "Emoji",
+    "chat.emoji_search": "Rechercher un emoji",
+    "chat.recent": "Récents",
+    "chat.emoji_none": "Aucun emoji trouvé",
+    "chat.em_smileys": "Smileys",
+    "chat.em_gestures": "Gestes",
+    "chat.em_business": "Commerce",
+    "chat.em_objects": "Objets",
+    "chat.em_symbols": "Symboles",
+    "chat.photo": "Photo",
+    "photo.download": "Télécharger",
     "nav.messages": "Messages",
     "chat.title": "Messages",
     "chat.e2e": "Chiffrés de bout en bout. Seuls vous et votre correspondant pouvez les lire.",
@@ -4017,6 +4053,18 @@ const dict: Record<Lang, Record<string, string>> = {
 
   // ─── KISWAHILI ───────────────────────────────────────────
   sw: {
+    "search.short": "Tafuta…",
+    "chat.emoji": "Emoji",
+    "chat.emoji_search": "Tafuta emoji",
+    "chat.recent": "Za karibuni",
+    "chat.emoji_none": "Hakuna emoji iliyopatikana",
+    "chat.em_smileys": "Nyuso",
+    "chat.em_gestures": "Ishara",
+    "chat.em_business": "Biashara",
+    "chat.em_objects": "Vitu",
+    "chat.em_symbols": "Alama",
+    "chat.photo": "Picha",
+    "photo.download": "Pakua",
     "nav.messages": "Ujumbe",
     "chat.title": "Ujumbe",
     "chat.e2e": "Imesimbwa kutoka mwanzo hadi mwisho. Ni wewe na unayemwandikia tu mnaoweza kuusoma.",
@@ -5347,6 +5395,18 @@ const dict: Record<Lang, Record<string, string>> = {
 
   // ─── 中文（简体） ────────────────────────────────────────
   zh: {
+    "search.short": "搜索…",
+    "chat.emoji": "表情",
+    "chat.emoji_search": "搜索表情",
+    "chat.recent": "最近",
+    "chat.emoji_none": "没有找到表情",
+    "chat.em_smileys": "笑脸",
+    "chat.em_gestures": "手势",
+    "chat.em_business": "商务",
+    "chat.em_objects": "物品",
+    "chat.em_symbols": "符号",
+    "chat.photo": "照片",
+    "photo.download": "下载",
     "nav.messages": "消息",
     "chat.title": "消息",
     "chat.e2e": "端到端加密。只有你和对方可以阅读。",

@@ -8,9 +8,11 @@
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, Check, CheckCheck, Clock, Lock, MessageCircle, Search, Send, ShieldCheck, UserPlus } from "lucide-react";
+import { ArrowLeft, Check, CheckCheck, Clock, Download, ImagePlus, Lock, MessageCircle, Search, Send, ShieldCheck, Smile, UserPlus, X } from "lucide-react";
+import EmojiPicker from "@/app/components/EmojiPicker";
+import type { FileRef } from "@/lib/chat-crypto";
 import { useLanguage } from "@/lib/language-context";
-import { codeWith, loadThread, send, setOpenConversation, startChat, unreadTotal, useChat, type Member, type Msg } from "@/lib/chat";
+import { codeWith, loadThread, MAX_PHOTOS, photoUrl, send, setOpenConversation, startChat, unreadTotal, useChat, type Member, type Msg } from "@/lib/chat";
 import { notify } from "@/lib/dialogs";
 
 const AVATAR = ["#0a66c2", "#7a3e9d", "#057642", "#b24020", "#00788a", "#915907", "#5e5ce6", "#c3277a"];
@@ -107,7 +109,8 @@ function MessagesInner() {
           {people.map((m) => {
             const last = chat.threads[m.id]?.at(-1);
             const unread = chat.unread[m.id] ?? 0;
-            const preview = last ? `${last.from === chat.me ? `${t("chat.you")}: ` : ""}${last.text ?? t("chat.locked")}` : roleOf(m.role);
+            const body = last ? (last.text == null ? t("chat.locked") : last.text || (last.files?.length ? `📷 ${t("chat.photo")}` : "")) : "";
+            const preview = last ? `${last.from === chat.me ? `${t("chat.you")}: ` : ""}${body}` : roleOf(m.role);
             return (
               <button key={m.id} type="button" onClick={() => router.push(`/messages?with=${m.id}`)}
                 className={`flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors ${selected === m.id ? "bg-paper-dim" : "hover:bg-paper-dim"}`}>
@@ -153,7 +156,23 @@ function Conversation({ person, online }: { person: Member; online: boolean }) {
   const [sending, setSending] = useState(false);
   const [more, setMore] = useState(true);
   const [code, setCode] = useState<string | null>(null);
+  const [emoji, setEmoji] = useState(false);
+  const [photos, setPhotos] = useState<{ file: File; url: string }[]>([]);
+  const [viewing, setViewing] = useState<FileRef | null>(null);
   const box = useRef<HTMLDivElement>(null);
+  const input = useRef<HTMLTextAreaElement>(null);
+  const picker = useRef<HTMLInputElement>(null);
+
+  function addPhotos(files: FileList | File[] | null) {
+    const list = Array.from(files ?? []).filter((f) => f.type.startsWith("image/"));
+    setPhotos((cur) => [...cur, ...list.map((file) => ({ file, url: URL.createObjectURL(file) }))].slice(0, MAX_PHOTOS));
+  }
+  function insertEmoji(e: string) {
+    const el = input.current;
+    const at = el?.selectionStart ?? text.length;
+    setText((v) => v.slice(0, at) + e + v.slice(el?.selectionEnd ?? at));
+    requestAnimationFrame(() => { el?.focus(); el?.setSelectionRange(at + e.length, at + e.length); });
+  }
   const msgs = chat.threads[person.id] ?? [];
 
   useEffect(() => {
@@ -165,10 +184,13 @@ function Conversation({ person, online }: { person: Member; online: boolean }) {
 
   async function doSend() {
     const v = text;
-    if (!v.trim() || sending) return;
+    const pics = photos;
+    if ((!v.trim() && pics.length === 0) || sending) return;
     setSending(true);
     setText("");
-    try { await send(person.id, v); } catch (e) { setText(v); notify(e instanceof Error ? e.message : String(e)); } finally { setSending(false); }
+    setPhotos([]);
+    setEmoji(false);
+    try { await send(person.id, v, pics.map((p) => p.file)); } catch (e) { setText(v); setPhotos(pics); notify(e instanceof Error ? e.message : String(e)); } finally { setSending(false); }
   }
 
   const dayOf = (iso: string) => new Date(iso).toDateString();
@@ -211,9 +233,14 @@ function Conversation({ person, online }: { person: Member; online: boolean }) {
               <div className={`my-0.5 flex ${mine ? "justify-end" : "justify-start"}`}>
                 <div className={`max-w-[75%] px-3 pb-1.5 pt-2 text-[14.5px] leading-snug ${mine
                   ? "rounded-2xl rounded-br-md bg-[#0095f6] text-white" : "rounded-2xl rounded-bl-md bg-white text-text shadow-sm"}`}>
-                  {m.text != null
-                    ? <p className="whitespace-pre-wrap break-words">{m.text}</p>
-                    : <p className="flex items-center gap-1.5 italic opacity-75"><Lock size={13} /> {t("chat.locked")}</p>}
+                  {(m.files?.length ?? 0) > 0 && (
+                    <div className={`-mx-1.5 -mt-0.5 mb-1 grid gap-1 ${(m.files?.length ?? 0) > 1 ? "grid-cols-2" : ""}`}>
+                      {m.files!.map((f) => <ChatPhoto key={f.id} file={f} single={m.files!.length === 1} onOpen={() => setViewing(f)} />)}
+                    </div>
+                  )}
+                  {m.text == null
+                    ? <p className="flex items-center gap-1.5 italic opacity-75"><Lock size={13} /> {t("chat.locked")}</p>
+                    : m.text ? <p className="whitespace-pre-wrap break-words">{m.text}</p> : null}
                   <p className={`mt-0.5 flex items-center justify-end gap-1 text-[10.5px] ${mine ? "text-white/75" : "text-text-faint"}`}>
                     {time(m.at)}
                     {mine && (m.pending ? <Clock size={12} /> : m.readAt ? <CheckCheck size={13} className="text-[#b3e5ff]" /> : <Check size={13} />)}
@@ -225,16 +252,41 @@ function Conversation({ person, online }: { person: Member; online: boolean }) {
         })}
       </div>
 
-      <div className="flex items-end gap-2 border-t border-border px-3 py-2.5">
-        <textarea value={text} onChange={(e) => setText(e.target.value)} rows={1} placeholder={t("chat.write")}
+      {photos.length > 0 && (
+        <div className="flex gap-2 border-t border-border px-3 pt-2.5">
+          {photos.map((p, i) => (
+            <div key={p.url} className="relative">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={p.url} alt="" className="h-16 w-16 rounded-lg object-cover" />
+              <button type="button" onClick={() => setPhotos((cur) => cur.filter((_, j) => j !== i))} aria-label={t("common.delete")}
+                className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-black/80 text-white"><X size={12} /></button>
+            </div>
+          ))}
+        </div>
+      )}
+      <div className="relative flex items-end gap-1.5 border-t border-border px-3 py-2.5">
+        {emoji && (
+          <EmojiPicker onPick={insertEmoji} onClose={() => setEmoji(false)} labels={{
+            search: t("chat.emoji_search"), recent: t("chat.recent"), none: t("chat.emoji_none"),
+            groups: { smileys: t("chat.em_smileys"), gestures: t("chat.em_gestures"), business: t("chat.em_business"), objects: t("chat.em_objects"), symbols: t("chat.em_symbols") },
+          }} />
+        )}
+        <button type="button" onClick={() => setEmoji((v) => !v)} aria-label={t("chat.emoji")} title={t("chat.emoji")}
+          className={`flex h-[42px] w-10 shrink-0 items-center justify-center rounded-full ${emoji ? "text-ink" : "text-text-muted"} hover:bg-paper-dim`}><Smile size={21} /></button>
+        <button type="button" onClick={() => picker.current?.click()} disabled={photos.length >= MAX_PHOTOS} aria-label={t("chat.photo")} title={t("chat.photo")}
+          className="flex h-[42px] w-10 shrink-0 items-center justify-center rounded-full text-text-muted hover:bg-paper-dim disabled:opacity-40"><ImagePlus size={20} /></button>
+        <input ref={picker} type="file" accept="image/*" multiple className="hidden" onChange={(e) => { addPhotos(e.target.files); e.target.value = ""; }} />
+        <textarea ref={input} value={text} onChange={(e) => setText(e.target.value)} rows={1} placeholder={t("chat.write")}
           onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void doSend(); } }}
+          onPaste={(e) => { const imgs = Array.from(e.clipboardData.files).filter((f) => f.type.startsWith("image/")); if (imgs.length) { e.preventDefault(); addPhotos(imgs); } }}
           className="max-h-32 min-h-[42px] flex-1 resize-none rounded-[21px] border-0 bg-paper-dim px-4 py-2.5 text-sm outline-none" />
-        <button type="button" onClick={() => void doSend()} disabled={sending || !text.trim()} aria-label={t("chat.send")}
+        <button type="button" onClick={() => void doSend()} disabled={sending || (!text.trim() && photos.length === 0)} aria-label={t("chat.send")}
           className="flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-full bg-[#0095f6] text-white hover:bg-[#1877f2] disabled:opacity-40">
           <Send size={18} />
         </button>
       </div>
 
+      {viewing && <PhotoLightbox file={viewing} onClose={() => setViewing(null)} />}
       {code && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setCode(null)}>
           <div role="dialog" aria-modal="true" className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
@@ -246,6 +298,56 @@ function Conversation({ person, online }: { person: Member; online: boolean }) {
         </div>
       )}
     </>
+  );
+}
+
+/** A photo in a message: blurred tiny preview until it has been fetched
+ *  and opened in this browser. */
+function ChatPhoto({ file, single, onOpen }: { file: FileRef; single: boolean; onOpen: () => void }) {
+  const [url, setUrl] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    photoUrl(file).then((u) => { if (alive) { if (u) setUrl(u); else setFailed(true); } });
+    return () => { alive = false; };
+  }, [file]);
+  return (
+    <button type="button" onClick={onOpen} disabled={!url}
+      className={`relative overflow-hidden rounded-xl bg-black/10 ${single ? "aspect-[4/3] w-[280px] max-w-full" : "aspect-square w-[136px]"}`}>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      {url ? <img src={url} alt="" className="absolute inset-0 h-full w-full object-cover" />
+        : file.th ? <img src={file.th} alt="" className="absolute inset-0 h-full w-full scale-110 object-cover blur-md" /> : null}
+      {!url && (
+        <span className="absolute inset-0 flex items-center justify-center">
+          {failed ? <Lock size={18} className="text-white/80" /> : <span className="h-6 w-6 animate-spin rounded-full border-2 border-white/40 border-t-white" />}
+        </span>
+      )}
+    </button>
+  );
+}
+
+function PhotoLightbox({ file, onClose }: { file: FileRef; onClose: () => void }) {
+  const { t } = useLanguage();
+  const [url, setUrl] = useState<string | null>(null);
+  useEffect(() => { void photoUrl(file).then(setUrl); }, [file]);
+  useEffect(() => {
+    const esc = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", esc);
+    return () => window.removeEventListener("keydown", esc);
+  }, [onClose]);
+  return (
+    <div role="dialog" aria-modal="true" className="hgv-story-viewer fixed inset-0 z-[150] flex items-center justify-center bg-[#0c1014]/95 p-6" onClick={onClose}>
+      <div className="absolute right-4 top-4 flex gap-2">
+        {url && (
+          <a href={url} download="higoverse-photo.jpg" onClick={(e) => e.stopPropagation()} aria-label={t("photo.download")} title={t("photo.download")}
+            className="flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20"><Download size={19} /></a>
+        )}
+        <button type="button" onClick={onClose} aria-label={t("common.close")}
+          className="flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20"><X size={20} /></button>
+      </div>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      {url && <img src={url} alt="" className="max-h-full max-w-full rounded-lg object-contain" onClick={(e) => e.stopPropagation()} />}
+    </div>
   );
 }
 

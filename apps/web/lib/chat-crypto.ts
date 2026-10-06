@@ -12,6 +12,10 @@
 //   device) → HKDF-SHA256 (salt "hgv-chat-wrap-v1", info "<sender device
 //   id>|<device id>") → AES-256-GCM with its own random nonce, associated
 //   data = the message's nonce (base64).
+// - Photos: each file is encrypted on its own with a fresh random key and
+//   nonce (AES-256-GCM, associated data "hgv-chat-file-v1") and stored as an
+//   opaque blob; its id, key, nonce, size and tiny preview travel inside the
+//   encrypted message ("a" next to the text "t"), as WhatsApp does.
 
 const enc = new TextEncoder();
 const dec = new TextDecoder();
@@ -25,6 +29,27 @@ export const b64 = (b: ArrayBuffer | Uint8Array) => {
 };
 export const unb64 = (s: string) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
 const random = (n: number) => crypto.getRandomValues(new Uint8Array(n));
+
+/** A photo inside a message: blob id, its key and nonce, size, tiny preview. */
+export interface FileRef { id: string; k: string; n: string; w?: number; h?: number; th?: string }
+
+/** Encrypts a file with its own fresh key: the blob for the server, the key for the message. */
+export async function sealFile(bytes: Uint8Array<ArrayBuffer>): Promise<{ data: string; key: string; nonce: string }> {
+  const raw = random(32), nonce = random(12);
+  const key = await crypto.subtle.importKey("raw", raw, "AES-GCM", false, ["encrypt"]);
+  const c = await crypto.subtle.encrypt({ name: "AES-GCM", iv: nonce, additionalData: enc.encode("hgv-chat-file-v1") }, key, bytes as BufferSource);
+  return { data: b64(c), key: b64(raw), nonce: b64(nonce) };
+}
+
+/** The file's bytes, or null when it doesn't open (wrong key, tampered). */
+export async function openFile(data: string, keyB64: string, nonceB64: string): Promise<Uint8Array | null> {
+  try {
+    const key = await crypto.subtle.importKey("raw", unb64(keyB64), "AES-GCM", false, ["decrypt"]);
+    return new Uint8Array(await crypto.subtle.decrypt({ name: "AES-GCM", iv: unb64(nonceB64), additionalData: enc.encode("hgv-chat-file-v1") }, key, unb64(data)));
+  } catch {
+    return null;
+  }
+}
 
 export interface Sealed {
   ciphertext: string;
@@ -109,12 +134,12 @@ async function kek(me: Device, publicKey: string, senderDevice: string, receiver
 }
 
 /** Encrypts [text] with the key wrapped for every device (id → public key). */
-export async function seal(me: Device, text: string, senderId: string, recipientId: string, devices: Record<string, string>): Promise<Sealed> {
+export async function seal(me: Device, text: string, senderId: string, recipientId: string, devices: Record<string, string>, files: FileRef[] = []): Promise<Sealed> {
   const raw = random(32), nonce = random(12);
   const key = await crypto.subtle.importKey("raw", raw, "AES-GCM", false, ["encrypt"]);
   const body = await crypto.subtle.encrypt(
     { name: "AES-GCM", iv: nonce, additionalData: enc.encode(`hgv-chat-v1|${senderId}|${recipientId}`) },
-    key, enc.encode(JSON.stringify({ t: text })),
+    key, enc.encode(JSON.stringify(files.length ? { t: text, a: files } : { t: text })),
   );
   const nonceB64 = b64(nonce);
   const keys: Sealed["keys"] = {};
@@ -128,10 +153,15 @@ export async function seal(me: Device, text: string, senderId: string, recipient
 }
 
 /** The text of a message, or null when it can't be read on this device. */
-export async function open(me: Device, m: {
+export async function open(me: Device, m: Parameters<typeof openBody>[1]): Promise<string | null> {
+  return (await openBody(me, m))?.text ?? null;
+}
+
+/** The text and photos of a message, or null when it can't be read here. */
+export async function openBody(me: Device, m: {
   ciphertext: string; nonce: string; wrapped: string; wrapNonce: string;
   senderDeviceId: string; senderPublicKey: string; senderId: string; recipientId: string;
-}): Promise<string | null> {
+}): Promise<{ text: string; files: FileRef[] } | null> {
   try {
     const raw = await crypto.subtle.decrypt({ name: "AES-GCM", iv: unb64(m.wrapNonce), additionalData: enc.encode(m.nonce) },
       await kek(me, m.senderPublicKey, m.senderDeviceId, me.id), unb64(m.wrapped));
@@ -141,7 +171,8 @@ export async function open(me: Device, m: {
       key, unb64(m.ciphertext),
     );
     const j = JSON.parse(dec.decode(clear));
-    return typeof j?.t === "string" ? j.t : null;
+    if (typeof j?.t !== "string") return null;
+    return { text: j.t, files: Array.isArray(j.a) ? (j.a as FileRef[]).filter((f) => f && typeof f.id === "string") : [] };
   } catch {
     return null;
   }
