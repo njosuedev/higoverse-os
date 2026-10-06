@@ -9,7 +9,8 @@ import {
   toggleShop, deleteShop, updateShop, verifyShopEmail, toggleUser, updateUserRole, deleteUser, createShop, createShopUser,
   STAFF_ROLES, type AdminStats, type AdminShop, type AdminUser, type CreateShopPayload, type CreateShopUserPayload, type StaffRole,
 } from "@/lib/admin-api";
-import { decodeShopHumanInfo } from "@/lib/product-meta";
+import { decodeShopHumanInfo, formatPublicAddress } from "@/lib/product-meta";
+import { cleanTin, joinAddress, mergeDescription, normalizePhone, phoneError, prettyPhone, shopTin, splitAddress, tinError } from "@/lib/company";
 import {
   PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis,
   Tooltip, ResponsiveContainer,
@@ -22,7 +23,7 @@ import {
   UserX,
   Receipt, Pencil, X, ChevronLeft,
   Plus, Loader2, Lock, User as UserIcon, UserPlus,
-  LayoutDashboard, Users, Activity, TrendingUp, Car,
+  LayoutDashboard, Users, Activity, TrendingUp, Car, Hash,
 } from "lucide-react";
 import { expenseRequest } from "@/lib/expense-api";
 import LayoutPicker from "@/app/components/admin/LayoutPicker";
@@ -107,6 +108,35 @@ function DonutChart({ data, total, label }: { data: { name: string; value: numbe
   );
 }
 
+// ── Form field: label, icon, the input, and its own error under it ──────────
+const INPUT_CLS = "w-full pl-8 pr-3 py-2 text-xs border rounded-lg text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 transition";
+const inputCls = (bad?: string | null) =>
+  `${INPUT_CLS} ${bad ? "border-red-300 focus:ring-red-500/20 focus:border-red-400" : "border-slate-200 focus:ring-[#0a66c2]/20 focus:border-[#0a66c2]"}`;
+
+function Field({ label, required, icon: Icon, error, hint, children }: {
+  label: string; required?: boolean; icon?: typeof Store; error?: string | null; hint?: string; children: React.ReactNode;
+}) {
+  return (
+    <div>
+      <label className="block text-[11px] font-medium text-gray-500 mb-1">
+        {label} {required && <span className="text-red-400">*</span>}
+      </label>
+      <div className="relative">
+        {Icon && <Icon size={12} className={`absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none ${error ? "text-red-400" : "text-gray-400"}`} />}
+        {children}
+      </div>
+      {error ? <p className="text-[11px] text-red-600 mt-0.5">{error}</p> : hint ? <p className="text-[11px] text-gray-400 mt-0.5">{hint}</p> : null}
+    </div>
+  );
+}
+
+// ── Live refresh countdown: re-renders itself each second, not the page ──────
+function Countdown({ deadline, label }: { deadline: number; label: string }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => { const id = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(id); }, []);
+  return <>{label} {Math.max(0, Math.ceil((deadline - now) / 1000))}s</>;
+}
+
 // ── Confirm dialog ────────────────────────────────────────────────────────────
 interface ConfirmState {
   type: "delete-shop" | "delete-user";
@@ -143,7 +173,7 @@ export default function AdminPage() {
   // Create-shop modal state
   const [showCreateShop, setShowCreateShop] = useState(false);
   const [createForm, setCreateForm]         = useState<CreateShopPayload>({
-    shop_name: "", owner_email: "", owner_password: "", owner_name: "", phone: "", address: "", layout: "retail",
+    shop_name: "", owner_email: "", owner_password: "", owner_name: "", phone: "", tin: "", address: "", layout: "retail",
   });
   const [createError, setCreateError]       = useState<string | null>(null);
   const [creatingShop, setCreatingShop]     = useState(false);
@@ -152,7 +182,10 @@ export default function AdminPage() {
 
   // Edit-shop modal state
   const [editingShop, setEditingShop]       = useState<AdminShop | null>(null);
-  const [editShopForm, setEditShopForm]     = useState({ name: "", phone: "", address: "", description: "", layout: "retail" as BusinessLayout });
+  const [editShopForm, setEditShopForm]     = useState({ name: "", phone: "", tin: "", address: "", description: "", layout: "retail" as BusinessLayout });
+  // Errors show after the first Save, then follow the typing.
+  const [editTried, setEditTried]           = useState(false);
+  const [createTried, setCreateTried]       = useState(false);
   const [editShopSaving, setEditShopSaving] = useState(false);
 
   // Create-shop-user (register staff) modal state
@@ -175,9 +208,10 @@ export default function AdminPage() {
   const [editingExp, setEditingExp]         = useState<AdminExpense | null>(null);
   const [editForm, setEditForm]             = useState<EditExpForm>(EMPTY_EDIT);
   const [editSaving, setEditSaving]         = useState(false);
-  const [countdown, setCountdown]         = useState(POLL_INTERVAL);
-  const [ticker, setTicker]               = useState(0);
-  const countdownRef                      = useRef(POLL_INTERVAL);
+  const [expError, setExpError]             = useState<string | null>(null);
+  // When the next silent refresh is due (shown by <Countdown>).
+  const [nextAt, setNextAt]               = useState(() => Date.now() + POLL_INTERVAL * 1000);
+  const nextAtRef                         = useRef(nextAt);
 
   useEffect(() => {
     if (!ready) return;
@@ -192,8 +226,8 @@ export default function AdminPage() {
       const [s, sh, u] = await Promise.all([getAdminStats(), getAdminShops(), getAdminUsers()]);
       setStats(s); setShops(sh); setUsers(u);
       setLastUpdated(new Date());
-      countdownRef.current = POLL_INTERVAL;
-      setCountdown(POLL_INTERVAL);
+      nextAtRef.current = Date.now() + POLL_INTERVAL * 1000;
+      setNextAt(nextAtRef.current);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : t("admin.err_load"));
     } finally { setLoading(false); setRefreshing(false); }
@@ -203,15 +237,15 @@ export default function AdminPage() {
 
   useEffect(() => {
     if (!user || user.role !== "admin") return;
-    const t = setInterval(() => {
-      countdownRef.current -= 1;
-      if (countdownRef.current <= 0) loadAll(true);
-      else { setCountdown(countdownRef.current); setTicker((n) => n + 1); }
+    // Checks once a second; only refreshes when due and the tab is visible.
+    const id = setInterval(() => {
+      if (!document.hidden && Date.now() >= nextAtRef.current) {
+        nextAtRef.current = Date.now() + POLL_INTERVAL * 1000;
+        loadAll(true);
+      }
     }, 1000);
-    return () => clearInterval(t);
+    return () => clearInterval(id);
   }, [user, loadAll]);
-
-  void ticker;
 
   // ── Derived ───────────────────────────────────────────────────────────────
   const shopUsers = useMemo(() => {
@@ -263,11 +297,16 @@ export default function AdminPage() {
   // ── Actions ───────────────────────────────────────────────────────────────
   const handleToggleShop = async (id: string) => {
     setActionId(id);
+    const before = shops.find((s) => s.id === id);
     try {
       setShops((p) => p.map((s) => s.id === id ? { ...s, is_active: !s.is_active } : s));
       const updated = await toggleShop(id);
       setShops((p) => p.map((s) => s.id === id ? updated : s));
-    } catch (e: unknown) { setError(e instanceof Error ? e.message : t("admin.err_generic")); }
+    } catch (e: unknown) {
+      // Put it back as it was: the server didn't change it.
+      if (before) setShops((p) => p.map((s) => s.id === id ? before : s));
+      setError(e instanceof Error ? e.message : t("admin.err_generic"));
+    }
     finally { setActionId(null); }
   };
 
@@ -345,27 +384,34 @@ export default function AdminPage() {
   };
 
   const openCreateShop = () => {
-    setCreateForm({ shop_name: "", owner_email: "", owner_password: "", owner_name: "", phone: "", address: "", description: "", layout: "retail" });
+    setCreateForm({ shop_name: "", owner_email: "", owner_password: "", owner_name: "", phone: "", tin: "", address: "", description: "", layout: "retail" });
     setCreateError(null);
+    setCreateTried(false);
     setShowShopPassword(false);
     setShopNeedsAccount(true);
     setShowCreateShop(true);
   };
 
+  const createErrors = {
+    shop_name: createForm.shop_name.trim() ? null : t("admin.err_shop_name_required"),
+    phone: (() => { const k = phoneError(createForm.phone ?? ""); return k ? t(k) : null; })(),
+    tin: (() => { const k = tinError(createForm.tin ?? ""); return k ? t(k) : null; })(),
+    owner_email: shopNeedsAccount && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(createForm.owner_email?.trim() ?? "") ? t("admin.err_owner_email_required") : null,
+    owner_password: shopNeedsAccount && (createForm.owner_password ?? "").length < 8 ? t("admin.err_password_min") : null,
+  };
+  const createBad = (k: keyof typeof createErrors) => (createTried ? createErrors[k] : null);
+
   const handleCreateShop = async () => {
-    if (!createForm.shop_name.trim()) { setCreateError(t("admin.err_shop_name_required")); return; }
-    if (!createForm.phone?.trim()) { setCreateError(t("admin.err_phone_required")); return; }
-    if (shopNeedsAccount) {
-      if (!createForm.owner_email?.trim()) { setCreateError(t("admin.err_owner_email_required")); return; }
-      if (!createForm.owner_password || createForm.owner_password.length < 8) { setCreateError(t("admin.err_password_min")); return; }
-    }
+    setCreateTried(true);
+    if (Object.values(createErrors).some(Boolean)) { setCreateError(t("company.fix_errors")); return; }
     setCreatingShop(true);
     setCreateError(null);
     try {
       await createShop({
         ...createForm,
         shop_name: createForm.shop_name.trim(),
-        phone: createForm.phone.trim(),
+        phone: normalizePhone(createForm.phone) ?? createForm.phone.trim(),
+        tin: cleanTin(createForm.tin),
         owner_email: shopNeedsAccount ? createForm.owner_email?.trim() : undefined,
         owner_password: shopNeedsAccount ? createForm.owner_password : undefined,
         owner_name: shopNeedsAccount ? (createForm.owner_name?.trim() || undefined) : undefined,
@@ -381,31 +427,55 @@ export default function AdminPage() {
     }
   };
 
+  // The form shows what people read: the address without its map pin, the
+  // description text without the JSON around it, the TIN in its own field.
   const openEditShop = (shop: AdminShop) => {
     setEditShopForm({
-      name: shop.name ?? "", phone: shop.phone ?? "",
-      address: shop.address ?? "", description: shop.description ?? "",
+      name: shop.name ?? "", phone: prettyPhone(shop.phone), tin: shopTin(shop),
+      address: splitAddress(shop.address).text,
+      description: decodeShopHumanInfo(shop.description).desc ?? "",
       layout: normalizeLayout(shop.layout),
     });
+    setEditTried(false);
+    setEditError(null);
     setEditingShop(shop);
   };
 
+  const editErrors = {
+    name: editShopForm.name.trim() ? null : t("admin.err_shop_name_required"),
+    phone: (() => { const k = phoneError(editShopForm.phone); return k ? t(k) : null; })(),
+    tin: (() => { const k = tinError(editShopForm.tin); return k ? t(k) : null; })(),
+  };
+  const editBad = (k: keyof typeof editErrors) => (editTried ? editErrors[k] : null);
+  const [editError, setEditError] = useState<string | null>(null);
+
   const handleUpdateShop = async () => {
     if (!editingShop) return;
-    if (!editShopForm.name.trim()) return;
+    setEditTried(true);
+    if (Object.values(editErrors).some(Boolean)) { setEditError(t("company.fix_errors")); return; }
+    const before = {
+      address: splitAddress(editingShop.address),
+      description: decodeShopHumanInfo(editingShop.description).desc ?? "",
+    };
     setEditShopSaving(true);
+    setEditError(null);
     try {
       const updated = await updateShop(editingShop.id, {
         name: editShopForm.name.trim(),
-        phone: editShopForm.phone.trim() || undefined,
-        address: editShopForm.address.trim() || undefined,
-        description: editShopForm.description.trim() || undefined,
+        phone: normalizePhone(editShopForm.phone) ?? editShopForm.phone.trim(),
+        tin: cleanTin(editShopForm.tin),
+        // Only rewritten when changed, keeping the map pin either way.
+        ...(editShopForm.address.trim() !== before.address.text
+          ? { address: joinAddress(editShopForm.address, before.address.lat, before.address.lng) } : {}),
+        ...(editShopForm.description.trim() !== before.description.trim()
+          ? { description: mergeDescription(editingShop.description, editShopForm.description.trim()) } : {}),
         layout: editShopForm.layout,
       });
       setShops((p) => p.map((s) => s.id === editingShop.id ? { ...s, ...updated } : s));
       setEditingShop(null);
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : t("admin.err_update_shop"));
+      // Shown in the form, next to what needs fixing — not behind the modal.
+      setEditError(e instanceof Error ? e.message : t("admin.err_update_shop"));
     } finally {
       setEditShopSaving(false);
     }
@@ -480,19 +550,25 @@ export default function AdminPage() {
       bank_name: e.bank_name || "", bank_account: e.bank_account || "",
       receiver_phone: e.receiver_phone || "",
     });
+    setExpError(null);
     setEditingExp(e);
   };
 
   const saveEditExp = async () => {
     if (!editingExp) return;
+    const amount = Number(editForm.amount);
+    if (!editForm.title.trim() || !Number.isFinite(amount) || amount <= 0 || !editForm.expense_date) {
+      setExpError(t("admin.err_expense_fields")); return;
+    }
     setEditSaving(true);
+    setExpError(null);
     try {
       const res = await expenseRequest(`/expenses/admin/${editingExp.id}`, {
         method: "PUT",
         body: JSON.stringify({
           title: editForm.title.trim(),
           category: editForm.category,
-          amount: Number(editForm.amount),
+          amount,
           notes: editForm.notes.trim() || undefined,
           expense_date: editForm.expense_date + "T00:00:00",
           payment_method: editForm.payment_method || undefined,
@@ -505,7 +581,10 @@ export default function AdminPage() {
         setExpenseRows((prev) => prev.map((r) => r.id === editingExp.id ? res.data : r));
       }
       setEditingExp(null);
-    } catch { /* ignore */ }
+    } catch (e: unknown) {
+      // Was silently ignored: the admin thought it saved.
+      setExpError(e instanceof Error ? e.message : t("admin.err_expense_save"));
+    }
     finally { setEditSaving(false); }
   };
 
@@ -522,13 +601,16 @@ export default function AdminPage() {
   if (!ready || !user || user.role !== "admin") return null;
 
   // ── Filtered shops / users / applications ─────────────────────────────────
-  const filteredShops = activeShops
+  // From every visible shop (not just active ones), so "Inactive" and "All" work.
+  const filteredShops = visibleShops
     .filter((s) => shopFilter === "all" || (shopFilter === "active" ? s.is_active : !s.is_active))
     .filter((s) => {
       if (!shopSearch) return true;
       const q = shopSearch.toLowerCase();
+      const digits = q.replace(/\D/g, "");
       return s.name?.toLowerCase().includes(q) || s.email?.toLowerCase().includes(q) ||
-             s.owner_email?.toLowerCase().includes(q) || s.phone?.includes(q);
+             s.owner_email?.toLowerCase().includes(q) || formatPublicAddress(s.address).toLowerCase().includes(q) ||
+             (!!digits && ((s.phone ?? "").replace(/\D/g, "").includes(digits) || shopTin(s).includes(digits)));
     })
     .sort((a, b) => {
       if (shopSort === "name")       return (a.name ?? "").localeCompare(b.name ?? "");
@@ -546,12 +628,12 @@ export default function AdminPage() {
     .filter((u) => {
       if (!userSearch) return true;
       const q = userSearch.toLowerCase();
-      return u.email?.toLowerCase().includes(q) || u.shop_name?.toLowerCase().includes(q);
+      return u.email?.toLowerCase().includes(q) || u.name?.toLowerCase().includes(q) || u.shop_name?.toLowerCase().includes(q);
     });
 
   const TABS: { key: Tab; label: string; count?: number; urgent?: boolean; icon: typeof LayoutDashboard }[] = [
     { key: "overview",      label: t("admin.tab_overview"),  icon: LayoutDashboard },
-    { key: "shops",         label: t("admin.tab_shops"),     count: activeShops.length, icon: Store },
+    { key: "shops",         label: t("admin.tab_shops"),     count: visibleShops.length, icon: Store },
     { key: "users",         label: t("admin.tab_users"),     count: users.length,      icon: Users },
     { key: "expenses",      label: t("admin.tab_expenses"),  icon: Receipt },
   ];
@@ -581,7 +663,7 @@ export default function AdminPage() {
             </div>
             <div className="flex items-center gap-2.5">
               <div className="text-[11px] text-white/60 flex items-center gap-1.5">
-                {refreshing ? t("admin.updating") : `${t("admin.refreshes_in")} ${countdown}s`}
+                {refreshing ? t("admin.updating") : <Countdown deadline={nextAt} label={t("admin.refreshes_in")} />}
                 {lastUpdated && !refreshing && <span className="text-white/30">· {timeAgo(lastUpdated.toISOString(), t)}</span>}
               </div>
               <button onClick={() => loadAll(true)} disabled={loading || refreshing}
@@ -910,8 +992,11 @@ export default function AdminPage() {
                           </div>
                           <div className="flex items-center gap-3 mt-0.5 flex-wrap">
                             {shop.owner_email && <span className="text-[11px] text-gray-400">{shop.owner_email}</span>}
-                            {shop.phone && <span className="flex items-center gap-1 text-[11px] text-gray-400"><Phone size={9} />{shop.phone}</span>}
-                            {shop.address && <span className="flex items-center gap-1 text-[11px] text-gray-400"><MapPin size={9} />{shop.address}</span>}
+                            {shop.phone && <span className="flex items-center gap-1 text-[11px] text-gray-400"><Phone size={9} />{prettyPhone(shop.phone)}</span>}
+                            {shopTin(shop)
+                              ? <span className="flex items-center gap-1 text-[11px] text-gray-500 tabular-nums"><Hash size={9} />TIN {shopTin(shop)}</span>
+                              : <span className="flex items-center gap-1 text-[11px] font-semibold text-amber-600"><AlertTriangle size={9} />{t("company.no_tin")}</span>}
+                            {formatPublicAddress(shop.address) && <span className="flex items-center gap-1 text-[11px] text-gray-400 truncate max-w-[260px]"><MapPin size={9} />{formatPublicAddress(shop.address)}</span>}
                           </div>
                         </div>
 
@@ -971,8 +1056,9 @@ export default function AdminPage() {
                                 {[
                                   { icon: <Store size={11} />,  label: t("common.name"),    value: shop.name },
                                   { icon: <Mail size={11} />,   label: t("common.email"),   value: shop.email ?? "-" },
-                                  { icon: <Phone size={11} />,  label: t("common.phone"),   value: shop.phone ?? "-" },
-                                  { icon: <MapPin size={11} />, label: t("common.address"), value: shop.address ?? "-" },
+                                  { icon: <Phone size={11} />,  label: t("common.phone"),   value: prettyPhone(shop.phone) || "-" },
+                                  { icon: <Hash size={11} />,   label: "TIN",               value: shopTin(shop) || "-" },
+                                  { icon: <MapPin size={11} />, label: t("common.address"), value: formatPublicAddress(shop.address) || "-" },
                                 ].map((d) => (
                                   <div key={d.label} className="flex items-start gap-2 text-xs">
                                     <span className="text-gray-300 mt-0.5 shrink-0">{d.icon}</span>
@@ -1415,6 +1501,11 @@ export default function AdminPage() {
 
             {/* Body */}
             <div className="px-4 py-3 grid gap-2 overflow-y-auto flex-1">
+              {expError && (
+                <div className="flex items-center gap-2 text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
+                  <AlertTriangle size={12} /> {expError}
+                </div>
+              )}
               {/* Title */}
               <div>
                 <label className="block text-[11px] font-medium text-gray-500 mb-0.5">{t("expenses.title_field")} <span className="text-red-400">*</span></label>
@@ -1539,38 +1630,27 @@ export default function AdminPage() {
                 </div>
               )}
 
-              {/* Shop name */}
-              <div>
-                <label className="block text-[11px] font-medium text-gray-500 mb-1">{t("settings.shop_name")} <span className="text-red-400">*</span></label>
-                <div className="relative">
-                  <Store size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
-                  <input value={createForm.shop_name} onChange={(e) => setCreateForm({ ...createForm, shop_name: e.target.value })}
-                    placeholder={t("admin.shop_name_placeholder")}
-                    className="w-full pl-8 pr-3 py-2 text-xs border border-slate-200 rounded-lg text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#0a66c2]/30 focus:border-[#0a66c2] transition" />
-                </div>
-              </div>
+              <Field label={t("settings.shop_name")} required icon={Store} error={createBad("shop_name")}>
+                <input value={createForm.shop_name} onChange={(e) => setCreateForm({ ...createForm, shop_name: e.target.value })}
+                  placeholder={t("admin.shop_name_placeholder")} aria-invalid={!!createBad("shop_name")} className={inputCls(createBad("shop_name"))} />
+              </Field>
 
-              {/* Phone + Address */}
+              {/* Phone + TIN: printed on every proforma and receipt */}
               <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="block text-[11px] font-medium text-gray-500 mb-1">{t("common.phone")} <span className="text-red-400">*</span></label>
-                  <div className="relative">
-                    <Phone size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
-                    <input value={createForm.phone} onChange={(e) => setCreateForm({ ...createForm, phone: e.target.value })}
-                      placeholder="07XX XXX XXX"
-                      className="w-full pl-8 pr-2 py-2 text-xs border border-slate-200 rounded-lg text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#0a66c2]/30 focus:border-[#0a66c2] transition" />
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-[11px] font-medium text-gray-500 mb-1">{t("common.address")}</label>
-                  <div className="relative">
-                    <MapPin size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
-                    <input value={createForm.address} onChange={(e) => setCreateForm({ ...createForm, address: e.target.value })}
-                      placeholder={t("common.optional")}
-                      className="w-full pl-8 pr-2 py-2 text-xs border border-slate-200 rounded-lg text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#0a66c2]/30 focus:border-[#0a66c2] transition" />
-                  </div>
-                </div>
+                <Field label={t("common.phone")} required icon={Phone} error={createBad("phone")} hint={t("company.phone_hint")}>
+                  <input value={createForm.phone} onChange={(e) => setCreateForm({ ...createForm, phone: e.target.value })}
+                    onBlur={() => { const n = normalizePhone(createForm.phone); if (n) setCreateForm((f) => ({ ...f, phone: prettyPhone(n) })); }}
+                    inputMode="tel" autoComplete="tel" placeholder="0788 123 456" aria-invalid={!!createBad("phone")} className={inputCls(createBad("phone"))} />
+                </Field>
+                <Field label={t("company.tin")} required icon={Hash} error={createBad("tin")} hint={t("company.tin_hint")}>
+                  <input value={createForm.tin} onChange={(e) => setCreateForm({ ...createForm, tin: e.target.value.replace(/[^\d ]/g, "").slice(0, 11) })}
+                    inputMode="numeric" placeholder="123456789" aria-invalid={!!createBad("tin")} className={`${inputCls(createBad("tin"))} tabular-nums tracking-wider`} />
+                </Field>
               </div>
+              <Field label={t("common.address")} icon={MapPin}>
+                <input value={createForm.address} onChange={(e) => setCreateForm({ ...createForm, address: e.target.value })}
+                  placeholder={t("company.address_ph")} className={inputCls()} />
+              </Field>
 
               {/* Needs platform account toggle */}
               <label className="flex items-center justify-between gap-2 border border-slate-200 rounded-lg px-2.5 py-2 cursor-pointer bg-slate-50/50">
@@ -1602,9 +1682,9 @@ export default function AdminPage() {
                     <div className="relative">
                       <Mail size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
                       <input type="email" value={createForm.owner_email} onChange={(e) => setCreateForm({ ...createForm, owner_email: e.target.value })}
-                        placeholder="owner@example.com"
-                        className="w-full pl-8 pr-3 py-2 text-xs border border-slate-200 rounded-lg text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#0a66c2]/30 focus:border-[#0a66c2] transition" />
+                        placeholder="owner@example.com" aria-invalid={!!createBad("owner_email")} className={inputCls(createBad("owner_email"))} />
                     </div>
+                    {createBad("owner_email") && <p className="text-[11px] text-red-600 mt-0.5">{createBad("owner_email")}</p>}
                     <p className="text-[11px] text-amber-600 mt-1 flex items-center gap-1">
                       <AlertTriangle size={9} /> {t("admin.new_shop_email_warning")}
                     </p>
@@ -1617,13 +1697,13 @@ export default function AdminPage() {
                       <Lock size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
                       <input type={showShopPassword ? "text" : "password"} value={createForm.owner_password}
                         onChange={(e) => setCreateForm({ ...createForm, owner_password: e.target.value })}
-                        placeholder={t("admin.min_8_chars")}
-                        className="w-full pl-8 pr-8 py-2 text-xs border border-slate-200 rounded-lg text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#0a66c2]/30 focus:border-[#0a66c2] transition" />
+                        placeholder={t("admin.min_8_chars")} aria-invalid={!!createBad("owner_password")} className={`${inputCls(createBad("owner_password"))} pr-8`} />
                       <button type="button" onClick={() => setShowShopPassword((v) => !v)}
                         className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
                         {showShopPassword ? <EyeOff size={12} /> : <Eye size={12} />}
                       </button>
                     </div>
+                    {createBad("owner_password") && <p className="text-[11px] text-red-600 mt-0.5">{createBad("owner_password")}</p>}
                   </div>
                 </>
               )}
@@ -1678,35 +1758,33 @@ export default function AdminPage() {
 
             {/* Body */}
             <div className="px-3.5 py-2.5 grid gap-2 overflow-y-auto flex-1">
-              <div>
-                <label className="block text-[11px] font-medium text-gray-500 mb-1">{t("settings.shop_name")} <span className="text-red-400">*</span></label>
-                <div className="relative">
-                  <Store size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
-                  <input value={editShopForm.name} onChange={(e) => setEditShopForm({ ...editShopForm, name: e.target.value })}
-                    className="w-full pl-8 pr-3 py-2 text-xs border border-slate-200 rounded-lg text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#0a66c2]/30 focus:border-[#0a66c2] transition" />
+              {editError && (
+                <div className="flex items-center gap-2 text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
+                  <AlertTriangle size={12} /> {editError}
                 </div>
-              </div>
+              )}
+              <Field label={t("settings.shop_name")} required icon={Store} error={editBad("name")}>
+                <input value={editShopForm.name} onChange={(e) => setEditShopForm({ ...editShopForm, name: e.target.value })}
+                  aria-invalid={!!editBad("name")} className={inputCls(editBad("name"))} />
+              </Field>
 
+              {/* Phone + TIN: printed on every proforma and receipt */}
               <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="block text-[11px] font-medium text-gray-500 mb-1">{t("common.phone")}</label>
-                  <div className="relative">
-                    <Phone size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
-                    <input value={editShopForm.phone} onChange={(e) => setEditShopForm({ ...editShopForm, phone: e.target.value })}
-                      placeholder={t("common.optional")}
-                      className="w-full pl-8 pr-2 py-2 text-xs border border-slate-200 rounded-lg text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#0a66c2]/30 focus:border-[#0a66c2] transition" />
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-[11px] font-medium text-gray-500 mb-1">{t("common.address")}</label>
-                  <div className="relative">
-                    <MapPin size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
-                    <input value={editShopForm.address} onChange={(e) => setEditShopForm({ ...editShopForm, address: e.target.value })}
-                      placeholder={t("common.optional")}
-                      className="w-full pl-8 pr-2 py-2 text-xs border border-slate-200 rounded-lg text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#0a66c2]/30 focus:border-[#0a66c2] transition" />
-                  </div>
-                </div>
+                <Field label={t("common.phone")} required icon={Phone} error={editBad("phone")} hint={t("company.phone_hint")}>
+                  <input value={editShopForm.phone} onChange={(e) => setEditShopForm({ ...editShopForm, phone: e.target.value })}
+                    onBlur={() => { const n = normalizePhone(editShopForm.phone); if (n) setEditShopForm((f) => ({ ...f, phone: prettyPhone(n) })); }}
+                    inputMode="tel" autoComplete="tel" placeholder="0788 123 456" aria-invalid={!!editBad("phone")} className={inputCls(editBad("phone"))} />
+                </Field>
+                <Field label={t("company.tin")} required icon={Hash} error={editBad("tin")} hint={t("company.tin_hint")}>
+                  <input value={editShopForm.tin} onChange={(e) => setEditShopForm({ ...editShopForm, tin: e.target.value.replace(/[^\d ]/g, "").slice(0, 11) })}
+                    inputMode="numeric" placeholder="123456789" aria-invalid={!!editBad("tin")} className={`${inputCls(editBad("tin"))} tabular-nums tracking-wider`} />
+                </Field>
               </div>
+              <Field label={t("common.address")} icon={MapPin}
+                hint={splitAddress(editingShop.address).lat != null ? t("company.pin_kept") : undefined}>
+                <input value={editShopForm.address} onChange={(e) => setEditShopForm({ ...editShopForm, address: e.target.value })}
+                  placeholder={t("company.address_ph")} className={inputCls()} />
+              </Field>
 
               <LayoutPicker value={editShopForm.layout} onChange={(l) => setEditShopForm({ ...editShopForm, layout: l })} />
 

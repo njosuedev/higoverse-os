@@ -7,6 +7,7 @@ from app.core.auth_bearer import get_current_user, get_current_user_optional
 from app.db.deps import get_shop_db
 from app.models.shop import Shop
 from app.schemas.shop import ShopUpdate
+from app.core.company import shop_tin
 
 router = APIRouter()
 
@@ -17,6 +18,7 @@ def _fmt(s: Shop) -> dict:
         "name":         s.name,
         "email":        s.email,
         "phone":        s.phone,
+        "tin":          shop_tin(s),
         "address":      s.address,
         "description":  s.description,
         "logo_url":     s.logo_url,

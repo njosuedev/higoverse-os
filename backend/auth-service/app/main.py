@@ -97,6 +97,7 @@ _MIGRATIONS = [
     "ALTER TABLE shops ADD COLUMN IF NOT EXISTS last_seen_at TIMESTAMP",
     "ALTER TABLE shops ADD COLUMN IF NOT EXISTS logo_url TEXT",
     "ALTER TABLE shops ADD COLUMN IF NOT EXISTS layout VARCHAR(32) NOT NULL DEFAULT 'retail'",
+    "ALTER TABLE shops ADD COLUMN IF NOT EXISTS tin VARCHAR(9)",
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS name VARCHAR(255)",
     "CREATE INDEX IF NOT EXISTS ix_shops_active_created ON shops (is_active, created_at DESC)",
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS permissions JSON",

@@ -67,6 +67,12 @@ String? pfIdNo(String? v, {bool required = false}) {
   return RegExp(r'^(\d{16}|[A-Za-z0-9]{6,12})$').hasMatch(x) ? null : 'pf.err_id';
 }
 
+/// "+250 788 123 456" — easier to read than the stored +250788123456.
+String prettyPhone(String v) {
+  final m = RegExp(r'^\+250(\d{3})(\d{3})(\d{3})$').firstMatch(v.trim());
+  return m == null ? v : '+250 ${m[1]} ${m[2]} ${m[3]}';
+}
+
 String _ymd(DateTime d) => '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 
 String _shortDate(T t, String? ymd) {
@@ -900,7 +906,7 @@ Future<Uint8List> proformaPdf(Map<String, dynamic> p, Session s, T t) async {
   String na(Object? x) => v(x).isEmpty ? 'N/A' : v(x);
   String dot(Object? d) => v(d).replaceAll('-', '.');
   final address = s.shop?.address ?? '';
-  final tin = address.startsWith('TIN:') ? address.substring(4).split('|').first : '';
+  final tin = s.shop?.tin ?? '';
   final publicAddress = address.startsWith('TIN:')
       ? address.split('|').skip(1).where((x) => x.startsWith('Addr:')).map((x) => x.substring(5)).join(', ')
       : address.split('|Lat:').first;
@@ -952,7 +958,7 @@ Future<Uint8List> proformaPdf(Map<String, dynamic> p, Session s, T t) async {
         child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
           pw.Text((s.shop?.name ?? '').toUpperCase(), style: const pw.TextStyle(fontSize: 13)),
           if (tin.isNotEmpty) pw.Text('TIN: $tin', style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
-          if ((s.shop?.phone ?? '').isNotEmpty) pw.Text('Tel: ${s.shop!.phone}', style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
+          if ((s.shop?.phone ?? '').isNotEmpty) pw.Text('Tel: ${prettyPhone(s.shop!.phone)}', style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
           if ((s.shop?.email ?? '').isNotEmpty) pw.Text('EMAIL: ${s.shop!.email}', style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
           if (publicAddress.isNotEmpty) pw.Text(publicAddress.toUpperCase(), style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
         ]),

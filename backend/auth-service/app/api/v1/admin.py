@@ -10,7 +10,8 @@ from app.core.security import hash_password
 from app.db.deps import get_db, get_shop_db
 from app.models.shop import Shop
 from app.models.user import User
-from app.schemas.shop import AdminCreateShopRequest, BUSINESS_LAYOUTS
+from app.schemas.shop import AdminCreateShopRequest, AdminShopPatch
+from app.core.company import shop_tin
 from app.schemas.user import AdminCreateUserRequest
 
 STAFF_ROLES = {"admin", "owner", "manager", "cashier", "storekeeper", "accountant"}
@@ -30,6 +31,7 @@ def _fmt_shop(s: Shop, owner_email: str | None = None, user_count: int = 0) -> d
         "name":           s.name,
         "email":          s.email,
         "phone":          s.phone,
+        "tin":            shop_tin(s),
         "address":        s.address,
         "description":    s.description,
         "logo_url":       s.logo_url,
@@ -82,6 +84,7 @@ def admin_create_shop(
         name=payload.shop_name,
         email=payload.owner_email,
         phone=payload.phone,
+        tin=payload.tin,
         address=payload.address,
         description=payload.description,
         logo_url=payload.logo_url,
@@ -189,7 +192,7 @@ def admin_list_shops(
 @router.patch("/shops/{shop_id}")
 def admin_patch_shop(
     shop_id: str,
-    payload: dict,
+    body: AdminShopPatch,
     shop_db: Session = Depends(get_shop_db),
     db: Session = Depends(get_db),
     _: User = Depends(require_admin),
@@ -198,9 +201,9 @@ def admin_patch_shop(
     if not shop:
         raise HTTPException(status_code=404, detail="Shop not found")
 
-    allowed = {"name", "phone", "address", "description", "logo_url", "is_active", "layout"}
-    if "layout" in payload and payload["layout"] not in BUSINESS_LAYOUTS:
-        raise HTTPException(status_code=400, detail="Unknown layout")
+    # Validated (name, phone, TIN, layout); only the fields sent change.
+    payload = body.model_dump(exclude_unset=True)
+    allowed = set(AdminShopPatch.model_fields)
     for field, value in payload.items():
         if field in allowed:
             setattr(shop, field, value)

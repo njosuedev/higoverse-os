@@ -18,6 +18,8 @@ class Shop(Base):
     name        = Column(String(255), nullable=False)
     email       = Column(String(255), unique=True)
     phone       = Column(String(50))
+    # Rwanda Revenue Authority TIN, 9 digits (see app/core/company.py).
+    tin         = Column(String(9), nullable=True)
     address     = Column(String(500))
     description = Column(Text)
 

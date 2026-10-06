@@ -26,7 +26,9 @@ class User {
 }
 
 class Shop {
-  Shop({required this.id, required this.name, required this.layout, this.logoUrl, this.phone = '', this.email = '', this.address = ''});
+  Shop({required this.id, required this.name, required this.layout, this.logoUrl, this.phone = '', this.email = '', this.address = '', String tin = ''})
+      // Older shops kept their TIN in the address text ("TIN:123456789|…").
+      : tin = tin.isNotEmpty ? tin : (RegExp(r'^TIN:(\d{9})').firstMatch(address)?.group(1) ?? '');
 
   factory Shop.fromJson(Map<String, dynamic> j) => Shop(
         id: '${j['id'] ?? ''}',
@@ -36,6 +38,7 @@ class Shop {
         phone: '${j['phone'] ?? ''}'.trim(),
         email: '${j['email'] ?? ''}'.trim(),
         address: '${j['address'] ?? ''}'.trim(),
+        tin: '${j['tin'] ?? ''}'.trim(),
       );
 
   final String id, name, layout;
@@ -45,6 +48,9 @@ class Shop {
 
   /// Contact details (on proforma invoices).
   final String phone, email, address;
+
+  /// RRA TIN, 9 digits (on proforma invoices); empty when not recorded.
+  final String tin;
 }
 
 /// The signed-in account: tokens, user, shop and shop settings.

@@ -23,7 +23,14 @@ async function authShopRequest(endpoint: string, options: RequestInit = {}) {
   if (res.status === 404) return null;
   if (!res.ok) {
     const text = await res.text().catch(() => "");
-    throw new Error(`Shop API error: ${res.status} ${text}`);
+    // The server's own sentence ("TIN must be exactly 9 digits") when it sent one.
+    let message = "";
+    try {
+      const detail = JSON.parse(text)?.detail;
+      if (typeof detail === "string") message = detail;
+      else if (Array.isArray(detail)) message = detail.map((d) => String(d?.msg ?? "").replace(/^Value error, /, "")).filter(Boolean).join("; ");
+    } catch { /* not JSON */ }
+    throw new Error(message || `Shop API error: ${res.status} ${text}`);
   }
   if (res.status === 204 || res.headers.get("content-length") === "0") return null;
   const text = await res.text();
@@ -36,6 +43,8 @@ export interface Shop {
   name: string;
   email?: string;
   phone?: string;
+  /** RRA TIN, 9 digits (older shops: read from their address). */
+  tin?: string | null;
   address?: string;
   description?: string;
   logo_url?: string;
@@ -58,6 +67,7 @@ export interface ShopListResult {
 export interface ShopUpdatePayload {
   name?: string;
   phone?: string;
+  tin?: string;
   address?: string;
   description?: string;
   logo_url?: string;

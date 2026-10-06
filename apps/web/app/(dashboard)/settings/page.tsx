@@ -9,6 +9,7 @@ import { useLanguage } from "@/lib/language-context";
 import { useShop } from "@/lib/shop-context";
 import { type Lang } from "@/lib/i18n";
 import { parseShopAddress, decodeShopHumanInfo } from "@/lib/product-meta";
+import { cleanTin, normalizePhone, phoneError, prettyPhone, shopTin, splitAddress, tinError } from "@/lib/company";
 import { CAR_TYPES, carTypeLabel } from "@/lib/business-layout";
 import { useShopSettings } from "@/lib/shop-settings-context";
 import { compressImage } from "@/lib/image";
@@ -22,6 +23,8 @@ const HigoMapPicker = dynamic(() => import("@/app/components/ui/HigoMapPicker"),
 interface ShopForm {
   shop_name: string;
   phone: string;
+  /** RRA TIN, 9 digits: printed on proformas. */
+  tin: string;
   address: string;
   description: string;
 }
@@ -39,7 +42,7 @@ interface PwForm {
   confirm: string;
 }
 
-const SHOP_DEFAULTS: ShopForm = { shop_name: "", phone: "", address: "", description: "" };
+const SHOP_DEFAULTS: ShopForm = { shop_name: "", phone: "", tin: "", address: "", description: "" };
 const OPS_DEFAULTS: OperationalForm = { currency: "RWF", language: "en", low_stock_threshold: 10, tax_rate: 0 };
 const PW_DEFAULTS: PwForm = { current: "", next: "", confirm: "" };
 
@@ -162,8 +165,10 @@ export default function SettingsPage() {
       rawDescRef.current = rawDesc;
       const newShop: ShopForm = {
         shop_name:   shop?.name        || s?.shop_name || "",
-        phone:       shop?.phone       || s?.phone     || "",
-        address:     shop?.address     || s?.address   || "",
+        phone:       prettyPhone(shop?.phone || s?.phone || ""),
+        tin:         shopTin(shop),
+        // What people read: an older "TIN:…|Province:…" address shows as text.
+        address:     splitAddress(shop?.address || s?.address || "").text,
         description: decodeShopHumanInfo(rawDesc).desc || "",
       };
       const newOps: OperationalForm = {
@@ -174,12 +179,10 @@ export default function SettingsPage() {
       };
 
       const logo = shop?.logo_url || "";
-      // Restore any previously saved GPS pin
-      const parsed = parseShopAddress(newShop.address);
+      // Restore any previously saved GPS pin (the text above already has it stripped)
+      const parsed = parseShopAddress(shop?.address || s?.address || "");
       if (parsed.lat != null) setPinLat(parsed.lat);
       if (parsed.lng != null) setPinLng(parsed.lng);
-      // Strip coords from the display field so the dropdown shows cleanly
-      if (parsed.lat != null) newShop.address = newShop.address.replace(/\|Lat:[^|]+\|Lng:[^|]+$/, "").replace(/\|Lat:[^|]+$/, "");
       setShopForm(newShop);
       setOpsForm(newOps);
       const types: string[] = Array.isArray(s?.car_types) ? s.car_types : [];
@@ -200,8 +203,20 @@ export default function SettingsPage() {
     setTimeout(() => set("idle"), 3000);
   }
 
+  // Errors show after the first Save, then follow the typing.
+  const [shopTried, setShopTried] = useState(false);
+  const shopErrs = {
+    phone: (() => { const k = phoneError(shopForm.phone); return k ? t(k) : null; })(),
+    tin: (() => { const k = tinError(shopForm.tin); return k ? t(k) : null; })(),
+  };
+  const shopBad = (k: keyof typeof shopErrs) => (shopTried ? shopErrs[k] : null);
+
   async function saveShop() {
+    setShopTried(true);
+    if (!shopForm.shop_name.trim()) { setShopErr(t("admin.err_shop_name_required")); return; }
+    if (shopErrs.phone || shopErrs.tin) { setShopErr(t("company.fix_errors")); return; }
     if (!shopForm.address) { setShopErr(t("settings.err_address_required")); return; }
+    const phone = normalizePhone(shopForm.phone) ?? shopForm.phone.trim();
     setShopStatus("saving"); setShopErr("");
     // Encode GPS coords into address string if a pin was set
     const finalAddress = pinLat != null && pinLng != null
@@ -220,8 +235,9 @@ export default function SettingsPage() {
 
     try {
       await updateMyShop({
-        name:        shopForm.shop_name,
-        phone:       shopForm.phone,
+        name:        shopForm.shop_name.trim(),
+        phone,
+        tin:         cleanTin(shopForm.tin),
         address:     finalAddress,
         description: encodedDesc,
         logo_url:    logoUrl || undefined,
@@ -230,8 +246,8 @@ export default function SettingsPage() {
       await settingsRequest("/settings/", {
         method: "PUT",
         body: JSON.stringify({
-          shop_name: shopForm.shop_name,
-          phone:     shopForm.phone,
+          shop_name: shopForm.shop_name.trim(),
+          phone,
           address:   finalAddress,
         }),
       }).catch(() => {}); // best-effort
@@ -448,14 +464,32 @@ export default function SettingsPage() {
             </Field>
 
             <div className="grid md:grid-cols-2 gap-4">
-              <Field label={<><Phone size={11} className="inline mr-1" />{t("common.phone")}</>}>
-                <input
-                  className={inputCls}
-                  placeholder="07XXXXXXXX"
-                  value={shopForm.phone}
-                  onChange={(e) => setShopForm({ ...shopForm, phone: e.target.value })}
-                />
-              </Field>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label={<><Phone size={11} className="inline mr-1" />{t("common.phone")}</>} required>
+                  <input
+                    className={`${inputCls} ${shopBad("phone") ? "!border-red-400" : ""}`}
+                    placeholder="0788 123 456"
+                    inputMode="tel" autoComplete="tel"
+                    aria-invalid={!!shopBad("phone")}
+                    value={shopForm.phone}
+                    onChange={(e) => setShopForm({ ...shopForm, phone: e.target.value })}
+                    onBlur={() => { const n = normalizePhone(shopForm.phone); if (n) setShopForm((f) => ({ ...f, phone: prettyPhone(n) })); }}
+                  />
+                  {shopBad("phone") && <p className="text-[11px] text-red-600 mt-1">{shopBad("phone")}</p>}
+                </Field>
+                <Field label={t("company.tin")} required>
+                  <input
+                    className={`${inputCls} tabular-nums tracking-wider ${shopBad("tin") ? "!border-red-400" : ""}`}
+                    placeholder="123456789"
+                    inputMode="numeric"
+                    aria-invalid={!!shopBad("tin")}
+                    value={shopForm.tin}
+                    onChange={(e) => setShopForm({ ...shopForm, tin: e.target.value.replace(/[^\d ]/g, "").slice(0, 11) })}
+                  />
+                  {shopBad("tin") ? <p className="text-[11px] text-red-600 mt-1">{shopBad("tin")}</p>
+                    : <p className="text-[11px] text-gray-400 mt-1">{t("company.tin_hint")}</p>}
+                </Field>
+              </div>
               <Field label={<><MapPin size={11} className="inline mr-1" />{t("common.address")} <span className="text-red-400">*</span></>}>
                 {/* Live address search — replaces old district dropdown */}
                 <div className="relative">

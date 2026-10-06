@@ -6,7 +6,9 @@ import { useAuth } from "@/lib/auth-context";
 import { settingsRequest } from "@/lib/settings-api";
 import { getMyShop } from "@/lib/shop-api";
 import { loadCustomers, partnerRequest, type Customer } from "@/lib/supplier-api";
-import { formatPublicAddress, parseShopAddress, decodeShopHumanInfo } from "@/lib/product-meta";
+import { formatPublicAddress, decodeShopHumanInfo } from "@/lib/product-meta";
+import { prettyPhone, shopTin } from "@/lib/company";
+import Link from "next/link";
 import { CAR_TYPES, carTypeLabel, parseAttributes } from "@/lib/business-layout";
 import ProductPicker, { type PickerProduct } from "@/app/components/ui/ProductPicker";
 import { proformaPrintHtml } from "@/lib/proforma-print";
@@ -147,6 +149,7 @@ export default function ProformaPanel({ onSold }: { onSold?: () => void }) {
   const canApprove = PROFORMA_APPROVER_ROLES.has(user?.role ?? "");
 
   const [shop, setShop] = useState<ShopInfo>({ name: "" });
+  const [shopLoaded, setShopLoaded] = useState(false);
   const [currency, setCurrency] = useState("RWF");
   const [taxRate, setTaxRate] = useState(0);
   const [customers, setCustomers] = useState<Cust[]>([]);
@@ -195,10 +198,11 @@ export default function ProformaPanel({ onSold }: { onSold?: () => void }) {
       if (sh.status === "fulfilled" && sh.value) {
         const s = sh.value;
         setShop({
-          name: s.name || "", phone: s.phone, address: s.address, logo_url: s.logo_url,
+          name: s.name || "", phone: prettyPhone(s.phone), address: s.address, logo_url: s.logo_url,
           email: s.email || decodeShopHumanInfo(s.description).email,
-          tin: parseShopAddress(s.address).tin,
+          tin: shopTin(s),
         });
+        setShopLoaded(true);
       }
       if (cust.status === "fulfilled") setCustomers(cust.value as Cust[]);
     });
@@ -375,9 +379,20 @@ export default function ProformaPanel({ onSold }: { onSold?: () => void }) {
   });
 
 
+  // The company's TIN and phone go on every proforma: ask for them if missing.
+  const missingTin = shopLoaded && !shop.tin;
+  const tinBanner = missingTin && (
+    <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 text-amber-800 text-xs rounded-lg px-3 py-2 mb-2">
+      <AlertCircle size={13} className="shrink-0" />
+      <span className="flex-1">{t("company.tin_missing_banner")}</span>
+      <Link href="/settings" className="font-semibold underline whitespace-nowrap">{t("nav.settings")}</Link>
+    </div>
+  );
+
   if (view === "list") {
     return (
       <div>
+        {tinBanner}
         <div className="bg-white rounded-xl border border-slate-200 p-4 mb-2">
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <div>
@@ -486,6 +501,7 @@ export default function ProformaPanel({ onSold }: { onSold?: () => void }) {
   // ── Editor view ───────────────────────────────────────────────────────────
   return (
     <div>
+      {tinBanner}
       <div className="bg-white rounded-xl border border-slate-200 p-3 mb-2 flex items-center gap-3 flex-wrap">
         <button onClick={() => { setView("list"); setCurrent(null); }} className="flex items-center gap-1 text-xs font-semibold text-slate-600 border border-slate-200 hover:border-blue-300 hover:text-blue-600 px-2.5 py-1.5 rounded-lg">
           <ChevronLeft size={13} /> {t("proforma.all_proformas")}

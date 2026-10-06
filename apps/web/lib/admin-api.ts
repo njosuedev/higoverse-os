@@ -21,7 +21,8 @@ async function adminRequest(endpoint: string, options: RequestInit = {}) {
       const body = JSON.parse(text);
       const detail = body?.detail;
       if (typeof detail === "string") message = detail;
-      else if (Array.isArray(detail) && detail[0]?.msg) message = detail.map((d) => d.msg).join("; ");
+      // Pydantic prefixes its own checks with "Value error, ".
+      else if (Array.isArray(detail) && detail[0]?.msg) message = detail.map((d) => String(d.msg).replace(/^Value error, /, "")).join("; ");
     } catch { /* not JSON, use raw text */ }
     throw new Error(message || `Admin API error: ${res.status}`);
   }
@@ -46,6 +47,8 @@ export interface AdminShop {
   name: string;
   email?: string;
   phone?: string;
+  /** RRA TIN, 9 digits (older shops: read from their address). */
+  tin?: string | null;
   address?: string;
   description?: string;
   logo_url?: string;
@@ -78,6 +81,7 @@ export type StaffRole = (typeof STAFF_ROLES)[number];
 export interface CreateShopPayload {
   shop_name: string;
   phone: string;
+  tin: string;
   owner_email?: string;
   owner_password?: string;
   owner_name?: string;
@@ -114,6 +118,7 @@ export async function getAdminShops(): Promise<AdminShop[]> {
 export interface UpdateShopPayload {
   name?: string;
   phone?: string;
+  tin?: string;
   address?: string;
   description?: string;
   logo_url?: string;
