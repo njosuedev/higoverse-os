@@ -85,6 +85,10 @@ class Session extends ChangeNotifier implements TokenSource {
   /// Every account (Settings → Bank accounts): {id, bank_name, bank_account,
   /// bank_holder, is_default}. A proforma ticks which ones to print.
   List<Map<String, dynamic>> bankAccounts = const [];
+
+  /// Car companies: the car names a vehicle's name is picked from
+  /// (website Settings → Car names, managed by the owner).
+  List<String> carNames = const [];
   bool get hasBank => bankAccounts.isNotEmpty || (bankName.isNotEmpty && bankAccount.isNotEmpty && bankHolder.isNotEmpty);
 
   /// Language saved on the account (website settings); used until a language
@@ -157,6 +161,7 @@ class Session extends ChangeNotifier implements TokenSource {
       bankAccount = '${d['bank_account'] ?? ''}'.trim();
       bankHolder = '${d['bank_holder'] ?? ''}'.trim();
       bankAccounts = (d['bank_accounts'] as List? ?? const []).whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
+      carNames = (d['car_names'] as List? ?? const []).whereType<String>().toList();
       accountLanguage = d['language'] as String?;
     }
     notifyListeners();

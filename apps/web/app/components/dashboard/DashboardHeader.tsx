@@ -18,6 +18,7 @@ import { Sun, Moon, Monitor,
   Menu, X, MessageCircle, Search, UsersRound,
 } from "lucide-react";
 import GlobalSearch, { OPEN_SEARCH_EVENT } from "@/app/components/GlobalSearch";
+import NotificationBell from "@/app/components/dashboard/NotificationBell";
 import { startChat, unreadTotal, useChat } from "@/lib/chat";
 
 type NavItem = { key: string; href: string; icon: typeof Home };
@@ -157,6 +158,7 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
             <kbd className="hidden rounded-md border border-border bg-white px-1.5 py-0.5 font-sans text-[10px] font-semibold text-text-faint lg:inline">Ctrl K</kbd>
           </button>
           <GlobalSearch />
+          {user?.shop_id && <NotificationBell />}
 
           <div ref={menuRef} className="relative">
 

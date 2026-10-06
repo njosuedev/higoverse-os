@@ -2,19 +2,20 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { Car } from "lucide-react";
+import { Car, Images } from "lucide-react";
+import CarQuickView from "@/app/components/items/CarQuickView";
 import { itemRequest } from "@/lib/product-api";
 import { useLanguage } from "@/lib/language-context";
 import { useAutoRefresh } from "@/lib/hooks";
-import { parseAttributes } from "@/lib/business-layout";
+import { carTypeLabel, parseAttributes } from "@/lib/business-layout";
 
-interface CarRow { id: string; name: string; thumbnail?: string | null; attributes?: string | null; created_at?: string | null }
+interface CarRow { id: string; name: string; thumbnail?: string | null; attributes?: string | null; created_at?: string | null; selling_price?: number | null }
 type Kind = "added" | "fines" | "pending";
 /** `day` is the UTC calendar day; `at` the exact time when it's known. */
 interface Entry { key: string; kind: Kind; car: CarRow; day: string; at?: string; detail?: string }
 
 const DAYS = 3;
-const MAX_SHOWN = 6;
+const MAX_SHOWN = 8;
 
 // Status dates are written as UTC calendar days (VehicleGrid `today()`), and
 // created_at is a UTC timestamp — so compare everything on the UTC day.
@@ -32,10 +33,8 @@ const COLOR: Record<Kind, string> = {
   fines: "var(--color-accent)",
   pending: "var(--color-warning)",
 };
-const HREF: Record<Kind, (id: string) => string> = {
-  added: (id) => `/items?open=${id}`,
-  fines: (id) => `/items?open=${id}&do=fines`,
-  pending: (id) => `/items?open=${id}`,
+const BADGE: Record<Kind, string> = {
+  added: "bg-emerald-600", fines: "bg-red-600", pending: "bg-amber-500",
 };
 
 async function loadEntries(): Promise<Entry[]> {
@@ -74,11 +73,15 @@ async function loadEntries(): Promise<Entry[]> {
 }
 
 /** Car companies: what changed in the last three days — cars added, fines
- *  found, cars put on pending — as a centred row of small photo tiles
- *  (six, then "+N"). */
+ *  found, cars put on pending — as listing cards (sharp photo, price, specs,
+ *  chassis and plate, what happened and when). A card opens the car's quick
+ *  view: every photo and every detail. Eight, then "+N". */
 export default function TodayStatus() {
   const { t } = useLanguage();
   const [entries, setEntries] = useState<Entry[] | null>(null);
+  // Sharp covers (the list only carries a small thumbnail).
+  const [covers, setCovers] = useState<Record<string, string>>({});
+  const [open, setOpen] = useState<CarRow | null>(null);
   // Ticks so "Now" / "10 min ago" stay true while the page is open.
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
@@ -114,6 +117,15 @@ export default function TodayStatus() {
   const count = (k: Kind) => entries?.filter((e) => e.kind === k).length ?? 0;
   const shown = entries?.slice(0, MAX_SHOWN) ?? [];
   const extra = (entries?.length ?? 0) - shown.length;
+  const shownIds = [...new Set(shown.map((e) => e.car.id))].join(",");
+  useEffect(() => {
+    if (!shownIds) return;
+    let alive = true;
+    itemRequest(`/products/covers?ids=${shownIds}&size=640`)
+      .then((r) => { if (alive && r?.data) setCovers((c) => ({ ...c, ...r.data })); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [shownIds]);
 
   return (
     <section className="rounded-data border border-border bg-white px-4 py-4">
@@ -130,47 +142,66 @@ export default function TodayStatus() {
       </div>
 
       {entries === null ? (
-        <div className="mt-4 flex justify-center gap-3">
-          {Array.from({ length: MAX_SHOWN }, (_, i) => <div key={i} className="h-[146px] w-[128px] animate-pulse rounded-press bg-paper-dim" />)}
+        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+          {Array.from({ length: 4 }, (_, i) => <div key={i} className="h-[230px] animate-pulse rounded-xl bg-paper-dim" />)}
         </div>
       ) : entries.length === 0 ? (
         <p className="mt-3 text-center text-sm text-text-muted">{t("dash.recent_nothing")}</p>
       ) : (
-        <div className="mt-4 flex flex-wrap justify-center gap-3">
+        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
           {shown.map((e) => {
-            const line = e.kind === "fines" ? `${e.detail} ${Number(e.detail) === 1 ? t("vehicle.fine") : t("vehicle.fines")}`
-              : e.kind === "pending" && e.detail ? e.detail : kindLabel[e.kind];
+            const a = parseAttributes(e.car.attributes);
+            const fineText = `${e.detail} ${Number(e.detail) === 1 ? t("vehicle.fine") : t("vehicle.fines")}`;
+            const event = e.kind === "fines"
+              ? `${fineText}${a.penalty_amount ? ` · ${Number(a.penalty_amount).toLocaleString()} RWF` : ""}`
+              : e.kind === "pending" ? `${kindLabel.pending}${e.detail ? ` · ${e.detail}` : ""}` : kindLabel.added;
+            const specs = [a.year, a.car_type && carTypeLabel(t, a.car_type), a.color, a.battery_range && `${a.battery_range} km`].filter(Boolean).join(" · ");
+            const photo = covers[e.car.id] || e.car.thumbnail;
             return (
-              <Link key={e.key} href={HREF[e.kind](e.car.id)} title={`${e.car.name} · ${line}, ${when(e)}`}
-                className="group w-[128px] overflow-hidden rounded-press border border-border bg-white text-left transition hover:border-border-strong hover:shadow-[0_4px_12px_-6px_rgb(0_0_0_/_0.25)]">
-                <span className="relative block aspect-[4/3] w-full bg-paper-dim">
-                  {e.car.thumbnail
+              <button key={e.key} type="button" onClick={() => setOpen(e.car)} title={`${e.car.name} · ${event}, ${when(e)}`}
+                className="group overflow-hidden rounded-xl border border-border bg-white text-left transition hover:-translate-y-0.5 hover:border-border-strong hover:shadow-[0_10px_24px_-14px_rgb(0_0_0_/_0.45)] focus:outline-none focus-visible:ring-2 focus-visible:ring-ink">
+                <span className="relative block aspect-[16/10] w-full bg-paper-dim overflow-hidden">
+                  {photo
                     // eslint-disable-next-line @next/next/no-img-element
-                    ? <img src={e.car.thumbnail} alt="" loading="lazy" className="h-full w-full object-cover" />
-                    : <span className="flex h-full w-full items-center justify-center"><Car size={20} className="text-text-faint" /></span>}
-                  {/* What happened, as a coloured strip along the bottom of the photo */}
-                  <span className="absolute inset-x-0 bottom-0 h-[3px]" style={{ background: COLOR[e.kind] }} />
-                </span>
-                <span className="block px-2 py-1.5">
-                  <span className="block truncate text-[11px] font-semibold leading-tight text-text group-hover:text-ink">{e.car.name}</span>
-                  <span className="mt-0.5 flex items-center gap-1 text-[11px] leading-tight text-text-muted">
-                    <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: COLOR[e.kind] }} />
-                    <span className="truncate">{line}</span>
+                    ? <img src={photo} alt={e.car.name} loading="lazy" className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]" />
+                    : <span className="flex h-full w-full items-center justify-center"><Car size={28} className="text-text-faint" /></span>}
+                  {/* What happened, as a badge on the photo */}
+                  <span className={`absolute left-2 top-2 rounded-full px-2 py-0.5 text-[11px] font-bold text-white shadow ${BADGE[e.kind]}`}>
+                    {e.kind === "fines" ? fineText : kindLabel[e.kind]}
                   </span>
-                  <span className="block truncate text-[11px] leading-tight text-text-faint">{when(e)}</span>
+                  <span className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-full bg-black/55 text-white opacity-0 transition group-hover:opacity-100" aria-hidden>
+                    <Images size={14} />
+                  </span>
+                  <span className="absolute left-2 bottom-2 rounded-full bg-black/60 px-2 py-0.5 text-[11px] font-medium text-white">{when(e)}</span>
                 </span>
-              </Link>
+                <span className="block p-3">
+                  <span className="flex items-start justify-between gap-2">
+                    <span className="min-w-0 truncate text-sm font-semibold text-text group-hover:text-ink">{e.car.name}</span>
+                    {e.car.selling_price ? <span className="shrink-0 text-sm font-bold tabular-nums text-text">{Math.round(e.car.selling_price).toLocaleString()}</span> : null}
+                  </span>
+                  {specs && <span className="mt-0.5 block truncate text-xs text-text-muted">{specs}</span>}
+                  <span className="mt-2 flex flex-wrap gap-1.5">
+                    {a.plate_no && <span className="rounded border border-border bg-paper px-1.5 py-0.5 font-mono text-[11px] tracking-wide text-text">{a.plate_no}</span>}
+                    {a.chassis_no && <span className="max-w-full truncate rounded border border-border bg-paper px-1.5 py-0.5 font-mono text-[11px] tracking-wide text-text-muted">{a.chassis_no}</span>}
+                  </span>
+                  <span className="mt-2 flex items-center gap-1.5 text-xs text-text-muted">
+                    <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: COLOR[e.kind] }} />
+                    <span className="truncate">{event}</span>
+                  </span>
+                </span>
+              </button>
             );
           })}
           {extra > 0 && (
             <Link href="/items" title={`+${extra}`}
-              className="flex w-[128px] flex-col items-center justify-center rounded-press border border-dashed border-border-strong bg-paper text-text transition hover:border-ink hover:text-ink">
-              <span className="font-display text-xl font-semibold">+{extra}</span>
-              <span className="text-[11px] text-text-muted">{t("dash.view_all")}</span>
+              className="flex min-h-[200px] flex-col items-center justify-center rounded-xl border border-dashed border-border-strong bg-paper text-text transition hover:border-ink hover:text-ink">
+              <span className="font-display text-2xl font-semibold">+{extra}</span>
+              <span className="text-xs text-text-muted">{t("dash.view_all")}</span>
             </Link>
           )}
         </div>
       )}
+      {open && <CarQuickView productId={open.id} cover={covers[open.id] || open.thumbnail} onClose={() => setOpen(null)} />}
     </section>
   );
 }

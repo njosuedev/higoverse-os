@@ -39,6 +39,7 @@ class SettingsUpdate(BaseModel):
     low_stock_threshold: int | None = Field(None, ge=0)
     tax_rate: Decimal | None = Field(None, ge=0, le=100)
     car_types: list[str] | None = None
+    car_names: list[str] | None = None
     bank_accounts: list[BankAccount] | None = None
     bank_name: str | None = None
     bank_account: str | None = None
@@ -69,6 +70,22 @@ class SettingsUpdate(BaseModel):
         if not re.fullmatch(r"[0-9][0-9 -]{4,38}[0-9]", v) or not 6 <= len(re.sub(r"\D", "", v)) <= 30:
             raise ValueError("Account number must be 6–30 digits")
         return v
+
+    @field_validator("car_names")
+    @classmethod
+    def clean_car_names(cls, v: list[str] | None) -> list[str] | None:
+        if v is None:
+            return v
+        # Trim, single spaces, drop blanks and case-insensitive duplicates.
+        seen, out = set(), []
+        for name in v:
+            name = " ".join(name.split())[:80]
+            if len(name) >= 2 and name.lower() not in seen:
+                seen.add(name.lower())
+                out.append(name)
+        if len(out) > 300:
+            raise ValueError("Too many car names (max 300)")
+        return sorted(out, key=str.lower)
 
     @field_validator("car_types")
     @classmethod

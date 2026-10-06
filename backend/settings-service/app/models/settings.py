@@ -22,6 +22,9 @@ class ShopSettings(Base):
     # JSON list of the shop's own car types (car-company layout), added on
     # top of the built-in ones in apps/web/lib/business-layout.ts.
     car_types = Column(Text, nullable=True)
+    # Car companies: the car names (makes/models) staff pick from when adding
+    # a vehicle, as JSON — managed by the owner, never typed on the vehicle.
+    car_names = Column(Text, nullable=True)
 
     # Where customers pay: printed on every proforma (required for car companies).
     bank_name = Column(String(100), nullable=True)

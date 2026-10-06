@@ -12,6 +12,7 @@ from app.models.product import Product
 from app.schemas.product import ProductCreate, ProductUpdate
 from app.core.security import get_current_user, hides_financials
 from app.core.supplier_client import validate_supplier
+from app.core.car_names import check_car_name
 from app.core.events import emit
 
 router = APIRouter(prefix="/products", tags=["Products"])
@@ -372,6 +373,8 @@ def create_product(
         )
 
         _ensure_unique_car(db, user["shop_id"], payload.attributes)
+        # Car companies pick the name from Settings → Car names.
+        payload.name = check_car_name(payload.name, user, (authorization or "").replace("Bearer ", ""))
 
         selling_price = payload.selling_price or payload.cost_price
 
@@ -551,6 +554,10 @@ def update_product(
         product = get_product_or_404(db, product_id, user["shop_id"])
 
         update_data = payload.model_dump(exclude_unset=True)
+
+        # A renamed car's name must come from Settings → Car names.
+        if "name" in update_data and update_data["name"] != product.name:
+            update_data["name"] = check_car_name(update_data["name"], user, (authorization or "").replace("Bearer ", ""))
 
         if "supplier_id" in update_data:
             validate_supplier(

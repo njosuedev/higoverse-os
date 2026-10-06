@@ -12,9 +12,11 @@ export interface ShopSettings {
   taxRate: number;
   /** The car company's own car types (Settings → Car types). */
   carTypes: string[];
+  /** The car names staff pick from when adding a vehicle (Settings → Car names). */
+  carNames: string[];
 }
 
-const DEFAULTS: ShopSettings = { currency: "RWF", lowStock: 10, taxRate: 0, carTypes: [] };
+const DEFAULTS: ShopSettings = { currency: "RWF", lowStock: 10, taxRate: 0, carTypes: [], carNames: [] };
 
 interface Ctx extends ShopSettings {
   loaded: boolean;
@@ -43,6 +45,7 @@ export function ShopSettingsProvider({ children }: { children: ReactNode }) {
           lowStock: Number.isFinite(Number(d.low_stock_threshold)) ? Number(d.low_stock_threshold) : DEFAULTS.lowStock,
           taxRate:  Number(d.tax_rate) || 0,
           carTypes: Array.isArray(d.car_types) ? d.car_types : [],
+          carNames: Array.isArray(d.car_names) ? d.car_names : [],
         });
       })
       .catch(() => {})

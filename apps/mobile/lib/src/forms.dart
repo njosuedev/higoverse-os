@@ -1287,7 +1287,24 @@ class _VehicleFormScreenState extends State<VehicleFormScreen> {
       saveLabel: t('form.save'),
       onSave: _save,
       children: [
-        _Field(t('vehicle.name'), _text(_name, hint: 'BYD Yuan Up', validator: need)),
+        // The name is picked from the owner's list (website Settings → Car names).
+        _Field(
+          t('vehicle.name'),
+          s.carNames.isEmpty
+              ? _text(_name, hint: 'BYD Yuan Up', validator: need)
+              : DropdownButtonFormField<String>(
+                  initialValue: _name.text.isEmpty ? null : _name.text,
+                  isExpanded: true,
+                  hint: Text(t('vehicle.pick_name')),
+                  items: [
+                    for (final n in {...s.carNames, if (_name.text.isNotEmpty) _name.text})
+                      DropdownMenuItem(value: n, child: Text(n, overflow: TextOverflow.ellipsis)),
+                  ],
+                  onChanged: (x) => setState(() => _name.text = x ?? ''),
+                  validator: need,
+                ),
+          hint: s.carNames.isEmpty ? null : t('vehicle.names_on_web'),
+        ),
         _Field(t('detail.chassis'), idField('chassis_no', _chassis, 'LL31233343'), hint: t('vehicle.unique_hint')),
         _Field(t('detail.plate'), idField('plate_no', _plate, 'RAC 123 A')),
         _Field(

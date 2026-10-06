@@ -6,6 +6,7 @@
 // global search), with its own live connection to sale-service's hub
 // (wss://…/svc/sales/ws), which sends chat events only to the two people.
 
+import { handleLiveEvent } from "@/lib/notifications";
 import { useSyncExternalStore } from "react";
 import { authFetch, refreshAccessToken } from "@/lib/session";
 import { getToken, getUser } from "@/lib/auth";
@@ -279,6 +280,9 @@ function connectLive() {
       onRead(msg.data as { by: string; with: string; at: string });
     } else if (msg.type === "resync") {
       void loadConversations().catch(() => {});
+    } else if (msg.type && msg.type.includes(".")) {
+      // Sales, stock, debts, proformas…: the header bell and system notifications.
+      handleLiveEvent(msg as Parameters<typeof handleLiveEvent>[0]);
     }
   };
   sock.onclose = async (ev) => {

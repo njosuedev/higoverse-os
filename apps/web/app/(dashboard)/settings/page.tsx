@@ -84,6 +84,13 @@ export default function SettingsPage() {
   const [carStatus, setCarStatus]   = useState<SectionStatus>("idle");
   const [carErr, setCarErr]         = useState("");
 
+  // Car companies: the car names staff pick from (owner-managed).
+  const [carNames, setCarNames]       = useState<string[]>([]);
+  const savedCarNames                 = useRef<string[]>([]);
+  const [newCarName, setNewCarName]   = useState("");
+  const [namesStatus, setNamesStatus] = useState<SectionStatus>("idle");
+  const [namesErr, setNamesErr]       = useState("");
+
   // Where customers pay: printed on every proforma. Required for car
   // companies; only the owner may change it (settings-service enforces it).
   const { user } = useAuth();
@@ -160,8 +167,9 @@ export default function SettingsPage() {
   const pwDirty   = pwForm.current.length > 0 || pwForm.next.length > 0;
   const carDirty  = isCar && !deepEq(carTypes, savedCarTypes.current);
   const bankDirty = canEditBank && !deepEq(banks, savedBanks.current);
+  const namesDirty = isCar && canEditBank && !deepEq(carNames, savedCarNames.current);
 
-  const anyDirty = shopDirty || opsDirty || logoDirty || carDirty || bankDirty;
+  const anyDirty = shopDirty || opsDirty || logoDirty || carDirty || bankDirty || namesDirty;
 
   // Wait for shop context to be ready before loading settings (avoids redundant getMyShop call)
   useEffect(() => {
@@ -202,6 +210,9 @@ export default function SettingsPage() {
       const loadedBanks: BankAccount[] = Array.isArray(s?.bank_accounts) ? s.bank_accounts : [];
       setBanks(loadedBanks);
       savedBanks.current = loadedBanks;
+      const names: string[] = Array.isArray(s?.car_names) ? s.car_names : [];
+      setCarNames(names);
+      savedCarNames.current = names;
       const types: string[] = Array.isArray(s?.car_types) ? s.car_types : [];
       setCarTypes(types);
       savedCarTypes.current = types;
@@ -330,6 +341,32 @@ export default function SettingsPage() {
     setNewCarType(""); setCarErr("");
   }
 
+  function addCarName() {
+    const name = newCarName.trim().replace(/\s+/g, " ");
+    if (name.length < 2) return;
+    if (carNames.some((c) => c.toLowerCase() === name.toLowerCase())) { setNamesErr(t("cars.name_exists")); return; }
+    setCarNames([...carNames, name].sort((a, b) => a.localeCompare(b)));
+    setNewCarName(""); setNamesErr("");
+  }
+
+  async function saveCarNames() {
+    setNamesStatus("saving"); setNamesErr("");
+    try {
+      const res = await settingsRequest("/settings/", { method: "PUT", body: JSON.stringify({ car_names: carNames }) });
+      if (!res?.success) throw new Error(t("settings.err_save_settings_failed"));
+      const saved: string[] = Array.isArray(res?.data?.car_names) ? res.data.car_names : carNames;
+      applySettings({ carNames: saved });
+      setCarNames(saved);
+      savedCarNames.current = saved;
+      setNamesStatus("saved");
+      setLastSaved(new Date());
+      statusTimer(setNamesStatus);
+    } catch (err) {
+      setNamesErr(err instanceof Error ? err.message : t("settings.err_save_settings_failed"));
+      setNamesStatus("error");
+    }
+  }
+
   async function saveCarTypes() {
     setCarStatus("saving"); setCarErr("");
     try {
@@ -412,6 +449,7 @@ export default function SettingsPage() {
     if (opsDirty)  ps.push(saveOps());
     if (carDirty)  ps.push(saveCarTypes());
     if (bankDirty) ps.push(saveBank());
+    if (namesDirty) ps.push(saveCarNames());
     await Promise.allSettled(ps);
   }
 
@@ -756,6 +794,50 @@ export default function SettingsPage() {
             <p className="text-[11px] text-slate-400">{t("bank.holder_hint")}</p>
           </fieldset>
         </Section>
+
+        {/* ── CAR NAMES (car companies) ─── */}
+        {isCar && (
+          <div id="car-names">
+          <Section
+            icon={<Car size={15} />}
+            title={t("cars.names_title")}
+            dirty={namesDirty}
+            status={namesStatus}
+            onSave={saveCarNames}
+            saveLabel={t("settings.save")}
+          >
+            {namesErr && <ErrorBanner msg={namesErr} />}
+            <p className="text-xs text-slate-500 mb-3">{t("cars.names_settings_hint")}</p>
+            {!canEditBank && <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-3">{t("cars.owner_only")}</p>}
+            <div className="flex flex-wrap gap-1.5 mb-3">
+              {carNames.length === 0 && <span className="text-xs text-slate-400">{t("cars.no_names")}</span>}
+              {carNames.map((c) => (
+                <span key={c} className="flex items-center gap-1 pl-2.5 pr-1 py-1 rounded-full text-xs font-medium bg-[#EBF2FD] text-[#0a66c2] border border-[#0a66c2]/30">
+                  {c}
+                  {canEditBank && (
+                    <button type="button" onClick={() => setCarNames(carNames.filter((x) => x !== c))}
+                      title={t("common.delete")} aria-label={`${t("common.delete")} ${c}`}
+                      className="w-4 h-4 rounded-full flex items-center justify-center hover:bg-[#0a66c2]/15 transition">
+                      <X size={10} />
+                    </button>
+                  )}
+                </span>
+              ))}
+            </div>
+            {canEditBank && (
+              <div className="flex gap-2 max-w-md">
+                <input className={inputCls} maxLength={80} placeholder="BYD Yuan Up" value={newCarName}
+                  onChange={(e) => { setNewCarName(e.target.value); setNamesErr(""); }}
+                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCarName(); } }} />
+                <button type="button" onClick={addCarName} disabled={newCarName.trim().length < 2}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-50 transition disabled:opacity-50 shrink-0">
+                  <Plus size={13} /> {t("cars.add_name")}
+                </button>
+              </div>
+            )}
+          </Section>
+          </div>
+        )}
 
         {/* ── CAR TYPES (car companies) ─── */}
         {isCar && (

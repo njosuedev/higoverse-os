@@ -50,6 +50,7 @@ def _fmt(s: ShopSettings) -> dict:
         "low_stock_threshold": s.low_stock_threshold,
         "tax_rate": float(s.tax_rate) if s.tax_rate is not None else 0,
         "car_types": _car_types(s.car_types),
+        "car_names": _car_types(s.car_names),
         "bank_accounts": _bank_accounts(s),
         "bank_name": s.bank_name or "",
         "bank_account": s.bank_account or "",
@@ -102,6 +103,9 @@ def update_settings(
             bank_account=default["bank_account"] if default else None,
             bank_holder=default["bank_holder"] if default else None,
         )
+    # The car names staff pick from: only the owner (or a platform admin).
+    if "car_names" in changes and changes["car_names"] != _car_types(s.car_names) and user.get("role") not in BANK_EDITORS:
+        raise HTTPException(status_code=403, detail="Only the owner can change the car names.")
     # Where customers send money: only the owner (or a platform admin) may change it.
     current = {**{k: getattr(s, k) for k in BANK_FIELDS}, "bank_accounts": _bank_accounts(s)}
     if any(k in changes and changes[k] != current[k] for k in BANK_FIELDS) and user.get("role") not in BANK_EDITORS:
@@ -109,6 +113,8 @@ def update_settings(
 
     for key, value in changes.items():
         if key == "car_types":
+            value = json.dumps(value) if value else None
+        elif key == "car_names":
             value = json.dumps(value) if value else None
         elif key == "bank_accounts":
             value = json.dumps(value) if value else None

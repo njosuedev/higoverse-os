@@ -165,6 +165,12 @@ def _norm(key: str, v):
     return v or None
 
 
+def _live(p: Proforma) -> dict:
+    """A proforma as the apps' notifications receive it."""
+    return {"id": p.id, "invoice_no": p.invoice_no, "customer": p.customer or "",
+            "grand_total": _num(p.grand_total), "status": p.status}
+
+
 def _token(authorization: str | None) -> str:
     return authorization.replace("Bearer ", "") if authorization else ""
 
@@ -238,6 +244,8 @@ def create_proforma(
     data["status"] = data["status"] if data["status"] in ("draft", "sent") else "draft"
     proforma = Proforma(shop_id=user["shop_id"], **data)
     db.add(proforma)
+    db.flush()
+    emit(db, user, "proforma.created", _live(proforma))
     db.commit()
     db.refresh(proforma)
     return {"success": True, "message": "Proforma created", "data": _fmt(proforma)}
@@ -307,6 +315,7 @@ def approve_proforma(
         # Approved as the details stand now; then frozen with the document.
         _apply_sync(proforma, user, _token(authorization))
     _approve(proforma, user)
+    emit(db, user, "proforma.approved", _live(proforma))
     db.commit()
     db.refresh(proforma)
     return {"success": True, "message": "Proforma approved", "data": _fmt(proforma)}
@@ -444,6 +453,7 @@ def sell_proforma(
     proforma.sale_ids = [s.id for s in sales]
     if customer_id:
         proforma.customer_id = customer_id
+    emit(db, user, "proforma.sold", _live(proforma))
     db.commit()
     db.refresh(proforma)
     return {"success": True, "message": "Sale recorded", "data": _fmt(proforma)}

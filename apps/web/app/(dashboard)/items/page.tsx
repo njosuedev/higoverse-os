@@ -130,7 +130,7 @@ export default function ItemManagementPage() {
 
   // Settings → low stock threshold, and the company's own car types
   // (offered after the built-in ones).
-  const { lowStock, currency, carTypes: customCarTypes } = useShopSettings();
+  const { lowStock, currency, carTypes: customCarTypes, carNames } = useShopSettings();
   const [galleryFor, setGalleryFor] = useState<Product | null>(null);
   const [vehicleView, setVehicleView] = useState<VehicleView>(() => (typeof window === "undefined" ? "list" : readVehicleView()));
   function chooseView(v: VehicleView) {
@@ -1205,7 +1205,23 @@ export default function ItemManagementPage() {
               <div className="px-4 sm:px-6 py-4 sm:py-5 grid md:grid-cols-2 gap-4 overflow-y-auto flex-1">
                 <div className="md:col-span-2">
                   <label className="block text-xs font-medium text-gray-600 mb-1">{t("items.name")} <span className="text-red-400">*</span></label>
-                  <input className={inputCls} placeholder={t("items.name_placeholder")} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+                  {isCar ? (
+                    // Car companies pick the name from Settings → Car names (managed by the owner).
+                    <>
+                      <select className={inputCls} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}>
+                        <option value="">{t(carNames.length ? "cars.pick_name" : "cars.no_names")}</option>
+                        {[...carNames, ...(form.name && !carNames.some((n) => n.toLowerCase() === form.name.toLowerCase()) ? [form.name] : [])].map((n) => (
+                          <option key={n} value={n}>{n}</option>
+                        ))}
+                      </select>
+                      <p className="text-[11px] text-slate-400 mt-1">
+                        {t("cars.names_hint")}{" "}
+                        <Link href="/settings#car-names" className="font-semibold text-[#0a66c2] hover:underline">{t("nav.settings")}</Link>
+                      </p>
+                    </>
+                  ) : (
+                    <input className={inputCls} placeholder={t("items.name_placeholder")} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+                  )}
                 </div>
                 {isCar ? (<>
                   {VEHICLE_FIELDS.filter((f) => VEHICLE_ID_FIELDS.includes(f.key)).map(renderCarField)}
