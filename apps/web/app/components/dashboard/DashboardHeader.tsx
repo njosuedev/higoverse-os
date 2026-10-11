@@ -6,7 +6,7 @@ import { useState, useRef, useEffect } from "react";
 import { useLanguage } from "@/lib/language-context";
 import { useAuth } from "@/lib/auth-context";
 import { useShop } from "@/lib/shop-context";
-import { useThemePref } from "@/lib/theme";
+import { useAppTheme, useThemePref } from "@/lib/theme";
 import { LANGUAGES } from "@/lib/i18n";
 import { settingsRequest } from "@/lib/settings-api";
 import { getEffectiveRole } from "@/lib/auth";
@@ -49,6 +49,7 @@ function isActiveHref(pathname: string, href: string) {
 export default function DashboardHeader({ loading = false }: { loading?: boolean }) {
   const pathname   = usePathname();
   const { lang, setLang, t, layout } = useLanguage();
+  useAppTheme();
   const [themePref, setThemePref] = useThemePref();
   const { user, logout, ready } = useAuth();
   const { shop, loading: shopLoading } = useShop();

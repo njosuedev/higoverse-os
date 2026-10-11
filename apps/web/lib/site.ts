@@ -15,6 +15,9 @@ export const SITE = {
   contactEmail: "higoverse@gmail.com",
   /** As on the Google Business Profile, so search engines match the two. */
   phone: "+250790885174",
+  phoneDisplay: "0790 885 174",
+  /** Same number on WhatsApp (wa.me takes it without the +). */
+  whatsapp: "250790885174",
   /** Official social profiles (JSON-LD sameAs). */
   social: [
     "https://www.facebook.com/people/Higoverse/100080225144892/",

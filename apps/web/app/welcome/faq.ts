@@ -1,7 +1,7 @@
 import { translate } from "@/lib/i18n";
 
 /** The home page's questions (i18n keys home.faq<n>_q / _a). */
-export const FAQ_COUNT = 6;
+export const FAQ_COUNT = 8;
 
 /** In English, for structured data: the same words the page shows. */
 export const HOME_FAQ = Array.from({ length: FAQ_COUNT }, (_, i) => ({

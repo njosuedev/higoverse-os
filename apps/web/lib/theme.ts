@@ -29,6 +29,18 @@ export function applyTheme(pref: ThemePref) {
   document.querySelector('meta[name="theme-color"]')?.setAttribute("content", dark ? "#000000" : "#0a66c2");
 }
 
+/**
+ * Dark mode is for the signed-in app only: applies the chosen theme while the
+ * app is on screen and puts the light theme back when leaving it (signing out
+ * to /login), since public pages are always light.
+ */
+export function useAppTheme() {
+  useEffect(() => {
+    applyTheme(readThemePref());
+    return () => applyTheme("light");
+  }, []);
+}
+
 /** Current preference + setter; follows OS changes while on "system". */
 export function useThemePref(): [ThemePref, (p: ThemePref) => void] {
   const [pref, setPref] = useState<ThemePref>("system");
