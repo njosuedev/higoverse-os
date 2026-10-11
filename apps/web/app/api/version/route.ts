@@ -11,6 +11,9 @@ function buildId(): string {
   // `next dev` keeps whatever BUILD_ID an earlier build left in .next, which
   // never matches the page: development has no versions to update to.
   if (process.env.NODE_ENV !== "production") return (cached = "dev");
+  // The id baked into the pages (next.config.ts): Next names .next/BUILD_ID
+  // itself when deploymentId is set, so that file can differ from it.
+  if (process.env.NEXT_PUBLIC_BUILD_ID) return (cached = process.env.NEXT_PUBLIC_BUILD_ID);
   try {
     cached = readFileSync(path.join(process.cwd(), ".next", "BUILD_ID"), "utf8").trim();
   } catch {
