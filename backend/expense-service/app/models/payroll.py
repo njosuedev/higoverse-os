@@ -59,3 +59,30 @@ class SalaryPayment(Base):
     paid_by          = Column(String, nullable=True)
     paid_by_name     = Column(String(150), nullable=True)
     created_at       = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class SalaryAdvance(Base):
+    """Part of a salary paid before payday. It is a "salaries" expense the
+    day the money is given; the employee's next salary payment deducts it
+    (payment_id), so the month's salary expense still adds up to the salary."""
+    __tablename__ = "payroll_advances"
+
+    id               = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    shop_id          = Column(String, index=True, nullable=False)
+    employee_id      = Column(String, index=True, nullable=False)
+    employee_name    = Column(String(150), nullable=False)
+    employee_id_number = Column(String(40), nullable=True)
+    position         = Column(String(100), nullable=True)
+
+    amount           = Column(Numeric(12, 2), nullable=False)
+    given_on         = Column(Date, nullable=False)
+    method           = Column(String(20), nullable=False)        # cash | mtn | airtel | bank
+    reference        = Column(String(100), nullable=True)
+    note             = Column(String(255), nullable=True)        # what it's for
+
+    expense_id       = Column(String, nullable=True)             # the "salaries" expense it added
+    # The salary payment that deducted it; empty while still to be deducted.
+    payment_id       = Column(String, index=True, nullable=True)
+    given_by         = Column(String, nullable=True)
+    given_by_name    = Column(String(150), nullable=True)
+    created_at       = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)

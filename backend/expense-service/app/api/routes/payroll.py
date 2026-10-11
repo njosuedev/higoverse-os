@@ -1,4 +1,5 @@
 import calendar
+from decimal import Decimal
 from datetime import date, datetime, time, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import or_
@@ -7,14 +8,16 @@ from sqlalchemy.orm import Session
 
 from app.db.database import get_db
 from app.models.expense import Expense, ExpenseCategory
-from app.models.payroll import Employee, SalaryPayment
-from app.schemas.payroll import EmployeeIn, PaymentIn
+from app.models.payroll import Employee, SalaryAdvance, SalaryPayment
+from app.schemas.payroll import AdvanceIn, EmployeeIn, PaymentIn
 from app.core.security import get_current_user
 from app.core.events import emit
 
 # Monthly salaries: the manager keeps the list of employees, records each
 # month's payment, and prints a confirmation the employee signs on receiving
 # it. Each payment also adds a "salaries" expense, so reports include payroll.
+# Advances (part of the salary paid early) are an expense the day they're
+# given, and the next salary payment deducts them.
 router = APIRouter(prefix="/payroll", tags=["Payroll"])
 
 PAYROLL_ROLES = {"owner", "admin", "manager", "accountant"}
@@ -69,6 +72,32 @@ def _payment(p: SalaryPayment) -> dict:
         "paid_by_name": p.paid_by_name,
         "created_at": p.created_at.isoformat() if p.created_at else None,
     }
+
+
+def _advance(a: SalaryAdvance) -> dict:
+    return {
+        "id": a.id,
+        "employee_id": a.employee_id,
+        "employee_name": a.employee_name,
+        "employee_id_number": a.employee_id_number,
+        "position": a.position,
+        "amount": _money(a.amount),
+        "given_on": a.given_on.isoformat(),
+        "method": a.method,
+        "reference": a.reference,
+        "note": a.note,
+        "payment_id": a.payment_id,
+        "given_by_name": a.given_by_name,
+        "created_at": a.created_at.isoformat() if a.created_at else None,
+    }
+
+
+def _outstanding(db: Session, shop_id: str, employee_id: str | None = None):
+    """Advances not yet deducted from a salary, oldest first."""
+    q = db.query(SalaryAdvance).filter(SalaryAdvance.shop_id == shop_id, SalaryAdvance.payment_id.is_(None))
+    if employee_id:
+        q = q.filter(SalaryAdvance.employee_id == employee_id)
+    return q.order_by(SalaryAdvance.given_on, SalaryAdvance.created_at).all()
 
 
 def _month_bounds(period: str) -> tuple[date, date]:
@@ -130,6 +159,8 @@ def delete_employee(employee_id: str, db: Session = Depends(get_db), user: dict 
     if paid:
         # Their payments (and signed confirmations) must keep pointing somewhere.
         raise HTTPException(status_code=409, detail="This employee has salary payments. Set the date they left instead.")
+    if db.query(SalaryAdvance.id).filter(SalaryAdvance.shop_id == user["shop_id"], SalaryAdvance.employee_id == e.id).first():
+        raise HTTPException(status_code=409, detail="This employee has salary advances. Set the date they left instead.")
     db.delete(e)
     db.commit()
     return {"success": True}
@@ -140,7 +171,10 @@ def employee_payments(employee_id: str, db: Session = Depends(get_db), user: dic
     e = _get_employee(db, user["shop_id"], employee_id)
     rows = (db.query(SalaryPayment).filter(SalaryPayment.shop_id == user["shop_id"], SalaryPayment.employee_id == e.id)
             .order_by(SalaryPayment.period.desc()).all())
-    return {"success": True, "data": {"employee": _employee(e), "payments": [_payment(p) for p in rows]}}
+    advances = (db.query(SalaryAdvance).filter(SalaryAdvance.shop_id == user["shop_id"], SalaryAdvance.employee_id == e.id)
+                .order_by(SalaryAdvance.given_on.desc()).all())
+    return {"success": True, "data": {"employee": _employee(e), "payments": [_payment(p) for p in rows],
+                                      "advances": [_advance(a) for a in advances]}}
 
 
 # ─────────────────────────────────────────
@@ -161,9 +195,13 @@ def month(period: str, db: Session = Depends(get_db), user: dict = Depends(requi
                  .filter(or_(Employee.start_date.is_(None), Employee.start_date <= last))
                  .filter(or_(Employee.left_on.is_(None), Employee.left_on >= first))
                  .order_by(Employee.full_name).all())
-    rows = [{"employee": _employee(e), "payment": _payment(payments.pop(e.id)) if e.id in payments else None} for e in employees]
+    advances: dict[str, list[dict]] = {}
+    for a in _outstanding(db, shop):
+        advances.setdefault(a.employee_id, []).append(_advance(a))
+    rows = [{"employee": _employee(e), "payment": _payment(payments.pop(e.id)) if e.id in payments else None,
+             "advances": advances.get(e.id, [])} for e in employees]
     # Paid, though no longer in the list for that month (dates changed since).
-    rows += [{"employee": None, "payment": _payment(p)} for p in payments.values()]
+    rows += [{"employee": None, "payment": _payment(p), "advances": []} for p in payments.values()]
     paid = [r["payment"] for r in rows if r["payment"]]
     due = [r["employee"] for r in rows if not r["payment"] and r["employee"]]
     return {
@@ -178,6 +216,7 @@ def month(period: str, db: Session = Depends(get_db), user: dict = Depends(requi
                 "paid_gross": sum(p["gross"] for p in paid),
                 "due_count": len(due),
                 "due_gross": sum(e["monthly_salary"] for e in due),
+                "advances_outstanding": sum(a["amount"] for r in rows for a in r["advances"]),
             },
         },
     }
@@ -204,10 +243,26 @@ def pay(payload: PaymentIn, db: Session = Depends(get_db), user: dict = Depends(
                                          SalaryPayment.period == payload.period).first():
         raise HTTPException(status_code=409, detail="This month's salary is already recorded for this employee.")
 
-    net = payload.gross - payload.deductions
+    # Advances given up to the payment date come off this salary.
+    advances = [a for a in _outstanding(db, shop, e.id) if a.given_on <= payload.paid_on]
+    advanced = sum((a.amount for a in advances), Decimal("0"))
+    deductions = advanced + payload.deductions
+    # The whole salary may have been taken in advance (nothing left to give),
+    # but deductions can't go past it.
+    if deductions > payload.gross or (deductions == payload.gross and payload.deductions > 0):
+        raise HTTPException(status_code=400, detail=(
+            f"Advances ({advanced:,.0f} RWF) and deductions are more than the salary." if advanced
+            else "Deductions must be less than the salary."))
+    deduction_note = "; ".join(x for x in [
+        ("Advance " + ", ".join(f"{a.given_on.day} {MONTHS[a.given_on.month - 1][:3]}: {a.amount:,.0f}" for a in advances)) if advances else None,
+        payload.deduction_note,
+    ] if x)[:255] or None
+
+    net = payload.gross - deductions
     label = _period_label(payload.period)
     try:
-        expense = Expense(
+        # Nothing handed over (all taken in advance, already in Expenses): no expense.
+        expense = None if net == 0 else Expense(
             shop_id=shop,
             created_by=user.get("user_id") or "",
             title=f"Salary {label}: {e.full_name}",
@@ -215,14 +270,15 @@ def pay(payload: PaymentIn, db: Session = Depends(get_db), user: dict = Depends(
             amount=net,
             notes="; ".join(x for x in [
                 e.position,
-                f"Deductions {payload.deductions:,.0f} ({payload.deduction_note})" if payload.deductions > 0 else None,
+                f"Deductions {deductions:,.0f} ({deduction_note})" if deductions > 0 else None,
                 f"Ref {payload.reference}" if payload.reference else None,
             ] if x) or None,
             expense_date=datetime.combine(payload.paid_on, time(12, 0), tzinfo=timezone.utc),
             payment_method=payload.method,
         )
-        db.add(expense)
-        db.flush()
+        if expense:
+            db.add(expense)
+            db.flush()
         p = SalaryPayment(
             shop_id=shop,
             employee_id=e.id,
@@ -231,19 +287,22 @@ def pay(payload: PaymentIn, db: Session = Depends(get_db), user: dict = Depends(
             employee_id_number=e.id_number,
             position=e.position,
             gross=payload.gross,
-            deductions=payload.deductions,
-            deduction_note=payload.deduction_note,
+            deductions=deductions,
+            deduction_note=deduction_note,
             net=net,
             paid_on=payload.paid_on,
             method=payload.method,
             reference=payload.reference,
-            expense_id=expense.id,
+            expense_id=expense.id if expense else None,
             paid_by=user.get("user_id"),
             paid_by_name=user.get("name") or user.get("email"),
         )
         db.add(p)
         db.flush()
-        emit(db, user, "expense.created", {"id": expense.id, "title": expense.title, "amount": float(net), "category": "salaries"}, financial=True)
+        for a in advances:
+            a.payment_id = p.id
+        if expense:
+            emit(db, user, "expense.created", {"id": expense.id, "title": expense.title, "amount": float(net), "category": "salaries"}, financial=True)
         db.commit()
     except IntegrityError:
         db.rollback()
@@ -260,6 +319,81 @@ def undo_payment(payment_id: str, db: Session = Depends(get_db), user: dict = De
         raise HTTPException(status_code=404, detail="Payment not found")
     if p.expense_id:
         db.query(Expense).filter(Expense.id == p.expense_id, Expense.shop_id == user["shop_id"]).delete()
+    # The advances it deducted are owed again, to come off the next payment.
+    db.query(SalaryAdvance).filter(SalaryAdvance.shop_id == user["shop_id"], SalaryAdvance.payment_id == p.id) \
+        .update({"payment_id": None})
     db.delete(p)
+    db.commit()
+    return {"success": True}
+
+
+# ─────────────────────────────────────────
+# ADVANCES
+# ─────────────────────────────────────────
+
+@router.post("/advances")
+def give_advance(payload: AdvanceIn, db: Session = Depends(get_db), user: dict = Depends(require_payroll)):
+    shop = user["shop_id"]
+    e = _get_employee(db, shop, payload.employee_id)
+    if payload.given_on > _today():
+        raise HTTPException(status_code=400, detail="The date can't be in the future.")
+    if (e.start_date and payload.given_on < e.start_date) or (e.left_on and payload.given_on > e.left_on):
+        raise HTTPException(status_code=400, detail="This employee wasn't working for you on that date.")
+    # At most one month's salary, so the next payment can always take it back.
+    owed = sum((a.amount for a in _outstanding(db, shop, e.id)), Decimal("0"))
+    if owed + payload.amount > e.monthly_salary:
+        left = max(e.monthly_salary - owed, Decimal("0"))
+        raise HTTPException(status_code=400, detail=(
+            f"Advances can't be more than the monthly salary ({e.monthly_salary:,.0f} RWF). "
+            f"Already advanced: {owed:,.0f} RWF, so at most {left:,.0f} RWF more."))
+
+    expense = Expense(
+        shop_id=shop,
+        created_by=user.get("user_id") or "",
+        title=f"Salary advance: {e.full_name}",
+        category=ExpenseCategory.salaries,
+        amount=payload.amount,
+        notes="; ".join(x for x in [
+            e.position, payload.note, f"Ref {payload.reference}" if payload.reference else None,
+        ] if x) or None,
+        expense_date=datetime.combine(payload.given_on, time(12, 0), tzinfo=timezone.utc),
+        payment_method=payload.method,
+    )
+    db.add(expense)
+    db.flush()
+    a = SalaryAdvance(
+        shop_id=shop,
+        employee_id=e.id,
+        employee_name=e.full_name,
+        employee_id_number=e.id_number,
+        position=e.position,
+        amount=payload.amount,
+        given_on=payload.given_on,
+        method=payload.method,
+        reference=payload.reference,
+        note=payload.note,
+        expense_id=expense.id,
+        given_by=user.get("user_id"),
+        given_by_name=user.get("name") or user.get("email"),
+    )
+    db.add(a)
+    db.flush()
+    emit(db, user, "expense.created", {"id": expense.id, "title": expense.title, "amount": float(payload.amount), "category": "salaries"}, financial=True)
+    db.commit()
+    db.refresh(a)
+    return {"success": True, "data": _advance(a)}
+
+
+@router.delete("/advances/{advance_id}")
+def remove_advance(advance_id: str, db: Session = Depends(get_db), user: dict = Depends(require_payroll)):
+    """Takes back an advance recorded by mistake, with the expense it added."""
+    a = db.query(SalaryAdvance).filter(SalaryAdvance.id == advance_id, SalaryAdvance.shop_id == user["shop_id"]).first()
+    if not a:
+        raise HTTPException(status_code=404, detail="Advance not found")
+    if a.payment_id:
+        raise HTTPException(status_code=409, detail="A salary payment already deducted this advance. Undo that payment first.")
+    if a.expense_id:
+        db.query(Expense).filter(Expense.id == a.expense_id, Expense.shop_id == user["shop_id"]).delete()
+    db.delete(a)
     db.commit()
     return {"success": True}

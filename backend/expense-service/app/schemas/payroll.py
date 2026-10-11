@@ -70,3 +70,24 @@ class PaymentIn(BaseModel):
         if self.deductions > 0 and not self.deduction_note:
             raise ValueError("Say what the deduction is for.")
         return self
+
+
+class AdvanceIn(BaseModel):
+    employee_id: str
+    amount:      Decimal = Field(..., gt=0, le=Decimal("1000000000"))
+    given_on:    date
+    method:      str
+    reference:   str | None = Field(None, max_length=100)
+    note:        str | None = Field(None, max_length=255)
+
+    @field_validator("method")
+    @classmethod
+    def valid_method(cls, v: str) -> str:
+        if v not in PAY_METHODS:
+            raise ValueError(f"method must be one of: {', '.join(sorted(PAY_METHODS))}")
+        return v
+
+    @field_validator("reference", "note")
+    @classmethod
+    def tidy(cls, v: str | None) -> str | None:
+        return _clean(v)

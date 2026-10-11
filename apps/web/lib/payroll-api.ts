@@ -41,18 +41,49 @@ export interface SalaryPayment {
   created_at: string | null;
 }
 
-export interface MonthRow { employee: Employee | null; payment: SalaryPayment | null }
+/** Part of a salary paid early; the next salary payment deducts it (payment_id). */
+export interface SalaryAdvance {
+  id: string;
+  employee_id: string;
+  employee_name: string;
+  employee_id_number: string | null;
+  position: string | null;
+  amount: number;
+  given_on: string;
+  method: PayMethod;
+  reference: string | null;
+  note: string | null;
+  payment_id: string | null;
+  given_by_name: string | null;
+  created_at: string | null;
+}
+
+export interface AdvanceInput {
+  employee_id: string;
+  amount: number;
+  given_on: string;
+  method: PayMethod;
+  reference: string | null;
+  note: string | null;
+}
+
+/** `advances`: given and not yet deducted from a salary. */
+export interface MonthRow { employee: Employee | null; payment: SalaryPayment | null; advances: SalaryAdvance[] }
 
 export interface Month {
   period: string;
   rows: MonthRow[];
-  totals: { employees: number; paid_count: number; paid_net: number; paid_gross: number; due_count: number; due_gross: number };
+  totals: {
+    employees: number; paid_count: number; paid_net: number; paid_gross: number; due_count: number; due_gross: number;
+    advances_outstanding: number;
+  };
 }
 
 export interface PaymentInput {
   employee_id: string;
   period: string;
   gross: number;
+  /** Other deductions; outstanding advances are deducted by the server. */
   deductions: number;
   deduction_note: string | null;
   paid_on: string;
@@ -70,6 +101,9 @@ export const getMonth = async (period: string): Promise<Month | null> => (await 
 export const recordPayment = async (p: PaymentInput): Promise<SalaryPayment> =>
   (await expenseRequest("/payroll/payments", { method: "POST", body: JSON.stringify(p) }))?.data;
 export const undoPayment = async (id: string) => expenseRequest(`/payroll/payments/${id}`, { method: "DELETE" });
+export const giveAdvance = async (a: AdvanceInput): Promise<SalaryAdvance> =>
+  (await expenseRequest("/payroll/advances", { method: "POST", body: JSON.stringify(a) }))?.data;
+export const removeAdvance = async (id: string) => expenseRequest(`/payroll/advances/${id}`, { method: "DELETE" });
 
 /** The server's reason for refusing (its `detail`), or null. */
 export function payrollError(err: unknown): string | null {

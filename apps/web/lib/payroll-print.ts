@@ -3,7 +3,7 @@
 // signature column. Pure: builds an HTML string for a print window.
 
 import type { PrintShop } from "./proforma-print";
-import type { SalaryPayment } from "./payroll-api";
+import type { SalaryAdvance, SalaryPayment } from "./payroll-api";
 
 type T = (key: string) => string;
 
@@ -149,6 +149,48 @@ export function salaryLettersHtml(payments: SalaryPayment[], shop: PrintShop, t:
   </section>`;
   });
   return page(payments.length === 1 ? `${t("letter.title")} - ${payments[0].employee_name}` : t("letter.title"), sheets.join(""), !!opts.autoPrint);
+}
+
+/** The receipt an employee signs on receiving a salary advance. */
+export function advanceReceiptHtml(a: SalaryAdvance, shop: PrintShop, t: T, lang: string, opts: { autoPrint?: boolean } = {}): string {
+  const who = a.employee_id_number ? `${esc(a.employee_name)}, ${esc(fill(t("letter.id_no"), { id: a.employee_id_number }))}` : esc(a.employee_name);
+  const words = lang === "en" ? `${numberToWords(a.amount)} Rwandan francs` : "";
+  const body = `
+  <section class="sheet">
+    ${head(shop)}
+    <div class="meta">
+      <span>${esc(t("letter.ref"))}: ${esc(`ADV-${a.given_on.slice(0, 7)}-${a.id.slice(0, 6).toUpperCase()}`)}</span>
+      <span>${esc(dayLabel(a.given_on, lang))}</span>
+    </div>
+    <h1>${esc(t("advance.title"))}</h1>
+    <div class="body">${fill(esc(t("advance.body")), {
+      who: `<b>${who}</b>`,
+      position: esc(a.position || t("letter.employee")),
+      company: `<b>${esc(shop.name)}</b>`,
+    })}</div>
+    <table class="fig">
+      <tr class="net"><th>${esc(t("advance.amount"))}</th><td class="num">${money(a.amount)} RWF</td></tr>
+      ${words ? `<tr><th>${esc(t("letter.in_words"))}</th><td class="words">${esc(words.charAt(0).toUpperCase() + words.slice(1))}</td></tr>` : ""}
+      ${a.note ? `<tr><th>${esc(t("advance.reason"))}</th><td>${esc(a.note)}</td></tr>` : ""}
+      <tr><th>${esc(t("letter.method"))}</th><td>${esc(t(`payroll.method_${a.method}`))}${a.reference ? ` · ${esc(t("letter.reference"))} ${esc(a.reference)}` : ""}</td></tr>
+      <tr><th>${esc(t("advance.given_on"))}</th><td>${esc(dayLabel(a.given_on, lang))}</td></tr>
+    </table>
+    <p class="body">${esc(t("advance.deducted_note"))}</p>
+    <div class="signs">
+      <div class="sign">
+        <div class="line"></div>
+        <b>${esc(t("letter.employee_sign"))}</b>
+        ${esc(a.employee_name)}
+      </div>
+      <div class="sign">
+        <div class="line"></div>
+        <b>${esc(fill(t("letter.employer_sign"), { company: shop.name }))}</b>
+        ${a.given_by_name ? esc(fill(t("letter.paid_by"), { name: a.given_by_name })) : ""}
+      </div>
+    </div>
+    <div class="foot">${esc(t("advance.footer"))}</div>
+  </section>`;
+  return page(`${t("advance.title")} - ${a.employee_name}`, body, !!opts.autoPrint);
 }
 
 /** The month's payroll sheet: everyone paid, with a column to sign. */

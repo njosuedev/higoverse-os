@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, Pencil, Plus, Printer, Trash2, Undo2, Users, Wallet, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, HandCoins, Pencil, Plus, Printer, Trash2, Undo2, Users, Wallet, X } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { useLanguage } from "@/lib/language-context";
 import { askConfirm, notify } from "@/lib/dialogs";
@@ -10,11 +10,11 @@ import { decodeShopHumanInfo, formatPublicAddress } from "@/lib/product-meta";
 import { prettyPhone, shopTin } from "@/lib/company";
 import type { PrintShop } from "@/lib/proforma-print";
 import {
-  PAY_METHODS, PAYROLL_ROLES, addEmployee, deleteEmployee, getMonth, listEmployees, payrollError, periodOf, recordPayment,
-  shiftPeriod, undoPayment, updateEmployee,
-  type Employee, type EmployeeInput, type Month, type PayMethod, type SalaryPayment,
+  PAY_METHODS, PAYROLL_ROLES, addEmployee, deleteEmployee, getMonth, giveAdvance, listEmployees, payrollError, periodOf, recordPayment,
+  removeAdvance, shiftPeriod, undoPayment, updateEmployee,
+  type Employee, type EmployeeInput, type Month, type PayMethod, type SalaryAdvance, type SalaryPayment,
 } from "@/lib/payroll-api";
-import { monthLabel, payrollSheetHtml, salaryLettersHtml } from "@/lib/payroll-print";
+import { advanceReceiptHtml, monthLabel, payrollSheetHtml, salaryLettersHtml } from "@/lib/payroll-print";
 import { Bone, SkeletonRegion, useSkeleton } from "@/app/components/ui/Skeleton";
 
 const fmt = (n: number) => Math.round(n || 0).toLocaleString("en-US");
@@ -36,7 +36,8 @@ export default function PayrollPage() {
   const [failed, setFailed] = useState(false);
   const [shop, setShop] = useState<PrintShop>({ name: "" });
   const [editing, setEditing] = useState<Employee | "new" | null>(null);
-  const [paying, setPaying] = useState<Employee | null>(null);
+  const [paying, setPaying] = useState<{ employee: Employee; advances: SalaryAdvance[] } | null>(null);
+  const [advancing, setAdvancing] = useState<{ employee: Employee; owed: number } | null>(null);
   const skeleton = useSkeleton((tab === "month" ? month : employees) === null && !failed);
 
   // Loads the month and the list; bumping `reloads` loads them again.
@@ -80,6 +81,22 @@ export default function PayrollPage() {
   async function printPrompt(p: SalaryPayment) {
     notify(t("payroll.paid_ok").replace("{name}", p.employee_name), "success");
     if (await askConfirm({ message: t("payroll.print_now"), confirmLabel: t("payroll.print_letter") })) printLetters([p]);
+  }
+
+  function printAdvance(a: SalaryAdvance) {
+    openPrint(advanceReceiptHtml(a, shop, t, lang, { autoPrint: true }));
+  }
+
+  // Right after giving an advance: the receipt to sign is one click away.
+  async function advancePrompt(a: SalaryAdvance) {
+    notify(t("payroll.advance_ok").replace("{name}", a.employee_name), "success");
+    if (await askConfirm({ message: t("payroll.print_advance_now"), confirmLabel: t("payroll.print_receipt") })) printAdvance(a);
+  }
+
+  async function takeBackAdvance(a: SalaryAdvance) {
+    if (!(await askConfirm({ message: t("payroll.confirm_remove_advance").replace("{name}", a.employee_name), danger: true }))) return;
+    try { await removeAdvance(a.id); notify(t("payroll.advance_removed"), "success"); load(); }
+    catch (err) { notify(payrollError(err) || t("common.error")); }
   }
 
   async function remove(e: Employee) {
@@ -140,6 +157,9 @@ export default function PayrollPage() {
               <div className="flex flex-1 flex-wrap gap-x-6 gap-y-1 text-sm">
                 <span className="text-text-muted">{t("payroll.paid")}: <b className="hgv-figure text-success">{totals ? `${totals.paid_count} · ${fmt(totals.paid_net)} RWF` : "–"}</b></span>
                 <span className="text-text-muted">{t("payroll.to_pay")}: <b className={`hgv-figure ${totals?.due_count ? "text-warning" : "text-text"}`}>{totals ? `${totals.due_count} · ${fmt(totals.due_gross)} RWF` : "–"}</b></span>
+                {!!totals?.advances_outstanding && (
+                  <span className="text-text-muted">{t("payroll.advances_out")}: <b className="hgv-figure text-text">{fmt(totals.advances_outstanding)} RWF</b></span>
+                )}
               </div>
               {paid.length > 0 && (
                 <div className="flex gap-2">
@@ -162,8 +182,11 @@ export default function PayrollPage() {
                 {month.rows.map((r) => {
                   const e = r.employee, p = r.payment;
                   const name = p?.employee_name ?? e?.full_name ?? "";
+                  const advances = r.advances ?? [];
+                  const owed = advances.reduce((sum, a) => sum + a.amount, 0);
                   return (
-                    <div key={p?.id ?? e?.id} className="hgv-ledger-row flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3">
+                    <div key={p?.id ?? e?.id} className="hgv-ledger-row px-4 py-3">
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
                       <div className="min-w-[180px] flex-1">
                         <p className="font-semibold text-text">{name}</p>
                         <p className="text-xs text-text-muted">{[p?.position ?? e?.position, e && `${fmt(e.monthly_salary)} RWF / ${t("payroll.month_short")}`].filter(Boolean).join(" · ")}</p>
@@ -191,13 +214,37 @@ export default function PayrollPage() {
                         <>
                           <span className="rounded-full bg-warning/10 px-2.5 py-1 text-xs font-semibold text-warning">{t("payroll.status_due")}</span>
                           {e && (
-                            <button onClick={() => setPaying(e)}
+                            <button onClick={() => setPaying({ employee: e, advances })}
                               className="flex items-center gap-1.5 rounded-press bg-ink px-3 py-1.5 text-xs font-semibold text-white hover:bg-ink-dark">
                               <Wallet size={13} /> {t("payroll.pay")}
                             </button>
                           )}
                         </>
                       )}
+                      {e?.active && (
+                        <button onClick={() => setAdvancing({ employee: e, owed })} title={t("payroll.give_advance")}
+                          className="flex items-center gap-1.5 rounded-press border border-border px-2.5 py-1.5 text-xs font-semibold text-text hover:bg-paper-dim">
+                          <HandCoins size={13} /> {t("payroll.advance")}
+                        </button>
+                      )}
+                    </div>
+                    {advances.length > 0 && (
+                      <ul className="mt-2 space-y-1 border-l-2 border-border-strong pl-3">
+                        {advances.map((a) => (
+                          <li key={a.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-text-muted">
+                            <span className="font-semibold text-text">{t("payroll.advance")} · <span className="hgv-figure">{fmt(a.amount)} RWF</span></span>
+                            <span>{a.given_on} · {t(`payroll.method_${a.method}`)}{a.note ? ` · ${a.note}` : ""}</span>
+                            <span className="text-text-faint">{t("payroll.advance_to_deduct")}</span>
+                            <span className="ml-auto flex gap-1">
+                              <button onClick={() => printAdvance(a)} title={t("payroll.print_receipt")} aria-label={t("payroll.print_receipt")}
+                                className="rounded-press p-1 text-text-muted hover:bg-paper-dim hover:text-text"><Printer size={13} /></button>
+                              <button onClick={() => takeBackAdvance(a)} title={t("payroll.remove_advance")} aria-label={t("payroll.remove_advance")}
+                                className="rounded-press p-1 text-text-muted hover:bg-paper-dim hover:text-accent-dark"><Trash2 size={13} /></button>
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
                     </div>
                   );
                 })}
@@ -237,8 +284,12 @@ export default function PayrollPage() {
           onSaved={() => { setEditing(null); load(); }} />
       )}
       {paying && (
-        <PayForm employee={paying} period={period} onClose={() => setPaying(null)}
+        <PayForm employee={paying.employee} advances={paying.advances} period={period} onClose={() => setPaying(null)}
           onPaid={(p) => { setPaying(null); load(); printPrompt(p); }} />
+      )}
+      {advancing && (
+        <AdvanceForm employee={advancing.employee} owed={advancing.owed} onClose={() => setAdvancing(null)}
+          onGiven={(a) => { setAdvancing(null); load(); advancePrompt(a); }} />
       )}
     </div>
   );
@@ -357,8 +408,8 @@ function EmployeeForm({ employee, onClose, onSaved }: { employee: Employee | nul
   );
 }
 
-function PayForm({ employee, period, onClose, onPaid }: {
-  employee: Employee; period: string; onClose: () => void; onPaid: (p: SalaryPayment) => void;
+function PayForm({ employee, advances, period, onClose, onPaid }: {
+  employee: Employee; advances: SalaryAdvance[]; period: string; onClose: () => void; onPaid: (p: SalaryPayment) => void;
 }) {
   const { t, lang } = useLanguage();
   const [gross, setGross] = useState(String(employee.monthly_salary));
@@ -369,11 +420,15 @@ function PayForm({ employee, period, onClose, onPaid }: {
   const [reference, setReference] = useState("");
   const [saving, setSaving] = useState(false);
   const g = Number(gross.replace(/,/g, "")) || 0, d = Number(deductions.replace(/,/g, "")) || 0;
-  const net = g - d;
+  // Advances given up to the payment date come off this salary (the server does the same).
+  const due = advances.filter((a) => a.given_on <= paidOn);
+  const advanced = due.reduce((sum, a) => sum + a.amount, 0);
+  const net = g - advanced - d;
 
   async function save() {
     if (!(g > 0)) { notify(t("payroll.err_amount")); return; }
-    if (d < 0 || d >= g) { notify(t("payroll.err_deductions")); return; }
+    // The whole salary may have been taken in advance (nothing left to give), but no more.
+    if (d < 0 || net < 0 || (net === 0 && d > 0)) { notify(t(advanced ? "payroll.err_advances_take_all" : "payroll.err_deductions")); return; }
     if (d > 0 && !note.trim()) { notify(t("payroll.err_deduction_note")); return; }
     try {
       setSaving(true);
@@ -389,20 +444,33 @@ function PayForm({ employee, period, onClose, onPaid }: {
     <Modal title={t("payroll.pay_title").replace("{name}", employee.full_name)} subtitle={monthLabel(period, lang)} onClose={onClose}
       footer={<>
         <button onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-text-muted hover:bg-paper-dim">{t("common.cancel")}</button>
-        <button onClick={save} disabled={saving || !(net > 0)} className="rounded-lg bg-ink px-5 py-2 text-sm font-semibold text-white hover:bg-ink-dark disabled:opacity-60">
+        <button onClick={save} disabled={saving || net < 0 || (net === 0 && advanced === 0)} className="rounded-lg bg-ink px-5 py-2 text-sm font-semibold text-white hover:bg-ink-dark disabled:opacity-60">
           {saving ? t("common.saving") : t("payroll.record_payment")}
         </button>
       </>}>
       <div className="grid gap-3 sm:grid-cols-2">
         <Field label={t("payroll.salary_month")}><input className={`${inputCls} tabular-nums`} inputMode="numeric" value={gross} onChange={(e) => setGross(e.target.value)} /></Field>
-        <Field label={t("payroll.deductions")} optional><input className={`${inputCls} tabular-nums`} inputMode="numeric" value={deductions} onChange={(e) => setDeductions(e.target.value)} placeholder="0" /></Field>
+        <Field label={t(advanced ? "payroll.other_deductions" : "payroll.deductions")} optional><input className={`${inputCls} tabular-nums`} inputMode="numeric" value={deductions} onChange={(e) => setDeductions(e.target.value)} placeholder="0" /></Field>
       </div>
+      {due.length > 0 && (
+        <div className="rounded-lg border border-border px-3 py-2">
+          <p className="text-xs font-medium text-text-muted">{t("payroll.advances_deducted")}</p>
+          <ul className="mt-1 space-y-0.5 text-sm">
+            {due.map((a) => (
+              <li key={a.id} className="flex justify-between gap-3">
+                <span className="text-text-muted">{a.given_on}{a.note ? ` · ${a.note}` : ""}</span>
+                <span className="hgv-figure font-semibold text-text">- {fmt(a.amount)} RWF</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       {d > 0 && (
         <Field label={t("payroll.deduction_note")}><input className={inputCls} value={note} onChange={(e) => setNote(e.target.value)} placeholder={t("payroll.deduction_hint")} /></Field>
       )}
       <div className="flex items-center justify-between rounded-lg bg-paper-dim px-3 py-2.5">
         <span className="text-sm text-text-muted">{t("payroll.net")}</span>
-        <span className={`hgv-figure text-lg font-bold ${net > 0 ? "text-text" : "text-accent-dark"}`}>{fmt(net)} RWF</span>
+        <span className={`hgv-figure text-lg font-bold ${net > 0 || (net === 0 && advanced > 0) ? "text-text" : "text-accent-dark"}`}>{fmt(net)} RWF</span>
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
         <Field label={t("payroll.paid_date")}><input type="date" className={inputCls} value={paidOn} max={today()} onChange={(e) => setPaidOn(e.target.value)} /></Field>
@@ -420,6 +488,68 @@ function PayForm({ employee, period, onClose, onPaid }: {
         </div>
       </div>
       <p className="text-xs text-text-faint">{t("payroll.expense_hint")}</p>
+    </Modal>
+  );
+}
+
+function AdvanceForm({ employee, owed, onClose, onGiven }: {
+  employee: Employee; owed: number; onClose: () => void; onGiven: (a: SalaryAdvance) => void;
+}) {
+  const { t } = useLanguage();
+  const [amount, setAmount] = useState("");
+  const [givenOn, setGivenOn] = useState(today());
+  const [method, setMethod] = useState<PayMethod>("cash");
+  const [reference, setReference] = useState("");
+  const [note, setNote] = useState("");
+  const [saving, setSaving] = useState(false);
+  const a = Number(amount.replace(/,/g, "")) || 0;
+  // At most one month's salary, so the next payment can take them back.
+  const most = Math.max(employee.monthly_salary - owed, 0);
+
+  async function save() {
+    if (!(a > 0)) { notify(t("payroll.err_amount")); return; }
+    if (a > most) { notify(t("payroll.err_advance_too_much").replace("{max}", fmt(most))); return; }
+    try {
+      setSaving(true);
+      onGiven(await giveAdvance({
+        employee_id: employee.id, amount: a, given_on: givenOn, method,
+        reference: reference.trim() || null, note: note.trim() || null,
+      }));
+    } catch (err) { notify(payrollError(err) || t("common.error")); }
+    finally { setSaving(false); }
+  }
+
+  return (
+    <Modal title={t("payroll.advance_title").replace("{name}", employee.full_name)} onClose={onClose}
+      footer={<>
+        <button onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-text-muted hover:bg-paper-dim">{t("common.cancel")}</button>
+        <button onClick={save} disabled={saving || !(a > 0) || a > most} className="rounded-lg bg-ink px-5 py-2 text-sm font-semibold text-white hover:bg-ink-dark disabled:opacity-60">
+          {saving ? t("common.saving") : t("payroll.give_advance")}
+        </button>
+      </>}>
+      <dl className="grid grid-cols-3 gap-2 rounded-lg bg-paper-dim px-3 py-2.5 text-sm">
+        <div><dt className="text-xs text-text-muted">{t("payroll.monthly_salary")}</dt><dd className="hgv-figure font-semibold text-text">{fmt(employee.monthly_salary)}</dd></div>
+        <div><dt className="text-xs text-text-muted">{t("payroll.already_advanced")}</dt><dd className="hgv-figure font-semibold text-text">{fmt(owed)}</dd></div>
+        <div><dt className="text-xs text-text-muted">{t("payroll.can_advance")}</dt><dd className="hgv-figure font-semibold text-text">{fmt(most)}</dd></div>
+      </dl>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field label={t("payroll.advance_amount")}><input className={`${inputCls} tabular-nums`} inputMode="numeric" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0" autoFocus /></Field>
+        <Field label={t("payroll.advance_date")}><input type="date" className={inputCls} value={givenOn} max={today()} onChange={(e) => setGivenOn(e.target.value)} /></Field>
+      </div>
+      <Field label={t("payroll.advance_reason")} optional><input className={inputCls} value={note} onChange={(e) => setNote(e.target.value)} placeholder={t("payroll.advance_reason_hint")} /></Field>
+      <div>
+        <span className="mb-1 block text-xs font-medium text-text-muted">{t("payroll.method")} <span className="text-accent">*</span></span>
+        <div className="flex flex-wrap gap-1.5">
+          {PAY_METHODS.map((m) => (
+            <button key={m} type="button" onClick={() => setMethod(m)} aria-pressed={method === m}
+              className={`rounded-full border px-3 py-1.5 text-sm font-medium transition-colors ${method === m ? "border-ink bg-ink-soft text-ink" : "border-border text-text-muted hover:border-border-strong"}`}>
+              {t(`payroll.method_${m}`)}
+            </button>
+          ))}
+        </div>
+      </div>
+      <Field label={t("payroll.reference")} optional><input className={inputCls} value={reference} onChange={(e) => setReference(e.target.value)} /></Field>
+      <p className="text-xs text-text-faint">{t("payroll.advance_hint")}</p>
     </Modal>
   );
 }
