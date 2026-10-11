@@ -23,6 +23,11 @@ export const metadata: Metadata = {
 
   keywords: [
     "Higoverse",
+    "business management platform",
+    "business management software",
+    "business management software Rwanda",
+    "car dealer management software",
+    "payroll software Rwanda",
     "shop management software",
     "inventory management",
     "stock management",

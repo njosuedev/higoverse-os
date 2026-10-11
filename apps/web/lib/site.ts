@@ -3,10 +3,10 @@
 export const SITE = {
   name: "Higoverse",
   url: "https://higoverse.com",
-  title: "Higoverse | Inventory, Sales & Shop Management Software",
-  shortTitle: "Business records & transactions platform",
+  title: "Higoverse | Business Management Platform for Shops & Car Dealers",
+  shortTitle: "Business management platform",
   description:
-    "Higoverse is shop and business management software: track inventory and stock, record sales, purchases, expenses and customer debts, issue proforma invoices, and get real-time reports, all in one place.",
+    "Higoverse is the business management platform for shops and car dealers in Rwanda: inventory and stock, sales, purchases, expenses, customer debts, proforma invoices, payroll and real-time reports, on the web, Android and Windows.",
   logo: "/higoverse-logo.png",
   locale: "en_US",
   themeColor: "#0a66c2",
@@ -15,6 +15,12 @@ export const SITE = {
   contactEmail: "higoverse@gmail.com",
   /** As on the Google Business Profile, so search engines match the two. */
   phone: "+250790885174",
+  /** Official social profiles (JSON-LD sameAs). */
+  social: [
+    "https://www.facebook.com/people/Higoverse/100080225144892/",
+    "https://www.instagram.com/higoverse",
+    "https://x.com/higoverse",
+  ],
   city: "Kigali",
   country: "RW",
 } as const;
