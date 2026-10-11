@@ -4,6 +4,7 @@
     { "source": "/login", "destination": "https://higoverse.com/login", "permanent": true },
     { "source": "/privacy", "destination": "https://higoverse.com/privacy", "permanent": true },
     { "source": "/download", "destination": "https://higoverse.com/download", "permanent": true },
-    { "source": "/(.*)", "destination": "https://higoverse.com/", "permanent": true }
+    { "source": "/", "destination": "https://higoverse.com/", "permanent": true },
+    { "source": "/:path*", "destination": "https://higoverse.com/", "permanent": true }
   ]
 }
