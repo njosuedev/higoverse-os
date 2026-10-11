@@ -102,6 +102,52 @@ class ProductUpdate(BaseModel):
 
 
 # =====================================
+# STOCK IN (car companies: many cars at once)
+# =====================================
+
+MAX_STOCK_CARS = 200
+
+
+class StockLine(BaseModel):
+    """`count` cars of one model ("10 BYD Yuan Up"), each added as its own
+    vehicle; chassis and plate are assigned to each car afterwards."""
+    name: str = Field(..., min_length=1, max_length=255)
+    count: int = Field(..., ge=1, le=MAX_STOCK_CARS)
+    selling_price: Decimal = Field(..., gt=0)
+
+    # Specs shared by the whole line; any car can be edited later.
+    car_type: str | None = Field(None, max_length=60)
+    year: int | None = Field(None, ge=1950, le=2100)
+    battery_range: int | None = Field(None, ge=0, le=10_000)
+    color: str | None = Field(None, max_length=60)
+    condition: str | None = Field(None, max_length=20)
+    mileage: int | None = Field(None, ge=0)
+
+
+class StockIn(BaseModel):
+    lines: list[StockLine] = Field(..., min_length=1, max_length=30)
+
+    @field_validator("lines")
+    @classmethod
+    def not_too_many(cls, v: list[StockLine]) -> list[StockLine]:
+        if sum(line.count for line in v) > MAX_STOCK_CARS:
+            raise ValueError(f"At most {MAX_STOCK_CARS} cars in one stock in")
+        return v
+
+
+class CarAssignment(BaseModel):
+    """One car's identity: blank fields are left as they are."""
+    id: str
+    chassis_no: str | None = Field(None, max_length=64)
+    plate_no: str | None = Field(None, max_length=32)
+    color: str | None = Field(None, max_length=60)
+
+
+class AssignCars(BaseModel):
+    cars: list[CarAssignment] = Field(..., min_length=1, max_length=MAX_STOCK_CARS)
+
+
+# =====================================
 # RESPONSE PRODUCT
 # =====================================
 

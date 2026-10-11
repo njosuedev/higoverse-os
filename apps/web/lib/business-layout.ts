@@ -60,6 +60,33 @@ export function duplicateVehicle(err: unknown): { field: string; name: string } 
   } catch { return null; }
 }
 
+/** "LGX 001" and "lgx001" are the same car (as product-service compares). */
+export const vehicleIdKey = (v: string) => v.replace(/\s+/g, "").toUpperCase();
+
+/** The car a 409 from POST /products/assign points at, and why. */
+export function assignConflict(err: unknown): { carId: string; field: string; name: string } | null {
+  const m = /Product API error: 409 ([\s\S]*)$/.exec(err instanceof Error ? err.message : "");
+  if (!m) return null;
+  try {
+    const d = JSON.parse(m[1])?.detail;
+    return d?.car_id ? { carId: String(d.car_id), field: String(d.field), name: String(d.product_name ?? "") } : null;
+  } catch { return null; }
+}
+
+/** Why the product API refused a request: its status and, when it gave one
+ *  in words (e.g. "Choose the car name from the list"), that message. */
+export function productApiError(err: unknown): { status: number; message: string | null } | null {
+  const m = /Product API error: (\d+) ([\s\S]*)$/.exec(err instanceof Error ? err.message : "");
+  if (!m) return null;
+  let message: string | null = null;
+  try {
+    const d = JSON.parse(m[2])?.detail;
+    if (typeof d === "string") message = d;
+    else if (typeof d?.message === "string") message = d.message;
+  } catch { /* not JSON */ }
+  return { status: Number(m[1]), message };
+}
+
 // Sale status + traffic penalties, also kept in attributes (set from the
 // vehicle cards, not the main form). Sold is derived from quantity = 0.
 export type VehicleStatusField =

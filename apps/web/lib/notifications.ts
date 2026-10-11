@@ -10,7 +10,7 @@ import { useSyncExternalStore } from "react";
 import { getUser } from "@/lib/auth";
 
 export type NotifKind =
-  | "sale" | "sale_deleted" | "car_added" | "product_new" | "fine" | "pending"
+  | "sale" | "sale_deleted" | "car_added" | "cars_stocked" | "product_new" | "fine" | "pending"
   | "low_stock" | "out_of_stock" | "restocked" | "debt_new" | "debt_payment" | "debt_paid"
   | "expense" | "purchase" | "proforma_new" | "proforma_approved" | "proforma_sold" | "proforma_deposit";
 
@@ -90,6 +90,11 @@ export function fromEvent(m: LiveMsg, opts: { isCar: boolean; lowStock: number }
       return make("sale_deleted", { name: s(d.product_name) }, "/sales");
     case "product.created":
       return make(opts.isCar ? "car_added" : "product_new", { name: s(d.name), detail: money(d.selling_price) }, `/items?open=${s(d.id)}`);
+    case "product.stocked": {
+      // One stock in of many cars: "10 BYD Yuan Up, 20 Neta U Pro".
+      const lines = Array.isArray(d.lines) ? (d.lines as { name?: unknown; count?: unknown }[]) : [];
+      return make("cars_stocked", { n: s(d.count), detail: lines.map((l) => `${s(l.count)} ${s(l.name)}`).join(", ") }, "/items?assign=1");
+    }
     case "product.updated": {
       const href = `/items?open=${s(d.id)}`;
       const fines = n(attrs.penalty_count);

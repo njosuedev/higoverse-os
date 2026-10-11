@@ -13,13 +13,16 @@ import { parseImages, shrinkDataUrl } from "@/lib/image";
 import CarImagesPicker from "@/app/components/items/CarImagesPicker";
 import CarGallery from "@/app/components/items/CarGallery";
 import VehicleGrid from "@/app/components/items/VehicleGrid";
+import StockInModal from "@/app/components/items/StockInModal";
+import AssignCarsModal from "@/app/components/items/AssignCarsModal";
+import ModelGroups from "@/app/components/items/ModelGroups";
 import DeepLink from "@/app/components/DeepLink";
 import Pagination from "@/app/components/ui/Pagination";
 import { useCanSeeFinancials, useShowsProfit } from "@/lib/permissions";
 import {
   Package, AlertCircle, Search, Filter, Plus, Trash2, Pencil, X, ShoppingCart,
   TrendingUp, TrendingDown, RefreshCw, ChevronDown,
-  FileSpreadsheet, FileText, Upload, Download, CheckCircle, XCircle, Car, PackagePlus, LayoutGrid, List,
+  FileSpreadsheet, FileText, Upload, Download, CheckCircle, XCircle, Car, PackagePlus, LayoutGrid, List, Hash, Layers,
 } from "lucide-react";
 import { askConfirm, notify } from "@/lib/dialogs";
 
@@ -49,6 +52,12 @@ const EMPTY_FORM = {
   images: [] as string[],
 };
 
+/** Has both its chassis and plate (cars stocked in by count get them later). */
+function carIdsComplete(p: Product): boolean {
+  const a = parseAttributes(p.attributes);
+  return !!a.chassis_no?.trim() && !!a.plate_no?.trim();
+}
+
 /** "Plate RAC 123 A · Chassis …" line under a car's name. */
 function carIds(a: Attributes): string {
   return [a.plate_no && `Plate ${a.plate_no}`, a.chassis_no && `Chassis ${a.chassis_no}`].filter(Boolean).join(" · ");
@@ -59,19 +68,23 @@ const PAGE_SIZES = [25, 50, 100, 250];
 interface InventorySummary {
   total_products: number; low_stock: number; out_of_stock: number;
   cost_value: number; potential_profit: number;
-  pending?: number; with_penalties?: number;
+  pending?: number; with_penalties?: number; unassigned?: number;
 }
 
 // Filter dropdown value → the API's `stock` parameter.
 const STOCK_PARAM: Record<string, string> = { in_stock: "in", low_stock: "low", out_stock: "out", restock: "restock" };
 // Car companies filter by sale status instead (the API's `status` parameter).
-const CAR_STATUS: Record<string, string> = { available: "available", pending: "pending", sold: "sold", penalties: "penalties", incomplete: "incomplete" };
+const CAR_STATUS: Record<string, string> = { available: "available", pending: "pending", sold: "sold", penalties: "penalties", incomplete: "incomplete", unassigned: "unassigned" };
 
-// Table or cards for car companies — a per-device preference, list by default.
+// Car companies see their vehicles grouped by car name, as a table or as
+// cards — a per-device preference, grouped by car name by default.
 const VIEW_KEY = "hgv_vehicle_view";
-type VehicleView = "cards" | "list";
+type VehicleView = "models" | "list" | "cards";
 function readVehicleView(): VehicleView {
-  try { return localStorage.getItem(VIEW_KEY) === "cards" ? "cards" : "list"; } catch { return "list"; }
+  try {
+    const v = localStorage.getItem(VIEW_KEY);
+    return v === "cards" || v === "list" ? v : "models";
+  } catch { return "models"; }
 }
 
 // The API caps a page at 1000 rows; exports walk every page.
@@ -110,10 +123,10 @@ export default function ItemManagementPage() {
   const [deletingId, setDeletingId] = useState("");
   const [form, setForm] = useState(EMPTY_FORM);
 
-  // Stock in (car companies restock here; they have no Purchases page).
-  const [stockInItem, setStockInItem] = useState<Product | null>(null);
-  const [stockInQty, setStockInQty]   = useState("");
-  const [stockingIn, setStockingIn]   = useState(false);
+  // Car companies stock in by count ("10 BYD Yuan Up…"; they have no
+  // Purchases page), then give each car its chassis and plate.
+  const [stockIn, setStockIn] = useState<{ name?: string } | null>(null);
+  const [assign, setAssign] = useState<{ ids?: string[] } | null>(null);
 
   const [importLoading, setImportLoading] = useState(false);
   const [importResults, setImportResults] = useState<{
@@ -132,7 +145,7 @@ export default function ItemManagementPage() {
   // (offered after the built-in ones).
   const { lowStock, currency, carTypes: customCarTypes, carNames } = useShopSettings();
   const [galleryFor, setGalleryFor] = useState<Product | null>(null);
-  const [vehicleView, setVehicleView] = useState<VehicleView>(() => (typeof window === "undefined" ? "list" : readVehicleView()));
+  const [vehicleView, setVehicleView] = useState<VehicleView>(() => (typeof window === "undefined" ? "models" : readVehicleView()));
   function chooseView(v: VehicleView) {
     setVehicleView(v);
     try { localStorage.setItem(VIEW_KEY, v); } catch { /* preference only */ }
@@ -143,6 +156,7 @@ export default function ItemManagementPage() {
   const [focusId, setFocusId] = useState<string | null>(null);
   const [autoForm, setAutoForm] = useState<{ id: string; form: "fines" | "pending" } | null>(null);
   const showCards = isCar && (vehicleView === "cards" || !!focusId);
+  const showModels = isCar && vehicleView === "models" && !focusId;
   const [loadingEdit, setLoadingEdit] = useState(false);
   // Photos are saved only once the product's own were loaded (lists carry
   // none): a failed load must not wipe them.
@@ -226,19 +240,14 @@ export default function ItemManagementPage() {
   // Dashboard links: /items?stock=low (restock list), /items?add=1 (new product),
   // /items?status=pending|penalties|incomplete (car watch lists).
   function handleDeepLink(params: URLSearchParams) {
-    // Dashboard/report circles: /items?open=<id>[&do=edit|fines|pending|stockin]
+    // Dashboard/report circles: /items?open=<id>[&do=edit|fines|pending]
     const open = params.get("open");
     if (open) {
       const act = params.get("do");
       setFocusId(open); setPage(1);
-      if (act === "edit" || act === "stockin") {
+      if (act === "edit") {
         itemRequest(`/products/${open}`)
-          .then((res) => {
-            const p = res?.data as Product | undefined;
-            if (!p) return;
-            if (act === "edit") openEditModal(p);
-            else { setStockInItem(p); setStockInQty(""); }
-          })
+          .then((res) => { if (res?.data) openEditModal(res.data as Product); })
           .catch(() => {});
       }
       if (act === "fines" || act === "pending") setAutoForm({ id: open, form: act });
@@ -247,6 +256,9 @@ export default function ItemManagementPage() {
     if (st && CAR_STATUS[st]) { setFilter(st); setPage(1); }
     if (params.get("stock") === "low") { setFilter(isCar ? "all" : "restock"); setPage(1); }
     if (params.get("add") === "1") openCreateModal();
+    // /items?stockin=<car name> (dashboard restock circles), /items?assign=1
+    if (isCar && params.has("stockin")) setStockIn({ name: params.get("stockin") || undefined });
+    if (isCar && params.get("assign") === "1") setAssign({});
   }
 
   function openCreateModal() {
@@ -321,23 +333,6 @@ export default function ItemManagementPage() {
       if (dup) { notify(`${t(dup.field === "plate_no" ? "vehicle.err_dup_plate" : "vehicle.err_dup_chassis")} "${dup.name}".`); return; }
       console.error(err); notify(modalMode === "edit" ? t("items.update_failed") : t("items.add_failed"));
     } finally { setSubmitting(false); }
-  }
-
-  async function submitStockIn() {
-    if (!stockInItem) return;
-    const add = Number(stockInQty);
-    if (!Number.isInteger(add) || add <= 0) { notify(t("items.stock_in_invalid")); return; }
-    try {
-      setStockingIn(true);
-      // Re-read the current quantity so a sale made meanwhile isn't overwritten.
-      const fresh = await itemRequest(`/products/${stockInItem.id}`);
-      const current = Number(fresh?.data?.quantity ?? stockInItem.quantity);
-      await itemRequest(`/products/${stockInItem.id}`, { method: "PUT", body: JSON.stringify({ quantity: current + add }) });
-      setStockInItem(null); setStockInQty("");
-      await loadData(true);
-    } catch (err) {
-      console.error(err); notify(t("items.update_failed"));
-    } finally { setStockingIn(false); }
   }
 
   async function deleteProduct(id: string) {
@@ -606,7 +601,7 @@ export default function ItemManagementPage() {
     <div className="min-h-screen">
       <div className="max-w-7xl mx-auto px-3 sm:px-5 py-3 sm:py-4">
 
-        <DeepLink keys={["stock", "add", "status", "open", "do"]} onParams={handleDeepLink} />
+        <DeepLink keys={["stock", "add", "status", "open", "do", "stockin", "assign"]} onParams={handleDeepLink} />
 
         {/* HEADER BANNER */}
         <div
@@ -661,6 +656,14 @@ export default function ItemManagementPage() {
               >
                 <RefreshCw size={12} className={refreshing ? "animate-spin" : ""} />
               </button>
+              {isCar && (
+                <button
+                  onClick={() => setStockIn({})}
+                  className="flex items-center gap-1.5 bg-white/10 hover:bg-white/20 border border-white/20 text-white px-3 py-1.5 rounded-lg text-xs font-bold active:scale-95 transition-all"
+                >
+                  <PackagePlus size={12} strokeWidth={2.5} /> {t("items.stock_in")}
+                </button>
+              )}
               <button
                 onClick={openCreateModal}
                 className="flex items-center gap-1.5 bg-white text-[#0a66c2] px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-blue-50 active:scale-95 transition-all shadow-lg shadow-black/20"
@@ -714,6 +717,7 @@ export default function ItemManagementPage() {
                   <option value="sold" className="text-gray-800">{t("vehicle.status_sold")}</option>
                   <option value="penalties" className="text-gray-800">{t("vehicle.has_fines")}</option>
                   <option value="incomplete" className="text-gray-800">{t("vehicle.incomplete")}</option>
+                  <option value="unassigned" className="text-gray-800">{t("assign.filter")}</option>
                 </>) : (<>
                   <option value="in_stock" className="text-gray-800">{t("items.in_stock")}</option>
                   <option value="restock" className="text-gray-800">{t("dash.needs_restock")}</option>
@@ -727,7 +731,7 @@ export default function ItemManagementPage() {
             {/* Cards / List (car companies) */}
             {isCar && (
               <div className="flex items-center gap-1 rounded-xl border border-white/10 bg-white/10 p-1">
-                {([["list", List, t("vehicle.view_list")], ["cards", LayoutGrid, t("vehicle.view_cards")]] as const).map(([v, Icon, label]) => (
+                {([["models", Layers, t("vehicle.view_models")], ["list", List, t("vehicle.view_list")], ["cards", LayoutGrid, t("vehicle.view_cards")]] as const).map(([v, Icon, label]) => (
                   <button key={v} onClick={() => chooseView(v)} aria-pressed={vehicleView === v}
                     className={`flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold transition ${vehicleView === v ? "bg-white text-[#0a66c2]" : "text-white/80 hover:bg-white/10"}`}>
                     <Icon size={12} /> {label}
@@ -750,6 +754,20 @@ export default function ItemManagementPage() {
               className="text-[11px] font-bold text-red-700 bg-red-100 hover:bg-red-200 px-2 py-0.5 rounded-md shrink-0 transition"
             >
               {t("common.retry")}
+            </button>
+          </div>
+        )}
+
+        {/* CARS WAITING FOR CHASSIS / PLATE */}
+        {isCar && (summary?.unassigned ?? 0) > 0 && (
+          <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5 mb-2">
+            <Hash size={11} className="text-amber-600 shrink-0" />
+            <p className="text-[11px] text-amber-800 flex-1 min-w-0">
+              {t("assign.banner").replace("{n}", String(summary?.unassigned ?? 0))}
+            </p>
+            <button onClick={() => setAssign({})}
+              className="text-[11px] font-bold text-amber-800 bg-amber-100 hover:bg-amber-200 px-2 py-0.5 rounded-md shrink-0 transition">
+              {t("assign.open")}
             </button>
           </div>
         )}
@@ -814,8 +832,17 @@ export default function ItemManagementPage() {
           </div>
         )}
 
-        {/* VEHICLE CARDS (car companies) or TABLE */}
-        {showCards ? (
+        {/* VEHICLES BY CAR NAME, VEHICLE CARDS (car companies) or TABLE */}
+        {showModels ? (
+          <ModelGroups
+            q={debouncedSearch}
+            status={CAR_STATUS[filter] ?? "in_stock"}
+            refreshKey={lastUpdated?.getTime() ?? 0}
+            onStockIn={(name) => setStockIn({ name })}
+            onEdit={(car) => openEditModal(car)}
+            onChanged={() => loadData(true)}
+          />
+        ) : showCards ? (
           <div className="space-y-4">
             {products.length === 0 ? (
               <div className="flex flex-col items-center rounded-data border border-border bg-white py-16 text-center">
@@ -829,6 +856,7 @@ export default function ItemManagementPage() {
                 currency={currency}
                 onOpenGallery={(v) => setGalleryFor(products.find((x) => x.id === v.id) ?? null)}
                 onEdit={(v) => { const p = products.find((x) => x.id === v.id); if (p) openEditModal(p); }}
+                onStockIn={(v) => setStockIn({ name: v.name })}
                 onChanged={() => loadData(true)}
                 autoForm={autoForm}
               />
@@ -1096,12 +1124,19 @@ export default function ItemManagementPage() {
                       {/* Actions */}
                       <td className="px-3 py-1.5">
                         <div className="flex items-center justify-center gap-1">
-                          {isCar ? (
-                            <button onClick={() => { setStockInItem(p); setStockInQty(""); }} title={t("items.stock_in")}
+                          {isCar ? (<>
+                            {/* Stock in more cars of this model */}
+                            <button onClick={() => setStockIn({ name: p.name })} title={t("items.stock_in")}
                               className="p-1 rounded text-slate-500 hover:bg-slate-100 hover:text-slate-900 transition">
                               <PackagePlus size={11} />
                             </button>
-                          ) : needsRestock && (
+                            {p.quantity > 0 && !carIdsComplete(p) && (
+                              <button onClick={() => setAssign({ ids: [p.id] })} title={t("assign.title")}
+                                className="p-1 rounded text-amber-600 hover:bg-amber-50 transition">
+                                <Hash size={11} />
+                              </button>
+                            )}
+                          </>) : needsRestock && (
                             <Link href={restockUrl} title={t("purchases.restock")}
                               className="p-1 rounded text-slate-500 hover:bg-slate-100 hover:text-slate-900 transition">
                               <RefreshCw size={11} />
@@ -1157,38 +1192,14 @@ export default function ItemManagementPage() {
           <CarGallery productId={galleryFor.id} title={galleryFor.name} onClose={() => setGalleryFor(null)} />
         )}
 
-        {/* STOCK IN MODAL */}
-        {stockInItem && (
-          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl">
-              <div className="flex justify-between items-center px-5 py-4 border-b border-slate-100">
-                <div className="min-w-0">
-                  <h2 className="text-base font-semibold text-slate-800">{t("items.stock_in")}</h2>
-                  <p className="text-xs text-slate-400 mt-0.5 truncate">{stockInItem.name}</p>
-                </div>
-                <button onClick={() => setStockInItem(null)} className="p-2 rounded-lg hover:bg-slate-100 text-slate-400 transition"><X size={17} /></button>
-              </div>
-              <div className="px-5 py-4 space-y-3">
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">{t("items.stock_in_qty")} <span className="text-red-400">*</span></label>
-                  <input type="number" min="1" step="1" autoFocus className={inputCls} placeholder="1" value={stockInQty}
-                    onChange={(e) => setStockInQty(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === "Enter") submitStockIn(); }} />
-                </div>
-                <p className="text-xs text-slate-500">
-                  {t("items.stock_in_current")}: <span className="font-semibold tabular-nums">{stockInItem.quantity}</span>
-                  {Number(stockInQty) > 0 && <> → <span className="font-bold text-slate-900 tabular-nums">{stockInItem.quantity + Number(stockInQty)}</span></>}
-                </p>
-              </div>
-              <div className="flex justify-end gap-2.5 px-5 py-4 border-t border-slate-100">
-                <button onClick={() => setStockInItem(null)} className="px-4 py-2 rounded-lg border border-slate-200 text-slate-600 text-sm font-medium hover:bg-slate-50 transition">{t("common.cancel")}</button>
-                <button onClick={submitStockIn} disabled={stockingIn || !(Number(stockInQty) > 0)}
-                  className="px-5 py-2 rounded-lg bg-[#0a66c2] text-white text-sm font-semibold hover:bg-[#004182] transition disabled:opacity-60">
-                  {stockingIn ? t("common.saving") : t("items.stock_in")}
-                </button>
-              </div>
-            </div>
-          </div>
+        {stockIn && (
+          <StockInModal initialName={stockIn.name} onClose={() => setStockIn(null)}
+            onDone={(ids) => { setStockIn(null); loadData(true); if (ids.length) setAssign({ ids }); }} />
+        )}
+
+        {assign && (
+          <AssignCarsModal ids={assign.ids} onClose={() => setAssign(null)}
+            onSaved={() => { setAssign(null); loadData(true); }} />
         )}
 
         {/* MODAL */}

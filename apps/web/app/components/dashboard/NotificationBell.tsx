@@ -16,6 +16,7 @@ const ICON: Record<NotifKind, { icon: typeof Bell; tone: string }> = {
   sale: { icon: ShoppingCart, tone: "bg-emerald-50 text-emerald-700" },
   sale_deleted: { icon: Trash2, tone: "bg-slate-100 text-slate-600" },
   car_added: { icon: Car, tone: "bg-blue-50 text-blue-700" },
+  cars_stocked: { icon: Car, tone: "bg-blue-50 text-blue-700" },
   product_new: { icon: Package, tone: "bg-blue-50 text-blue-700" },
   fine: { icon: TriangleAlert, tone: "bg-red-50 text-red-700" },
   pending: { icon: Clock, tone: "bg-amber-50 text-amber-700" },

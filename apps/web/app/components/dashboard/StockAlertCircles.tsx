@@ -10,10 +10,10 @@ export interface StockAlertItem {
   cost_price?: number | null; supplier_id?: string | null;
 }
 
-/** Where restocking one item happens: car companies stock in on the Vehicles
- *  page; shops open a purchase pre-filled with the item. */
+/** Where restocking one item happens: car companies stock in more of that
+ *  car on the Vehicles page; shops open a purchase pre-filled with the item. */
 export function restockHref(item: StockAlertItem, isCar: boolean) {
-  if (isCar) return `/items?open=${item.id}&do=stockin`;
+  if (isCar) return `/items?stockin=${encodeURIComponent(item.name)}`;
   const qs = new URLSearchParams({ name: item.name, selling: String(item.selling_price ?? "") });
   if (item.cost_price != null) qs.set("cost", String(item.cost_price));
   if (item.supplier_id) qs.set("supplierId", item.supplier_id);

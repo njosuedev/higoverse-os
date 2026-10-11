@@ -24,11 +24,13 @@ def car_names(token: str) -> list[str]:
     return []
 
 
-def check_car_name(name: str | None, user: dict, token: str) -> str | None:
-    """The name as listed in Settings (its exact spelling), or 400."""
+def check_car_name(name: str | None, user: dict, token: str, names: list[str] | None = None) -> str | None:
+    """The name as listed in Settings (its exact spelling), or 400.
+    Pass `names` (from car_names) to check several without asking each time."""
     if user.get("layout") != "car" or name is None:
         return name
-    names = car_names(token)
+    if names is None:
+        names = car_names(token)
     if not names:
         return name
     wanted = " ".join(name.split()).lower()

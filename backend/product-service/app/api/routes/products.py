@@ -1,18 +1,19 @@
 import base64
 import io
 import json
+import uuid
 from collections import OrderedDict
 from fastapi import APIRouter, Depends, HTTPException, Header
 from starlette.exceptions import HTTPException as StarletteHTTPException
-from sqlalchemy import case, func, or_
+from sqlalchemy import case, func, literal, or_
 from sqlalchemy.orm import Session, defer
 
 from app.db.database import get_db
 from app.models.product import Product
-from app.schemas.product import ProductCreate, ProductUpdate
+from app.schemas.product import AssignCars, ProductCreate, ProductUpdate, StockIn
 from app.core.security import get_current_user, hides_financials
 from app.core.supplier_client import validate_supplier
-from app.core.car_names import check_car_name
+from app.core.car_names import car_names, check_car_name
 from app.core.events import emit
 
 router = APIRouter(prefix="/products", tags=["Products"])
@@ -120,6 +121,11 @@ def _incomplete_car():
     )
 
 
+def _unassigned_car():
+    """Stocked in by count and still waiting for its chassis or plate number."""
+    return (Product.quantity > 0) & or_(~_attr_filled("chassis_no"), ~_attr_filled("plate_no"))
+
+
 def _parse_attrs(attributes) -> dict:
     try:
         a = json.loads(attributes) if isinstance(attributes, str) and attributes else {}
@@ -192,7 +198,7 @@ def get_summary(
             "data": {
                 "stock_value": 0.0, "cost_value": 0.0, "potential_profit": 0.0,
                 "total_products": 0, "total_quantity": 0, "out_of_stock": 0, "low_stock": 0,
-                "pending": 0, "with_penalties": 0, "incomplete": 0,
+                "pending": 0, "with_penalties": 0, "incomplete": 0, "unassigned": 0,
             },
         })
 
@@ -207,6 +213,8 @@ def get_summary(
         func.sum(case(((Product.quantity > 0) & _attr_matches(_PENDING_RE), 1), else_=0)).label("pending"),
         func.sum(case((_fined_car(), 1), else_=0)).label("with_penalties"),
         func.sum(case((_incomplete_car(), 1), else_=0)).label("incomplete"),
+        # Only car companies give each product a chassis and plate.
+        (func.sum(case((_unassigned_car(), 1), else_=0)) if user.get("layout") == "car" else literal(0)).label("unassigned"),
     ).one()
 
     return _scrub(user, {
@@ -222,6 +230,7 @@ def get_summary(
             "pending": int(row.pending or 0),
             "with_penalties": int(row.with_penalties or 0),
             "incomplete": int(row.incomplete or 0),
+            "unassigned": int(row.unassigned or 0),
         },
     })
 
@@ -272,8 +281,9 @@ def get_products(
     q: str | None = None,         # name / barcode search (backed by the trigram index)
     category: str | None = None,
     stock: str | None = None,     # "low" | "out" | "restock" | "in"
-    status: str | None = None,    # car companies: "in_stock" | "available" | "pending" | "sold" | "penalties" | "incomplete"
+    status: str | None = None,    # car companies: "in_stock" | "available" | "pending" | "sold" | "penalties" | "incomplete" | "unassigned"
     threshold: int = 10,          # the shop's low-stock threshold, for stock="low"/"in"
+    name: str | None = None,      # exact name: one car model's vehicles
 ):
     page = max(page, 1)
     limit = min(max(limit, 1), 1000)
@@ -282,8 +292,74 @@ def get_products(
 
     offset = (page - 1) * limit
 
-    query = db.query(Product).filter(Product.shop_id == user["shop_id"])
+    query = _filter_products(
+        db.query(Product).filter(Product.shop_id == user["shop_id"]),
+        q, category, stock, status, threshold, name,
+    )
 
+    total = query.count()
+    # Full images can be several MB per product — lists only send the thumbnail.
+    # Newest first, with id as a tie-breaker so pages never overlap or skip rows.
+    query = query.options(defer(Product.images)).order_by(Product.created_at.desc(), Product.id)
+    products = query.offset(offset).limit(limit).all()
+    return _list_page(user, products, total, page, limit)
+
+
+# -----------------------------
+# CAR MODELS (vehicles grouped by name)
+# -----------------------------
+@router.get("/models")
+def get_models(
+    db: Session = Depends(get_db),
+    user: dict = Depends(get_current_user),
+    q: str | None = None,
+    status: str | None = None,    # as for GET /products
+):
+    """Each car name once, with how many vehicles match the filters and how
+    many of those are pending or still need their chassis / plate."""
+    if not user["shop_id"]:
+        return {"success": True, "data": []}
+    query = _filter_products(
+        db.query(Product).filter(Product.shop_id == user["shop_id"]), q, None, None, status, 10, None,
+    )
+    rows = (
+        query.with_entities(
+            Product.name,
+            func.count(Product.id).label("count"),
+            func.sum(case((Product.quantity > 0, 1), else_=0)).label("in_stock"),
+            func.sum(case(((Product.quantity > 0) & _attr_matches(_PENDING_RE), 1), else_=0)).label("pending"),
+            func.sum(case((_unassigned_car(), 1), else_=0)).label("unassigned"),
+            func.min(Product.selling_price).label("min_price"),
+            func.max(Product.selling_price).label("max_price"),
+            func.max(Product.created_at).label("last_added"),
+        )
+        .group_by(Product.name)
+        .order_by(Product.name)
+        .limit(500)
+        .all()
+    )
+    return {
+        "success": True,
+        "data": [
+            {
+                "name": r.name,
+                "count": int(r.count),
+                "in_stock": int(r.in_stock or 0),
+                "pending": int(r.pending or 0),
+                "unassigned": int(r.unassigned or 0),
+                "min_price": float(r.min_price) if r.min_price is not None else None,
+                "max_price": float(r.max_price) if r.max_price is not None else None,
+                "last_added": r.last_added.isoformat() if r.last_added else None,
+            }
+            for r in rows
+        ],
+    }
+
+
+def _filter_products(query, q, category, stock, status, threshold, name):
+    """The list filters shared by GET /products and GET /products/models."""
+    if name:
+        query = query.filter(Product.name == name)
     if q and q.strip():
         term = f"%{q.strip()}%"
         # attributes holds e.g. a car's plate/chassis numbers as JSON text.
@@ -311,13 +387,12 @@ def get_products(
         query = query.filter(_fined_car())
     elif status == "incomplete":
         query = query.filter(_incomplete_car())
+    elif status == "unassigned":
+        query = query.filter(_unassigned_car())
+    return query
 
-    total = query.count()
-    # Full images can be several MB per product — lists only send the thumbnail.
-    # Newest first, with id as a tie-breaker so pages never overlap or skip rows.
-    query = query.options(defer(Product.images)).order_by(Product.created_at.desc(), Product.id)
-    products = query.offset(offset).limit(limit).all()
 
+def _list_page(user: dict, products, total: int, page: int, limit: int) -> dict:
     items = []
 
     for p in products:
@@ -425,6 +500,173 @@ def create_product(
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
+
+# -----------------------------
+# STOCK IN (car companies)
+# -----------------------------
+# "10 BYD Yuan Up, 20 Neta U Pro": each car becomes its own vehicle (quantity
+# 1) sharing its line's price and specs. Chassis and plate come later, car by
+# car (POST /products/assign); until then the car is "unassigned".
+_STOCK_SPECS = ("car_type", "year", "battery_range", "color", "condition", "mileage")
+
+
+@router.post("/stock")
+def stock_in(
+    payload: StockIn,
+    db: Session = Depends(get_db),
+    user: dict = Depends(get_current_user),
+    authorization: str = Header(None)
+):
+    if not user["shop_id"]:
+        raise HTTPException(status_code=400, detail="You need a shop before adding products")
+    if user.get("layout") != "car":
+        raise HTTPException(status_code=400, detail="Stock in by count is for car companies")
+
+    token = (authorization or "").replace("Bearer ", "")
+    names = car_names(token)
+    batch = str(uuid.uuid4())
+    try:
+        created = []
+        lines = []
+        for line in payload.lines:
+            name = check_car_name(" ".join(line.name.split()), user, token, names)
+            attrs = {k: " ".join(str(v).split()) for k in _STOCK_SPECS
+                     if (v := getattr(line, k)) is not None and str(v).strip()}
+            attrs["stock_batch"] = batch
+            attributes = json.dumps(attrs, ensure_ascii=False)
+            for _ in range(line.count):
+                product = Product(
+                    shop_id=user["shop_id"],
+                    name=name,
+                    # As on the vehicle form: car companies don't track cost.
+                    cost_price=line.selling_price,
+                    selling_price=line.selling_price,
+                    quantity=1,
+                    attributes=attributes,
+                )
+                db.add(product)
+                created.append(product)
+            lines.append({"name": name, "count": line.count})
+
+        db.flush()
+        ids = [p.id for p in created]
+        # One event for the whole stock in, not one notification per car.
+        emit(db, user, "product.stocked", {"batch": batch, "count": len(ids), "lines": lines})
+        db.commit()
+
+        return {
+            "success": True,
+            "message": f"{len(ids)} vehicles added",
+            "data": {"batch": batch, "count": len(ids), "ids": ids},
+        }
+
+    except StarletteHTTPException:
+        db.rollback()
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# -----------------------------
+# ASSIGN CHASSIS / PLATE (car companies)
+# -----------------------------
+_ASSIGN_FIELDS = ("chassis_no", "plate_no", "color")
+
+
+@router.post("/assign")
+def assign_cars(
+    payload: AssignCars,
+    db: Session = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    if not user["shop_id"]:
+        raise HTTPException(status_code=400, detail="You need a shop before adding products")
+
+    ids = [c.id for c in payload.cars]
+    if len(set(ids)) != len(ids):
+        raise HTTPException(status_code=400, detail="A car is listed twice")
+
+    try:
+        products = {
+            p.id: p for p in db.query(Product).options(defer(Product.images))
+            .filter(Product.shop_id == user["shop_id"], Product.id.in_(ids)).all()
+        }
+        if len(products) != len(ids):
+            raise HTTPException(status_code=404, detail="Product not found")
+
+        # Each car's details as they'll be saved; blank fields stay as they are.
+        final = []
+        for c in payload.cars:
+            p = products[c.id]
+            old = _parse_attrs(p.attributes)
+            new = dict(old)
+            for k in _ASSIGN_FIELDS:
+                v = " ".join((getattr(c, k) or "").split())
+                if v:
+                    new[k] = v if k == "color" else v.upper()
+            final.append((p, old, new))
+        changes = [(p, old, new) for p, old, new in final if new != old]
+
+        # No two cars in this list may share a chassis or plate…
+        seen = {}
+        for p, _, new in final:
+            for k, label in _UNIQUE_CAR_IDS:
+                key = _car_key(new.get(k))
+                if not key:
+                    continue
+                if (k, key) in seen:
+                    raise HTTPException(status_code=409, detail={
+                        "field": k, "car_id": p.id, "product_id": seen[(k, key)].id,
+                        "product_name": seen[(k, key)].name,
+                        "message": f"Two cars in this list have the same {label}.",
+                    })
+                seen[(k, key)] = p
+
+        # …nor with any other vehicle of the shop (sold ones included). Only
+        # values that change are checked, as when one car is edited.
+        wanted = {}
+        for p, old, new in changes:
+            for k, _ in _UNIQUE_CAR_IDS:
+                key = _car_key(new.get(k))
+                if key and key != _car_key(old.get(k)):
+                    wanted[(k, key)] = p
+        if wanted:
+            others = (
+                db.query(Product.id, Product.name, Product.attributes)
+                .filter(Product.shop_id == user["shop_id"], Product.id.notin_(ids))
+                .filter(or_(*[Product.attributes.ilike(f'%"{k}"%') for k, _ in _UNIQUE_CAR_IDS]))
+                .all()
+            )
+            for other_id, other_name, other_attrs in others:
+                a = _parse_attrs(other_attrs)
+                for k, label in _UNIQUE_CAR_IDS:
+                    p = wanted.get((k, _car_key(a.get(k))))
+                    if p is not None:
+                        raise HTTPException(status_code=409, detail={
+                            "field": k, "car_id": p.id, "product_id": other_id, "product_name": other_name,
+                            "message": f'Another vehicle ("{other_name}") already has this {label}.',
+                        })
+
+        for p, old, new in changes:
+            prev_car = _car_state(p.attributes)
+            p.attributes = json.dumps(new, ensure_ascii=False)
+            emit(db, user, "product.updated", _live(
+                p,
+                prev_quantity=p.quantity,
+                prev_penalty_count=prev_car["penalty_count"],
+                prev_sale_status=prev_car["sale_status"],
+            ))
+        db.commit()
+
+        return {"success": True, "message": f"{len(changes)} vehicles updated", "data": {"updated": len(changes)}}
+
+    except StarletteHTTPException:
+        db.rollback()
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 # -----------------------------
