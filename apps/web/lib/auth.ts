@@ -19,7 +19,7 @@ export function getEffectiveRole(user: User | null): AppRole {
 
 /** A yes/no "signed in on this browser" flag (never the token): it lets the
  *  server show the dashboard at higoverse.com/ to people signed in, and the
- *  public home page to everyone else, search engines included (proxy.ts). */
+ *  public home page to everyone else, search engines included (next.config.ts rewrites). */
 export const SIGNED_IN_COOKIE = "hgv_signed_in";
 
 export function markSignedIn(on: boolean) {

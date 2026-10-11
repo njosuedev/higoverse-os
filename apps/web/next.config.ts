@@ -79,7 +79,15 @@ const nextConfig: NextConfig = {
       ["expenses", 8005], ["settings", 8006], ["shops", 8007], ["reports", 8008],
     ];
     const target = (name: string, port: number) => (remote ? `${remote}/${name}` : local(port));
-    return [
+    return {
+      // higoverse.com/ is two pages in one: the dashboard for people signed
+      // in on this browser, the public home page (app/welcome) for everyone
+      // else, search engines included. Sign-in lives in the browser, so a
+      // yes/no cookie set at sign-in (lib/auth.ts SIGNED_IN_COOKIE) decides.
+      beforeFiles: [
+        { source: "/", missing: [{ type: "cookie", key: "hgv_signed_in", value: "1" }], destination: "/welcome" },
+      ],
+      afterFiles: [
       ...services.map(([name, port]) => ({ source: `/svc/${name}/:path*`, destination: `${target(name, port)}/:path*` })),
       {
         source: "/api/expenses/:path*",
@@ -89,7 +97,8 @@ const nextConfig: NextConfig = {
         source: "/api/purchases/:path*",
         destination: `${process.env.NEXT_PUBLIC_API_PURCHASES || target("purchases", 8004)}/:path*`,
       },
-    ];
+      ],
+    };
   },
 };
 

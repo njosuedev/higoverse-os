@@ -5,7 +5,7 @@ import { HOME_FAQ } from "./faq";
 import Landing from "./Landing";
 
 // The public home page. Served at higoverse.com/ to everyone not signed in
-// (proxy.ts), so its address for search engines is "/".
+// (next.config.ts rewrites), so its address for search engines is "/".
 const shareImage = { url: "/opengraph-image", width: 1200, height: 630, alt: `${SITE.name} · ${SITE.shortTitle}` };
 
 export const metadata: Metadata = {
