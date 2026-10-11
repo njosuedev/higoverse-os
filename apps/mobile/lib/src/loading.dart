@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -5,18 +6,27 @@ import 'package:flutter/material.dart';
 import 'i18n.dart';
 import 'theme.dart';
 
-/// Drives every [Bone] below it with one animation, so all placeholders on a
-/// screen shimmer together — like the website's Reports skeleton.
+/// Drives every [Bone] below it with one animation and one gradient laid
+/// over the whole area, so the placeholders read as one surface with a single
+/// light passing across it (Flutter cookbook "shimmer loading"), not as
+/// blocks flashing one by one. With animations turned off (Android "Remove
+/// animations") the bones stay still. Screen readers hear "Loading" once and
+/// never the placeholders.
 class Shimmer extends StatefulWidget {
   const Shimmer({super.key, required this.child});
   final Widget child;
+
+  /// One pass of the light, left to right: slow enough to read as progress,
+  /// not as flashing.
+  static const period = Duration(milliseconds: 1500);
 
   @override
   State<Shimmer> createState() => _ShimmerState();
 }
 
 class _ShimmerState extends State<Shimmer> with SingleTickerProviderStateMixin {
-  late final _c = AnimationController(vsync: this, duration: const Duration(milliseconds: 1400))..repeat();
+  late final _c = AnimationController(vsync: this, duration: Shimmer.period)..repeat();
+  final _area = GlobalKey();
 
   @override
   void dispose() {
@@ -28,16 +38,26 @@ class _ShimmerState extends State<Shimmer> with SingleTickerProviderStateMixin {
   Widget build(BuildContext context) => Semantics(
         label: T.of(context)('app.loading'),
         liveRegion: true,
-        child: ExcludeSemantics(child: _ShimmerScope(animation: _c, child: widget.child)),
+        child: ExcludeSemantics(
+          child: _ShimmerScope(
+            animation: _c,
+            area: _area,
+            child: KeyedSubtree(key: _area, child: widget.child),
+          ),
+        ),
       );
 }
 
 class _ShimmerScope extends InheritedWidget {
-  const _ShimmerScope({required this.animation, required super.child});
+  const _ShimmerScope({required this.animation, required this.area, required super.child});
   final Animation<double> animation;
 
+  /// The [Shimmer]'s own box: every bone paints its slice of one gradient
+  /// spread over it.
+  final GlobalKey area;
+
   @override
-  bool updateShouldNotify(_ShimmerScope old) => old.animation != animation;
+  bool updateShouldNotify(_ShimmerScope old) => old.animation != animation || old.area != area;
 }
 
 /// One placeholder block. Compose these into a screen-shaped skeleton inside
@@ -51,37 +71,145 @@ class Bone extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = Hgv.of(context);
-    final anim = context.dependOnInheritedWidgetOfExactType<_ShimmerScope>()?.animation;
-    final still = anim == null || MediaQuery.maybeDisableAnimationsOf(context) == true;
-    BoxDecoration deco(double t) => BoxDecoration(
-          shape: circle ? BoxShape.circle : BoxShape.rectangle,
-          borderRadius: circle ? null : BorderRadius.circular(radius),
-          color: still ? c.skeleton : null,
-          gradient: still
-              ? null
-              : LinearGradient(
-                  colors: [c.skeleton, c.skeletonHi, c.skeleton],
-                  stops: const [0.25, 0.5, 0.75],
-                  transform: _Sweep(t),
-                ),
-        );
-    final size = circle ? height : null;
-    if (still) return Container(width: size ?? width, height: height, decoration: deco(0));
+    final scope = context.dependOnInheritedWidgetOfExactType<_ShimmerScope>();
+    final still = scope == null || MediaQuery.maybeDisableAnimationsOf(context) == true;
+    final w = circle ? height : width;
+    final shape = circle ? BoxShape.circle : BoxShape.rectangle;
+    final corners = circle ? null : BorderRadius.circular(radius);
+    if (still) {
+      return Container(width: w, height: height, decoration: BoxDecoration(shape: shape, borderRadius: corners, color: c.skeleton));
+    }
     return AnimatedBuilder(
-      animation: anim,
-      builder: (_, __) => Container(width: size ?? width, height: height, decoration: deco(anim.value)),
+      animation: scope.animation,
+      builder: (context, _) => Container(
+        width: w,
+        height: height,
+        decoration: BoxDecoration(
+          shape: shape,
+          borderRadius: corners,
+          gradient: LinearGradient(
+            // A soft diagonal band: the highlight takes a fifth of the area.
+            begin: const Alignment(-1, -0.3),
+            end: const Alignment(1, 0.3),
+            colors: [c.skeleton, c.skeletonHi, c.skeleton],
+            stops: const [0.4, 0.5, 0.6],
+            transform: _Sweep(scope.animation.value, _areaFrom(context, scope.area)),
+          ),
+        ),
+      ),
     );
+  }
+
+  /// The [Shimmer]'s box as seen from this bone (null until both are laid out).
+  static Rect? _areaFrom(BuildContext bone, GlobalKey area) {
+    final me = bone.findRenderObject();
+    final all = area.currentContext?.findRenderObject();
+    if (me is! RenderBox || all is! RenderBox || !me.attached || !all.attached || !me.hasSize || !all.hasSize) return null;
+    final at = me.localToGlobal(Offset.zero, ancestor: all);
+    return Rect.fromLTWH(-at.dx, -at.dy, all.size.width, all.size.height);
   }
 }
 
-/// Moves the highlight from off the left edge to off the right edge.
+/// Lays the gradient over the whole [Shimmer] area (not just this bone) and
+/// moves the light across it: from off the left edge to off the right edge.
 class _Sweep extends GradientTransform {
-  const _Sweep(this.t);
+  const _Sweep(this.t, this.area);
   final double t;
 
+  /// The shimmer's box relative to this bone; null paints the bone on its own.
+  final Rect? area;
+
   @override
-  Matrix4? transform(Rect bounds, {TextDirection? textDirection}) =>
-      Matrix4.translationValues(bounds.width * (t * 2 - 1), 0, 0);
+  Matrix4? transform(Rect bounds, {TextDirection? textDirection}) {
+    final a = area;
+    if (a == null || bounds.width <= 0 || bounds.height <= 0) {
+      return Matrix4.translationValues(bounds.width * (t * 2 - 1), 0, 0);
+    }
+    // Map the bone's rect onto the area's (both in the bone's coordinates),
+    // then slide by up to one area width either way.
+    return Matrix4.translationValues(bounds.left + a.left + a.width * (t * 2 - 1), bounds.top + a.top, 0)
+      ..multiply(Matrix4.diagonal3Values(a.width / bounds.width, a.height / bounds.height, 1))
+      ..multiply(Matrix4.translationValues(-bounds.left, -bounds.top, 0));
+  }
+}
+
+/// Shows [skeleton] while [loading], following the usual guidance for
+/// skeleton screens:
+/// - nothing for the first [delay]: a fast answer never flashes a skeleton;
+/// - once shown, the skeleton stays at least [minShown], so it never blinks;
+/// - the real content fades in over it.
+class SkeletonGate extends StatefulWidget {
+  const SkeletonGate({
+    super.key,
+    required this.loading,
+    required this.skeleton,
+    required this.child,
+    this.delay = const Duration(milliseconds: 180),
+    this.minShown = const Duration(milliseconds: 450),
+  });
+
+  final bool loading;
+  final Widget skeleton, child;
+  final Duration delay, minShown;
+
+  @override
+  State<SkeletonGate> createState() => _SkeletonGateState();
+}
+
+class _SkeletonGateState extends State<SkeletonGate> {
+  Timer? _timer;
+  DateTime? _shownAt;
+
+  /// The skeleton is on screen (possibly held after loading ended).
+  bool get _showing => _shownAt != null;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.loading) _arm();
+  }
+
+  @override
+  void didUpdateWidget(SkeletonGate old) {
+    super.didUpdateWidget(old);
+    if (widget.loading == old.loading) return;
+    _timer?.cancel();
+    if (widget.loading) {
+      if (!_showing) _arm();
+    } else if (_showing) {
+      final left = widget.minShown - DateTime.now().difference(_shownAt!);
+      if (left > Duration.zero) {
+        _timer = Timer(left, () => setState(() => _shownAt = null));
+      } else {
+        _shownAt = null;
+      }
+    }
+  }
+
+  void _arm() => _timer = Timer(widget.delay, () => setState(() => _shownAt = DateTime.now()));
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final (key, child) = _showing
+        ? ('skeleton', widget.skeleton)
+        : widget.loading
+            ? ('wait', const SizedBox.shrink())
+            : ('content', widget.child);
+    final still = MediaQuery.maybeDisableAnimationsOf(context) == true;
+    return AnimatedSwitcher(
+      duration: still ? Duration.zero : const Duration(milliseconds: 220),
+      switchInCurve: Curves.easeOut,
+      switchOutCurve: Curves.easeIn,
+      layoutBuilder: (current, previous) => Stack(alignment: Alignment.topCenter, children: [...previous, if (current != null) current]),
+      child: KeyedSubtree(key: ValueKey(key), child: child),
+    );
+  }
 }
 
 /// Placeholder for a [FigureTile]: icon, label, amount, context line.

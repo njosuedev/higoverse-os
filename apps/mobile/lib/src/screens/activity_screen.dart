@@ -33,6 +33,7 @@ class ActivityIcon extends StatelessWidget {
       ActivityKind.fineRecorded => (Icons.local_police_rounded, c.danger),
       ActivityKind.transferPending => (Icons.swap_horiz_rounded, c.warning),
       ActivityKind.productNew => (Icons.add_box_outlined, c.ink),
+      ActivityKind.carsStocked => (Icons.playlist_add_rounded, c.ink),
       ActivityKind.debtNew => (Icons.account_balance_wallet_outlined, c.warning),
       ActivityKind.debtPayment => (Icons.payments_outlined, c.success),
       ActivityKind.debtPaid => (Icons.verified_rounded, c.success),

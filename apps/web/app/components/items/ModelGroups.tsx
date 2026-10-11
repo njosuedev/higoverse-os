@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Car, ChevronDown, ChevronRight, PackagePlus, Pencil, RefreshCw, ShoppingCart } from "lucide-react";
+import { Car, ChevronDown, ChevronRight, PackagePlus, Pencil, ShoppingCart } from "lucide-react";
+import { Bone, SkeletonRegion, useSkeleton } from "@/app/components/ui/Skeleton";
 import { itemRequest } from "@/lib/product-api";
 import { useLanguage } from "@/lib/language-context";
 import {
@@ -42,6 +43,7 @@ export default function ModelGroups({ q, status, refreshKey, onStockIn, onEdit, 
   const [models, setModels] = useState<Model[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState<Set<string>>(new Set());
+  const skeleton = useSkeleton(models === null);
 
   useEffect(() => {
     let live = true;
@@ -64,9 +66,9 @@ export default function ModelGroups({ q, status, refreshKey, onStockIn, onEdit, 
     setOpen((s) => { const n = new Set(s); if (n.has(name)) n.delete(name); else n.add(name); return n; });
   }
 
-  if (models === null) {
-    return <p className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white py-16 text-sm text-slate-400"><RefreshCw size={13} className="animate-spin" /> {t("common.loading")}</p>;
-  }
+  if (skeleton) return <ModelsSkeleton />;
+  // A fast answer is waited for without flashing a skeleton.
+  if (models === null) return <div className="min-h-[240px]" aria-busy="true" />;
   if (error && models.length === 0) {
     return <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-6 text-center text-sm text-red-700">{error}</p>;
   }
@@ -80,7 +82,7 @@ export default function ModelGroups({ q, status, refreshKey, onStockIn, onEdit, 
   }
 
   return (
-    <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm divide-y divide-slate-100">
+    <div className="hgv-fade-in overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm divide-y divide-slate-100">
       {models.map((m) => {
         const isOpen = open.has(m.name);
         const price = m.min_price == null ? "" : m.min_price === m.max_price
@@ -127,6 +129,7 @@ function ModelCars({ name, status, refreshKey, onEdit, onChanged }: {
   const [drafts, setDrafts] = useState<Record<string, Record<IdField, string>>>({});
   const [saving, setSaving] = useState(false);
   const [conflict, setConflict] = useState<{ carId: string; field: string } | null>(null);
+  const skeleton = useSkeleton(cars === null);
 
   useEffect(() => {
     let live = true;
@@ -196,9 +199,8 @@ function ModelCars({ name, status, refreshKey, onEdit, onChanged }: {
     } finally { setSaving(false); }
   }
 
-  if (cars === null) {
-    return <p className="flex items-center gap-2 bg-slate-50/60 px-10 py-3 text-xs text-slate-400"><RefreshCw size={11} className="animate-spin" /> {t("common.loading")}</p>;
-  }
+  if (skeleton) return <CarsSkeleton />;
+  if (cars === null) return <div className="min-h-[96px] bg-slate-50/60" aria-busy="true" />;
 
   const STATUS = {
     available: { label: t("vehicle.status_available"), cls: "bg-green-50 text-green-700" },
@@ -209,7 +211,7 @@ function ModelCars({ name, status, refreshKey, onEdit, onChanged }: {
     `w-full rounded-lg border ${bad ? "border-red-400 bg-red-50" : "border-slate-200 bg-white"} px-2 py-1 font-mono text-xs uppercase text-gray-800 placeholder:normal-case placeholder:font-sans placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0a66c2]/30 focus:border-[#0a66c2]`;
 
   return (
-    <div className="bg-slate-50/60 px-3 pb-3 pt-1 sm:pl-9">
+    <div className="hgv-fade-in bg-slate-50/60 px-3 pb-3 pt-1 sm:pl-9">
       <div className="hidden sm:grid grid-cols-[2.5rem_minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,0.8fr)_6rem_minmax(0,0.8fr)_4.5rem] gap-2 px-2 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
         <span>#</span><span>{t("vehicle.chassis_no")}</span><span>{t("vehicle.plate_no")}</span><span>{t("vehicle.color")}</span>
         <span>{t("common.status")}</span><span className="text-right">{t("items.col_selling")}</span><span />
@@ -259,5 +261,47 @@ function ModelCars({ name, status, refreshKey, onEdit, onChanged }: {
         </div>
       )}
     </div>
+  );
+}
+
+/** Car names loading: chevron, name and its counts, the cars pill, the add button. */
+function ModelsSkeleton() {
+  const widths = [180, 130, 210, 150, 170, 120];
+  return (
+    <SkeletonRegion className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm divide-y divide-slate-100">
+      {widths.map((w, i) => (
+        <div key={i} className="flex items-center gap-2.5 px-3 py-3">
+          <Bone className="h-3.5 w-3.5" />
+          <div className="min-w-0 flex-1 space-y-1.5">
+            <Bone className="h-3.5" style={{ width: w }} />
+            <div className="flex gap-2">
+              <Bone className="h-2.5 w-20" />
+              {i % 2 === 0 && <Bone className="h-2.5 w-28" />}
+            </div>
+          </div>
+          <Bone className="h-6 w-16 rounded-full" />
+          <Bone className="h-6 w-6" />
+        </div>
+      ))}
+    </SkeletonRegion>
+  );
+}
+
+/** One car name's cars loading: number, chassis, plate, colour, status, price. */
+function CarsSkeleton() {
+  return (
+    <SkeletonRegion className="bg-slate-50/60 px-3 pb-3 pt-2 sm:pl-9 space-y-1">
+      {[0, 1, 2].map((i) => (
+        <div key={i} className="grid grid-cols-2 sm:grid-cols-[2.5rem_minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,0.8fr)_6rem_minmax(0,0.8fr)_4.5rem] items-center gap-2 rounded-lg border border-slate-100 bg-white px-2 py-2">
+          <Bone className="h-3 w-6" />
+          <Bone className="h-6 col-span-2 sm:col-span-1" />
+          <Bone className="h-6 col-span-2 sm:col-span-1" />
+          <Bone className="h-3 w-12" />
+          <Bone className="hidden sm:block h-4 w-16 rounded-full" />
+          <Bone className="h-3 w-20 justify-self-end" />
+          <Bone className="hidden sm:block h-4 w-10 justify-self-end" />
+        </div>
+      ))}
+    </SkeletonRegion>
   );
 }

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../car_stock.dart';
 import '../config.dart';
 import '../format.dart';
 import '../forms.dart';
@@ -36,7 +37,15 @@ class _ProductsScreenState extends State<ProductsScreen> with LiveListener {
 
   /// Bumped by every reload: answers to an older search or filter are dropped.
   int _gen = 0;
-  String _status = 'all'; // car dealers: all | available | pending | sold | penalties
+  String _status = 'all'; // car dealers: all | available | pending | sold | penalties | unassigned
+
+  /// Car dealers: each car name once with its count (default), or every car.
+  bool _byName = true;
+
+  /// The search as last applied (debounced), and a counter that makes the
+  /// car-names view reload.
+  String _query = '';
+  int _refreshKey = 0;
 
   /// Items added elsewhere since this list loaded (shown as a pill).
   bool _newItems = false;
@@ -62,7 +71,7 @@ class _ProductsScreenState extends State<ProductsScreen> with LiveListener {
         final before = _items.length;
         setState(() => _items.removeWhere((x) => '${x['id']}' == id));
         if (_items.length < before) _total--;
-      case 'product.created':
+      case 'product.created' || 'product.stocked':
         setState(() => _newItems = true);
       case 'resync':
         _reload();
@@ -113,6 +122,8 @@ class _ProductsScreenState extends State<ProductsScreen> with LiveListener {
   Future<void> _reload() async {
     _gen++;
     setState(() {
+      _query = _search.text;
+      _refreshKey++;
       _newItems = false;
       _items.clear();
       _page = 0;
@@ -124,8 +135,10 @@ class _ProductsScreenState extends State<ProductsScreen> with LiveListener {
   }
 
   Future<void> _loadMore() async {
-    if (_loading || (_page > 0 && _items.length >= _total)) return;
     final s = SessionScope.of(context);
+    // The car-names view loads its own list.
+    if (s.isCar && _byName) return;
+    if (_loading || (_page > 0 && _items.length >= _total)) return;
     final gen = _gen;
     setState(() {
       _loading = true;
@@ -150,6 +163,49 @@ class _ProductsScreenState extends State<ProductsScreen> with LiveListener {
     }
   }
 
+  /// Car dealers choose: several cars at once (then their numbers), or one.
+  Future<void> _add() async {
+    final s = SessionScope.of(context);
+    if (!s.isCar) {
+      if (await editProduct(context) != null && mounted) _reload();
+      return;
+    }
+    final t = T.of(context);
+    final pick = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (c) => SafeArea(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          ListTile(
+            leading: const Icon(Icons.playlist_add_rounded),
+            title: Text(t('stockin.title'), style: const TextStyle(fontWeight: FontWeight.w700)),
+            subtitle: Text(t('stockin.choice_hint')),
+            onTap: () => Navigator.pop(c, 'stock'),
+          ),
+          ListTile(
+            leading: const Icon(Icons.directions_car_outlined),
+            title: Text(t('vehicle.new'), style: const TextStyle(fontWeight: FontWeight.w700)),
+            subtitle: Text(t('stockin.one_hint')),
+            onTap: () => Navigator.pop(c, 'one'),
+          ),
+          const SizedBox(height: 8),
+        ]),
+      ),
+    );
+    if (!mounted || pick == null) return;
+    if (pick == 'one') {
+      if (await addVehicle(context) != null && mounted) _reload();
+      return;
+    }
+    final ids = await stockInCars(context);
+    if (!mounted || ids == null) return;
+    _reload();
+    if (ids.isNotEmpty) {
+      await openCarIds(context, ids: ids);
+      if (mounted) _reload();
+    }
+  }
+
   void _onSearch(String _) {
     _debounce?.cancel();
     _debounce = Timer(const Duration(milliseconds: 350), () => _reload());
@@ -162,10 +218,7 @@ class _ProductsScreenState extends State<ProductsScreen> with LiveListener {
     return Scaffold(
       floatingActionButton: FloatingActionButton.extended(
         heroTag: 'product',
-        onPressed: () async {
-          final p = s.isCar ? await addVehicle(context) : await editProduct(context);
-          if (p != null && mounted) _reload();
-        },
+        onPressed: _add,
         icon: const Icon(Icons.add),
         label: Text(s.isCar ? t('vehicle.new') : t('form.new_product')),
       ),
@@ -181,6 +234,20 @@ class _ProductsScreenState extends State<ProductsScreen> with LiveListener {
             ),
             if (s.isCar) ...[
               const SizedBox(height: 8),
+              SegmentedButton<bool>(
+                showSelectedIcon: false,
+                style: const ButtonStyle(visualDensity: VisualDensity.compact, tapTargetSize: MaterialTapTargetSize.shrinkWrap),
+                segments: [
+                  ButtonSegment(value: true, icon: const Icon(Icons.view_agenda_outlined, size: 18), label: Text(t('models.view_by_name'))),
+                  ButtonSegment(value: false, icon: const Icon(Icons.list_rounded, size: 18), label: Text(t('models.view_all'))),
+                ],
+                selected: {_byName},
+                onSelectionChanged: (v) {
+                  setState(() => _byName = v.first);
+                  _reload();
+                },
+              ),
+              const SizedBox(height: 8),
               SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
                 child: Row(children: [
@@ -190,6 +257,7 @@ class _ProductsScreenState extends State<ProductsScreen> with LiveListener {
                     ('pending', 'stock.f_pending'),
                     ('sold', 'stock.f_sold'),
                     ('penalties', 'stock.f_fines'),
+                    ('unassigned', 'stock.f_no_ids'),
                   ])
                     Padding(
                       padding: const EdgeInsets.only(right: 6),
@@ -210,17 +278,21 @@ class _ProductsScreenState extends State<ProductsScreen> with LiveListener {
         const Divider(),
         Expanded(
           child: Stack(alignment: Alignment.topCenter, children: [
+          if (s.isCar && _byName)
+            CarModelsView(query: _query, status: _status, refreshKey: _refreshKey, onChanged: () => setState(() => _refreshKey++))
+          else
           RefreshIndicator(
             onRefresh: _reload,
-            child: _error != null && _items.isEmpty
+            child: SkeletonGate(
+              loading: _loading && _items.isEmpty && _error == null,
+              skeleton: ListView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: const EdgeInsets.symmetric(vertical: 6),
+                  children: [ListSkeleton(count: 9, leading: RowLead.thumb, chips: s.isCar)]),
+              child: _error != null && _items.isEmpty
                 ? ListView(
                     physics: const AlwaysScrollableScrollPhysics(),
                     children: [EmptyState(icon: Icons.cloud_off_outlined, message: errorText(t, _error!), onRetry: _reload)])
-                : _loading && _items.isEmpty
-                    ? ListView(
-                        physics: const AlwaysScrollableScrollPhysics(),
-                        padding: const EdgeInsets.symmetric(vertical: 6),
-                        children: [ListSkeleton(count: 9, leading: RowLead.thumb, chips: s.isCar)])
                     : _items.isEmpty
                         ? ListView(physics: const AlwaysScrollableScrollPhysics(), children: [
                             EmptyState(
@@ -244,6 +316,7 @@ class _ProductsScreenState extends State<ProductsScreen> with LiveListener {
                                     ? EmptyState(icon: Icons.cloud_off_outlined, message: errorText(t, _error!), onRetry: _loadMore)
                                     : const LoadMoreIndicator(),
                           ),
+            ),
           ),
           if (_newItems)
             Positioned(

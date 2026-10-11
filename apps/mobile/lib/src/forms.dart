@@ -1665,3 +1665,259 @@ class _VehicleFormScreenState extends State<VehicleFormScreen> {
     );
   }
 }
+
+// ─────────────────────────── Stock in by count (car dealers) ───────────────────────────
+
+/// Most cars one stock in may add (product-service MAX_STOCK_CARS).
+const maxStockCars = 200;
+
+/// One line of a stock in: "10 × BYD Yuan Up at 25,000,000".
+class StockLine {
+  StockLine({this.name = '', this.count = 0, this.price = 0, this.type, this.year, this.range, this.color = ''});
+  String name, color;
+  int count;
+  num price;
+  String? type;
+  int? year, range;
+
+  /// What's missing on this line, as an i18n key (null when complete).
+  String? get problem {
+    if (name.trim().isEmpty) return 'vehicle.pick_name';
+    if (count <= 0) return 'stockin.need_count';
+    if (price <= 0) return 'form.need_price';
+    if (type == null) return 'vehicle.need_type';
+    if (year == null || year! < 1950 || year! > DateTime.now().year + 1) return 'vehicle.need_year';
+    if (range == null || range! < 10 || range! > 2000) return 'vehicle.bad_range';
+    return null;
+  }
+
+  Map<String, dynamic> toJson() => {
+        'name': name.trim(),
+        'count': count,
+        'selling_price': price,
+        'car_type': type,
+        'year': year,
+        'battery_range': range,
+        if (color.trim().isNotEmpty) 'color': color.trim(),
+      };
+}
+
+/// The body of POST /products/stock for [lines].
+Map<String, dynamic> stockInBody(List<StockLine> lines) => {'lines': [for (final l in lines) l.toJson()]};
+
+/// Adds several cars at once ("10 BYD Yuan Up, 20 Neta U Pro"), each as its
+/// own vehicle; their chassis and plate numbers come next. Returns the new
+/// cars' ids.
+Future<List<String>?> stockInCars(BuildContext context, {String? name}) =>
+    pushScoped<List<String>>(context, StockInScreen(name: name));
+
+class StockInScreen extends StatefulWidget {
+  const StockInScreen({super.key, this.name});
+
+  /// The car model to start with (stocking in more of one model).
+  final String? name;
+
+  @override
+  State<StockInScreen> createState() => _StockInScreenState();
+}
+
+/// A line's text fields.
+class _LineFields {
+  _LineFields(String name) : name = TextEditingController(text: name);
+  final TextEditingController name;
+  final count = TextEditingController(), price = TextEditingController();
+  final year = TextEditingController(), range = TextEditingController(), color = TextEditingController();
+  String? type;
+
+  StockLine get line => StockLine(
+        name: name.text,
+        count: int.tryParse(count.text.trim()) ?? 0,
+        price: parseAmount(price.text) ?? 0,
+        type: type,
+        year: int.tryParse(year.text.trim()),
+        range: int.tryParse(range.text.trim()),
+        color: color.text,
+      );
+
+  void dispose() {
+    for (final c in [name, count, price, year, range, color]) {
+      c.dispose();
+    }
+  }
+}
+
+class _StockInScreenState extends State<StockInScreen> {
+  final _form = GlobalKey<FormState>();
+  late final List<_LineFields> _lines = [_LineFields(widget.name ?? '')];
+  bool _saving = false;
+
+  int get _total => _lines.fold(0, (s, l) => s + l.line.count);
+
+  @override
+  void dispose() {
+    for (final l in _lines) {
+      l.dispose();
+    }
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    final t = T.of(context);
+    if (!_form.currentState!.validate()) return;
+    final lines = [for (final l in _lines) l.line];
+    final problem = lines.map((l) => l.problem).whereType<String>().firstOrNull;
+    if (problem != null) return _say(context, t(problem));
+    if (_total > maxStockCars) return _say(context, t('stockin.too_many', {'n': maxStockCars}));
+    final s = SessionScope.of(context);
+    setState(() => _saving = true);
+    try {
+      final res = await s.api.post('${Svc.products}/products/stock', stockInBody(lines));
+      final ids = (((res as Map?)?['data'] as Map?)?['ids'] as List? ?? const []).map((e) => '$e').toList();
+      if (!mounted) return;
+      HapticFeedback.mediumImpact();
+      _say(context, t('stockin.added', {'n': ids.length}));
+      Navigator.pop(context, ids);
+    } on ApiException catch (e) {
+      if (mounted) _say(context, e.status == 404 || e.status == 405 ? t('stockin.unavailable') : errorText(t, e));
+    } catch (e) {
+      if (mounted) _say(context, errorText(t, e));
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = T.of(context);
+    final s = SessionScope.of(context);
+    final c = Hgv.of(context);
+    String? need(String? v) => (v ?? '').trim().isEmpty ? t('vehicle.required') : null;
+    final total = _total;
+    return _FormPage(
+      title: t('stockin.title'),
+      formKey: _form,
+      saving: _saving,
+      saveLabel: total > 0 ? t('stockin.submit', {'n': total}) : t('stockin.title'),
+      onSave: _save,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(top: 6),
+          child: Text(t('stockin.intro'), style: TextStyle(color: c.muted)),
+        ),
+        for (var i = 0; i < _lines.length; i++)
+          Card(
+            key: ObjectKey(_lines[i]),
+            margin: const EdgeInsets.only(top: 12),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 0, 12, 14),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                _Field(
+                  t('vehicle.name'),
+                  s.carNames.isEmpty
+                      ? _text(_lines[i].name, hint: 'BYD Yuan Up', validator: need)
+                      : DropdownButtonFormField<String>(
+                          initialValue: _lines[i].name.text.isEmpty ? null : _lines[i].name.text,
+                          isExpanded: true,
+                          hint: Text(t('vehicle.pick_name')),
+                          items: [
+                            for (final n in {...s.carNames, if (_lines[i].name.text.isNotEmpty) _lines[i].name.text})
+                              DropdownMenuItem(value: n, child: Text(n, overflow: TextOverflow.ellipsis)),
+                          ],
+                          onChanged: (x) => setState(() => _lines[i].name.text = x ?? ''),
+                          validator: need,
+                        ),
+                ),
+                Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Expanded(
+                    flex: 2,
+                    child: _Field(
+                      t('stockin.count'),
+                      TextFormField(
+                        controller: _lines[i].count,
+                        keyboardType: TextInputType.number,
+                        inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(3)],
+                        decoration: const InputDecoration(hintText: '10'),
+                        onChanged: (_) => setState(() {}),
+                        validator: (x) => (int.tryParse((x ?? '').trim()) ?? 0) <= 0 ? t('stockin.need_count') : null,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    flex: 3,
+                    child: _Field(t('form.selling_price'),
+                        _moneyField(_lines[i].price, suffix: s.currency, validator: (x) => (parseAmount(x ?? '') ?? 0) <= 0 ? t('form.need_price') : null)),
+                  ),
+                ]),
+                _Field(
+                  t('detail.type'),
+                  _Choices<String>(
+                    options: [for (final k in carTypes) (k, t('vehicle.type_$k'))],
+                    value: _lines[i].type,
+                    onChanged: (x) => setState(() => _lines[i].type = x),
+                  ),
+                ),
+                Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Expanded(
+                    child: _Field(
+                      t('detail.year'),
+                      TextFormField(
+                        controller: _lines[i].year,
+                        keyboardType: TextInputType.number,
+                        inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(4)],
+                        decoration: const InputDecoration(hintText: '2025'),
+                        validator: (x) {
+                          final y = int.tryParse((x ?? '').trim());
+                          return y == null || y < 1950 || y > DateTime.now().year + 1 ? t('vehicle.need_year') : null;
+                        },
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _Field(
+                      t('vehicle.range'),
+                      TextFormField(
+                        controller: _lines[i].range,
+                        keyboardType: TextInputType.number,
+                        inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(4)],
+                        decoration: const InputDecoration(hintText: '400', suffixText: 'km'),
+                        validator: (x) {
+                          final r = int.tryParse((x ?? '').trim());
+                          return r == null ? t('vehicle.required') : (r < 10 || r > 2000 ? t('vehicle.bad_range') : null);
+                        },
+                      ),
+                    ),
+                  ),
+                ]),
+                _Field('${t('detail.colour')} (${t('form.optional')})', _text(_lines[i].color, hint: t('vehicle.color_hint')),
+                    hint: t('stockin.color_hint')),
+                if (_lines.length > 1)
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton.icon(
+                      onPressed: () => setState(() => _lines.removeAt(i).dispose()),
+                      icon: const Icon(Icons.delete_outline, size: 18),
+                      label: Text(t('stockin.remove_line')),
+                      style: TextButton.styleFrom(foregroundColor: c.danger),
+                    ),
+                  ),
+              ]),
+            ),
+          ),
+        const SizedBox(height: 10),
+        OutlinedButton.icon(
+          style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(46)),
+          onPressed: () => setState(() => _lines.add(_LineFields(''))),
+          icon: const Icon(Icons.add),
+          label: Text(t('stockin.add_line')),
+        ),
+        const SizedBox(height: 10),
+        Text(
+          total > maxStockCars ? t('stockin.too_many', {'n': maxStockCars}) : t('stockin.ids_next'),
+          style: TextStyle(fontSize: 12.5, color: total > maxStockCars ? c.danger : c.faint),
+        ),
+      ],
+    );
+  }
+}

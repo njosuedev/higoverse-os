@@ -19,6 +19,7 @@ enum ActivityKind {
   outOfStock,
   restocked,
   productNew,
+  carsStocked,
   debtNew,
   debtPayment,
   debtPaid,
@@ -34,6 +35,7 @@ enum ActivityKind {
         outOfStock => 'act.out_of_stock',
         restocked => 'act.restocked',
         productNew => 'act.product_new',
+        carsStocked => 'act.cars_stocked',
         debtNew => 'act.debt_new',
         debtPayment => 'act.debt_payment',
         debtPaid => 'act.debt_paid',
@@ -44,7 +46,7 @@ enum ActivityKind {
   /// The Activity screen's filters.
   String get filter => switch (this) {
         sale || saleDeleted => 'sales',
-        lowStock || outOfStock || restocked || productNew || purchase || fineRecorded || transferPending => 'stock',
+        lowStock || outOfStock || restocked || productNew || carsStocked || purchase || fineRecorded || transferPending => 'stock',
         debtNew || debtPayment || debtPaid => 'debts',
         expense => 'money',
       };
@@ -224,6 +226,10 @@ class ActivityFeed extends ChangeNotifier {
         return make(ActivityKind.saleDeleted, {'name': d['product_name'] ?? ''});
       case 'product.created':
         return make(ActivityKind.productNew, {'name': d['name'] ?? '', 'qty': d['quantity'] ?? 0});
+      case 'product.stocked':
+        // One stock in of many cars: "10 BYD Yuan Up, 20 Neta U Pro".
+        final lines = (d['lines'] as List? ?? const []).whereType<Map>().map((l) => '${l['count']} ${l['name']}').join(', ');
+        return make(ActivityKind.carsStocked, {'n': d['count'] ?? 0, 'lines': lines});
       case 'product.updated':
         final car = _carState(d['attributes']);
         if (d.containsKey('prev_penalty_count') && car.fines > n(d['prev_penalty_count'])) {

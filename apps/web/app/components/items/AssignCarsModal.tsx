@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { RefreshCw, X } from "lucide-react";
+import { X } from "lucide-react";
+import { Bone, SkeletonRegion, useSkeleton } from "@/app/components/ui/Skeleton";
 import { itemRequest } from "@/lib/product-api";
 import { useLanguage } from "@/lib/language-context";
 import { assignConflict, carTypeLabel, normalizeVehicleId, parseAttributes, productApiError, vehicleIdKey as idKey } from "@/lib/business-layout";
@@ -26,6 +27,7 @@ export default function AssignCarsModal({ ids, onClose, onSaved }: {
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
   const [saving, setSaving] = useState(false);
   const [conflict, setConflict] = useState<{ carId: string; field: string } | null>(null);
+  const skeleton = useSkeleton(cars === null);
 
   useEffect(() => {
     itemRequest("/products?status=unassigned&limit=1000")
@@ -120,12 +122,24 @@ export default function AssignCarsModal({ ids, onClose, onSaved }: {
         </div>
 
         <div className="overflow-y-auto flex-1 px-4 sm:px-6 py-3">
-          {cars === null ? (
-            <p className="py-10 text-center text-sm text-slate-400 flex items-center justify-center gap-2"><RefreshCw size={13} className="animate-spin" /> {t("common.loading")}</p>
+          {skeleton ? (
+            <SkeletonRegion className="space-y-2 pt-1">
+              <Bone className="h-3 w-28 mt-2" />
+              {[0, 1, 2, 3, 4].map((i) => (
+                <div key={i} className="grid grid-cols-2 sm:grid-cols-[minmax(0,1.3fr)_minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,0.9fr)] gap-2 items-center">
+                  <Bone className="col-span-2 sm:col-span-1 h-3 w-24" />
+                  <Bone className="h-8" />
+                  <Bone className="h-8" />
+                  <Bone className="col-span-2 sm:col-span-1 h-8" />
+                </div>
+              ))}
+            </SkeletonRegion>
+          ) : cars === null ? (
+            <div className="min-h-[200px]" aria-busy="true" />
           ) : cars.length === 0 ? (
             <p className="py-10 text-center text-sm text-slate-500">{t("assign.none")}</p>
           ) : (
-            <div className="space-y-1.5">
+            <div className="hgv-fade-in space-y-1.5">
               {/* Column labels (wide screens) */}
               <div className="hidden sm:grid grid-cols-[minmax(0,1.3fr)_minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,0.9fr)] gap-2 px-1 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
                 <span>{t("items.col_product")}</span><span>{t("vehicle.chassis_no")}</span><span>{t("vehicle.plate_no")}</span><span>{t("vehicle.color")}</span>

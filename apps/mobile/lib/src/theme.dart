@@ -83,7 +83,8 @@ class Hgv extends ThemeExtension<Hgv> {
     warning: Color(0xFFE3AA48),
     danger: Color(0xFFED4956),
     skeleton: Color(0xFF25292E),
-    skeletonHi: Color(0xFF2B3036),
+    // Bright enough for the passing light to show on a dark screen.
+    skeletonHi: Color(0xFF363C44),
   );
 
   static Hgv of(BuildContext context) => Theme.of(context).extension<Hgv>() ?? light;

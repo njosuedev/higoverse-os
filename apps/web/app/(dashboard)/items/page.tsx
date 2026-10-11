@@ -1374,8 +1374,9 @@ export default function ItemManagementPage() {
 
 function ItemsSkeleton() {
   return (
-    <div className="min-h-screen">
-      <style>{`@keyframes itm-sh{0%{background-position:-200% 0}100%{background-position:200% 0}}.itm-sh{background:linear-gradient(90deg,#f1f5f9 25%,#e2e8f0 50%,#f1f5f9 75%);background-size:200% 100%;animation:itm-sh 1.4s infinite;border-radius:5px}.itm-sh-w{background:linear-gradient(90deg,rgba(255,255,255,.1) 25%,rgba(255,255,255,.22) 50%,rgba(255,255,255,.1) 75%);background-size:200% 100%;animation:itm-sh 1.4s infinite;border-radius:5px}`}</style>
+    // Screen readers hear "Loading" once, never the placeholders.
+    <div className="min-h-screen" role="status" aria-busy="true" aria-label="Loading">
+      <style>{`@keyframes itm-sh{0%{background-position:-200% 0}100%{background-position:200% 0}}.itm-sh-w{background:linear-gradient(90deg,rgba(255,255,255,.1) 25%,rgba(255,255,255,.22) 50%,rgba(255,255,255,.1) 75%);background-size:200% 100%;animation:itm-sh 1.4s infinite;border-radius:5px}`}</style>
       <div className="max-w-7xl mx-auto px-3 sm:px-5 py-3 sm:py-4">
         <div className="hgv-surface relative rounded-2xl mb-2 overflow-hidden">
           <div className="relative flex items-center gap-3 px-4 pt-3 pb-2">
@@ -1389,30 +1390,30 @@ function ItemsSkeleton() {
           <div className="px-4 pb-2 flex gap-1.5"><div className="itm-sh-w h-2 w-4 rounded-full" /><div className="itm-sh-w h-2 w-40 rounded" /></div>
           <div className="px-4 pb-3 flex gap-2"><div className="itm-sh-w flex-1 h-9 rounded-xl" /><div className="itm-sh-w h-9 w-28 rounded-xl" /></div>
         </div>
-        <div className="itm-sh h-7 rounded-lg mb-2" />
+        <div className="hgv-shimmer h-7 rounded-lg mb-2" />
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-1.5 mb-2">
           {Array.from({length:6}).map((_,i)=>(
             <div key={i} className="bg-white rounded-lg border border-slate-200 px-2.5 py-2">
-              <div className="itm-sh h-2 w-14 mb-2 rounded" /><div className="itm-sh h-6 w-10 rounded" />
+              <div className="hgv-shimmer h-2 w-14 mb-2 rounded" /><div className="hgv-shimmer h-6 w-10 rounded" />
             </div>
           ))}
         </div>
         <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
           <div className="px-3 py-1.5 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
-            <div className="itm-sh h-2.5 w-28 rounded" />
-            <div className="flex gap-1.5">{[56,52,50,46].map((w,i)=><div key={i} className="itm-sh h-5 rounded" style={{width:w}} />)}</div>
+            <div className="hgv-shimmer h-2.5 w-28 rounded" />
+            <div className="flex gap-1.5">{[56,52,50,46].map((w,i)=><div key={i} className="hgv-shimmer h-5 rounded" style={{width:w}} />)}</div>
           </div>
           <div className="flex gap-2 px-3 py-2 bg-slate-50 border-b border-slate-200">
-            {[16,100,70,55,65,50,44,64,72,72,64,44].map((w,i)=><div key={i} className="itm-sh h-2 rounded" style={{width:w}} />)}
+            {[16,100,70,55,65,50,44,64,72,72,64,44].map((w,i)=><div key={i} className="hgv-shimmer h-2 rounded" style={{width:w}} />)}
           </div>
           {Array.from({length:8}).map((_,i)=>(
             <div key={i} className="flex items-center gap-2 px-3 border-b border-slate-50" style={{padding:"6px 12px"}}>
-              <div className="itm-sh h-2 w-4 rounded" />
+              <div className="hgv-shimmer h-2 w-4 rounded" />
               <div className="flex items-center gap-2 w-28 shrink-0">
-                <div className="itm-sh w-8 h-8 rounded-lg shrink-0" />
-                <div><div className="itm-sh h-2.5 w-16 rounded mb-1" /><div className="itm-sh h-2 w-10 rounded" /></div>
+                <div className="hgv-shimmer w-8 h-8 rounded-lg shrink-0" />
+                <div><div className="hgv-shimmer h-2.5 w-16 rounded mb-1" /><div className="hgv-shimmer h-2 w-10 rounded" /></div>
               </div>
-              {[52,40,44,48,40,52,60,52,52,50,48].map((w,j)=><div key={j} className="itm-sh h-2.5 rounded shrink-0" style={{width:w}} />)}
+              {[52,40,44,48,40,52,60,52,52,50,48].map((w,j)=><div key={j} className="hgv-shimmer h-2.5 rounded shrink-0" style={{width:w}} />)}
             </div>
           ))}
         </div>
