@@ -1,5 +1,6 @@
 import { clearAuth, getRefreshToken, getToken, setAuth } from "@/lib/auth";
 import { AUTH_API } from "@/lib/api-config";
+import { reportNetworkFailure } from "./connection";
 
 // Access tokens live 60 minutes; the refresh token is rotated on every
 // /auth/refresh and each renewal starts a new 365-day period, so people stay
@@ -107,7 +108,11 @@ export async function authFetch(input: string, init: RequestInit = {}): Promise<
     const headers = new Headers(init.headers);
     if (t) headers.set("Authorization", `Bearer ${t}`);
     else headers.delete("Authorization");
-    return fetch(input, { ...init, headers });
+    return fetch(input, { ...init, headers }).catch((err) => {
+      // No answer at all (not an error status): maybe the internet is gone.
+      if (!init.signal?.aborted) reportNetworkFailure();
+      throw err;
+    });
   };
 
   let res = await send(token);

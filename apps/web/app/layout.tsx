@@ -6,6 +6,7 @@ import { AuthProvider } from "@/lib/auth-context";
 import { QueryProvider } from "@/lib/query-provider";
 import { DialogHost } from "@/lib/dialogs";
 import UpdateNotice from "@/app/components/UpdateNotice";
+import ConnectionStatus from "@/app/components/ConnectionStatus";
 import TopLoader from "@/app/components/TopLoader";
 import { SITE } from "@/lib/site";
 import { THEME_BOOT_SCRIPT } from "@/lib/theme-boot";
@@ -119,6 +120,7 @@ export default function RootLayout({
             <DialogHost />
             <TopLoader />
             <UpdateNotice />
+            <ConnectionStatus />
           </LanguageProvider>
         </AuthProvider>
       </body>

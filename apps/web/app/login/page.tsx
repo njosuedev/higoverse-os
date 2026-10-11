@@ -14,6 +14,7 @@ import {
   Package, Users, Wallet, Settings, Home,
 } from "lucide-react";
 import { AUTH_API as AUTH_URL } from "@/lib/api-config";
+import { checkNow } from "@/lib/connection";
 
 // Real app routes only — these mirror the authenticated nav, so a logged-out
 // visitor clicking one simply bounces to /login (same as typing the URL
@@ -95,7 +96,7 @@ export default function LoginPage() {
       // A full page load (not a client-side route change) so every screen
       // loads this account's data from scratch — nothing from before shows.
       window.location.replace(getNextPath());
-    } catch { setError(t("login.err_network")); }
+    } catch { setError(t((await checkNow()) ? "login.err_network" : "login.err_offline")); }
     finally  { setLoading(false); }
   }, [email, password, login, router, t]);
 
@@ -131,7 +132,7 @@ export default function LoginPage() {
         return setFpError(data?.detail || t("login.err_send_code_failed"));
       }
       setStep("otp"); setResendTimer(60);
-    } catch { setFpError(t("login.err_network")); }
+    } catch { setFpError(t((await checkNow()) ? "login.err_network" : "login.err_offline")); }
     finally  { setFpLoading(false); }
   };
 
@@ -143,7 +144,7 @@ export default function LoginPage() {
         body: JSON.stringify({ email: fpEmail }),
       });
       setOtp(""); setResendTimer(60);
-    } catch { setFpError(t("login.err_network")); }
+    } catch { setFpError(t((await checkNow()) ? "login.err_network" : "login.err_offline")); }
     finally { setFpLoading(false); }
   };
 
@@ -160,7 +161,7 @@ export default function LoginPage() {
       const data = await res.json();
       if (!res.ok) return setFpError(data?.detail || t("login.err_reset_failed"));
       setStep("success");
-    } catch { setFpError(t("login.err_network")); }
+    } catch { setFpError(t((await checkNow()) ? "login.err_network" : "login.err_offline")); }
     finally  { setFpLoading(false); }
   };
 
