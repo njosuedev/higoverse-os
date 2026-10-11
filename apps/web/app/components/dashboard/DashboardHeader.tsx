@@ -127,7 +127,7 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
           {/* The logo and name lead Home — or back to its top when already there. */}
           <Link href="/" onClick={goHome} aria-label={t("nav.home")} className="flex items-center gap-2.5 rounded-press transition-opacity duration-200 hover:opacity-80 focus:outline-none focus-visible:ring-2 focus-visible:ring-ink">
             {loading
-              ? <div className="h-8 w-8 animate-pulse rounded-press bg-paper-deep" />
+              ? <div className="hgv-shimmer h-8 w-8 rounded-press" aria-hidden="true" />
               : <img src="/higoverse-logo.png" alt="Higoverse" className="h-8 w-8 rounded-press object-cover" />}
             <span className="hidden font-display text-[17px] font-semibold tracking-tight text-text sm:inline">Higoverse</span>
           </Link>
@@ -136,8 +136,12 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
         {/* ── CENTER: Nav (desktop) ── */}
         <nav className="hgv-nav-scroll mx-2 hidden min-w-0 flex-1 items-stretch justify-center-safe overflow-x-auto md:flex">
           {(loading || isResolving) ? (
-            Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className="mx-1 my-auto h-8 w-16 flex-shrink-0 animate-pulse rounded-press bg-paper-dim" />
+            // As many as the menu will have, each an icon over its label.
+            Array.from({ length: businessMenus.length || 7 }).map((_, i) => (
+              <div key={i} aria-hidden="true" className="flex min-w-[56px] flex-shrink-0 flex-col items-center justify-center gap-1.5 px-2 py-1.5 lg:px-3 xl:px-4">
+                <div className="hgv-shimmer h-[18px] w-[18px] rounded-md" />
+                <div className="hgv-shimmer h-2 w-10 rounded" />
+              </div>
             ))
           ) : (
             <>
@@ -175,7 +179,7 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
               className={`flex items-center gap-2 rounded-press px-2 py-1.5 transition-colors duration-200 ${menuOpen ? "bg-paper-dim" : "hover:bg-paper-dim"}`}
             >
               {loading ? (
-                <div className="h-8 w-8 animate-pulse rounded-full bg-paper-deep" />
+                <div className="hgv-shimmer h-8 w-8 rounded-full" aria-hidden="true" />
               ) : shop?.logo_url ? (
                 <img src={shop.logo_url} alt={shop.name} className="h-8 w-8 rounded-full border border-border object-cover" />
               ) : (

@@ -1,8 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useReportReady } from "@/lib/home-ready";
 import Link from "next/link";
 import { Car, CheckCircle, ChevronRight, Clock, FileWarning, Phone, ShieldAlert, User } from "lucide-react";
+import { Bone } from "@/app/components/ui/Skeleton";
 import { itemRequest } from "@/lib/product-api";
 import { saleRequest } from "@/lib/sale-api";
 import { partnerRequest } from "@/lib/supplier-api";
@@ -90,6 +92,7 @@ export default function VehicleWatch() {
   const { t } = useLanguage();
   const [lists, setLists] = useState<Lists>(EMPTY);
   const [loading, setLoading] = useState(true);
+  useReportReady("watch", !loading);
 
   // Keep the last good list for a kind if its refresh fails.
   const apply = useCallback((res: PromiseSettledResult<{ items: WatchCar[]; total: number }>[]) => {
@@ -197,7 +200,7 @@ function Panel({ kind, icon, title, total, loading, empty, children }: {
       </div>
       {loading ? (
         <div className="space-y-2 px-3.5 pb-3.5">
-          {[0, 1, 2].map((i) => <div key={i} className="h-11 animate-pulse rounded-press bg-paper-dim" />)}
+          {[0, 1, 2].map((i) => <Bone key={i} className="h-11 rounded-press" />)}
         </div>
       ) : total === 0 ? (
         <div className="flex items-center gap-2.5 px-3.5 pb-4 pt-1">

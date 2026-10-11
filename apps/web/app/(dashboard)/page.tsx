@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
 import { useLanguage } from "@/lib/language-context";
@@ -14,6 +14,8 @@ import { expenseRequest } from "@/lib/expense-api";
 import { purchaseRequest } from "@/lib/purchase-api";
 import { listShops, type Shop as ShopInfo } from "@/lib/shop-api";
 import StatCard from "@/app/components/dashboard/StatCard";
+import HomeSkeleton from "@/app/components/dashboard/HomeSkeleton";
+import { HomeReadyProvider } from "@/lib/home-ready";
 import VehicleWatch from "@/app/components/dashboard/VehicleWatch";
 import TodayStatus from "@/app/components/dashboard/TodayStatus";
 import CarPerformanceChart from "@/app/components/dashboard/CarPerformanceChart";
@@ -34,6 +36,9 @@ interface DailyRecord { day: string; revenue: number; profit: number; sales_coun
 interface RecentSale { id: string; product_name?: string; total_amount: number; quantity: number; profit?: number; created_at?: string; }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+/** Longest Home waits for a widget before showing itself anyway. */
+const HOME_MAX_WAIT = 10_000;
+
 function toDateStr(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
@@ -149,6 +154,20 @@ export default function DashboardPage() {
   const [productServiceError, setProductServiceError] = useState(false);
   const [, setCountdown]              = useState(REFRESH_INTERVAL);
   const [now, setNow]                 = useState(new Date());
+
+  // One skeleton, once: Home shows itself only when its figures and every
+  // widget that loads by itself (stories, "last 3 days", car watch) are in,
+  // so nothing pops in afterwards. A part that never answers can't hold the
+  // page back for more than HOME_MAX_WAIT.
+  const [readyParts, setReadyParts] = useState<ReadonlySet<string>>(new Set());
+  const reportReady = useCallback((part: string) => {
+    setReadyParts((prev) => (prev.has(part) ? prev : new Set(prev).add(part)));
+  }, []);
+  const [waitedEnough, setWaitedEnough] = useState(false);
+  useEffect(() => {
+    const id = setTimeout(() => setWaitedEnough(true), HOME_MAX_WAIT);
+    return () => clearTimeout(id);
+  }, []);
 
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const refreshRef   = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -299,7 +318,9 @@ export default function DashboardPage() {
   }, [dailyData]);
 
   // Wait for the business too: what the home shows depends on its type.
-  if (!user || dataLoading || shopLoading) return <HomeSkeleton />;
+  if (!user || shopLoading) return <HomeSkeleton isCar={isCar} fin={fin} prof={prof} />;
+  const widgetsReady = waitedEnough || (isCar ? ["stories", "today", "watch"] : ["stories"]).every((p) => readyParts.has(p));
+  const ready = !dataLoading && widgetsReady;
 
   const onlineCount = shops.filter((s) => shopPresence(s.last_seen_at, now).online).length;
   const revDeltaPct = yesterdayRevenue > 0
@@ -312,7 +333,12 @@ export default function DashboardPage() {
   const netPct      = Math.max(0, 100 - purchasePct - expensePct);
 
   return (
-    <div className="min-h-screen">
+    <HomeReadyProvider value={reportReady}>
+    {!ready && <HomeSkeleton isCar={isCar} fin={fin} prof={prof} />}
+    {/* Built (and its widgets loading) behind the skeleton, out of sight and
+        out of reach, then shown all at once. */}
+    <div className={ready ? "min-h-screen hgv-fade-in" : "pointer-events-none invisible fixed inset-x-0 top-0 -z-10"}
+      aria-hidden={!ready} inert={!ready}>
       <main className="max-w-7xl mx-auto px-3 sm:px-5 py-2.5 sm:py-3 space-y-4">
 
         {/* ── PRODUCT SERVICE ERROR BANNER ───────────────────────────────────── */}
@@ -807,186 +833,6 @@ export default function DashboardPage() {
 
       </main>
     </div>
-  );
-}
-
-// ─── Home Skeleton ────────────────────────────────────────────────────────────
-function HomeSkeleton() {
-  return (
-    <>
-      <style>{`
-        @keyframes home-sh {
-          0%   { background-position: -700px 0; }
-          100% { background-position:  700px 0; }
-        }
-        .home-sh {
-          background: linear-gradient(90deg, #ebe9e5 25%, #e0dfdc 50%, #ebe9e5 75%);
-          background-size: 700px 100%;
-          animation: home-sh 1.4s infinite linear;
-          border-radius: 2px;
-        }
-        .home-sh-w { background: linear-gradient(90deg, rgba(255,255,255,0.1) 25%, rgba(255,255,255,0.2) 50%, rgba(255,255,255,0.1) 75%); background-size: 700px 100%; animation: home-sh 1.4s infinite linear; border-radius: 2px; }
-      `}</style>
-      <div className="min-h-screen">
-        <main className="max-w-7xl mx-auto px-3 sm:px-5 py-2.5 sm:py-3 space-y-3">
-
-          {/* Hero */}
-          <div className="hgv-surface rounded-data overflow-hidden">
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 px-4 py-3.5">
-              <div className="flex items-center gap-3">
-                <div className="w-11 h-11 rounded-data home-sh-w shrink-0" />
-                <div className="space-y-1.5">
-                  <div className="home-sh-w" style={{ width: 60, height: 8 }} />
-                  <div className="home-sh-w" style={{ width: 140, height: 18 }} />
-                  <div className="home-sh-w" style={{ width: 90, height: 8 }} />
-                </div>
-              </div>
-              <div className="flex items-center gap-3">
-                {[80, 90, 70].map((w, i) => (
-                  <div key={i} className="rounded-press px-3 py-2 space-y-1" style={{ background: "rgba(255,255,255,0.08)", minWidth: 72 }}>
-                    <div className="home-sh-w" style={{ width: w, height: 7 }} />
-                    <div className="home-sh-w" style={{ width: 48, height: 16 }} />
-                  </div>
-                ))}
-              </div>
-              <div className="flex items-center gap-2.5">
-                <div className="space-y-1 text-right">
-                  <div className="home-sh-w ml-auto" style={{ width: 90, height: 18 }} />
-                  <div className="home-sh-w ml-auto" style={{ width: 130, height: 8 }} />
-                </div>
-                <div className="w-9 h-9 rounded-press home-sh-w" />
-              </div>
-            </div>
-            <div className="border-t px-4 py-1.5" style={{ borderColor: "rgba(255,255,255,0.1)" }}>
-              <div className="home-sh-w" style={{ width: 160, height: 8 }} />
-            </div>
-          </div>
-
-          {/* KPI cards */}
-          <div className="grid grid-cols-3 xl:grid-cols-6 gap-2.5">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="bg-white border border-border rounded-data p-3 relative overflow-hidden">
-                <div className="space-y-2">
-                  <div className="flex justify-between items-center">
-                    <div className="home-sh" style={{ width: 50, height: 7 }} />
-                    <div className="w-4 h-4 home-sh" />
-                  </div>
-                  <div className="home-sh" style={{ width: 64, height: 18 }} />
-                  <div className="home-sh" style={{ width: 80, height: 7 }} />
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Today's status */}
-          <div className="bg-white border border-border rounded-data p-4">
-            <div className="flex justify-between items-center mb-3">
-              <div className="home-sh" style={{ width: 160, height: 11 }} />
-              <div className="home-sh rounded-press" style={{ width: 80, height: 24 }} />
-            </div>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-              {[0, 1, 2, 3].map((i) => (
-                <div key={i} className="p-2.5 rounded-data border border-border space-y-1.5">
-                  <div className="home-sh" style={{ width: 60, height: 7 }} />
-                  <div className="home-sh" style={{ width: 90, height: 16 }} />
-                  <div className="home-sh" style={{ width: 50, height: 7 }} />
-                </div>
-              ))}
-            </div>
-            <div className="mt-3 home-sh rounded-full" style={{ height: 6 }} />
-          </div>
-
-          {/* Progress bars */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-            {Array.from({ length: 3 }).map((_, i) => (
-              <div key={i} className="bg-white border border-border rounded-data p-3.5 space-y-2.5">
-                <div className="flex justify-between">
-                  <div className="home-sh" style={{ width: 80, height: 8 }} />
-                  <div className="home-sh" style={{ width: 30, height: 8 }} />
-                </div>
-                <div className="home-sh rounded-full" style={{ height: 6 }} />
-                <div className="flex justify-between">
-                  <div className="home-sh" style={{ width: 70, height: 7 }} />
-                  <div className="home-sh" style={{ width: 40, height: 7 }} />
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Chart + Recent sales */}
-          <div className="grid md:grid-cols-5 gap-3">
-            <div className="md:col-span-3 bg-white border border-border rounded-data p-4">
-              <div className="flex justify-between items-center mb-4">
-                <div className="home-sh" style={{ width: 120, height: 11 }} />
-                <div className="home-sh rounded-press" style={{ width: 70, height: 24 }} />
-              </div>
-              <div className="home-sh rounded-data" style={{ height: 110 }} />
-            </div>
-            <div className="md:col-span-2 bg-white border border-border rounded-data overflow-hidden">
-              <div className="flex justify-between items-center px-4 pt-4 pb-2.5">
-                <div className="home-sh" style={{ width: 100, height: 11 }} />
-                <div className="home-sh rounded-press" style={{ width: 70, height: 24 }} />
-              </div>
-              {Array.from({ length: 5 }).map((_, i) => (
-                <div key={i} className="flex items-center gap-2.5 px-4 py-2.5 border-t border-border">
-                  <div className="w-4 h-4 home-sh shrink-0" />
-                  <div className="flex-1 space-y-1.5">
-                    <div className="home-sh" style={{ width: "70%", height: 9 }} />
-                    <div className="home-sh" style={{ width: "40%", height: 7 }} />
-                  </div>
-                  <div className="home-sh" style={{ width: 50, height: 9 }} />
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Stock alerts + Quick actions */}
-          <div className="grid md:grid-cols-2 gap-3">
-            <div className="bg-white border border-border rounded-data overflow-hidden">
-              <div className="flex justify-between items-center px-4 pt-4 pb-2.5">
-                <div className="home-sh" style={{ width: 110, height: 11 }} />
-                <div className="home-sh rounded-press" style={{ width: 60, height: 24 }} />
-              </div>
-              {Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} className="flex items-center gap-2.5 px-4 py-2.5 border-t border-border">
-                  <div className="w-2 h-2 rounded-full home-sh shrink-0" />
-                  <div className="flex-1 space-y-1.5">
-                    <div className="home-sh" style={{ width: "60%", height: 9 }} />
-                    <div className="home-sh" style={{ width: "45%", height: 7 }} />
-                  </div>
-                  <div className="home-sh rounded-press" style={{ width: 60, height: 22 }} />
-                </div>
-              ))}
-            </div>
-            <div className="bg-white border border-border rounded-data p-4">
-              <div className="home-sh mb-3" style={{ width: 100, height: 11 }} />
-              <div className="home-sh rounded-press mb-2" style={{ height: 56 }} />
-              <div className="border border-border rounded-data divide-y divide-border">
-                {Array.from({ length: 3 }).map((_, i) => (
-                  <div key={i} className="flex items-center gap-2.5 px-3 py-2.5">
-                    <div className="w-4 h-4 home-sh shrink-0" />
-                    <div className="home-sh flex-1" style={{ height: 9 }} />
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Services */}
-          <div className="bg-white border border-border rounded-data p-4">
-            <div className="home-sh mb-3" style={{ width: 90, height: 11 }} />
-            <div className="grid sm:grid-cols-2 gap-x-6 gap-y-2.5">
-              {Array.from({ length: 8 }).map((_, i) => (
-                <div key={i} className="flex items-center gap-2.5">
-                  <div className="w-4 h-4 home-sh shrink-0" />
-                  <div className="home-sh flex-1" style={{ height: 9 }} />
-                </div>
-              ))}
-            </div>
-          </div>
-
-        </main>
-      </div>
-    </>
+    </HomeReadyProvider>
   );
 }

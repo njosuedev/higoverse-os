@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useReportReady } from "@/lib/home-ready";
 import Link from "next/link";
 import { Car, Images, Sparkles, TriangleAlert, Clock, X } from "lucide-react";
 import CarQuickView from "@/app/components/items/CarQuickView";
@@ -84,6 +85,7 @@ export default function TodayStatus({ leading }: {
 }) {
   const { t } = useLanguage();
   const [entries, setEntries] = useState<Entry[] | null>(null);
+  useReportReady("today", entries !== null);
   // Sharp covers (the list only carries a small thumbnail).
   const [covers, setCovers] = useState<Record<string, string>>({});
   const [open, setOpen] = useState<CarRow | null>(null);
@@ -166,7 +168,7 @@ export default function TodayStatus({ leading }: {
               return (
                 <button key={k} type="button" disabled={!entries || n === 0} aria-pressed={active}
                   onClick={() => setFilter(active ? null : k)}
-                  className={`flex min-h-[96px] min-w-0 flex-col justify-start rounded-lg border p-2.5 text-left transition sm:p-3 disabled:cursor-default ${active ? "border-ink ring-2 ring-ink/20" : "border-border hover:border-border-strong hover:bg-paper"} disabled:hover:border-border disabled:hover:bg-white`}>
+                  className={`flex min-h-[96px] min-w-0 flex-col justify-start rounded-lg border p-2.5 text-left transition sm:p-3 disabled:cursor-default ${active ? "border-ink ring-2 ring-ink/20" : "border-border hover:border-border-strong"} disabled:hover:border-border`}>
                   <span className="flex items-start justify-between gap-2">
                     <span className={`flex h-8 w-8 items-center justify-center rounded-full ${tone}`}><Icon size={15} /></span>
                     {/* Who it is: up to three photos of those cars */}

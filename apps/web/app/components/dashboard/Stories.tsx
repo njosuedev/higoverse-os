@@ -14,6 +14,7 @@
 // the transfer) and "View".
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useReportReady } from "@/lib/home-ready";
 import Link from "next/link";
 import {
   AlertTriangle, ArrowLeftRight, Ban, Car, ChevronLeft, ChevronRight, HandCoins, Package, Pause, Play, ShieldAlert, Sparkles, TrendingUp, X,
@@ -133,6 +134,9 @@ export default function Stories() {
   // browser agree on the first render).
   const [seen, setSeen] = useState<string[]>(readSeen);
   const [open, setOpen] = useState<number | null>(null);
+  // Stories and their photos are in (or failed): Home may show itself.
+  const [loaded, setLoaded] = useState(false);
+  useReportReady("stories", loaded);
 
   useEffect(() => {
     let alive = true;
@@ -183,6 +187,7 @@ export default function Stories() {
           if (alive && r?.data) setCovers(r.data as Record<string, string>);
         }
       } catch { /* Home works without stories */ }
+      if (alive) setLoaded(true);
     })();
     return () => { alive = false; };
   }, [isCar, lowStock]);

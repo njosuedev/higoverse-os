@@ -461,6 +461,7 @@ export default function LoginPage() {
             <p className="text-xs text-text-faint max-w-md leading-relaxed">{t("login.footer_about")}</p>
             <p className="text-[11px] text-text-faint shrink-0">
               © {new Date().getFullYear()} Higoverse · {t("login.footer_tagline")} ·{" "}
+              <Link href="/download" className="hover:text-ink hover:underline">{t("dl.link")}</Link> ·{" "}
               <Link href="/privacy" className="hover:text-ink hover:underline">Privacy</Link>
             </p>
           </div>
