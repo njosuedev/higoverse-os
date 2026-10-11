@@ -15,8 +15,9 @@ import { Sun, Moon, Monitor,
   Home, Package, Truck, ShoppingCart, BarChart3,
   Users, ChevronDown, ShieldCheck, Receipt,
   Settings, LogOut, Globe,
-  Menu, X, MessageCircle, Search, UsersRound,
+  Menu, X, MessageCircle, Search, UsersRound, HandCoins,
 } from "lucide-react";
+import { PAYROLL_ROLES } from "@/lib/payroll-api";
 import GlobalSearch, { OPEN_SEARCH_EVENT } from "@/app/components/GlobalSearch";
 import NotificationBell from "@/app/components/dashboard/NotificationBell";
 import { startChat, unreadTotal, useChat } from "@/lib/chat";
@@ -36,6 +37,7 @@ const BUSINESS_MENUS: NavItem[] = [
   { key: "nav.messages",  href: "/messages",  icon: MessageCircle },
   { key: "nav.expenses",  href: "/expenses",  icon: Receipt      },
   { key: "nav.reports",   href: "/reports",   icon: BarChart3    },
+  { key: "nav.payroll",   href: "/payroll",   icon: HandCoins    },
 ];
 const ADMIN_ITEM: NavItem = { key: "nav.admin", href: "/admin", icon: ShieldCheck };
 
@@ -106,7 +108,9 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
   };
   const businessMenus: NavItem[] = BUSINESS_MENUS
     .filter((m) => layout !== "car" || m.href !== "/purchases")
-    .filter((m) => canSeeFinancials || (m.href !== "/expenses" && m.href !== "/reports"));
+    .filter((m) => canSeeFinancials || (m.href !== "/expenses" && m.href !== "/reports"))
+    // Payroll: the owner, managers and the accountant.
+    .filter((m) => m.href !== "/payroll" || PAYROLL_ROLES.includes(user?.role ?? ""));
 
   return (
     <>

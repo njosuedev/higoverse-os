@@ -13,4 +13,8 @@ export const SITE = {
   background: "#f4f2ee",
   /** Public contact for privacy and account questions (privacy policy, app stores). */
   contactEmail: "higoverse@gmail.com",
+  /** As on the Google Business Profile, so search engines match the two. */
+  phone: "+250790885174",
+  city: "Kigali",
+  country: "RW",
 } as const;

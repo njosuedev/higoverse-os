@@ -16,6 +16,7 @@ import { listShops, type Shop as ShopInfo } from "@/lib/shop-api";
 import StatCard from "@/app/components/dashboard/StatCard";
 import HomeSkeleton from "@/app/components/dashboard/HomeSkeleton";
 import { HomeReadyProvider } from "@/lib/home-ready";
+import { PAYROLL_ROLES } from "@/lib/payroll-api";
 import VehicleWatch from "@/app/components/dashboard/VehicleWatch";
 import TodayStatus from "@/app/components/dashboard/TodayStatus";
 import CarPerformanceChart from "@/app/components/dashboard/CarPerformanceChart";
@@ -26,7 +27,7 @@ import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer,
 } from "recharts";
 import {
-  Package, Truck, BarChart3, ShoppingCart, Users, Settings, AlertTriangle, TrendingUp, TrendingDown, Globe, CheckCircle, FileText, Plus, Activity, Receipt, Wallet, DollarSign, ChevronRight,
+  Package, Truck, BarChart3, ShoppingCart, Users, Settings, AlertTriangle, TrendingUp, TrendingDown, Globe, CheckCircle, FileText, Plus, Activity, Receipt, Wallet, HandCoins, DollarSign, ChevronRight,
 } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -135,9 +136,12 @@ export default function DashboardPage() {
     { title: t("nav.expenses"),         icon: Wallet,       href: "/expenses" },
     { title: t("nav.reports"),          icon: BarChart3,    href: "/reports" },
     { title: t("nav.proforma"),         icon: FileText,     href: "/sales?tab=proforma" },
+    { title: t("nav.payroll"),          icon: HandCoins,       href: "/payroll" },
     { title: t("nav.settings"),         icon: Settings,     href: "/settings" },
   ];
-  const SERVICES = isCar ? SERVICES_ALL.filter((x) => x.href !== "/purchases") : SERVICES_ALL;
+  const SERVICES = SERVICES_ALL
+    .filter((x) => !isCar || x.href !== "/purchases")
+    .filter((x) => x.href !== "/payroll" || PAYROLL_ROLES.includes(user?.role ?? ""));
 
   const [stats, setStats]             = useState<Stats>({ products: 0, partners: 0, suppliers: 0, sales: 0, revenue: 0, lowStock: 0, outOfStock: 0 });
   const partnersShown = layout === "car" ? Math.max(0, stats.partners - stats.suppliers) : stats.partners;

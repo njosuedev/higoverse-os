@@ -1,3 +1,4 @@
+import { execSync } from "node:child_process";
 import path from "node:path";
 import type { NextConfig } from "next";
 
@@ -5,9 +6,30 @@ import type { NextConfig } from "next";
 // guess the root as the project folder. This app is self-contained here.
 const appRoot = path.resolve(__dirname);
 
+// One id per deployed version: the commit being built (the VPS builds from
+// its git checkout). It names the build (.next/BUILD_ID, served by
+// /api/version), is baked into the page as NEXT_PUBLIC_BUILD_ID so an open
+// tab knows which version it runs, and is Next.js's deploymentId: a tab
+// still on the old version navigates with a full page load instead of
+// fetching code files the new build no longer has ("This page couldn't
+// load"). The same for every build worker, so never time-based.
+function buildId(): string {
+  if (process.env.NEXT_DEPLOYMENT_ID) return process.env.NEXT_DEPLOYMENT_ID;
+  try {
+    return execSync("git rev-parse --short=12 HEAD", { cwd: appRoot, stdio: ["ignore", "pipe", "ignore"] }).toString().trim();
+  } catch {
+    return "local";
+  }
+}
+const BUILD_ID = buildId();
+
 const nextConfig: NextConfig = {
   turbopack: { root: appRoot },
   outputFileTracingRoot: appRoot,
+
+  generateBuildId: async () => BUILD_ID,
+  deploymentId: BUILD_ID,
+  env: { NEXT_PUBLIC_BUILD_ID: BUILD_ID },
 
   images: {
     // Product/shop images are base64 data URIs today (no CDN), so this
@@ -17,6 +39,14 @@ const nextConfig: NextConfig = {
 
   async redirects() {
     return [
+      // One address for the whole site: www.higoverse.com moves to
+      // higoverse.com (permanently, so search engines keep only one).
+      {
+        source: "/:path*",
+        has: [{ type: "host", value: "www.higoverse.com" }],
+        destination: "https://higoverse.com/:path*",
+        permanent: true,
+      },
       { source: "/SaleManagement",     destination: "/sales",     permanent: true },
       { source: "/ItemManagement",     destination: "/items",     permanent: true },
       { source: "/PartnerManagement",  destination: "/partners",  permanent: true },

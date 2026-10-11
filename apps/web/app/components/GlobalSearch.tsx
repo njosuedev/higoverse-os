@@ -9,8 +9,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  BarChart3, Car, CornerDownLeft, FileText, Home, MessageCircle, Package, Plus, Receipt, Search, Settings, ShoppingCart, Truck, User, Users, X,
+  BarChart3, Car, CornerDownLeft, FileText, Home, MessageCircle, Package, Plus, Receipt, Search, Settings, ShoppingCart, Truck, User, Users, HandCoins, X,
 } from "lucide-react";
+import { useAuth } from "@/lib/auth-context";
+import { PAYROLL_ROLES } from "@/lib/payroll-api";
 import { useLanguage } from "@/lib/language-context";
 import { useCanSeeFinancials } from "@/lib/permissions";
 import { itemRequest } from "@/lib/product-api";
@@ -26,6 +28,8 @@ export default function GlobalSearch() {
   const { t, layout } = useLanguage();
   const isCar = layout === "car";
   const fin = useCanSeeFinancials();
+  const { user } = useAuth();
+  const payroll = PAYROLL_ROLES.includes(user?.role ?? "");
   const router = useRouter();
   const chat = useChat();
   const [open, setOpen] = useState(false);
@@ -64,12 +68,13 @@ export default function GlobalSearch() {
     { key: "p-partners", group: "search.pages", title: t("nav.partners"), icon: Users, href: "/partners" },
     ...(!isCar ? [{ key: "p-pur", group: "search.pages", title: t("nav.purchases"), icon: Truck, href: "/purchases" }] : []),
     { key: "p-pf", group: "search.pages", title: t("nav.proforma"), icon: FileText, href: "/sales?tab=proforma" },
+    ...(payroll ? [{ key: "p-pay", group: "search.pages", title: t("nav.payroll"), icon: HandCoins, href: "/payroll" }] : []),
     ...(fin ? [
       { key: "p-exp", group: "search.pages", title: t("nav.expenses"), icon: Receipt, href: "/expenses" },
       { key: "p-rep", group: "search.pages", title: t("nav.reports"), icon: BarChart3, href: "/reports" },
     ] : []),
     { key: "p-set", group: "search.pages", title: t("nav.settings"), icon: Settings, href: "/settings" },
-  ], [t, isCar, fin]);
+  ], [t, isCar, fin, payroll]);
 
   const needle = q.trim().toLowerCase();
   const local: Hit[] = useMemo(() => {

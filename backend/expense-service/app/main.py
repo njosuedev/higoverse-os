@@ -4,6 +4,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.api.routes.expenses import router as expense_router
+from app.api.routes.payroll import router as payroll_router
+from app.models import payroll as _payroll_models  # noqa: F401  (tables for create_all)
 from app.db.database import Base, engine
 
 app = FastAPI(title="Expense Service", version="1.0.0", redirect_slashes=False)
@@ -33,6 +35,7 @@ app.add_middleware(
 )
 
 app.include_router(expense_router)
+app.include_router(payroll_router)
 
 
 @app.on_event("startup")

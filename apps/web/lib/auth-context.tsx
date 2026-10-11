@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
-import { clearAuth, getRefreshToken, getToken, getUser, setAuth as persistAuth, type User } from "./auth";
+import { clearAuth, getRefreshToken, getToken, getUser, hasSignedInCookie, markSignedIn, setAuth as persistAuth, type User } from "./auth";
 import { sendOffline } from "./shop-api";
 import { SESSION_EVENT, warmSession } from "./session";
 import { AUTH_API as AUTH_URL } from "@/lib/api-config";
@@ -36,6 +36,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     setState({ user: getUser(), token: getToken(), ready: true });
     warmSession();
+    // Sessions from before the "signed in" flag existed get it now (and a
+    // stale flag without a session is dropped): see SIGNED_IN_COOKIE.
+    const signedIn = !!(getToken() && getUser());
+    if (signedIn !== hasSignedInCookie()) markSignedIn(signedIn);
 
     // Stay in sync with token refreshes/expiry from authFetch, and with
     // sign-in/sign-out in other tabs (the "storage" event).

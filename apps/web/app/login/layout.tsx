@@ -5,10 +5,11 @@ import { SITE } from "@/lib/site";
 // inherited file-based image, so it has to be referenced explicitly.
 const shareImage = { url: "/opengraph-image", width: 1200, height: 630, alt: `${SITE.name} · ${SITE.shortTitle}` };
 
-// /login is the only public, indexable page, so it doubles as the landing
-// page for search: canonical URL, full share metadata and structured data.
+// Sign-in page. The public home page (app/welcome, served at "/") carries
+// the full description and structured data; this page stays indexable so
+// people searching for "Higoverse sign in" land here.
 export const metadata: Metadata = {
-  title: "Sign in · Inventory, Sales & Shop Management",
+  title: "Sign in",
   description: SITE.description,
   alternates: { canonical: "/login" },
   // Nested objects replace the root layout's rather than merging, so repeat
@@ -39,6 +40,9 @@ const jsonLd = {
       name: SITE.name,
       url: SITE.url,
       logo: `${SITE.url}${SITE.logo}`,
+      email: SITE.contactEmail,
+      telephone: SITE.phone,
+      address: { "@type": "PostalAddress", addressLocality: SITE.city, addressCountry: SITE.country },
     },
     {
       "@type": "WebSite",

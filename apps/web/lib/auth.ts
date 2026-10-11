@@ -17,6 +17,23 @@ export function getEffectiveRole(user: User | null): AppRole {
   return "SHOP_OWNER";
 }
 
+/** A yes/no "signed in on this browser" flag (never the token): it lets the
+ *  server show the dashboard at higoverse.com/ to people signed in, and the
+ *  public home page to everyone else, search engines included (proxy.ts). */
+export const SIGNED_IN_COOKIE = "hgv_signed_in";
+
+export function markSignedIn(on: boolean) {
+  if (typeof document === "undefined") return;
+  const secure = window.location.protocol === "https:" ? "; Secure" : "";
+  document.cookie = on
+    ? `${SIGNED_IN_COOKIE}=1; Path=/; Max-Age=31536000; SameSite=Lax${secure}`
+    : `${SIGNED_IN_COOKIE}=; Path=/; Max-Age=0; SameSite=Lax${secure}`;
+}
+
+export function hasSignedInCookie(): boolean {
+  return typeof document !== "undefined" && document.cookie.split("; ").some((c) => c.startsWith(`${SIGNED_IN_COOKIE}=1`));
+}
+
 const TOKEN_KEY = "token";
 const REFRESH_TOKEN_KEY = "refresh_token";
 const USER_KEY = "user";
@@ -26,6 +43,7 @@ export function setAuth(data: { access_token: string; refresh_token?: string; us
   localStorage.setItem(TOKEN_KEY, data.access_token);
   if (data.refresh_token) localStorage.setItem(REFRESH_TOKEN_KEY, data.refresh_token);
   localStorage.setItem(USER_KEY, JSON.stringify(data.user));
+  markSignedIn(true);
 }
 
 export function getToken(): string | null {
@@ -80,4 +98,5 @@ export function clearAuth() {
     }
   } catch { /* storage unavailable (private mode) — nothing to clear */ }
   try { sessionStorage.clear(); } catch { /* same */ }
+  markSignedIn(false);
 }

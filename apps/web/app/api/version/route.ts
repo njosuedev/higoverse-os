@@ -8,6 +8,9 @@ export const dynamic = "force-dynamic";
 let cached: string | null = null;
 function buildId(): string {
   if (cached) return cached;
+  // `next dev` keeps whatever BUILD_ID an earlier build left in .next, which
+  // never matches the page: development has no versions to update to.
+  if (process.env.NODE_ENV !== "production") return (cached = "dev");
   try {
     cached = readFileSync(path.join(process.cwd(), ".next", "BUILD_ID"), "utf8").trim();
   } catch {

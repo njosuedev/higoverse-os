@@ -1,0 +1,9 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "redirects": [
+    { "source": "/login", "destination": "https://higoverse.com/login", "permanent": true },
+    { "source": "/privacy", "destination": "https://higoverse.com/privacy", "permanent": true },
+    { "source": "/download", "destination": "https://higoverse.com/download", "permanent": true },
+    { "source": "/(.*)", "destination": "https://higoverse.com/", "permanent": true }
+  ]
+}

@@ -6,6 +6,18 @@ import { useLanguage } from "@/lib/language-context";
 
 const CHECK_EVERY_MS = 2 * 60 * 1000;
 const RETRY_SAFE_MS = 15 * 1000;
+// A reload that doesn't bring the new version (a cache, a mismatched id)
+// must not reload again and again: at most once a minute.
+const RELOADED_KEY = "hgv_update_reload_at";
+const MIN_RELOAD_GAP_MS = 60 * 1000;
+
+function reloadOnce() {
+  try {
+    if (Date.now() - Number(sessionStorage.getItem(RELOADED_KEY) || 0) < MIN_RELOAD_GAP_MS) return;
+    sessionStorage.setItem(RELOADED_KEY, String(Date.now()));
+  } catch { /* storage blocked: reload anyway */ }
+  window.location.reload();
+}
 
 /** Someone is in the middle of something a reload would lose: typing in a
  *  field, or a form / dialog is open (modals are fixed full-screen layers). */
@@ -20,10 +32,14 @@ function busy(): boolean {
  *  lost. Until then a notice offers the reload. */
 export default function UpdateNotice() {
   const { t } = useLanguage();
-  const loaded = useRef<string | null>(null);
+  // The version this tab runs (next.config.ts BUILD_ID); without it, the
+  // first answer from the server stands in.
+  const loaded = useRef<string | null>(process.env.NEXT_PUBLIC_BUILD_ID || null);
   const [newer, setNewer] = useState(false);
 
   useEffect(() => {
+    // Development: no deployed versions to follow.
+    if (process.env.NODE_ENV !== "production") return;
     let alive = true;
     const check = async () => {
       try {
@@ -42,10 +58,29 @@ export default function UpdateNotice() {
     return () => { alive = false; clearInterval(id); document.removeEventListener("visibilitychange", onVisible); };
   }, []);
 
+  // A newer version is out: this tab's code files are gone from the server,
+  // so moving to another page the usual way would fail. Links now load the
+  // page in full (the new version) instead.
+  useEffect(() => {
+    if (!newer) return;
+    const onClick = (e: MouseEvent) => {
+      if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      const a = (e.target as Element | null)?.closest?.("a[href]") as HTMLAnchorElement | null;
+      if (!a || a.target === "_blank" || a.hasAttribute("download")) return;
+      const url = new URL(a.href, window.location.href);
+      if (url.origin !== window.location.origin) return;
+      e.preventDefault();
+      e.stopPropagation();
+      window.location.assign(url.href);
+    };
+    document.addEventListener("click", onClick, true);
+    return () => document.removeEventListener("click", onClick, true);
+  }, [newer]);
+
   // A newer version is out: reload by itself once it's safe.
   useEffect(() => {
     if (!newer) return;
-    const tryReload = () => { if (!busy()) window.location.reload(); };
+    const tryReload = () => { if (!busy()) reloadOnce(); };
     tryReload();
     const id = setInterval(tryReload, RETRY_SAFE_MS);
     return () => clearInterval(id);
