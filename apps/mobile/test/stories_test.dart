@@ -34,6 +34,24 @@ void main() {
     expect(g.map((x) => x.kind), [StoryKind.fines]);
   });
 
+  test('car dealers: fines first, then transfers', () {
+    final g = storyGroups(isCar: true, now: now, pending: [
+      {'id': 'p1'},
+    ], fined: [
+      {'id': 'v1', 'attributes': '{"penalty_count":"1"}'},
+    ]);
+    expect(g.map((x) => x.kind), [StoryKind.fines, StoryKind.pending]);
+  });
+
+  test('a card holds 5 vehicles at most; the rest start more cards, in order', () {
+    final g = storyGroups(isCar: true, now: now, pending: [for (var i = 1; i <= 12; i++) {'id': 'p$i'}]);
+    expect(g.map((x) => x.stories.length), [5, 5, 2]);
+    expect(g.map((x) => x.partLabel), ['1/3', '2/3', '3/3']);
+    expect(g.last.stories.map((s) => s.itemId), ['p11', 'p12']);
+    final one = storyGroups(isCar: true, now: now, pending: [for (var i = 1; i <= 5; i++) {'id': 'p$i'}]);
+    expect(one.single.partLabel, isNull, reason: 'one card needs no "1/1"');
+  });
+
   test('a story is new again when its situation changes', () {
     const a = Story(StoryKind.low, {'id': 'b', 'quantity': 3});
     const b = Story(StoryKind.low, {'id': 'b', 'quantity': 1});

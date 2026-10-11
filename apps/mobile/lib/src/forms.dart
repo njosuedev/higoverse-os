@@ -11,6 +11,7 @@ import 'config.dart';
 import 'format.dart';
 import 'i18n.dart';
 import 'live/scoped_route.dart';
+import 'reservation.dart';
 import 'session.dart';
 import 'sheets.dart';
 import 'theme.dart';
@@ -159,6 +160,12 @@ class _SaleFormScreenState extends State<SaleFormScreen> {
   final _debtor = TextEditingController();
   final _phone = TextEditingController();
   final _notes = TextEditingController();
+
+  /// Car companies: what the buyer pays today, out of the agreed price.
+  final _paidNow = TextEditingController();
+
+  /// Until typed into, "paid now" follows the price (paid in full).
+  bool _paidTouched = false;
   Map<String, dynamic>? _product;
   int _qty = 1;
   String _method = 'cash';
@@ -184,7 +191,7 @@ class _SaleFormScreenState extends State<SaleFormScreen> {
 
   @override
   void dispose() {
-    for (final c in [_price, _debtor, _phone, _notes]) {
+    for (final c in [_price, _debtor, _phone, _notes, _paidNow]) {
       c.dispose();
     }
     super.dispose();
@@ -195,10 +202,19 @@ class _SaleFormScreenState extends State<SaleFormScreen> {
     _qty = 1;
     final price = p['selling_price'];
     _price.text = price == null ? '' : _amountText(_n(price));
+    _followPrice();
   }
 
   int get _stock => _n(_product?['quantity']).toInt();
   num get _total => (parseAmount(_price.text) ?? 0) * _qty;
+
+  /// Car companies: paid today (nothing on credit), and what is left.
+  num get _paid => _method == 'debt' ? 0 : (parseAmount(_paidNow.text) ?? 0);
+  num get _remaining => (_total - _paid).clamp(0, _total);
+
+  void _followPrice() {
+    if (!_paidTouched) _paidNow.text = _total > 0 ? _amountText(_total) : '';
+  }
 
   Future<void> _pickProduct() async {
     final p = await pushScoped<Map<String, dynamic>>(context, const ProductPickerScreen());
@@ -223,6 +239,10 @@ class _SaleFormScreenState extends State<SaleFormScreen> {
       if (_customer == null) return _say(context, t('form.pick_buyer'));
       if (!customerComplete(_customer!)) return _say(context, t('form.buyer_incomplete'));
     }
+    // Car companies: paid less than the agreed price today, the car is
+    // reserved for the buyer (pending) with this as its first deposit, and
+    // sold when the deposits reach the price — as on the website.
+    if (_reserves) return _reserve();
     final debt = _method == 'debt';
     final debtor = _debtor.text.trim();
     final notes = _notes.text.trim();
@@ -237,6 +257,7 @@ class _SaleFormScreenState extends State<SaleFormScreen> {
         if (notes.isNotEmpty) 'notes': notes,
         'payment_method': _method,
         if (debt) 'amount_paid': 0,
+        if (s.isCar && !debt) 'amount_paid': total,
       });
       final sale = (res as Map?)?['data'];
       if (debt) {
@@ -265,6 +286,30 @@ class _SaleFormScreenState extends State<SaleFormScreen> {
     }
   }
 
+  /// Car companies: less than the agreed price paid today (not on credit).
+  bool get _reserves => SessionScope.of(context).isCar && _method != 'debt' && _total > 0 && _paid < _total;
+
+  Future<void> _reserve() async {
+    final t = T.of(context);
+    final s = SessionScope.of(context);
+    final paid = _paid;
+    setState(() => _saving = true);
+    try {
+      await reserveCar(s, _product!,
+          buyer: _customer!, price: _total, deposit: paid > 0 ? {'amount': paid, 'method': _method} : null, note: _notes.text);
+      if (!mounted) return;
+      HapticFeedback.mediumImpact();
+      _say(context, t('car.marked_pending'));
+      Navigator.pop(context, true);
+    } on ReserveException catch (e) {
+      if (mounted) _say(context, e.text(t));
+    } catch (e) {
+      if (mounted) _say(context, errorText(t, e));
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final t = T.of(context);
@@ -275,7 +320,7 @@ class _SaleFormScreenState extends State<SaleFormScreen> {
       title: t('form.new_sale'),
       formKey: _form,
       saving: _saving,
-      saveLabel: t('form.save_sale'),
+      saveLabel: _reserves ? t('car.reserve_save') : t('form.save_sale'),
       onSave: _save,
       children: [
         _Field(
@@ -315,11 +360,13 @@ class _SaleFormScreenState extends State<SaleFormScreen> {
             ]),
           ),
         _Field(
-          t('sale.unit_price'),
+          // Car companies: the price agreed with the buyer, paid now or in part.
+          s.isCar ? t('sale.agreed_price') : t('sale.unit_price'),
           _moneyField(_price,
               suffix: s.currency,
-              onChanged: (_) => setState(() {}),
+              onChanged: (_) => setState(_followPrice),
               validator: (v) => (parseAmount(v ?? '') ?? -1) < 0 ? t('form.need_price') : null),
+          hint: s.isCar ? t('sale.agreed_hint') : null,
         ),
         if (s.isCar)
           _Field(
@@ -358,7 +405,35 @@ class _SaleFormScreenState extends State<SaleFormScreen> {
             onChanged: (m) => setState(() => _method = m),
           ),
         ),
-        if (_method == 'debt') ...[
+        // Car companies: part of the agreed price may be paid today, the
+        // rest later (the buyer is the debtor). Credit: nothing today.
+        if (s.isCar && _method != 'debt')
+          _Field(
+            t('sale.paid_now'),
+            Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Expanded(
+                child: _moneyField(_paidNow,
+                    suffix: s.currency,
+                    onChanged: (_) => setState(() => _paidTouched = true),
+                    validator: (v) => (parseAmount(v ?? '') ?? 0) > _total ? t('form.paid_over') : null),
+              ),
+              const SizedBox(width: 8),
+              SizedBox(
+                height: 48,
+                child: OutlinedButton(
+                  onPressed: _total <= 0
+                      ? null
+                      : () => setState(() {
+                            _paidTouched = false;
+                            _followPrice();
+                          }),
+                  child: Text(t('sale.full_amount')),
+                ),
+              ),
+            ]),
+            hint: t('sale.paid_now_hint'),
+          ),
+        if (!s.isCar && _method == 'debt') ...[
           _Field(
             t('form.debtor_name'),
             _text(_debtor, validator: (v) => (v ?? '').trim().isEmpty ? t('form.need_debtor') : null),
@@ -367,15 +442,215 @@ class _SaleFormScreenState extends State<SaleFormScreen> {
         ],
         _Field(t('sale.notes'), _text(_notes, hint: t('form.optional'), lines: 2)),
         const SizedBox(height: 18),
-        Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(color: c.paper, borderRadius: BorderRadius.circular(12)),
+        if (s.isCar)
+          _PaySummary(total: _total, paid: _paid, left: _remaining, currency: s.currency)
+        else
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(color: c.paper, borderRadius: BorderRadius.circular(12)),
+            child: Row(children: [
+              Text(t('sale.total'), style: TextStyle(color: c.muted, fontWeight: FontWeight.w700)),
+              const Spacer(),
+              Text(money(_total, s.currency), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900)),
+            ]),
+          ),
+      ],
+    );
+  }
+}
+
+/// A car sale's money at a glance: the agreed price, what the buyer pays
+/// today and what is left. Left over, the car is reserved for the buyer
+/// (pending) until the deposits reach the price. Neutral like the rest of
+/// the form: the figures and their labels say it, one bar in the brand's
+/// ink shows how far the payment goes.
+class _PaySummary extends StatelessWidget {
+  const _PaySummary({required this.total, required this.paid, required this.left, required this.currency});
+  final num total, paid, left;
+  final String currency;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = T.of(context);
+    final c = Hgv.of(context);
+    Widget line(String label, num v, {bool strong = false}) => Padding(
+          padding: const EdgeInsets.only(top: 6),
           child: Row(children: [
-            Text(t('sale.total'), style: TextStyle(color: c.muted, fontWeight: FontWeight.w700)),
+            Text(label, style: TextStyle(color: strong ? c.text : c.muted, fontWeight: strong ? FontWeight.w800 : FontWeight.w600)),
             const Spacer(),
-            Text(money(_total, s.currency), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900)),
+            Text(money(v, currency), style: TextStyle(fontSize: strong ? 17 : 15, fontWeight: strong ? FontWeight.w900 : FontWeight.w700)),
           ]),
+        );
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+      decoration: BoxDecoration(color: c.paper, borderRadius: BorderRadius.circular(12)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Row(children: [
+          Text(t('sale.agreed_price'), style: TextStyle(color: c.muted, fontWeight: FontWeight.w700)),
+          const Spacer(),
+          Text(money(total, currency), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900)),
+        ]),
+        if (total > 0 && left > 0) ...[
+          const SizedBox(height: 10),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(value: (paid / total).clamp(0, 1).toDouble(), minHeight: 6, backgroundColor: c.border, color: c.ink),
+          ),
+          line(t('sale.paid_now'), paid),
+          line(t('sale.remaining'), left, strong: true),
+          const SizedBox(height: 8),
+          Text(t('sale.remaining_hint'), style: TextStyle(fontSize: 12, color: c.muted, height: 1.3)),
+        ] else if (total > 0)
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Text(t('sale.paid_full'), style: TextStyle(color: c.muted, fontWeight: FontWeight.w600)),
+          ),
+      ]),
+    );
+  }
+}
+
+// ─────────────────────── Reserve a car (pending) ───────────────────────
+
+/// "Mark pending": reserves an available car for a buyer who pays it in
+/// deposits (see reservation.dart). True when it was reserved.
+Future<bool> reserveVehicle(BuildContext context, Map<String, dynamic> vehicle) async =>
+    await pushScoped<bool>(context, ReserveCarScreen(vehicle: vehicle)) == true;
+
+class ReserveCarScreen extends StatefulWidget {
+  const ReserveCarScreen({super.key, required this.vehicle});
+  final Map<String, dynamic> vehicle;
+
+  @override
+  State<ReserveCarScreen> createState() => _ReserveCarScreenState();
+}
+
+class _ReserveCarScreenState extends State<ReserveCarScreen> {
+  final _form = GlobalKey<FormState>();
+  late final _price = TextEditingController(text: _amountText(_n(widget.vehicle['selling_price'])));
+  final _deposit = TextEditingController();
+  final _note = TextEditingController();
+  String _method = 'cash';
+  Future<List<Map<String, dynamic>>>? _customers;
+  Map<String, dynamic>? _buyer;
+  bool _saving = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _customers ??= loadCustomers(SessionScope.of(context));
+  }
+
+  @override
+  void dispose() {
+    for (final c in [_price, _deposit, _note]) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    final t = T.of(context);
+    final s = SessionScope.of(context);
+    if (_buyer == null) return _say(context, t('form.pick_buyer'));
+    if (!_form.currentState!.validate()) return;
+    final first = parseAmount(_deposit.text) ?? 0;
+    setState(() => _saving = true);
+    try {
+      await reserveCar(s, widget.vehicle,
+          buyer: _buyer!,
+          price: parseAmount(_price.text) ?? 0,
+          deposit: first > 0 ? {'amount': first, 'method': _method} : null,
+          note: _note.text);
+      if (!mounted) return;
+      _say(context, t('car.marked_pending'));
+      Navigator.pop(context, true);
+    } on ReserveException catch (e) {
+      if (mounted) _say(context, e.text(t));
+    } catch (e) {
+      if (mounted) _say(context, errorText(t, e));
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = T.of(context);
+    final c = Hgv.of(context);
+    final s = SessionScope.of(context);
+    final a = attributesOf(widget.vehicle['attributes']);
+    final idsMissing = (a['plate_no'] ?? '').trim().isEmpty || (a['chassis_no'] ?? '').trim().isEmpty;
+    final first = parseAmount(_deposit.text) ?? 0;
+    return _FormPage(
+      title: t('car.mark_pending'),
+      formKey: _form,
+      saving: _saving || idsMissing,
+      saveLabel: t('car.mark_pending'),
+      onSave: _save,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(top: 8),
+          child: Text(t('car.pending_explain'), style: TextStyle(color: c.muted, height: 1.35)),
         ),
+        _Field(t('form.vehicle'), Text('${widget.vehicle['name'] ?? ''}', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800))),
+        // Plate and chassis identify the car; they're changed with Edit, never here.
+        InfoRow(t('car.plate_no'), (a['plate_no'] ?? '').isEmpty ? '-' : a['plate_no']!),
+        InfoRow(t('car.chassis_no'), (a['chassis_no'] ?? '').isEmpty ? '-' : a['chassis_no']!),
+        if (idsMissing)
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Text(t('car.ids_missing'), style: TextStyle(color: c.danger, fontWeight: FontWeight.w600, fontSize: 12.5)),
+          ),
+        _Field(
+          t('form.buyer'),
+          FutureBuilder<List<Map<String, dynamic>>>(
+            future: _customers,
+            builder: (context, snap) {
+              if (snap.connectionState != ConnectionState.done) {
+                return const Shimmer(child: RowSkeleton(leading: RowLead.circle, titleWidth: 140));
+              }
+              final list = snap.data ?? const [];
+              if (list.isEmpty) return Text(t('form.no_customers'), style: TextStyle(color: c.warning));
+              return DropdownButtonFormField<String>(
+                isExpanded: true,
+                initialValue: _buyer == null ? null : '${_buyer!['id']}',
+                hint: Text(t('form.pick_buyer_hint')),
+                items: [
+                  for (final cu in list)
+                    DropdownMenuItem(
+                      value: '${cu['id']}',
+                      child: Text([cu['name'], cu['phone']].where((x) => '${x ?? ''}'.isNotEmpty).join(' · '), overflow: TextOverflow.ellipsis),
+                    ),
+                ],
+                onChanged: (id) => setState(() => _buyer = list.firstWhere((x) => '${x['id']}' == id)),
+              );
+            },
+          ),
+        ),
+        _Field(
+          t('car.agreed_price'),
+          _moneyField(_price,
+              suffix: s.currency,
+              onChanged: (_) => setState(() {}),
+              validator: (v) => (parseAmount(v ?? '') ?? 0) <= 0 ? t('car.price_invalid') : null),
+        ),
+        _Field(
+          t('car.first_deposit'),
+          _moneyField(_deposit, suffix: s.currency, onChanged: (_) => setState(() {}), validator: (v) {
+            final d = parseAmount(v ?? '') ?? 0;
+            return d > 0 && d >= (parseAmount(_price.text) ?? 0) ? t('car.deposit_is_full') : null;
+          }),
+          hint: t('form.optional'),
+        ),
+        if (first > 0)
+          _Field(
+            t('pf.deposit_method'),
+            _Choices<String>(options: [for (final m in carDepositMethods) (m, payLabel(t, m))], value: _method, onChanged: (m) => setState(() => _method = m)),
+          ),
+        _Field(t('car.pending_note'), _text(_note, hint: t('car.pending_note_placeholder'))),
+        const SizedBox(height: 12),
+        Text(t('car.fines_still_yours'), style: TextStyle(fontSize: 12, color: c.faint, height: 1.3)),
       ],
     );
   }

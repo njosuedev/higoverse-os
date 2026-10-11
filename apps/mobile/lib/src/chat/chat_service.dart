@@ -58,8 +58,13 @@ class ChatService extends ChangeNotifier {
     _device = null;
     _ready = null;
     members = const [];
+    maxEmployees = 3;
+    employees = 0;
+    canManage = false;
     threads.clear();
     unread.clear();
+    _photoCache.clear();
+    _local.clear();
     openWith = null;
     error = null;
   }
@@ -101,7 +106,11 @@ class ChatService extends ChangeNotifier {
   }
 
   Future<void> _setup() async {
-    final d = _device ??= await ChatDevice.load(me);
+    final owner = me;
+    final loaded = _device ?? await ChatDevice.load(owner);
+    // Another account signed in while the keys loaded: they are not its keys.
+    if (_owner != owner) return;
+    final d = _device ??= loaded;
     await _s.api.put('${Svc.sales}/chat/devices', {
       'id': d.id,
       'public_key': d.publicKey,

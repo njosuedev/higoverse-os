@@ -50,6 +50,9 @@ class _HomeShellState extends State<HomeShell> {
 
   /// Home → Vehicles/Stock with a filter already picked.
   final _productFilter = ValueNotifier<String?>(null);
+
+  /// Home's scroll: the logo brings it back to the top.
+  final _homeScroll = ScrollController();
   late final AppLifecycleListener _life;
   Live? _live;
   ActivityFeed? _feed;
@@ -124,7 +127,16 @@ class _HomeShellState extends State<HomeShell> {
     _feed?.dispose();
     _live?.dispose();
     _productFilter.dispose();
+    _homeScroll.dispose();
     super.dispose();
+  }
+
+  /// The logo: Home, or the top of Home when already there.
+  void _goHome() {
+    if (_tab != Tabs.home) return _openTab(Tabs.home);
+    if (_homeScroll.hasClients && _homeScroll.offset > 0) {
+      _homeScroll.animateTo(0, duration: const Duration(milliseconds: 380), curve: Curves.easeOutCubic);
+    }
   }
 
   void _openTab(int i) => setState(() {
@@ -258,6 +270,7 @@ class _HomeShellState extends State<HomeShell> {
             body: Stack(children: [
               Column(children: [
                 TopBar(
+                  onHome: _goHome,
                   onSearch: () => _openSearch(context),
                   onNotifications: () => _openActivity(context),
                   unread: FeedScope.of(context)?.unread ?? 0,
@@ -267,7 +280,7 @@ class _HomeShellState extends State<HomeShell> {
                     context: context,
                     removeBottom: true,
                     child: IndexedStack(index: _tab, children: [
-                      DashboardScreen(onOpenTab: _openTab, onOpenProducts: _openProducts),
+                      DashboardScreen(onOpenTab: _openTab, onOpenProducts: _openProducts, scroll: _homeScroll),
                       ProductsScreen(filter: _productFilter),
                       const MessagesScreen(),
                       const SalesScreen(),

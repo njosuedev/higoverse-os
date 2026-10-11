@@ -13,20 +13,25 @@ import 'format.dart';
 import 'forms.dart';
 import 'holder.dart';
 import 'i18n.dart';
+import 'reservation.dart';
 import 'session.dart';
 import 'sheets.dart';
 import 'theme.dart';
 import 'widgets.dart';
 
 /// What a story is about. Car dealers: a vehicle with traffic fines, or one
-/// sold and waiting for its ownership transfer. Shops: an item sold out,
-/// one running low, a best seller this week. Both: everything added in the
+/// reserved for a buyer who pays it in deposits and waits for its transfer
+/// ([pending]). Shops: an item sold out, one
+/// running low, a best seller this week. Both: everything added in the
 /// last 3 days ([fresh], like posts on Facebook).
 enum StoryKind { fines, pending, soldOut, low, best, fresh }
 
 extension StoryKindX on StoryKind {
   bool get isCar => this == StoryKind.fines || this == StoryKind.pending;
 }
+
+/// The most vehicles or items one card holds; more start another card.
+const storiesPerCard = 5;
 
 /// One frame: one vehicle or item.
 class Story {
@@ -53,19 +58,33 @@ class Story {
 }
 
 /// A card in the tray, like one person's stories on Facebook: one topic,
-/// every vehicle or item in it played one after the other.
+/// up to [storiesPerCard] vehicles or items in it played one after the
+/// other. A bigger topic is split: card [part] of [parts].
 class StoryGroup {
-  StoryGroup(this.kind, this.stories);
+  StoryGroup(this.kind, this.stories, {this.part = 1, this.parts = 1});
   final StoryKind kind;
   final List<Story> stories;
+  final int part, parts;
   bool get seen => stories.every((x) => StorySeen.instance.has(x.id));
+
+  /// "1/2" on a topic split over several cards.
+  String? get partLabel => parts > 1 ? '$part/$parts' : null;
+
+  /// This topic in cards of at most [storiesPerCard].
+  List<StoryGroup> split() {
+    final n = (stories.length / storiesPerCard).ceil();
+    return [
+      for (var i = 0; i < n; i++) StoryGroup(kind, stories.skip(i * storiesPerCard).take(storiesPerCard).toList(), part: i + 1, parts: n),
+    ];
+  }
 }
 
 /// How long something added stays a story.
 const freshFor = Duration(days: 3);
 
 /// The stories built from what Home already loaded; empty topics left out,
-/// topics not seen yet first, then what needs action first.
+/// each topic in cards of at most [storiesPerCard], cards not seen yet
+/// first, then what needs action first.
 List<StoryGroup> storyGroups({
   required bool isCar,
   List<Map<String, dynamic>> fined = const [],
@@ -96,8 +115,12 @@ List<StoryGroup> storyGroups({
       ]),
       added,
     ],
-  ].where((g) => g.stories.isNotEmpty).toList();
-  groups.sort((a, b) => a.seen != b.seen ? (a.seen ? 1 : -1) : a.kind.index.compareTo(b.kind.index));
+  ].expand((g) => g.split()).toList();
+  groups.sort((a, b) => a.seen != b.seen
+      ? (a.seen ? 1 : -1)
+      : a.kind != b.kind
+          ? a.kind.index.compareTo(b.kind.index)
+          : a.part.compareTo(b.part));
   return groups;
 }
 
@@ -239,7 +262,8 @@ class _StoryCard extends StatelessWidget {
     final car = SessionScope.of(context).isCar;
     final first = group.stories.first;
     final n = group.stories.length;
-    final sub = n == 1 ? '${first.item['name'] ?? ''}' : (car ? t('story.n_cars', {'n': n}) : t('story.n_items', {'n': n}));
+    final count = n == 1 ? '${first.item['name'] ?? ''}' : (car ? t('story.n_cars', {'n': n}) : t('story.n_items', {'n': n}));
+    final sub = [count, if (group.partLabel != null) group.partLabel!].join(' · ');
     return Semantics(
       button: true,
       label: '${_titleFor(t, group.kind, car)}, $sub',
@@ -549,7 +573,7 @@ class _StoryViewerState extends State<StoryViewer> with SingleTickerProviderStat
                         const SizedBox(width: 10),
                         Expanded(
                           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                            Text(_titleFor(t, group.kind, s.isCar),
+                            Text([_titleFor(t, group.kind, s.isCar), if (group.partLabel != null) group.partLabel!].join(' · '),
                                 style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 14.5)),
                             Text(
                               [
@@ -579,6 +603,7 @@ class _StoryViewerState extends State<StoryViewer> with SingleTickerProviderStat
                       ? _VehicleCard(
                           story: story,
                           holder: carHolder(s, story.item),
+                          onDeposit: story.kind == StoryKind.pending ? () => _pausedWhile(() => takeCarDeposit(context, story.item)) : null,
                           onDetails: () => _pausedWhile(() => openItem(context, story.item)),
                           onCall: (phone) => _pausedWhile(() => launchUrl(Uri(scheme: 'tel', path: phone))),
                           onSms: (phone) => _pausedWhile(() => launchUrl(Uri(scheme: 'sms', path: phone))),
@@ -710,10 +735,10 @@ class _Pill extends StatelessWidget {
       );
 }
 
-/// The story's card: the vehicle, what is wrong, and who has it — with the
-/// customer's phone to call. A car sold on credit or partly paid stays in the
-/// company's name until it is fully paid and transferred, so its fines reach
-/// the company: the customer driving it is the one to call.
+/// The story's card: the vehicle and what needs doing. Fines: who has the
+/// car, to call (a car sold on credit or partly paid stays in the company's
+/// name until it is paid and transferred, so its fines reach the company).
+/// Pending: the buyer it's reserved for and the payments, to add a deposit.
 class _VehicleCard extends StatelessWidget {
   const _VehicleCard({
     required this.story,
@@ -722,10 +747,14 @@ class _VehicleCard extends StatelessWidget {
     required this.onCall,
     required this.onSms,
     required this.currency,
+    this.onDeposit,
   });
   final Story story;
   final Future<CarHolder?> holder;
   final VoidCallback onDetails;
+
+  /// A pending car: take the buyer's next deposit (the last one sells it).
+  final VoidCallback? onDeposit;
   final ValueChanged<String> onCall, onSms;
   final String currency;
 
@@ -772,73 +801,115 @@ class _VehicleCard extends StatelessWidget {
               StatusChip(t('stock.f_pending'), color),
           ]),
           const SizedBox(height: 10),
-          // ── Who has it ──
-          FutureBuilder<CarHolder?>(
-            future: holder,
-            builder: (context, snap) {
-              if (snap.connectionState != ConnectionState.done) {
-                return Container(
-                  height: 86,
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(color: c.paper, borderRadius: BorderRadius.circular(12)),
-                  child: const Shimmer(
-                    child: Row(children: [
-                      Bone(height: 40, circle: true),
-                      SizedBox(width: 10),
-                      Expanded(
-                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [
-                          Bone(width: 120, height: 12),
-                          SizedBox(height: 8),
-                          Bone(width: 90, height: 9),
-                        ]),
+          if (story.kind == StoryKind.pending) ...[
+            // ── Reserved for whom, and how far the payments are ──
+            CarPaymentsCard(vehicle: v, compact: true),
+            const SizedBox(height: 10),
+            _PendingActions(vehicle: v, onDeposit: onDeposit, onDetails: onDetails, onCall: onCall),
+          ] else ...[
+            // ── Who has it ──
+            FutureBuilder<CarHolder?>(
+              future: holder,
+              builder: (context, snap) {
+                if (snap.connectionState != ConnectionState.done) {
+                  return Container(
+                    height: 86,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(color: c.paper, borderRadius: BorderRadius.circular(12)),
+                    child: const Shimmer(
+                      child: Row(children: [
+                        Bone(height: 40, circle: true),
+                        SizedBox(width: 10),
+                        Expanded(
+                          child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [
+                            Bone(width: 120, height: 12),
+                            SizedBox(height: 8),
+                            Bone(width: 90, height: 9),
+                          ]),
+                        ),
+                      ]),
+                    ),
+                  );
+                }
+                return HolderBlock(holder: snap.data, currency: currency, finesNote: story.kind == StoryKind.fines);
+              },
+            ),
+            const SizedBox(height: 10),
+            // ── Actions ──
+            FutureBuilder<CarHolder?>(
+              future: holder,
+              builder: (context, snap) {
+                final phone = snap.data?.phone ?? '';
+                return Row(children: [
+                  if (phone.isNotEmpty) ...[
+                    Expanded(
+                      flex: 3,
+                      child: FilledButton.icon(
+                        style: FilledButton.styleFrom(
+                          minimumSize: const Size.fromHeight(42),
+                          textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800),
+                        ),
+                        onPressed: () => onCall(phone),
+                        icon: const Icon(Icons.call_rounded, size: 18),
+                        label: Text(t('debts.call')),
                       ),
-                    ]),
-                  ),
-                );
-              }
-              return HolderBlock(holder: snap.data, currency: currency, finesNote: story.kind == StoryKind.fines);
-            },
-          ),
-          const SizedBox(height: 10),
-          // ── Actions ──
-          FutureBuilder<CarHolder?>(
-            future: holder,
-            builder: (context, snap) {
-              final phone = snap.data?.phone ?? '';
-              return Row(children: [
-                if (phone.isNotEmpty) ...[
+                    ),
+                    const SizedBox(width: 8),
+                    _SquareButton(icon: Icons.chat_bubble_outline_rounded, tooltip: t('debts.sms'), onTap: () => onSms(phone)),
+                    const SizedBox(width: 8),
+                  ],
                   Expanded(
-                    flex: 3,
-                    child: FilledButton.icon(
-                      style: FilledButton.styleFrom(
-                        backgroundColor: c.success,
-                        minimumSize: const Size.fromHeight(42),
-                        textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800),
-                      ),
-                      onPressed: () => onCall(phone),
-                      icon: const Icon(Icons.call_rounded, size: 18),
-                      label: Text(t('debts.call')),
+                    flex: 2,
+                    child: OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(42)),
+                      onPressed: onDetails,
+                      icon: const Icon(Icons.directions_car_rounded, size: 18),
+                      label: Text(t('story.view_short')),
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  _SquareButton(icon: Icons.chat_bubble_outline_rounded, tooltip: t('debts.sms'), onTap: () => onSms(phone)),
-                  const SizedBox(width: 8),
-                ],
-                Expanded(
-                  flex: 2,
-                  child: OutlinedButton.icon(
-                    style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(42)),
-                    onPressed: onDetails,
-                    icon: const Icon(Icons.directions_car_rounded, size: 18),
-                    label: Text(t('story.view_short')),
-                  ),
-                ),
-              ]);
-            },
-          ),
+                ]);
+              },
+            ),
+          ],
         ]),
       ),
     );
+  }
+}
+
+/// A pending car's buttons: the next deposit first (or completing the sale
+/// once paid), then calling the buyer and the car's page.
+class _PendingActions extends StatelessWidget {
+  const _PendingActions({required this.vehicle, required this.onDeposit, required this.onDetails, required this.onCall});
+  final Map<String, dynamic> vehicle;
+  final VoidCallback? onDeposit, onDetails;
+  final ValueChanged<String> onCall;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = T.of(context);
+    final a = attributesOf(vehicle['attributes']);
+    final full = carPayments(a, vehicle['selling_price']).full;
+    final phone = a['buyer_phone'] ?? '';
+    return Row(children: [
+      Expanded(
+        child: FilledButton.icon(
+          style: FilledButton.styleFrom(
+            minimumSize: const Size.fromHeight(42),
+            textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800),
+          ),
+          onPressed: onDeposit,
+          icon: Icon(full ? Icons.point_of_sale_outlined : PhosphorIconsRegular.wallet, size: 18),
+          label: Text(t(full ? 'car.complete_sale' : 'car.add_deposit'), maxLines: 1, overflow: TextOverflow.ellipsis),
+        ),
+      ),
+      if (phone.isNotEmpty) ...[
+        const SizedBox(width: 8),
+        _SquareButton(icon: Icons.call_rounded, tooltip: t('debts.call'), onTap: () => onCall(phone)),
+      ],
+      const SizedBox(width: 8),
+      _SquareButton(icon: Icons.directions_car_rounded, tooltip: t('story.view_short'), onTap: onDetails ?? () {}),
+    ]);
   }
 }
 

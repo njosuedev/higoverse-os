@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
 
@@ -49,11 +50,16 @@ abstract class TokenSource {
 /// JSON client for the Higoverse services. Adds the bearer token, renews it
 /// once on a 401 and retries, and turns error bodies into readable messages.
 class Api {
-  Api(this.tokens, {http.Client? client}) : _http = client ?? http.Client();
+  Api(this.tokens, {http.Client? client, Duration timeout = const Duration(seconds: 20)})
+      : _http = client ?? http.Client(),
+        _timeout = timeout;
 
   final TokenSource tokens;
   final http.Client _http;
-  static const _timeout = Duration(seconds: 20);
+
+  /// The longest wait for the server to answer, and the longest silence
+  /// while its answer downloads (a slow but moving download is not cut).
+  final Duration _timeout;
 
   Uri uri(String path, [Map<String, String>? query]) {
     final u = Uri.parse('$apiBase$path');
@@ -77,15 +83,29 @@ class Api {
     final token = tokens.accessToken;
     if (token != null) headers['Authorization'] = 'Bearer $token';
 
-    final req = http.Request(method, url)..headers.addAll(headers);
+    // Aborted when the connection goes quiet, so a stalled answer can't keep
+    // a screen (and its pull-to-refresh) waiting forever.
+    final abort = Completer<void>();
+    void stop() {
+      if (!abort.isCompleted) abort.complete();
+    }
+
+    final req = http.AbortableRequest(method, url, abortTrigger: abort.future)..headers.addAll(headers);
     if (body != null) req.body = jsonEncode(body);
 
     final http.Response res;
     try {
-      res = await http.Response.fromStream(await _http.send(req).timeout(_timeout));
+      final streamed = await _http.send(req).timeout(_timeout);
+      final bytes = await streamed.stream
+          .timeout(_timeout)
+          .fold(BytesBuilder(copy: false), (b, chunk) => b..add(chunk));
+      res = http.Response.bytes(bytes.takeBytes(), streamed.statusCode,
+          request: streamed.request, headers: streamed.headers, reasonPhrase: streamed.reasonPhrase);
     } on TimeoutException {
+      stop();
       throw ApiException(0, 'The server took too long to answer. Check your connection and try again.', key: 'err.timeout');
     } catch (_) {
+      stop();
       throw ApiException(0, 'No connection to Higoverse. Check your internet and try again.', key: 'err.network');
     }
 

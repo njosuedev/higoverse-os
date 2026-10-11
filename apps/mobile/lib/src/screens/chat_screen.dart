@@ -94,9 +94,11 @@ class _ChatScreenState extends State<ChatScreen> {
       await _chat.send(_with, text, photos: photos);
       HapticFeedback.selectionClick();
     } catch (e) {
+      // The chat may have been closed while the photos uploaded.
+      if (!mounted) return;
       _text.text = text;
       setState(() => _photos.addAll(photos));
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(errorText(T.of(context), e))));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(errorText(T.of(context), e))));
     } finally {
       if (mounted) setState(() => _sending = false);
     }

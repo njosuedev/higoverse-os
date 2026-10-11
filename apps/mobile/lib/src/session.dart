@@ -100,7 +100,8 @@ class Session extends ChangeNotifier implements TokenSource {
 
   /// Car companies keep money figures from their staff; owners and admins
   /// (and every other kind of business) see them. Mirrors hides_financials().
-  bool get canSeeFinancials => const {'owner', 'admin'}.contains(user?.role) || !isCar;
+  /// Until the shop is known (it failed to load), staff see none.
+  bool get canSeeFinancials => const {'owner', 'admin'}.contains(user?.role) || (shop != null && !isCar);
 
   /// Profit and margins: never at car companies. Mirrors useShowsProfit().
   bool get showsProfit => canSeeFinancials && !isCar;
@@ -145,10 +146,21 @@ class Session extends ChangeNotifier implements TokenSource {
 
   /// Shop (for its layout) and shop settings (currency, low-stock level, language).
   Future<void> loadAccount() async {
-    final results = await Future.wait([
-      api.get('${Svc.auth}/api/v1/shop').catchError((_) => null),
-      api.get('${Svc.settings}/settings').catchError((_) => null),
-    ]);
+    // A dropped connection gets one more try: without the shop the app
+    // can't tell a car company from a shop (layout, who sees money).
+    Future<dynamic> fetch(String path) async {
+      for (var attempt = 0;; attempt++) {
+        try {
+          return await api.get(path);
+        } catch (e) {
+          // Not after a timeout: opening the app waits on this.
+          if (attempt > 0 || e is! ApiException || e.key != 'err.network') return null;
+          await Future<void>.delayed(const Duration(seconds: 1));
+        }
+      }
+    }
+
+    final results = await Future.wait([fetch('${Svc.auth}/api/v1/shop'), fetch('${Svc.settings}/settings')]);
     final s = results[0];
     if (s is Map && s['data'] is Map) shop = Shop.fromJson(Map<String, dynamic>.from(s['data'] as Map));
     final st = results[1];
@@ -169,6 +181,10 @@ class Session extends ChangeNotifier implements TokenSource {
 
   Completer<Renewal>? _refreshing;
 
+  /// Bumped on sign-out and sign-in: a renewal answered after either belongs
+  /// to the old session and must not bring its tokens back.
+  int _generation = 0;
+
   /// Renews the access token with the rotating refresh token. Concurrent
   /// callers share one renewal. Only the server refusing the refresh token
   /// ends the session — being offline or a server restart never signs out.
@@ -176,6 +192,7 @@ class Session extends ChangeNotifier implements TokenSource {
   Future<Renewal> refresh() {
     if (_refreshing != null) return _refreshing!.future;
     final c = _refreshing = Completer<Renewal>();
+    final generation = _generation;
     () async {
       try {
         final rt = _refreshToken;
@@ -184,6 +201,9 @@ class Session extends ChangeNotifier implements TokenSource {
             .post(Uri.parse('$apiBase${Svc.auth}/api/v1/auth/refresh'),
                 headers: {'Content-Type': 'application/json'}, body: jsonEncode({'refresh_token': rt}))
             .timeout(const Duration(seconds: 20));
+        // Signed out (or into another account) meanwhile: drop the answer.
+        // Not `rejected`, which would end the session that is open now.
+        if (generation != _generation) return c.complete(Renewal.unavailable);
         if (res.statusCode == 401 || res.statusCode == 403) return c.complete(Renewal.rejected);
         if (res.statusCode != 200) return c.complete(Renewal.unavailable);
         await _save(Api.decode(res) as Map<String, dynamic>);
@@ -191,7 +211,7 @@ class Session extends ChangeNotifier implements TokenSource {
       } catch (_) {
         c.complete(Renewal.unavailable);
       } finally {
-        _refreshing = null;
+        if (identical(_refreshing, c)) _refreshing = null;
       }
     }();
     return c.future;
@@ -230,12 +250,18 @@ class Session extends ChangeNotifier implements TokenSource {
   }
 
   Future<void> _clear() async {
+    _generation++;
+    _refreshing = null;
     accessToken = null;
     _refreshToken = null;
     user = null;
     shop = null;
     currency = 'RWF';
     lowStock = 10;
+    taxRate = 0;
+    bankName = bankAccount = bankHolder = '';
+    bankAccounts = const [];
+    carNames = const [];
     accountLanguage = null;
     try {
       // Only this account's keys: device preferences (appearance) stay.

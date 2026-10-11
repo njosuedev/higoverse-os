@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:phosphor_icons/phosphor_icons.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../car_photos.dart';
@@ -12,6 +13,7 @@ import '../format.dart';
 import '../forms.dart';
 import '../holder.dart';
 import '../i18n.dart';
+import '../reservation.dart';
 import '../session.dart';
 import '../sheets.dart';
 import '../stories.dart';
@@ -92,6 +94,18 @@ class _ItemScreenState extends State<ItemScreen> {
     final s = SessionScope.of(context);
     setState(() => _recent = s.api.get('${Svc.sales}/sales', query: {'page': '1', 'limit': '5', 'product_id': _id}));
     _loadFull(s);
+  }
+
+  /// Reserve, deposit, complete or release: then show the car as saved.
+  Future<void> _carAction(Future<bool> Function() action) async {
+    if (!await action() || !mounted) return;
+    final s = SessionScope.of(context);
+    forgetHolders(s);
+    setState(() {
+      _recent = s.api.get('${Svc.sales}/sales', query: {'page': '1', 'limit': '5', 'product_id': _id});
+      _holder = carHolder(s, _item);
+    });
+    await _loadFull(s);
   }
 
   Future<void> _restock() async {
@@ -210,9 +224,12 @@ class _ItemScreenState extends State<ItemScreen> {
       ('${item['category'] ?? ''}'.isEmpty ? '' : t('detail.category'), '${item['category'] ?? ''}'),
       if (!s.isCar) (t('detail.barcode'), '${item['barcode'] ?? ''}'),
     ].where((r) => r.$1.isNotEmpty && r.$2.isNotEmpty).toList();
-    final showHolder = s.isCar && (qty <= 0 || pending);
-    // A car waiting for its transfer is already sold.
-    final canSell = qty > 0 && !(s.isCar && pending);
+    // A sold car: who has it. A pending one shows its buyer and payments.
+    final showHolder = s.isCar && qty <= 0;
+    final carPending = s.isCar && qty > 0 && pending;
+    final pay = carPending ? carPayments(a, item['selling_price']) : null;
+    // A pending car is paid in deposits; the last one sells it.
+    final canSell = qty > 0 && !carPending;
     final width = MediaQuery.sizeOf(context).width;
 
     return Scaffold(
@@ -317,7 +334,8 @@ class _ItemScreenState extends State<ItemScreen> {
                 StatusChip(fines == 1 ? t('stock.fine_one') : t('stock.fines_n', {'n': fines}), c.danger),
               ],
               const Spacer(),
-              Text(money(_n(item['selling_price']), s.currency), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900)),
+              // A pending car's price is the one agreed with its buyer.
+              Text(money(pay?.price ?? _n(item['selling_price']), s.currency), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900)),
             ]),
             if (!s.isCar) ...[
               const SizedBox(height: 10),
@@ -332,6 +350,49 @@ class _ItemScreenState extends State<ItemScreen> {
               const SizedBox(height: 8),
               Text('${item['description']}'.trim(), style: TextStyle(fontSize: 13.5, color: c.muted, height: 1.35)),
             ],
+            if (_id.isNotEmpty && carPending) ...[
+              const SizedBox(height: 12),
+              CarPaymentsCard(vehicle: item, onAdd: () => _carAction(() => takeCarDeposit(context, item))),
+              const SizedBox(height: 10),
+              Row(children: [
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: () => _carAction(() => pay.full ? completeCarSale(context, item) : takeCarDeposit(context, item)),
+                    icon: Icon(pay!.full ? Icons.point_of_sale_outlined : PhosphorIconsRegular.wallet, size: 20),
+                    label: Text(t(pay.full ? 'car.complete_sale' : 'car.add_deposit')),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(minimumSize: const Size(0, 46)),
+                  onPressed: () => _carAction(() => confirmReleaseCar(context, item)),
+                  icon: const Icon(Icons.person_remove_outlined, size: 20),
+                  label: Text(t('car.release')),
+                ),
+              ]),
+              if ((a['buyer_phone'] ?? '').isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Row(children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(42)),
+                      onPressed: () => launchUrl(Uri(scheme: 'tel', path: a['buyer_phone'])),
+                      icon: const Icon(Icons.call_rounded, size: 18),
+                      label: Text(t('debts.call')),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(42)),
+                      onPressed: () => launchUrl(Uri(scheme: 'sms', path: a['buyer_phone'])),
+                      icon: const Icon(Icons.chat_bubble_outline_rounded, size: 18),
+                      label: Text(t('debts.sms')),
+                    ),
+                  ),
+                ]),
+              ],
+            ],
             if (_id.isNotEmpty && (canSell || !s.isCar)) ...[
               const SizedBox(height: 12),
               Row(children: [
@@ -343,6 +404,16 @@ class _ItemScreenState extends State<ItemScreen> {
                       label: Text(t('form.sell')),
                     ),
                   ),
+                // Car companies: reserve it for a buyer who pays in deposits.
+                if (canSell && s.isCar) ...[
+                  const SizedBox(width: 10),
+                  OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(minimumSize: const Size(0, 46)),
+                    onPressed: () => _carAction(() => reserveVehicle(context, item)),
+                    icon: const Icon(Icons.how_to_reg_outlined, size: 20),
+                    label: Text(t('car.mark_pending')),
+                  ),
+                ],
                 if (canSell && !s.isCar) const SizedBox(width: 10),
                 if (!s.isCar)
                   Expanded(
@@ -377,7 +448,7 @@ class _ItemScreenState extends State<ItemScreen> {
                     Row(children: [
                       Expanded(
                         child: FilledButton.icon(
-                          style: FilledButton.styleFrom(backgroundColor: c.success, minimumSize: const Size.fromHeight(42)),
+                          style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(42)),
                           onPressed: () => launchUrl(Uri(scheme: 'tel', path: phone)),
                           icon: const Icon(Icons.call_rounded, size: 18),
                           label: Text(t('debts.call')),

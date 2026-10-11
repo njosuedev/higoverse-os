@@ -744,14 +744,15 @@ export default function DashboardPage() {
         <footer className="pb-6 pt-1">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
 
-            {/* Brand */}
-            <div className="flex items-center gap-2">
+            {/* Brand — back to the top of Home */}
+            <button type="button" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })} aria-label={t("nav.home")}
+              className="flex items-center gap-2 rounded-press text-left transition-opacity hover:opacity-80 focus:outline-none focus-visible:ring-2 focus-visible:ring-ink">
               <img src="/higoverse-logo.png" alt="Higoverse" className="w-7 h-7 rounded-press object-cover" />
               <div>
                 <p className="font-display text-xs font-semibold text-text">Higoverse</p>
                 <p className="text-[11px] text-text-faint">{t("dash.footer_tagline")}</p>
               </div>
-            </div>
+            </button>
 
             {/* Live business snapshot — plain text, separated by middots */}
             <div className="flex items-center gap-2.5 flex-wrap justify-center text-[11px] text-text-muted">

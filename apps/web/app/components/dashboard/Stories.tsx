@@ -1,20 +1,22 @@
 "use client";
 
 // Stories on Home, the way Facebook shows them (and like the mobile app):
-// a row of tall cards, one per topic, with a blue ring until watched; a
-// click plays every vehicle or item of that topic full screen, then the
-// next topic. Car companies: traffic fines and cars awaiting transfer.
-// Shops: sold out, running low, best sellers this week. Both: everything
-// added in the last 3 days (FRESH_DAYS), like posts. Photos are the sharp
-// cover (640 px in the row, 1280 px in the viewer), never the 160 px
-// list thumbnail, and the viewer keeps the photo clear of its card.
-// Each story has one clear action (receive stock, sell, record the fine,
-// finish the transfer) and "View".
+// a row of tall cards, one per topic and at most PER_CARD vehicles or
+// items each (a bigger topic gets more cards: 1/2, 2/2), with a blue ring
+// until watched; a click plays that card full screen, then the next ones.
+// Car companies: traffic fines, cars sold with part of the agreed price
+// still to pay (balance due) and cars awaiting transfer. Shops: sold out,
+// running low, best sellers this week. Both: everything added in the last
+// 3 days (FRESH_DAYS), like posts. Photos are the sharp cover (640 px in
+// the row, 1280 px in the viewer), never the 160 px list thumbnail, and
+// the viewer keeps the photo clear of its card. Each story has one clear
+// action (receive stock, sell, record the fine, record a payment, finish
+// the transfer) and "View".
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
-  AlertTriangle, ArrowLeftRight, Ban, Car, ChevronLeft, ChevronRight, Package, Pause, Play, ShieldAlert, Sparkles, TrendingUp, X,
+  AlertTriangle, ArrowLeftRight, Ban, Car, ChevronLeft, ChevronRight, HandCoins, Package, Pause, Play, ShieldAlert, Sparkles, TrendingUp, X,
 } from "lucide-react";
 import { itemRequest } from "@/lib/product-api";
 import { saleRequest } from "@/lib/sale-api";
@@ -22,25 +24,69 @@ import { useLanguage } from "@/lib/language-context";
 import { useShopSettings } from "@/lib/shop-settings-context";
 import { useCanSeeFinancials } from "@/lib/permissions";
 
-type Kind = "fines" | "pending" | "soldOut" | "low" | "best" | "fresh";
-type Item = Record<string, unknown> & { id: string; name: string };
+type Kind = "fines" | "owing" | "pending" | "soldOut" | "low" | "best" | "fresh";
+/** A debt still open on a car sold with part of the price unpaid. */
+interface OpenDebt { id: string; amount_owed: number; amount_paid: number; balance: number; debtor_name?: string; phone?: string }
+type Item = Record<string, unknown> & { id: string; name: string; _debt?: OpenDebt };
 interface Story { kind: Kind; item: Item }
-interface Group { kind: Kind; stories: Story[] }
+/** One card: a topic, or part `part` of `parts` of a big one. */
+interface Group { kind: Kind; stories: Story[]; part: number; parts: number }
 
-const ORDER: Kind[] = ["fines", "pending", "soldOut", "low", "best", "fresh"];
+const ORDER: Kind[] = ["fines", "owing", "pending", "soldOut", "low", "best", "fresh"];
 const PLAY_MS = 8000;
 const SEEN_KEY = "hgv_story_seen";
 const FRESH_DAYS = 3;
+/** The most vehicles or items one card holds; more start another card. */
+const PER_CARD = 5;
 
 const LOOK: Record<Kind, { icon: typeof Car; color: string; title: string }> = {
   fines:   { icon: ShieldAlert,    color: "#e41e3f", title: "story.fines" },
+  owing:   { icon: HandCoins,      color: "#7c3aed", title: "story.owing" },
   pending: { icon: ArrowLeftRight, color: "#c47f0a", title: "story.pending" },
   soldOut: { icon: Ban,            color: "#e41e3f", title: "story.sold_out" },
   low:     { icon: AlertTriangle,  color: "#c47f0a", title: "story.low" },
   best:    { icon: TrendingUp,     color: "#2f9e2a", title: "story.best" },
   fresh:   { icon: Sparkles,       color: "#0866ff", title: "story.fresh" },
 };
-const isCarKind = (k: Kind) => k === "fines" || k === "pending";
+const isCarKind = (k: Kind) => k === "fines" || k === "owing" || k === "pending";
+const partLabel = (g: Group) => (g.parts > 1 ? `${g.part}/${g.parts}` : "");
+
+/** A topic in cards of at most PER_CARD (empty topics: none). */
+function splitTopic(kind: Kind, stories: Story[]): Group[] {
+  const parts = Math.ceil(stories.length / PER_CARD);
+  return Array.from({ length: parts }, (_, i) => ({
+    kind, stories: stories.slice(i * PER_CARD, (i + 1) * PER_CARD), part: i + 1, parts,
+  }));
+}
+
+/** Cars sold with part of the agreed price still to pay, one per car (its
+ *  newest open debt), from the unpaid debts: each debt's sale names the
+ *  car; the sold-cars list has its photo, plate and the rest. */
+async function carsOwing(): Promise<Item[]> {
+  const res = await saleRequest("/debts?is_paid=false").catch(() => null);
+  const open = ((res?.data?.items || []) as (OpenDebt & { sale_id?: string; is_paid?: boolean })[])
+    .filter((d) => d.sale_id && !d.is_paid && num(d.amount_owed) - num(d.amount_paid) > 0);
+  if (open.length === 0) return [];
+  const [sold, ...sales] = await Promise.all([
+    itemRequest("/products?page=1&limit=100&status=sold").catch(() => null),
+    ...open.map((d) => saleRequest(`/sales/${d.sale_id}`).catch(() => null)),
+  ]);
+  const byId = new Map<string, Item>(((sold?.data?.items || []) as Item[]).map((v) => [String(v.id), v]));
+  const seen = new Set<string>();
+  const out: Item[] = [];
+  open.forEach((d, i) => {
+    const sale = sales[i]?.data as { product_id?: string; product_name?: string } | undefined;
+    const id = sale?.product_id ? String(sale.product_id) : "";
+    if (!id || seen.has(id)) return;
+    seen.add(id);
+    const car = byId.get(id);
+    out.push({
+      ...(car || {}), id, name: String(car?.name ?? sale?.product_name ?? ""),
+      _debt: { ...d, balance: num(d.amount_owed) - num(d.amount_paid) },
+    });
+  });
+  return out;
+}
 const titleKey = (k: Kind, car: boolean) => (k === "fresh" && car ? "story.fresh_car" : LOOK[k].title);
 const num = (v: unknown) => (typeof v === "number" ? v : Number(v) || 0);
 const attrs = (it: Item): Record<string, string> => {
@@ -51,7 +97,10 @@ const attrs = (it: Item): Record<string, string> => {
  *  sold), so the story counts as new again. */
 function storyId(s: Story): string {
   const a = attrs(s.item);
-  const state = { fines: a.penalty_count, pending: a.sale_status, soldOut: s.item.quantity, low: s.item.quantity, best: s.item.qty_sold, fresh: "" }[s.kind];
+  const state = {
+    fines: a.penalty_count, owing: s.item._debt?.balance, pending: a.sale_status,
+    soldOut: s.item.quantity, low: s.item.quantity, best: s.item.qty_sold, fresh: "",
+  }[s.kind];
   return `${s.kind}:${s.item.id}:${state ?? ""}`;
 }
 
@@ -93,15 +142,17 @@ export default function Stories() {
     };
     (async () => {
       try {
-        let gs: Group[];
+        let gs: { kind: Kind; stories: Story[] }[];
         if (isCar) {
-          const [fined, pending, newest] = await Promise.all([
+          const [fined, owing, pending, newest] = await Promise.all([
             itemRequest("/products?page=1&limit=40&status=penalties").catch(() => null),
-            itemRequest("/products?page=1&limit=20&status=pending").catch(() => null),
+            carsOwing().catch(() => [] as Item[]),
+            itemRequest("/products?page=1&limit=40&status=pending").catch(() => null),
             itemRequest("/products?page=1&limit=60").catch(() => null),
           ]);
           gs = [
             { kind: "fines", stories: items(fined).map((item) => ({ kind: "fines" as Kind, item })) },
+            { kind: "owing", stories: owing.map((item) => ({ kind: "owing" as Kind, item })) },
             { kind: "pending", stories: items(pending).map((item) => ({ kind: "pending" as Kind, item })) },
             { kind: "fresh", stories: addedRecently(items(newest)) },
           ];
@@ -122,11 +173,11 @@ export default function Stories() {
             { kind: "fresh", stories: addedRecently(items(newest)) },
           ];
         }
-        gs = gs.filter((g) => g.stories.length > 0);
+        const cards = gs.flatMap((g) => splitTopic(g.kind, g.stories));
         if (!alive) return;
-        setGroups(gs);
+        setGroups(cards);
         // Sharp photos: every story's cover (lists only carry a 160 px thumbnail).
-        const ids = [...new Set(gs.flatMap((g) => g.stories).map((s) => s.item.id))].slice(0, 30);
+        const ids = [...new Set(cards.flatMap((g) => g.stories).map((s) => s.item.id))].slice(0, 30);
         if (ids.length) {
           const r = await itemRequest(`/products/covers?ids=${ids.join(",")}&size=640`).catch(() => null);
           if (alive && r?.data) setCovers(r.data as Record<string, string>);
@@ -138,9 +189,11 @@ export default function Stories() {
 
   const isSeen = useCallback((s: Story) => seen.includes(storyId(s)), [seen]);
   const groupSeen = useCallback((g: Group) => g.stories.every(isSeen), [isSeen]);
-  // Not watched yet first, then what needs action first.
+  // Not watched yet first, then what needs action first, a topic's cards in order.
   const sorted = useMemo(() => [...groups].sort((a, b) =>
-    groupSeen(a) !== groupSeen(b) ? (groupSeen(a) ? 1 : -1) : ORDER.indexOf(a.kind) - ORDER.indexOf(b.kind)), [groups, groupSeen]);
+    groupSeen(a) !== groupSeen(b) ? (groupSeen(a) ? 1 : -1)
+      : a.kind !== b.kind ? ORDER.indexOf(a.kind) - ORDER.indexOf(b.kind)
+      : a.part - b.part), [groups, groupSeen]);
   const markSeen = useCallback((s: Story) => {
     setSeen((prev) => {
       const id = storyId(s);
@@ -190,10 +243,11 @@ function Tray({ groups, photo, groupSeen, onOpen, t, car }: {
         {groups.map((g, i) => {
           const first = g.stories[0];
           const n = g.stories.length;
-          const sub = n === 1 ? first.item.name : t(car ? "story.n_cars" : "story.n_items").replace("{n}", String(n));
+          const count = n === 1 ? first.item.name : t(car ? "story.n_cars" : "story.n_items").replace("{n}", String(n));
+          const sub = [count, partLabel(g)].filter(Boolean).join(" · ");
           const img = photo(first.item);
           return (
-            <button key={g.kind} type="button" onClick={() => onOpen(i)}
+            <button key={`${g.kind}-${g.part}`} type="button" onClick={() => onOpen(i)}
               className="group relative h-[220px] w-[124px] flex-none overflow-hidden rounded-xl text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-ink"
               aria-label={`${t(titleKey(g.kind, car))}, ${sub}`}>
               <Backdrop kind={g.kind} car={car} src={img} className="transition-transform duration-300 group-hover:scale-[1.04]" />
@@ -368,7 +422,7 @@ function Viewer({ groups, start, photo, isSeen, markSeen, onClose, t, lowStock, 
             <div className="mt-3 flex items-center gap-2.5">
               <TopicAvatar kind={group.kind} seen={false} size={38} />
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold leading-tight">{t(titleKey(group.kind, car))}</p>
+                <p className="text-sm font-semibold leading-tight">{[t(titleKey(group.kind, car)), partLabel(group)].filter(Boolean).join(" · ")}</p>
                 {group.stories.length > 1 && <p className="text-xs text-white/75">{i + 1} / {group.stories.length}</p>}
               </div>
               <button type="button" onClick={(e) => { e.stopPropagation(); setPaused((p) => !p); }}
@@ -412,6 +466,18 @@ function StoryCard({ story, t, lowStock, onAction }: { story: Story; t: (k: stri
         detail: num(a.penalty_amount) > 0 && fin ? fmtCurrency(num(a.penalty_amount)) : specs,
         action: { label: t("story.record_fine"), href: `/items?open=${it.id}&do=fines` },
       };
+      case "owing": {
+        const d = it._debt;
+        const buyerName = d?.debtor_name || a.buyer_name || "";
+        return {
+          headline: fin && d ? `${t("sales.remaining")}: ${fmtCurrency(num(d.balance))}` : t("story.owing"),
+          detail: [
+            fin && d ? t("story.paid_of").replace("{paid}", fmtCurrency(num(d.amount_paid))).replace("{owed}", fmtCurrency(num(d.amount_owed))) : "",
+            buyerName,
+          ].filter(Boolean).join(" · ") || specs,
+          action: d ? { label: t("story.record_payment"), href: `/sales?pay=${encodeURIComponent(d.id)}` } : null,
+        };
+      }
       case "pending": return {
         headline: t("story.pending"), detail: a.buyer_name || specs,
         action: { label: t("story.finish_transfer"), href: `/items?open=${it.id}&do=pending` },
@@ -443,7 +509,7 @@ function StoryCard({ story, t, lowStock, onAction }: { story: Story; t: (k: stri
         <p className="min-w-0 flex-1 text-[15px] font-bold leading-snug">{it.name}</p>
         {price != null && fin && <p className="flex-none text-sm font-semibold text-white/75">{fmtCurrency(num(price))}</p>}
       </div>
-      {isCarKind(story.kind) && specs && story.kind === "fines" && <p className="text-xs text-white/60">{specs}</p>}
+      {specs && (story.kind === "fines" || story.kind === "owing") && <p className="text-xs text-white/60">{specs}</p>}
       <p className="mt-2 flex items-center gap-2 text-lg font-extrabold" style={{ color }}>
         <Icon size={18} strokeWidth={2.4} /> {headline}
       </p>

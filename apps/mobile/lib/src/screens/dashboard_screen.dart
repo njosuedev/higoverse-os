@@ -29,8 +29,12 @@ class DashboardScreen extends StatefulWidget {
     super.key,
     required this.onOpenTab,
     required this.onOpenProducts,
+    this.scroll,
   });
   final ValueChanged<int> onOpenTab;
+
+  /// Home's scroll position (the logo brings it back to the top).
+  final ScrollController? scroll;
 
   /// Opens Vehicles / Stock already filtered ("pending", "penalties"…).
   final ValueChanged<String> onOpenProducts;
@@ -109,10 +113,17 @@ class _DashboardScreenState extends State<DashboardScreen> with LiveListener {
       _inFlight[key] ??= f().whenComplete(() => _inFlight.remove(key));
 
   Future<void> _load() => Future.wait([
+        // The shop didn't load when the app opened: try again, or the app
+        // keeps the wrong layout until it is restarted.
+        if (SessionScope.of(context).shop == null) _once('account', SessionScope.of(context).loadAccount),
         _once('sales', _fetchSales),
         _once('stock', _fetchStock),
         _once('debts', _fetchDebts),
       ]);
+
+  /// Pull-to-refresh: the spinner never turns longer than this. Figures
+  /// still on their way update the screen when they arrive.
+  Future<void> _refresh() => _load().timeout(const Duration(seconds: 25), onTimeout: () {});
 
   Future<void> _guard(Future<void> Function() f) async {
     try {
@@ -162,7 +173,7 @@ class _DashboardScreenState extends State<DashboardScreen> with LiveListener {
           // Newest first: enough for every item added in the last 3 days (stories).
           s.api.get(p, query: {'page': '1', 'limit': '60'}),
           if (s.isCar) ...[
-            s.api.get(p, query: {'page': '1', 'limit': '10', 'status': 'pending'}),
+            s.api.get(p, query: {'page': '1', 'limit': '40', 'status': 'pending'}),
             s.api.get(p, query: {'page': '1', 'limit': '40', 'status': 'penalties'}),
           ],
         ]);
@@ -181,7 +192,7 @@ class _DashboardScreenState extends State<DashboardScreen> with LiveListener {
               .toList();
           _newest = _items(r[2]);
           _pending = s.isCar ? _items(r[3]) : const [];
-          _fined = tracked.take(10).toList();
+          _fined = tracked;
         });
       });
 
@@ -203,8 +214,9 @@ class _DashboardScreenState extends State<DashboardScreen> with LiveListener {
     final t = T.of(context);
     return Scaffold(
       body: RefreshIndicator(
-        onRefresh: _load,
+        onRefresh: _refresh,
         child: CustomScrollView(
+          controller: widget.scroll,
           physics: const AlwaysScrollableScrollPhysics(),
           slivers: [
             SliverPadding(

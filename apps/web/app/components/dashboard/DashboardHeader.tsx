@@ -98,6 +98,12 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
   // Car companies have no Purchases page, and keep expenses and reports
   // (company finances) from their staff.
   const canSeeFinancials = useCanSeeFinancials();
+  /** The logo: Home, or the top of Home when already there (as on Facebook). */
+  const goHome = (e: React.MouseEvent) => {
+    if (pathname !== "/") return;
+    e.preventDefault();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
   const businessMenus: NavItem[] = BUSINESS_MENUS
     .filter((m) => layout !== "car" || m.href !== "/purchases")
     .filter((m) => canSeeFinancials || (m.href !== "/expenses" && m.href !== "/reports"));
@@ -118,7 +124,8 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
           >
             <Menu size={20} />
           </button>
-          <Link href="/" className="flex items-center gap-2.5 transition-opacity duration-200 hover:opacity-80">
+          {/* The logo and name lead Home — or back to its top when already there. */}
+          <Link href="/" onClick={goHome} aria-label={t("nav.home")} className="flex items-center gap-2.5 rounded-press transition-opacity duration-200 hover:opacity-80 focus:outline-none focus-visible:ring-2 focus-visible:ring-ink">
             {loading
               ? <div className="h-8 w-8 animate-pulse rounded-press bg-paper-deep" />
               : <img src="/higoverse-logo.png" alt="Higoverse" className="h-8 w-8 rounded-press object-cover" />}
@@ -307,10 +314,11 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
           <div className="absolute inset-0 bg-ink-dark/45" onClick={() => setMobileOpen(false)} />
           <div className="absolute left-0 top-0 flex h-full w-72 max-w-[85vw] flex-col overflow-y-auto bg-white shadow-[0_0_40px_-8px_rgb(0_0_0_/_0.4)]">
             <div className="flex items-center justify-between border-b border-border px-4 py-4">
-              <div className="flex items-center gap-2.5">
+              <Link href="/" onClick={(e) => { goHome(e); setMobileOpen(false); }} aria-label={t("nav.home")}
+                className="flex items-center gap-2.5 rounded-press transition-opacity duration-200 hover:opacity-80 focus:outline-none focus-visible:ring-2 focus-visible:ring-ink">
                 <img src="/higoverse-logo.png" alt="Higoverse" className="h-8 w-8 rounded-press object-cover" />
                 <span className="font-display text-[16px] font-semibold tracking-tight text-text">Higoverse</span>
-              </div>
+              </Link>
               <button
                 type="button"
                 onClick={() => setMobileOpen(false)}

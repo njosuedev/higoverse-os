@@ -20,7 +20,7 @@ import { useCanSeeFinancials, useShowsProfit } from "@/lib/permissions";
 import DeepLink from "@/app/components/DeepLink";
 import DateRangeFilter from "@/app/components/ui/DateRangeFilter";
 import {
-  ShoppingBag, Filter, Plus, Trash2, Pencil, X, ReceiptText, Printer, Wallet, AlertCircle, CheckCircle2, Phone, ChevronDown, Download, Upload, FileSpreadsheet, FileText, RefreshCw, Search,
+  ShoppingBag, Filter, Plus, Trash2, Pencil, X, ReceiptText, Printer, Wallet, AlertCircle, CheckCircle2, Phone, ChevronDown, Download, Upload, FileSpreadsheet, FileText, RefreshCw, Search, Info,
 } from "lucide-react";
 import { askConfirm, notify } from "@/lib/dialogs";
 
@@ -57,6 +57,46 @@ const PAYMENT_METHODS: { value: PaymentMethod; labelKey: string; color: string }
 function paymentBadge(method: string | undefined, t: (key: string) => string) {
   const m = PAYMENT_METHODS.find((p) => p.value === method) || PAYMENT_METHODS[0];
   return <span className={`text-[11px] font-semibold px-1.5 py-0.5 rounded border ${m.color}`}>{t(m.labelKey)}</span>;
+}
+
+/** A car sale's money at a glance: the agreed price, what the buyer pays
+ *  today, and what is left (recorded as owed by the buyer; the car shows
+ *  under "Balance due" on Home until it is paid). Same as the mobile app. */
+function CarPaySummary({ total, paid, left, currency, t }: {
+  total: number; paid: number; left: number; currency: string; t: (key: string) => string;
+}) {
+  const pct = total > 0 ? Math.round((paid / total) * 100) : 0;
+  return (
+    <div className={`mt-3 rounded-xl border bg-white px-4 py-3 ${left > 0 ? "border-[#7c3aed]/40" : "border-slate-200"}`} aria-live="polite">
+      <div className="flex items-baseline justify-between gap-3">
+        <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">{t("sales.agreed_price")}</span>
+        <span className="text-lg font-bold tabular-nums text-slate-900">{total.toLocaleString()} <span className="text-xs font-normal text-slate-400">{currency}</span></span>
+      </div>
+      {left > 0 ? (
+        <>
+          <div className="mt-2.5 h-1.5 overflow-hidden rounded-full bg-slate-100" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
+            <div className="h-full rounded-full bg-emerald-500 transition-[width] duration-300" style={{ width: `${pct}%` }} />
+          </div>
+          <div className="mt-2 flex justify-between text-sm">
+            <span className="font-medium text-emerald-700">{t("sales.paid_now")}</span>
+            <span className="font-semibold tabular-nums text-emerald-700">{paid.toLocaleString()} {currency}</span>
+          </div>
+          <div className="mt-1 flex justify-between text-sm">
+            <span className="font-bold text-[#7c3aed]">{t("sales.remaining")}</span>
+            <span className="text-base font-extrabold tabular-nums text-[#7c3aed]">{left.toLocaleString()} {currency}</span>
+          </div>
+          <p className="mt-2 flex gap-1.5 text-xs leading-snug text-slate-500">
+            <Info size={14} className="mt-px flex-none text-[#7c3aed]" aria-hidden="true" />
+            {t("sales.remaining_hint")}
+          </p>
+        </>
+      ) : (
+        <p className="mt-1.5 flex items-center gap-1.5 text-sm font-semibold text-emerald-700">
+          <CheckCircle2 size={16} aria-hidden="true" /> {t("sales.paid_full")}
+        </p>
+      )}
+    </div>
+  );
 }
 
 function genId() { return Math.random().toString(36).slice(2, 9); }
@@ -126,6 +166,11 @@ export default function SaleManagementPage() {
   // New sale opens with the product search already open — just start typing.
   const [autoPick, setAutoPick] = useState(true);
   const [amountSent, setAmountSent] = useState("");
+  // Car sales: what the buyer pays today out of the agreed price; the rest
+  // is recorded as owed (a debt tied to the sale). Until typed into, it
+  // follows the price: paid in full.
+  const [paidNow, setPaidNow] = useState("");
+  const [paidTouched, setPaidTouched] = useState(false);
   const [debtorName, setDebtorName] = useState("");
   const [debtorPhone, setDebtorPhone] = useState("");
 
@@ -204,7 +249,7 @@ export default function SaleManagementPage() {
   function openCreateModal(autoSearch = true) {
     setAutoPick(autoSearch);
     setLineItems([emptyLine()]); setSaleCustomer(""); setSaleNotes("");
-    setPaymentMethod("cash"); setAmountSent(""); setDebtorName(""); setDebtorPhone("");
+    setPaymentMethod("cash"); setAmountSent(""); setPaidNow(""); setPaidTouched(false); setDebtorName(""); setDebtorPhone("");
     setBuyerTried(false);
     setEditingId(null); setModalMode("create"); setShowModal(true);
   }
@@ -212,6 +257,17 @@ export default function SaleManagementPage() {
   function handleDeepLink(params: URLSearchParams) {
     if (params.get("tab") === "proforma") { setTab("proforma"); return; }
     setTab("sales");
+    // Home's "Balance due" story → "Record payment": /sales?pay=<debt id>
+    const pay = params.get("pay");
+    if (pay) {
+      saleRequest(`/debts/${encodeURIComponent(pay)}`)
+        .then((res) => {
+          const d = res?.data as Debt | undefined;
+          if (d && !d.is_paid) { setShowPayModal(d); setPaymentAmount(""); }
+        })
+        .catch(() => {});
+      return;
+    }
     if (params.get("new") !== "1") return;
     const id = params.get("product");
     openCreateModal(!id);
@@ -246,7 +302,7 @@ export default function SaleManagementPage() {
   function closeModal() {
     setShowModal(false); setForm(EMPTY_FORM); setEditingId(null);
     setLineItems([emptyLine()]); setSaleCustomer(""); setSaleNotes("");
-    setPaymentMethod("cash"); setAmountSent(""); setDebtorName(""); setDebtorPhone("");
+    setPaymentMethod("cash"); setAmountSent(""); setPaidNow(""); setPaidTouched(false); setDebtorName(""); setDebtorPhone("");
     setBuyerTried(false);
   }
 
@@ -319,15 +375,25 @@ export default function SaleManagementPage() {
     if (paymentMethod === "debt" && !debtor) { notify(t("sales.need_debtor_name")); return; }
 
     const grandTotal = validLines.reduce((s, l) => s + l.quantity * l.unit_price, 0);
+    if (isCar && carPaid > grandTotal) { notify(t("sales.paid_over")); return; }
+    // Car sales: what was paid today goes to the cars in order; each car
+    // still owed on gets its own debt, so it shows under Balance due.
+    let toShare = carPaid;
+    const linePaid = validLines.map((l) => {
+      const share = Math.min(l.quantity * l.unit_price, toShare);
+      toShare -= share;
+      return share;
+    });
 
     try {
       setSubmitting(true);
       const created: Sale[] = [];
+      const owing: { sale: Sale; total: number; paid: number }[] = [];
       const errors: string[] = [];
 
       const customerId = saleCustomer;
 
-      for (const line of validLines) {
+      for (const [i, line] of validLines.entries()) {
         try {
           const res = await saleRequest("/sales", {
             method: "POST",
@@ -337,17 +403,40 @@ export default function SaleManagementPage() {
               quantity: line.quantity,
               unit_price: line.unit_price,
               notes: saleNotes.trim() || undefined,
-              payment_method: paymentMethod,
-              amount_paid: amountSent ? Number(amountSent) : (paymentMethod === "debt" ? 0 : undefined),
+              // Nothing paid today for a car is a sale on credit.
+              payment_method: isCar && carPaid === 0 ? "debt" : paymentMethod,
+              amount_paid: isCar ? linePaid[i] : (amountSent ? Number(amountSent) : (paymentMethod === "debt" ? 0 : undefined)),
             }),
           });
-          if (res?.data?.id) created.push(res.data);
+          if (res?.data?.id) {
+            created.push(res.data);
+            const total = line.quantity * line.unit_price;
+            if (isCar && linePaid[i] < total) owing.push({ sale: res.data, total, paid: linePaid[i] });
+          }
         } catch (e) {
           errors.push(e instanceof Error ? e.message : t("common.unknown_error"));
         }
       }
 
-      if (paymentMethod === "debt" && created.length > 0) {
+      if (isCar && owing.length > 0) {
+        // The sale stands even if a debt can't be written (as for credit).
+        let debtFailed = false;
+        for (const o of owing) {
+          await saleRequest("/debts", {
+            method: "POST",
+            body: JSON.stringify({
+              debtor_name: buyer.name.trim(),
+              phone: buyer.phone.trim() || undefined,
+              amount_owed: o.total,
+              amount_paid: o.paid,
+              notes: saleNotes.trim() || undefined,
+              sale_id: o.sale.id,
+            }),
+          }).catch(() => { debtFailed = true; });
+        }
+        if (debtFailed) errors.push(t("sales.debt_not_saved"));
+        await loadDebts();
+      } else if (!isCar && paymentMethod === "debt" && created.length > 0) {
         try {
           await saleRequest("/debts", {
             method: "POST",
@@ -529,6 +618,21 @@ export default function SaleManagementPage() {
     doc.save("sales.pdf");
   }
 
+  /** What a receipt says about money. Shops: the cash handed over (sent on
+   *  every line) and the change. Car companies: what was paid today across
+   *  the cars and what is left to pay (older sales without an amount: none). */
+  function receiptMoney(list: Sale[]) {
+    const total = list.reduce((s, x) => s + x.total_amount, 0);
+    if (!isCar) {
+      const paid = list[0]?.amount_paid ?? 0;
+      return { total, paid, change: paid > total ? paid - total : 0, left: 0 };
+    }
+    const known = list.some((x) => x.amount_paid != null);
+    const paid = list.reduce((s, x) => s + (x.amount_paid ?? 0), 0);
+    const credit = list[0]?.payment_method === "debt";
+    return { total, paid, change: 0, left: known && !credit ? Math.max(0, total - paid) : 0 };
+  }
+
   function printReceiptPopup(salesToPrint: Sale[]) {
     const grandTotal = salesToPrint.reduce((s, x) => s + x.total_amount, 0);
     const receiptNo = salesToPrint[0]?.id?.slice(0, 8)?.toUpperCase() || t("sales.receipt_fallback_no");
@@ -537,8 +641,7 @@ export default function SaleManagementPage() {
       : new Date().toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
     const customerName = salesToPrint[0]?.customer_id ? customerMap[salesToPrint[0].customer_id]?.name : "";
     const pm = salesToPrint[0]?.payment_method;
-    const paid = salesToPrint[0]?.amount_paid;
-    const change = paid && paid > grandTotal ? paid - grandTotal : 0;
+    const { paid, change, left } = receiptMoney(salesToPrint);
 
     const itemsHtml = salesToPrint.map((s) =>
       `<tr>
@@ -554,6 +657,7 @@ export default function SaleManagementPage() {
       <div class="row"><span class="label">${t("sales.payment")}</span><span style="font-weight:700;text-transform:uppercase">${pm}</span></div>
       ${paid ? `<div class="row"><span class="label">${t("sales.amount_paid")}</span><span>${paid.toLocaleString()} ${currency}</span></div>` : ""}
       ${change > 0 ? `<div class="row" style="color:#16a34a"><span class="label">${t("sales.change_label")}</span><span style="font-weight:700">${change.toLocaleString()} ${currency}</span></div>` : ""}
+      ${left > 0 ? `<div class="row" style="color:#7c3aed"><span class="label">${t("sales.remaining")}</span><span style="font-weight:700">${left.toLocaleString()} ${currency}</span></div>` : ""}
       ${pm === "debt" ? `<div class="row" style="color:#dc2626"><span class="label">&#9888; ${t("sales.on_credit")}</span><span style="font-weight:700">${grandTotal.toLocaleString()} ${currency} ${t("sales.owed")}</span></div>` : ""}
     ` : "";
 
@@ -663,6 +767,9 @@ ${paymentHtml}
     return s + (p && p.cost_price != null ? (l.unit_price - p.cost_price) * l.quantity : 0);
   }, 0);
   const changeAmount = amountSent && Number(amountSent) > createGrandTotal ? Number(amountSent) - createGrandTotal : 0;
+  // Car sales: paid today (nothing on credit) and what is left to pay.
+  const carPaid = paymentMethod === "debt" ? 0 : (paidTouched ? Math.max(0, Number(paidNow) || 0) : createGrandTotal);
+  const carRemaining = Math.max(0, createGrandTotal - carPaid);
 
   const totalPages = Math.ceil(salesTotal / pageSize);
   const selectedProduct = products.find((p) => p.id === form.product_id);
@@ -678,7 +785,7 @@ ${paymentHtml}
     <div className="min-h-screen">
       <div className="max-w-7xl mx-auto px-3 sm:px-5 py-3 sm:py-4">
 
-        <DeepLink keys={["new", "product", "tab"]} onParams={handleDeepLink} />
+        <DeepLink keys={["new", "product", "tab", "pay"]} onParams={handleDeepLink} />
 
         <div role="tablist" className="flex gap-1 mb-2 bg-white border border-slate-200 rounded-xl p-1 w-full sm:w-fit">
           {([["sales", ShoppingBag, t("nav.sales")], ["proforma", FileText, t("nav.proforma")]] as const).map(([k, Icon, label]) => (
@@ -1223,7 +1330,35 @@ ${paymentHtml}
                     ))}
                   </div>
 
-                  {paymentMethod !== "debt" && (
+                  {/* Car companies: part of the agreed price may be paid today, the rest later. */}
+                  {isCar && paymentMethod !== "debt" && (
+                    <div>
+                      <label htmlFor="paid-now" className="block text-xs font-medium text-gray-600 mb-1">
+                        {t("sales.paid_now")} <span className="text-slate-400 font-normal">{t("sales.paid_now_hint")}</span>
+                      </label>
+                      <div className="flex items-center gap-3">
+                        <input
+                          id="paid-now" type="number" min="0" max={createGrandTotal} placeholder="0" inputMode="numeric"
+                          className={`${inputCls} ${carPaid > createGrandTotal ? "border-red-400 ring-2 ring-red-200" : ""}`}
+                          value={paidTouched ? paidNow : String(createGrandTotal || "")}
+                          onFocus={(e) => e.target.select()}
+                          onChange={(e) => { setPaidTouched(true); setPaidNow(e.target.value); }}
+                        />
+                        {createGrandTotal > 0 && (
+                          <button type="button" onClick={() => { setPaidTouched(false); setPaidNow(""); }}
+                            className="shrink-0 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:border-slate-300 hover:bg-slate-50 transition whitespace-nowrap">
+                            {t("sales.full_amount")}
+                          </button>
+                        )}
+                      </div>
+                      {carPaid > createGrandTotal && <p className="mt-1 text-xs font-semibold text-red-600">{t("sales.paid_over")}</p>}
+                    </div>
+                  )}
+                  {isCar && createGrandTotal > 0 && (
+                    <CarPaySummary total={createGrandTotal} paid={Math.min(carPaid, createGrandTotal)} left={carRemaining} currency={currency} t={t} />
+                  )}
+
+                  {!isCar && paymentMethod !== "debt" && (
                     <div>
                       <label className="block text-xs font-medium text-gray-600 mb-1">
                         {t("sales.amount_sent")} <span className="text-slate-400 font-normal">{t("sales.amount_sent_hint")}</span>
@@ -1250,7 +1385,7 @@ ${paymentHtml}
                     </div>
                   )}
 
-                  {paymentMethod === "debt" && (
+                  {!isCar && paymentMethod === "debt" && (
                     <div className="grid sm:grid-cols-2 gap-3">
                       <div>
                         <label className="block text-xs font-medium text-gray-600 mb-1">
@@ -1516,20 +1651,30 @@ ${paymentHtml}
                   <span>{t("common.total")}</span>
                   <span>{receipts.reduce((s, x) => s + x.total_amount, 0).toLocaleString()} {currency}</span>
                 </div>
-                {receipts[0]?.amount_paid != null && receipts[0].amount_paid > 0 && (
-                  <>
-                    <div className="flex justify-between text-xs text-slate-600 mt-1.5">
-                      <span>{t("sales.amount_paid")}</span>
-                      <span>{receipts[0].amount_paid.toLocaleString()} {currency}</span>
-                    </div>
-                    {receipts[0].amount_paid > receipts.reduce((s, x) => s + x.total_amount, 0) && (
-                      <div className="flex justify-between text-xs text-slate-800 font-semibold mt-0.5">
-                        <span>{t("sales.change_label")}</span>
-                        <span>{(receipts[0].amount_paid - receipts.reduce((s, x) => s + x.total_amount, 0)).toLocaleString()} {currency}</span>
+                {(() => {
+                  const m = receiptMoney(receipts);
+                  if (m.paid <= 0) return null;
+                  return (
+                    <>
+                      <div className="flex justify-between text-xs text-slate-600 mt-1.5">
+                        <span>{t("sales.amount_paid")}</span>
+                        <span>{m.paid.toLocaleString()} {currency}</span>
                       </div>
-                    )}
-                  </>
-                )}
+                      {m.change > 0 && (
+                        <div className="flex justify-between text-xs text-slate-800 font-semibold mt-0.5">
+                          <span>{t("sales.change_label")}</span>
+                          <span>{m.change.toLocaleString()} {currency}</span>
+                        </div>
+                      )}
+                      {m.left > 0 && (
+                        <div className="flex justify-between text-sm text-[#7c3aed] font-bold mt-0.5">
+                          <span>{t("sales.remaining")}</span>
+                          <span>{m.left.toLocaleString()} {currency}</span>
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
                 {receipts[0]?.payment_method === "debt" && (
                   <div className="mt-2 text-xs text-amber-600 font-semibold text-center border border-amber-200 rounded-lg py-1">{t("sales.on_credit_amount_owed")}</div>
                 )}

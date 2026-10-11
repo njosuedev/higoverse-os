@@ -26,15 +26,18 @@ class NavItem {
 }
 
 /// The top of the signed-in app: the Higoverse logo and name beside search
-/// and notifications.
+/// and notifications. The logo and name lead Home (the top of it when
+/// already there), as on Facebook and Instagram.
 class TopBar extends StatelessWidget {
   const TopBar({
     super.key,
     required this.onSearch,
     required this.onNotifications,
     required this.unread,
+    this.onHome,
   });
   final VoidCallback onSearch, onNotifications;
+  final VoidCallback? onHome;
   final int unread;
 
   @override
@@ -52,14 +55,43 @@ class TopBar extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.fromLTRB(12, 6, 10, 6),
             child: Row(children: [
-              // The Higoverse brand, as Facebook shows its own name up here.
-              Image.asset('assets/higoverse-logo.png', width: 32, height: 32, filterQuality: FilterQuality.medium,
-                  semanticLabel: name),
-              const SizedBox(width: 8),
+              // The Higoverse brand, as Facebook shows its own name up here;
+              // a tap goes Home.
               Expanded(
-                child: Text('Higoverse',
-                    maxLines: 1,
-                    style: TextStyle(fontSize: 23, height: 1.05, fontWeight: FontWeight.w900, letterSpacing: -0.8, color: c.ink)),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Semantics(
+                    button: onHome != null,
+                    label: t('nav.home'),
+                    excludeSemantics: true,
+                    child: InkWell(
+                      onTap: onHome == null
+                          ? null
+                          : () {
+                              HapticFeedback.selectionClick();
+                              onHome!();
+                            },
+                      borderRadius: BorderRadius.circular(10),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 2),
+                        child: Row(mainAxisSize: MainAxisSize.min, children: [
+                          Image.asset('assets/higoverse-logo.png', width: 32, height: 32, filterQuality: FilterQuality.medium,
+                              semanticLabel: name),
+                          const SizedBox(width: 8),
+                          Flexible(
+                            child: Text('Higoverse',
+                                maxLines: 1,
+                                overflow: TextOverflow.fade,
+                                softWrap: false,
+                                style: TextStyle(
+                                    fontSize: 23, height: 1.05, fontWeight: FontWeight.w900, letterSpacing: -0.8, color: c.ink)),
+                          ),
+                          const SizedBox(width: 4),
+                        ]),
+                      ),
+                    ),
+                  ),
+                ),
               ),
               RoundIconButton(icon: PhosphorIconsRegular.magnifyingGlass, tooltip: t('search.title'), onTap: onSearch),
               const SizedBox(width: 8),
