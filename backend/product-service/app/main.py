@@ -11,6 +11,9 @@ from app.api.routes.products import router as product_router
 from app.db.database import Base, engine
 
 app = FastAPI(
+    # The API description (/docs, /openapi.json) lists every route; keep it
+    # off the public internet unless ENABLE_API_DOCS=1 is set for debugging.
+    openapi_url="/openapi.json" if os.getenv("ENABLE_API_DOCS") == "1" else None,
     title="Product Service",
     version="1.0.0"
 )

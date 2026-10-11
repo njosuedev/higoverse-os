@@ -195,11 +195,17 @@ curl -s -o /dev/null -w "frontend: %{http_code}\n" http://127.0.0.1/
 ```
 
 `auth-service`'s `/health` also reports which tables exist in both databases
-— useful as a quick schema sanity check:
+— useful as a quick schema sanity check. It shows them only when called
+straight on its port from the server itself; through nginx (and from the
+internet) it answers just `{"status":"ok"}`:
 
 ```bash
-curl -s http://127.0.0.1/svc/auth/health | python3 -m json.tool
+curl -s http://127.0.0.1:8000/health | python3 -m json.tool
 ```
+
+The services' API descriptions (`/docs`, `/openapi.json`) are off. To look
+at one while debugging, add `Environment=ENABLE_API_DOCS=1` to that unit,
+restart it, and read it on the server (`curl http://127.0.0.1:<port>/openapi.json`).
 
 ### Resource monitoring
 

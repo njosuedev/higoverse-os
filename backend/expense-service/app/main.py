@@ -1,3 +1,4 @@
+import os
 import traceback
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -8,7 +9,11 @@ from app.api.routes.payroll import router as payroll_router
 from app.models import payroll as _payroll_models  # noqa: F401  (tables for create_all)
 from app.db.database import Base, engine
 
-app = FastAPI(title="Expense Service", version="1.0.0", redirect_slashes=False)
+app = FastAPI(
+    # The API description (/docs, /openapi.json) lists every route; keep it
+    # off the public internet unless ENABLE_API_DOCS=1 is set for debugging.
+    openapi_url="/openapi.json" if os.getenv("ENABLE_API_DOCS") == "1" else None,
+    title="Expense Service", version="1.0.0", redirect_slashes=False)
 
 _ALLOWED_ORIGINS = {
     "http://localhost:3000",

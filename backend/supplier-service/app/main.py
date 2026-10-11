@@ -1,3 +1,4 @@
+import os
 import traceback
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -9,6 +10,9 @@ from app.db.database import Base, engine
 from app.api.routes.suppliers import router as supplier_router
 
 app = FastAPI(
+    # The API description (/docs, /openapi.json) lists every route; keep it
+    # off the public internet unless ENABLE_API_DOCS=1 is set for debugging.
+    openapi_url="/openapi.json" if os.getenv("ENABLE_API_DOCS") == "1" else None,
     title="Supplier Service",
     version="1.0.0"
 )

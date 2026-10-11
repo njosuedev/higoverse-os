@@ -1,3 +1,4 @@
+import os
 import traceback
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -5,7 +6,11 @@ from fastapi.responses import JSONResponse
 
 from app.api.routes.reports import router as report_router
 
-app = FastAPI(title="Report Service", version="1.0.0")
+app = FastAPI(
+    # The API description (/docs, /openapi.json) lists every route; keep it
+    # off the public internet unless ENABLE_API_DOCS=1 is set for debugging.
+    openapi_url="/openapi.json" if os.getenv("ENABLE_API_DOCS") == "1" else None,
+    title="Report Service", version="1.0.0")
 
 _ALLOWED_ORIGINS = {
     "http://localhost:3000",

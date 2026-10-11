@@ -31,6 +31,30 @@ const nextConfig: NextConfig = {
   deploymentId: BUILD_ID,
   env: { NEXT_PUBLIC_BUILD_ID: BUILD_ID },
 
+  // No "X-Powered-By: Next.js": it only tells scanners what to try.
+  poweredByHeader: false,
+
+  async headers() {
+    return [
+      {
+        source: "/:path*",
+        headers: [
+          // HTTPS only, remembered for a year (Cloudflare and nginx already redirect http).
+          { key: "Strict-Transport-Security", value: "max-age=31536000" },
+          // Browsers must not guess file types (an upload can't run as a script).
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          // Other sites can't show Higoverse inside a frame (clickjacking).
+          { key: "X-Frame-Options", value: "SAMEORIGIN" },
+          { key: "Content-Security-Policy", value: "frame-ancestors 'self'" },
+          // Links to other sites carry only the domain, never the page address.
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          // Camera, microphone and location only for Higoverse's own pages (receipt photos, map picker).
+          { key: "Permissions-Policy", value: "camera=(self), microphone=(self), geolocation=(self), payment=(), usb=()" },
+        ],
+      },
+    ];
+  },
+
   images: {
     // Product/shop images are base64 data URIs today (no CDN), so this
     // matters only if a real remote image URL is ever introduced.

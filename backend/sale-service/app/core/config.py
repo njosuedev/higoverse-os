@@ -15,3 +15,8 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+# Sign-in tokens are signed with this key; left empty, anyone could sign
+# their own and act as any user. Refuse to start instead.
+if not settings.SECRET_KEY:
+    raise RuntimeError("SECRET_KEY is not set (environment or .env)")

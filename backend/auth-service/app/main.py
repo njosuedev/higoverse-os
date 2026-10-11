@@ -34,7 +34,11 @@ CORS_ORIGIN_REGEX = os.getenv(
 )
 _origin_matcher = re.compile(CORS_ORIGIN_REGEX)
 
-app = FastAPI(title="Higoverse Auth Service", redirect_slashes=False)
+app = FastAPI(
+    # The API description (/docs, /openapi.json) lists every route; keep it
+    # off the public internet unless ENABLE_API_DOCS=1 is set for debugging.
+    openapi_url="/openapi.json" if os.getenv("ENABLE_API_DOCS") == "1" else None,
+    title="Higoverse Auth Service", redirect_slashes=False)
 
 
 @app.exception_handler(Exception)
@@ -151,7 +155,19 @@ def _db_report(engine):
 
 
 @app.get("/health")
-def health():
+def health(request: Request):
+    # Database names and table lists are for whoever runs the server, not
+    # the public: they are shown only when called on the server itself
+    # (curl http://127.0.0.1:8000/health). Requests through nginx carry
+    # X-Real-IP and get the bare status.
+    from_server = (
+        request.client is not None
+        and request.client.host in ("127.0.0.1", "::1")
+        and "x-real-ip" not in request.headers
+        and "x-forwarded-for" not in request.headers
+    )
+    if not from_server:
+        return {"status": "ok"}
     auth_db = _db_report(auth_engine)
     shop_db = _db_report(shop_engine)
     return {
