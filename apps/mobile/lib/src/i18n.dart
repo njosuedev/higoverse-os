@@ -80,6 +80,13 @@ const _weekdays = {
 const Map<String, Map<String, String>> _dict = {
   // ─── ENGLISH ─────────────────────────────────────────────
   'en': {
+    'app.edit': 'Edit',
+    'app.delete': 'Delete',
+    'exp.edit': 'Edit expense',
+    'exp.updated': 'Expense updated',
+    'exp.deleted': 'Expense deleted',
+    'exp.delete_q': 'Delete this expense?',
+    'exp.delete_body': '"{title}" will be removed for everyone. This can\'t be undone.',
     'search.scan': 'Scan a barcode',
     'scan.hint': 'Hold the barcode inside the frame',
     'scan.torch': 'Light',
@@ -769,6 +776,13 @@ const Map<String, Map<String, String>> _dict = {
 
   // ─── KINYARWANDA ─────────────────────────────────────────
   'rw': {
+    'app.edit': 'Hindura',
+    'app.delete': 'Siba',
+    'exp.edit': 'Hindura ikiguzi',
+    'exp.updated': 'Ikiguzi cyahinduwe',
+    'exp.deleted': 'Ikiguzi cyasibwe',
+    'exp.delete_q': 'Gusiba iki kiguzi?',
+    'exp.delete_body': '"{title}" kizasibwa kuri bose. Ntibishobora gusubizwaho.',
     'search.scan': 'Soma barcode',
     'scan.hint': 'Shyira barcode mu kazu',
     'scan.torch': 'Itara',
@@ -1458,6 +1472,13 @@ const Map<String, Map<String, String>> _dict = {
 
   // ─── FRANÇAIS ────────────────────────────────────────────
   'fr': {
+    'app.edit': 'Modifier',
+    'app.delete': 'Supprimer',
+    'exp.edit': 'Modifier la dépense',
+    'exp.updated': 'Dépense modifiée',
+    'exp.deleted': 'Dépense supprimée',
+    'exp.delete_q': 'Supprimer cette dépense ?',
+    'exp.delete_body': '« {title} » sera supprimée pour tout le monde. C\'est définitif.',
     'search.scan': 'Scanner un code-barres',
     'scan.hint': 'Placez le code-barres dans le cadre',
     'scan.torch': 'Lampe',
@@ -2147,6 +2168,13 @@ const Map<String, Map<String, String>> _dict = {
 
   // ─── KISWAHILI ───────────────────────────────────────────
   'sw': {
+    'app.edit': 'Hariri',
+    'app.delete': 'Futa',
+    'exp.edit': 'Hariri gharama',
+    'exp.updated': 'Gharama imesasishwa',
+    'exp.deleted': 'Gharama imefutwa',
+    'exp.delete_q': 'Futa gharama hii?',
+    'exp.delete_body': '"{title}" itafutwa kwa kila mtu. Haiwezi kurudishwa.',
     'search.scan': 'Changanua barcode',
     'scan.hint': 'Weka barcode ndani ya fremu',
     'scan.torch': 'Taa',
@@ -2836,6 +2864,13 @@ const Map<String, Map<String, String>> _dict = {
 
   // ─── 中文 ────────────────────────────────────────────────
   'zh': {
+    'app.edit': '编辑',
+    'app.delete': '删除',
+    'exp.edit': '编辑支出',
+    'exp.updated': '支出已更新',
+    'exp.deleted': '支出已删除',
+    'exp.delete_q': '删除这笔支出？',
+    'exp.delete_body': '「{title}」将对所有人删除，且无法恢复。',
     'search.scan': '扫描条形码',
     'scan.hint': '将条形码放入框内',
     'scan.torch': '手电筒',

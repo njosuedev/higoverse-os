@@ -1200,8 +1200,45 @@ const expenseCategories = [
 Future<bool> recordExpense(BuildContext context) async =>
     await pushScoped<bool>(context, const ExpenseFormScreen()) == true;
 
+/// Changes [expense] (the same form, filled in). True when it was saved.
+Future<bool> editExpense(BuildContext context, Map<String, dynamic> expense) async =>
+    await pushScoped<bool>(context, ExpenseFormScreen(expense: expense)) == true;
+
+/// Deletes [expense] after asking. True when it was deleted.
+Future<bool> deleteExpense(BuildContext context, Map<String, dynamic> expense) async {
+  final t = T.of(context);
+  final c = Hgv.of(context);
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (d) => AlertDialog(
+      title: Text(t('exp.delete_q')),
+      content: Text(t('exp.delete_body', {'title': '${expense['title'] ?? ''}'})),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(d, false), child: Text(t('app.cancel'))),
+        FilledButton(
+          style: FilledButton.styleFrom(minimumSize: const Size(0, 40), backgroundColor: c.danger),
+          onPressed: () => Navigator.pop(d, true),
+          child: Text(t('app.delete')),
+        ),
+      ],
+    ),
+  );
+  if (ok != true || !context.mounted) return false;
+  try {
+    await SessionScope.of(context).api.delete('${Svc.expenses}/expenses/${expense['id']}');
+    if (context.mounted) _say(context, t('exp.deleted'));
+    return true;
+  } catch (e) {
+    if (context.mounted) _say(context, errorText(t, e));
+    return false;
+  }
+}
+
 class ExpenseFormScreen extends StatefulWidget {
-  const ExpenseFormScreen({super.key});
+  const ExpenseFormScreen({super.key, this.expense});
+
+  /// The expense being changed; null for a new one.
+  final Map<String, dynamic>? expense;
 
   @override
   State<ExpenseFormScreen> createState() => _ExpenseFormScreenState();
@@ -1215,6 +1252,26 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
   String? _method;
   DateTime _date = DateTime.now();
   bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Editing: start from what was recorded.
+    final e = widget.expense;
+    if (e == null) return;
+    String text(Object? v) => v == null ? '' : '$v';
+    _title.text = text(e['title']);
+    final amount = e['amount'] is num ? e['amount'] as num : num.tryParse(text(e['amount'])) ?? 0;
+    _amount.text = amount == amount.roundToDouble() ? '${amount.round()}' : '$amount';
+    _notes.text = text(e['notes']);
+    _bank.text = text(e['bank_name']);
+    _account.text = text(e['bank_account']);
+    _phone.text = text(e['receiver_phone']);
+    if (expenseCategories.contains(e['category'])) _category = e['category'] as String;
+    // Only MTN and bank are accepted now: anything older is chosen again.
+    if (const {'mtn', 'bank'}.contains(e['payment_method'])) _method = e['payment_method'] as String;
+    _date = parseTimestamp(e['expense_date']) ?? _date;
+  }
 
   @override
   void dispose() {
@@ -1241,20 +1298,36 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
     final s = SessionScope.of(context);
     String? opt(TextEditingController c) => c.text.trim().isEmpty ? null : c.text.trim();
     setState(() => _saving = true);
+    final editing = widget.expense;
     try {
-      await s.api.post('${Svc.expenses}/expenses', {
-        'title': _title.text.trim(),
-        'category': _category,
-        'amount': parseAmount(_amount.text),
-        if (opt(_notes) != null) 'notes': opt(_notes),
-        'expense_date': '${ymd(_date)}T00:00:00',
-        'payment_method': _method,
-        if (_method == 'bank' && opt(_bank) != null) 'bank_name': opt(_bank),
-        if (_method == 'bank' && opt(_account) != null) 'bank_account': opt(_account),
-        if (opt(_phone) != null) 'receiver_phone': opt(_phone),
-      });
+      if (editing == null) {
+        await s.api.post('${Svc.expenses}/expenses', {
+          'title': _title.text.trim(),
+          'category': _category,
+          'amount': parseAmount(_amount.text),
+          if (opt(_notes) != null) 'notes': opt(_notes),
+          'expense_date': '${ymd(_date)}T00:00:00',
+          'payment_method': _method,
+          if (_method == 'bank' && opt(_bank) != null) 'bank_name': opt(_bank),
+          if (_method == 'bank' && opt(_account) != null) 'bank_account': opt(_account),
+          if (opt(_phone) != null) 'receiver_phone': opt(_phone),
+        });
+      } else {
+        // Every field, so one cleared on the form is cleared on the server.
+        await s.api.put('${Svc.expenses}/expenses/${editing['id']}', {
+          'title': _title.text.trim(),
+          'category': _category,
+          'amount': parseAmount(_amount.text),
+          'notes': opt(_notes),
+          'expense_date': '${ymd(_date)}T00:00:00',
+          'payment_method': _method,
+          'bank_name': _method == 'bank' ? opt(_bank) : null,
+          'bank_account': _method == 'bank' ? opt(_account) : null,
+          'receiver_phone': opt(_phone),
+        });
+      }
       if (!mounted) return;
-      _say(context, t('form.expense_saved'));
+      _say(context, editing == null ? t('form.expense_saved') : t('exp.updated'));
       Navigator.pop(context, true);
     } catch (e) {
       if (mounted) _say(context, errorText(t, e));
@@ -1268,7 +1341,7 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
     final t = T.of(context);
     final s = SessionScope.of(context);
     return _FormPage(
-      title: t('form.new_expense'),
+      title: widget.expense == null ? t('form.new_expense') : t('exp.edit'),
       formKey: _form,
       saving: _saving,
       saveLabel: t('form.save'),

@@ -13,8 +13,9 @@ import '../widgets.dart';
 void openExpenses(BuildContext context) => pushScoped<void>(context, const ExpensesScreen());
 
 /// What the business spent this month (or the last 7 / 90 days), newest
-/// first, and a button to record one. Owners and staff of shops; never car
-/// company staff (the server refuses them too).
+/// first, and a button to record one. An expense opens its details, to edit
+/// or delete it. Owners and staff of shops; at a car company the owner and
+/// its managers (expense-service's EXPENSE_ROLES).
 class ExpensesScreen extends StatefulWidget {
   const ExpensesScreen({super.key});
 
@@ -134,6 +135,9 @@ class _ExpensesScreenState extends State<ExpensesScreen> with LiveListener {
                                 for (var i = 0; i < items.length; i++) ...[
                                   if (i > 0) const Divider(indent: 16, endIndent: 16),
                                   ListTile(
+                                    onTap: () async {
+                                      if (await showExpenseSheet(context, items[i])) _load(quiet: true);
+                                    },
                                     title: Text('${items[i]['title'] ?? ''}',
                                         maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700)),
                                     subtitle: Text([
@@ -155,4 +159,95 @@ class _ExpensesScreenState extends State<ExpensesScreen> with LiveListener {
       ]),
     );
   }
+}
+
+/// One expense: how much, what for, when and how it was paid; Edit and
+/// Delete. True when it was changed or deleted (the list reloads).
+Future<bool> showExpenseSheet(BuildContext context, Map<String, dynamic> e) async {
+  var changed = false;
+  await showModalBottomSheet<void>(
+    context: context,
+    showDragHandle: true,
+    isScrollControlled: true,
+    useSafeArea: true,
+    backgroundColor: Hgv.of(context).elevated,
+    builder: (sheet) {
+      final t = T.of(sheet);
+      final c = Hgv.of(sheet);
+      final s = SessionScope.of(sheet);
+      num n(Object? v) => v is num ? v : num.tryParse('$v') ?? 0;
+      final category = expenseCategories.contains(e['category']) ? e['category'] : 'other';
+      final date = parseTimestamp(e['expense_date']);
+      String text(Object? v) => '${v ?? ''}'.trim();
+      return SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Row(children: [
+            IconAvatar(icon: Icons.receipt_long_outlined, color: c.warning, size: 46),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(text(e['title']), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800, letterSpacing: -0.3)),
+                Text(t('exp.cat_$category'), style: TextStyle(color: c.faint, fontWeight: FontWeight.w500)),
+              ]),
+            ),
+          ]),
+          const SizedBox(height: 18),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(color: c.paper, borderRadius: BorderRadius.circular(14)),
+            child: Column(children: [
+              Text(t('form.amount'), style: TextStyle(color: c.muted, fontWeight: FontWeight.w600)),
+              const SizedBox(height: 4),
+              FittedBox(
+                child: Text(money(n(e['amount']), s.currency), style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w900, letterSpacing: -0.5)),
+              ),
+            ]),
+          ),
+          const SizedBox(height: 10),
+          if (date != null) InfoRow(t('sale.time'), '${t.weekday(date.weekday)} ${t.date(date)} ${date.year}'),
+          if (text(e['payment_method']).isNotEmpty) InfoRow(t('form.paid_with'), t('pm.${e['payment_method']}')),
+          if (text(e['bank_name']).isNotEmpty) InfoRow(t('form.bank_name'), text(e['bank_name'])),
+          if (text(e['bank_account']).isNotEmpty) InfoRow(t('form.bank_account'), text(e['bank_account'])),
+          if (text(e['receiver_phone']).isNotEmpty) InfoRow(t('form.receiver_phone'), text(e['receiver_phone'])),
+          if (text(e['notes']).isNotEmpty) ...[
+            const Divider(height: 24),
+            Text(t('sale.notes'), style: TextStyle(color: c.muted, fontWeight: FontWeight.w600)),
+            const SizedBox(height: 4),
+            Text(text(e['notes'])),
+          ],
+          const SizedBox(height: 18),
+          Row(children: [
+            Expanded(
+              child: FilledButton.icon(
+                onPressed: () async {
+                  if (await editExpense(sheet, e) && sheet.mounted) {
+                    changed = true;
+                    Navigator.pop(sheet);
+                  }
+                },
+                icon: const Icon(Icons.edit_outlined),
+                label: Text(t('app.edit')),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(50), foregroundColor: c.danger, side: BorderSide(color: c.danger)),
+                onPressed: () async {
+                  if (await deleteExpense(sheet, e) && sheet.mounted) {
+                    changed = true;
+                    Navigator.pop(sheet);
+                  }
+                },
+                icon: const Icon(Icons.delete_outline),
+                label: Text(t('app.delete')),
+              ),
+            ),
+          ]),
+        ]),
+      );
+    },
+  );
+  return changed;
 }
