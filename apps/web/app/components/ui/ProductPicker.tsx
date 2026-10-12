@@ -44,8 +44,10 @@ type Anchor = { left: number; width: number; top?: number; bottom?: number };
 /** Where to float the list: under the field, or above it when there's no room. */
 function anchorFor(el: HTMLElement): Anchor {
   const r = el.getBoundingClientRect();
-  const width = Math.max(r.width, 320);
-  const left = Math.min(r.left, window.innerWidth - width - 8);
+  // At least 320px on wide screens; on a phone exactly the field's width, so
+  // the list never runs past the edge of the form it opens from.
+  const width = window.innerWidth < 640 ? r.width : Math.min(Math.max(r.width, 320), window.innerWidth - 16);
+  const left = Math.max(8, Math.min(r.left, window.innerWidth - width - 8));
   return window.innerHeight - r.bottom < LIST_MAX_H + 12 && r.top > LIST_MAX_H
     ? { left, width, bottom: window.innerHeight - r.top + 4 }
     : { left, width, top: r.bottom + 4 };

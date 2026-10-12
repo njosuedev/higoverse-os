@@ -28,7 +28,7 @@ export default function ConnectionStatus() {
 
   return (
     <div role="status" aria-live="polite"
-      className="fixed inset-x-4 bottom-4 z-[60] mx-auto flex max-w-xl items-center gap-3 rounded-data bg-text px-4 py-3 text-paper shadow-lg sm:inset-x-6">
+      className="fixed inset-x-4 bottom-[calc(1rem+var(--hgv-tabbar,0px))] z-[60] mx-auto flex max-w-xl items-center gap-3 rounded-data bg-text px-4 py-3 text-paper shadow-lg sm:inset-x-6">
       {offline ? <WifiOff size={20} className="shrink-0" aria-hidden="true" /> : <Wifi size={20} className="shrink-0" aria-hidden="true" />}
       <div className="min-w-0 flex-1 text-sm">
         <p className="font-semibold">{offline ? t("conn.offline_title") : t("conn.back")}</p>

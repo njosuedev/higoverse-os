@@ -102,8 +102,9 @@ export default function NotificationBell() {
     <div ref={ref} className="relative">
       <button type="button" onClick={() => { setNow(Date.now()); setOpen((o) => !o); }} aria-haspopup="dialog" aria-expanded={open}
         title={t("notif.title")} aria-label={unread ? `${t("notif.title")} (${unread})` : t("notif.title")}
-        className={`relative flex h-9 w-9 items-center justify-center rounded-full transition-colors ${open ? "bg-paper-dim text-text" : "text-text-muted hover:bg-paper-dim hover:text-text"}`}>
-        {!sound ? <BellOff size={18} /> : unread ? <BellRing size={18} /> : <Bell size={18} />}
+        className={`relative flex h-11 w-11 items-center justify-center rounded-full bg-paper-dim text-text transition-colors md:h-9 md:w-9 md:bg-transparent ${open ? "md:bg-paper-dim md:text-text" : "md:text-text-muted md:hover:bg-paper-dim md:hover:text-text"}`}>
+        {/* The app's 44px round button on phones; the website's small icon on wider screens. */}
+        {!sound ? <BellOff size={18} className="h-[22px] w-[22px] md:h-[18px] md:w-[18px]" /> : unread ? <BellRing size={18} className="h-[22px] w-[22px] md:h-[18px] md:w-[18px]" /> : <Bell size={18} className="h-[22px] w-[22px] md:h-[18px] md:w-[18px]" />}
         {unread > 0 && (
           <span className="absolute -right-0.5 -top-0.5 min-w-[18px] h-[18px] rounded-full bg-accent px-1 text-[10px] font-bold leading-[18px] text-white text-center tabular-nums">
             {unread > 99 ? "99+" : unread}
@@ -148,7 +149,7 @@ export default function NotificationBell() {
             <p className="border-b border-border px-4 py-2 text-[11px] text-text-faint">{t("notif.blocked")}</p>
           )}
 
-          <ul className="max-h-[60vh] overflow-y-auto">
+          <ul className="max-h-[60dvh] overflow-y-auto">
             {items.length === 0 ? (
               <li className="px-4 py-10 text-center text-sm text-text-muted">{t("notif.empty")}</li>
             ) : items.map((n) => {

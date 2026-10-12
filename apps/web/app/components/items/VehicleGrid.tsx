@@ -296,7 +296,7 @@ function Sheet({ title, subtitle, onClose, children, footer }: {
   return (
     <div className="fixed inset-0 z-[150] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
-      <div role="dialog" aria-modal="true" className="relative flex max-h-[92vh] w-full max-w-md flex-col rounded-data border border-border bg-white shadow-[0_24px_60px_-12px_rgb(0_0_0_/_0.35)]">
+      <div role="dialog" aria-modal="true" className="relative flex max-h-[92dvh] w-full max-w-md flex-col rounded-data border border-border bg-white shadow-[0_24px_60px_-12px_rgb(0_0_0_/_0.35)]">
         <div className="flex items-start justify-between gap-3 border-b border-border px-5 py-4">
           <div className="min-w-0">
             <h2 className="font-display text-lg font-semibold text-text">{title}</h2>

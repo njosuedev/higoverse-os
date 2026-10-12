@@ -334,7 +334,7 @@ function Modal({ title, subtitle, onClose, children, footer }: {
 }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm" role="dialog" aria-modal="true">
-      <div className="flex max-h-[92vh] w-full max-w-lg flex-col rounded-2xl bg-white shadow-2xl">
+      <div className="flex max-h-[92dvh] w-full max-w-lg flex-col rounded-2xl bg-white shadow-2xl">
         <div className="flex items-start justify-between border-b border-border px-5 py-4">
           <div>
             <h2 className="text-base font-semibold text-text">{title}</h2>

@@ -15,8 +15,11 @@ import { Sun, Moon, Monitor,
   Home, Package, Truck, ShoppingCart, BarChart3,
   Users, ChevronDown, ShieldCheck, Receipt,
   Settings, LogOut, Globe,
-  Menu, X, MessageCircle, Search, UsersRound, HandCoins,
+  MessageCircle, Search, UsersRound, HandCoins,
 } from "lucide-react";
+import {
+  House, Package as PackageTab, Car, ChatCircleDots, Receipt as ReceiptTab, Storefront, type Icon as PhosphorIcon,
+} from "@phosphor-icons/react";
 import { PAYROLL_ROLES } from "@/lib/payroll-api";
 import GlobalSearch, { OPEN_SEARCH_EVENT } from "@/app/components/GlobalSearch";
 import NotificationBell from "@/app/components/dashboard/NotificationBell";
@@ -59,7 +62,6 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
   const unread = unreadTotal(chat);
   // Messages: keys, team and live unread counts once signed in to a business.
   useEffect(() => { if (ready && user?.shop_id) void startChat(); }, [ready, user?.shop_id]);
-  const [mobileOpen, setMobileOpen]     = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -69,11 +71,6 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
     document.addEventListener("mousedown", onOutside);
     return () => document.removeEventListener("mousedown", onOutside);
   }, []);
-
-  // Close transient UI whenever the route changes
-  useEffect(() => {
-    setMobileOpen(false);
-  }, [pathname]);
 
   async function changeLang(code: typeof lang) {
     setLang(code);
@@ -115,26 +112,19 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
 
   return (
     <>
-      <div className="h-[52px]" />
+      {/* Room for the bar below, the phone's notch / status bar included. */}
+      <div className="h-[calc(52px+env(safe-area-inset-top))]" />
 
-      <header className="fixed top-0 left-0 right-0 z-50 flex h-[52px] items-center justify-between border-b border-border bg-paper px-3 sm:px-4">
+      <header className="fixed top-0 left-0 right-0 z-50 flex h-[calc(52px+env(safe-area-inset-top))] items-center justify-between border-b border-border bg-paper pt-[env(safe-area-inset-top)] pl-[max(0.75rem,env(safe-area-inset-left))] pr-[max(0.75rem,env(safe-area-inset-right))] sm:pl-[max(1rem,env(safe-area-inset-left))] sm:pr-[max(1rem,env(safe-area-inset-right))]">
 
-        {/* ── LEFT: Logo + mobile hamburger ── */}
+        {/* ── LEFT: Logo (on phones the menu opens from the bottom bar) ── */}
         <div className="flex items-center gap-1">
-          <button
-            type="button"
-            onClick={() => setMobileOpen((o) => !o)}
-            className="flex h-9 w-9 items-center justify-center rounded-press text-text-muted hover:bg-paper-dim md:hidden"
-            aria-label={t("nav.open_menu")}
-          >
-            <Menu size={20} />
-          </button>
           {/* The logo and name lead Home — or back to its top when already there. */}
           <Link href="/" onClick={goHome} aria-label={t("nav.home")} className="flex items-center gap-2.5 rounded-press transition-opacity duration-200 hover:opacity-80 focus:outline-none focus-visible:ring-2 focus-visible:ring-ink">
             {loading
               ? <div className="hgv-shimmer h-8 w-8 rounded-press" aria-hidden="true" />
               : <img src="/higoverse-logo.png" alt="Higoverse" className="h-8 w-8 rounded-press object-cover" />}
-            <span className="hidden font-display text-[17px] font-semibold tracking-tight text-text sm:inline">Higoverse</span>
+            <span className="text-[23px] font-black leading-none tracking-[-0.8px] text-ink md:font-display md:text-[17px] md:font-semibold md:tracking-tight md:text-text">Higoverse</span>
           </Link>
         </div>
 
@@ -168,15 +158,15 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
           {/* Search: a quiet, rounded field (the full search opens over the page). */}
           <button type="button" onClick={() => window.dispatchEvent(new Event(OPEN_SEARCH_EVENT))}
             title={t("search.hint")} aria-label={t("search.hint")}
-            className="group flex h-9 items-center gap-2 rounded-full border border-transparent bg-paper-dim px-2.5 text-text-faint transition-colors duration-200 hover:border-border-strong hover:text-text-muted lg:w-56 lg:px-3.5 xl:w-64">
-            <Search size={16} className="shrink-0" />
+            className="group flex h-11 w-11 items-center justify-center gap-2 rounded-full border border-transparent bg-paper-dim text-text transition-colors duration-200 hover:border-border-strong hover:text-text-muted md:h-9 md:w-auto md:justify-start md:px-2.5 md:text-text-faint lg:w-56 lg:px-3.5 xl:w-64">
+            <Search size={16} className="h-[22px] w-[22px] shrink-0 md:h-4 md:w-4" />
             <span className="hidden flex-1 truncate text-left text-sm lg:inline">{t("search.short")}</span>
             <kbd className="hidden rounded-md border border-border bg-white px-1.5 py-0.5 font-sans text-[10px] font-semibold text-text-faint lg:inline">Ctrl K</kbd>
           </button>
           <GlobalSearch />
           {user?.shop_id && <NotificationBell />}
 
-          <div ref={menuRef} className="relative">
+          <div ref={menuRef} className="relative hidden md:block">
 
             {/* Trigger */}
             <button
@@ -317,42 +307,66 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
         </div>
       </header>
 
-      {/* ── Mobile drawer ── */}
-      {mobileOpen && (
-        <div className="fixed inset-0 z-[60] md:hidden">
-          <div className="absolute inset-0 bg-ink-dark/45" onClick={() => setMobileOpen(false)} />
-          <div className="absolute left-0 top-0 flex h-full w-72 max-w-[85vw] flex-col overflow-y-auto bg-white shadow-[0_0_40px_-8px_rgb(0_0_0_/_0.4)]">
-            <div className="flex items-center justify-between border-b border-border px-4 py-4">
-              <Link href="/" onClick={(e) => { goHome(e); setMobileOpen(false); }} aria-label={t("nav.home")}
-                className="flex items-center gap-2.5 rounded-press transition-opacity duration-200 hover:opacity-80 focus:outline-none focus-visible:ring-2 focus-visible:ring-ink">
-                <img src="/higoverse-logo.png" alt="Higoverse" className="h-8 w-8 rounded-press object-cover" />
-                <span className="font-display text-[16px] font-semibold tracking-tight text-text">Higoverse</span>
-              </Link>
-              <button
-                type="button"
-                onClick={() => setMobileOpen(false)}
-                className="flex h-8 w-8 items-center justify-center rounded-press text-text-faint hover:bg-paper-dim"
-                aria-label={t("nav.close_menu")}
-              >
-                <X size={18} />
-              </button>
-            </div>
+      {/* ── Phones: the Android app's tab bar ── */}
+      <nav aria-label={t("nav.open_menu")} className="hgv-tabbar md:hidden">
+        <TabLink href="/" icon={House} label={t("nav.home")} active={pathname === "/"} onClick={goHome} />
+        <TabLink href="/items" icon={layout === "car" ? Car : PackageTab} label={t(layout === "car" ? "nav.vehicles" : "nav.stock")}
+          active={isActiveHref(pathname, "/items")} />
+        <TabLink href="/messages" icon={ChatCircleDots} label={t("nav.messages")}
+          active={isActiveHref(pathname, "/messages")} badge={unread} />
+        <TabLink href="/sales" icon={ReceiptTab} label={t("nav.sales")} active={isActiveHref(pathname, "/sales")} />
+        {/* The business, and every page opened from it (purchases, partners, reports…) */}
+        <TabLink href="/business" icon={Storefront} label={t("nav.business")}
+          active={!TAB_HREFS.some((h) => isActiveHref(pathname, h))} />
+      </nav>
 
-            <nav className="flex-1 space-y-1 p-3">
-              {businessMenus.map((menu) => (
-                <MobileLink key={menu.href} menu={menu} pathname={pathname} t={t} onNavigate={() => setMobileOpen(false)} />
-              ))}
-              {isAdmin && (
-                <>
-                  <div aria-hidden="true" className="my-2 border-t border-border" />
-                  <MobileLink menu={ADMIN_ITEM} pathname={pathname} t={t} onNavigate={() => setMobileOpen(false)} />
-                </>
-              )}
-            </nav>
-          </div>
-        </div>
-      )}
     </>
+  );
+}
+
+/** The pages with their own tab in the phone's bottom bar. */
+const TAB_HREFS = ["/", "/items", "/messages", "/sales"];
+
+/** One tab, as the app draws it: an icon only (Phosphor's outline, its
+ *  filled twin when open), the name read out and shown on a long press,
+ *  the unread count in Facebook's red. */
+function TabLink({ href, icon: Icon, label, active, badge = 0, onClick }: {
+  href: string; icon: PhosphorIcon; label: string; active: boolean; badge?: number;
+  onClick?: (e: React.MouseEvent) => void;
+}) {
+  // Held for half a second: the name shows, and letting go doesn't open it.
+  const [tip, setTip] = useState(false);
+  const held = useRef<{ timer?: ReturnType<typeof setTimeout>; shown: boolean }>({ shown: false });
+  const press = {
+    onPointerDown: () => {
+      held.current.shown = false;
+      held.current.timer = setTimeout(() => { held.current.shown = true; setTip(true); }, 500);
+    },
+    onPointerUp: () => { clearTimeout(held.current.timer); if (held.current.shown) setTimeout(() => setTip(false), 900); },
+    onPointerLeave: () => { clearTimeout(held.current.timer); setTip(false); },
+    onPointerCancel: () => { clearTimeout(held.current.timer); setTip(false); },
+    onContextMenu: (e: React.MouseEvent) => e.preventDefault(),
+    onClick: (e: React.MouseEvent) => {
+      if (held.current.shown) { e.preventDefault(); held.current.shown = false; return; }
+      onClick?.(e);
+    },
+  };
+  const body = (
+    <span className="relative">
+      {tip && <span className="hgv-tab-tip" aria-hidden="true">{label}</span>}
+      <Icon size={26} weight={active ? "fill" : "regular"} />
+      {badge > 0 && (
+        <span className="absolute -right-2.5 -top-1.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full border-2 border-paper bg-[#e41e3f] px-1 text-[10px] font-bold leading-none text-white">
+          {badge > 99 ? "99+" : badge}
+        </span>
+      )}
+    </span>
+  );
+  const name = badge > 0 ? `${label}, ${badge}` : label;
+  return (
+    <Link href={href} {...press} aria-current={active ? "page" : undefined} aria-label={name} className="hgv-tab">
+      {body}
+    </Link>
   );
 }
 
@@ -394,33 +408,6 @@ function NavLink({
       </span>
       <span className="hidden whitespace-nowrap text-[11px] font-semibold leading-none md:block">{t(menu.key)}</span>
       {active && <span className={`absolute bottom-0 left-2.5 right-2.5 h-[2px] ${underlineColor}`} />}
-    </Link>
-  );
-}
-
-function MobileLink({
-  menu,
-  pathname,
-  t,
-  onNavigate,
-}: {
-  menu: NavItem;
-  pathname: string;
-  t: (key: string) => string;
-  onNavigate?: () => void;
-}) {
-  const Icon = menu.icon;
-  const active = isActiveHref(pathname, menu.href);
-  return (
-    <Link
-      href={menu.href}
-      onClick={onNavigate}
-      className={`flex items-center gap-3 rounded-press px-3 py-2.5 text-sm font-medium transition-colors duration-200 ${
-        active ? "bg-ink-soft text-ink" : "text-text-muted hover:bg-paper-dim"
-      }`}
-    >
-      <Icon size={18} />
-      <span className="flex-1">{t(menu.key)}</span>
     </Link>
   );
 }

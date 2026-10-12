@@ -14,6 +14,8 @@ import { expenseRequest } from "@/lib/expense-api";
 import { purchaseRequest } from "@/lib/purchase-api";
 import { listShops, type Shop as ShopInfo } from "@/lib/shop-api";
 import StatCard from "@/app/components/dashboard/StatCard";
+import MobileHome from "@/app/components/mobile/MobileHome";
+import PhoneOr from "@/app/components/mobile/PhoneOr";
 import HomeSkeleton from "@/app/components/dashboard/HomeSkeleton";
 import { HomeReadyProvider } from "@/lib/home-ready";
 import { PAYROLL_ROLES } from "@/lib/payroll-api";
@@ -53,11 +55,15 @@ function fmtMoney(n: number, currency: string) {
     return `${Math.round(n).toLocaleString()} ${currency}`;
   }
 }
+// "Now", "10 min ago", "3 h ago", "2 days ago". A phone clock a little
+// behind the server's must not read "-40s ago": anything ahead is "Now".
 function timeAgo(d: Date, t: (key: string) => string) {
-  const s = Math.floor((Date.now() - d.getTime()) / 1000);
-  if (s < 60)   return `${s}${t("dash.ago_sec")}`;
-  if (s < 3600) return `${Math.floor(s / 60)}${t("dash.ago_min")}`;
-  return `${Math.floor(s / 3600)}${t("dash.ago_hour")}`;
+  const s = Math.max(0, Math.floor((Date.now() - d.getTime()) / 1000));
+  if (s < 60)    return t("dash.time_now");
+  if (s < 3600)  return t("dash.time_min").replace("{n}", String(Math.floor(s / 60)));
+  if (s < 86400) return t("dash.time_hour").replace("{n}", String(Math.floor(s / 3600)));
+  const days = Math.floor(s / 86400);
+  return days === 1 ? t("dash.time_day") : t("dash.days_ago_n").replace("{n}", String(days));
 }
 function parseUTC(ts: string | null | undefined): Date {
   if (!ts) return new Date(0);
@@ -108,7 +114,12 @@ function writeDashCache(data: DashCache) {
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
+// Phones get the Android app's Home; wider screens this one.
 export default function DashboardPage() {
+  return <PhoneOr phone={<MobileHome />}><DesktopHome /></PhoneOr>;
+}
+
+function DesktopHome() {
   const { user } = useAuth();
   const { t, layout } = useLanguage();
   const isCar = layout === "car";
@@ -241,13 +252,17 @@ export default function DashboardPage() {
       const supplierCount = partnerRows.filter((p) => p.address?.startsWith("TIN:")).length;
       const newShops: ShopInfo[] = shopsRes.status === "fulfilled" ? (shopsRes.value?.items ?? []) : [];
       const daily: DailyRecord[] = dailyRes.status === "fulfilled" ? (dailyRes.value?.data ?? []) : [];
-      const expData = expenseRes.status === "fulfilled"
-        ? (expenseRes.value?.data || { total_expenses: 0, count: 0 })
-        : { total_expenses: 0, count: 0 };
-      const purchCost = purchaseRes.status === "fulfilled"
-        ? (purchaseRes.value?.data?.total_cost ?? purchaseRes.value?.data?.items?.reduce(
-            (s: number, p: { total_cost?: number }) => s + (p.total_cost ?? 0), 0) ?? 0)
-        : 0;
+      // Figures as numbers whatever the server sent (a decimal string, null,
+      // nothing at all): a missing one counts as 0, never as "NaN" on screen.
+      const num = (v: unknown) => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
+      const expRaw = expenseRes.status === "fulfilled" ? expenseRes.value?.data : null;
+      const expData = { total_expenses: num(expRaw?.total_expenses), count: num(expRaw?.count) };
+      const purchData = purchaseRes.status === "fulfilled" ? purchaseRes.value?.data : null;
+      const purchCost = purchData?.total_cost != null
+        ? num(purchData.total_cost)
+        : (Array.isArray(purchData?.items)
+            ? purchData.items.reduce((s: number, p: { total_cost?: unknown }) => s + num(p.total_cost), 0)
+            : 0);
       // The 7 days before this week, for the revenue comparison.
       const prevWeek = new Set(Array.from({ length: 7 }, (_, i) => { const d = new Date(); d.setDate(d.getDate() - 7 - i); return toDateStr(d); }));
       const yRev = daily.reduce((sum, d) => sum + (d.day && prevWeek.has(d.day) ? (d.revenue ?? 0) : 0), 0);

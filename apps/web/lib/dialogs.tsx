@@ -131,7 +131,7 @@ export function DialogHost() {
       )}
 
       {/* Toasts: bottom-right on desktop, full width at the bottom on phones */}
-      <div aria-live="polite" className="pointer-events-none fixed inset-x-4 bottom-4 z-[210] flex flex-col items-end gap-2 sm:left-auto sm:w-96">
+      <div aria-live="polite" className="pointer-events-none fixed inset-x-4 bottom-[calc(1rem+var(--hgv-tabbar,0px))] z-[210] flex flex-col items-end gap-2 sm:left-auto sm:w-96">
         {toasts.map((toast) => (
           <div
             key={toast.id}

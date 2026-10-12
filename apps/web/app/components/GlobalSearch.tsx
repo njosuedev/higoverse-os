@@ -144,7 +144,7 @@ export default function GlobalSearch() {
           <button type="button" onClick={close} aria-label={t("common.close")}
             className="shrink-0 rounded-full p-1.5 text-text-faint hover:bg-slate-100"><X size={16} /></button>
         </div>
-        <div className="max-h-[60vh] overflow-y-auto py-2">
+        <div className="max-h-[60dvh] overflow-y-auto py-2">
           {hits.length === 0 && !loading && (
             <p className="px-5 py-8 text-center text-sm text-text-faint">{t("search.nothing").replace("{q}", q.trim())}</p>
           )}

@@ -331,7 +331,7 @@ export default function ReportsPage() {
                 <thead>
                   <tr className="border-b border-slate-100 bg-slate-50">
                     {[t("purchases.col_date"), t("purchases.col_product"), t("purchases.col_qty"), t("purchases.col_unit"), t("purchases.col_total")].map((h) => (
-                      <th key={h} className="whitespace-nowrap px-4 py-1.5 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">{h}</th>
+                      <th key={h} data-primary={h === t("purchases.col_product") || undefined} className="whitespace-nowrap px-4 py-1.5 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">{h}</th>
                     ))}
                   </tr>
                 </thead>

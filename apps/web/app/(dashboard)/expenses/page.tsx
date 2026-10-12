@@ -520,7 +520,8 @@ export default function ExpenseManagementPage() {
         ...(catFilter && { category: catFilter }),
       });
       const res = await expenseRequest(`/expenses/summary?${params}`);
-      setSummaryFiltered(res?.data || { total_expenses: 0, count: 0 });
+      // Numbers whatever the server sent: a missing total is 0, not a blank page.
+      setSummaryFiltered({ total_expenses: Number(res?.data?.total_expenses) || 0, count: Number(res?.data?.count) || 0 });
     } catch { /* ignore */ }
   }
 
@@ -531,7 +532,8 @@ export default function ExpenseManagementPage() {
         ...(dateTo   && { to_date: dateTo }),
       });
       const res = await expenseRequest(`/expenses/by-category?${params}`);
-      setByCategory(res?.data || []);
+      const rows: Partial<CategoryStat>[] = Array.isArray(res?.data) ? res.data : [];
+      setByCategory(rows.filter((r) => r.category).map((r) => ({ category: r.category as Category, total: Number(r.total) || 0, count: Number(r.count) || 0 })));
     } catch { /* ignore */ }
   }
 
@@ -847,7 +849,7 @@ export default function ExpenseManagementPage() {
                     t("expenses.proof"),
                     "",
                   ].map((h) => (
-                    <th key={h} className="px-2.5 py-1.5 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 whitespace-nowrap">{h}</th>
+                    <th key={h} data-primary={h === t("expenses.col_title") || undefined} className="px-2.5 py-1.5 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -1024,7 +1026,7 @@ export default function ExpenseManagementPage() {
           return (
             <div className="fixed inset-0 bg-black/75 backdrop-blur-sm flex items-center justify-center z-50 p-4"
               onClick={() => setViewingProofs([])}>
-              <div className="relative bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[92vh] flex flex-col overflow-hidden"
+              <div className="relative bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[92dvh] flex flex-col overflow-hidden"
                 onClick={(e) => e.stopPropagation()}>
 
                 {/* header */}
@@ -1051,9 +1053,9 @@ export default function ExpenseManagementPage() {
                 {/* main viewer */}
                 <div className="flex-1 overflow-auto p-4 flex items-center justify-center bg-slate-50 min-h-0">
                   {current.type === "application/pdf" ? (
-                    <iframe src={current.data} className="w-full h-[60vh] rounded border border-slate-200" title={current.name} />
+                    <iframe src={current.data} className="w-full h-[60dvh] rounded border border-slate-200" title={current.name} />
                   ) : (
-                    <img src={current.data} alt={current.name} className="max-w-full max-h-[60vh] object-contain rounded shadow" />
+                    <img src={current.data} alt={current.name} className="max-w-full max-h-[60dvh] object-contain rounded shadow" />
                   )}
                 </div>
 
@@ -1080,7 +1082,7 @@ export default function ExpenseManagementPage() {
         {/* ── MODAL ───────────────────────────────────────────── */}
         {showModal && (
           <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-3">
-            <div className="bg-white rounded-xl w-full max-w-md shadow-2xl max-h-[92vh] flex flex-col">
+            <div className="bg-white rounded-xl w-full max-w-md shadow-2xl max-h-[92dvh] flex flex-col">
 
               {/* Header */}
               <div className="flex justify-between items-center px-3 py-2 border-b border-slate-100 shrink-0">

@@ -2,6 +2,10 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { isZero } from "@/lib/format";
+import { useSearchParams } from "next/navigation";
+import PhoneOr from "@/app/components/mobile/PhoneOr";
+import MobileSales from "@/app/components/mobile/MobileSales";
+import MobileDebts from "@/app/components/mobile/MobileDebts";
 import Link from "next/link";
 import { itemRequest } from "@/lib/product-api";
 import { loadCustomers, partnerRequest } from "@/lib/supplier-api";
@@ -105,7 +109,19 @@ function toDateStr(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-export default function SaleManagementPage() {
+// Phones get the Android app's Sales tab (or its Debts screen); wider
+// screens, and the phone's "+ New sale" and payment links (full=1), this page.
+export default function SalesPage() {
+  return <PhoneOr phone={<SalesPhone />}><SaleManagementPage /></PhoneOr>;
+}
+
+function SalesPhone() {
+  const params = useSearchParams();
+  if (params.get("view") === "debts") return <MobileDebts />;
+  return <MobileSales proforma={params.get("tab") === "proforma"} />;
+}
+
+function SaleManagementPage() {
   // Car companies keep profit, costs and revenue totals from their staff.
   const fin = useCanSeeFinancials();
   // Car companies never show profit, loss or margins (owners included).
@@ -266,6 +282,13 @@ export default function SaleManagementPage() {
           if (d && !d.is_paid) { setShowPayModal(d); setPaymentAmount(""); }
         })
         .catch(() => {});
+      return;
+    }
+    // The phone's Debts screen → "+ New debt": /sales?debt=new
+    if (params.get("debt") === "new") {
+      setEditingDebt(null);
+      setDebtForm({ debtor_name: "", phone: "", amount_owed: "", amount_paid: "0", notes: "" });
+      setShowDebtModal(true);
       return;
     }
     if (params.get("new") !== "1") return;
@@ -785,7 +808,7 @@ ${paymentHtml}
     <div className="min-h-screen">
       <div className="max-w-7xl mx-auto px-3 sm:px-5 py-3 sm:py-4">
 
-        <DeepLink keys={["new", "product", "tab", "pay"]} onParams={handleDeepLink} />
+        <DeepLink keys={["new", "product", "tab", "pay", "debt"]} onParams={handleDeepLink} />
 
         <div role="tablist" className="flex gap-1 mb-2 bg-white border border-slate-200 rounded-xl p-1 w-full sm:w-fit">
           {([["sales", ShoppingBag, t("nav.sales")], ["proforma", FileText, t("nav.proforma")]] as const).map(([k, Icon, label]) => (
@@ -951,7 +974,7 @@ ${paymentHtml}
             <thead>
               <tr className="bg-slate-50 border-b border-slate-200">
                 {[t("sales.col_date"), t("sales.col_product"), t("sales.col_customer"), t("sales.payment"), t("sales.col_qty"), t("sales.col_price"), t("sales.col_total"), ...(prof ? [t("sales.profit_margin_col")] : []), t("common.notes"), ""].map((h) => (
-                  <th key={h} className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-400 whitespace-nowrap">{h}</th>
+                  <th key={h} data-primary={h === t("sales.col_product") || undefined} className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-400 whitespace-nowrap">{h}</th>
                 ))}
               </tr>
             </thead>
@@ -1174,7 +1197,7 @@ ${paymentHtml}
         {/* CREATE MODAL */}
         {showModal && modalMode === "create" && (
           <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-2xl w-full max-w-2xl shadow-2xl flex flex-col max-h-[90vh]"
+            <div className="bg-white rounded-2xl w-full max-w-2xl shadow-2xl flex flex-col max-h-[90dvh]"
               onKeyDown={(e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && !submitting) { e.preventDefault(); submitForm(); } }}>
               <div className="flex justify-between items-center px-6 py-4 border-b border-slate-100 shrink-0">
                 <div>
@@ -1446,7 +1469,7 @@ ${paymentHtml}
         {/* EDIT MODAL */}
         {showModal && modalMode === "edit" && (
           <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-2xl w-full max-w-xl shadow-2xl max-h-[90vh] flex flex-col">
+            <div className="bg-white rounded-2xl w-full max-w-xl shadow-2xl max-h-[90dvh] flex flex-col">
               <div className="flex justify-between items-center px-4 sm:px-6 py-4 border-b border-slate-100 shrink-0">
                 <h2 className="text-base font-semibold text-slate-800">{t("sales.edit_title")}</h2>
                 <button onClick={closeModal} className="p-2 rounded-lg hover:bg-slate-100 text-slate-400 transition"><X size={17} /></button>

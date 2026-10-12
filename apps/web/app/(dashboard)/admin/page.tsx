@@ -1381,7 +1381,7 @@ export default function AdminPage() {
                         <thead>
                           <tr className="bg-slate-50 border-b border-slate-100">
                             {[t("common.date"),t("expenses.title_field"),t("expenses.category"),t("expenses.amount"),t("admin.col_payment"),t("admin.col_bank_name"),t("admin.col_account_ref"),t("admin.col_receiver_phone"),t("common.notes"),""].map((h) => (
-                              <th key={h} className="px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-400 whitespace-nowrap">{h}</th>
+                              <th key={h} data-primary={h === t("expenses.title_field") || undefined} className="px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-400 whitespace-nowrap">{h}</th>
                             ))}
                           </tr>
                         </thead>
@@ -1482,7 +1482,7 @@ export default function AdminPage() {
       {/* ── EDIT EXPENSE MODAL (admin) ─────────────────────────────────────────── */}
       {editingExp && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col max-h-[90vh]">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col max-h-[90dvh]">
             {/* Header */}
             <div className="flex items-center justify-between px-3.5 py-2.5 border-b border-slate-100 shrink-0 bg-slate-50">
               <div className="flex items-center gap-2.5">
@@ -1605,7 +1605,7 @@ export default function AdminPage() {
       {/* ── CREATE SHOP MODAL (admin) ──────────────────────────────────────────── */}
       {showCreateShop && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col max-h-[90vh]">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col max-h-[90dvh]">
             {/* Header */}
             <div className="flex items-center justify-between px-3.5 py-2.5 border-b border-slate-100 shrink-0 bg-slate-50">
               <div className="flex items-center gap-2.5">
@@ -1739,7 +1739,7 @@ export default function AdminPage() {
       {/* ── EDIT SHOP MODAL (admin) ────────────────────────────────────────────── */}
       {editingShop && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col max-h-[90vh]">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col max-h-[90dvh]">
             {/* Header */}
             <div className="flex items-center justify-between px-3.5 py-2.5 border-b border-slate-100 shrink-0 bg-slate-50">
               <div className="flex items-center gap-2.5">
@@ -1815,7 +1815,7 @@ export default function AdminPage() {
       {/* ── REGISTER SHOP USER MODAL (admin) ──────────────────────────────────── */}
       {showCreateUser && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col max-h-[90vh]">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col max-h-[90dvh]">
             {/* Header */}
             <div className="flex items-center justify-between px-3.5 py-2.5 border-b border-slate-100 shrink-0 bg-slate-50">
               <div className="flex items-center gap-2.5">

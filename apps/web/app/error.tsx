@@ -30,10 +30,10 @@ export default function PageError({ error, reset }: { error: Error & { digest?: 
     else if (wasOffline.current) window.location.reload();
   }, [offline, reloading]);
 
-  if (reloading && !offline) return <div className="min-h-[60vh]" aria-busy="true" />;
+  if (reloading && !offline) return <div className="min-h-[60dvh]" aria-busy="true" />;
   const Icon = offline ? WifiOff : AlertTriangle;
   return (
-    <div className="mx-auto flex min-h-[60vh] max-w-md flex-col justify-center px-6 py-16">
+    <div className="mx-auto flex min-h-[60dvh] max-w-md flex-col justify-center px-6 py-16">
       <Icon size={28} className="text-text-muted" aria-hidden="true" />
       <h1 className="mt-4 font-display text-2xl font-bold text-text">{t(offline ? "error.offline_title" : "error.title")}</h1>
       <p className="mt-2 text-[15px] text-text-muted">{t(offline ? "error.offline_body" : "error.body")}</p>

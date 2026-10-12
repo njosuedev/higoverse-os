@@ -38,11 +38,11 @@ export default function Modal({ open, onClose, title, children, footer, size = "
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-ink-dark/45 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4"
       onClick={onClose}
     >
       <div
-        className={`w-full ${SIZE_MAP[size]} max-h-[90vh] overflow-y-auto rounded-data bg-white border border-border shadow-[0_16px_48px_-12px_rgb(0_0_0_/_0.35)]`}
+        className={`w-full ${SIZE_MAP[size]} max-h-[90dvh] overflow-y-auto rounded-data bg-white border border-border shadow-[0_16px_48px_-12px_rgb(0_0_0_/_0.35)]`}
         onClick={(e) => e.stopPropagation()}
       >
         {title && (

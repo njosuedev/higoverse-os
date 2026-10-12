@@ -20,8 +20,11 @@ function DeepLinkInner({ keys, onParams }: Props) {
   useEffect(() => {
     if (!keys.some((k) => params.has(k))) return;
     handler.current(new URLSearchParams(params.toString()));
-    // One-shot: drop the params so a reload or Back doesn't repeat the action.
-    router.replace(pathname, { scroll: false });
+    // One-shot: drop this page's params so a reload or Back doesn't repeat
+    // the action. Others stay (full=1 keeps a phone on the website's page).
+    const rest = new URLSearchParams(params.toString());
+    keys.forEach((k) => rest.delete(k));
+    router.replace(rest.size ? `${pathname}?${rest}` : pathname, { scroll: false });
   }, [params]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return null;

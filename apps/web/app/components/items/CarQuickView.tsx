@@ -83,7 +83,7 @@ export default function CarQuickView({ productId, cover, onClose }: {
   return (
     <div className="fixed inset-0 z-[60] bg-black/75 flex items-center justify-center p-3 sm:p-6" onClick={onClose}>
       <div ref={dialog} tabIndex={-1} role="dialog" aria-modal="true" aria-label={car?.name ?? t("common.loading")}
-        className="w-full max-w-5xl max-h-[92vh] overflow-y-auto rounded-2xl bg-white shadow-2xl outline-none grid md:grid-cols-[1.35fr_1fr]"
+        className="w-full max-w-5xl max-h-[92dvh] overflow-y-auto rounded-2xl bg-white shadow-2xl outline-none grid md:grid-cols-[1.35fr_1fr]"
         onClick={(e) => e.stopPropagation()}>
 
         {/* Photos */}

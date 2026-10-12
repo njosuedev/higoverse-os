@@ -443,6 +443,137 @@ select:-webkit-autofill {
   }
 }
 
+/* ── BOTTOM TABS (phones) ───────────────────────────────────────
+   Below 768px the signed-in app has the Android app's tab bar
+   (DashboardHeader, .hgv-tabbar): 52px of icons, plus the phone's own
+   bottom inset (home indicator / gesture bar) so nothing sits under it —
+   the signed-in layout sets viewport-fit=cover, so env(safe-area-inset-*)
+   report the real insets. Pages end above it, and anything pinned to the
+   bottom (save bar, toasts, notices) sits on top of it via --hgv-tabbar. */
+@media (max-width: 767px) {
+  body:has(.hgv-tabbar) {
+    --hgv-tabbar: calc(52px + env(safe-area-inset-bottom));
+    padding-bottom: var(--hgv-tabbar);
+  }
+}
+.hgv-tabbar {
+  position: fixed;
+  inset: auto 0 0 0;
+  z-index: 70;
+  display: none;
+  box-sizing: border-box;
+  height: calc(52px + env(safe-area-inset-bottom));
+  padding: 0 env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  background-color: var(--color-paper);
+  border-top: 0.6px solid var(--color-border);
+}
+/* Phones only (after the rule above, so it wins): on wider screens the
+   menu is across the top. */
+@media (max-width: 767px) {
+  .hgv-tabbar { display: flex; }
+}
+.hgv-tab {
+  position: relative;
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text);
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  user-select: none;
+}
+.hgv-tab > span { transition: transform 120ms ease; }
+.hgv-tab:active > span { transform: scale(0.9); }
+/* the name, shown while a tab is held (as the app's long-press tooltip) */
+.hgv-tab-tip {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  border-radius: 6px;
+  padding: 5px 9px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-paper);
+  background-color: var(--color-text);
+  pointer-events: none;
+}
+
+/* ── TABLES AS CARDS (phones) ───────────────────────────────────
+   Below 640px a table row becomes a card: its main cell as the title,
+   every other cell on its own line under its column name, the row's
+   buttons along the bottom — nothing hidden off to the side. The cells
+   are labelled by components/dashboard/TableCards.tsx. */
+@media (max-width: 639px) {
+  table.hgv-cards,
+  table.hgv-cards > tbody,
+  table.hgv-cards > tfoot { display: block; width: 100%; }
+  table.hgv-cards > thead { display: none; }
+  table.hgv-cards > :is(tbody, tfoot) > tr {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 2px 0;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--color-border);
+  }
+  table.hgv-cards > :is(tbody, tfoot) > tr > td:not(.hidden) {
+    display: block;
+    width: 100%;
+    max-width: none;
+    min-width: 0;
+    padding: 3px 0 !important;
+    text-align: right;
+    white-space: normal;
+  }
+  table.hgv-cards td[data-label]::before {
+    content: attr(data-label);
+    float: left;
+    max-width: 45%;
+    margin-right: 12px;
+    text-align: left;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--color-text-faint);
+  }
+  /* a line with nothing to say ("-") is left out */
+  table.hgv-cards td[data-label]:empty,
+  table.hgv-cards td[data-empty] { display: none !important; }
+  table.hgv-cards td[data-role="num"] { display: none !important; }
+  table.hgv-cards > :is(tbody, tfoot) > tr > td[data-role="primary"] {
+    order: -1;
+    text-align: left;
+    padding-bottom: 6px !important;
+    font-size: 15px;
+  }
+  table.hgv-cards > :is(tbody, tfoot) > tr > td[data-role="span"] { text-align: left; }
+  table.hgv-cards td[data-role="span"]:empty { display: none !important; }
+  /* the row's buttons: along the bottom, finger-sized, not pinned */
+  table.hgv-cards > :is(tbody, tfoot) > tr > td[data-role="actions"] {
+    order: 1;
+    display: flex;
+    justify-content: flex-end;
+    position: static;
+    margin-top: 6px;
+    padding-top: 8px !important;
+    border-top: 1px dashed var(--color-border);
+    background: transparent !important;
+    box-shadow: none;
+  }
+  table.hgv-cards td[data-role="actions"] :is(button, a) { min-width: 40px; min-height: 40px; }
+}
+
+/* ── NO ZOOM ON TAP (iPhone) ────────────────────────────────────
+   iOS Safari zooms the whole page into any field whose text is under
+   16px and leaves it zoomed. On touch screens fields use 16px. */
+@media (pointer: coarse) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]),
+  select,
+  textarea { font-size: 16px !important; }
+}
+
 /* ══════════════════════════════════════════════════════════════════════
    DARK THEME — html[data-theme="dark"], set by the theme script in
    app/layout.tsx (System / Light / Dark, see lib/theme.ts).
@@ -549,6 +680,9 @@ html[data-theme="dark"] :is(.bg-accent, .bg-red-500, .bg-red-600, .bg-red-700).t
 html[data-theme="dark"] :is(.bg-success, .bg-green-500, .bg-green-600, .bg-green-700, .bg-emerald-600).text-white { background-color: #056a3b !important; }
 html[data-theme="dark"] :is(.bg-warning, .bg-amber-500, .bg-amber-600).text-white { background-color: #855005 !important; }
 html[data-theme="dark"] .bg-text-muted.text-white { background-color: #363636 !important; }
+/* A dark "selected" chip turns light in dark mode, so its white text
+   would vanish: dark text on it instead. */
+html[data-theme="dark"] :is(.bg-slate-800, .bg-slate-900, .bg-gray-800, .bg-gray-900).text-white { color: #0c1014 !important; }
 html[data-theme="dark"] .hgv-search:hover,
 html[data-theme="dark"] .hgv-filter:hover { background-color: var(--color-paper-deep); }
 /* Page-header actions (Add, New, Export, Save on Sales, Expenses, Reports,
@@ -574,6 +708,8 @@ html[data-theme="dark"] input:not([type="checkbox"]):not([type="radio"]):not([ty
 html[data-theme="dark"] select,
 html[data-theme="dark"] textarea { background-color: var(--surface-2); color: var(--color-text); border-color: transparent; }
 html[data-theme="dark"] :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), select, textarea):focus { border-color: #555555; }
+/* …except a field inside a search or filter pill: the pill is the box. */
+html[data-theme="dark"] :is(body, .fixed.inset-0, [role="dialog"]) :is(.hgv-search, .hgv-filter) :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), select) { background-color: transparent !important; }
 html[data-theme="dark"] input::placeholder,
 html[data-theme="dark"] textarea::placeholder { color: var(--color-text-faint); }
 html[data-theme="dark"] option { background-color: var(--elevated); color: var(--color-text); }
@@ -686,3 +822,8 @@ html[data-theme="dark"] { scrollbar-color: #363636 var(--color-paper); }
 @media (prefers-reduced-motion: reduce) {
   .hgv-toploader > span { animation: none; width: 100%; opacity: .7; }
 }
+
+/* The phone layout's bottom sheets slide up, as in the app. */
+@keyframes hgv-sheet-up { from { transform: translateY(100%); } to { transform: none; } }
+.hgv-sheet { animation: hgv-sheet-up 240ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+@media (prefers-reduced-motion: reduce) { .hgv-sheet { animation: none; } }

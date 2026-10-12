@@ -502,7 +502,7 @@ export default function PurchaseManagementPage() {
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200">
                   {[t("items.col_product"), ...(isCar ? [] : [t("items.col_supplier")]), t("items.cost_price"), t("items.selling_price"), ...(prof ? [t("items.col_margin")] : []), t("items.col_qty"), t("common.status"), ""].map((h) => (
-                    <th key={h} className="px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 whitespace-nowrap">{h}</th>
+                    <th key={h} data-primary={h === t("purchases.col_product") || undefined} className="px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -609,7 +609,7 @@ export default function PurchaseManagementPage() {
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200">
                   {[t("purchases.col_date"), t("purchases.col_product"), ...(isCar ? [] : [t("purchases.col_supplier")]), t("purchases.col_qty"), t("purchases.col_unit"), t("purchases.col_total"), ""].map((h) => (
-                    <th key={h} className="px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 whitespace-nowrap">{h}</th>
+                    <th key={h} data-primary={h === t("purchases.col_product") || undefined} className="px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -665,7 +665,7 @@ export default function PurchaseManagementPage() {
         {/* MODAL */}
         {showModal && (
           <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-2xl w-full max-w-xl shadow-2xl max-h-[90vh] flex flex-col">
+            <div className="bg-white rounded-2xl w-full max-w-xl shadow-2xl max-h-[90dvh] flex flex-col">
               <div className="flex justify-between items-center px-4 sm:px-6 py-4 border-b border-slate-100 shrink-0">
                 <div>
                   <h2 className="text-base font-semibold text-slate-800">

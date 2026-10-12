@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { isZero } from "@/lib/format";
+import PhoneOr from "@/app/components/mobile/PhoneOr";
+import MobileStock from "@/app/components/mobile/MobileStock";
 import Link from "next/link";
 import { itemRequest } from "@/lib/product-api";
 import { partnerRequest } from "@/lib/supplier-api";
@@ -90,7 +92,13 @@ function readVehicleView(): VehicleView {
 // The API caps a page at 1000 rows; exports walk every page.
 const EXPORT_PAGE = 1000;
 
-export default function ItemManagementPage() {
+// Phones get the Android app's Stock / Vehicles tab; wider screens, and the
+// phone's "+ New" and edit links (full=1), this page.
+export default function ItemsPage() {
+  return <PhoneOr phone={<MobileStock />}><ItemManagementPage /></PhoneOr>;
+}
+
+function ItemManagementPage() {
   const { t, layout } = useLanguage();
   const isCar = layout === "car";
   // Car companies keep stock value and profit figures from their staff.
@@ -1205,7 +1213,7 @@ export default function ItemManagementPage() {
         {/* MODAL */}
         {showModal && (
           <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-2xl w-full max-w-2xl shadow-2xl max-h-[92vh] flex flex-col">
+            <div className="bg-white rounded-2xl w-full max-w-2xl shadow-2xl max-h-[92dvh] flex flex-col">
               <div className="flex justify-between items-center px-4 sm:px-6 py-4 border-b border-slate-100 shrink-0">
                 <div>
                   <h2 className="text-base font-semibold text-slate-800">{modalMode === "edit" ? t("items.edit_title") : t("items.add_title")}</h2>
@@ -1299,7 +1307,7 @@ export default function ItemManagementPage() {
       {/* IMPORT RESULTS MODAL */}
       {importResults && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl max-h-[80vh] flex flex-col">
+          <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl max-h-[80dvh] flex flex-col">
             <div className="flex justify-between items-center px-5 py-4 border-b border-slate-100 shrink-0">
               <div>
                 <h2 className="text-base font-semibold text-slate-800">{t("items.import_results")}</h2>
