@@ -1,7 +1,7 @@
 "use client";
 
-// Attendance: each day, who came to work — present, absent, late or on
-// leave, with a note — for the people on Payroll. The Month tab adds up
+// Attendance: each day, who came to work — present, absent, late, on leave
+// or sick, with a note — for the people on Payroll. The Month tab adds up
 // each person's days; Payroll shows those counts beside the salary (nothing
 // is deducted by itself). Owner, admin, manager and accountant
 // (expense-service's PAYROLL_ROLES), as for Payroll.
@@ -30,6 +30,7 @@ const TONE: Record<AttendanceStatus, { on: string; dot: string }> = {
   absent:  { on: "bg-accent text-white border-accent", dot: "bg-accent" },
   late:    { on: "bg-warning text-white border-warning", dot: "bg-warning" },
   leave:   { on: "bg-ink text-white border-ink", dot: "bg-ink" },
+  sick:    { on: "bg-[#7c3aed] text-white border-[#7c3aed]", dot: "bg-[#7c3aed]" },
 };
 
 export default function AttendancePage() {
@@ -95,7 +96,7 @@ function DayView() {
   const today = data?.today ?? ymd(new Date());
   const isToday = day >= today;
   const counts = useMemo(() => {
-    const c = { present: 0, absent: 0, late: 0, leave: 0, unmarked: 0 };
+    const c = { present: 0, absent: 0, late: 0, leave: 0, sick: 0, unmarked: 0 };
     for (const r of data?.rows ?? []) c[r.mark?.status ?? "unmarked"] += 1;
     return c;
   }, [data]);
@@ -161,7 +162,7 @@ function DayView() {
                   {[e.position, mark?.marked_by_name && t("att.marked_by").replace("{name}", mark.marked_by_name)].filter(Boolean).join(" · ")}
                 </p>
               </div>
-              <div className="grid grid-cols-4 gap-1.5 max-sm:w-full" role="radiogroup" aria-label={e.full_name}>
+              <div className="grid grid-cols-5 gap-1.5 max-sm:w-full" role="radiogroup" aria-label={e.full_name}>
                 {ATTENDANCE.map((s) => {
                   const on = mark?.status === s;
                   return (

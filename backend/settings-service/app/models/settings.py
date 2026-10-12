@@ -34,5 +34,9 @@ class ShopSettings(Base):
     # is_default}]. The three columns above mirror the default one (older apps).
     bank_accounts = Column(Text, nullable=True)
 
+    # Printing (Settings → Printing), as JSON: logo, address, phone and QR
+    # code on receipts, and the receipt's closing message.
+    print_settings = Column(Text, nullable=True)
+
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())

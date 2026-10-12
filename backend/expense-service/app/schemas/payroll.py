@@ -21,8 +21,12 @@ class EmployeeIn(BaseModel):
     start_date:     date | None = None
     left_on:        date | None = None
     notes:          str | None = Field(None, max_length=1000)
+    bank_name:      str | None = Field(None, max_length=100)
+    bank_account:   str | None = Field(None, max_length=60)
+    contract_end:   date | None = None
+    working_days:   int = Field(26, ge=1, le=31)
 
-    @field_validator("full_name", "id_number", "phone", "position", "notes")
+    @field_validator("full_name", "id_number", "phone", "position", "notes", "bank_name", "bank_account")
     @classmethod
     def tidy(cls, v: str | None) -> str | None:
         return _clean(v)
@@ -31,6 +35,8 @@ class EmployeeIn(BaseModel):
     def dates_in_order(self):
         if self.start_date and self.left_on and self.left_on < self.start_date:
             raise ValueError("The leaving date is before the start date.")
+        if self.start_date and self.contract_end and self.contract_end < self.start_date:
+            raise ValueError("The contract ends before it starts.")
         return self
 
 
@@ -38,6 +44,10 @@ class PaymentIn(BaseModel):
     employee_id:    str
     period:         str                      # "2026-10"
     gross:          Decimal = Field(..., gt=0, le=Decimal("1000000000"))
+    bonus:          Decimal = Field(Decimal("0"), ge=0, le=Decimal("1000000000"))
+    accommodation:  Decimal = Field(Decimal("0"), ge=0, le=Decimal("1000000000"))
+    overtime_hours: Decimal = Field(Decimal("0"), ge=0, le=Decimal("744"))
+    overtime_amount: Decimal = Field(Decimal("0"), ge=0, le=Decimal("1000000000"))
     deductions:     Decimal = Field(Decimal("0"), ge=0)
     deduction_note: str | None = Field(None, max_length=255)
     paid_on:        date
@@ -63,9 +73,14 @@ class PaymentIn(BaseModel):
     def tidy(cls, v: str | None) -> str | None:
         return _clean(v)
 
+    @property
+    def total(self) -> Decimal:
+        """The month's pay before deductions: basic + bonus + accommodation + overtime."""
+        return self.gross + self.bonus + self.accommodation + self.overtime_amount
+
     @model_validator(mode="after")
     def deductions_fit(self):
-        if self.deductions >= self.gross:
+        if self.deductions >= self.total:
             raise ValueError("Deductions must be less than the salary.")
         if self.deductions > 0 and not self.deduction_note:
             raise ValueError("Say what the deduction is for.")
@@ -93,7 +108,7 @@ class AdvanceIn(BaseModel):
         return _clean(v)
 
 
-ATTENDANCE = {"present", "absent", "late", "leave"}
+ATTENDANCE = {"present", "absent", "late", "leave", "sick"}
 
 
 class AttendanceMark(BaseModel):
@@ -106,7 +121,7 @@ class AttendanceMark(BaseModel):
     @classmethod
     def known(cls, v: str | None) -> str | None:
         if v is not None and v not in ATTENDANCE:
-            raise ValueError("status must be present, absent, late or leave")
+            raise ValueError("status must be present, absent, late, leave or sick")
         return v
 
     @field_validator("note")

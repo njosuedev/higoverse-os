@@ -50,6 +50,10 @@ def _employee(e: Employee) -> dict:
         "left_on": e.left_on.isoformat() if e.left_on else None,
         "active": e.active,
         "notes": e.notes,
+        "bank_name": e.bank_name,
+        "bank_account": e.bank_account,
+        "contract_end": e.contract_end.isoformat() if e.contract_end else None,
+        "working_days": e.working_days or 26,
     }
 
 
@@ -62,6 +66,10 @@ def _payment(p: SalaryPayment) -> dict:
         "employee_id_number": p.employee_id_number,
         "position": p.position,
         "gross": _money(p.gross),
+        "bonus": _money(p.bonus),
+        "accommodation": _money(p.accommodation),
+        "overtime_hours": _money(p.overtime_hours),
+        "overtime_amount": _money(p.overtime_amount),
         "deductions": _money(p.deductions),
         "deduction_note": p.deduction_note,
         "net": _money(p.net),
@@ -71,6 +79,14 @@ def _payment(p: SalaryPayment) -> dict:
         "expense_id": p.expense_id,
         "paid_by_name": p.paid_by_name,
         "created_at": p.created_at.isoformat() if p.created_at else None,
+        "bank_name": p.bank_name,
+        "bank_account": p.bank_account,
+        "contract_start": p.contract_start.isoformat() if p.contract_start else None,
+        "contract_end": p.contract_end.isoformat() if p.contract_end else None,
+        "working_days": p.working_days,
+        "late_days": p.late_days or 0,
+        "leave_days": p.leave_days or 0,
+        "sick_days": p.sick_days or 0,
     }
 
 
@@ -250,7 +266,8 @@ def pay(payload: PaymentIn, db: Session = Depends(get_db), user: dict = Depends(
     deductions = advanced + payload.deductions
     # The whole salary may have been taken in advance (nothing left to give),
     # but deductions can't go past it.
-    if deductions > payload.gross or (deductions == payload.gross and payload.deductions > 0):
+    total = payload.total
+    if deductions > total or (deductions == total and payload.deductions > 0):
         raise HTTPException(status_code=400, detail=(
             f"Advances ({advanced:,.0f} RWF) and deductions are more than the salary." if advanced
             else "Deductions must be less than the salary."))
@@ -259,8 +276,10 @@ def pay(payload: PaymentIn, db: Session = Depends(get_db), user: dict = Depends(
         payload.deduction_note,
     ] if x)[:255] or None
 
-    net = payload.gross - deductions
+    net = total - deductions
     label = _period_label(payload.period)
+    # The month's attendance, kept with the payment for its pay slip.
+    marks = _attendance_counts(db, shop, first, last).get(e.id, _NO_MARKS)
     try:
         # Nothing handed over (all taken in advance, already in Expenses): no expense.
         expense = None if net == 0 else Expense(
@@ -288,6 +307,10 @@ def pay(payload: PaymentIn, db: Session = Depends(get_db), user: dict = Depends(
             employee_id_number=e.id_number,
             position=e.position,
             gross=payload.gross,
+            bonus=payload.bonus,
+            accommodation=payload.accommodation,
+            overtime_hours=payload.overtime_hours,
+            overtime_amount=payload.overtime_amount,
             deductions=deductions,
             deduction_note=deduction_note,
             net=net,
@@ -297,6 +320,14 @@ def pay(payload: PaymentIn, db: Session = Depends(get_db), user: dict = Depends(
             expense_id=expense.id if expense else None,
             paid_by=user.get("user_id"),
             paid_by_name=user.get("name") or user.get("email"),
+            bank_name=e.bank_name,
+            bank_account=e.bank_account,
+            contract_start=e.start_date,
+            contract_end=e.contract_end,
+            working_days=e.working_days or 26,
+            late_days=marks["late"],
+            leave_days=marks["leave"],
+            sick_days=marks["sick"],
         )
         db.add(p)
         db.flush()
@@ -407,7 +438,7 @@ def remove_advance(advance_id: str, db: Session = Depends(get_db), user: dict = 
 # Payroll shows the month's counts beside each salary; nothing is deducted
 # by itself.
 
-_NO_MARKS = {"present": 0, "absent": 0, "late": 0, "leave": 0}
+_NO_MARKS = {"present": 0, "absent": 0, "late": 0, "leave": 0, "sick": 0}
 
 
 def _attendance_counts(db: Session, shop_id: str, first: date, last: date) -> dict[str, dict]:

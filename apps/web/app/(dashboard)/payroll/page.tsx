@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ChevronLeft, ChevronRight, HandCoins, Pencil, Plus, Printer, Trash2, Undo2, Users, Wallet, X } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
@@ -16,15 +16,14 @@ import {
   type Employee, type EmployeeInput, type Month, type PayMethod, type SalaryAdvance, type SalaryPayment,
 } from "@/lib/payroll-api";
 import { advanceReceiptHtml, monthLabel, payrollSheetHtml, salaryLettersHtml } from "@/lib/payroll-print";
+import { printHtml } from "@/lib/print-frame";
 import { Bone, SkeletonRegion, useSkeleton } from "@/app/components/ui/Skeleton";
 
 const fmt = (n: number) => Math.round(n || 0).toLocaleString("en-US");
 const today = () => new Date().toISOString().slice(0, 10);
 
-function openPrint(html: string) {
-  const w = window.open("", "_blank", "width=900,height=1000,scrollbars=yes,resizable=yes");
-  if (w) { w.document.open(); w.document.write(html); w.document.close(); }
-}
+// Printed in a hidden frame: only the print dialog shows, no extra window.
+const openPrint = printHtml;
 
 export default function PayrollPage() {
   const { user } = useAuth();
@@ -65,8 +64,36 @@ export default function PayrollPage() {
   }, []);
 
   const paid = useMemo(() => (month?.rows ?? []).map((r) => r.payment).filter((p): p is SalaryPayment => !!p), [month]);
+  // Everyone's pay slip for the month: the recorded payment once paid; before
+  // that, one for approval from the salary, the month's attendance and the
+  // advances that will come off (marked "to be paid").
+  const slips = useMemo(() => (month?.rows ?? []).flatMap((r): { key: string; slip: SalaryPayment }[] => {
+    if (r.payment) return [{ key: r.payment.id, slip: r.payment }];
+    const e = r.employee;
+    if (!e) return [];
+    const advanced = (r.advances ?? []).reduce((sum, a) => sum + a.amount, 0);
+    return [{ key: `draft-${e.id}`, slip: {
+      id: `draft-${e.id}`, employee_id: e.id, period, employee_name: e.full_name, employee_id_number: e.id_number, position: e.position,
+      gross: e.monthly_salary, bonus: 0, accommodation: 0, overtime_hours: 0, overtime_amount: 0,
+      deductions: advanced, deduction_note: advanced ? t("payroll.advance") : null, net: Math.max(0, e.monthly_salary - advanced),
+      paid_on: today(), method: "bank", reference: null, expense_id: null, paid_by_name: null, created_at: null,
+      bank_name: e.bank_name, bank_account: e.bank_account, contract_start: e.start_date, contract_end: e.contract_end,
+      working_days: e.working_days, late_days: r.attendance?.late ?? 0, leave_days: r.attendance?.leave ?? 0, sick_days: r.attendance?.sick ?? 0,
+      draft: true,
+    } }];
+  }), [month, period, t]);
+  // Slips ticked for printing; a new month starts empty.
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const pickedSlips = slips.filter((s) => picked.has(s.key)).map((s) => s.slip);
+  const allPicked = slips.length > 0 && pickedSlips.length === slips.length;
+  const togglePick = (id: string) => setPicked((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+  // "Mark as paid": the ticked people not paid yet, or everyone still to pay when none is ticked.
+  const unpaid = (month?.rows ?? []).filter((r) => !r.payment && r.employee);
+  const pickedUnpaid = unpaid.filter((r) => picked.has(`draft-${r.employee!.id}`));
+  const toPay = (pickedSlips.length > 0 ? pickedUnpaid : unpaid).map((r) => ({ employee: r.employee!, advances: r.advances ?? [] }));
+  const [payingMany, setPayingMany] = useState<{ employee: Employee; advances: SalaryAdvance[] }[] | null>(null);
 
-  function changeMonth(by: number) { setMonth(null); setPeriod((p) => shiftPeriod(p, by)); }
+  function changeMonth(by: number) { setMonth(null); setPicked(new Set()); setPeriod((p) => shiftPeriod(p, by)); }
 
   function printLetters(list: SalaryPayment[]) {
     if (list.length) openPrint(salaryLettersHtml(list, shop, t, lang, { autoPrint: true }));
@@ -162,102 +189,175 @@ export default function PayrollPage() {
                   <span className="text-text-muted">{t("payroll.advances_out")}: <b className="hgv-figure text-text">{fmt(totals.advances_outstanding)} RWF</b></span>
                 )}
               </div>
-              {paid.length > 0 && (
-                <div className="flex gap-2">
-                  <button onClick={() => openPrint(payrollSheetHtml(period, paid, shop, t, lang, { autoPrint: true }))}
-                    className="flex items-center gap-1.5 rounded-press border border-border px-3 py-1.5 text-sm font-semibold text-text hover:bg-paper-dim">
-                    <Printer size={14} /> {t("payroll.print_sheet")}
-                  </button>
-                  <button onClick={() => printLetters(paid)}
-                    className="flex items-center gap-1.5 rounded-press border border-border px-3 py-1.5 text-sm font-semibold text-text hover:bg-paper-dim">
-                    <Printer size={14} /> {t("payroll.print_all")}
-                  </button>
-                </div>
-              )}
             </section>
 
             {skeleton ? <RowsSkeleton /> : month === null ? <div className="min-h-[200px]" /> : month.rows.length === 0 ? (
               <Empty text={t("payroll.no_one_this_month")} action={t("payroll.add_employee")} onAction={() => setEditing("new")} />
             ) : (
               <section className="hgv-fade-in overflow-hidden rounded-data border border-border bg-white">
-                {month.rows.map((r) => {
-                  const e = r.employee, p = r.payment;
-                  const name = p?.employee_name ?? e?.full_name ?? "";
-                  const advances = r.advances ?? [];
-                  const owed = advances.reduce((sum, a) => sum + a.amount, 0);
-                  return (
-                    <div key={p?.id ?? e?.id} className="hgv-ledger-row px-4 py-3">
-                    <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-                      <div className="min-w-[180px] flex-1">
-                        <p className="font-semibold text-text">{name}</p>
-                        <p className="text-xs text-text-muted">{[p?.position ?? e?.position, e && `${fmt(e.monthly_salary)} RWF / ${t("payroll.month_short")}`].filter(Boolean).join(" · ")}</p>
-                        {/* The month's attendance (to weigh by hand; nothing is deducted by itself). */}
-                        {r.attendance && r.attendance.present + r.attendance.absent + r.attendance.late + r.attendance.leave > 0 && (
-                          <Link href="/attendance" className="mt-0.5 inline-flex flex-wrap gap-x-2 text-xs text-text-muted hover:text-ink">
-                            <span>{t("att.present")} <b className="text-success">{r.attendance.present}</b></span>
-                            <span>{t("att.absent")} <b className={r.attendance.absent ? "text-accent-dark" : "text-text"}>{r.attendance.absent}</b></span>
-                            <span>{t("att.late")} <b className={r.attendance.late ? "text-warning" : "text-text"}>{r.attendance.late}</b></span>
-                            <span>{t("att.leave")} <b className="text-text">{r.attendance.leave}</b></span>
-                          </Link>
-                        )}
-                      </div>
-                      {p ? (
-                        <>
-                          <div className="text-right">
-                            <p className="hgv-figure font-semibold text-text">{fmt(p.net)} RWF</p>
-                            <p className="text-xs text-text-muted">
-                              {t("payroll.paid_on").replace("{date}", p.paid_on)} · {t(`payroll.method_${p.method}`)}
-                              {p.deductions > 0 && ` · -${fmt(p.deductions)}`}
-                            </p>
-                          </div>
-                          <span className="rounded-full bg-success/10 px-2.5 py-1 text-xs font-semibold text-success">{t("payroll.status_paid")}</span>
-                          <div className="flex gap-1">
-                            <button onClick={() => printLetters([p])} title={t("payroll.print_letter")}
-                              className="flex items-center gap-1.5 rounded-press border border-border px-2.5 py-1.5 text-xs font-semibold text-text hover:bg-paper-dim">
-                              <Printer size={13} /> {t("payroll.print_letter")}
-                            </button>
-                            <button onClick={() => undo(p)} title={t("payroll.undo")} aria-label={t("payroll.undo")}
-                              className="rounded-press p-1.5 text-text-muted hover:bg-paper-dim hover:text-accent-dark"><Undo2 size={15} /></button>
-                          </div>
-                        </>
-                      ) : (
-                        <>
-                          <span className="rounded-full bg-warning/10 px-2.5 py-1 text-xs font-semibold text-warning">{t("payroll.status_due")}</span>
-                          {e && (
-                            <button onClick={() => setPaying({ employee: e, advances })}
-                              className="flex items-center gap-1.5 rounded-press bg-ink px-3 py-1.5 text-xs font-semibold text-white hover:bg-ink-dark">
-                              <Wallet size={13} /> {t("payroll.pay")}
-                            </button>
-                          )}
-                        </>
-                      )}
-                      {e?.active && (
-                        <button onClick={() => setAdvancing({ employee: e, owed })} title={t("payroll.give_advance")}
-                          className="flex items-center gap-1.5 rounded-press border border-border px-2.5 py-1.5 text-xs font-semibold text-text hover:bg-paper-dim">
-                          <HandCoins size={13} /> {t("payroll.advance")}
-                        </button>
-                      )}
-                    </div>
-                    {advances.length > 0 && (
-                      <ul className="mt-2 space-y-1 border-l-2 border-border-strong pl-3">
-                        {advances.map((a) => (
-                          <li key={a.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-text-muted">
-                            <span className="font-semibold text-text">{t("payroll.advance")} · <span className="hgv-figure">{fmt(a.amount)} RWF</span></span>
-                            <span>{a.given_on} · {t(`payroll.method_${a.method}`)}{a.note ? ` · ${a.note}` : ""}</span>
-                            <span className="text-text-faint">{t("payroll.advance_to_deduct")}</span>
-                            <span className="ml-auto flex gap-1">
-                              <button onClick={() => printAdvance(a)} title={t("payroll.print_receipt")} aria-label={t("payroll.print_receipt")}
-                                className="rounded-press p-1 text-text-muted hover:bg-paper-dim hover:text-text"><Printer size={13} /></button>
-                              <button onClick={() => takeBackAdvance(a)} title={t("payroll.remove_advance")} aria-label={t("payroll.remove_advance")}
-                                className="rounded-press p-1 text-text-muted hover:bg-paper-dim hover:text-accent-dark"><Trash2 size={13} /></button>
-                            </span>
-                          </li>
-                        ))}
-                      </ul>
+                {/* Every pay slip of the month at once (one A4 page each), and the month's sheet */}
+                <div className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-2.5">
+                  <p className="mr-auto text-sm text-text-muted">
+                    {t("payroll.table_count").replace("{n}", String(month.rows.length))}
+                    {totals && totals.due_count > 0 && <span className="text-warning"> · {t("payroll.not_paid_yet").replace("{n}", String(totals.due_count))}</span>}
+                  </p>
+                  <button onClick={() => openPrint(payrollSheetHtml(period, paid, shop, t, lang, { autoPrint: true }))} disabled={paid.length === 0}
+                    className="flex items-center gap-1.5 rounded-press border border-border px-3 py-1.5 text-sm font-semibold text-text hover:bg-paper-dim disabled:opacity-40">
+                    <Printer size={14} /> {t("payroll.print_sheet")}
+                  </button>
+                  {toPay.length > 0 && (
+                    <button onClick={() => setPayingMany(toPay)}
+                      className="flex items-center gap-1.5 rounded-press bg-success px-3 py-1.5 text-sm font-semibold text-white hover:opacity-90">
+                      <Wallet size={14} /> {t("payroll.mark_paid").replace("{n}", String(toPay.length))}
+                    </button>
+                  )}
+                  {pickedSlips.length > 0 && (
+                    <button onClick={() => printLetters(pickedSlips)}
+                      className="flex items-center gap-1.5 rounded-press border border-ink px-3 py-1.5 text-sm font-semibold text-ink hover:bg-ink-soft">
+                      <Printer size={14} /> {t("payroll.print_selected").replace("{n}", String(pickedSlips.length))}
+                    </button>
+                  )}
+                  <button onClick={() => printLetters(slips.map((s) => s.slip))} disabled={slips.length === 0}
+                    className="flex items-center gap-1.5 rounded-press bg-ink px-3 py-1.5 text-sm font-semibold text-white hover:bg-ink-dark disabled:opacity-40">
+                    <Printer size={14} /> {t("payroll.print_all_slips").replace("{n}", String(slips.length))}
+                  </button>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-border bg-paper-dim/60 text-left text-xs font-semibold uppercase tracking-wide text-text-muted">
+                        <th className="w-8 px-3 py-2">
+                          <input type="checkbox" className="h-4 w-4 cursor-pointer accent-[var(--color-ink)] align-middle" disabled={slips.length === 0}
+                            checked={allPicked} ref={(el) => { if (el) el.indeterminate = pickedSlips.length > 0 && !allPicked; }}
+                            onChange={() => setPicked(allPicked ? new Set() : new Set(slips.map((s) => s.key)))}
+                            aria-label={t("payroll.select_all")} title={t("payroll.select_all")} />
+                        </th>
+                        <th className="w-8 px-3 py-2">#</th>
+                        <th className="px-3 py-2" data-primary>{t("payroll.col_employee")}</th>
+                        <th className="px-3 py-2 text-right">{t("payroll.col_basic")}</th>
+                        <th className="px-3 py-2 text-right">{t("payroll.col_extras")}</th>
+                        <th className="px-3 py-2 text-right">{t("payroll.col_deductions")}</th>
+                        <th className="px-3 py-2 text-right">{t("payroll.col_net")}</th>
+                        <th className="px-3 py-2">{t("payroll.col_attendance")}</th>
+                        <th className="px-3 py-2">{t("payroll.col_status")}</th>
+                        <th className="px-3 py-2"></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {month.rows.map((r, i) => {
+                        const e = r.employee, p = r.payment;
+                        const name = p?.employee_name ?? e?.full_name ?? "";
+                        const advances = r.advances ?? [];
+                        const owed = advances.reduce((sum, a) => sum + a.amount, 0);
+                        const extras = p ? (p.bonus || 0) + (p.accommodation || 0) + (p.overtime_amount || 0) : 0;
+                        const att = r.attendance;
+                        const rowKey = p ? p.id : `draft-${e?.id}`;
+                        const marked = att ? att.present + att.absent + att.late + att.leave + (att.sick ?? 0) : 0;
+                        return (
+                          <Fragment key={p?.id ?? e?.id}>
+                            <tr className={`border-b border-border align-top last:border-0 hover:bg-paper-dim/40 ${picked.has(rowKey) ? "bg-ink-soft/40" : ""}`}>
+                              <td className="px-3 py-2.5">
+                                <input type="checkbox" className="h-4 w-4 cursor-pointer accent-[var(--color-ink)] align-middle" checked={picked.has(rowKey)}
+                                  onChange={() => togglePick(rowKey)} aria-label={t("payroll.select_slip").replace("{name}", name)} />
+                              </td>
+                              <td className="px-3 py-2.5 text-xs text-text-faint tabular-nums">{i + 1}</td>
+                              <td className="px-3 py-2.5">
+                                <p className="font-semibold text-text">{name}</p>
+                                <p className="text-xs text-text-muted">{p?.position ?? e?.position ?? ""}</p>
+                              </td>
+                              <td className="hgv-figure px-3 py-2.5 text-right">{fmt(p?.gross ?? e?.monthly_salary ?? 0)}</td>
+                              <td className="hgv-figure px-3 py-2.5 text-right">{extras ? `+${fmt(extras)}` : "-"}</td>
+                              <td className="hgv-figure px-3 py-2.5 text-right">
+                                {p ? (p.deductions ? `-${fmt(p.deductions)}` : "-") : owed ? <span className="text-text-muted">-{fmt(owed)}</span> : "-"}
+                              </td>
+                              <td className="hgv-figure px-3 py-2.5 text-right font-semibold text-text">{p ? fmt(p.net) : "-"}</td>
+                              <td className="px-3 py-2.5 text-xs">
+                                {marked > 0 && att ? (
+                                  <Link href="/attendance" className="inline-flex flex-wrap gap-x-2 text-text-muted hover:text-ink" title={t("nav.attendance")}>
+                                    <span><b className="text-success">{att.present}</b> {t("att.present")}</span>
+                                    {att.absent > 0 && <span><b className="text-accent-dark">{att.absent}</b> {t("att.absent")}</span>}
+                                    {att.late > 0 && <span><b className="text-warning">{att.late}</b> {t("att.late")}</span>}
+                                    {att.leave > 0 && <span><b className="text-text">{att.leave}</b> {t("att.leave")}</span>}
+                                    {(att.sick ?? 0) > 0 && <span><b className="text-text">{att.sick}</b> {t("att.sick")}</span>}
+                                  </Link>
+                                ) : <span className="text-text-faint">-</span>}
+                              </td>
+                              <td className="px-3 py-2.5">
+                                {p ? (
+                                  <span className="whitespace-nowrap rounded-full bg-success/10 px-2.5 py-1 text-xs font-semibold text-success" title={`${p.paid_on} · ${t(`payroll.method_${p.method}`)}`}>
+                                    {t("payroll.status_paid")}
+                                  </span>
+                                ) : (
+                                  <span className="whitespace-nowrap rounded-full bg-warning/10 px-2.5 py-1 text-xs font-semibold text-warning">{t("payroll.status_due")}</span>
+                                )}
+                              </td>
+                              <td className="px-3 py-2.5">
+                                <div className="flex items-center justify-end gap-1">
+                                  {p ? (<>
+                                    <button onClick={() => printLetters([p])} title={t("payroll.print_letter")}
+                                      className="flex items-center gap-1.5 whitespace-nowrap rounded-press border border-border px-2.5 py-1.5 text-xs font-semibold text-text hover:bg-paper-dim">
+                                      <Printer size={13} /> {t("payroll.print_letter")}
+                                    </button>
+                                    <button onClick={() => undo(p)} title={t("payroll.undo")} aria-label={t("payroll.undo")}
+                                      className="rounded-press p-1.5 text-text-muted hover:bg-paper-dim hover:text-accent-dark"><Undo2 size={15} /></button>
+                                  </>) : e && (<>
+                                    <button onClick={() => { const d = slips.find((x) => x.key === rowKey); if (d) printLetters([d.slip]); }} title={t("payroll.print_draft")}
+                                      className="flex items-center gap-1.5 whitespace-nowrap rounded-press border border-border px-2.5 py-1.5 text-xs font-semibold text-text hover:bg-paper-dim">
+                                      <Printer size={13} /> {t("payroll.print_letter")}
+                                    </button>
+                                    <button onClick={() => setPaying({ employee: e, advances })}
+                                      className="flex items-center gap-1.5 rounded-press bg-ink px-3 py-1.5 text-xs font-semibold text-white hover:bg-ink-dark">
+                                      <Wallet size={13} /> {t("payroll.pay")}
+                                    </button>
+                                  </>)}
+                                  {e?.active && (
+                                    <button onClick={() => setAdvancing({ employee: e, owed })} title={t("payroll.give_advance")} aria-label={t("payroll.give_advance")}
+                                      className="rounded-press p-1.5 text-text-muted hover:bg-paper-dim hover:text-text"><HandCoins size={15} /></button>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                            {/* Advances given and still to deduct, under their person */}
+                            {advances.length > 0 && (
+                              <tr className="border-b border-border">
+                                <td colSpan={10} className="px-3 pb-2.5 pt-0">
+                                  <ul className="ml-8 space-y-1 border-l-2 border-border-strong pl-3">
+                                    {advances.map((a) => (
+                                      <li key={a.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-text-muted">
+                                        <span className="font-semibold text-text">{t("payroll.advance")} · <span className="hgv-figure">{fmt(a.amount)} RWF</span></span>
+                                        <span>{a.given_on} · {t(`payroll.method_${a.method}`)}{a.note ? ` · ${a.note}` : ""}</span>
+                                        <span className="text-text-faint">{t("payroll.advance_to_deduct")}</span>
+                                        <span className="ml-auto flex gap-1">
+                                          <button onClick={() => printAdvance(a)} title={t("payroll.print_receipt")} aria-label={t("payroll.print_receipt")}
+                                            className="rounded-press p-1 text-text-muted hover:bg-paper-dim hover:text-text"><Printer size={13} /></button>
+                                          <button onClick={() => takeBackAdvance(a)} title={t("payroll.remove_advance")} aria-label={t("payroll.remove_advance")}
+                                            className="rounded-press p-1 text-text-muted hover:bg-paper-dim hover:text-accent-dark"><Trash2 size={13} /></button>
+                                        </span>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </td>
+                              </tr>
+                            )}
+                          </Fragment>
+                        );
+                      })}
+                    </tbody>
+                    {/* The month's totals for those paid */}
+                    {paid.length > 0 && (
+                      <tfoot>
+                        <tr className="border-t-2 border-border-strong bg-paper-dim/60 font-semibold text-text">
+                          <td className="px-3 py-2.5" colSpan={3}>{t("payroll.total_paid").replace("{n}", String(paid.length))}</td>
+                          <td className="hgv-figure px-3 py-2.5 text-right">{fmt(paid.reduce((sum, x) => sum + x.gross, 0))}</td>
+                          <td className="hgv-figure px-3 py-2.5 text-right">+{fmt(paid.reduce((sum, x) => sum + (x.bonus || 0) + (x.accommodation || 0) + (x.overtime_amount || 0), 0))}</td>
+                          <td className="hgv-figure px-3 py-2.5 text-right">-{fmt(paid.reduce((sum, x) => sum + x.deductions, 0))}</td>
+                          <td className="hgv-figure px-3 py-2.5 text-right">{fmt(paid.reduce((sum, x) => sum + x.net, 0))}</td>
+                          <td colSpan={3} />
+                        </tr>
+                      </tfoot>
                     )}
-                    </div>
-                  );
-                })}
+                  </table>
+                </div>
               </section>
             )}
           </>
@@ -296,6 +396,15 @@ export default function PayrollPage() {
       {paying && (
         <PayForm employee={paying.employee} advances={paying.advances} period={period} onClose={() => setPaying(null)}
           onPaid={(p) => { setPaying(null); load(); printPrompt(p); }} />
+      )}
+      {payingMany && (
+        <PayManyForm people={payingMany} period={period} onClose={() => setPayingMany(null)}
+          onDone={async (done) => {
+            setPayingMany(null); setPicked(new Set()); load();
+            if (!done.length) return;
+            notify(t("payroll.marked_paid").replace("{n}", String(done.length)), "success");
+            if (await askConfirm({ message: t("payroll.print_now_many").replace("{n}", String(done.length)), confirmLabel: t("payroll.print_all_slips").replace("{n}", String(done.length)) })) printLetters(done);
+          }} />
       )}
       {advancing && (
         <AdvanceForm employee={advancing.employee} owed={advancing.owed} onClose={() => setAdvancing(null)}
@@ -377,6 +486,8 @@ function EmployeeForm({ employee, onClose, onSaved }: { employee: Employee | nul
     full_name: employee?.full_name ?? "", id_number: employee?.id_number ?? "", phone: employee?.phone ?? "",
     position: employee?.position ?? "", monthly_salary: employee ? String(employee.monthly_salary) : "",
     start_date: employee?.start_date ?? "", left_on: employee?.left_on ?? "", notes: employee?.notes ?? "",
+    bank_name: employee?.bank_name ?? "", bank_account: employee?.bank_account ?? "", contract_end: employee?.contract_end ?? "",
+    working_days: String(employee?.working_days ?? 26),
   });
   const [saving, setSaving] = useState(false);
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setF({ ...f, [k]: e.target.value });
@@ -386,6 +497,8 @@ function EmployeeForm({ employee, onClose, onSaved }: { employee: Employee | nul
     const body: EmployeeInput = {
       full_name: f.full_name, id_number: f.id_number || null, phone: f.phone || null, position: f.position || null,
       monthly_salary: Number(f.monthly_salary.replace(/,/g, "")), start_date: f.start_date || null, left_on: f.left_on || null, notes: f.notes || null,
+      bank_name: f.bank_name || null, bank_account: f.bank_account || null, contract_end: f.contract_end || null,
+      working_days: Math.min(31, Math.max(1, Math.round(Number(f.working_days) || 26))),
     };
     try {
       setSaving(true);
@@ -413,6 +526,13 @@ function EmployeeForm({ employee, onClose, onSaved }: { employee: Employee | nul
         <Field label={t("payroll.left_date")} optional><input type="date" className={inputCls} value={f.left_on} onChange={set("left_on")} /></Field>
       </div>
       <p className="text-xs text-text-faint">{t("payroll.left_hint")}</p>
+      {/* For the pay slip */}
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field label={t("payroll.contract_end")} optional><input type="date" className={inputCls} value={f.contract_end} onChange={set("contract_end")} /></Field>
+        <Field label={t("payroll.working_days")}><input className={`${inputCls} tabular-nums`} inputMode="numeric" value={f.working_days} onChange={set("working_days")} placeholder="26" /></Field>
+        <Field label={t("payroll.bank_name")} optional><input className={inputCls} value={f.bank_name} onChange={set("bank_name")} placeholder="Equity, BK, I&M…" /></Field>
+        <Field label={t("payroll.bank_account")} optional><input className={`${inputCls} tabular-nums`} value={f.bank_account} onChange={set("bank_account")} /></Field>
+      </div>
       <Field label={t("payroll.notes")} optional><textarea className={inputCls} rows={2} value={f.notes} onChange={set("notes")} /></Field>
     </Modal>
   );
@@ -423,17 +543,25 @@ function PayForm({ employee, advances, period, onClose, onPaid }: {
 }) {
   const { t, lang } = useLanguage();
   const [gross, setGross] = useState(String(employee.monthly_salary));
+  const [bonus, setBonus] = useState("");
+  const [accommodation, setAccommodation] = useState("");
+  const [otHours, setOtHours] = useState("");
+  const [otAmount, setOtAmount] = useState("");
   const [deductions, setDeductions] = useState("");
   const [note, setNote] = useState("");
   const [paidOn, setPaidOn] = useState(today());
   const [method, setMethod] = useState<PayMethod>("cash");
   const [reference, setReference] = useState("");
   const [saving, setSaving] = useState(false);
-  const g = Number(gross.replace(/,/g, "")) || 0, d = Number(deductions.replace(/,/g, "")) || 0;
+  const num = (v: string) => Number(v.replace(/,/g, "")) || 0;
+  const g = num(gross), d = num(deductions);
+  const extras = { bonus: num(bonus), accommodation: num(accommodation), overtime_hours: num(otHours), overtime_amount: num(otAmount) };
+  // The month's pay before deductions: basic + bonus + accommodation + overtime.
+  const total = g + extras.bonus + extras.accommodation + extras.overtime_amount;
   // Advances given up to the payment date come off this salary (the server does the same).
   const due = advances.filter((a) => a.given_on <= paidOn);
   const advanced = due.reduce((sum, a) => sum + a.amount, 0);
-  const net = g - advanced - d;
+  const net = total - advanced - d;
 
   async function save() {
     if (!(g > 0)) { notify(t("payroll.err_amount")); return; }
@@ -443,7 +571,7 @@ function PayForm({ employee, advances, period, onClose, onPaid }: {
     try {
       setSaving(true);
       onPaid(await recordPayment({
-        employee_id: employee.id, period, gross: g, deductions: d, deduction_note: note.trim() || null,
+        employee_id: employee.id, period, gross: g, ...extras, deductions: d, deduction_note: note.trim() || null,
         paid_on: paidOn, method, reference: reference.trim() || null,
       }));
     } catch (err) { notify(payrollError(err) || t("common.error")); }
@@ -461,7 +589,18 @@ function PayForm({ employee, advances, period, onClose, onPaid }: {
       <div className="grid gap-3 sm:grid-cols-2">
         <Field label={t("payroll.salary_month")}><input className={`${inputCls} tabular-nums`} inputMode="numeric" value={gross} onChange={(e) => setGross(e.target.value)} /></Field>
         <Field label={t(advanced ? "payroll.other_deductions" : "payroll.deductions")} optional><input className={`${inputCls} tabular-nums`} inputMode="numeric" value={deductions} onChange={(e) => setDeductions(e.target.value)} placeholder="0" /></Field>
+        {/* On top of the basic salary (printed on the pay slip) */}
+        <Field label={t("payroll.bonus")} optional><input className={`${inputCls} tabular-nums`} inputMode="numeric" value={bonus} onChange={(e) => setBonus(e.target.value)} placeholder="0" /></Field>
+        <Field label={t("payroll.accommodation")} optional><input className={`${inputCls} tabular-nums`} inputMode="numeric" value={accommodation} onChange={(e) => setAccommodation(e.target.value)} placeholder="0" /></Field>
+        <Field label={t("payroll.overtime_hours")} optional><input className={`${inputCls} tabular-nums`} inputMode="decimal" value={otHours} onChange={(e) => setOtHours(e.target.value)} placeholder="0" /></Field>
+        <Field label={t("payroll.overtime_amount")} optional><input className={`${inputCls} tabular-nums`} inputMode="numeric" value={otAmount} onChange={(e) => setOtAmount(e.target.value)} placeholder="0" /></Field>
       </div>
+      {total !== g && (
+        <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2 text-sm">
+          <span className="text-text-muted">{t("payroll.total_pay")}</span>
+          <span className="hgv-figure font-semibold text-text">{fmt(total)} RWF</span>
+        </div>
+      )}
       {due.length > 0 && (
         <div className="rounded-lg border border-border px-3 py-2">
           <p className="text-xs font-medium text-text-muted">{t("payroll.advances_deducted")}</p>
@@ -498,6 +637,82 @@ function PayForm({ employee, advances, period, onClose, onPaid }: {
         </div>
       </div>
       <p className="text-xs text-text-faint">{t("payroll.expense_hint")}</p>
+    </Modal>
+  );
+}
+
+/** Records the month's salary for several people at once (each as Pay would:
+ *  the full salary, their advances deducted), with one date and method. */
+function PayManyForm({ people, period, onClose, onDone }: {
+  people: { employee: Employee; advances: SalaryAdvance[] }[]; period: string; onClose: () => void; onDone: (paid: SalaryPayment[]) => void;
+}) {
+  const { t, lang } = useLanguage();
+  const [paidOn, setPaidOn] = useState(today());
+  const [method, setMethod] = useState<PayMethod>("bank");
+  const [reference, setReference] = useState("");
+  const [saving, setSaving] = useState<number | null>(null);   // how many are done while saving
+  const lines = people.map(({ employee, advances }) => {
+    const advanced = advances.filter((a) => a.given_on <= paidOn).reduce((sum, a) => sum + a.amount, 0);
+    return { employee, advanced, net: employee.monthly_salary - advanced };
+  });
+  const total = lines.reduce((sum, l) => sum + Math.max(0, l.net), 0);
+
+  async function save() {
+    const done: SalaryPayment[] = [];
+    const failed: string[] = [];
+    setSaving(0);
+    for (const l of lines) {
+      try {
+        done.push(await recordPayment({
+          employee_id: l.employee.id, period, gross: l.employee.monthly_salary, bonus: 0, accommodation: 0, overtime_hours: 0, overtime_amount: 0,
+          deductions: 0, deduction_note: null, paid_on: paidOn, method, reference: reference.trim() || null,
+        }));
+      } catch (err) {
+        failed.push(`${l.employee.full_name}: ${payrollError(err) || t("common.error")}`);
+      }
+      setSaving(done.length + failed.length);
+    }
+    if (failed.length) notify(failed.join("\n"));
+    onDone(done);
+  }
+
+  return (
+    <Modal title={t("payroll.mark_paid").replace("{n}", String(people.length))} subtitle={monthLabel(period, lang)} onClose={saving === null ? onClose : () => {}}
+      footer={<>
+        <button onClick={onClose} disabled={saving !== null} className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-text-muted hover:bg-paper-dim disabled:opacity-50">{t("common.cancel")}</button>
+        <button onClick={save} disabled={saving !== null} className="rounded-lg bg-ink px-5 py-2 text-sm font-semibold text-white hover:bg-ink-dark disabled:opacity-60">
+          {saving !== null ? `${t("common.saving")} ${saving}/${lines.length}` : t("payroll.record_payment")}
+        </button>
+      </>}>
+      <div className="overflow-hidden rounded-lg border border-border">
+        {lines.map((l) => (
+          <div key={l.employee.id} className="flex items-center gap-3 border-b border-border px-3 py-2 text-sm last:border-0">
+            <span className="min-w-0 flex-1 truncate font-semibold text-text">{l.employee.full_name}</span>
+            {l.advanced > 0 && <span className="text-xs text-text-muted">{t("payroll.advance")} -{fmt(l.advanced)}</span>}
+            <span className="hgv-figure font-semibold text-text">{fmt(l.net)} RWF</span>
+          </div>
+        ))}
+      </div>
+      <div className="flex items-center justify-between rounded-lg bg-paper-dim px-3 py-2.5">
+        <span className="text-sm text-text-muted">{t("payroll.net")}</span>
+        <span className="hgv-figure text-lg font-bold text-text">{fmt(total)} RWF</span>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field label={t("payroll.paid_date")}><input type="date" className={inputCls} value={paidOn} max={today()} onChange={(e) => setPaidOn(e.target.value)} /></Field>
+        <Field label={t("payroll.reference")} optional><input className={inputCls} value={reference} onChange={(e) => setReference(e.target.value)} /></Field>
+      </div>
+      <div>
+        <span className="mb-1 block text-xs font-medium text-text-muted">{t("payroll.method")} <span className="text-accent">*</span></span>
+        <div className="flex flex-wrap gap-1.5">
+          {PAY_METHODS.map((m) => (
+            <button key={m} type="button" onClick={() => setMethod(m)} aria-pressed={method === m}
+              className={`rounded-full border px-3 py-1.5 text-sm font-medium transition-colors ${method === m ? "border-ink bg-ink-soft text-ink" : "border-border text-text-muted hover:border-border-strong"}`}>
+              {t(`payroll.method_${m}`)}
+            </button>
+          ))}
+        </div>
+      </div>
+      <p className="text-xs text-text-faint">{t("payroll.mark_paid_hint")}</p>
     </Modal>
   );
 }

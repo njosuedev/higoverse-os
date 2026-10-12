@@ -30,6 +30,21 @@ class BankAccount(BaseModel):
         return v
 
 
+class PrintSettings(BaseModel):
+    """What the printed receipts show, for the whole business."""
+    show_logo:      bool = True
+    show_address:   bool = True
+    show_phone:     bool = True
+    show_qr:        bool = True
+    receipt_footer: str | None = Field(None, max_length=200)
+
+    @field_validator("receipt_footer")
+    @classmethod
+    def tidy_footer(cls, v: str | None) -> str | None:
+        v = " ".join((v or "").split())
+        return v or None
+
+
 class SettingsUpdate(BaseModel):
     shop_name: str | None = None
     phone: str | None = None
@@ -41,6 +56,7 @@ class SettingsUpdate(BaseModel):
     car_types: list[str] | None = None
     car_names: list[str] | None = None
     bank_accounts: list[BankAccount] | None = None
+    print_settings: PrintSettings | None = None
     bank_name: str | None = None
     bank_account: str | None = None
     bank_holder: str | None = None

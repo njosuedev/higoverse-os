@@ -1,6 +1,7 @@
-// Printed payroll papers (A4): the salary confirmation an employee signs on
-// receiving their pay, one per page, and the month's payroll sheet with a
-// signature column. Pure: builds an HTML string for a print window.
+// Printed payroll papers (A4): the pay slip an employee signs on receiving
+// their pay (the business's own layout), one per page; the advance receipt;
+// and the month's payroll sheet with a signature column. Pure: builds an
+// HTML string for a print window.
 
 import type { PrintShop } from "./proforma-print";
 import type { SalaryAdvance, SalaryPayment } from "./payroll-api";
@@ -78,6 +79,31 @@ const STYLE = `
   .sign .line { border-bottom: 1px solid #111; height: 46px; margin-bottom: 6px; }
   .sign b { display: block; margin-bottom: 2px; }
   .foot { margin-top: 18px; padding-top: 8px; border-top: 1px solid #ccc; font-size: 10.5px; color: #666; text-align: center; }
+  .slip { padding: 14mm 14mm 14mm; font-family: "Times New Roman", Times, serif; }
+  .slip-head { display: flex; justify-content: space-between; align-items: flex-start; }
+  .slip-head img { width: 120px; height: 120px; object-fit: contain; }
+  .slip-co { font-size: 11px; line-height: 2; text-align: left; }
+  .slip-title { margin: 6px 0 10px; font-size: 18px; letter-spacing: .5px; text-align: center; text-transform: uppercase; }
+  .slip-who { margin: 0 0 2px; font-size: 12px; }
+  .slip-draft { margin: -4px 0 8px; text-align: center; font-size: 11px; font-weight: 700; letter-spacing: 1px; color: #c00000; text-transform: uppercase; }
+  table.slip-t { width: 100%; border-collapse: collapse; font-size: 11px; }
+  table.slip-t th, table.slip-t td { border: 1px solid #333; padding: 2px 4px; height: 19px; text-align: left; vertical-align: top; font-weight: 400; }
+  table.slip-t th { width: 20%; }
+  table.slip-t td { width: 20%; }
+  table.slip-t tr.hd th { background: #f8cbad; font-weight: 700; }
+  table.slip-t tr.hd th span { font-weight: 700; }
+  table.slip-t th.lb { background: #f8cbad; font-weight: 700; }
+  table.slip-t tr.salary th, table.slip-t tr.salary td { background: #a9d08e; font-weight: 700; }
+  table.slip-t tr.pay th, table.slip-t tr.pay td { background: #ffff00; font-weight: 700; }
+  table.slip-t .red { color: #c00000; }
+  table.slip-t th.red { color: #c00000; }
+  table.slip-t th.blue { color: #2f5597; font-weight: 700; }
+  table.slip-t th:not(.lb):not(.blue):not(.red) { font-weight: 700; }
+  table.slip-t td.num { text-align: left; font-variant-numeric: tabular-nums; }
+  table.slip-t .note { font-size: 9.5px; color: #444; }
+  .slip-signs { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-top: 18px; font-size: 12px; }
+  .slip-signs .line { border-bottom: 1px solid #333; height: 34px; }
+  .slip-signs small { color: #555; }
   table.sheet-t { width: 100%; border-collapse: collapse; margin-top: 16px; font-size: 12px; }
   table.sheet-t th, table.sheet-t td { border: 1px solid #999; padding: 7px 6px; vertical-align: middle; }
   table.sheet-t th { background: #f0f0f0; font-weight: 700; text-align: left; }
@@ -100,55 +126,76 @@ function head(shop: PrintShop): string {
     </header>`;
 }
 
+// Prints once (a frame or window written into can report "loaded" twice:
+// its own blank page, then the papers), then closes a window it is in.
+const PRINT_ONCE = `<script>(function(){var printed=false;function go(){if(printed)return;printed=true;setTimeout(function(){window.print();},300);}
+if(document.readyState==="complete")go();else window.addEventListener("load",go);window.onafterprint=function(){window.close();};})();</script>`;
+
 function page(title: string, body: string, autoPrint: boolean): string {
   return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(title)}</title><style>${STYLE}</style></head>
-<body>${body}${autoPrint ? `<script>window.onload=()=>setTimeout(()=>window.print(),300)</script>` : ""}</body></html>`;
+<body>${body}${autoPrint ? PRINT_ONCE : ""}</body></html>`;
 }
 
-/** One confirmation per payment, each on its own A4 page. */
+/** One pay slip per payment, each on its own A4 page, as the business's
+ *  own paper looks: the letterhead, "PAY SLIP", the employee, then the
+ *  contract, month, day wage and working days; basic salary, bonus,
+ *  accommodation and the salary; lateness, personal and sick leave (days,
+ *  from Attendance); overtime; what was deducted; and the line paid to the
+ *  employee's bank. "Approved by" and the employee's signature underneath. */
 export function salaryLettersHtml(payments: SalaryPayment[], shop: PrintShop, t: T, lang: string, opts: { autoPrint?: boolean } = {}): string {
+  const short = (iso: string | null) => (iso ? iso.replaceAll("-", "/") : "…");
+  const days = (n: number) => (n ? `${n} ${esc(t(n === 1 ? "slip.day" : "slip.days"))}` : "");
   const sheets = payments.map((p) => {
     const month = monthLabel(p.period, lang);
-    const who = p.employee_id_number ? `${esc(p.employee_name)}, ${esc(fill(t("letter.id_no"), { id: p.employee_id_number }))}` : esc(p.employee_name);
-    const words = lang === "en" ? `${numberToWords(p.net)} Rwandan francs` : "";
+    const wd = p.working_days || 26;
+    const earned = p.gross + (p.bonus || 0) + (p.accommodation || 0) + (p.overtime_amount || 0);
+    // Not paid yet (for approval): how it will be paid isn't known unless there's a bank account.
+    const payTo = p.bank_name ? fill(t("slip.pay_to_bank"), { bank: p.bank_name })
+      : p.draft ? t("payroll.status_due") : fill(t("slip.pay_by"), { method: t(`payroll.method_${p.method}`) });
+    const amt = (n: number) => (n ? `${money(n)} RWF` : "");
     return `
-  <section class="sheet">
-    ${head(shop)}
-    <div class="meta">
-      <span>${esc(t("letter.ref"))}: ${esc(`PAY-${p.period}-${p.id.slice(0, 6).toUpperCase()}`)}</span>
-      <span>${esc(dayLabel(p.paid_on, lang))}</span>
-    </div>
-    <h1>${esc(t("letter.title"))}</h1>
-    <div class="body">${fill(esc(t("letter.body")), {
-      who: `<b>${who}</b>`,
-      position: esc(p.position || t("letter.employee")),
-      company: `<b>${esc(shop.name)}</b>`,
-      month: `<b>${esc(month)}</b>`,
-    })}</div>
-    <table class="fig">
-      <tr><th>${esc(t("letter.gross"))}</th><td class="num">${money(p.gross)} RWF</td></tr>
-      ${p.deductions > 0 ? `<tr><th>${esc(t("letter.deductions"))}${p.deduction_note ? ` (${esc(p.deduction_note)})` : ""}</th><td class="num">- ${money(p.deductions)} RWF</td></tr>` : ""}
-      <tr class="net"><th>${esc(t("letter.net"))}</th><td class="num">${money(p.net)} RWF</td></tr>
-      ${words ? `<tr><th>${esc(t("letter.in_words"))}</th><td class="words">${esc(words.charAt(0).toUpperCase() + words.slice(1))}</td></tr>` : ""}
-      <tr><th>${esc(t("letter.method"))}</th><td>${esc(t(`payroll.method_${p.method}`))}${p.reference ? ` · ${esc(t("letter.reference"))} ${esc(p.reference)}` : ""}</td></tr>
-      <tr><th>${esc(t("letter.paid_on"))}</th><td>${esc(dayLabel(p.paid_on, lang))}</td></tr>
+  <section class="sheet slip">
+    <header class="slip-head">
+      ${shop.logo_url ? `<img src="${esc(shop.logo_url)}" alt="">` : "<span></span>"}
+      <div class="slip-co">
+        <div>${esc(shop.name.toUpperCase())}</div>
+        ${shop.tin ? `<div>TIN: ${esc(shop.tin)}</div>` : ""}
+        ${shop.phone ? `<div>Tel: ${esc(shop.phone)}</div>` : ""}
+        ${shop.email ? `<div>EMAIL: ${esc(shop.email)}</div>` : ""}
+        ${shop.address ? `<div>${esc(shop.address.toUpperCase())}</div>` : ""}
+      </div>
+    </header>
+    <h1 class="slip-title">${esc(t("slip.title"))}</h1>
+    ${p.draft ? `<p class="slip-draft">${esc(t("slip.draft"))}</p>` : ""}
+    <p class="slip-who"><b>${esc(t("slip.employee"))}: ${esc(p.employee_name.toUpperCase())}</b>${p.position ? ` · ${esc(p.position)}` : ""}</p>
+    <table class="slip-t">
+      <tr class="hd">
+        <th>${esc(t("slip.contract"))}<br><span>${esc(short(p.contract_start))} - ${esc(short(p.contract_end))}</span></th>
+        <th>${esc(fill(t("slip.month"), { month }))}<br><span>${p.draft ? "" : esc(short(p.paid_on))}</span></th>
+        <th>${esc(t("slip.day_wage"))}</th>
+        <th>${esc(t("slip.working_days"))}</th>
+        <th></th>
+      </tr>
+      <tr><th class="lb">${esc(t("slip.basic"))}</th><td>${money(p.gross)} RWF</td><td>${money(Math.floor(p.gross / wd))} RWF</td><td>${wd}</td><td class="num">${money(p.gross)} RWF</td></tr>
+      <tr><th class="lb">${esc(t("slip.bonus"))}</th><td>${amt(p.bonus)}</td><td></td><td></td><td class="num">${amt(p.bonus)}</td></tr>
+      <tr><th class="lb">${esc(t("slip.accommodation"))}</th><td>${amt(p.accommodation)}</td><td></td><td></td><td class="num">${amt(p.accommodation)}</td></tr>
+      <tr class="salary"><th>${esc(t("slip.salary"))}</th><td>${money(earned)} RWF</td><td></td><td></td><td class="num">${money(earned)} RWF</td></tr>
+      <tr><th class="lb red">${esc(t("slip.lateness"))}</th><td>${days(p.late_days)}</td><td></td><td></td><td></td></tr>
+      <tr><th class="lb red">${esc(t("slip.personal_leave"))}</th><td>${days(p.leave_days)}</td><td></td><td></td><td></td></tr>
+      <tr><th class="lb red">${esc(t("slip.sick_leave"))}</th><td>${days(p.sick_days)}</td><td></td><td></td><td></td></tr>
+      <tr><th class="lb"></th><td></td><td></td><td></td><td></td></tr>
+      <tr><th class="blue">${esc(t("slip.overtime"))}</th><td>${p.overtime_hours || 0}</td><td></td><td></td><td class="num">${amt(p.overtime_amount)}</td></tr>
+      <tr><th></th><td></td><td></td><td></td><td></td></tr>
+      <tr><th>${esc(t("slip.deduct"))}</th><td>${p.deductions ? `${money(p.deductions)} RWF` : ""}${p.deduction_note ? `<div class="note">${esc(p.deduction_note)}</div>` : ""}</td><td></td><td></td><td class="num">${p.deductions ? `- ${money(p.deductions)} RWF` : ""}</td></tr>
+      <tr class="pay"><th>${esc(payTo)}</th><td class="red">${p.bank_account ? `${esc(p.bank_account)}<br>` : ""}${esc(p.employee_name.toUpperCase())}${!p.bank_account && p.reference ? `<br>${esc(t("letter.reference"))} ${esc(p.reference)}` : ""}</td><td></td><td></td><td class="num red">${money(p.net)}RWF</td></tr>
     </table>
-    <div class="signs">
-      <div class="sign">
-        <div class="line"></div>
-        <b>${esc(t("letter.employee_sign"))}</b>
-        ${esc(p.employee_name)}
-      </div>
-      <div class="sign">
-        <div class="line"></div>
-        <b>${esc(fill(t("letter.employer_sign"), { company: shop.name }))}</b>
-        ${p.paid_by_name ? esc(fill(t("letter.paid_by"), { name: p.paid_by_name })) : ""}
-      </div>
+    <div class="slip-signs">
+      <div><span>${esc(t("slip.approved_by"))}</span><div class="line"></div>${p.paid_by_name ? `<small>${esc(p.paid_by_name)}</small>` : ""}</div>
+      <div><span>${esc(t("slip.employee_sign"))}</span><div class="line"></div></div>
     </div>
-    <div class="foot">${esc(t("letter.footer"))}</div>
   </section>`;
   });
-  return page(payments.length === 1 ? `${t("letter.title")} - ${payments[0].employee_name}` : t("letter.title"), sheets.join(""), !!opts.autoPrint);
+  return page(payments.length === 1 ? `${t("slip.title")} - ${payments[0].employee_name}` : t("slip.title"), sheets.join(""), !!opts.autoPrint);
 }
 
 /** The receipt an employee signs on receiving a salary advance. */
@@ -196,13 +243,15 @@ export function advanceReceiptHtml(a: SalaryAdvance, shop: PrintShop, t: T, lang
 /** The month's payroll sheet: everyone paid, with a column to sign. */
 export function payrollSheetHtml(period: string, payments: SalaryPayment[], shop: PrintShop, t: T, lang: string, opts: { autoPrint?: boolean } = {}): string {
   const month = monthLabel(period, lang);
-  const total = (k: "gross" | "deductions" | "net") => payments.reduce((s, p) => s + p[k], 0);
+  // Gross: the whole month's pay (basic + bonus + accommodation + overtime), so gross - deductions = net.
+  const earned = (p: SalaryPayment) => p.gross + (p.bonus || 0) + (p.accommodation || 0) + (p.overtime_amount || 0);
+  const total = (k: "gross" | "deductions" | "net") => payments.reduce((s, p) => s + (k === "gross" ? earned(p) : p[k]), 0);
   const rows = payments.map((p, i) => `
       <tr>
         <td>${i + 1}</td>
         <td><b>${esc(p.employee_name)}</b>${p.position ? `<br><span style="color:#555">${esc(p.position)}</span>` : ""}</td>
         <td>${esc(p.employee_id_number || "")}</td>
-        <td class="num">${money(p.gross)}</td>
+        <td class="num">${money(earned(p))}</td>
         <td class="num">${p.deductions > 0 ? money(p.deductions) : ""}</td>
         <td class="num"><b>${money(p.net)}</b></td>
         <td class="sig"></td>

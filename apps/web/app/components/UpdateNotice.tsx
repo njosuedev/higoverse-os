@@ -88,7 +88,7 @@ export default function UpdateNotice() {
 
   if (!newer) return null;
   return (
-    <div role="status" className="fixed inset-x-0 bottom-[calc(1rem+var(--hgv-tabbar,0px))] z-[200] flex justify-center px-4">
+    <div role="status" className="hgv-no-print fixed inset-x-0 bottom-[calc(1rem+var(--hgv-tabbar,0px))] z-[200] flex justify-center px-4">
       <div className="flex items-center gap-3 rounded-full border border-border bg-white py-1.5 pl-4 pr-1.5 text-sm text-text shadow-[0_12px_32px_-10px_rgb(0_0_0_/_0.35)]">
         <span>{t("update.available")}</span>
         <button onClick={() => window.location.reload()}

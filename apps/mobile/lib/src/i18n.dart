@@ -80,6 +80,7 @@ const _weekdays = {
 const Map<String, Map<String, String>> _dict = {
   // ─── ENGLISH ─────────────────────────────────────────────
   'en': {
+    'receipt.not_ours': 'This receipt isn\'t from your business, or it isn\'t a Higoverse receipt.',
     'app.edit': 'Edit',
     'app.delete': 'Delete',
     'exp.edit': 'Edit expense',
@@ -776,6 +777,7 @@ const Map<String, Map<String, String>> _dict = {
 
   // ─── KINYARWANDA ─────────────────────────────────────────
   'rw': {
+    'receipt.not_ours': 'Iyi fagitire ntabwo ari iy\'ubucuruzi bwawe, cyangwa si fagitire ya Higoverse.',
     'app.edit': 'Hindura',
     'app.delete': 'Siba',
     'exp.edit': 'Hindura ikiguzi',
@@ -1472,6 +1474,7 @@ const Map<String, Map<String, String>> _dict = {
 
   // ─── FRANÇAIS ────────────────────────────────────────────
   'fr': {
+    'receipt.not_ours': 'Ce reçu n\'est pas de votre entreprise, ou ce n\'est pas un reçu Higoverse.',
     'app.edit': 'Modifier',
     'app.delete': 'Supprimer',
     'exp.edit': 'Modifier la dépense',
@@ -2168,6 +2171,7 @@ const Map<String, Map<String, String>> _dict = {
 
   // ─── KISWAHILI ───────────────────────────────────────────
   'sw': {
+    'receipt.not_ours': 'Risiti hii si ya biashara yako, au si risiti ya Higoverse.',
     'app.edit': 'Hariri',
     'app.delete': 'Futa',
     'exp.edit': 'Hariri gharama',
@@ -2864,6 +2868,7 @@ const Map<String, Map<String, String>> _dict = {
 
   // ─── 中文 ────────────────────────────────────────────────
   'zh': {
+    'receipt.not_ours': '此收据不属于您的企业，或不是 Higoverse 收据。',
     'app.edit': '编辑',
     'app.delete': '删除',
     'exp.edit': '编辑支出',

@@ -60,6 +60,23 @@ def on_startup():
                 "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS bank_name TEXT",
                 "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS bank_account TEXT",
                 "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS receiver_phone TEXT",
+                # Pay slip details
+                "ALTER TABLE payroll_employees ADD COLUMN IF NOT EXISTS bank_name VARCHAR(100)",
+                "ALTER TABLE payroll_employees ADD COLUMN IF NOT EXISTS bank_account VARCHAR(60)",
+                "ALTER TABLE payroll_employees ADD COLUMN IF NOT EXISTS contract_end DATE",
+                "ALTER TABLE payroll_employees ADD COLUMN IF NOT EXISTS working_days INTEGER DEFAULT 26",
+                "ALTER TABLE payroll_payments ADD COLUMN IF NOT EXISTS bonus NUMERIC(12,2) NOT NULL DEFAULT 0",
+                "ALTER TABLE payroll_payments ADD COLUMN IF NOT EXISTS accommodation NUMERIC(12,2) NOT NULL DEFAULT 0",
+                "ALTER TABLE payroll_payments ADD COLUMN IF NOT EXISTS overtime_hours NUMERIC(6,2) NOT NULL DEFAULT 0",
+                "ALTER TABLE payroll_payments ADD COLUMN IF NOT EXISTS overtime_amount NUMERIC(12,2) NOT NULL DEFAULT 0",
+                "ALTER TABLE payroll_payments ADD COLUMN IF NOT EXISTS bank_name VARCHAR(100)",
+                "ALTER TABLE payroll_payments ADD COLUMN IF NOT EXISTS bank_account VARCHAR(60)",
+                "ALTER TABLE payroll_payments ADD COLUMN IF NOT EXISTS contract_start DATE",
+                "ALTER TABLE payroll_payments ADD COLUMN IF NOT EXISTS contract_end DATE",
+                "ALTER TABLE payroll_payments ADD COLUMN IF NOT EXISTS working_days INTEGER",
+                "ALTER TABLE payroll_payments ADD COLUMN IF NOT EXISTS late_days INTEGER NOT NULL DEFAULT 0",
+                "ALTER TABLE payroll_payments ADD COLUMN IF NOT EXISTS leave_days INTEGER NOT NULL DEFAULT 0",
+                "ALTER TABLE payroll_payments ADD COLUMN IF NOT EXISTS sick_days INTEGER NOT NULL DEFAULT 0",
             ]:
                 conn.execute(text(col_sql))
             conn.commit()

@@ -62,6 +62,16 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
   const chat = useChat();
   const unread = unreadTotal(chat);
   const liveSheet = useLiveSheet();
+  // Printing the page itself (Reports): always on white, whatever the theme.
+  useEffect(() => {
+    const root = document.documentElement;
+    let was: string | undefined;
+    const before = () => { was = root.dataset.theme; root.dataset.theme = "light"; };
+    const after = () => { if (was) root.dataset.theme = was; };
+    window.addEventListener("beforeprint", before);
+    window.addEventListener("afterprint", after);
+    return () => { window.removeEventListener("beforeprint", before); window.removeEventListener("afterprint", after); };
+  }, []);
   // Messages: keys, team and live unread counts once signed in to a business.
   useEffect(() => { if (ready && user?.shop_id) void startChat(); }, [ready, user?.shop_id]);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -122,9 +132,9 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
   return (
     <>
       {/* Room for the bar below, the phone's notch / status bar included. */}
-      <div className="h-[calc(52px+env(safe-area-inset-top))]" />
+      <div className="hgv-no-print h-[calc(52px+env(safe-area-inset-top))]" />
 
-      <header className="fixed top-0 left-0 right-0 z-50 flex h-[calc(52px+env(safe-area-inset-top))] items-center justify-between border-b border-border bg-paper pt-[env(safe-area-inset-top)] pl-[max(0.75rem,env(safe-area-inset-left))] pr-[max(0.75rem,env(safe-area-inset-right))] sm:pl-[max(1rem,env(safe-area-inset-left))] sm:pr-[max(1rem,env(safe-area-inset-right))]">
+      <header className="hgv-no-print fixed top-0 left-0 right-0 z-50 flex h-[calc(52px+env(safe-area-inset-top))] items-center justify-between border-b border-border bg-paper pt-[env(safe-area-inset-top)] pl-[max(0.75rem,env(safe-area-inset-left))] pr-[max(0.75rem,env(safe-area-inset-right))] sm:pl-[max(1rem,env(safe-area-inset-left))] sm:pr-[max(1rem,env(safe-area-inset-right))]">
 
         {/* ── LEFT: Logo (on phones the menu opens from the bottom bar) ── */}
         <div className="flex items-center gap-1">

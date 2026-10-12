@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import { settingsRequest } from "@/lib/settings-api";
 import { useAuth } from "@/lib/auth-context";
+import { PRINT_DEFAULTS, printSettingsFrom, type PrintSettings } from "@/lib/print-settings";
 
 /** The shop's Settings page values, loaded once and shared app-wide. */
 export interface ShopSettings {
@@ -14,9 +15,11 @@ export interface ShopSettings {
   carTypes: string[];
   /** The car names staff pick from when adding a vehicle (Settings → Car names). */
   carNames: string[];
+  /** What printed receipts show (Settings → Printing). */
+  print: PrintSettings;
 }
 
-const DEFAULTS: ShopSettings = { currency: "RWF", lowStock: 10, taxRate: 0, carTypes: [], carNames: [] };
+const DEFAULTS: ShopSettings = { currency: "RWF", lowStock: 10, taxRate: 0, carTypes: [], carNames: [], print: PRINT_DEFAULTS };
 
 interface Ctx extends ShopSettings {
   loaded: boolean;
@@ -46,6 +49,7 @@ export function ShopSettingsProvider({ children }: { children: ReactNode }) {
           taxRate:  Number(d.tax_rate) || 0,
           carTypes: Array.isArray(d.car_types) ? d.car_types : [],
           carNames: Array.isArray(d.car_names) ? d.car_names : [],
+          print:    printSettingsFrom(d.print_settings),
         });
       })
       .catch(() => {})

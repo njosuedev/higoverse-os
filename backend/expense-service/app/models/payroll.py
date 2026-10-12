@@ -1,5 +1,5 @@
 import uuid
-from sqlalchemy import Boolean, Column, Date, DateTime, Numeric, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, Column, Date, DateTime, Integer, Numeric, String, Text, UniqueConstraint
 from sqlalchemy.sql import func
 from app.db.database import Base
 
@@ -21,6 +21,12 @@ class Employee(Base):
     # Left the business: kept for the history, not paid after this day.
     left_on        = Column(Date, nullable=True)
     notes          = Column(Text, nullable=True)
+    # For the pay slip: where the salary goes, the contract's end, and the
+    # working days in a month (the day wage is the salary divided by them).
+    bank_name      = Column(String(100), nullable=True)
+    bank_account   = Column(String(60), nullable=True)
+    contract_end   = Column(Date, nullable=True)
+    working_days   = Column(Integer, nullable=True, default=26)
 
     created_by     = Column(String, nullable=True)
     created_at     = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
@@ -46,10 +52,26 @@ class SalaryPayment(Base):
     employee_id_number = Column(String(40), nullable=True)
     position         = Column(String(100), nullable=True)
 
-    gross            = Column(Numeric(12, 2), nullable=False)    # the month's salary
+    gross            = Column(Numeric(12, 2), nullable=False)    # the month's basic salary
+    # Added to the basic salary (pay slip): bonus, accommodation, overtime.
+    bonus            = Column(Numeric(12, 2), nullable=False, default=0)
+    accommodation    = Column(Numeric(12, 2), nullable=False, default=0)
+    overtime_hours   = Column(Numeric(6, 2), nullable=False, default=0)
+    overtime_amount  = Column(Numeric(12, 2), nullable=False, default=0)
     deductions       = Column(Numeric(12, 2), nullable=False, default=0)
     deduction_note   = Column(String(255), nullable=True)        # e.g. "advance 20 Oct"
     net              = Column(Numeric(12, 2), nullable=False)    # what the employee received
+
+    # As they were when paid, so the printed pay slip stays true: the bank
+    # account, the contract, working days, and the month's attendance.
+    bank_name        = Column(String(100), nullable=True)
+    bank_account     = Column(String(60), nullable=True)
+    contract_start   = Column(Date, nullable=True)
+    contract_end     = Column(Date, nullable=True)
+    working_days     = Column(Integer, nullable=True)
+    late_days        = Column(Integer, nullable=False, default=0)
+    leave_days       = Column(Integer, nullable=False, default=0)
+    sick_days        = Column(Integer, nullable=False, default=0)
 
     paid_on          = Column(Date, nullable=False)
     method           = Column(String(20), nullable=False)        # cash | mtn | airtel | bank
@@ -100,7 +122,7 @@ class Attendance(Base):
     shop_id     = Column(String, index=True, nullable=False)
     employee_id = Column(String, index=True, nullable=False)
     day         = Column(Date, index=True, nullable=False)
-    status      = Column(String(10), nullable=False)          # present | absent | late | leave
+    status      = Column(String(10), nullable=False)          # present | absent | late | leave | sick
     note        = Column(String(255), nullable=True)
 
     marked_by      = Column(String, nullable=True)

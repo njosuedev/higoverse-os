@@ -72,7 +72,8 @@ export default function GlobalSearch() {
   useEffect(() => {
     const desktop = "higoverseDesktop" in window;
     const onKey = (e: KeyboardEvent) => {
-      const k = e.key.toLowerCase();
+      // Autofill (a saved email or password picked) sends key events without a key.
+      const k = (e.key ?? "").toLowerCase();
       if ((e.ctrlKey || e.metaKey) && (k === "k" || (desktop && k === "f"))) { e.preventDefault(); setOpen(true); }
     };
     const onOpen = () => setOpen(true);

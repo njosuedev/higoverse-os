@@ -1659,7 +1659,7 @@ export default function AdminPage() {
                   onClick={() => setShopNeedsAccount((v) => !v)}
                   className="relative w-8 h-[18px] rounded-full transition-colors shrink-0"
                   style={{ background: shopNeedsAccount ? LI_BLUE : "#d1d5db" }}>
-                  <span className={`absolute top-0.5 w-3.5 h-3.5 rounded-full bg-white shadow transition-transform ${shopNeedsAccount ? "translate-x-4" : "translate-x-0.5"}`} />
+                  <span style={{ backgroundColor: "#fff" }} className={`absolute top-0.5 w-3.5 h-3.5 rounded-full shadow transition-transform ${shopNeedsAccount ? "translate-x-4" : "translate-x-0.5"}`} />
                 </button>
               </label>
 

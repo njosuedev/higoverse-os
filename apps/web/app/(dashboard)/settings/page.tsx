@@ -8,16 +8,20 @@ import { changePassword } from "@/lib/auth-api";
 import { useLanguage } from "@/lib/language-context";
 import { useShop } from "@/lib/shop-context";
 import { type Lang } from "@/lib/i18n";
-import { parseShopAddress, decodeShopHumanInfo } from "@/lib/product-meta";
+import { parseShopAddress, decodeShopHumanInfo, formatPublicAddress } from "@/lib/product-meta";
 import { cleanTin, normalizePhone, phoneError, prettyPhone, shopTin, splitAddress, tinError, bankErrors, RWANDA_BANKS, type BankAccount } from "@/lib/company";
 import { useAuth } from "@/lib/auth-context";
 import { playChime, setSoundOn, useSoundOn } from "@/lib/notifications";
 import { CAR_TYPES, carTypeLabel } from "@/lib/business-layout";
 import { useShopSettings } from "@/lib/shop-settings-context";
 import { compressImage } from "@/lib/image";
+import { printSettingsBody, printSettingsFrom, setReceiptPaper, useReceiptPaper, type PrintSettings, type ReceiptPaper } from "@/lib/print-settings";
+import { receiptHtml, receiptQr, type ReceiptData } from "@/lib/receipt-print";
+import { printHtml } from "@/lib/print-frame";
 import PageSkeleton from "@/app/components/dashboard/PageSkeleton";
 import {
   Save, Store, Phone, MapPin, DollarSign, AlertCircle, FileText, Lock, Eye, EyeOff, CheckCircle2, ChevronDown, Globe, BarChart, ShieldCheck, Pencil, ImagePlus, X, Loader2, Target, Car, Plus, Settings, RefreshCw, Landmark, BellRing, BellOff, Volume2,
+  Printer,
 } from "lucide-react";
 
 const HigoMapPicker = dynamic(() => import("@/app/components/ui/HigoMapPicker"), { ssr: false });
@@ -900,6 +904,9 @@ export default function SettingsPage() {
         {/* ── NOTIFICATIONS (this device) ─────────── */}
         <NotificationsCard />
 
+        {/* ── PRINTING ─────────────────────────── */}
+        <PrintingCard />
+
         {/* ── LANGUAGE ─────────────────────────── */}
         <Section
           icon={<Globe size={15} />}
@@ -1183,7 +1190,8 @@ function NotificationsCard() {
           <button type="button" role="switch" aria-checked={sound} aria-label={t("notif.sound_label")}
             onClick={() => setSoundOn(!sound)}
             className={`relative w-11 h-6 rounded-full transition-colors shrink-0 ${sound ? "bg-[#0a66c2]" : "bg-slate-300"}`}>
-            <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${sound ? "translate-x-5" : "translate-x-0.5"}`} />
+            {/* The knob stays white in dark mode too. */}
+            <span style={{ backgroundColor: "#fff" }} className={`absolute top-0.5 w-5 h-5 rounded-full shadow transition-transform ${sound ? "translate-x-5" : "translate-x-0.5"}`} />
           </button>
         </div>
         <div className="flex items-center gap-4 px-5 py-4">
@@ -1251,6 +1259,113 @@ function PasswordStrength({ pw }: { pw: string }) {
         ))}
       </div>
       <p className={`text-[11px] font-medium ${textColor}`}>{label} {t("settings.password_label")}</p>
+    </div>
+  );
+}
+
+/** Settings → Printing: the paper this device prints receipts on, and what
+ *  every receipt shows (the business's choice: owner, admin or manager),
+ *  with a test receipt to see the result. */
+function PrintingCard() {
+  const { t, lang } = useLanguage();
+  const { user } = useAuth();
+  const { shop } = useShop();
+  const { currency, print, apply, loaded } = useShopSettings();
+  const paper = useReceiptPaper();
+  const canEdit = ["owner", "admin", "manager"].includes(user?.role ?? "");
+  const [form, setForm] = useState<PrintSettings>(print);
+  const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  // Start from what's saved once it has loaded.
+  const [synced, setSynced] = useState(false);
+  if (loaded && !synced) { setSynced(true); setForm(print); }
+  const dirty = JSON.stringify(form) !== JSON.stringify(print);
+
+  async function save() {
+    setStatus("saving");
+    try {
+      const res = await settingsRequest("/settings", { method: "PUT", body: JSON.stringify({ print_settings: printSettingsBody(form) }) });
+      const saved = res?.data?.print_settings;
+      apply({ print: saved ? printSettingsFrom(saved) : form });
+      setStatus("saved");
+    } catch {
+      setStatus("error");
+    }
+  }
+
+  async function testPrint() {
+    const sample: ReceiptData = {
+      shop: { name: shop?.name || "Higoverse", address: formatPublicAddress(shop?.address), phone: shop?.phone, logoUrl: shop?.logo_url },
+      receiptNo: "TEST-0001", date: new Date().toLocaleString([], { dateStyle: "medium", timeStyle: "short" }), customer: null, currency,
+      lines: [
+        { name: t("print.sample_item_1"), quantity: 2, unitPrice: 2500, total: 5000 },
+        { name: t("print.sample_item_2"), quantity: 1, unitPrice: 12000, total: 12000 },
+      ],
+      payment: t("sales.pm_cash"), paid: 20000, change: 3000,
+    };
+    // A sample code: real receipts carry each sale's signed code.
+    if (form.showQr) sample.qrSvg = await receiptQr("HGV1.R.TEST.0000000000");
+    printHtml(receiptHtml(sample, t, lang, paper, form, { autoPrint: true }));
+  }
+
+  const toggle = (k: "showLogo" | "showAddress" | "showPhone" | "showQr", label: string) => (
+    <div className="flex items-center gap-4 px-5 py-3.5">
+      <p className="flex-1 text-sm font-medium text-slate-800">{label}</p>
+      <button type="button" role="switch" aria-checked={form[k]} aria-label={label} disabled={!canEdit}
+        onClick={() => { setForm({ ...form, [k]: !form[k] }); setStatus("idle"); }}
+        className={`relative h-6 w-11 shrink-0 rounded-full transition-colors disabled:opacity-50 ${form[k] ? "bg-[#0a66c2]" : "bg-slate-300"}`}>
+        <span style={{ backgroundColor: "#fff" }} className={`absolute top-0.5 h-5 w-5 rounded-full shadow transition-transform ${form[k] ? "translate-x-5" : "translate-x-0.5"}`} />
+      </button>
+    </div>
+  );
+
+  return (
+    <div className={`bg-white rounded-xl border transition-all ${dirty ? "border-amber-300 ring-1 ring-amber-200" : "border-slate-200"}`}>
+      <div className="flex flex-wrap items-center gap-2.5 px-5 py-4 border-b border-slate-100">
+        <div className="w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center text-slate-500"><Printer size={15} /></div>
+        <h2 className="mr-auto text-sm font-semibold text-slate-700">{t("print.title")}</h2>
+        {status === "saved" && !dirty && <span className="flex items-center gap-1 text-[11px] font-medium text-green-600"><CheckCircle2 size={12} /> {t("settings.saved_status")}</span>}
+        {status === "error" && <span className="text-[11px] font-medium text-red-600">{t("common.error")}</span>}
+        <button type="button" onClick={testPrint}
+          className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50">
+          <Printer size={13} /> {t("print.test")}
+        </button>
+        {canEdit && (
+          <button type="button" onClick={save} disabled={!dirty || status === "saving"}
+            className="rounded-lg bg-[#0a66c2] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#004182] disabled:opacity-40">
+            {status === "saving" ? t("common.saving") : t("settings.save")}
+          </button>
+        )}
+      </div>
+      <div className="divide-y divide-slate-100">
+        {/* This device */}
+        <div className="flex flex-wrap items-center gap-4 px-5 py-4">
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-medium text-slate-800">{t("print.paper")} <span className="text-[11px] font-normal text-slate-400">· {t("notif.this_device")}</span></p>
+            <p className="mt-0.5 text-xs text-slate-500">{t("print.paper_hint")}</p>
+          </div>
+          <div role="radiogroup" aria-label={t("print.paper")} className="flex overflow-hidden rounded-lg border border-slate-200">
+            {(["80", "58", "a4"] as ReceiptPaper[]).map((v, i) => (
+              <button key={v} type="button" role="radio" aria-checked={paper === v} onClick={() => setReceiptPaper(v)}
+                className={`px-3 py-1.5 text-xs font-semibold ${i > 0 ? "border-l border-slate-200" : ""} ${paper === v ? "bg-[#0a66c2] text-white" : "text-slate-600 hover:bg-slate-50"}`}>
+                {t(`print.paper_${v}`)}
+              </button>
+            ))}
+          </div>
+        </div>
+        {/* The whole business */}
+        {!canEdit && <p className="px-5 py-2.5 text-xs text-slate-500">{t("print.owner_only")}</p>}
+        {toggle("showLogo", t("print.show_logo"))}
+        {toggle("showAddress", t("print.show_address"))}
+        {toggle("showPhone", t("print.show_phone"))}
+        {toggle("showQr", t("print.show_qr"))}
+        <div className="px-5 py-4">
+          <label className="text-sm font-medium text-slate-800" htmlFor="receipt-footer">{t("print.footer")}</label>
+          <input id="receipt-footer" maxLength={200} disabled={!canEdit} value={form.receiptFooter}
+            onChange={(e) => { setForm({ ...form, receiptFooter: e.target.value }); setStatus("idle"); }}
+            placeholder={t("sales.thank_you")}
+            className="mt-1.5 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-[#0a66c2] disabled:opacity-60" />
+        </div>
+      </div>
     </div>
   );
 }

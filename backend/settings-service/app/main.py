@@ -60,7 +60,8 @@ def on_startup():
         with engine.begin() as conn:
             conn.execute(text("ALTER TABLE shop_settings ADD COLUMN IF NOT EXISTS car_types TEXT"))
             conn.execute(text("ALTER TABLE shop_settings ADD COLUMN IF NOT EXISTS car_names TEXT"))
-            for col, kind in (("bank_name", "VARCHAR(100)"), ("bank_account", "VARCHAR(50)"), ("bank_holder", "VARCHAR(150)"), ("bank_accounts", "TEXT")):
+            for col, kind in (("bank_name", "VARCHAR(100)"), ("bank_account", "VARCHAR(50)"), ("bank_holder", "VARCHAR(150)"), ("bank_accounts", "TEXT"),
+                              ("print_settings", "TEXT")):
                 conn.execute(text(f"ALTER TABLE shop_settings ADD COLUMN IF NOT EXISTS {col} {kind}"))
     except Exception:
         pass

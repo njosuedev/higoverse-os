@@ -38,6 +38,18 @@ def _bank_accounts(s: ShopSettings) -> list[dict]:
     return []
 
 
+PRINT_EDITORS = {"owner", "admin", "manager"}
+PRINT_DEFAULTS = {"show_logo": True, "show_address": True, "show_phone": True, "show_qr": True, "receipt_footer": None}
+
+
+def _print_settings(s: ShopSettings) -> dict:
+    try:
+        v = json.loads(s.print_settings) if s.print_settings else {}
+    except ValueError:
+        v = {}
+    return {**PRINT_DEFAULTS, **{k: v[k] for k in PRINT_DEFAULTS if isinstance(v, dict) and k in v}}
+
+
 def _fmt(s: ShopSettings) -> dict:
     return {
         "id": s.id,
@@ -55,6 +67,7 @@ def _fmt(s: ShopSettings) -> dict:
         "bank_name": s.bank_name or "",
         "bank_account": s.bank_account or "",
         "bank_holder": s.bank_holder or "",
+        "print_settings": _print_settings(s),
         "updated_at": s.updated_at.isoformat() if s.updated_at else None,
     }
 
@@ -111,8 +124,14 @@ def update_settings(
     if any(k in changes and changes[k] != current[k] for k in BANK_FIELDS) and user.get("role") not in BANK_EDITORS:
         raise HTTPException(status_code=403, detail="Only the owner can change the bank accounts.")
 
+    # What receipts show: the owner, an admin or the manager.
+    if "print_settings" in changes and changes["print_settings"] != _print_settings(s) and user.get("role") not in PRINT_EDITORS:
+        raise HTTPException(status_code=403, detail="Only the owner or a manager can change the printing settings.")
+
     for key, value in changes.items():
-        if key == "car_types":
+        if key == "print_settings":
+            value = json.dumps(value) if value else None
+        elif key == "car_types":
             value = json.dumps(value) if value else None
         elif key == "car_names":
             value = json.dumps(value) if value else None

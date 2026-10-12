@@ -2,6 +2,10 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { isZero } from "@/lib/format";
+import { printHtml } from "@/lib/print-frame";
+import { receiptHtml, receiptQr, type ReceiptData } from "@/lib/receipt-print";
+import { shopTin } from "@/lib/company";
+import { receiptPaper } from "@/lib/print-settings";
 import { useSearchParams } from "next/navigation";
 import PhoneOr from "@/app/components/mobile/PhoneOr";
 import MobileSales from "@/app/components/mobile/MobileSales";
@@ -129,7 +133,7 @@ function SaleManagementPage() {
   const { t, lang, layout } = useLanguage();
   // Car companies sell every vehicle to a named customer.
   const isCar = layout === "car";
-  const { lowStock } = useShopSettings();
+  const { lowStock, print: printPrefs } = useShopSettings();
   const { shop } = useShop();
 
   const [sales, setSales] = useState<Sale[]>([]);
@@ -154,6 +158,21 @@ function SaleManagementPage() {
   const [submitting, setSubmitting] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState("");
+  // The row whose print menu (Receipt / A4) is open, and where to show it:
+  // pinned to the screen, so the table's scrolling box can't cut it off.
+  // Any click elsewhere, Escape or scrolling closes it.
+  const [printMenu, setPrintMenu] = useState<string | null>(null);
+  const [printAt, setPrintAt] = useState<{ top: number; right: number }>({ top: 0, right: 0 });
+  useEffect(() => {
+    if (!printMenu) return;
+    const close = (e: MouseEvent) => { if (!(e.target as Element)?.closest?.('[role="menu"], [aria-haspopup="menu"]')) setPrintMenu(null); };
+    const esc = (e: KeyboardEvent) => { if (e.key === "Escape") setPrintMenu(null); };
+    const off = () => setPrintMenu(null);
+    document.addEventListener("mousedown", close);
+    document.addEventListener("keydown", esc);
+    window.addEventListener("scroll", off, true);
+    return () => { document.removeEventListener("mousedown", close); document.removeEventListener("keydown", esc); window.removeEventListener("scroll", off, true); };
+  }, [printMenu]);
 
   const [form, setForm] = useState(EMPTY_FORM);
 
@@ -659,8 +678,8 @@ function SaleManagementPage() {
     return { total, paid, change: 0, left: known && !credit ? Math.max(0, total - paid) : 0 };
   }
 
-  function printReceiptPopup(salesToPrint: Sale[]) {
-    const grandTotal = salesToPrint.reduce((s, x) => s + x.total_amount, 0);
+  /** Prints the sale(s): "receipt" on this device's roll (Settings → Printing), or "a4". */
+  async function printReceiptPopup(salesToPrint: Sale[], format: "receipt" | "a4" = "receipt") {
     const receiptNo = salesToPrint[0]?.id?.slice(0, 8)?.toUpperCase() || t("sales.receipt_fallback_no");
     const dateStr = salesToPrint[0]?.created_at
       ? new Date(salesToPrint[0].created_at).toLocaleString([], { dateStyle: "medium", timeStyle: "short" })
@@ -669,82 +688,23 @@ function SaleManagementPage() {
     const pm = salesToPrint[0]?.payment_method;
     const { paid, change, left } = receiptMoney(salesToPrint);
 
-    const itemsHtml = salesToPrint.map((s) =>
-      `<tr>
-        <td style="padding:6px 4px 6px 0;border-bottom:1px dotted #ddd;word-break:break-word;">${s.product_name || t("sales.receipt_item")}</td>
-        <td style="padding:6px 4px;border-bottom:1px dotted #ddd;text-align:center;white-space:nowrap;">${s.quantity}</td>
-        <td style="padding:6px 4px;border-bottom:1px dotted #ddd;text-align:right;white-space:nowrap;">${s.unit_price.toLocaleString()}</td>
-        <td style="padding:6px 0 6px 4px;border-bottom:1px dotted #ddd;text-align:right;font-weight:600;white-space:nowrap;">${s.total_amount.toLocaleString()}</td>
-      </tr>`
-    ).join("");
+    // Escaped, on this device's paper, with what Settings → Printing shows.
+    const data: ReceiptData = {
+      shop: { name: shop?.name || shopName, address: formatPublicAddress(shop?.address), phone: shop?.phone, logoUrl: shop?.logo_url,
+        email: shop?.email, tin: shop ? shopTin(shop) : null },
+      receiptNo, date: dateStr, customer: customerName || null, currency,
+      lines: salesToPrint.map((s) => ({ name: s.product_name || "", quantity: s.quantity, unitPrice: s.unit_price ?? 0, total: s.total_amount ?? 0 })),
+      payment: pm ? t(`sales.pm_${pm}`) : null, paid, change, left, onCredit: pm === "debt",
+    };
+    // The QR: the first sale's signed code (only the Higoverse app can read it).
+    if (printPrefs.showQr && salesToPrint[0]?.id) {
+      const res = await saleRequest(`/sales/${encodeURIComponent(salesToPrint[0].id)}/receipt-code`).catch(() => null);
+      data.qrSvg = await receiptQr(res?.data?.code);
+    }
+    const html = receiptHtml(data, t, lang, format === "a4" ? "a4" : receiptPaper(), printPrefs, { autoPrint: true });
 
-    const paymentHtml = pm ? `
-      <hr class="dashed">
-      <div class="row"><span class="label">${t("sales.payment")}</span><span style="font-weight:700;text-transform:uppercase">${pm}</span></div>
-      ${paid ? `<div class="row"><span class="label">${t("sales.amount_paid")}</span><span>${paid.toLocaleString()} ${currency}</span></div>` : ""}
-      ${change > 0 ? `<div class="row" style="color:#16a34a"><span class="label">${t("sales.change_label")}</span><span style="font-weight:700">${change.toLocaleString()} ${currency}</span></div>` : ""}
-      ${left > 0 ? `<div class="row" style="color:#7c3aed"><span class="label">${t("sales.remaining")}</span><span style="font-weight:700">${left.toLocaleString()} ${currency}</span></div>` : ""}
-      ${pm === "debt" ? `<div class="row" style="color:#dc2626"><span class="label">&#9888; ${t("sales.on_credit")}</span><span style="font-weight:700">${grandTotal.toLocaleString()} ${currency} ${t("sales.owed")}</span></div>` : ""}
-    ` : "";
-
-    const html = `<!DOCTYPE html>
-<html lang="${lang}">
-<head>
-<meta charset="UTF-8">
-<title>Receipt #${receiptNo}</title>
-<style>
-  *{margin:0;padding:0;box-sizing:border-box}
-  body{font-family:'Courier New',Courier,monospace;background:#fff;padding:16px;max-width:320px;margin:0 auto;font-size:12px;color:#111}
-  .center{text-align:center}
-  .shop-name{font-size:16px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px}
-  .dashed{border:none;border-top:1px dashed #888;margin:8px 0}
-  .solid{border:none;border-top:1px solid #222;margin:8px 0}
-  .row{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:3px;font-size:11px}
-  .label{color:#666}
-  table{width:100%;border-collapse:collapse;margin:4px 0}
-  thead th{font-size:10px;text-transform:uppercase;color:#666;padding:4px 0;border-bottom:2px solid #222;text-align:right}
-  thead th:first-child{text-align:left}
-  .total-line{font-size:14px;font-weight:700}
-  .footer-text{color:#888;font-size:10px;text-align:center;margin-top:4px}
-  @media print{html,body{width:80mm;max-width:80mm;padding:4mm;margin:0}@page{size:80mm auto;margin:0}}
-</style>
-</head>
-<body>
-<div class="center" style="margin-bottom:10px">
-  <div class="shop-name">${shop?.name || shopName}</div>
-  ${formatPublicAddress(shop?.address) ? `<div style="color:#666;font-size:10px;margin-top:2px">${formatPublicAddress(shop?.address)}</div>` : ""}
-  ${shop?.phone ? `<div style="color:#666;font-size:10px;margin-top:1px">${shop.phone}</div>` : ""}
-  <div style="color:#666;font-size:10px;margin-top:2px;text-transform:uppercase;letter-spacing:1px">${t("sales.receipt_title")}</div>
-</div>
-<hr class="dashed">
-<div class="row"><span class="label">${t("sales.receipt_no")}</span><span style="font-weight:700">${receiptNo}</span></div>
-<div class="row"><span class="label">${t("common.date")}</span><span>${dateStr}</span></div>
-${customerName ? `<div class="row"><span class="label">${t("sales.col_customer")}</span><span style="font-weight:600">${customerName}</span></div>` : ""}
-<hr class="dashed">
-<table>
-  <thead><tr>
-    <th style="text-align:left">${t("sales.receipt_item")}</th>
-    <th style="text-align:center">${t("sales.col_qty")}</th>
-    <th>${t("sales.unit_price")}</th>
-    <th>${t("common.total")}</th>
-  </tr></thead>
-  <tbody>${itemsHtml}</tbody>
-</table>
-<hr class="solid">
-<div class="row total-line">
-  <span>${t("sales.receipt_grand_total")}</span>
-  <span>${grandTotal.toLocaleString()} ${currency}</span>
-</div>
-${paymentHtml}
-<hr class="dashed">
-<div class="footer-text" style="margin-top:12px">${t("sales.thank_you")}</div>
-<div class="footer-text">${t("sales.powered_by")} Higoverse</div>
-<script>window.onload=function(){setTimeout(function(){window.print();},400);};window.onafterprint=function(){window.close();};</script>
-</body>
-</html>`;
-
-    const w = window.open("", "_blank", "width=400,height=700,toolbar=no,menubar=no,scrollbars=yes,resizable=yes");
-    if (w) { w.document.open(); w.document.write(html); w.document.close(); }
+    // Only the browser's print preview shows; no extra window.
+    printHtml(html);
   }
 
   const productMap = useMemo(() => {
@@ -1035,10 +995,30 @@ ${paymentHtml}
                     <td className="px-3 py-2 text-slate-400 text-xs max-w-28 truncate" title={s.notes || undefined}>{s.notes || <span className="text-slate-200">-</span>}</td>
                     <td className="px-3 py-2">
                       <div className="flex items-center gap-1.5">
-                        <button onClick={() => printReceiptPopup([s])} title={t("common.print")}
-                          className="p-1.5 rounded-lg bg-slate-50 hover:bg-slate-100 text-slate-500 transition">
-                          <Printer size={14} />
-                        </button>
+                        <span className="relative">
+                          <button onClick={(e) => {
+                              const r = e.currentTarget.getBoundingClientRect();
+                              setPrintAt({ top: r.bottom + 4, right: window.innerWidth - r.right });
+                              setPrintMenu(printMenu === s.id ? null : s.id);
+                            }} title={t("common.print")}
+                            aria-haspopup="menu" aria-expanded={printMenu === s.id}
+                            className="p-1.5 rounded-lg bg-slate-50 hover:bg-slate-100 text-slate-500 transition">
+                            <Printer size={14} />
+                          </button>
+                          {printMenu === s.id && (
+                            <span role="menu" style={{ top: printAt.top, right: printAt.right }}
+                              className="fixed z-[90] flex w-36 flex-col overflow-hidden rounded-lg border border-slate-200 bg-white py-1 text-left shadow-lg">
+                              <button role="menuitem" onClick={() => { setPrintMenu(null); printReceiptPopup([s], "receipt"); }}
+                                className="flex !justify-start items-center gap-2 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50">
+                                <ReceiptText size={13} /> {t("print.receipt")}
+                              </button>
+                              <button role="menuitem" onClick={() => { setPrintMenu(null); printReceiptPopup([s], "a4"); }}
+                                className="flex !justify-start items-center gap-2 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50">
+                                <FileText size={13} /> {t("print.a4")}
+                              </button>
+                            </span>
+                          )}
+                        </span>
                         <button onClick={() => openEditModal(s)}
                           className="p-1.5 rounded-lg bg-[#EBF2FD] hover:bg-[#D5E8FB] text-[#0a66c2] transition">
                           <Pencil size={14} />
@@ -1717,9 +1697,13 @@ ${paymentHtml}
                   className="flex-1 px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-600 text-xs font-medium hover:bg-slate-100 transition">
                   {t("common.close")}
                 </button>
-                <button onClick={() => printReceiptPopup(receipts)}
+                <button onClick={() => printReceiptPopup(receipts, "a4")}
+                  className="flex-1 px-3 py-2 rounded-lg border border-[#0a66c2] text-[#0a66c2] bg-white text-xs font-semibold transition flex items-center justify-center gap-1.5 hover:bg-[#EBF2FD]">
+                  <FileText size={13} /> {t("print.a4")}
+                </button>
+                <button onClick={() => printReceiptPopup(receipts, "receipt")}
                   className="flex-1 px-3 py-2 rounded-lg text-white text-xs font-semibold transition flex items-center justify-center gap-1.5 hover:opacity-90" style={{ background: "#0a66c2" }}>
-                  <Printer size={13} /> {t("common.print")}
+                  <Printer size={13} /> {t("print.receipt")}
                 </button>
               </div>
             </div>

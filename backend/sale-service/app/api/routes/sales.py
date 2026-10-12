@@ -9,6 +9,7 @@ from app.schemas.sale import SaleCreate, SaleUpdate
 from app.core.security import get_current_user, hides_financials
 from app.core.product_client import get_product, update_product_stock
 from app.core.events import emit
+from app.core import receipt_code
 
 router = APIRouter(prefix="/sales", tags=["Sales"])
 
@@ -314,6 +315,36 @@ def create_sale(
     db.refresh(sale)
 
     return _scrub(user, {"success": True, "message": "Sale recorded successfully", "data": _fmt(sale)})
+
+
+# ─────────────────────────────────────────
+# RECEIPT QR CODES
+# ─────────────────────────────────────────
+# A printed receipt carries a signed code (core/receipt_code.py) that only
+# Higoverse can read: scanning it in the app opens the sale, and only inside
+# the business that sold it.
+
+@router.get("/receipt-check")
+def check_receipt(
+    code: str = Query(..., max_length=200),
+    db: Session = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    sale_id = receipt_code.sale_id_of(code, user["shop_id"] or "")
+    sale = db.query(Sale).filter(Sale.id == sale_id, Sale.shop_id == user["shop_id"]).first() if sale_id else None
+    if not sale:
+        raise HTTPException(status_code=404, detail="This receipt isn't from your business, or the code isn't a Higoverse receipt.")
+    return _scrub(user, {"success": True, "data": _fmt(sale)})
+
+
+@router.get("/{sale_id}/receipt-code")
+def receipt_code_of(
+    sale_id: str,
+    db: Session = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    sale = _get_or_404(db, sale_id, user["shop_id"])
+    return {"success": True, "data": {"code": receipt_code.make(sale.shop_id, sale.id)}}
 
 
 # ─────────────────────────────────────────

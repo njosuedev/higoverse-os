@@ -13,6 +13,7 @@ import 'chat_screen.dart';
 import 'messages_screen.dart' show roleLabel;
 import 'team_screen.dart';
 
+import '../api.dart';
 import '../app_settings.dart';
 import '../config.dart';
 import '../format.dart';
@@ -128,6 +129,21 @@ class _SearchScreenState extends State<SearchScreen> {
 
   void _remember() => AppSettingsScope.of(context).rememberSearch(_query);
 
+  /// A scanned receipt: genuine and from this business → its sale; otherwise
+  /// the server's reason (not ours, or not a Higoverse receipt).
+  Future<void> _openReceipt(String code) async {
+    final t = T.of(context);
+    try {
+      final res = await SessionScope.of(context).api.get('${Svc.sales}/sales/receipt-check', query: {'code': code});
+      final sale = Map<String, dynamic>.from(((res as Map)['data'] as Map?) ?? {});
+      if (!mounted) return;
+      showSaleSheet(context, sale);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e is ApiException && e.status == 404 ? t('receipt.not_ours') : errorText(t, e))));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final t = T.of(context);
@@ -166,10 +182,11 @@ class _SearchScreenState extends State<SearchScreen> {
             icon: const Icon(PhosphorIconsRegular.barcode),
             onPressed: () async {
               final code = await scanBarcode(context);
-              if (code != null && mounted) {
-                _use(code);
-                AppSettingsScope.of(this.context).rememberSearch(code);
-              }
+              if (code == null || !mounted) return;
+              // A Higoverse receipt's QR: the server checks it and opens the sale.
+              if (code.startsWith('HGV1.R.')) return _openReceipt(code);
+              _use(code);
+              AppSettingsScope.of(this.context).rememberSearch(code);
             },
           ),
           const SizedBox(width: 4),

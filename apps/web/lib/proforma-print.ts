@@ -248,7 +248,11 @@ ${body}
       heightAt(lo);
     });
   }
+  // Once, even if the window reports "loaded" twice (opened blank, then written into).
+  var ready = false;
   window.addEventListener("load", function () {
+    if (ready) return;
+    ready = true;
     fitSheets();
     ${opts.autoPrint ? `setTimeout(function () { window.print(); }, 300);` : ""}
   });

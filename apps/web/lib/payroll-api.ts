@@ -18,6 +18,12 @@ export interface Employee {
   left_on: string | null;
   active: boolean;
   notes: string | null;
+  /** For the pay slip: where the salary goes, the contract's end, and the
+   *  working days in a month (day wage = salary ÷ working days). */
+  bank_name: string | null;
+  bank_account: string | null;
+  contract_end: string | null;
+  working_days: number;
 }
 
 export type EmployeeInput = Omit<Employee, "id" | "active">;
@@ -29,7 +35,12 @@ export interface SalaryPayment {
   employee_name: string;
   employee_id_number: string | null;
   position: string | null;
+  /** The month's basic salary; bonus, accommodation and overtime come on top. */
   gross: number;
+  bonus: number;
+  accommodation: number;
+  overtime_hours: number;
+  overtime_amount: number;
   deductions: number;
   deduction_note: string | null;
   net: number;
@@ -39,6 +50,17 @@ export interface SalaryPayment {
   expense_id: string | null;
   paid_by_name: string | null;
   created_at: string | null;
+  /** As they were when paid (for the pay slip). */
+  bank_name: string | null;
+  bank_account: string | null;
+  contract_start: string | null;
+  contract_end: string | null;
+  working_days: number | null;
+  late_days: number;
+  leave_days: number;
+  sick_days: number;
+  /** Not recorded yet: a pay slip printed for approval before paying. */
+  draft?: boolean;
 }
 
 /** Part of a salary paid early; the next salary payment deducts it (payment_id). */
@@ -68,7 +90,7 @@ export interface AdvanceInput {
 }
 
 /** Days marked present, absent, late and on leave in a period. */
-export interface AttendanceCounts { present: number; absent: number; late: number; leave: number }
+export interface AttendanceCounts { present: number; absent: number; late: number; leave: number; sick: number }
 
 /** `advances`: given and not yet deducted from a salary. `attendance`: the
  *  month's marks (shown beside the salary, never deducted by themselves). */
@@ -87,6 +109,10 @@ export interface PaymentInput {
   employee_id: string;
   period: string;
   gross: number;
+  bonus: number;
+  accommodation: number;
+  overtime_hours: number;
+  overtime_amount: number;
   /** Other deductions; outstanding advances are deducted by the server. */
   deductions: number;
   deduction_note: string | null;
@@ -110,7 +136,7 @@ export const giveAdvance = async (a: AdvanceInput): Promise<SalaryAdvance> =>
 export const removeAdvance = async (id: string) => expenseRequest(`/payroll/advances/${id}`, { method: "DELETE" });
 
 // ── Attendance: each day, who came (present / absent / late / on leave) ──
-export const ATTENDANCE = ["present", "absent", "late", "leave"] as const;
+export const ATTENDANCE = ["present", "absent", "late", "leave", "sick"] as const;
 export type AttendanceStatus = (typeof ATTENDANCE)[number];
 export interface AttendanceMark { status: AttendanceStatus; note: string | null; marked_by_name: string | null; updated_at: string | null }
 export interface AttendanceDay { day: string; today: string; rows: { employee: Employee; mark: AttendanceMark | null }[] }

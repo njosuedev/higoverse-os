@@ -861,3 +861,18 @@ html[data-theme="dark"] { scrollbar-color: #363636 var(--color-paper); }
 @media (max-width: 767px) {
   .hgv-page-search { display: none !important; }
 }
+
+/* ── PRINTING A PAGE ──────────────────────────────────────────────
+   Printing a page itself (Reports' Export): only its content, on white.
+   The app's bars, menus, notices and buttons stay off the paper, and the
+   page starts at the top-left (DashboardHeader also switches to the light
+   theme while printing). Receipts, pay slips and proformas print their own
+   documents (lib/print-frame). */
+@media print {
+  .hgv-no-print, .hgv-aside, .hgv-tabbar, [aria-live], button { display: none !important; }
+  html, body { background: #fff !important; }
+  body { padding: 0 !important; }
+  .hgv-surface, [class*="shadow"] { box-shadow: none !important; }
+  .rounded-xl, .rounded-data, .hgv-card-hover { break-inside: avoid; }
+  a { color: inherit !important; text-decoration: none !important; }
+}

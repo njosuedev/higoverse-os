@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { printHtml } from "@/lib/print-frame";
 import { useLanguage } from "@/lib/language-context";
 import { useAuth } from "@/lib/auth-context";
 import { settingsRequest } from "@/lib/settings-api";
@@ -428,8 +429,8 @@ export default function ProformaPanel({ onSold, startNew = false }: {
   // ── Print (A4 sheets, laid out like a dealer's proforma) ───────────────────
   function printProforma(p: Proforma) {
     const html = proformaPrintHtml(p, { ...shop, address: formatPublicAddress(shop.address) }, t, isCar, { autoPrint: true });
-    const w = window.open("", "_blank", "width=900,height=1000,scrollbars=yes,resizable=yes");
-    if (w) { w.document.open(); w.document.write(html); w.document.close(); }
+    // Only the browser's print preview shows; no extra window.
+    printHtml(html);
   }
 
   // ── List ──────────────────────────────────────────────────────────────────
