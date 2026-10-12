@@ -1881,6 +1881,9 @@ const dict: Record<Lang, Record<string, string>> = {
     "admin.ago_suffix_d": "d ago",
     "admin.just_now": "Just now",
     // ── From the phone app (the phone layout uses its words) ──
+    "nav.group_business": "Business",
+    "nav.group_finance": "Finance",
+    "nav.group_account": "Account",
     "print.show_qr": "QR code on printed documents",
     "print.qr_caption": "Scan with the Higoverse app",
     "print.receipt": "Print receipt",
@@ -3940,6 +3943,9 @@ const dict: Record<Lang, Record<string, string>> = {
     "admin.ago_suffix_d": " i",
     "admin.just_now": "Ubu nyine",
     // ── From the phone app (the phone layout uses its words) ──
+    "nav.group_business": "Ubucuruzi",
+    "nav.group_finance": "Imari",
+    "nav.group_account": "Konti",
     "print.show_qr": "QR code ku nyandiko zicapwa",
     "print.qr_caption": "Soma ukoresheje porogaramu ya Higoverse",
     "print.receipt": "Capa fagitire",
@@ -6002,6 +6008,9 @@ const dict: Record<Lang, Record<string, string>> = {
     "admin.ago_suffix_d": " j",
     "admin.just_now": "À l'instant",
     // ── From the phone app (the phone layout uses its words) ──
+    "nav.group_business": "Activité",
+    "nav.group_finance": "Finances",
+    "nav.group_account": "Compte",
     "print.show_qr": "Code QR sur les documents imprimés",
     "print.qr_caption": "Scannez avec l'application Higoverse",
     "print.receipt": "Imprimer le reçu",
@@ -7852,6 +7861,9 @@ const dict: Record<Lang, Record<string, string>> = {
     "admin.ago_suffix_d": " siku",
     "admin.just_now": "Sasa hivi",
     // ── From the phone app (the phone layout uses its words) ──
+    "nav.group_business": "Biashara",
+    "nav.group_finance": "Fedha",
+    "nav.group_account": "Akaunti",
     "print.show_qr": "Msimbo wa QR kwenye nyaraka zinazochapishwa",
     "print.qr_caption": "Changanua kwa programu ya Higoverse",
     "print.receipt": "Chapisha risiti",
@@ -9704,6 +9716,9 @@ const dict: Record<Lang, Record<string, string>> = {
     "admin.ago_suffix_d": "天前",
     "admin.just_now": "刚刚",
     // ── From the phone app (the phone layout uses its words) ──
+    "nav.group_business": "业务",
+    "nav.group_finance": "财务",
+    "nav.group_account": "账户",
     "print.show_qr": "打印的文件显示二维码",
     "print.qr_caption": "请用 Higoverse 应用扫描",
     "print.receipt": "打印小票",

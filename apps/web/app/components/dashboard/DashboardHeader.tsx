@@ -136,8 +136,9 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
 
       <header className="hgv-no-print fixed top-0 left-0 right-0 z-50 flex h-[calc(52px+env(safe-area-inset-top))] items-center justify-between border-b border-border bg-paper pt-[env(safe-area-inset-top)] pl-[max(0.75rem,env(safe-area-inset-left))] pr-[max(0.75rem,env(safe-area-inset-right))] sm:pl-[max(1rem,env(safe-area-inset-left))] sm:pr-[max(1rem,env(safe-area-inset-right))]">
 
-        {/* ── LEFT: Logo (on phones the menu opens from the bottom bar) ── */}
-        <div className="flex items-center gap-1">
+        {/* ── LEFT: Logo (on phones the menu opens from the bottom bar). On
+            computers it is as wide as the sidebar, whose edge it continues. ── */}
+        <div className="flex items-center gap-1 self-stretch lg:w-[calc(var(--hgv-aside)-max(1rem,env(safe-area-inset-left)))] lg:shrink-0 lg:border-r lg:border-border">
           {/* The logo and name lead Home — or back to its top when already there. */}
           {/* On phones, holding the logo shows the live connection and who is online. */}
           <Link href="/" {...liveSheet.handlers} onClick={(e) => { if (!liveSheet.swallowed(e)) goHome(e); }}
@@ -151,7 +152,7 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
 
         {/* ── Tablets and computers: the four main pages across the top (the
             rest are in the sidebar; phones use the tab bar) ── */}
-        <nav aria-label={t("nav.home")} className="mx-2 hidden min-w-0 flex-1 items-stretch justify-center md:flex">
+        <nav aria-label={t("nav.home")} className="mx-2 hidden min-w-0 flex-1 items-stretch justify-center gap-1 self-stretch md:flex">
           {(loading || isResolving)
             ? Array.from({ length: TOP_HREFS.length }).map((_, i) => (
                 <div key={i} aria-hidden="true" className="flex min-w-[72px] flex-col items-center justify-center gap-1.5 px-3">
@@ -320,35 +321,58 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
 
       <LiveSheet open={liveSheet.open} onClose={liveSheet.close} />
 
-      {/* ── Tablets and computers: the menu down the left side ── */}
+      {/* ── Tablets and computers: the menu down the left side, in sections ── */}
       <aside aria-label={t("nav.open_menu")} className="hgv-aside">
-        <nav className="flex flex-1 flex-col gap-0.5 overflow-y-auto p-2">
+        <nav className="flex flex-1 flex-col overflow-y-auto px-2 py-3 lg:px-3">
           {(loading || isResolving)
             ? Array.from({ length: sideMenus.length || 4 }).map((_, i) => (
-                <div key={i} aria-hidden="true" className="flex h-11 items-center gap-3 px-3 max-lg:h-14 max-lg:flex-col max-lg:justify-center max-lg:gap-1.5 max-lg:px-1">
+                <div key={i} aria-hidden="true" className="flex h-10 items-center gap-3 px-3 max-lg:h-14 max-lg:flex-col max-lg:justify-center max-lg:gap-1.5 max-lg:px-1">
                   <div className="hgv-shimmer h-5 w-5 shrink-0 rounded-md" />
                   <div className="hgv-shimmer h-2.5 w-24 rounded max-lg:w-10" />
                 </div>
               ))
             : (<>
-                {sideMenus.filter((m) => m.href !== "/payroll").map((menu) => (
-                  <SideLink key={menu.href} menu={menu} pathname={pathname} t={t} badge={menu.href === "/messages" ? unread : 0} />
-                ))}
+                <SideGroup label={t("nav.group_business")} first>
+                  {sideMenus.filter((m) => BUSINESS_SIDE.includes(m.href)).map((menu) => (
+                    <SideLink key={menu.href} menu={menu} pathname={pathname} t={t} badge={menu.href === "/messages" ? unread : 0} />
+                  ))}
+                </SideGroup>
+                {sideMenus.some((m) => FINANCE_SIDE.includes(m.href)) && (
+                  <SideGroup label={t("nav.group_finance")}>
+                    {sideMenus.filter((m) => FINANCE_SIDE.includes(m.href)).map((menu) => (
+                      <SideLink key={menu.href} menu={menu} pathname={pathname} t={t} />
+                    ))}
+                  </SideGroup>
+                )}
                 {/* Employees: attendance, then payroll (the payroll roles only) */}
-                {PAYROLL_ROLES.includes(user?.role ?? "") && (<>
-                  <p className="mt-3 px-3 pb-1 text-[11px] font-bold uppercase tracking-wider text-text-faint max-lg:hidden">{t("nav.employees")}</p>
-                  <div aria-hidden="true" className="mx-3 my-2 border-t border-border lg:hidden" />
-                  <SideLink menu={{ key: "nav.attendance", href: "/attendance", icon: CalendarCheck }} pathname={pathname} t={t} />
-                  <SideLink menu={{ key: "nav.payroll", href: "/payroll", icon: HandCoins }} pathname={pathname} t={t} />
-                </>)}
-                {isAdmin && (<>
-                  <div aria-hidden="true" className="mx-3 my-2 border-t border-border" />
-                  <SideLink menu={ADMIN_ITEM} pathname={pathname} t={t} />
-                </>)}
+                {PAYROLL_ROLES.includes(user?.role ?? "") && (
+                  <SideGroup label={t("nav.employees")}>
+                    <SideLink menu={{ key: "nav.attendance", href: "/attendance", icon: CalendarCheck }} pathname={pathname} t={t} />
+                    <SideLink menu={{ key: "nav.payroll", href: "/payroll", icon: HandCoins }} pathname={pathname} t={t} />
+                  </SideGroup>
+                )}
+                {isAdmin && (
+                  <SideGroup label={t("nav.admin")}>
+                    <SideLink menu={ADMIN_ITEM} pathname={pathname} t={t} />
+                  </SideGroup>
+                )}
               </>)}
         </nav>
-        {/* The account's own pages, at the foot */}
-        <div className="border-t border-border p-2">
+        {/* The account: the business, then its team and settings */}
+        <div className="border-t border-border px-2 py-3 lg:px-3">
+          {shop && (
+            <div className="mb-2 flex items-center gap-3 rounded-press px-2 py-1.5 max-lg:justify-center max-lg:px-0">
+              {shop.logo_url
+                ? <img src={shop.logo_url} alt="" className="h-9 w-9 shrink-0 rounded-press border border-border object-cover" />
+                : <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-press bg-ink font-display text-sm font-semibold text-paper">
+                    {(shop.name?.[0] ?? "H").toUpperCase()}
+                  </div>}
+              <div className="min-w-0 max-lg:hidden">
+                <p className="truncate text-[13px] font-semibold leading-tight text-text">{shop.name}</p>
+                <p className="truncate text-[11px] leading-tight text-text-faint">{roleName(user?.role, t)}</p>
+              </div>
+            </div>
+          )}
           <SideLink menu={{ key: "team.title", href: "/team", icon: UsersRound }} pathname={pathname} t={t} />
           <SideLink menu={{ key: "nav.settings", href: "/settings", icon: Settings }} pathname={pathname} t={t} />
         </div>
@@ -420,19 +444,42 @@ function TabLink({ href, icon: Icon, label, active, badge = 0, onClick }: {
 /** The four pages in the top bar on wider screens. */
 const TOP_HREFS = ["/", "/items", "/partners", "/sales"];
 
-/** A page in the top bar: icon over its name, underlined when open. */
+/** A page in the top bar: its icon over its name on tablets, beside it on
+ *  computers; the open one marked by a line along the bar's bottom edge. */
 function TopLink({ menu, pathname, t }: { menu: NavItem; pathname: string; t: (key: string) => string }) {
   const Icon = menu.icon;
   const active = isActiveHref(pathname, menu.href);
   return (
     <Link href={menu.href} aria-current={active ? "page" : undefined}
-      className={`relative flex min-w-[72px] flex-col items-center justify-center gap-0.5 px-3 transition-colors duration-200 lg:px-5 ${
-        active ? "text-ink" : "text-text-muted hover:bg-paper-dim hover:text-text"}`}>
-      <Icon size={20} strokeWidth={active ? 2.25 : 1.75} />
-      <span className="whitespace-nowrap text-[11px] font-semibold leading-none">{t(menu.key)}</span>
-      {active && <span className="absolute bottom-0 left-2.5 right-2.5 h-[2px] bg-ink" />}
+      className={`group relative flex min-w-[72px] flex-col items-center justify-center gap-1 px-3 transition-colors duration-200 lg:min-w-0 lg:flex-row lg:gap-2 lg:px-4 ${
+        active ? "text-ink" : "text-text-muted hover:text-text"}`}>
+      <span aria-hidden="true" className={`pointer-events-none absolute inset-x-1 inset-y-1.5 rounded-press transition-colors duration-200 ${active ? "" : "group-hover:bg-paper-dim"}`} />
+      <Icon size={20} strokeWidth={active ? 2.25 : 1.75} className="relative" />
+      <span className="relative whitespace-nowrap text-[11px] font-semibold leading-none lg:text-[13.5px]">{t(menu.key)}</span>
+      {active && <span aria-hidden="true" className="absolute inset-x-2 bottom-0 h-[3px] rounded-t-full bg-ink" />}
     </Link>
   );
+}
+
+/** Sidebar pages, by section. */
+const BUSINESS_SIDE = ["/purchases", "/messages"];
+const FINANCE_SIDE = ["/expenses", "/reports"];
+
+/** A sidebar section: its name on computers, a thin line on tablets. */
+function SideGroup({ label, first = false, children }: { label: string; first?: boolean; children: React.ReactNode }) {
+  return (
+    <div role="group" aria-label={label} className={first ? "" : "mt-4 max-lg:mt-2"}>
+      <p className="px-3 pb-1.5 text-[11px] font-bold uppercase tracking-[0.08em] text-text-faint max-lg:hidden">{label}</p>
+      {!first && <div aria-hidden="true" className="mx-3 mb-2 border-t border-border lg:hidden" />}
+      <div className="flex flex-col gap-0.5">{children}</div>
+    </div>
+  );
+}
+
+/** Who the signed-in person is in the business. */
+function roleName(role: string | undefined, t: (key: string) => string): string {
+  const known = ["owner", "admin", "manager", "accountant", "cashier", "storekeeper"];
+  return role && known.includes(role) ? t(`role.${role}`) : t("common.shop_owner");
 }
 
 /** One sidebar entry: icon and name in a row on computers, the name under
@@ -443,8 +490,9 @@ function SideLink({ menu, pathname, t, badge = 0 }: { menu: NavItem; pathname: s
   const admin = menu.href === "/admin";
   return (
     <Link href={menu.href} aria-current={active ? "page" : undefined} title={t(menu.key)}
-      className={`flex h-11 items-center gap-3 rounded-press px-3 text-sm font-semibold transition-colors duration-200 max-lg:h-14 max-lg:flex-col max-lg:justify-center max-lg:gap-1 max-lg:px-0.5 max-lg:text-[10.5px] max-lg:tracking-[-0.1px] ${
+      className={`relative flex h-10 items-center gap-3 rounded-press px-3 text-[13.5px] font-semibold transition-colors duration-200 max-lg:h-14 max-lg:flex-col max-lg:justify-center max-lg:gap-1 max-lg:px-0.5 max-lg:text-[10.5px] max-lg:tracking-[-0.1px] ${
         active ? (admin ? "bg-accent-soft text-accent-dark" : "bg-ink-soft text-ink") : "text-text-muted hover:bg-paper-dim hover:text-text"}`}>
+      {active && <span aria-hidden="true" className={`absolute -left-2 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r-full lg:-left-3 ${admin ? "bg-accent-dark" : "bg-ink"}`} />}
       <span className="relative shrink-0">
         <Icon size={20} strokeWidth={active ? 2.25 : 1.75} />
         {badge > 0 && (
