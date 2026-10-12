@@ -15,7 +15,7 @@ import { Sun, Moon, Monitor,
   Home, Package, Truck, ShoppingCart, BarChart3,
   Users, ChevronDown, ShieldCheck, Receipt,
   Settings, LogOut, Globe,
-  MessageCircle, Search, UsersRound, HandCoins,
+  MessageCircle, Search, UsersRound, HandCoins, CalendarCheck,
 } from "lucide-react";
 import {
   House, Package as PackageTab, Car, ChatCircleDots, Receipt as ReceiptTab, Storefront, type Icon as PhosphorIcon,
@@ -114,6 +114,11 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
     // Payroll: the owner, managers and the accountant.
     .filter((m) => m.href !== "/payroll" || PAYROLL_ROLES.includes(user?.role ?? ""));
 
+  // Tablets and computers: Home, Vehicles / Inventory, Customers / Partners
+  // and Sales across the top; everything else down the sidebar.
+  const topMenus = businessMenus.filter((m) => TOP_HREFS.includes(m.href));
+  const sideMenus = businessMenus.filter((m) => !TOP_HREFS.includes(m.href));
+
   return (
     <>
       {/* Room for the bar below, the phone's notch / status bar included. */}
@@ -134,29 +139,17 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
           </Link>
         </div>
 
-        {/* ── CENTER: Nav (desktop) ── */}
-        <nav className="hgv-nav-scroll mx-2 hidden min-w-0 flex-1 items-stretch justify-center-safe overflow-x-auto md:flex">
-          {(loading || isResolving) ? (
-            // As many as the menu will have, each an icon over its label.
-            Array.from({ length: businessMenus.length || 7 }).map((_, i) => (
-              <div key={i} aria-hidden="true" className="flex min-w-[56px] flex-shrink-0 flex-col items-center justify-center gap-1.5 px-2 py-1.5 lg:px-3 xl:px-4">
-                <div className="hgv-shimmer h-[18px] w-[18px] rounded-md" />
-                <div className="hgv-shimmer h-2 w-10 rounded" />
-              </div>
-            ))
-          ) : (
-            <>
-              {businessMenus.map((menu) => (
-                <NavLink key={menu.href} menu={menu} pathname={pathname} t={t} badge={menu.href === "/messages" ? unread : 0} />
-              ))}
-              {isAdmin && (
-                <>
-                  <div aria-hidden="true" className="mx-1 my-auto h-6 w-px flex-shrink-0 bg-border" />
-                  <NavLink menu={ADMIN_ITEM} pathname={pathname} t={t} />
-                </>
-              )}
-            </>
-          )}
+        {/* ── Tablets and computers: the four main pages across the top (the
+            rest are in the sidebar; phones use the tab bar) ── */}
+        <nav aria-label={t("nav.home")} className="mx-2 hidden min-w-0 flex-1 items-stretch justify-center md:flex">
+          {(loading || isResolving)
+            ? Array.from({ length: TOP_HREFS.length }).map((_, i) => (
+                <div key={i} aria-hidden="true" className="flex min-w-[72px] flex-col items-center justify-center gap-1.5 px-3">
+                  <div className="hgv-shimmer h-[18px] w-[18px] rounded-md" />
+                  <div className="hgv-shimmer h-2 w-12 rounded" />
+                </div>
+              ))
+            : topMenus.map((menu) => <TopLink key={menu.href} menu={menu} pathname={pathname} t={t} />)}
         </nav>
 
         {/* ── RIGHT: search and account menu ── */}
@@ -317,6 +310,40 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
 
       <LiveSheet open={liveSheet.open} onClose={liveSheet.close} />
 
+      {/* ── Tablets and computers: the menu down the left side ── */}
+      <aside aria-label={t("nav.open_menu")} className="hgv-aside">
+        <nav className="flex flex-1 flex-col gap-0.5 overflow-y-auto p-2">
+          {(loading || isResolving)
+            ? Array.from({ length: sideMenus.length || 4 }).map((_, i) => (
+                <div key={i} aria-hidden="true" className="flex h-11 items-center gap-3 px-3 max-lg:h-14 max-lg:flex-col max-lg:justify-center max-lg:gap-1.5 max-lg:px-1">
+                  <div className="hgv-shimmer h-5 w-5 shrink-0 rounded-md" />
+                  <div className="hgv-shimmer h-2.5 w-24 rounded max-lg:w-10" />
+                </div>
+              ))
+            : (<>
+                {sideMenus.filter((m) => m.href !== "/payroll").map((menu) => (
+                  <SideLink key={menu.href} menu={menu} pathname={pathname} t={t} badge={menu.href === "/messages" ? unread : 0} />
+                ))}
+                {/* Employees: attendance, then payroll (the payroll roles only) */}
+                {PAYROLL_ROLES.includes(user?.role ?? "") && (<>
+                  <p className="mt-3 px-3 pb-1 text-[11px] font-bold uppercase tracking-wider text-text-faint max-lg:hidden">{t("nav.employees")}</p>
+                  <div aria-hidden="true" className="mx-3 my-2 border-t border-border lg:hidden" />
+                  <SideLink menu={{ key: "nav.attendance", href: "/attendance", icon: CalendarCheck }} pathname={pathname} t={t} />
+                  <SideLink menu={{ key: "nav.payroll", href: "/payroll", icon: HandCoins }} pathname={pathname} t={t} />
+                </>)}
+                {isAdmin && (<>
+                  <div aria-hidden="true" className="mx-3 my-2 border-t border-border" />
+                  <SideLink menu={ADMIN_ITEM} pathname={pathname} t={t} />
+                </>)}
+              </>)}
+        </nav>
+        {/* The account's own pages, at the foot */}
+        <div className="border-t border-border p-2">
+          <SideLink menu={{ key: "team.title", href: "/team", icon: UsersRound }} pathname={pathname} t={t} />
+          <SideLink menu={{ key: "nav.settings", href: "/settings", icon: Settings }} pathname={pathname} t={t} />
+        </div>
+      </aside>
+
       {/* ── Phones: the Android app's tab bar ── */}
       <nav aria-label={t("nav.open_menu")} className="hgv-tabbar md:hidden">
         <TabLink href="/" icon={House} label={t("nav.home")} active={pathname === "/"} onClick={goHome} />
@@ -380,35 +407,35 @@ function TabLink({ href, icon: Icon, label, active, badge = 0, onClick }: {
   );
 }
 
-function NavLink({
-  menu,
-  pathname,
-  t,
-  onNavigate,
-  badge = 0,
-}: {
-  menu: NavItem;
-  pathname: string;
-  t: (key: string) => string;
-  badge?: number;
-  onNavigate?: () => void;
-}) {
+/** The four pages in the top bar on wider screens. */
+const TOP_HREFS = ["/", "/items", "/partners", "/sales"];
+
+/** A page in the top bar: icon over its name, underlined when open. */
+function TopLink({ menu, pathname, t }: { menu: NavItem; pathname: string; t: (key: string) => string }) {
   const Icon = menu.icon;
   const active = isActiveHref(pathname, menu.href);
-  const isAdminItem = menu.href === "/admin";
-  const activeText = isAdminItem ? "text-accent-dark" : "text-ink";
-  const underlineColor = isAdminItem ? "bg-accent" : "bg-ink";
-  const idleText = "text-text-muted hover:text-text hover:bg-paper-dim";
-
   return (
-    <Link
-      href={menu.href}
-      onClick={onNavigate}
-      className={`relative flex flex-shrink-0 flex-col items-center justify-center gap-0.5 px-2 py-1.5 min-w-[56px] lg:px-3 xl:px-4 transition-colors duration-200 ${
-        active ? activeText : idleText
-      }`}
-    >
-      <span className="relative">
+    <Link href={menu.href} aria-current={active ? "page" : undefined}
+      className={`relative flex min-w-[72px] flex-col items-center justify-center gap-0.5 px-3 transition-colors duration-200 lg:px-5 ${
+        active ? "text-ink" : "text-text-muted hover:bg-paper-dim hover:text-text"}`}>
+      <Icon size={20} strokeWidth={active ? 2.25 : 1.75} />
+      <span className="whitespace-nowrap text-[11px] font-semibold leading-none">{t(menu.key)}</span>
+      {active && <span className="absolute bottom-0 left-2.5 right-2.5 h-[2px] bg-ink" />}
+    </Link>
+  );
+}
+
+/** One sidebar entry: icon and name in a row on computers, the name under
+ *  the icon on tablets; the open page tinted, as on LinkedIn and Facebook. */
+function SideLink({ menu, pathname, t, badge = 0 }: { menu: NavItem; pathname: string; t: (key: string) => string; badge?: number }) {
+  const Icon = menu.icon;
+  const active = isActiveHref(pathname, menu.href);
+  const admin = menu.href === "/admin";
+  return (
+    <Link href={menu.href} aria-current={active ? "page" : undefined} title={t(menu.key)}
+      className={`flex h-11 items-center gap-3 rounded-press px-3 text-sm font-semibold transition-colors duration-200 max-lg:h-14 max-lg:flex-col max-lg:justify-center max-lg:gap-1 max-lg:px-0.5 max-lg:text-[10.5px] max-lg:tracking-[-0.1px] ${
+        active ? (admin ? "bg-accent-soft text-accent-dark" : "bg-ink-soft text-ink") : "text-text-muted hover:bg-paper-dim hover:text-text"}`}>
+      <span className="relative shrink-0">
         <Icon size={20} strokeWidth={active ? 2.25 : 1.75} />
         {badge > 0 && (
           <span className="absolute -right-2.5 -top-1.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full border-2 border-paper bg-[#e41e3f] px-1 text-[10px] font-bold leading-none text-white">
@@ -416,8 +443,7 @@ function NavLink({
           </span>
         )}
       </span>
-      <span className="hidden whitespace-nowrap text-[11px] font-semibold leading-none md:block">{t(menu.key)}</span>
-      {active && <span className={`absolute bottom-0 left-2.5 right-2.5 h-[2px] ${underlineColor}`} />}
+      <span className="min-w-0 truncate max-lg:max-w-full max-lg:leading-none">{t(menu.key)}</span>
     </Link>
   );
 }

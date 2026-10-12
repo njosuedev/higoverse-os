@@ -14,7 +14,7 @@ import { useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
 import {
   BarChart3, Car, CornerDownLeft, FileText, Home, MessageCircle, Package, Plus, Receipt, Search, Settings, ShoppingCart, Truck, User, Users, HandCoins, X,
-  History, ScanBarcode, Wallet,
+  History, ScanBarcode, Wallet, CalendarCheck,
 } from "lucide-react";
 import { listProformas } from "@/lib/proforma-api";
 import { useAuth } from "@/lib/auth-context";
@@ -102,7 +102,10 @@ export default function GlobalSearch() {
     { key: "p-partners", group: "search.pages", title: t("nav.partners"), icon: Users, href: "/partners" },
     ...(!isCar ? [{ key: "p-pur", group: "search.pages", title: t("nav.purchases"), icon: Truck, href: "/purchases" }] : []),
     { key: "p-pf", group: "search.pages", title: t("nav.proforma"), icon: FileText, href: "/sales?tab=proforma" },
-    ...(payroll ? [{ key: "p-pay", group: "search.pages", title: t("nav.payroll"), icon: HandCoins, href: "/payroll" }] : []),
+    ...(payroll ? [
+      { key: "p-att", group: "search.pages", title: t("nav.attendance"), icon: CalendarCheck, href: "/attendance" },
+      { key: "p-pay", group: "search.pages", title: t("nav.payroll"), icon: HandCoins, href: "/payroll" },
+    ] : []),
     ...(fin ? [
       { key: "p-exp", group: "search.pages", title: t("nav.expenses"), icon: Receipt, href: "/expenses" },
       { key: "p-rep", group: "search.pages", title: t("nav.reports"), icon: BarChart3, href: "/reports" },

@@ -8,8 +8,8 @@ from sqlalchemy.orm import Session
 
 from app.db.database import get_db
 from app.models.expense import Expense, ExpenseCategory
-from app.models.payroll import Employee, SalaryAdvance, SalaryPayment
-from app.schemas.payroll import AdvanceIn, EmployeeIn, PaymentIn
+from app.models.payroll import Attendance, Employee, SalaryAdvance, SalaryPayment
+from app.schemas.payroll import AdvanceIn, AttendanceIn, EmployeeIn, PaymentIn
 from app.core.security import get_current_user
 from app.core.events import emit
 
@@ -198,8 +198,9 @@ def month(period: str, db: Session = Depends(get_db), user: dict = Depends(requi
     advances: dict[str, list[dict]] = {}
     for a in _outstanding(db, shop):
         advances.setdefault(a.employee_id, []).append(_advance(a))
+    counts = _attendance_counts(db, shop, first, last)
     rows = [{"employee": _employee(e), "payment": _payment(payments.pop(e.id)) if e.id in payments else None,
-             "advances": advances.get(e.id, [])} for e in employees]
+             "advances": advances.get(e.id, []), "attendance": counts.get(e.id, _NO_MARKS)} for e in employees]
     # Paid, though no longer in the list for that month (dates changed since).
     rows += [{"employee": None, "payment": _payment(p), "advances": []} for p in payments.values()]
     paid = [r["payment"] for r in rows if r["payment"]]
@@ -397,3 +398,107 @@ def remove_advance(advance_id: str, db: Session = Depends(get_db), user: dict = 
     db.delete(a)
     db.commit()
     return {"success": True}
+
+
+# ─────────────────────────────────────────
+# ATTENDANCE
+# ─────────────────────────────────────────
+# Each day the manager marks who came: present, absent, late or on leave.
+# Payroll shows the month's counts beside each salary; nothing is deducted
+# by itself.
+
+_NO_MARKS = {"present": 0, "absent": 0, "late": 0, "leave": 0}
+
+
+def _attendance_counts(db: Session, shop_id: str, first: date, last: date) -> dict[str, dict]:
+    out: dict[str, dict] = {}
+    for a in db.query(Attendance).filter(Attendance.shop_id == shop_id, Attendance.day >= first, Attendance.day <= last):
+        c = out.setdefault(a.employee_id, dict(_NO_MARKS))
+        if a.status in c:
+            c[a.status] += 1
+    return out
+
+
+def _on_staff(db: Session, shop_id: str, first: date, last: date):
+    """Employees working at some point between first and last."""
+    return (db.query(Employee).filter(Employee.shop_id == shop_id)
+            .filter(or_(Employee.start_date.is_(None), Employee.start_date <= last))
+            .filter(or_(Employee.left_on.is_(None), Employee.left_on >= first))
+            .order_by(Employee.full_name).all())
+
+
+def _day(day: str) -> date:
+    try:
+        return date.fromisoformat(day)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="day must look like 2026-10-12")
+
+
+def _mark(a: Attendance | None) -> dict | None:
+    if a is None:
+        return None
+    return {"status": a.status, "note": a.note, "marked_by_name": a.marked_by_name,
+            "updated_at": a.updated_at.isoformat() if a.updated_at else None}
+
+
+@router.get("/attendance/day/{day}")
+def attendance_day(day: str, db: Session = Depends(get_db), user: dict = Depends(require_payroll)):
+    """Everyone working that day, each with their mark (or none yet)."""
+    d = _day(day)
+    shop = user["shop_id"]
+    marks = {a.employee_id: a for a in db.query(Attendance).filter(Attendance.shop_id == shop, Attendance.day == d)}
+    rows = [{"employee": _employee(e), "mark": _mark(marks.get(e.id))} for e in _on_staff(db, shop, d, d)]
+    return {"success": True, "data": {"day": d.isoformat(), "today": _today().isoformat(), "rows": rows}}
+
+
+@router.put("/attendance/day/{day}")
+def mark_attendance(day: str, payload: AttendanceIn, db: Session = Depends(get_db), user: dict = Depends(require_payroll)):
+    """Marks for one day (one person or everyone at once); a status of null
+    clears that person's mark. Not for days still to come."""
+    d = _day(day)
+    if d > _today():
+        raise HTTPException(status_code=400, detail="Attendance can't be marked for a day that hasn't come yet.")
+    shop = user["shop_id"]
+    staff = {e.id for e in _on_staff(db, shop, d, d)}
+    existing = {a.employee_id: a for a in db.query(Attendance).filter(Attendance.shop_id == shop, Attendance.day == d)}
+    for m in payload.marks:
+        if m.employee_id not in staff:
+            raise HTTPException(status_code=404, detail="Employee not found on that day.")
+        a = existing.get(m.employee_id)
+        if m.status is None:
+            if a is not None:
+                db.delete(a)
+            continue
+        if a is None:
+            a = Attendance(shop_id=shop, employee_id=m.employee_id, day=d)
+            db.add(a)
+            existing[m.employee_id] = a
+        a.status = m.status
+        a.note = m.note
+        a.marked_by = user.get("user_id")
+        a.marked_by_name = user.get("name")
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="Someone marked this day at the same time. Reload and try again.")
+    return attendance_day(day, db, user)
+
+
+@router.get("/attendance/month/{period}")
+def attendance_month(period: str, db: Session = Depends(get_db), user: dict = Depends(require_payroll)):
+    """The month per employee: days present, absent, late and on leave, and
+    every mark by day (for the month's grid)."""
+    try:
+        first, last = _month_bounds(period)
+    except (ValueError, IndexError):
+        raise HTTPException(status_code=400, detail="period must look like 2026-10")
+    shop = user["shop_id"]
+    days: dict[str, dict[str, str]] = {}
+    for a in db.query(Attendance).filter(Attendance.shop_id == shop, Attendance.day >= first, Attendance.day <= last):
+        days.setdefault(a.employee_id, {})[a.day.isoformat()] = a.status
+    counts = _attendance_counts(db, shop, first, last)
+    rows = [{"employee": _employee(e), "counts": counts.get(e.id, _NO_MARKS), "days": days.get(e.id, {})}
+            for e in _on_staff(db, shop, first, last)]
+    return {"success": True, "data": {"period": period, "first": first.isoformat(), "last": last.isoformat(),
+                                      "today": _today().isoformat(), "rows": rows}}

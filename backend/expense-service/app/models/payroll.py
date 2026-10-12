@@ -86,3 +86,23 @@ class SalaryAdvance(Base):
     given_by         = Column(String, nullable=True)
     given_by_name    = Column(String(150), nullable=True)
     created_at       = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class Attendance(Base):
+    """Whether an employee came to work on a day: present, absent, late or on
+    leave, with a note. One mark per employee per day; no mark means not
+    recorded. Shown beside the month's salary on Payroll, never deducted by
+    itself (the person paying decides)."""
+    __tablename__ = "payroll_attendance"
+    __table_args__ = (UniqueConstraint("shop_id", "employee_id", "day", name="uq_payroll_attendance_day"),)
+
+    id          = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    shop_id     = Column(String, index=True, nullable=False)
+    employee_id = Column(String, index=True, nullable=False)
+    day         = Column(Date, index=True, nullable=False)
+    status      = Column(String(10), nullable=False)          # present | absent | late | leave
+    note        = Column(String(255), nullable=True)
+
+    marked_by      = Column(String, nullable=True)
+    marked_by_name = Column(String(150), nullable=True)
+    updated_at     = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)

@@ -67,8 +67,12 @@ export interface AdvanceInput {
   note: string | null;
 }
 
-/** `advances`: given and not yet deducted from a salary. */
-export interface MonthRow { employee: Employee | null; payment: SalaryPayment | null; advances: SalaryAdvance[] }
+/** Days marked present, absent, late and on leave in a period. */
+export interface AttendanceCounts { present: number; absent: number; late: number; leave: number }
+
+/** `advances`: given and not yet deducted from a salary. `attendance`: the
+ *  month's marks (shown beside the salary, never deducted by themselves). */
+export interface MonthRow { employee: Employee | null; payment: SalaryPayment | null; advances: SalaryAdvance[]; attendance?: AttendanceCounts }
 
 export interface Month {
   period: string;
@@ -104,6 +108,23 @@ export const undoPayment = async (id: string) => expenseRequest(`/payroll/paymen
 export const giveAdvance = async (a: AdvanceInput): Promise<SalaryAdvance> =>
   (await expenseRequest("/payroll/advances", { method: "POST", body: JSON.stringify(a) }))?.data;
 export const removeAdvance = async (id: string) => expenseRequest(`/payroll/advances/${id}`, { method: "DELETE" });
+
+// ── Attendance: each day, who came (present / absent / late / on leave) ──
+export const ATTENDANCE = ["present", "absent", "late", "leave"] as const;
+export type AttendanceStatus = (typeof ATTENDANCE)[number];
+export interface AttendanceMark { status: AttendanceStatus; note: string | null; marked_by_name: string | null; updated_at: string | null }
+export interface AttendanceDay { day: string; today: string; rows: { employee: Employee; mark: AttendanceMark | null }[] }
+export interface AttendanceMonth {
+  period: string; first: string; last: string; today: string;
+  rows: { employee: Employee; counts: AttendanceCounts; days: Record<string, AttendanceStatus> }[];
+}
+export const getAttendanceDay = async (day: string): Promise<AttendanceDay | null> =>
+  (await expenseRequest(`/payroll/attendance/day/${day}`))?.data ?? null;
+/** Marks for one day; `status: null` clears a person's mark. Returns the day as saved. */
+export const markAttendance = async (day: string, marks: { employee_id: string; status: AttendanceStatus | null; note?: string | null }[]): Promise<AttendanceDay | null> =>
+  (await expenseRequest(`/payroll/attendance/day/${day}`, { method: "PUT", body: JSON.stringify({ marks }) }))?.data ?? null;
+export const getAttendanceMonth = async (period: string): Promise<AttendanceMonth | null> =>
+  (await expenseRequest(`/payroll/attendance/month/${period}`))?.data ?? null;
 
 /** The server's reason for refusing (its `detail`), or null. */
 export function payrollError(err: unknown): string | null {

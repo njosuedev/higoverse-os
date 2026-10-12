@@ -91,3 +91,30 @@ class AdvanceIn(BaseModel):
     @classmethod
     def tidy(cls, v: str | None) -> str | None:
         return _clean(v)
+
+
+ATTENDANCE = {"present", "absent", "late", "leave"}
+
+
+class AttendanceMark(BaseModel):
+    """One employee's mark for the day; status None clears it."""
+    employee_id: str
+    status:      str | None = None
+    note:        str | None = Field(None, max_length=255)
+
+    @field_validator("status")
+    @classmethod
+    def known(cls, v: str | None) -> str | None:
+        if v is not None and v not in ATTENDANCE:
+            raise ValueError("status must be present, absent, late or leave")
+        return v
+
+    @field_validator("note")
+    @classmethod
+    def tidy(cls, v: str | None) -> str | None:
+        return _clean(v)
+
+
+class AttendanceIn(BaseModel):
+    """Marks for one day, several at once ("everyone present")."""
+    marks: list[AttendanceMark] = Field(..., min_length=1, max_length=500)

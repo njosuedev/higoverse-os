@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { ChevronLeft, ChevronRight, HandCoins, Pencil, Plus, Printer, Trash2, Undo2, Users, Wallet, X } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { useLanguage } from "@/lib/language-context";
@@ -190,6 +191,15 @@ export default function PayrollPage() {
                       <div className="min-w-[180px] flex-1">
                         <p className="font-semibold text-text">{name}</p>
                         <p className="text-xs text-text-muted">{[p?.position ?? e?.position, e && `${fmt(e.monthly_salary)} RWF / ${t("payroll.month_short")}`].filter(Boolean).join(" · ")}</p>
+                        {/* The month's attendance (to weigh by hand; nothing is deducted by itself). */}
+                        {r.attendance && r.attendance.present + r.attendance.absent + r.attendance.late + r.attendance.leave > 0 && (
+                          <Link href="/attendance" className="mt-0.5 inline-flex flex-wrap gap-x-2 text-xs text-text-muted hover:text-ink">
+                            <span>{t("att.present")} <b className="text-success">{r.attendance.present}</b></span>
+                            <span>{t("att.absent")} <b className={r.attendance.absent ? "text-accent-dark" : "text-text"}>{r.attendance.absent}</b></span>
+                            <span>{t("att.late")} <b className={r.attendance.late ? "text-warning" : "text-text"}>{r.attendance.late}</b></span>
+                            <span>{t("att.leave")} <b className="text-text">{r.attendance.leave}</b></span>
+                          </Link>
+                        )}
                       </div>
                       {p ? (
                         <>

@@ -1039,7 +1039,7 @@ export default function SettingsPage() {
 
       {/* ── STICKY SAVE BAR ─────────────────────── */}
       {anyDirty && (
-        <div className="fixed bottom-[var(--hgv-tabbar,0px)] left-0 right-0 z-40 bg-white border-t border-slate-200 shadow-lg">
+        <div className="fixed bottom-[var(--hgv-tabbar,0px)] left-[var(--hgv-aside,0px)] right-0 z-40 bg-white border-t border-slate-200 shadow-lg">
           <div className="max-w-3xl mx-auto px-6 py-3 flex items-center justify-between gap-4">
             <div className="flex items-center gap-2.5 text-sm text-slate-600">
               <Pencil size={14} className="text-slate-500" />

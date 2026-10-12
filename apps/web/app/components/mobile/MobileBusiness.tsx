@@ -9,7 +9,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import {
-  BarChart3, ChevronRight, CircleDollarSign, Download, FileText, HandCoins, Languages, LogOut, Monitor, Moon, Receipt,
+  BarChart3, CalendarCheck, ChevronRight, CircleDollarSign, Download, FileText, HandCoins, Languages, LogOut, Monitor, Moon, Receipt,
   Settings, ShieldCheck, Store, Sun, Truck, TriangleAlert, Users, UsersRound, Wallet,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
@@ -87,6 +87,7 @@ export default function MobileBusiness() {
         <Row icon={<Users size={20} />} title={t("nav.partners")} href="/partners" />
         <Row icon={<FileText size={20} />} title={t("nav.proforma")} href="/sales?tab=proforma" />
         {fin && <Row icon={<BarChart3 size={20} />} title={t("nav.reports")} href="/reports" />}
+        {PAYROLL_ROLES.includes(role) && <Row icon={<CalendarCheck size={20} />} title={t("nav.attendance")} href="/attendance" />}
         {PAYROLL_ROLES.includes(role) && <Row icon={<HandCoins size={20} />} title={t("nav.payroll")} href="/payroll" />}
         <Row icon={<Settings size={20} />} title={t("nav.settings")} sub={t("nav.settings_hint")} href="/settings" />
         {isAdmin && <Row icon={<ShieldCheck size={20} />} title={t("nav.admin")} href="/admin" />}
