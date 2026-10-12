@@ -61,6 +61,8 @@ export interface SalaryPayment {
   sick_days: number;
   /** Not recorded yet: a pay slip printed for approval before paying. */
   draft?: boolean;
+  /** The signed code in the printed slip's QR (lib/doc-qr.ts). */
+  doc_code?: string;
 }
 
 /** Part of a salary paid early; the next salary payment deducts it (payment_id). */
@@ -78,6 +80,8 @@ export interface SalaryAdvance {
   payment_id: string | null;
   given_by_name: string | null;
   created_at: string | null;
+  /** The signed code in the printed receipt's QR (lib/doc-qr.ts). */
+  doc_code?: string;
 }
 
 export interface AdvanceInput {
@@ -94,11 +98,17 @@ export interface AttendanceCounts { present: number; absent: number; late: numbe
 
 /** `advances`: given and not yet deducted from a salary. `attendance`: the
  *  month's marks (shown beside the salary, never deducted by themselves). */
-export interface MonthRow { employee: Employee | null; payment: SalaryPayment | null; advances: SalaryAdvance[]; attendance?: AttendanceCounts }
+export interface MonthRow {
+  employee: Employee | null; payment: SalaryPayment | null; advances: SalaryAdvance[]; attendance?: AttendanceCounts;
+  /** The pay slip's QR code, paid or not. */
+  slip_code?: string;
+}
 
 export interface Month {
   period: string;
   rows: MonthRow[];
+  /** The payroll sheet's QR code. */
+  doc_code?: string;
   totals: {
     employees: number; paid_count: number; paid_net: number; paid_gross: number; due_count: number; due_gross: number;
     advances_outstanding: number;

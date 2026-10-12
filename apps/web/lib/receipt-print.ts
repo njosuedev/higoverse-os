@@ -4,7 +4,7 @@
 // product or customer called "A&B <1>" prints as written. Pure: builds the
 // HTML for printHtml (lib/print-frame).
 
-import QRCode from "qrcode";
+import { qrSvg } from "./doc-qr";
 import type { PrintSettings, ReceiptPaper } from "./print-settings";
 
 type T = (key: string) => string;
@@ -37,16 +37,8 @@ export interface ReceiptData {
  *  "HGV1.R.<sale>.<signature>". It carries no readable details: only the
  *  Higoverse app can check it, and only inside the business that sold it. */
 export async function receiptQr(code: string | null | undefined): Promise<string | null> {
-  if (!code) return null;
-  try {
-    return await QRCode.toString(code, { type: "svg", margin: 0, errorCorrectionLevel: "M", color: { dark: "#000000", light: "#ffffff" } });
-  } catch {
-    return null;   // the receipt prints without it
-  }
+  return qrSvg(code);
 }
-
-/** Whether scanned text is a Higoverse receipt code. */
-export const isReceiptCode = (text: string) => text.trim().startsWith("HGV1.R.");
 
 /** The QR block: the code and a short caption. */
 const qrBlock = (r: ReceiptData, t: T, print: PrintSettings, size: string) =>

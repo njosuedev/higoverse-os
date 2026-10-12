@@ -176,3 +176,55 @@ Future<void> showDebtSheet(BuildContext context, Map<String, dynamic> d) {
     ]);
   });
 }
+
+/// A scanned payroll paper (pay slip, advance receipt or payroll sheet) the
+/// server confirmed is genuine and from this business: what it says.
+Future<void> showPayrollDocSheet(BuildContext context, String kind, Map<String, dynamic> d) {
+  final s = SessionScope.of(context);
+  return _sheet(context, (context) {
+    final t = T.of(context);
+    final c = Hgv.of(context);
+    final title = t(switch (kind) { 'pay_slip' => 'doc.pay_slip', 'advance' => 'doc.advance', _ => 'doc.payroll_sheet' });
+    final rows = <Widget>[];
+    String amount;
+    if (kind == 'pay_slip') {
+      final p = d['payment'] as Map?, e = d['employee'] as Map?;
+      amount = money(p != null ? _n(p['net']) : _n(e?['monthly_salary']), s.currency);
+      rows.addAll([
+        InfoRow(t('doc.employee'), '${p?['employee_name'] ?? e?['full_name'] ?? ''}'),
+        InfoRow(t('doc.month'), '${d['period_label'] ?? d['period'] ?? ''}'),
+        InfoRow(t('doc.status'), p != null ? t('doc.paid_on', {'date': t.dateTime(p['paid_on'] as String?)}) : t('doc.not_paid')),
+      ]);
+    } else if (kind == 'advance') {
+      amount = money(_n(d['amount']), s.currency);
+      rows.addAll([
+        InfoRow(t('doc.employee'), '${d['employee_name'] ?? ''}'),
+        InfoRow(t('doc.given_on'), t.dateTime(d['given_on'] as String?)),
+        if ('${d['note'] ?? ''}'.trim().isNotEmpty) InfoRow(t('sale.notes'), '${d['note']}'),
+      ]);
+    } else {
+      final tot = Map<String, dynamic>.from((d['totals'] as Map?) ?? {});
+      amount = money(_n(tot['paid_net']), s.currency);
+      rows.addAll([
+        InfoRow(t('doc.month'), '${d['period_label'] ?? d['period'] ?? ''}'),
+        InfoRow(t('doc.employees_paid'), '${tot['paid_count'] ?? 0} / ${tot['employees'] ?? 0}'),
+      ]);
+    }
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      _heading(context, title, t('doc.genuine'),
+          lead: CircleAvatar(radius: 24, backgroundColor: c.success.withValues(alpha: .15), child: Icon(Icons.verified_rounded, color: c.success))),
+      const SizedBox(height: 18),
+      Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(color: c.paper, borderRadius: BorderRadius.circular(14)),
+        child: FittedBox(
+          alignment: Alignment.centerLeft,
+          fit: BoxFit.scaleDown,
+          child: Text(amount, style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900, color: c.text)),
+        ),
+      ),
+      const SizedBox(height: 8),
+      ...rows,
+    ]);
+  });
+}

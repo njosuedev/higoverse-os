@@ -93,11 +93,13 @@ export interface Proforma {
   sale_ids?: string[];
   created_at: string;
   updated_at?: string;
+  /** The signed code in the printed proforma's QR (lib/doc-qr.ts). */
+  doc_code?: string;
 }
 
 export type ProformaPayload = Omit<
   Proforma,
-  "id" | "created_at" | "updated_at" | "status" | "approved_by" | "approved_at" | "sold_at" | "sale_ids" | "deposits"
+  "id" | "created_at" | "updated_at" | "status" | "approved_by" | "approved_at" | "sold_at" | "sale_ids" | "deposits" | "doc_code"
 >;
 
 export interface ProformaListResult {

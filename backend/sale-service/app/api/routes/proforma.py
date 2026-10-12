@@ -16,6 +16,7 @@ from app.core.security import get_current_user
 from app.core.product_client import get_product, update_product_stock
 from app.core.events import emit
 from app.core import master_data
+from app.core import doc_code
 from app.api.routes.sales import _live as _live_sale
 from app.api.routes.debts import _live as _live_debt
 
@@ -149,6 +150,8 @@ def _fmt(p: Proforma) -> dict:
         "sale_ids": p.sale_ids or [],
         "created_at": p.created_at.isoformat() if p.created_at else None,
         "updated_at": p.updated_at.isoformat() if p.updated_at else None,
+        # For the printed proforma's QR (only the Higoverse app can read it).
+        "doc_code": doc_code.make("P", p.shop_id, p.id),
     }
 
 

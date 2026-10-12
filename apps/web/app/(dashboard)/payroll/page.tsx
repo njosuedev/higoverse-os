@@ -17,6 +17,7 @@ import {
 } from "@/lib/payroll-api";
 import { advanceReceiptHtml, monthLabel, payrollSheetHtml, salaryLettersHtml } from "@/lib/payroll-print";
 import { printHtml } from "@/lib/print-frame";
+import { useShopSettings } from "@/lib/shop-settings-context";
 import { Bone, SkeletonRegion, useSkeleton } from "@/app/components/ui/Skeleton";
 
 const fmt = (n: number) => Math.round(n || 0).toLocaleString("en-US");
@@ -26,6 +27,7 @@ const today = () => new Date().toISOString().slice(0, 10);
 const openPrint = printHtml;
 
 export default function PayrollPage() {
+  const { print: printPrefs } = useShopSettings();
   const { user } = useAuth();
   const { t, lang } = useLanguage();
   const allowed = PAYROLL_ROLES.includes(user?.role ?? "");
@@ -79,7 +81,7 @@ export default function PayrollPage() {
       paid_on: today(), method: "bank", reference: null, expense_id: null, paid_by_name: null, created_at: null,
       bank_name: e.bank_name, bank_account: e.bank_account, contract_start: e.start_date, contract_end: e.contract_end,
       working_days: e.working_days, late_days: r.attendance?.late ?? 0, leave_days: r.attendance?.leave ?? 0, sick_days: r.attendance?.sick ?? 0,
-      draft: true,
+      draft: true, doc_code: r.slip_code,
     } }];
   }), [month, period, t]);
   // Slips ticked for printing; a new month starts empty.
@@ -96,7 +98,7 @@ export default function PayrollPage() {
   function changeMonth(by: number) { setMonth(null); setPicked(new Set()); setPeriod((p) => shiftPeriod(p, by)); }
 
   function printLetters(list: SalaryPayment[]) {
-    if (list.length) openPrint(salaryLettersHtml(list, shop, t, lang, { autoPrint: true }));
+    if (list.length) openPrint(salaryLettersHtml(list, shop, t, lang, { autoPrint: true, qr: printPrefs.showQr }));
   }
 
   async function undo(p: SalaryPayment) {
@@ -112,7 +114,7 @@ export default function PayrollPage() {
   }
 
   function printAdvance(a: SalaryAdvance) {
-    openPrint(advanceReceiptHtml(a, shop, t, lang, { autoPrint: true }));
+    openPrint(advanceReceiptHtml(a, shop, t, lang, { autoPrint: true, qr: printPrefs.showQr }));
   }
 
   // Right after giving an advance: the receipt to sign is one click away.
@@ -201,7 +203,7 @@ export default function PayrollPage() {
                     {t("payroll.table_count").replace("{n}", String(month.rows.length))}
                     {totals && totals.due_count > 0 && <span className="text-warning"> · {t("payroll.not_paid_yet").replace("{n}", String(totals.due_count))}</span>}
                   </p>
-                  <button onClick={() => openPrint(payrollSheetHtml(period, paid, shop, t, lang, { autoPrint: true }))} disabled={paid.length === 0}
+                  <button onClick={() => openPrint(payrollSheetHtml(period, paid, shop, t, lang, { autoPrint: true, qr: printPrefs.showQr, code: month?.doc_code }))} disabled={paid.length === 0}
                     className="flex items-center gap-1.5 rounded-press border border-border px-3 py-1.5 text-sm font-semibold text-text hover:bg-paper-dim disabled:opacity-40">
                     <Printer size={14} /> {t("payroll.print_sheet")}
                   </button>

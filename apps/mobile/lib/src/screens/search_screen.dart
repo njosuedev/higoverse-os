@@ -129,18 +129,29 @@ class _SearchScreenState extends State<SearchScreen> {
 
   void _remember() => AppSettingsScope.of(context).rememberSearch(_query);
 
-  /// A scanned receipt: genuine and from this business → its sale; otherwise
-  /// the server's reason (not ours, or not a Higoverse receipt).
-  Future<void> _openReceipt(String code) async {
+  /// A scanned Higoverse document (receipt, proforma, pay slip, advance
+  /// receipt or payroll sheet: `HGV1.<kind>.<id>.<signature>`): the server
+  /// says whether it's genuine and from this business, then it opens.
+  Future<void> _openDoc(String code) async {
     final t = T.of(context);
+    final s = SessionScope.of(context);
+    final kind = code.length > 6 ? code[5] : '';
+    final path = 'RP'.contains(kind) ? '${Svc.sales}/sales/doc-check' : '${Svc.expenses}/payroll/doc-check';
     try {
-      final res = await SessionScope.of(context).api.get('${Svc.sales}/sales/receipt-check', query: {'code': code});
-      final sale = Map<String, dynamic>.from(((res as Map)['data'] as Map?) ?? {});
+      final res = (await s.api.get(path, query: {'code': code})) as Map;
+      final data = Map<String, dynamic>.from((res['data'] as Map?) ?? {});
       if (!mounted) return;
-      showSaleSheet(context, sale);
+      switch (res['kind']) {
+        case 'receipt':
+          showSaleSheet(context, data);
+        case 'proforma':
+          pushScoped<bool>(context, ProformaScreen(proforma: data));
+        default:
+          showPayrollDocSheet(context, '${res['kind']}', data);
+      }
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e is ApiException && e.status == 404 ? t('receipt.not_ours') : errorText(t, e))));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e is ApiException && e.status == 404 ? t('doc.not_ours') : errorText(t, e))));
     }
   }
 
@@ -183,8 +194,8 @@ class _SearchScreenState extends State<SearchScreen> {
             onPressed: () async {
               final code = await scanBarcode(context);
               if (code == null || !mounted) return;
-              // A Higoverse receipt's QR: the server checks it and opens the sale.
-              if (code.startsWith('HGV1.R.')) return _openReceipt(code);
+              // A Higoverse document's QR: the server checks it, then it opens.
+              if (RegExp(r'^HGV1\.[A-Z]\.').hasMatch(code)) return _openDoc(code);
               _use(code);
               AppSettingsScope.of(this.context).rememberSearch(code);
             },

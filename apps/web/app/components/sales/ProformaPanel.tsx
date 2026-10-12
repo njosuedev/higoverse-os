@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { printHtml } from "@/lib/print-frame";
+import { useShopSettings } from "@/lib/shop-settings-context";
 import { useLanguage } from "@/lib/language-context";
 import { useAuth } from "@/lib/auth-context";
 import { settingsRequest } from "@/lib/settings-api";
@@ -157,6 +158,7 @@ export default function ProformaPanel({ onSold, startNew = false }: {
 }) {
   const { t, layout } = useLanguage();
   const { user } = useAuth();
+  const { print: printPrefs } = useShopSettings();
   const isCar = layout === "car";
   const canApprove = PROFORMA_APPROVER_ROLES.has(user?.role ?? "");
 
@@ -428,7 +430,7 @@ export default function ProformaPanel({ onSold, startNew = false }: {
 
   // ── Print (A4 sheets, laid out like a dealer's proforma) ───────────────────
   function printProforma(p: Proforma) {
-    const html = proformaPrintHtml(p, { ...shop, address: formatPublicAddress(shop.address) }, t, isCar, { autoPrint: true });
+    const html = proformaPrintHtml(p, { ...shop, address: formatPublicAddress(shop.address) }, t, isCar, { autoPrint: true, qr: printPrefs.showQr });
     // Only the browser's print preview shows; no extra window.
     printHtml(html);
   }

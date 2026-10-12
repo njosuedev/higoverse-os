@@ -1881,7 +1881,7 @@ const dict: Record<Lang, Record<string, string>> = {
     "admin.ago_suffix_d": "d ago",
     "admin.just_now": "Just now",
     // ── From the phone app (the phone layout uses its words) ──
-    "print.show_qr": "QR code on receipts",
+    "print.show_qr": "QR code on printed documents",
     "print.qr_caption": "Scan with the Higoverse app",
     "print.receipt": "Print receipt",
     "print.a4": "Print A4",
@@ -3940,7 +3940,7 @@ const dict: Record<Lang, Record<string, string>> = {
     "admin.ago_suffix_d": " i",
     "admin.just_now": "Ubu nyine",
     // ── From the phone app (the phone layout uses its words) ──
-    "print.show_qr": "QR code kuri fagitire",
+    "print.show_qr": "QR code ku nyandiko zicapwa",
     "print.qr_caption": "Soma ukoresheje porogaramu ya Higoverse",
     "print.receipt": "Capa fagitire",
     "print.a4": "Capa kuri A4",
@@ -6002,7 +6002,7 @@ const dict: Record<Lang, Record<string, string>> = {
     "admin.ago_suffix_d": " j",
     "admin.just_now": "À l'instant",
     // ── From the phone app (the phone layout uses its words) ──
-    "print.show_qr": "Code QR sur les reçus",
+    "print.show_qr": "Code QR sur les documents imprimés",
     "print.qr_caption": "Scannez avec l'application Higoverse",
     "print.receipt": "Imprimer le reçu",
     "print.a4": "Imprimer en A4",
@@ -7852,7 +7852,7 @@ const dict: Record<Lang, Record<string, string>> = {
     "admin.ago_suffix_d": " siku",
     "admin.just_now": "Sasa hivi",
     // ── From the phone app (the phone layout uses its words) ──
-    "print.show_qr": "Msimbo wa QR kwenye risiti",
+    "print.show_qr": "Msimbo wa QR kwenye nyaraka zinazochapishwa",
     "print.qr_caption": "Changanua kwa programu ya Higoverse",
     "print.receipt": "Chapisha risiti",
     "print.a4": "Chapisha A4",
@@ -9704,7 +9704,7 @@ const dict: Record<Lang, Record<string, string>> = {
     "admin.ago_suffix_d": "天前",
     "admin.just_now": "刚刚",
     // ── From the phone app (the phone layout uses its words) ──
-    "print.show_qr": "收据显示二维码",
+    "print.show_qr": "打印的文件显示二维码",
     "print.qr_caption": "请用 Higoverse 应用扫描",
     "print.receipt": "打印小票",
     "print.a4": "打印 A4",

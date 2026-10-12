@@ -8,6 +8,7 @@
 //
 // Pure: builds an HTML string, so it can be rendered to PDF in tests.
 
+import { qrBlockHtml } from "./doc-qr";
 import type { Proforma } from "./proforma-api";
 
 export interface PrintShop {
@@ -41,7 +42,7 @@ function chunks<X>(list: X[], first: number, more: number): X[][] {
 }
 
 export function proformaPrintHtml(
-  p: Proforma, shop: PrintShop, t: T, isCar: boolean, opts: { autoPrint?: boolean } = {},
+  p: Proforma, shop: PrintShop, t: T, isCar: boolean, opts: { autoPrint?: boolean; qr?: boolean } = {},
 ): string {
   const row = (a: string, av: string, b?: string, bv?: string) =>
     `<tr><th>${esc(a)}</th><td>${av}</td>${b !== undefined ? `<th>${esc(b)}</th><td>${bv ?? ""}</td>` : `<td colspan="2" class="blank"></td>`}</tr>`;
@@ -154,6 +155,7 @@ export function proformaPrintHtml(
       <div class="sig">
         <div><h3>${esc(t("proforma.sig_customer"))}</h3><div class="l">${esc(t("proforma.signature"))}</div><div class="l">${esc(t("proforma.name_date"))}</div></div>
         <div><h3>${esc(t("proforma.sig_dealer"))}</h3><div class="l">${esc(t("proforma.signature"))}</div><div class="l">${esc(t("proforma.name_date"))}</div></div>
+        ${opts.qr !== false && p.doc_code ? `<div class="sig-qr">${qrBlockHtml(p.doc_code, t("print.qr_caption"), "24mm")}</div>` : ""}
       </div>
       <p class="thanks">${esc(t("proforma.thanks").replace("{shop}", shop.name))}</p>
     </div>`;
@@ -216,6 +218,7 @@ export function proformaPrintHtml(
   .sigwrap { margin-top: 6px; }
   .sig { display: flex; gap: 40px; }
   .sig > div { flex: 1; }
+  .sig > .sig-qr { flex: 0 0 auto; padding-top: 8px; }
   /* Same height for both titles, so the signature lines line up. */
   .sig h3 { color: #1f3a68; font-size: 12px; text-transform: uppercase; margin: 6px 0 0; min-height: 2.6em; }
   .sig .l { border-top: 1px solid #333; margin-top: 38px; padding-top: 4px; font-size: 10.5px; color: #555; }

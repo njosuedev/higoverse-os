@@ -1269,6 +1269,13 @@ Future<Uint8List> proformaPdf(Map<String, dynamic> p, Session s, T t) async {
               ]),
             ),
           ),
+        // The signed code only the Higoverse app can check (core/doc_code.py).
+        if (v(p['doc_code']).isNotEmpty)
+          pw.Column(children: [
+            pw.BarcodeWidget(barcode: pw.Barcode.qrCode(), data: v(p['doc_code']), width: 64, height: 64, drawText: false),
+            pw.SizedBox(height: 3),
+            pw.SizedBox(width: 80, child: pw.Text(t('print.qr_caption'), textAlign: pw.TextAlign.center, style: const pw.TextStyle(fontSize: 7, color: muted))),
+          ]),
       ]),
       pw.SizedBox(height: 16),
       pw.Center(child: pw.Text(t('pf.thanks', {'shop': s.shop?.name ?? ''}), style: pw.TextStyle(fontSize: 9.5, color: muted))),

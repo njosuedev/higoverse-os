@@ -9,7 +9,7 @@ from app.schemas.sale import SaleCreate, SaleUpdate
 from app.core.security import get_current_user, hides_financials
 from app.core.product_client import get_product, update_product_stock
 from app.core.events import emit
-from app.core import receipt_code
+from app.core import doc_code
 
 router = APIRouter(prefix="/sales", tags=["Sales"])
 
@@ -318,11 +318,37 @@ def create_sale(
 
 
 # ─────────────────────────────────────────
-# RECEIPT QR CODES
+# PRINTED DOCUMENTS' QR CODES
 # ─────────────────────────────────────────
-# A printed receipt carries a signed code (core/receipt_code.py) that only
-# Higoverse can read: scanning it in the app opens the sale, and only inside
-# the business that sold it.
+# Every document Higoverse prints carries a signed code (core/doc_code.py)
+# that only Higoverse can read: scanning it in the app opens the document,
+# and only inside the business that printed it.
+
+def _check_code(code: str, user: dict, db: Session) -> tuple[str, dict]:
+    found = doc_code.parse(code, user["shop_id"] or "")
+    if found and found[0] == "R":
+        sale = db.query(Sale).filter(Sale.id == found[1], Sale.shop_id == user["shop_id"]).first()
+        if sale:
+            return "receipt", _scrub(user, _fmt(sale))
+    if found and found[0] == "P":
+        from app.api.routes.proforma import _fmt as _fmt_proforma   # proforma imports this module
+        from app.models.proforma import Proforma
+        p = db.query(Proforma).filter(Proforma.id == found[1], Proforma.shop_id == user["shop_id"]).first()
+        if p:
+            return "proforma", _fmt_proforma(p)
+    raise HTTPException(status_code=404, detail="This document isn't from your business, or the code isn't a Higoverse document.")
+
+
+@router.get("/doc-check")
+def check_document(
+    code: str = Query(..., max_length=200),
+    db: Session = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    """A scanned receipt or proforma: {kind, data}."""
+    kind, data = _check_code(code, user, db)
+    return {"success": True, "kind": kind, "data": data}
+
 
 @router.get("/receipt-check")
 def check_receipt(
@@ -330,11 +356,11 @@ def check_receipt(
     db: Session = Depends(get_db),
     user: dict = Depends(get_current_user),
 ):
-    sale_id = receipt_code.sale_id_of(code, user["shop_id"] or "")
-    sale = db.query(Sale).filter(Sale.id == sale_id, Sale.shop_id == user["shop_id"]).first() if sale_id else None
-    if not sale:
+    """A scanned receipt (app 1.34.5; newer apps use /doc-check)."""
+    kind, data = _check_code(code, user, db)
+    if kind != "receipt":
         raise HTTPException(status_code=404, detail="This receipt isn't from your business, or the code isn't a Higoverse receipt.")
-    return _scrub(user, {"success": True, "data": _fmt(sale)})
+    return {"success": True, "data": data}
 
 
 @router.get("/{sale_id}/receipt-code")
@@ -344,7 +370,7 @@ def receipt_code_of(
     user: dict = Depends(get_current_user),
 ):
     sale = _get_or_404(db, sale_id, user["shop_id"])
-    return {"success": True, "data": {"code": receipt_code.make(sale.shop_id, sale.id)}}
+    return {"success": True, "data": {"code": doc_code.make("R", sale.shop_id, sale.id)}}
 
 
 # ─────────────────────────────────────────

@@ -3,6 +3,7 @@
 // and the month's payroll sheet with a signature column. Pure: builds an
 // HTML string for a print window.
 
+import { qrBlockHtml } from "./doc-qr";
 import type { PrintShop } from "./proforma-print";
 import type { SalaryAdvance, SalaryPayment } from "./payroll-api";
 
@@ -131,6 +132,12 @@ function head(shop: PrintShop): string {
 const PRINT_ONCE = `<script>(function(){var printed=false;function go(){if(printed)return;printed=true;setTimeout(function(){window.print();},300);}
 if(document.readyState==="complete")go();else window.addEventListener("load",go);window.onafterprint=function(){window.close();};})();</script>`;
 
+/** The document's QR code (lib/doc-qr.ts), at the right under the signatures. */
+const qrCorner = (code: string | null | undefined, t: T) => {
+  const block = qrBlockHtml(code, t("print.qr_caption"), "24mm");
+  return block ? `<div style="display:flex;justify-content:flex-end;margin-top:14px">${block}</div>` : "";
+};
+
 function page(title: string, body: string, autoPrint: boolean): string {
   return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(title)}</title><style>${STYLE}</style></head>
 <body>${body}${autoPrint ? PRINT_ONCE : ""}</body></html>`;
@@ -142,7 +149,7 @@ function page(title: string, body: string, autoPrint: boolean): string {
  *  accommodation and the salary; lateness, personal and sick leave (days,
  *  from Attendance); overtime; what was deducted; and the line paid to the
  *  employee's bank. "Approved by" and the employee's signature underneath. */
-export function salaryLettersHtml(payments: SalaryPayment[], shop: PrintShop, t: T, lang: string, opts: { autoPrint?: boolean } = {}): string {
+export function salaryLettersHtml(payments: SalaryPayment[], shop: PrintShop, t: T, lang: string, opts: { autoPrint?: boolean; qr?: boolean } = {}): string {
   const short = (iso: string | null) => (iso ? iso.replaceAll("-", "/") : "…");
   const days = (n: number) => (n ? `${n} ${esc(t(n === 1 ? "slip.day" : "slip.days"))}` : "");
   const sheets = payments.map((p) => {
@@ -193,13 +200,14 @@ export function salaryLettersHtml(payments: SalaryPayment[], shop: PrintShop, t:
       <div><span>${esc(t("slip.approved_by"))}</span><div class="line"></div>${p.paid_by_name ? `<small>${esc(p.paid_by_name)}</small>` : ""}</div>
       <div><span>${esc(t("slip.employee_sign"))}</span><div class="line"></div></div>
     </div>
+    ${qrCorner(opts.qr !== false ? p.doc_code : null, t)}
   </section>`;
   });
   return page(payments.length === 1 ? `${t("slip.title")} - ${payments[0].employee_name}` : t("slip.title"), sheets.join(""), !!opts.autoPrint);
 }
 
 /** The receipt an employee signs on receiving a salary advance. */
-export function advanceReceiptHtml(a: SalaryAdvance, shop: PrintShop, t: T, lang: string, opts: { autoPrint?: boolean } = {}): string {
+export function advanceReceiptHtml(a: SalaryAdvance, shop: PrintShop, t: T, lang: string, opts: { autoPrint?: boolean; qr?: boolean } = {}): string {
   const who = a.employee_id_number ? `${esc(a.employee_name)}, ${esc(fill(t("letter.id_no"), { id: a.employee_id_number }))}` : esc(a.employee_name);
   const words = lang === "en" ? `${numberToWords(a.amount)} Rwandan francs` : "";
   const body = `
@@ -235,13 +243,14 @@ export function advanceReceiptHtml(a: SalaryAdvance, shop: PrintShop, t: T, lang
         ${a.given_by_name ? esc(fill(t("letter.paid_by"), { name: a.given_by_name })) : ""}
       </div>
     </div>
+    ${qrCorner(opts.qr !== false ? a.doc_code : null, t)}
     <div class="foot">${esc(t("advance.footer"))}</div>
   </section>`;
   return page(`${t("advance.title")} - ${a.employee_name}`, body, !!opts.autoPrint);
 }
 
 /** The month's payroll sheet: everyone paid, with a column to sign. */
-export function payrollSheetHtml(period: string, payments: SalaryPayment[], shop: PrintShop, t: T, lang: string, opts: { autoPrint?: boolean } = {}): string {
+export function payrollSheetHtml(period: string, payments: SalaryPayment[], shop: PrintShop, t: T, lang: string, opts: { autoPrint?: boolean; qr?: boolean; code?: string } = {}): string {
   const month = monthLabel(period, lang);
   // Gross: the whole month's pay (basic + bonus + accommodation + overtime), so gross - deductions = net.
   const earned = (p: SalaryPayment) => p.gross + (p.bonus || 0) + (p.accommodation || 0) + (p.overtime_amount || 0);
@@ -276,6 +285,7 @@ export function payrollSheetHtml(period: string, payments: SalaryPayment[], shop
       <div class="sign"><div class="line"></div><b>${esc(t("sheet.prepared"))}</b></div>
       <div class="sign"><div class="line"></div><b>${esc(t("sheet.approved"))}</b></div>
     </div>
+    ${qrCorner(opts.qr !== false ? opts.code : null, t)}
   </section>`;
   return page(fill(t("sheet.title"), { month }), body, !!opts.autoPrint);
 }

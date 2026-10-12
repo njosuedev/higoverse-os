@@ -12,6 +12,7 @@ from app.models.payroll import Attendance, Employee, SalaryAdvance, SalaryPaymen
 from app.schemas.payroll import AdvanceIn, AttendanceIn, EmployeeIn, PaymentIn
 from app.core.security import get_current_user
 from app.core.events import emit
+from app.core import doc_code
 
 # Monthly salaries: the manager keeps the list of employees, records each
 # month's payment, and prints a confirmation the employee signs on receiving
@@ -57,6 +58,12 @@ def _employee(e: Employee) -> dict:
     }
 
 
+# Printed QR codes (core/doc_code.py): a pay slip is an employee's month,
+# so a slip printed before paying ("to be paid") carries the same code.
+def _slip_code(shop_id: str, employee_id: str, period: str) -> str:
+    return doc_code.make("S", shop_id, f"{employee_id}_{period}")
+
+
 def _payment(p: SalaryPayment) -> dict:
     return {
         "id": p.id,
@@ -87,6 +94,7 @@ def _payment(p: SalaryPayment) -> dict:
         "late_days": p.late_days or 0,
         "leave_days": p.leave_days or 0,
         "sick_days": p.sick_days or 0,
+        "doc_code": _slip_code(p.shop_id, p.employee_id, p.period),
     }
 
 
@@ -105,6 +113,7 @@ def _advance(a: SalaryAdvance) -> dict:
         "payment_id": a.payment_id,
         "given_by_name": a.given_by_name,
         "created_at": a.created_at.isoformat() if a.created_at else None,
+        "doc_code": doc_code.make("A", a.shop_id, a.id),
     }
 
 
@@ -216,9 +225,11 @@ def month(period: str, db: Session = Depends(get_db), user: dict = Depends(requi
         advances.setdefault(a.employee_id, []).append(_advance(a))
     counts = _attendance_counts(db, shop, first, last)
     rows = [{"employee": _employee(e), "payment": _payment(payments.pop(e.id)) if e.id in payments else None,
-             "advances": advances.get(e.id, []), "attendance": counts.get(e.id, _NO_MARKS)} for e in employees]
+             "advances": advances.get(e.id, []), "attendance": counts.get(e.id, _NO_MARKS),
+             "slip_code": _slip_code(shop, e.id, period)} for e in employees]
     # Paid, though no longer in the list for that month (dates changed since).
-    rows += [{"employee": None, "payment": _payment(p), "advances": []} for p in payments.values()]
+    rows += [{"employee": None, "payment": _payment(p), "advances": [], "slip_code": _slip_code(shop, p.employee_id, period)}
+             for p in payments.values()]
     paid = [r["payment"] for r in rows if r["payment"]]
     due = [r["employee"] for r in rows if not r["payment"] and r["employee"]]
     return {
@@ -226,6 +237,7 @@ def month(period: str, db: Session = Depends(get_db), user: dict = Depends(requi
         "data": {
             "period": period,
             "rows": rows,
+            "doc_code": doc_code.make("M", shop, period),
             "totals": {
                 "employees": len(rows),
                 "paid_count": len(paid),
@@ -237,6 +249,41 @@ def month(period: str, db: Session = Depends(get_db), user: dict = Depends(requi
             },
         },
     }
+
+
+# ─────────────────────────────────────────
+# A SCANNED DOCUMENT
+# ─────────────────────────────────────────
+
+@router.get("/doc-check")
+def check_document(code: str, db: Session = Depends(get_db), user: dict = Depends(require_payroll)):
+    """A scanned pay slip, advance receipt or payroll sheet, if genuine and
+    from this business: {kind, data}."""
+    shop = user["shop_id"]
+    found = doc_code.parse(code[:200], shop)
+    kind, doc_id = found or ("", "")
+    if kind == "S" and "_" in doc_id:
+        employee_id, period = doc_id.rsplit("_", 1)
+        e = db.query(Employee).filter(Employee.id == employee_id, Employee.shop_id == shop).first()
+        p = db.query(SalaryPayment).filter(SalaryPayment.shop_id == shop, SalaryPayment.employee_id == employee_id,
+                                           SalaryPayment.period == period).first()
+        if e or p:
+            return {"success": True, "kind": "pay_slip", "data": {
+                "period": period, "period_label": _period_label(period),
+                "employee": _employee(e) if e else None, "payment": _payment(p) if p else None}}
+    if kind == "A":
+        a = db.query(SalaryAdvance).filter(SalaryAdvance.id == doc_id, SalaryAdvance.shop_id == shop).first()
+        if a:
+            return {"success": True, "kind": "advance", "data": _advance(a)}
+    if kind == "M":
+        try:
+            _month_bounds(doc_id)
+            month_data = month(doc_id, db, user)["data"]
+            return {"success": True, "kind": "payroll_sheet", "data": {
+                "period": doc_id, "period_label": _period_label(doc_id), "totals": month_data["totals"]}}
+        except (ValueError, IndexError):
+            pass
+    raise HTTPException(status_code=404, detail="This document isn't from your business, or the code isn't a Higoverse document.")
 
 
 # ─────────────────────────────────────────
