@@ -76,6 +76,10 @@ const nextConfig: NextConfig = {
       { source: "/PartnerManagement",  destination: "/partners",  permanent: true },
       { source: "/PurchaseManagement", destination: "/purchases", permanent: true },
       { source: "/ExpenseManagement",  destination: "/expenses",  permanent: true },
+      // The home page's only address is "/" (rewritten to app/welcome):
+      // /welcome itself moves there, so search engines never see a
+      // duplicate of the home page.
+      { source: "/welcome", destination: "/", permanent: true },
       // Dashboard now lives at the root URL, not /dashboard.
       { source: "/dashboard",          destination: "/",          permanent: true },
       // Higoverse dropped the public marketplace — old shared links now
