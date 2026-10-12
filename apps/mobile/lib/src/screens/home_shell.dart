@@ -15,6 +15,7 @@ import '../live/notifier.dart';
 import '../live/scoped_route.dart';
 import '../session.dart';
 import '../nav_bar.dart';
+import '../quick_add.dart';
 import '../sheets.dart';
 import '../theme.dart';
 import '../updates/update_controller.dart';
@@ -272,6 +273,7 @@ class _HomeShellState extends State<HomeShell> {
                 TopBar(
                   onHome: _goHome,
                   onSearch: () => _openSearch(context),
+                  onAdd: () => showQuickAdd(context),
                   onNotifications: () => _openActivity(context),
                   unread: FeedScope.of(context)?.unread ?? 0,
                 ),

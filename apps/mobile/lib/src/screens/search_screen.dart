@@ -4,7 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:phosphor_icons/phosphor_icons.dart';
 
 import '../chat/chat_service.dart';
-import '../forms.dart';
+import '../proforma.dart';
+import '../quick_add.dart';
+import '../scan.dart';
 import '../live/scoped_route.dart';
 import 'activity_screen.dart' show openDebts;
 import 'chat_screen.dart';
@@ -20,10 +22,11 @@ import '../sheets.dart';
 import '../theme.dart';
 import '../widgets.dart';
 
-/// Search everything from one box, the way messaging apps do: type, pick a
-/// filter pill, and results come in sections — vehicles or products, sales,
-/// customers who owe money — with the matching text highlighted. An empty
-/// box shows recent searches.
+/// Search everything from one box, the way messaging apps do: type (or
+/// scan a barcode), pick a filter pill, and results come in sections —
+/// vehicles or products, sales, proformas, customers who owe money — with
+/// the matching text highlighted. An empty box shows one-tap shortcuts
+/// (new sale, new product…) and recent searches.
 class SearchScreen extends StatefulWidget {
   const SearchScreen({super.key});
 
@@ -31,7 +34,7 @@ class SearchScreen extends StatefulWidget {
   State<SearchScreen> createState() => _SearchScreenState();
 }
 
-enum _Filter { all, items, sales, customers }
+enum _Filter { all, items, sales, proformas, customers }
 
 class _SearchScreenState extends State<SearchScreen> {
   final _q = TextEditingController();
@@ -42,8 +45,8 @@ class _SearchScreenState extends State<SearchScreen> {
   Object? _error;
   int _gen = 0;
 
-  List<Map<String, dynamic>> _items = [], _sales = [], _customers = [];
-  int _itemsTotal = 0, _salesTotal = 0;
+  List<Map<String, dynamic>> _items = [], _sales = [], _proformas = [], _customers = [];
+  int _itemsTotal = 0, _salesTotal = 0, _proformasTotal = 0;
 
   /// Debts are few: loaded once, then searched on the phone.
   List<Map<String, dynamic>>? _allDebts;
@@ -75,7 +78,7 @@ class _SearchScreenState extends State<SearchScreen> {
     final gen = ++_gen;
     if (q.isEmpty) {
       setState(() {
-        _items = _sales = _customers = [];
+        _items = _sales = _proformas = _customers = [];
         _loading = false;
         _error = null;
       });
@@ -93,9 +96,11 @@ class _SearchScreenState extends State<SearchScreen> {
       final r = await Future.wait([
         api.get('${Svc.products}/products', query: {'q': q, 'limit': '20', 'page': '1'}),
         api.get('${Svc.sales}/sales', query: {'q': q, 'limit': '10', 'page': '1'}),
+        // Proformas by number or customer; not every account has them.
+        api.get('${Svc.sales}/proforma', query: {'search': q, 'limit': '10', 'page': '1'}).catchError((_) => null),
         if (_allDebts == null) api.get('${Svc.sales}/debts').catchError((_) => null),
       ]);
-      if (r.length > 2) _allDebts = r[2] == null ? const [] : list(r[2]);
+      if (r.length > 3) _allDebts = r[3] == null ? const [] : list(r[3]);
       if (!mounted || gen != _gen) return;
       final needle = q.toLowerCase();
       setState(() {
@@ -103,6 +108,8 @@ class _SearchScreenState extends State<SearchScreen> {
         _itemsTotal = total(r[0]);
         _sales = list(r[1]);
         _salesTotal = total(r[1]);
+        _proformas = r[2] == null ? const [] : list(r[2]);
+        _proformasTotal = r[2] == null ? 0 : total(r[2]);
         _customers = (_allDebts ?? const [])
             .where((d) => '${d['debtor_name'] ?? ''} ${d['phone'] ?? ''}'.toLowerCase().contains(needle))
             .take(10)
@@ -152,6 +159,21 @@ class _SearchScreenState extends State<SearchScreen> {
             },
           ),
         ),
+        actions: [
+          // A barcode: its product comes up at once.
+          IconButton(
+            tooltip: t('search.scan'),
+            icon: const Icon(PhosphorIconsRegular.barcode),
+            onPressed: () async {
+              final code = await scanBarcode(context);
+              if (code != null && mounted) {
+                _use(code);
+                AppSettingsScope.of(this.context).rememberSearch(code);
+              }
+            },
+          ),
+          const SizedBox(width: 4),
+        ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(50),
           child: Column(children: [
@@ -165,6 +187,7 @@ class _SearchScreenState extends State<SearchScreen> {
                     (_Filter.all, t('act.f_all'), null),
                     (_Filter.items, itemsLabel, s.isCar ? Icons.directions_car_outlined : Icons.inventory_2_outlined),
                     (_Filter.sales, t('nav.sales'), Icons.receipt_long_outlined),
+                    (_Filter.proformas, t('pf.title'), PhosphorIconsRegular.fileText),
                     (_Filter.customers, t('search.customers'), Icons.person_outline_rounded),
                   ])
                     Padding(
@@ -229,6 +252,10 @@ class _SearchScreenState extends State<SearchScreen> {
         _Header(t('nav.sales'), _salesTotal),
         for (final sale in _sales) _SaleResult(sale: sale, query: _query, onOpen: _remember),
       ],
+      if (show(_Filter.proformas) && _proformas.isNotEmpty) ...[
+        _Header(t('pf.title'), _proformasTotal),
+        for (final p in _proformas) _ProformaResult(proforma: p, query: _query, onOpen: _remember),
+      ],
       if (show(_Filter.customers) && _customers.isNotEmpty) ...[
         _Header(t('search.customers'), _customers.length),
         for (final d in _customers) _CustomerResult(debt: d, query: _query, onOpen: _remember),
@@ -245,15 +272,10 @@ class _SearchScreenState extends State<SearchScreen> {
     );
   }
 
-  /// What can be done from the search box (label, icon, action).
+  /// What can be done from the search box (label, icon, action): what the
+  /// "+" creates, then debts and the team.
   List<(String, IconData, VoidCallback)> _actions(T t, Session s) => [
-        (t('form.new_sale'), PhosphorIconsRegular.receipt, () => recordSale(context)),
-        if (s.isCar)
-          (t('vehicle.new'), PhosphorIconsRegular.car, () => addVehicle(context))
-        else
-          (t('form.new_product'), PhosphorIconsRegular.package, () => editProduct(context)),
-        if (s.canSeeFinancials) (t('form.new_expense'), PhosphorIconsRegular.wallet, () => recordExpense(context)),
-        (t('form.new_debt'), PhosphorIconsRegular.handCoins, () => recordDebt(context)),
+        for (final a in quickActions(context)) (a.label, a.icon, () => a.run()),
         (t('debts.title'), PhosphorIconsRegular.handCoins, () => openDebts(context)),
         (t('team.title'), PhosphorIconsRegular.usersThree, () => pushScoped<void>(context, const TeamScreen())),
       ];
@@ -261,7 +283,23 @@ class _SearchScreenState extends State<SearchScreen> {
   Widget _recent(T t, Hgv c, Session s) {
     final settings = AppSettingsScope.of(context);
     final recent = settings.recentSearches;
+    final shortcuts = _actions(t, s);
     return ListView(padding: const EdgeInsets.only(top: 6), children: [
+      _Header(t('search.shortcuts'), null),
+      SizedBox(
+        height: 44,
+        child: ListView.separated(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          itemCount: shortcuts.length,
+          separatorBuilder: (_, __) => const SizedBox(width: 8),
+          itemBuilder: (context, i) => ActionChip(
+            avatar: Icon(shortcuts[i].$2, size: 18, color: c.ink),
+            label: Text(shortcuts[i].$1, style: const TextStyle(fontWeight: FontWeight.w700)),
+            onPressed: shortcuts[i].$3,
+          ),
+        ),
+      ),
       if (recent.isEmpty)
         EmptyState(icon: Icons.search_rounded, message: s.isCar ? t('search.prompt_car') : t('search.prompt'))
       else ...[
@@ -483,6 +521,33 @@ class _CustomerResult extends StatelessWidget {
       subtitle: Highlighted('${debt['phone'] ?? ''}', query),
       trailing: debt['is_paid'] == true ? t('debts.settled') : t('debts.balance'),
       trailingSub: money(balance, s.currency),
+    );
+  }
+}
+
+class _ProformaResult extends StatelessWidget {
+  const _ProformaResult({required this.proforma, required this.query, required this.onOpen});
+  final Map<String, dynamic> proforma;
+  final String query;
+  final VoidCallback onOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    final s = SessionScope.of(context);
+    final t = T.of(context);
+    final c = Hgv.of(context);
+    final customer = '${proforma['customer'] ?? ''}';
+    final total = proforma['grand_total'];
+    return _ResultRow(
+      onTap: () {
+        onOpen();
+        pushScoped<bool>(context, ProformaScreen(proforma: proforma));
+      },
+      leading: CircleAvatar(radius: 25, backgroundColor: c.paper, child: Icon(PhosphorIconsRegular.fileText, color: c.ink)),
+      title: Highlighted('${proforma['invoice_no'] ?? ''}', query),
+      subtitle: Highlighted(customer.isEmpty ? t('pf.no_customer') : customer, query),
+      trailing: t('pf.status_${proformaStage(proforma)}'),
+      trailingSub: money(total is num ? total : num.tryParse('$total') ?? 0, '${proforma['currency'] ?? s.currency}'),
     );
   }
 }

@@ -80,6 +80,19 @@ const _weekdays = {
 const Map<String, Map<String, String>> _dict = {
   // ─── ENGLISH ─────────────────────────────────────────────
   'en': {
+    'search.scan': 'Scan a barcode',
+    'scan.hint': 'Hold the barcode inside the frame',
+    'scan.torch': 'Light',
+    'scan.no_camera': 'The camera can\'t be used. Allow Higoverse to use it in your phone\'s settings.',
+    'search.shortcuts': 'Shortcuts',
+    'add.title': 'Create',
+    'live.live_sub': 'New sales and stock changes arrive instantly.',
+    'live.connecting_sub': 'Reconnecting…',
+    'live.offline_sub': 'No connection: what you see may be out of date.',
+    'live.reconnect': 'Reconnect',
+    'live.nobody': 'Nobody else from the team is online.',
+    'act.this_week': 'This week',
+    'act.f_fines': 'Fines & transfers',
     'app.refresh': 'Refresh',
     'app.retry': 'Try again',
     'app.cancel': 'Cancel',
@@ -756,6 +769,19 @@ const Map<String, Map<String, String>> _dict = {
 
   // ─── KINYARWANDA ─────────────────────────────────────────
   'rw': {
+    'search.scan': 'Soma barcode',
+    'scan.hint': 'Shyira barcode mu kazu',
+    'scan.torch': 'Itara',
+    'scan.no_camera': 'Kamera ntishobora gukoreshwa. Emerera Higoverse kuyikoresha mu igenamiterere rya telefoni.',
+    'search.shortcuts': 'Inzira z\'ihuse',
+    'add.title': 'Ongeraho',
+    'live.live_sub': 'Ibigurishwa bishya n\'impinduka za stock bigera ako kanya.',
+    'live.connecting_sub': 'Biri kongera guhuza…',
+    'live.offline_sub': 'Nta murandasi: ibyo ubona bishobora kuba bishaje.',
+    'live.reconnect': 'Ongera uhuze',
+    'live.nobody': 'Nta wundi wo mu itsinda uri kuri murandasi.',
+    'act.this_week': 'Iki cyumweru',
+    'act.f_fines': 'Amande n\'ihererekanya',
     'app.refresh': 'Vugurura',
     'app.retry': 'Ongera ugerageze',
     'app.cancel': 'Reka',
@@ -1432,6 +1458,19 @@ const Map<String, Map<String, String>> _dict = {
 
   // ─── FRANÇAIS ────────────────────────────────────────────
   'fr': {
+    'search.scan': 'Scanner un code-barres',
+    'scan.hint': 'Placez le code-barres dans le cadre',
+    'scan.torch': 'Lampe',
+    'scan.no_camera': 'Impossible d\'utiliser la caméra. Autorisez Higoverse dans les réglages du téléphone.',
+    'search.shortcuts': 'Raccourcis',
+    'add.title': 'Créer',
+    'live.live_sub': 'Les ventes et le stock arrivent instantanément.',
+    'live.connecting_sub': 'Reconnexion…',
+    'live.offline_sub': 'Pas de connexion : l\'affichage peut être dépassé.',
+    'live.reconnect': 'Reconnecter',
+    'live.nobody': 'Personne d\'autre de l\'équipe n\'est en ligne.',
+    'act.this_week': 'Cette semaine',
+    'act.f_fines': 'Amendes et transferts',
     'app.refresh': 'Actualiser',
     'app.retry': 'Réessayer',
     'app.cancel': 'Annuler',
@@ -2108,6 +2147,19 @@ const Map<String, Map<String, String>> _dict = {
 
   // ─── KISWAHILI ───────────────────────────────────────────
   'sw': {
+    'search.scan': 'Changanua barcode',
+    'scan.hint': 'Weka barcode ndani ya fremu',
+    'scan.torch': 'Taa',
+    'scan.no_camera': 'Kamera haiwezi kutumika. Ruhusu Higoverse kuitumia katika mipangilio ya simu.',
+    'search.shortcuts': 'Njia za mkato',
+    'add.title': 'Unda',
+    'live.live_sub': 'Mauzo mapya na mabadiliko ya stoo yanafika papo hapo.',
+    'live.connecting_sub': 'Inaunganisha upya…',
+    'live.offline_sub': 'Hakuna muunganisho: unachoona kinaweza kuwa cha zamani.',
+    'live.reconnect': 'Unganisha upya',
+    'live.nobody': 'Hakuna mwingine wa timu aliye mtandaoni.',
+    'act.this_week': 'Wiki hii',
+    'act.f_fines': 'Faini na uhamisho',
     'app.refresh': 'Onyesha upya',
     'app.retry': 'Jaribu tena',
     'app.cancel': 'Ghairi',
@@ -2784,6 +2836,19 @@ const Map<String, Map<String, String>> _dict = {
 
   // ─── 中文 ────────────────────────────────────────────────
   'zh': {
+    'search.scan': '扫描条形码',
+    'scan.hint': '将条形码放入框内',
+    'scan.torch': '手电筒',
+    'scan.no_camera': '无法使用相机。请在手机设置中允许 Higoverse 使用相机。',
+    'search.shortcuts': '快捷方式',
+    'add.title': '新建',
+    'live.live_sub': '新销售和库存变化即时送达。',
+    'live.connecting_sub': '正在重新连接…',
+    'live.offline_sub': '无网络连接：显示的内容可能不是最新的。',
+    'live.reconnect': '重新连接',
+    'live.nobody': '团队中没有其他人在线。',
+    'act.this_week': '本周',
+    'act.f_fines': '罚款和过户',
     'app.refresh': '刷新',
     'app.retry': '重试',
     'app.cancel': '取消',

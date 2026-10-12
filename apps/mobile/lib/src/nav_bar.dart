@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:phosphor_icons/phosphor_icons.dart';
 
 import 'i18n.dart';
+import 'live/live_sheet.dart';
 import 'media.dart';
 import 'session.dart';
 import 'theme.dart';
@@ -25,9 +26,10 @@ class NavItem {
   final bool dot;
 }
 
-/// The top of the signed-in app: the Higoverse logo and name beside search
-/// and notifications. The logo and name lead Home (the top of it when
-/// already there), as on Facebook and Instagram.
+/// The top of the signed-in app: the Higoverse logo and name beside "+"
+/// (create anything), search and notifications. The logo and name lead
+/// Home (the top of it when already there), as on Facebook and Instagram;
+/// holding the logo shows the live connection and who of the team is online.
 class TopBar extends StatelessWidget {
   const TopBar({
     super.key,
@@ -35,9 +37,10 @@ class TopBar extends StatelessWidget {
     required this.onNotifications,
     required this.unread,
     this.onHome,
+    this.onAdd,
   });
   final VoidCallback onSearch, onNotifications;
-  final VoidCallback? onHome;
+  final VoidCallback? onHome, onAdd;
   final int unread;
 
   @override
@@ -71,6 +74,10 @@ class TopBar extends StatelessWidget {
                               HapticFeedback.selectionClick();
                               onHome!();
                             },
+                      onLongPress: () {
+                        HapticFeedback.mediumImpact();
+                        showLiveSheet(context);
+                      },
                       borderRadius: BorderRadius.circular(10),
                       child: Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 2),
@@ -93,6 +100,10 @@ class TopBar extends StatelessWidget {
                   ),
                 ),
               ),
+              if (onAdd != null) ...[
+                RoundIconButton(icon: PhosphorIconsRegular.plus, tooltip: t('add.title'), onTap: onAdd!),
+                const SizedBox(width: 8),
+              ],
               RoundIconButton(icon: PhosphorIconsRegular.magnifyingGlass, tooltip: t('search.title'), onTap: onSearch),
               const SizedBox(width: 8),
               RoundIconButton(icon: PhosphorIconsRegular.bell, tooltip: t('acc.notifications'), onTap: onNotifications, badge: unread),

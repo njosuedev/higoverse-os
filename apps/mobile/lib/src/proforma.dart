@@ -89,8 +89,9 @@ class ProformaList extends StatefulWidget {
   State<ProformaList> createState() => ProformaListState();
 }
 
+/// The proformas, newest first. Finding one by number or customer is the
+/// app's one search (the magnifying glass at the top).
 class ProformaListState extends State<ProformaList> {
-  final _q = TextEditingController();
   List<Map<String, dynamic>>? _items;
   Object? _error;
   int _gen = 0;
@@ -101,17 +102,11 @@ class ProformaListState extends State<ProformaList> {
     if (_gen == 0) reload();
   }
 
-  @override
-  void dispose() {
-    _q.dispose();
-    super.dispose();
-  }
-
   Future<void> reload() async {
     final gen = ++_gen;
     try {
       final res = await SessionScope.of(context).api.get('${Svc.sales}/proforma',
-          query: {'page': '1', 'limit': '50', if (_q.text.trim().isNotEmpty) 'search': _q.text.trim()});
+          query: {'page': '1', 'limit': '50'});
       final data = (res as Map)['data'] as Map? ?? {};
       if (!mounted || gen != _gen) return;
       setState(() {
@@ -136,15 +131,7 @@ class ProformaListState extends State<ProformaList> {
     final items = _items;
     return RefreshIndicator(
       onRefresh: reload,
-      child: ListView(physics: const AlwaysScrollableScrollPhysics(), padding: const EdgeInsets.only(bottom: 96), children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
-          child: SearchField(
-            controller: _q,
-            hint: t('pf.search'),
-            onChanged: (_) => reload(),
-          ),
-        ),
+      child: ListView(physics: const AlwaysScrollableScrollPhysics(), padding: const EdgeInsets.only(top: 6, bottom: 96), children: [
         if (_error != null && items == null)
           EmptyState(icon: Icons.cloud_off_outlined, message: errorText(t, _error!), onRetry: reload)
         else if (items == null)

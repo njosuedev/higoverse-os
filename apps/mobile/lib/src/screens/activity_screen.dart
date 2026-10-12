@@ -101,6 +101,8 @@ class _ActivityScreenState extends State<ActivityScreen> {
     final items = switch (_filter) {
       'all' => all,
       'unread' => all.where(_isNew).toList(),
+      // Car dealers: traffic fines and cars waiting for their transfer.
+      'cars' => all.where((i) => i.kind.isVehicleAlert).toList(),
       _ => all.where((i) => i.kind.filter == _filter).toList(),
     };
     final filters = [
@@ -109,11 +111,21 @@ class _ActivityScreenState extends State<ActivityScreen> {
       ('sales', 'act.f_sales'),
       ('stock', 'act.f_stock'),
       ('debts', 'act.f_debts'),
+      if (s.isCar) ('cars', 'act.f_fines'),
       if (s.canSeeFinancials) ('money', 'act.f_money'),
     ];
-    // Facebook's two sections: New, then Earlier.
+    // As on Facebook: New first, then the rest by day — today, yesterday,
+    // this week, earlier.
     final fresh = items.where(_isNew).toList();
-    final earlier = items.where((i) => !_isNew(i)).toList();
+    final seen = items.where((i) => !_isNew(i));
+    int age(ActivityItem i) => daysAgo(i.at);
+    final groups = [
+      (t('act.new'), fresh),
+      (t('act.today'), seen.where((i) => age(i) == 0).toList()),
+      (t('act.yesterday'), seen.where((i) => age(i) == 1).toList()),
+      (t('act.this_week'), seen.where((i) => age(i) > 1 && age(i) < 7).toList()),
+      (t('act.earlier'), seen.where((i) => age(i) >= 7).toList()),
+    ];
     final unread = feed?.unread ?? 0;
 
     return Scaffold(
@@ -159,7 +171,7 @@ class _ActivityScreenState extends State<ActivityScreen> {
                 physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.only(bottom: 24),
                 children: [
-                  for (final (title, group) in [(t('act.new'), fresh), (t('act.earlier'), earlier)])
+                  for (final (title, group) in groups)
                     if (group.isNotEmpty) ...[
                       Padding(
                         padding: const EdgeInsets.fromLTRB(16, 12, 16, 6),
