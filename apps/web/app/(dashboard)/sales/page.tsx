@@ -211,6 +211,7 @@ function SaleManagementPage() {
   // Sales | Proforma. A proforma (vehicles + customer) is approved first and
   // becomes sales once the customer decides to buy. /sales?tab=proforma
   const [tab, setTab] = useState<"sales" | "proforma">("sales");
+  const [proformaNew, setProformaNew] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   // Keep figures current without polling hidden tabs.
@@ -272,6 +273,8 @@ function SaleManagementPage() {
   // Dashboard "Record sale" and vehicle-card "Sell" links: /sales?new=1[&product=<id>]
   function handleDeepLink(params: URLSearchParams) {
     if (params.get("tab") === "proforma") { setTab("proforma"); return; }
+    // The "+" at the top → New proforma: /sales?proforma=new
+    if (params.get("proforma") === "new") { setTab("proforma"); setProformaNew(true); return; }
     setTab("sales");
     // Home's "Balance due" story → "Record payment": /sales?pay=<debt id>
     const pay = params.get("pay");
@@ -808,7 +811,7 @@ ${paymentHtml}
     <div className="min-h-screen">
       <div className="max-w-7xl mx-auto px-3 sm:px-5 py-3 sm:py-4">
 
-        <DeepLink keys={["new", "product", "tab", "pay", "debt"]} onParams={handleDeepLink} />
+        <DeepLink keys={["new", "product", "tab", "pay", "debt", "proforma"]} onParams={handleDeepLink} />
 
         <div role="tablist" className="flex gap-1 mb-2 bg-white border border-slate-200 rounded-xl p-1 w-full sm:w-fit">
           {([["sales", ShoppingBag, t("nav.sales")], ["proforma", FileText, t("nav.proforma")]] as const).map(([k, Icon, label]) => (
@@ -821,7 +824,7 @@ ${paymentHtml}
         </div>
 
         <div className={tab === "proforma" ? "" : "hidden"}>
-          <ProformaPanel onSold={() => { setTab("sales"); loadData(true); loadDebts(); }} />
+          <ProformaPanel startNew={proformaNew} onSold={() => { setTab("sales"); loadData(true); loadDebts(); }} />
         </div>
 
         <div className={tab === "sales" ? "" : "hidden"}>
@@ -863,7 +866,7 @@ ${paymentHtml}
           {/* Row 3: search + filter + date range */}
           <div className="relative px-4 pb-3 space-y-2">
             <div className="flex gap-2">
-              <div className="hgv-search">
+              <div className="hgv-search hgv-page-search">
                 <Search size={16} className="hgv-search-icon" />
                 <input value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }}
                   placeholder={t("items.search")}

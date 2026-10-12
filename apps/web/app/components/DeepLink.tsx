@@ -24,6 +24,9 @@ function DeepLinkInner({ keys, onParams }: Props) {
     // the action. Others stay (full=1 keeps a phone on the website's page).
     const rest = new URLSearchParams(params.toString());
     keys.forEach((k) => rest.delete(k));
+    // On a phone this page shows instead of the app's screen only for the
+    // action: stay on it while its form is open (see mobile/PhoneOr).
+    if (window.matchMedia("(max-width: 767px)").matches) rest.set("full", "1");
     router.replace(rest.size ? `${pathname}?${rest}` : pathname, { scroll: false });
   }, [params]); // eslint-disable-line react-hooks/exhaustive-deps
 

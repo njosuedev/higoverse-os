@@ -24,6 +24,7 @@ import { PAYROLL_ROLES } from "@/lib/payroll-api";
 import GlobalSearch, { OPEN_SEARCH_EVENT } from "@/app/components/GlobalSearch";
 import NotificationBell from "@/app/components/dashboard/NotificationBell";
 import { startChat, unreadTotal, useChat } from "@/lib/chat";
+import { LiveSheet, QuickAddButton, useLiveSheet } from "@/app/components/mobile/TopBarExtras";
 
 type NavItem = { key: string; href: string; icon: typeof Home };
 
@@ -60,6 +61,7 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
   const [menuOpen, setMenuOpen]         = useState(false);
   const chat = useChat();
   const unread = unreadTotal(chat);
+  const liveSheet = useLiveSheet();
   // Messages: keys, team and live unread counts once signed in to a business.
   useEffect(() => { if (ready && user?.shop_id) void startChat(); }, [ready, user?.shop_id]);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -120,10 +122,12 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
         {/* ── LEFT: Logo (on phones the menu opens from the bottom bar) ── */}
         <div className="flex items-center gap-1">
           {/* The logo and name lead Home — or back to its top when already there. */}
-          <Link href="/" onClick={goHome} aria-label={t("nav.home")} className="flex items-center gap-2.5 rounded-press transition-opacity duration-200 hover:opacity-80 focus:outline-none focus-visible:ring-2 focus-visible:ring-ink">
+          {/* On phones, holding the logo shows the live connection and who is online. */}
+          <Link href="/" {...liveSheet.handlers} onClick={(e) => { if (!liveSheet.swallowed(e)) goHome(e); }}
+            aria-label={t("nav.home")} className="flex items-center gap-2.5 rounded-press transition-opacity duration-200 hover:opacity-80 focus:outline-none focus-visible:ring-2 focus-visible:ring-ink [-webkit-touch-callout:none]">
             {loading
               ? <div className="hgv-shimmer h-8 w-8 rounded-press" aria-hidden="true" />
-              : <img src="/higoverse-logo.png" alt="Higoverse" className="h-8 w-8 rounded-press object-cover" />}
+              : <img src="/higoverse-logo.png" alt="Higoverse" draggable={false} className="h-8 w-8 rounded-press object-cover" />}
             <span className="text-[23px] font-black leading-none tracking-[-0.8px] text-ink md:font-display md:text-[17px] md:font-semibold md:tracking-tight md:text-text">Higoverse</span>
           </Link>
         </div>
@@ -155,6 +159,8 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
 
         {/* ── RIGHT: search and account menu ── */}
         <div className="flex items-center justify-end gap-2">
+          {/* Phones: "+" creates anything (new sale, product, expense…). */}
+          <QuickAddButton />
           {/* Search: a quiet, rounded field (the full search opens over the page). */}
           <button type="button" onClick={() => window.dispatchEvent(new Event(OPEN_SEARCH_EVENT))}
             title={t("search.hint")} aria-label={t("search.hint")}
@@ -306,6 +312,8 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
           </div>
         </div>
       </header>
+
+      <LiveSheet open={liveSheet.open} onClose={liveSheet.close} />
 
       {/* ── Phones: the Android app's tab bar ── */}
       <nav aria-label={t("nav.open_menu")} className="hgv-tabbar md:hidden">

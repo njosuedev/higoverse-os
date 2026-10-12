@@ -84,7 +84,7 @@ function MessagesInner() {
           )}
         </div>
         <p className="flex items-center gap-1.5 px-4 pb-2 text-xs text-text-faint"><Lock size={12} /> {t("chat.e2e")}</p>
-        <div className="px-3 pb-2">
+        <div className="hgv-page-search px-3 pb-2">
           <div className="flex items-center gap-2 rounded-lg bg-paper-dim px-3">
             <Search size={15} className="text-text-faint" />
             <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={t("chat.search")}

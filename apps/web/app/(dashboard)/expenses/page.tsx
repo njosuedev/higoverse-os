@@ -6,6 +6,7 @@ import { expenseRequest, expenseUploadProof } from "@/lib/expense-api";
 import { useLanguage } from "@/lib/language-context";
 import { useShopSettings } from "@/lib/shop-settings-context";
 import Pagination from "@/app/components/ui/Pagination";
+import DeepLink from "@/app/components/DeepLink";
 import DateRangeFilter from "@/app/components/ui/DateRangeFilter";
 import {
   Plus, Trash2, X, Calendar, BarChart3, AlertCircle, Download, Upload, FileSpreadsheet, FileText, Paperclip, ImageIcon, FileIcon, Receipt, RefreshCw, Search, Filter, ChevronDown,
@@ -537,6 +538,11 @@ export default function ExpenseManagementPage() {
     } catch { /* ignore */ }
   }
 
+  // /expenses?new=1 (the "+" at the top, search's shortcuts) opens the form.
+  function handleDeepLink(params: URLSearchParams) {
+    if (params.get("new") === "1") openModal();
+  }
+
   function openModal() {
     setForm({ ...EMPTY_FORM, expense_date: toDateStr(new Date()) });
     setProofEntries([]);
@@ -697,6 +703,7 @@ export default function ExpenseManagementPage() {
 
   return (
     <div className="min-h-screen">
+      <DeepLink keys={["new"]} onParams={handleDeepLink} />
       <div className="max-w-7xl mx-auto px-3 sm:px-5 py-3 sm:py-4">
 
         {/* ── HEADER ─────────────────────────────────────────── */}
@@ -722,7 +729,7 @@ export default function ExpenseManagementPage() {
           {/* Search + filter + date */}
           <div className="relative px-4 pb-3 space-y-2">
             <div className="flex gap-2">
-              <div className="hgv-search">
+              <div className="hgv-search hgv-page-search">
                 <Search size={16} className="hgv-search-icon" />
                 <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t("expenses.search")}
                   className="hgv-search-input" />

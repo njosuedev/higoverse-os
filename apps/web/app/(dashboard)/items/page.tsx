@@ -692,7 +692,7 @@ function ItemManagementPage() {
           {/* ── Row 3: search + filter ── */}
           <div className="relative flex gap-2 px-4 pb-3">
             {/* Search */}
-            <div className="hgv-search">
+            <div className="hgv-search hgv-page-search">
               <Search size={16} className="hgv-search-icon" />
               <input
                 value={search}

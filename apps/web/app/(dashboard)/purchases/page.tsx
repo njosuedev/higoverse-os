@@ -415,7 +415,7 @@ export default function PurchaseManagementPage() {
             )}
             {tab === "inventory" && (
               <div className="flex gap-2">
-                <div className="hgv-search">
+                <div className="hgv-search hgv-page-search">
                   <Search size={16} className="hgv-search-icon" />
                   <input value={invSearch} onChange={(e) => { setInvSearch(e.target.value); setInvPage(1); }}
                     placeholder={t("items.search")} className="hgv-search-input" />

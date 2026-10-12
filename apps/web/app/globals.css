@@ -827,3 +827,10 @@ html[data-theme="dark"] { scrollbar-color: #363636 var(--color-paper); }
 @keyframes hgv-sheet-up { from { transform: translateY(100%); } to { transform: none; } }
 .hgv-sheet { animation: hgv-sheet-up 240ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
 @media (prefers-reduced-motion: reduce) { .hgv-sheet { animation: none; } }
+
+/* On phones the search at the top finds everything (products, sales,
+   proformas, customers, people…), so pages leave their own search out,
+   as the app does. Wider screens keep them. */
+@media (max-width: 767px) {
+  .hgv-page-search { display: none !important; }
+}

@@ -7,6 +7,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { ChevronRight, Plus } from "lucide-react";
 
 // ─── Words and numbers (format.dart) ─────────────────────────────────────────
@@ -172,7 +173,9 @@ export function DeltaChip({ delta, suffix }: { delta: number; suffix: string }) 
 }
 
 /** The app's bottom sheet: dims the page, slides up, drag handle, closes on
- *  tap outside or Escape. Sits above the tab bar and the phone's gesture bar. */
+ *  tap outside or Escape. Sits above the tab bar and the phone's gesture bar
+ *  (drawn on the page itself, so a sheet opened from the top bar isn't held
+ *  under the tab bar). */
 export function Sheet({ open, onClose, children }: { open: boolean; onClose: () => void; children: ReactNode }) {
   useEffect(() => {
     if (!open) return;
@@ -183,14 +186,15 @@ export function Sheet({ open, onClose, children }: { open: boolean; onClose: () 
     return () => { window.removeEventListener("keydown", onKey); document.body.style.overflow = overflow; };
   }, [open, onClose]);
   if (!open) return null;
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-[80] flex items-end" role="dialog" aria-modal="true">
       <button type="button" aria-label="Close" className="absolute inset-0 bg-black/45" onClick={onClose} />
       <div className="hgv-sheet relative max-h-[92dvh] w-full overflow-y-auto rounded-t-[20px] bg-white px-3.5 pb-[calc(20px+env(safe-area-inset-bottom))]">
         <div className="sticky top-0 flex justify-center bg-inherit pb-3 pt-2.5"><span className="h-1 w-8 rounded-full bg-border-strong" /></div>
         {children}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

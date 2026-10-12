@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLanguage } from "@/lib/language-context";
 import { useAuth } from "@/lib/auth-context";
 import { settingsRequest } from "@/lib/settings-api";
@@ -149,7 +149,11 @@ function Steps({ s }: { s: Stage }) {
   );
 }
 
-export default function ProformaPanel({ onSold }: { onSold?: () => void }) {
+export default function ProformaPanel({ onSold, startNew = false }: {
+  onSold?: () => void;
+  /** Open a new proforma as soon as the bank accounts are known (/sales?proforma=new). */
+  startNew?: boolean;
+}) {
   const { t, layout } = useLanguage();
   const { user } = useAuth();
   const isCar = layout === "car";
@@ -446,6 +450,15 @@ export default function ProformaPanel({ onSold }: { onSold?: () => void }) {
   // The company's TIN and phone go on every proforma: ask for them if missing.
   const missingTin = shopLoaded && !shop.tin;
   const missingBank = isCar && accounts !== null && accounts.length === 0;
+  // Asked to start a new one (/sales?proforma=new): once, when the bank
+  // accounts are known, and only if a proforma can be made.
+  const started = useRef(false);
+  useEffect(() => {
+    if (!startNew || started.current || accounts === null || missingBank) return;
+    started.current = true;
+    const id = setTimeout(newProforma, 0);
+    return () => clearTimeout(id);
+  }, [startNew, accounts, missingBank]); // eslint-disable-line react-hooks/exhaustive-deps
   const tinBanner = missingTin && (
     <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 text-amber-800 text-xs rounded-lg px-3 py-2 mb-2">
       <AlertCircle size={13} className="shrink-0" />
@@ -491,7 +504,7 @@ export default function ProformaPanel({ onSold }: { onSold?: () => void }) {
                 <span className="ml-1 opacity-70">{s === "all" ? items.length : counts[s]}</span>
               </button>
             ))}
-            <div className="hgv-search hgv-search--sm ml-auto w-full sm:w-72">
+            <div className="hgv-search hgv-search--sm hgv-page-search ml-auto w-full sm:w-72">
               <Search size={15} className="hgv-search-icon" />
               <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t("proforma.search_hint")} className="hgv-search-input text-sm" />
               {search && <button type="button" onClick={() => setSearch("")} className="hgv-search-clear"><X size={13} /></button>}

@@ -8,6 +8,7 @@ import {
 import { useLanguage } from "@/lib/language-context";
 import { useAuth } from "@/lib/auth-context";
 import { useShopSettings } from "@/lib/shop-settings-context";
+import { useCanSeeFinancials } from "@/lib/permissions";
 import {
   clearAll, configureNotifications, markAllRead, markRead, notifText, playChime, setSoundOn, useNotifications, useSoundOn, type Notif, type NotifKind,
 } from "@/lib/notifications";
@@ -34,6 +35,22 @@ const ICON: Record<NotifKind, { icon: typeof Bell; tone: string }> = {
   proforma_deposit: { icon: Wallet, tone: "bg-emerald-50 text-emerald-700" },
 };
 
+// The app's filters (activity_screen.dart): what each kind of event is about.
+const SECTION: Record<NotifKind, "sales" | "stock" | "debts" | "money"> = {
+  sale: "sales", sale_deleted: "sales", proforma_new: "sales", proforma_approved: "sales", proforma_sold: "sales", proforma_deposit: "sales",
+  car_added: "stock", cars_stocked: "stock", product_new: "stock", fine: "stock", pending: "stock",
+  low_stock: "stock", out_of_stock: "stock", restocked: "stock", purchase: "stock",
+  debt_new: "debts", debt_payment: "debts", debt_paid: "debts",
+  expense: "money",
+};
+type Filter = "all" | "unread" | "sales" | "stock" | "debts" | "money" | "cars";
+
+/** Whole calendar days from `iso` to today. */
+function daysAgo(iso: string) {
+  const d = new Date(iso), n = new Date();
+  return Math.round((new Date(n.getFullYear(), n.getMonth(), n.getDate()).getTime() - new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()) / 86_400_000);
+}
+
 // The browser's permission, kept in step when the person answers the prompt.
 const permListeners = new Set<() => void>();
 const readPerm = () => (typeof Notification === "undefined" ? "unsupported" : Notification.permission);
@@ -48,6 +65,9 @@ export default function NotificationBell() {
   const items = useNotifications();
   const sound = useSoundOn();
   const [open, setOpen] = useState(false);
+  const [filter, setFilter] = useState<Filter>("all");
+  const fin = useCanSeeFinancials();
+  const isCar = layout === "car";
   // "5 min ago" stays true while the list is open.
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
@@ -76,6 +96,24 @@ export default function NotificationBell() {
   }, [open]);
 
   const unread = items.filter((n) => !n.read).length;
+  const filters: [Filter, string][] = [
+    ["all", "act.f_all"], ["unread", "act.f_unread"], ["sales", "act.f_sales"], ["stock", "act.f_stock"], ["debts", "act.f_debts"],
+    ...(fin ? [["money", "act.f_money"] as [Filter, string]] : []),
+    ...(isCar ? [["cars", "act.f_fines"] as [Filter, string]] : []),
+  ];
+  const shown = items.filter((n) =>
+    filter === "all" ? true
+    : filter === "unread" ? !n.read
+    : filter === "cars" ? n.kind === "fine" || n.kind === "pending"
+    : SECTION[n.kind] === filter);
+  // As on Facebook: New (unread) first, then the rest by day.
+  const groups: [string, Notif[]][] = [
+    ["act.new", shown.filter((n) => !n.read)],
+    ["act.today", shown.filter((n) => n.read && daysAgo(n.at) <= 0)],
+    ["act.yesterday", shown.filter((n) => n.read && daysAgo(n.at) === 1)],
+    ["act.this_week", shown.filter((n) => n.read && daysAgo(n.at) > 1 && daysAgo(n.at) < 7)],
+    ["act.earlier", shown.filter((n) => n.read && daysAgo(n.at) >= 7)],
+  ];
 
   async function enableSystem() {
     if (typeof Notification === "undefined") return;
@@ -114,7 +152,7 @@ export default function NotificationBell() {
 
       {open && (
         <div role="dialog" aria-label={t("notif.title")}
-          className="absolute right-0 top-11 z-50 w-[min(92vw,380px)] overflow-hidden rounded-xl border border-border bg-white shadow-[0_18px_40px_-16px_rgb(0_0_0_/_0.35)]">
+          className="fixed inset-x-2 top-[calc(56px+env(safe-area-inset-top))] z-50 overflow-hidden rounded-xl border border-border bg-white shadow-[0_18px_40px_-16px_rgb(0_0_0_/_0.35)] md:absolute md:inset-x-auto md:right-0 md:top-11 md:w-[380px]">
           <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-3">
             <p className="text-sm font-semibold text-text">{t("notif.title")}</p>
             <div className="flex items-center gap-1">
@@ -149,10 +187,22 @@ export default function NotificationBell() {
             <p className="border-b border-border px-4 py-2 text-[11px] text-text-faint">{t("notif.blocked")}</p>
           )}
 
-          <ul className="max-h-[60dvh] overflow-y-auto">
-            {items.length === 0 ? (
+          {/* The app's filters */}
+          <div className="hgv-stories flex gap-1.5 overflow-x-auto border-b border-border px-3 py-2">
+            {filters.map(([f, key]) => (
+              <button key={f} type="button" onClick={() => setFilter(f)} aria-pressed={filter === f}
+                className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold ${filter === f ? "bg-ink-soft text-ink" : "bg-paper-dim text-text"}`}>
+                {t(key)}
+              </button>
+            ))}
+          </div>
+
+          <ul className="max-h-[calc(100dvh-220px)] overflow-y-auto md:max-h-[60dvh]">
+            {shown.length === 0 ? (
               <li className="px-4 py-10 text-center text-sm text-text-muted">{t("notif.empty")}</li>
-            ) : items.map((n) => {
+            ) : groups.filter(([, g]) => g.length > 0).flatMap(([title, group]) => [
+              <li key={`h-${title}`} className="px-4 pb-1 pt-3 text-[13px] font-extrabold text-text">{t(title)}</li>,
+              ...group.map((n) => {
               const { icon: Icon, tone } = ICON[n.kind] ?? ICON.sale;
               const { title, body } = notifText(n, t);
               return (
@@ -169,7 +219,8 @@ export default function NotificationBell() {
                   </button>
                 </li>
               );
-            })}
+            }),
+            ])}
           </ul>
         </div>
       )}

@@ -330,7 +330,7 @@ export default function PartnerManagementPage() {
 
           {/* Row 3: search + filter */}
           <div className="relative flex gap-2 px-4 pb-3">
-            <div className="hgv-search">
+            <div className="hgv-search hgv-page-search">
               <Search size={16} className="hgv-search-icon" />
               <input value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} placeholder={t("partners.search")}
                 className="hgv-search-input" />
