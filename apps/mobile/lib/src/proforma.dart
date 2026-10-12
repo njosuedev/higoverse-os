@@ -4,6 +4,7 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:phosphor_icons/phosphor_icons.dart';
 import 'package:printing/printing.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'config.dart';
 import 'format.dart';
@@ -1551,6 +1552,145 @@ class _PaymentsCard extends StatelessWidget {
           ],
         ]),
       ),
+    );
+  }
+}
+
+/// A genuine proforma another business printed, scanned from its QR (a
+/// customer comparing offers, or a bank checking one): who issued it
+/// (from the public business directory) and the products it offers, as
+/// printed on the paper.
+class ExternalProformaScreen extends StatefulWidget {
+  const ExternalProformaScreen({super.key, required this.proforma});
+  final Map<String, dynamic> proforma;
+
+  @override
+  State<ExternalProformaScreen> createState() => _ExternalProformaScreenState();
+}
+
+class _ExternalProformaScreenState extends State<ExternalProformaScreen> {
+  Map<String, dynamic>? _shop;
+  bool _shopFailed = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_shop == null && !_shopFailed) _loadShop();
+  }
+
+  Future<void> _loadShop() async {
+    try {
+      final res = await SessionScope.of(context).api.get('${Svc.auth}/api/v1/shops/${widget.proforma['shop_id']}');
+      if (mounted) setState(() => _shop = Map<String, dynamic>.from(((res as Map)['data'] as Map?) ?? {}));
+    } catch (_) {
+      if (mounted) setState(() => _shopFailed = true);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = T.of(context);
+    final c = Hgv.of(context);
+    final p = widget.proforma;
+    String v(Object? x) => '${x ?? ''}'.trim();
+    num n(Object? x) => x is num ? x : num.tryParse('$x') ?? 0;
+    final cur = v(p['currency']).isEmpty ? 'RWF' : v(p['currency']);
+    final lines = (p['lines'] as List? ?? []).whereType<Map>().toList();
+    final stage = proformaStage(p);
+    final shop = _shop;
+    final address = v(shop?['address']);
+    final publicAddress = address.startsWith('TIN:')
+        ? address.split('|').skip(1).where((x) => x.startsWith('Addr:')).map((x) => x.substring(5)).join(', ')
+        : address.split('|Lat:').first;
+    final phone = v(shop?['phone']);
+
+    Widget card(List<Widget> children) => Container(
+          margin: const EdgeInsets.only(bottom: 12),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(color: c.surface, borderRadius: BorderRadius.circular(16), border: Border.all(color: c.border)),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: children),
+        );
+    Widget label(String s) => Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: Text(s.toUpperCase(), style: TextStyle(color: c.faint, fontSize: 12, fontWeight: FontWeight.w800, letterSpacing: .6)),
+        );
+
+    return Scaffold(
+      appBar: AppBar(title: Text(t('doc.external_title'))),
+      body: ListView(padding: const EdgeInsets.fromLTRB(14, 6, 14, 24), children: [
+        Container(
+          margin: const EdgeInsets.only(bottom: 12),
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(color: c.success.withValues(alpha: .12), borderRadius: BorderRadius.circular(14)),
+          child: Row(children: [
+            Icon(Icons.verified_rounded, color: c.success),
+            const SizedBox(width: 10),
+            Expanded(child: Text(t('doc.external_genuine'), style: TextStyle(color: c.text, fontWeight: FontWeight.w600))),
+          ]),
+        ),
+        card([
+          label(t('doc.supplier')),
+          if (shop == null && !_shopFailed)
+            const Padding(padding: EdgeInsets.all(8), child: Center(child: CircularProgressIndicator(strokeWidth: 2)))
+          else if (shop == null)
+            Text(t('doc.supplier_unknown'), style: TextStyle(color: c.muted))
+          else ...[
+            Text(v(shop['name']), style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w800)),
+            const SizedBox(height: 6),
+            if (v(shop['tin']).isNotEmpty) InfoRow('TIN', v(shop['tin'])),
+            if (phone.isNotEmpty) InfoRow(t('doc.phone'), phone),
+            if (v(shop['email']).isNotEmpty) InfoRow(t('doc.email'), v(shop['email'])),
+            if (publicAddress.isNotEmpty) InfoRow(t('doc.address'), publicAddress),
+            if (phone.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              OutlinedButton.icon(
+                onPressed: () => launchUrl(Uri(scheme: 'tel', path: phone)),
+                icon: const Icon(Icons.call_rounded),
+                label: Text(t('debts.call')),
+              ),
+            ],
+          ],
+        ]),
+        card([
+          label(t('doc.proforma')),
+          Row(children: [
+            Expanded(child: Text(v(p['invoice_no']), style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800))),
+            StatusChip(t('pf.status_$stage'), _statusColor(context, stage)),
+          ]),
+          const SizedBox(height: 6),
+          InfoRow(t('pf.date'), v(p['date'])),
+          InfoRow(t('pf.valid_until'), v(p['valid_until'])),
+          if (v(p['customer']).isNotEmpty) InfoRow(t('pf.customer'), v(p['customer'])),
+        ]),
+        card([
+          label(t('doc.products')),
+          for (final (i, l) in lines.indexed) ...[
+            if (i > 0) Divider(color: c.border, height: 20),
+            Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Expanded(child: Text(v(l['product_name']), style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15))),
+              const SizedBox(width: 8),
+              Text(money(n(l['qty']) * n(l['unit_price']), cur), style: const TextStyle(fontWeight: FontWeight.w800)),
+            ]),
+            const SizedBox(height: 2),
+            Text('${t('pf.qty')}: ${groupDigits(n(l['qty']))} × ${money(n(l['unit_price']), cur)}', style: TextStyle(color: c.muted, fontSize: 13)),
+            for (final (k, key) in const [
+              ('car_type', 'pf.genre'), ('year', 'pf.year'), ('color', 'pf.colour'), ('mileage', 'pf.mileage'),
+              ('energy', 'pf.energy'), ('condition', 'pf.condition'), ('chassis_no', 'pf.chassis'), ('plate_no', 'pf.plate'),
+            ])
+              if (v(l[k]).isNotEmpty)
+                InfoRow(t(key), k == 'condition' && const {'new', 'used'}.contains(v(l[k])) ? t('pf.condition_${v(l[k])}') : v(l[k])),
+          ],
+          Divider(color: c.border, height: 24),
+          if (n(p['tax_amount']) > 0) ...[
+            InfoRow(t('pf.subtotal'), money(n(p['subtotal']), cur)),
+            InfoRow(t('pf.tax', {'rate': groupDigits(n(p['tax_rate']))}), money(n(p['tax_amount']), cur)),
+          ],
+          Row(children: [
+            Expanded(child: Text(t('pf.total'), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16))),
+            Text(money(n(p['grand_total']), cur), style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: c.ink)),
+          ]),
+        ]),
+      ]),
     );
   }
 }

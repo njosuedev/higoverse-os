@@ -146,6 +146,8 @@ class _SearchScreenState extends State<SearchScreen> {
           showSaleSheet(context, data);
         case 'proforma':
           pushScoped<bool>(context, ProformaScreen(proforma: data));
+        case 'proforma_external':
+          pushScoped<void>(context, ExternalProformaScreen(proforma: data));
         default:
           showPayrollDocSheet(context, '${res['kind']}', data);
       }

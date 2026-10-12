@@ -80,6 +80,15 @@ const _weekdays = {
 const Map<String, Map<String, String>> _dict = {
   // ─── ENGLISH ─────────────────────────────────────────────
   'en': {
+    'doc.external_title': 'Proforma from another business',
+    'doc.external_genuine': 'Genuine: this proforma was issued in Higoverse by the business below.',
+    'doc.supplier': 'Supplier',
+    'doc.supplier_unknown': 'The business\'s details couldn\'t be loaded.',
+    'doc.proforma': 'Proforma',
+    'doc.products': 'Products',
+    'doc.phone': 'Phone',
+    'doc.email': 'Email',
+    'doc.address': 'Address',
     'print.qr_caption': 'Scan with the Higoverse app',
     'doc.not_ours': 'This document isn\'t from your business, or it isn\'t a Higoverse document.',
     'doc.genuine': 'Genuine document from your business',
@@ -789,6 +798,15 @@ const Map<String, Map<String, String>> _dict = {
 
   // ─── KINYARWANDA ─────────────────────────────────────────
   'rw': {
+    'doc.external_title': 'Proforma y\'ubundi bucuruzi',
+    'doc.external_genuine': 'Ni nyayo: iyi proforma yatanzwe muri Higoverse n\'ubucuruzi buri hepfo.',
+    'doc.supplier': 'Umucuruzi',
+    'doc.supplier_unknown': 'Amakuru y\'ubucuruzi ntiyabonetse.',
+    'doc.proforma': 'Proforma',
+    'doc.products': 'Ibicuruzwa',
+    'doc.phone': 'Telefoni',
+    'doc.email': 'Imeyili',
+    'doc.address': 'Aderesi',
     'print.qr_caption': 'Soma ukoresheje porogaramu ya Higoverse',
     'doc.not_ours': 'Iyi nyandiko ntabwo ari iy\'ubucuruzi bwawe, cyangwa si inyandiko ya Higoverse.',
     'doc.genuine': 'Inyandiko nyayo y\'ubucuruzi bwawe',
@@ -1498,6 +1516,15 @@ const Map<String, Map<String, String>> _dict = {
 
   // ─── FRANÇAIS ────────────────────────────────────────────
   'fr': {
+    'doc.external_title': 'Proforma d\'une autre entreprise',
+    'doc.external_genuine': 'Authentique : cette proforma a été émise dans Higoverse par l\'entreprise ci-dessous.',
+    'doc.supplier': 'Fournisseur',
+    'doc.supplier_unknown': 'Impossible de charger les informations de l\'entreprise.',
+    'doc.proforma': 'Proforma',
+    'doc.products': 'Produits',
+    'doc.phone': 'Téléphone',
+    'doc.email': 'E-mail',
+    'doc.address': 'Adresse',
     'print.qr_caption': 'Scannez avec l\'application Higoverse',
     'doc.not_ours': 'Ce document n\'est pas de votre entreprise, ou ce n\'est pas un document Higoverse.',
     'doc.genuine': 'Document authentique de votre entreprise',
@@ -2207,6 +2234,15 @@ const Map<String, Map<String, String>> _dict = {
 
   // ─── KISWAHILI ───────────────────────────────────────────
   'sw': {
+    'doc.external_title': 'Proforma ya biashara nyingine',
+    'doc.external_genuine': 'Halisi: proforma hii ilitolewa ndani ya Higoverse na biashara iliyo hapa chini.',
+    'doc.supplier': 'Msambazaji',
+    'doc.supplier_unknown': 'Taarifa za biashara hazikuweza kupakiwa.',
+    'doc.proforma': 'Proforma',
+    'doc.products': 'Bidhaa',
+    'doc.phone': 'Simu',
+    'doc.email': 'Barua pepe',
+    'doc.address': 'Anwani',
     'print.qr_caption': 'Changanua kwa programu ya Higoverse',
     'doc.not_ours': 'Hati hii si ya biashara yako, au si hati ya Higoverse.',
     'doc.genuine': 'Hati halisi ya biashara yako',
@@ -2916,6 +2952,15 @@ const Map<String, Map<String, String>> _dict = {
 
   // ─── 中文 ────────────────────────────────────────────────
   'zh': {
+    'doc.external_title': '其他企业的形式发票',
+    'doc.external_genuine': '真实：此形式发票由下方企业通过 Higoverse 开具。',
+    'doc.supplier': '供应商',
+    'doc.supplier_unknown': '无法加载该企业的信息。',
+    'doc.proforma': '形式发票',
+    'doc.products': '产品',
+    'doc.phone': '电话',
+    'doc.email': '电子邮件',
+    'doc.address': '地址',
     'print.qr_caption': '请用 Higoverse 应用扫描',
     'doc.not_ours': '此文件不属于您的企业，或不是 Higoverse 文件。',
     'doc.genuine': '贵企业的真实文件',

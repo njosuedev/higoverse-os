@@ -336,7 +336,39 @@ def _check_code(code: str, user: dict, db: Session) -> tuple[str, dict]:
         p = db.query(Proforma).filter(Proforma.id == found[1], Proforma.shop_id == user["shop_id"]).first()
         if p:
             return "proforma", _fmt_proforma(p)
+    # Another business's proforma (a customer or a bank checking one): genuine
+    # if its own business signed it. Shows who issued it and what it offers,
+    # as printed on the paper; not the customer's contacts or IDs.
+    if not found:
+        from app.models.proforma import Proforma
+        parts = (code or "").strip().split(".")
+        if len(parts) == 4 and parts[1] == "P":
+            p = db.query(Proforma).filter(Proforma.id == parts[2]).first()
+            if p and doc_code.parse(code, p.shop_id) == ("P", p.id):
+                return "proforma_external", _external_proforma(p)
     raise HTTPException(status_code=404, detail="This document isn't from your business, or the code isn't a Higoverse document.")
+
+
+_LINE_KEYS = ("product_name", "qty", "unit_price", "car_type", "year", "color", "mileage", "energy",
+              "chassis_no", "plate_no", "condition")
+
+
+def _external_proforma(p) -> dict:
+    num = lambda v: float(v) if v is not None else 0.0
+    return {
+        "shop_id": p.shop_id,
+        "invoice_no": p.invoice_no,
+        "date": p.date,
+        "valid_until": p.valid_until,
+        "status": p.status,
+        "customer": p.customer or "",
+        "currency": p.currency,
+        "lines": [{k: l.get(k) for k in _LINE_KEYS if l.get(k) not in (None, "")} for l in (p.lines or []) if isinstance(l, dict)],
+        "subtotal": num(p.subtotal),
+        "tax_rate": num(p.tax_rate),
+        "tax_amount": num(p.tax_amount),
+        "grand_total": num(p.grand_total),
+    }
 
 
 @router.get("/doc-check")
