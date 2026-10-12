@@ -8,5 +8,6 @@ export const metadata: Metadata = {
 };
 
 export default function Layout({ children }: { children: React.ReactNode }) {
-  return <AuthGuard><OwnerOnly>{children}</OwnerOnly></AuthGuard>;
+  // Owners, admins and (at a car company) managers: see expense-service's EXPENSE_ROLES.
+  return <AuthGuard><OwnerOnly expenses>{children}</OwnerOnly></AuthGuard>;
 }

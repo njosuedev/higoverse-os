@@ -2,14 +2,17 @@
 
 import Link from "next/link";
 import { Lock } from "lucide-react";
-import { useCanSeeFinancials } from "@/lib/permissions";
+import { useCanSeeFinancials, useCanUseExpenses } from "@/lib/permissions";
 import { useLanguage } from "@/lib/language-context";
 
 /** Wraps pages that are entirely company finances (expenses, reports). Car
  *  companies' staff get a plain explanation instead of the page; the backend
- *  refuses their requests too, so this is about clarity, not enforcement. */
-export default function OwnerOnly({ children }: { children: React.ReactNode }) {
-  const allowed = useCanSeeFinancials();
+ *  refuses their requests too, so this is about clarity, not enforcement.
+ *  `expenses`: the expense book, which a car company's managers keep too. */
+export default function OwnerOnly({ children, expenses = false }: { children: React.ReactNode; expenses?: boolean }) {
+  const fin = useCanSeeFinancials();
+  const canExpenses = useCanUseExpenses();
+  const allowed = expenses ? canExpenses : fin;
   const { t } = useLanguage();
   if (allowed) return <>{children}</>;
   return (
