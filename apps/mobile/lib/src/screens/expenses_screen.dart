@@ -14,8 +14,8 @@ void openExpenses(BuildContext context) => pushScoped<void>(context, const Expen
 
 /// What the business spent this month (or the last 7 / 90 days), newest
 /// first, and a button to record one. An expense opens its details, to edit
-/// or delete it. Owners and staff of shops; at a car company the owner and
-/// its managers (expense-service's EXPENSE_ROLES).
+/// or delete it. The owner, the manager and the accountant
+/// (expense-service's EXPENSE_ROLES).
 class ExpensesScreen extends StatefulWidget {
   const ExpensesScreen({super.key});
 

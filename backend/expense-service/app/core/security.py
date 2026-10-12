@@ -42,17 +42,24 @@ def hides_financials(user: dict) -> bool:
     return user.get("layout") == "car" and user.get("role") not in FINANCIAL_ROLES
 
 
-# Expenses are recorded by managers too: at a car company the owner and its
-# managers keep the expense book, while profit, costs, stock value and
-# reports stay the owner's (FINANCIAL_ROLES).
-EXPENSE_ROLES = FINANCIAL_ROLES | {"manager"}
+# The expense book (the list, each expense, adding, editing, deleting,
+# receipts) is kept by the owner, the manager and the accountant, in every
+# kind of business; cashiers and storekeepers don't use it.
+EXPENSE_ROLES = FINANCIAL_ROLES | {"manager", "accountant"}
 
 
 def require_expense_access(user: dict = Depends(get_current_user)) -> dict:
-    """For the expense book: a car company's owner, admins and managers;
-    everyone at other businesses."""
-    if user.get("layout") == "car" and user.get("role") not in EXPENSE_ROLES:
-        raise HTTPException(status_code=403, detail="Only the owner or a manager can use expenses.")
+    """For the expense book: the owner, admins, the manager and the accountant."""
+    if user.get("role") not in EXPENSE_ROLES:
+        raise HTTPException(status_code=403, detail="Only the owner, a manager or the accountant can use expenses.")
+    return user
+
+
+def require_expense_totals(user: dict = Depends(get_current_user)) -> dict:
+    """Expense totals (summary, by category, by day): whoever keeps the book,
+    and whoever may see the business's money figures (Home, reports)."""
+    if user.get("role") not in EXPENSE_ROLES and hides_financials(user):
+        raise HTTPException(status_code=403, detail="Only the business owner can view this.")
     return user
 
 

@@ -43,7 +43,8 @@ export default function WeeklyPerformance({ isCar, currency, fmt }: { isCar: boo
     const first = wins[0].from, last = wins[wins.length - 1].to;
     Promise.allSettled([
       reportRequest(`/reports/daily?days=${WEEKS * 7}`),
-      expenseRequest(`/expenses?page=1&limit=2000&from_date=${first}&to_date=${last}`),
+      // Per-day totals: readable by everyone who sees reports, not only the expense book's keepers.
+      expenseRequest(`/expenses/daily?days=${WEEKS * 7 + 1}`),
       isCar ? itemRequest("/products?page=1&limit=1000&status=penalties") : Promise.resolve(null),
       isCar ? itemRequest("/products?page=1&limit=1000&status=pending") : Promise.resolve(null),
     ]).then(([daily, exp, fines, pend]) => {
@@ -57,7 +58,7 @@ export default function WeeklyPerformance({ isCar, currency, fmt }: { isCar: boo
         for (const d of daily.value?.data ?? []) if (d.day) { add(d.day, "sales", Number(d.revenue ?? 0)); add(d.day, "count", Number(d.sales_count ?? 0)); }
       }
       if (exp.status === "fulfilled") {
-        for (const e of exp.value?.data?.items ?? []) add(String(e.expense_date ?? "").slice(0, 10), "expenses", Number(e.amount ?? 0));
+        for (const e of exp.value?.data ?? []) add(String(e.day ?? "").slice(0, 10), "expenses", Number(e.total ?? 0));
       }
       if (fines.status === "fulfilled" && fines.value) {
         for (const c of fines.value?.data?.items ?? []) { const a = parseAttributes(c.attributes); if (a.penalty_checked) add(a.penalty_checked, "fines", Number(a.penalty_count || 0)); }

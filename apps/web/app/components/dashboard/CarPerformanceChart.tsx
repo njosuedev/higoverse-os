@@ -32,16 +32,17 @@ export default function CarPerformanceChart({ daily, fmtCurrency }: { daily: Dai
   const load = useCallback(async () => {
     const keys = lastDays();
     const [exp, fin, pend] = await Promise.allSettled([
-      expenseRequest(`/expenses?page=1&limit=500&from_date=${keys[0]}&to_date=${keys[keys.length - 1]}`),
+      // Per-day totals (open to everyone who sees the money figures).
+      expenseRequest(`/expenses/daily?days=${keys.length + 1}`),
       itemRequest("/products?page=1&limit=1000&status=penalties"),
       itemRequest("/products?page=1&limit=1000&status=pending"),
     ]);
     const inRange = new Set(keys);
     const expenses: Record<string, number> = {}, fines: Record<string, number> = {}, pending: Record<string, number> = {};
     if (exp.status === "fulfilled") {
-      for (const e of exp.value?.data?.items ?? []) {
-        const k = String(e.expense_date ?? "").slice(0, 10);
-        if (inRange.has(k)) expenses[k] = (expenses[k] ?? 0) + Number(e.amount ?? 0);
+      for (const e of exp.value?.data ?? []) {
+        const k = String(e.day ?? "").slice(0, 10);
+        if (inRange.has(k)) expenses[k] = (expenses[k] ?? 0) + Number(e.total ?? 0);
       }
     }
     // Fines: how many were found on the day a car's plate was checked.

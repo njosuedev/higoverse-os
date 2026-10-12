@@ -22,16 +22,14 @@ export function useCanSeeFinancials(): boolean {
   return normalizeLayout(shop?.layout) !== "car";
 }
 
-// Mirrors EXPENSE_ROLES in expense-service: a car company's managers keep
-// the expense book with the owner (but still don't see profit or reports).
-const EXPENSE_ROLES = new Set(["owner", "admin", "manager"]);
+// Mirrors EXPENSE_ROLES in expense-service: the owner, the manager and the
+// accountant keep the expense book, in every kind of business.
+const EXPENSE_ROLES = new Set(["owner", "admin", "manager", "accountant"]);
 
-/** Whether the signed-in user may record and see expenses: everyone who can
- *  see financials, and a car company's managers too. */
+/** Whether the signed-in user may open Expenses (view, add, edit, delete). */
 export function useCanUseExpenses(): boolean {
   const { user } = useAuth();
-  const fin = useCanSeeFinancials();
-  return fin || EXPENSE_ROLES.has(user?.role ?? "");
+  return EXPENSE_ROLES.has(user?.role ?? "");
 }
 
 /** Whether profit, loss and margin figures may be shown. Car companies don't

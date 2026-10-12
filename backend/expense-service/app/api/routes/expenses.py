@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from app.db.database import get_db
 from app.models.expense import Expense, ExpenseCategory
 from app.schemas.expense import ExpenseCreate, ExpenseUpdate
-from app.core.security import require_expense_access
+from app.core.security import require_expense_access, require_expense_totals
 from app.core.events import emit
 
 router = APIRouter(prefix="/expenses", tags=["Expenses"])
@@ -97,7 +97,7 @@ def list_expenses(
 @router.get("/summary")
 def get_summary(
     db: Session = Depends(get_db),
-    user: dict = Depends(require_expense_access),
+    user: dict = Depends(require_expense_totals),
     from_date: str | None = None,
     to_date: str | None = None,
 ):
@@ -131,7 +131,7 @@ def get_summary(
 @router.get("/by-category")
 def get_by_category(
     db: Session = Depends(get_db),
-    user: dict = Depends(require_expense_access),
+    user: dict = Depends(require_expense_totals),
     from_date: str | None = None,
     to_date: str | None = None,
 ):
@@ -170,7 +170,7 @@ def get_by_category(
 @router.get("/daily")
 def get_daily(
     db: Session = Depends(get_db),
-    user: dict = Depends(require_expense_access),
+    user: dict = Depends(require_expense_totals),
     days: int = 14,
 ):
     if not user["shop_id"]:
