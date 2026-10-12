@@ -25,7 +25,14 @@ class Shimmer extends StatefulWidget {
 }
 
 class _ShimmerState extends State<Shimmer> with SingleTickerProviderStateMixin {
-  late final _c = AnimationController(vsync: this, duration: Shimmer.period)..repeat();
+  // In step with the clock, so one skeleton handing over to the next (the
+  // app starting, then Home) keeps the light where it was instead of
+  // starting it over.
+  late final _c = AnimationController(
+    vsync: this,
+    duration: Shimmer.period,
+    value: (DateTime.now().millisecondsSinceEpoch % Shimmer.period.inMilliseconds) / Shimmer.period.inMilliseconds,
+  )..repeat();
   final _area = GlobalKey();
 
   @override
@@ -368,8 +375,10 @@ class LoadMoreIndicator extends StatelessWidget {
       const Padding(padding: EdgeInsets.all(18), child: Center(child: RingsLoader(size: 26)));
 }
 
-/// The whole app while it starts: top bar, stories, the day's card, the
-/// status tiles and the tab bar, all as placeholders — no spinner.
+/// The whole app while it starts: the top bar, Home's placeholders and the
+/// tab bar, laid out as the signed-in app draws them, so when Home takes
+/// over with the same [HomeSkeleton] nothing moves: one skeleton, shown
+/// once, no spinner.
 class AppSkeleton extends StatelessWidget {
   const AppSkeleton({super.key});
 
@@ -378,94 +387,176 @@ class AppSkeleton extends StatelessWidget {
     final c = Hgv.of(context);
     return Scaffold(
       backgroundColor: c.chrome,
-      body: Shimmer(
-        child: Column(children: [
-          SafeArea(
-            bottom: false,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(12, 6, 10, 6),
-              child: Row(children: [
-                const Bone(width: 32, height: 32, radius: 9),
-                const SizedBox(width: 8),
-                const Bone(width: 120, height: 20, radius: 6),
-                const Spacer(),
-                for (var i = 0; i < 2; i++) ...const [SizedBox(width: 8), Bone(height: 44, circle: true)],
-              ]),
-            ),
+      body: Column(children: [
+        // Same sizes as TopBar: logo and name, then search and notifications.
+        SafeArea(
+          bottom: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 6, 10, 6),
+            child: Row(children: [
+              Padding(
+                padding: const EdgeInsets.all(2),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  Image.asset('assets/higoverse-logo.png', width: 32, height: 32, filterQuality: FilterQuality.medium),
+                  const SizedBox(width: 8),
+                  Text('Higoverse',
+                      style: TextStyle(fontSize: 23, height: 1.05, fontWeight: FontWeight.w900, letterSpacing: -0.8, color: c.ink)),
+                ]),
+              ),
+              const Spacer(),
+              const Shimmer(
+                child: Row(children: [Bone(height: 44, circle: true), SizedBox(width: 8), Bone(height: 44, circle: true)]),
+              ),
+            ]),
           ),
-          Divider(height: 1, thickness: 0.6, color: c.border),
-          Expanded(
+        ),
+        Divider(height: 1, thickness: 0.6, color: c.border),
+        Expanded(
+          child: ColoredBox(
+            color: Theme.of(context).scaffoldBackgroundColor,
             child: ListView(
               physics: const NeverScrollableScrollPhysics(),
-              padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
-              children: [
-                const SizedBox(
-                  height: 150,
-                  child: Row(children: [
-                    SizedBox(width: 112, child: Bone(height: 150, radius: 14)),
-                    SizedBox(width: 8),
-                    SizedBox(width: 112, child: Bone(height: 150, radius: 14)),
-                    SizedBox(width: 8),
-                    SizedBox(width: 112, child: Bone(height: 150, radius: 14)),
-                  ]),
-                ),
-                const SizedBox(height: 8),
-                const Card(
-                  child: Padding(
-                    padding: EdgeInsets.all(12),
-                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Bone(width: 50, height: 9),
-                      SizedBox(height: 10),
-                      Bone(width: 180, height: 24, radius: 7),
-                      SizedBox(height: 8),
-                      Bone(width: 110, height: 9),
-                      SizedBox(height: 16),
-                      Bone(height: 90, radius: 8),
-                    ]),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Row(children: [
-                  for (var i = 0; i < 4; i++) ...[
-                    if (i > 0) const SizedBox(width: 8),
-                    const Expanded(
-                      child: Card(
-                        child: Padding(
-                          padding: EdgeInsets.all(10),
-                          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                            Bone(height: 26, circle: true),
-                            SizedBox(height: 8),
-                            Bone(width: 24, height: 16),
-                            SizedBox(height: 6),
-                            Bone(width: 50, height: 9),
-                          ]),
-                        ),
-                      ),
-                    ),
-                  ],
-                ]),
-              ],
+              padding: const EdgeInsets.fromLTRB(8, 8, 8, 20),
+              children: const [HomeSkeleton()],
             ),
           ),
-          Divider(height: 1, thickness: 0.6, color: c.border),
-          SafeArea(
-            top: false,
-            child: SizedBox(
-              height: 54,
+        ),
+        // Same sizes as BottomBar: five icons.
+        Divider(height: 1, thickness: 0.6, color: c.border),
+        SafeArea(
+          top: false,
+          child: SizedBox(
+            height: 52,
+            child: Shimmer(
               child: Row(children: [
+                for (var i = 0; i < 5; i++) const Expanded(child: Center(child: Bone(width: 26, height: 26, radius: 8))),
+              ]),
+            ),
+          ),
+        ),
+      ]),
+    );
+  }
+}
+
+/// Home's content while its figures load, block for block: stories, the
+/// day's card with the week's bars, the four status tiles, stock alerts and
+/// new arrivals. Used both while the app starts and by Home itself.
+class HomeSkeleton extends StatelessWidget {
+  const HomeSkeleton({super.key});
+
+  /// A row of [count] blocks wider than the screen, cut at its edge as the
+  /// real horizontal lists are.
+  static Widget _strip(double height, int count, Widget block) => SizedBox(
+        height: height,
+        child: ClipRect(
+          child: OverflowBox(
+            alignment: Alignment.centerLeft,
+            maxWidth: double.infinity,
+            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              for (var i = 0; i < count; i++) ...[
+                if (i > 0) const SizedBox(width: 8),
+                block,
+              ],
+            ]),
+          ),
+        ),
+      );
+
+  @override
+  Widget build(BuildContext context) => Shimmer(
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          // Stories.
+          _strip(200, 4, const Bone(width: 112, height: 200, radius: 12)),
+          const SizedBox(height: 12),
+          // Today, then the week.
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 12, 12, 10),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                const Bone(width: 44, height: 10),
+                const SizedBox(height: 8),
+                const Bone(width: 170, height: 26, radius: 7),
+                const SizedBox(height: 6),
+                const Bone(width: 120, height: 9),
+                const Padding(padding: EdgeInsets.symmetric(vertical: 10), child: Divider()),
+                const Bone(width: 150, height: 11),
+                const SizedBox(height: 5),
+                const Bone(width: 90, height: 8),
+                const SizedBox(height: 10),
+                SizedBox(
+                  height: 58,
+                  child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                    for (final h in const [0.45, 0.7, 0.35, 0.85, 0.55, 0.65, 1.0])
+                      Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 5),
+                          child: Bone(height: 44 * h, radius: 4),
+                        ),
+                      ),
+                  ]),
+                ),
+              ]),
+            ),
+          ),
+          const SizedBox(height: 8),
+          // Status tiles.
+          Row(children: [
+            for (var i = 0; i < 4; i++)
+              const Expanded(
+                child: Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 3),
+                  child: Card(
+                    child: Padding(
+                      padding: EdgeInsets.fromLTRB(10, 10, 8, 9),
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Bone(height: 26, circle: true),
+                        SizedBox(height: 8),
+                        Bone(width: 30, height: 15),
+                        SizedBox(height: 6),
+                        Bone(width: 48, height: 9),
+                      ]),
+                    ),
+                  ),
+                ),
+              ),
+          ]),
+          // Stock alerts.
+          const Padding(padding: EdgeInsets.fromLTRB(2, 20, 0, 10), child: Bone(width: 110, height: 13)),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(10, 12, 10, 12),
+              child: Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: [
                 for (var i = 0; i < 4; i++)
-                  const Expanded(
-                    child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                      Bone(width: 24, height: 24, radius: 7),
-                      SizedBox(height: 5),
-                      Bone(width: 40, height: 8),
+                  const Column(children: [Bone(height: 54, circle: true), SizedBox(height: 8), Bone(width: 48, height: 9)]),
+              ]),
+            ),
+          ),
+          // New arrivals.
+          const Padding(padding: EdgeInsets.fromLTRB(2, 20, 0, 10), child: Bone(width: 120, height: 13)),
+          _strip(
+            202,
+            3,
+            const SizedBox(
+              width: 156,
+              child: Card(
+                clipBehavior: Clip.antiAlias,
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Bone(width: 156, height: 112, radius: 0),
+                  Padding(
+                    padding: EdgeInsets.fromLTRB(9, 9, 9, 0),
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Bone(width: 110, height: 11),
+                      SizedBox(height: 7),
+                      Bone(width: 70, height: 9),
+                      SizedBox(height: 7),
+                      Bone(width: 84, height: 11),
                     ]),
                   ),
-              ]),
+                ]),
+              ),
             ),
           ),
         ]),
-      ),
-    );
-  }
+      );
 }

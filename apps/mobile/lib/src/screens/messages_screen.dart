@@ -25,7 +25,6 @@ class MessagesScreen extends StatefulWidget {
 }
 
 class _MessagesScreenState extends State<MessagesScreen> {
-  final _q = TextEditingController();
   ChatService? _chat;
 
   @override
@@ -33,12 +32,6 @@ class _MessagesScreenState extends State<MessagesScreen> {
     super.didChangeDependencies();
     final s = SessionScope.of(context);
     _chat ??= ChatService.of(s)..start(LiveScope.read(context));
-  }
-
-  @override
-  void dispose() {
-    _q.dispose();
-    super.dispose();
   }
 
   Future<void> _refresh() async {
@@ -57,8 +50,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
       listenable: _chat!,
       builder: (context, _) {
         final chat = _chat!;
-        final q = _q.text.trim().toLowerCase();
-        final people = chat.others.where((m) => q.isEmpty || m.name.toLowerCase().contains(q)).toList()
+        final people = chat.others.toList()
           ..sort((a, b) {
             final la = chat.threads[a.id]?.lastOrNull?.at, lb = chat.threads[b.id]?.lastOrNull?.at;
             if (la != null && lb != null) return lb.compareTo(la);
@@ -90,10 +82,6 @@ class _MessagesScreenState extends State<MessagesScreen> {
                   const SizedBox(width: 5),
                   Expanded(child: Text(t('chat.e2e'), style: TextStyle(fontSize: 12.5, color: c.faint))),
                 ]),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(12, 0, 12, 6),
-                child: SearchField(controller: _q, hint: t('chat.search'), onChanged: (_) => setState(() {})),
               ),
               if (chat.error != null && chat.members.isEmpty)
                 EmptyState(icon: Icons.cloud_off_outlined, message: errorText(t, chat.error!), onRetry: _refresh)

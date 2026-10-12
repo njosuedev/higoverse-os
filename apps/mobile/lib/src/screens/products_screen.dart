@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 
 import '../car_stock.dart';
@@ -27,9 +25,7 @@ class ProductsScreen extends StatefulWidget {
 
 class _ProductsScreenState extends State<ProductsScreen> with LiveListener {
   static const _pageSize = 20;
-  final _search = TextEditingController();
   final _scroll = ScrollController();
-  Timer? _debounce;
   final List<Map<String, dynamic>> _items = [];
   int _page = 0, _total = 0;
   bool _loading = false;
@@ -42,9 +38,8 @@ class _ProductsScreenState extends State<ProductsScreen> with LiveListener {
   /// Car dealers: each car name once with its count (default), or every car.
   bool _byName = true;
 
-  /// The search as last applied (debounced), and a counter that makes the
-  /// car-names view reload.
-  String _query = '';
+  /// Makes the car-names view reload. (Searching is the app's one search,
+  /// at the top of Home.)
   int _refreshKey = 0;
 
   /// Items added elsewhere since this list loaded (shown as a pill).
@@ -103,7 +98,6 @@ class _ProductsScreenState extends State<ProductsScreen> with LiveListener {
     final f = widget.filter?.value;
     if (f == null) return;
     widget.filter!.value = null;
-    _search.clear();
     _status = f;
     if (_scroll.hasClients) _scroll.jumpTo(0);
     _reload();
@@ -113,8 +107,6 @@ class _ProductsScreenState extends State<ProductsScreen> with LiveListener {
   void dispose() {
     _tick?.removeListener(_onResume);
     widget.filter?.removeListener(_onFilter);
-    _debounce?.cancel();
-    _search.dispose();
     _scroll.dispose();
     super.dispose();
   }
@@ -122,7 +114,6 @@ class _ProductsScreenState extends State<ProductsScreen> with LiveListener {
   Future<void> _reload() async {
     _gen++;
     setState(() {
-      _query = _search.text;
       _refreshKey++;
       _newItems = false;
       _items.clear();
@@ -146,7 +137,6 @@ class _ProductsScreenState extends State<ProductsScreen> with LiveListener {
     });
     try {
       final q = <String, String>{'page': '${_page + 1}', 'limit': '$_pageSize'};
-      if (_search.text.trim().isNotEmpty) q['q'] = _search.text.trim();
       if (s.isCar && _status != 'all') q['status'] = _status;
       final res = await s.api.get('${Svc.products}/products', query: q);
       final data = (res as Map)['data'] as Map? ?? {};
@@ -206,11 +196,6 @@ class _ProductsScreenState extends State<ProductsScreen> with LiveListener {
     }
   }
 
-  void _onSearch(String _) {
-    _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 350), () => _reload());
-  }
-
   @override
   Widget build(BuildContext context) {
     final s = SessionScope.of(context);
@@ -223,17 +208,11 @@ class _ProductsScreenState extends State<ProductsScreen> with LiveListener {
         label: Text(s.isCar ? t('vehicle.new') : t('form.new_product')),
       ),
       body: Column(children: [
+        if (s.isCar) ...[
         Container(
           color: Hgv.of(context).chrome,
-          padding: const EdgeInsets.fromLTRB(10, 2, 10, 8),
+          padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
           child: Column(children: [
-            SearchField(
-              controller: _search,
-              hint: s.isCar ? t('stock.search_car') : t('stock.search'),
-              onChanged: (v) => v.isEmpty ? _reload() : _onSearch(v),
-            ),
-            if (s.isCar) ...[
-              const SizedBox(height: 8),
               SegmentedButton<bool>(
                 showSelectedIcon: false,
                 style: const ButtonStyle(visualDensity: VisualDensity.compact, tapTargetSize: MaterialTapTargetSize.shrinkWrap),
@@ -272,14 +251,14 @@ class _ProductsScreenState extends State<ProductsScreen> with LiveListener {
                     ),
                 ]),
               ),
-            ],
-          ]),
-        ),
-        const Divider(),
+            ]),
+          ),
+          const Divider(),
+        ],
         Expanded(
           child: Stack(alignment: Alignment.topCenter, children: [
           if (s.isCar && _byName)
-            CarModelsView(query: _query, status: _status, refreshKey: _refreshKey, onChanged: () => setState(() => _refreshKey++))
+            CarModelsView(query: '', status: _status, refreshKey: _refreshKey, onChanged: () => setState(() => _refreshKey++))
           else
           RefreshIndicator(
             onRefresh: _reload,
@@ -297,7 +276,7 @@ class _ProductsScreenState extends State<ProductsScreen> with LiveListener {
                         ? ListView(physics: const AlwaysScrollableScrollPhysics(), children: [
                             EmptyState(
                                 icon: s.isCar ? Icons.directions_car_outlined : Icons.inventory_2_outlined,
-                                message: _search.text.isEmpty ? t('stock.empty') : t('stock.no_match', {'q': _search.text})),
+                                message: t('stock.empty')),
                           ])
                         : ListView.separated(
                             controller: _scroll,

@@ -224,8 +224,10 @@ class _DashboardScreenState extends State<DashboardScreen> with LiveListener {
               sliver: SliverList.list(children: [
                 if (_error != null && !_hasData)
                   EmptyState(icon: Icons.cloud_off_outlined, message: errorText(t, _error!), onRetry: _load)
+                // Only until the first figures arrive: refreshes and live
+                // updates keep what is on screen.
                 else if (!_hasData)
-                  _skeleton()
+                  const HomeSkeleton()
                 else ...[
                   if (_error != null) _OfflineNote(t('dash.offline')),
                   ..._content(s, t),
@@ -235,47 +237,6 @@ class _DashboardScreenState extends State<DashboardScreen> with LiveListener {
           ],
         ),
       ),
-    );
-  }
-
-  Widget _skeleton() {
-    Widget card(double h) => Padding(padding: const EdgeInsets.only(top: 10), child: Card(child: SizedBox(height: h)));
-    return Shimmer(
-      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        const SizedBox(height: 4),
-        const Card(
-          child: Padding(
-            padding: EdgeInsets.all(14),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Bone(width: 50, height: 9),
-              SizedBox(height: 10),
-              Bone(width: 160, height: 22, radius: 7),
-              SizedBox(height: 10),
-              Bone(width: 110, height: 9),
-              SizedBox(height: 18),
-              Bone(height: 60, radius: 8),
-            ]),
-          ),
-        ),
-        const SizedBox(height: 10),
-        Row(children: [
-          for (var i = 0; i < 4; i++) ...[
-            if (i > 0) const SizedBox(width: 8),
-            const Expanded(child: Card(child: SizedBox(height: 74))),
-          ],
-        ]),
-        const Padding(padding: EdgeInsets.fromLTRB(2, 20, 2, 10), child: Bone(width: 110, height: 11)),
-        SizedBox(
-          height: 170,
-          child: Row(children: [
-            for (var i = 0; i < 3; i++) ...[
-              if (i > 0) const SizedBox(width: 8),
-              const Expanded(child: Card(child: SizedBox.expand())),
-            ],
-          ]),
-        ),
-        card(150),
-      ]),
     );
   }
 
