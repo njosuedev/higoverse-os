@@ -16,7 +16,7 @@ import { useAuth } from "@/lib/auth-context";
 import { useLanguage } from "@/lib/language-context";
 import { useShop } from "@/lib/shop-context";
 import { useShopSettings } from "@/lib/shop-settings-context";
-import { useCanSeeFinancials } from "@/lib/permissions";
+import { useCanSeeFinancials, useCanUseExpenses } from "@/lib/permissions";
 import { useThemePref } from "@/lib/theme";
 import { LANGUAGES } from "@/lib/i18n";
 import { settingsRequest } from "@/lib/settings-api";
@@ -34,6 +34,7 @@ export default function MobileBusiness() {
   const { shop } = useShop();
   const { currency, lowStock } = useShopSettings();
   const fin = useCanSeeFinancials();
+  const expenses = useCanUseExpenses();
   const [themePref, setThemePref] = useThemePref();
   const chat = useChat();
   const isCar = layout === "car";
@@ -76,7 +77,7 @@ export default function MobileBusiness() {
         <Row icon={<TriangleAlert size={20} />} title={t("acc.low_stock")} end={String(lowStock)} />
         <Row icon={<Wallet size={20} />} title={t("debts.title")} sub={t("acc.debts_sub")} href="/sales?view=debts" />
         <Row icon={<UsersRound size={20} />} title={t("team.title")} sub={t("team.menu_sub")} href="/team" />
-        {fin && <Row icon={<Receipt size={20} />} title={t("exp.title")} sub={t("exp.menu_sub")} href="/expenses" />}
+        {expenses && <Row icon={<Receipt size={20} />} title={t("exp.title")} sub={t("exp.menu_sub")} href="/expenses" />}
       </Group>
 
       {/* The website's sections the app doesn't have */}

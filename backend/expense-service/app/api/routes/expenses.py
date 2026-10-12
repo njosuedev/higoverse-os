@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from app.db.database import get_db
 from app.models.expense import Expense, ExpenseCategory
 from app.schemas.expense import ExpenseCreate, ExpenseUpdate
-from app.core.security import require_financial_access
+from app.core.security import require_expense_access
 from app.core.events import emit
 
 router = APIRouter(prefix="/expenses", tags=["Expenses"])
@@ -55,7 +55,7 @@ def _fmt(e: Expense, include_proof: bool = False) -> dict:
 @router.get("")
 def list_expenses(
     db: Session = Depends(get_db),
-    user: dict = Depends(require_financial_access),
+    user: dict = Depends(require_expense_access),
     page: int = 1,
     limit: int = 25,
     category: ExpenseCategory | None = None,
@@ -97,7 +97,7 @@ def list_expenses(
 @router.get("/summary")
 def get_summary(
     db: Session = Depends(get_db),
-    user: dict = Depends(require_financial_access),
+    user: dict = Depends(require_expense_access),
     from_date: str | None = None,
     to_date: str | None = None,
 ):
@@ -131,7 +131,7 @@ def get_summary(
 @router.get("/by-category")
 def get_by_category(
     db: Session = Depends(get_db),
-    user: dict = Depends(require_financial_access),
+    user: dict = Depends(require_expense_access),
     from_date: str | None = None,
     to_date: str | None = None,
 ):
@@ -170,7 +170,7 @@ def get_by_category(
 @router.get("/daily")
 def get_daily(
     db: Session = Depends(get_db),
-    user: dict = Depends(require_financial_access),
+    user: dict = Depends(require_expense_access),
     days: int = 14,
 ):
     if not user["shop_id"]:
@@ -209,7 +209,7 @@ def get_daily(
 def create_expense(
     payload: ExpenseCreate,
     db: Session = Depends(get_db),
-    user: dict = Depends(require_financial_access),
+    user: dict = Depends(require_expense_access),
 ):
     if not user["shop_id"]:
         raise HTTPException(status_code=400, detail="You need a shop before recording expenses")
@@ -256,7 +256,7 @@ async def upload_proof(
     expense_id: str,
     files: List[UploadFile] = File(...),
     db: Session = Depends(get_db),
-    user: dict = Depends(require_financial_access),
+    user: dict = Depends(require_expense_access),
 ):
     if len(files) > _MAX_FILES:
         raise HTTPException(400, f"Maximum {_MAX_FILES} files allowed")
@@ -289,7 +289,7 @@ async def upload_proof(
 def get_proof(
     expense_id: str,
     db: Session = Depends(get_db),
-    user: dict = Depends(require_financial_access),
+    user: dict = Depends(require_expense_access),
 ):
     expense = _get_or_404(db, expense_id, user["shop_id"])
     files = json.loads(expense.proof_data) if expense.proof_data else []
@@ -304,7 +304,7 @@ def get_proof(
 def delete_proof(
     expense_id: str,
     db: Session = Depends(get_db),
-    user: dict = Depends(require_financial_access),
+    user: dict = Depends(require_expense_access),
 ):
     expense = _get_or_404(db, expense_id, user["shop_id"])
     expense.proof_data = None
@@ -320,7 +320,7 @@ def delete_proof(
 def get_expense(
     expense_id: str,
     db: Session = Depends(get_db),
-    user: dict = Depends(require_financial_access),
+    user: dict = Depends(require_expense_access),
 ):
     return {"success": True, "data": _fmt(_get_or_404(db, expense_id, user["shop_id"]), include_proof=True)}
 
@@ -334,7 +334,7 @@ def update_expense(
     expense_id: str,
     payload: ExpenseUpdate,
     db: Session = Depends(get_db),
-    user: dict = Depends(require_financial_access),
+    user: dict = Depends(require_expense_access),
 ):
     expense = _get_or_404(db, expense_id, user["shop_id"])
 
@@ -357,7 +357,7 @@ def admin_list_expenses(
     page: int = 1,
     limit: int = 50,
     db: Session = Depends(get_db),
-    user: dict = Depends(require_financial_access),
+    user: dict = Depends(require_expense_access),
 ):
     if user.get("role") != "admin":
         raise HTTPException(status_code=403, detail="Admin access required")
@@ -383,7 +383,7 @@ def admin_update_expense(
     expense_id: str,
     payload: ExpenseUpdate,
     db: Session = Depends(get_db),
-    user: dict = Depends(require_financial_access),
+    user: dict = Depends(require_expense_access),
 ):
     if user.get("role") != "admin":
         raise HTTPException(status_code=403, detail="Admin access required")
@@ -405,7 +405,7 @@ def admin_update_expense(
 def delete_expense(
     expense_id: str,
     db: Session = Depends(get_db),
-    user: dict = Depends(require_financial_access),
+    user: dict = Depends(require_expense_access),
 ):
     expense = _get_or_404(db, expense_id, user["shop_id"])
     db.delete(expense)

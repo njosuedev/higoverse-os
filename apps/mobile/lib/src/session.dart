@@ -106,6 +106,10 @@ class Session extends ChangeNotifier implements TokenSource {
   /// Profit and margins: never at car companies. Mirrors useShowsProfit().
   bool get showsProfit => canSeeFinancials && !isCar;
 
+  /// Who may record and see expenses: everyone who sees the money, and a
+  /// car company's managers too (expense-service's EXPENSE_ROLES).
+  bool get canUseExpenses => canSeeFinancials || const {'owner', 'admin', 'manager'}.contains(user?.role);
+
   static const _kAccess = 'hgv_access', _kRefresh = 'hgv_refresh', _kUser = 'hgv_user';
 
   /// Picks up a session saved on this phone. Returns false when there is none

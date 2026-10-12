@@ -13,7 +13,7 @@ import 'theme.dart';
 typedef QuickAction = ({String label, IconData icon, Future<void> Function() run});
 
 /// What the "+" at the top creates — the same list as search's shortcuts.
-/// Expenses only for those who may see the money.
+/// Expenses only for those who keep the expense book.
 List<QuickAction> quickActions(BuildContext context) {
   final s = SessionScope.of(context);
   final t = T.of(context);
@@ -23,7 +23,7 @@ List<QuickAction> quickActions(BuildContext context) {
       (label: t('vehicle.new'), icon: PhosphorIconsRegular.car, run: () async => addVehicle(context))
     else
       (label: t('form.new_product'), icon: PhosphorIconsRegular.package, run: () async => editProduct(context)),
-    if (s.canSeeFinancials) (label: t('form.new_expense'), icon: PhosphorIconsRegular.wallet, run: () async => recordExpense(context)),
+    if (s.canUseExpenses) (label: t('form.new_expense'), icon: PhosphorIconsRegular.wallet, run: () async => recordExpense(context)),
     (label: t('form.new_debt'), icon: PhosphorIconsRegular.handCoins, run: () async => recordDebt(context)),
     (label: t('pf.new'), icon: PhosphorIconsRegular.fileText, run: () => newProforma(context)),
   ];

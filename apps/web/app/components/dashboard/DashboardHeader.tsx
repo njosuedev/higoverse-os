@@ -10,7 +10,7 @@ import { useAppTheme, useThemePref } from "@/lib/theme";
 import { LANGUAGES } from "@/lib/i18n";
 import { settingsRequest } from "@/lib/settings-api";
 import { getEffectiveRole } from "@/lib/auth";
-import { useCanSeeFinancials } from "@/lib/permissions";
+import { useCanSeeFinancials, useCanUseExpenses } from "@/lib/permissions";
 import { Sun, Moon, Monitor,
   Home, Package, Truck, ShoppingCart, BarChart3,
   Users, ChevronDown, ShieldCheck, Receipt,
@@ -100,6 +100,7 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
   // Car companies have no Purchases page, and keep expenses and reports
   // (company finances) from their staff.
   const canSeeFinancials = useCanSeeFinancials();
+  const canUseExpenses = useCanUseExpenses();
   /** The logo: Home, or the top of Home when already there (as on Facebook). */
   const goHome = (e: React.MouseEvent) => {
     if (pathname !== "/") return;
@@ -108,7 +109,8 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
   };
   const businessMenus: NavItem[] = BUSINESS_MENUS
     .filter((m) => layout !== "car" || m.href !== "/purchases")
-    .filter((m) => canSeeFinancials || (m.href !== "/expenses" && m.href !== "/reports"))
+    .filter((m) => m.href !== "/reports" || canSeeFinancials)
+    .filter((m) => m.href !== "/expenses" || canUseExpenses)
     // Payroll: the owner, managers and the accountant.
     .filter((m) => m.href !== "/payroll" || PAYROLL_ROLES.includes(user?.role ?? ""));
 

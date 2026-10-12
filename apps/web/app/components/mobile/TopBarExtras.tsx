@@ -9,7 +9,7 @@ import Link from "next/link";
 import { useRef, useState } from "react";
 import { Car, FileText, HandCoins, MessageCircle, Package, Plus, Receipt, Wallet } from "lucide-react";
 import { useLanguage } from "@/lib/language-context";
-import { useCanSeeFinancials } from "@/lib/permissions";
+import { useCanUseExpenses } from "@/lib/permissions";
 import { useConnection, checkNow } from "@/lib/connection";
 import { useChat } from "@/lib/chat";
 import { full } from "./PhoneOr";
@@ -18,14 +18,14 @@ import { Sheet } from "./kit";
 /** What "+" creates (the app's quickActions). */
 function useQuickActions() {
   const { t, layout } = useLanguage();
-  const fin = useCanSeeFinancials();
+  const expenses = useCanUseExpenses();
   const isCar = layout === "car";
   return [
     { label: t("form.new_sale"), icon: Receipt, href: full("/sales", { new: 1 }) },
     isCar
       ? { label: t("vehicle.new"), icon: Car, href: full("/items", { add: 1 }) }
       : { label: t("form.new_product"), icon: Package, href: full("/items", { add: 1 }) },
-    ...(fin ? [{ label: t("form.new_expense"), icon: Wallet, href: full("/expenses", { new: 1 }) }] : []),
+    ...(expenses ? [{ label: t("form.new_expense"), icon: Wallet, href: full("/expenses", { new: 1 }) }] : []),
     { label: t("form.new_debt"), icon: HandCoins, href: full("/sales", { debt: "new" }) },
     { label: t("pf.new"), icon: FileText, href: full("/sales", { proforma: "new" }) },
   ];

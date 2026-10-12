@@ -120,7 +120,7 @@ class MoreScreen extends StatelessWidget {
               trailing: const Icon(Icons.chevron_right),
               onTap: () => pushScoped<void>(context, const TeamScreen()),
             ),
-            if (s.canSeeFinancials) ...[
+            if (s.canUseExpenses) ...[
               const Divider(indent: 16, endIndent: 16),
               ListTile(
                 leading: const Icon(Icons.request_quote_outlined),

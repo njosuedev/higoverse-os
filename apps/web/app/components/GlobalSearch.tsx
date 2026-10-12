@@ -20,7 +20,7 @@ import { listProformas } from "@/lib/proforma-api";
 import { useAuth } from "@/lib/auth-context";
 import { PAYROLL_ROLES } from "@/lib/payroll-api";
 import { useLanguage } from "@/lib/language-context";
-import { useCanSeeFinancials } from "@/lib/permissions";
+import { useCanSeeFinancials, useCanUseExpenses } from "@/lib/permissions";
 import { itemRequest } from "@/lib/product-api";
 import { saleRequest } from "@/lib/sale-api";
 import { partnerRequest } from "@/lib/supplier-api";
@@ -51,6 +51,7 @@ export default function GlobalSearch() {
   const { t, layout } = useLanguage();
   const isCar = layout === "car";
   const fin = useCanSeeFinancials();
+  const expenses = useCanUseExpenses();
   const { user } = useAuth();
   const payroll = PAYROLL_ROLES.includes(user?.role ?? "");
   const router = useRouter();
@@ -90,7 +91,7 @@ export default function GlobalSearch() {
   const actions: Hit[] = useMemo(() => [
     { key: "a-sale", group: "search.actions", title: t("search.new_sale"), icon: Plus, href: "/sales?new=1" },
     { key: "a-item", group: "search.actions", title: t(isCar ? "search.new_vehicle" : "search.new_product"), icon: Plus, href: "/items?add=1" },
-    ...(fin ? [{ key: "a-exp", group: "search.actions", title: t("form.new_expense"), icon: Plus, href: "/expenses?new=1" }] : []),
+    ...(expenses ? [{ key: "a-exp", group: "search.actions", title: t("form.new_expense"), icon: Plus, href: "/expenses?new=1" }] : []),
     { key: "a-debt", group: "search.actions", title: t("form.new_debt"), icon: Plus, href: "/sales?debt=new" },
     { key: "a-pf", group: "search.actions", title: t("pf.new"), icon: Plus, href: "/sales?proforma=new" },
     { key: "p-home", group: "search.pages", title: t("nav.dashboard"), icon: Home, href: "/" },
