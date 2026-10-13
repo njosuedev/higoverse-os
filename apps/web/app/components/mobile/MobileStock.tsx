@@ -10,12 +10,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Car, CloudOff, List, Package, Rows3 } from "lucide-react";
+import { Car, CloudOff, List, Package, Rows3, Share2 } from "lucide-react";
 import { useLanguage } from "@/lib/language-context";
 import { useShopSettings } from "@/lib/shop-settings-context";
 import { itemRequest } from "@/lib/product-api";
 import ModelGroups from "@/app/components/items/ModelGroups";
 import CarQuickView from "@/app/components/items/CarQuickView";
+import CatalogueShareModal from "@/app/components/items/CatalogueShareModal";
 import { full } from "./PhoneOr";
 import {
   Chip, EmptyState, Fab, ListSkeleton, Photo, attributesOf, groupDigits, money, num, tf, useEndOfList,
@@ -45,6 +46,7 @@ export default function MobileStock() {
   const [error, setError] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [car, setCar] = useState<Row | null>(null);
+  const [sharing, setSharing] = useState(false);
   const gen = useRef(0);
 
   const loadPage = useCallback(async (p: number, g: number) => {
@@ -103,6 +105,10 @@ export default function MobileStock() {
           <div className="hgv-stories -mx-2.5 mt-2 flex gap-1.5 overflow-x-auto px-2.5">
             {STATUSES.map(([s, key]) => <Chip key={s} selected={status === s} onClick={() => setStatus(s)}>{t(key)}</Chip>)}
           </div>
+          <button type="button" onClick={() => setSharing(true)}
+            className="mt-2 flex h-9 w-full items-center justify-center gap-1.5 rounded-full bg-[#25d366] text-[14px] font-semibold text-[#06260f]">
+            <Share2 size={16} /> {t("catalogue.title")}
+          </button>
         </div>
       )}
 
@@ -134,6 +140,7 @@ export default function MobileStock() {
       )}
 
       <Fab href={full("/items", { add: 1 })} label={isCar ? t("vehicle.new") : t("form.new_product")} />
+      {sharing && <CatalogueShareModal onClose={() => setSharing(false)} />}
       {car && <CarQuickView productId={String(car.id)} cover={car.thumbnail as string | null} onClose={() => setCar(null)} />}
     </main>
   );

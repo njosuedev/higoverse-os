@@ -18,13 +18,14 @@ import VehicleGrid from "@/app/components/items/VehicleGrid";
 import StockInModal from "@/app/components/items/StockInModal";
 import AssignCarsModal from "@/app/components/items/AssignCarsModal";
 import ModelGroups from "@/app/components/items/ModelGroups";
+import CatalogueShareModal from "@/app/components/items/CatalogueShareModal";
 import DeepLink from "@/app/components/DeepLink";
 import Pagination from "@/app/components/ui/Pagination";
 import { useCanSeeFinancials, useShowsProfit } from "@/lib/permissions";
 import {
   Package, AlertCircle, Search, Filter, Plus, Trash2, Pencil, X, ShoppingCart,
   TrendingUp, TrendingDown, RefreshCw, ChevronDown,
-  FileSpreadsheet, FileText, Upload, Download, CheckCircle, XCircle, Car, PackagePlus, LayoutGrid, List, Hash, Layers,
+  FileSpreadsheet, FileText, Upload, Download, CheckCircle, XCircle, Car, PackagePlus, LayoutGrid, List, Hash, Layers, Share2,
 } from "lucide-react";
 import { askConfirm, notify } from "@/lib/dialogs";
 
@@ -134,6 +135,7 @@ function ItemManagementPage() {
   // Car companies stock in by count ("10 BYD Yuan Up…"; they have no
   // Purchases page), then give each car its chassis and plate.
   const [stockIn, setStockIn] = useState<{ name?: string } | null>(null);
+  const [sharing, setSharing] = useState(false);
   const [assign, setAssign] = useState<{ ids?: string[] } | null>(null);
 
   const [importLoading, setImportLoading] = useState(false);
@@ -264,9 +266,11 @@ function ItemManagementPage() {
     if (st && CAR_STATUS[st]) { setFilter(st); setPage(1); }
     if (params.get("stock") === "low") { setFilter(isCar ? "all" : "restock"); setPage(1); }
     if (params.get("add") === "1") openCreateModal();
-    // /items?stockin=<car name> (dashboard restock circles), /items?assign=1
+    // /items?stockin=<car name> (dashboard restock circles), /items?assign=1,
+    // /items?share=catalogue
     if (isCar && params.has("stockin")) setStockIn({ name: params.get("stockin") || undefined });
     if (isCar && params.get("assign") === "1") setAssign({});
+    if (isCar && params.get("share") === "catalogue") setSharing(true);
   }
 
   function openCreateModal() {
@@ -664,6 +668,15 @@ function ItemManagementPage() {
               >
                 <RefreshCw size={12} className={refreshing ? "animate-spin" : ""} />
               </button>
+              {isCar && (
+                <button
+                  onClick={() => setSharing(true)}
+                  title={t("catalogue.title")}
+                  className="flex items-center gap-1.5 bg-white/10 hover:bg-white/20 border border-white/20 text-white px-3 py-1.5 rounded-lg text-xs font-bold active:scale-95 transition-all"
+                >
+                  <Share2 size={12} strokeWidth={2.5} /> <span className="hidden sm:inline">{t("catalogue.button")}</span>
+                </button>
+              )}
               {isCar && (
                 <button
                   onClick={() => setStockIn({})}
@@ -1204,6 +1217,8 @@ function ItemManagementPage() {
           <StockInModal initialName={stockIn.name} onClose={() => setStockIn(null)}
             onDone={(ids) => { setStockIn(null); loadData(true); if (ids.length) setAssign({ ids }); }} />
         )}
+
+        {sharing && <CatalogueShareModal onClose={() => setSharing(false)} />}
 
         {assign && (
           <AssignCarsModal ids={assign.ids} onClose={() => setAssign(null)}

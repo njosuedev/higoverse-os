@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
 
+from app.api.routes.catalogue import router as catalogue_router
 from app.api.routes.products import router as product_router
 from app.db.database import Base, engine
 
@@ -62,6 +63,7 @@ app.add_middleware(
 # ROUTES
 # -----------------------------
 app.include_router(product_router)
+app.include_router(catalogue_router)
 
 
 # -----------------------------
