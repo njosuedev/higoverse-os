@@ -24,7 +24,7 @@ export default function ShareLinkButton({ url, title, label, copied }: {
 
   return (
     <button type="button" onClick={share}
-      className="inline-flex items-center gap-2 rounded-full border border-white/30 px-4 py-2 text-sm font-semibold text-white hover:bg-white/10">
+      className="inline-flex items-center gap-2 rounded-full border-2 border-[#ff6800] bg-white px-4 py-1.5 text-sm font-bold text-[#ff6800] hover:bg-[#fff1e6]">
       {done ? <Check size={16} /> : <Share2 size={16} />} {done ? copied : label}
     </button>
   );

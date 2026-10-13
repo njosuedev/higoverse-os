@@ -16,6 +16,13 @@ export interface CatalogueModel {
   battery_range: [number, number] | null;
   mileage: [number, number] | null;
   cover: string | null;
+  /** Stocked in this past week. */
+  new_arrival?: boolean;
+  /** Cars per colour. */
+  color_counts?: Record<string, number>;
+  /** Cars of this name with photos. */
+  photos?: number;
+  last_added?: string | null;
 }
 
 export interface Catalogue {
@@ -94,13 +101,6 @@ export function catalogueT(lang: Lang) {
 
 const money = (n: number) => Math.round(n).toLocaleString("en-US");
 
-/** "25,000,000 RWF", "From 25,000,000 RWF", or null when prices are hidden. */
-export function modelPrice(m: CatalogueModel, currency: string, t: ReturnType<typeof catalogueT>): string | null {
-  if (m.min_price == null) return null;
-  if (m.max_price != null && m.max_price > m.min_price) return t("catalogue.from_price", { price: `${money(m.min_price)} ${currency}` });
-  return `${money(m.min_price)} ${currency}`;
-}
-
 const span = (r: number[]) => (r.length ? (r[0] === r[r.length - 1] ? String(r[0]) : `${r[0]}–${r[r.length - 1]}`) : null);
 
 /** The model's key facts on one line: "2024–2025 · SUV · 401 km range · New". */
@@ -134,4 +134,27 @@ export function phoneDigits(phone: string | null): string | null {
 /** Photos the image renderer can draw (it can't decode WebP or GIF). */
 export function drawable(src: string | null): string | null {
   return src && /^data:image\/(jpeg|jpg|png);base64,/.test(src) ? src : null;
+}
+
+// Colour names as staff type them (English, French, Kinyarwanda, Swahili)
+// → a swatch. Unknown names get no swatch, only their name.
+const SWATCHES: [RegExp, string][] = [
+  [/white|blanc|umweru|nyeupe|pearl/i, "#f8f8f8"],
+  [/black|noir|umukara|nyeusi/i, "#1b1b1b"],
+  [/silver|argent/i, "#c0c4c8"],
+  [/gr[ae]y|gris|ivu|kijivu/i, "#8a8f96"],
+  [/blue|bleu|ubururu|bluu/i, "#2457c5"],
+  [/red|rouge|umutuku|nyekundu|maroon/i, "#c62828"],
+  [/green|vert|icyatsi|kijani/i, "#2e7d32"],
+  [/yellow|jaune|umuhondo|njano/i, "#f2c418"],
+  [/orange/i, "#ff6800"],
+  [/brown|marron|ikigina|kahawia/i, "#6d4c41"],
+  [/beige|champagne|cream/i, "#d8c7a3"],
+  [/gold|or|dhahabu/i, "#c9a227"],
+  [/pink|rose|pinki/i, "#e98bb5"],
+  [/purple|violet|zambarau/i, "#7b4fb3"],
+];
+
+export function colorHex(name: string): string | null {
+  return SWATCHES.find(([re]) => re.test(name))?.[1] ?? null;
 }

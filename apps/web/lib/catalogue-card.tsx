@@ -1,29 +1,45 @@
-// The catalogue as pictures: a 1080×1920 WhatsApp Status card (one page of
-// up to MODELS_PER_CARD models) and the 1200×630 preview WhatsApp shows
-// under a shared link. Drawn with next/og, then turned into JPEG: Status
-// recompresses anything it gets, and WhatsApp drops a link preview whose
-// image is over ~300 KB, which a PNG with photos easily is.
+// The catalogue as pictures, laid out like a printed sales flyer in the
+// Higoverse logo's orange on white: a white header with an orange headline,
+// an orange strip, a white grid of cars (price tag, big price, photo, name,
+// specs, corner badges) and an orange bar with the shop's phone. Two sizes: the
+// 1080×1920 WhatsApp Status card (one page of up to MODELS_PER_CARD models)
+// and the 1200×630 preview WhatsApp shows under a shared link.
+//
+// Drawn with next/og, then turned into JPEG: Status recompresses anything it
+// gets, and WhatsApp drops a link preview whose image is over ~300 KB.
 //
 // WhatsApp lays its own bars over a Status: the sender's name across the
-// top (~250 px) and the reply box along the bottom (~400 px). Everything
-// a customer must read stays between them.
+// top (~250 px) and the reply box along the bottom (~400 px). Everything a
+// customer must read stays between them; the bands just run on underneath.
 
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
+import type { ReactNode } from "react";
 import { ImageResponse } from "next/og";
 import sharp from "sharp";
 import type { Lang } from "@/lib/i18n";
 import {
   type Catalogue, type CatalogueModel, type CatalogueShop, MODELS_PER_CARD,
-  catalogueT, drawable, modelFacts, modelPrice,
+  catalogueT, colorHex, drawable, modelFacts,
 } from "@/lib/catalogue";
 
-const NAVY = "#0b1f3a";
-const NAVY_DEEP = "#06111f";
-const BLUE = "#0a66c2";
-const GREEN = "#25d366"; // WhatsApp's
+// The logo's orange on a mostly white page (public/higoverse-logo.png).
+const ORANGE = "#ff6800";
+const ORANGE_SOFT = "#fff1e6";
+const INK = "#1d2330";
+const MUTED = "#6b7280";
+const LINE = "#e7e7ea";
 
-const STATUS = { width: 1080, height: 1920, top: 230, bottom: 420, side: 56 };
+const W = 1080;
+const H = 1920;
+const SAFE_BOTTOM = H - 420; // 1500
+const BAND = 520; // orange band; its words sit below WhatsApp's top bar (~230 px)
+const STRIP = 64; // blue strip under it
+const FOOT = 92; // contact row, last thing inside the safe zone
+const GRID_TOP = BAND + STRIP;
+const GRID_H = SAFE_BOTTOM - FOOT - GRID_TOP; // 824
+
+type T = ReturnType<typeof catalogueT>;
 
 // Geist, regular and bold (lib/fonts, SIL Open Font License): next/og's
 // own font has no bold for names and prices.
@@ -48,18 +64,8 @@ async function toJpeg(image: ImageResponse, quality: number, maxBytes?: number):
   return out;
 }
 
-function Logo({ shop, size }: { shop: CatalogueShop; size: number }) {
-  const src = drawable(shop.logo);
-  return src ? (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img src={src} width={size} height={size} alt="" style={{ borderRadius: size / 4, objectFit: "cover", background: "#fff" }} />
-  ) : (
-    <div style={{
-      width: size, height: size, borderRadius: size / 4, background: BLUE, color: "#fff",
-      display: "flex", alignItems: "center", justifyContent: "center", fontSize: size * 0.45, fontWeight: 700,
-    }}>{shop.name.trim().charAt(0).toUpperCase() || "H"}</div>
-  );
-}
+const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
+const money = (n: number) => Math.round(n).toLocaleString("en-US");
 
 /** A plain car outline for models without a photo (no emoji: next/og
  *  downloads emoji images while drawing). */
@@ -74,39 +80,199 @@ function CarIcon({ size, color }: { size: number; color: string }) {
   );
 }
 
-function Photo({ src, width, height, radius }: { src: string | null; width: number; height: number; radius: number }) {
-  const img = drawable(src);
-  return img ? (
+function Logo({ shop, size, ring = ORANGE }: { shop: CatalogueShop; size: number; ring?: string }) {
+  const src = drawable(shop.logo);
+  return src ? (
     // eslint-disable-next-line @next/next/no-img-element
-    <img src={img} width={width} height={height} alt="" style={{ objectFit: "cover", borderTopLeftRadius: radius, borderTopRightRadius: radius }} />
+    <img src={src} width={size} height={size} alt="" style={{ borderRadius: size, objectFit: "cover", background: "#fff", border: `4px solid ${ring}` }} />
   ) : (
     <div style={{
-      width, height, display: "flex", alignItems: "center", justifyContent: "center",
-      background: "#e8eef6", borderTopLeftRadius: radius, borderTopRightRadius: radius,
-    }}><CarIcon size={height * 0.5} color="#8aa0bb" /></div>
+      width: size, height: size, borderRadius: size, background: ORANGE, color: "#fff", border: `4px solid ${ring}`,
+      display: "flex", alignItems: "center", justifyContent: "center", fontSize: size * 0.48, fontWeight: 700,
+    }}>{shop.name.trim().charAt(0).toUpperCase() || "H"}</div>
   );
 }
 
-const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
+function Photo({ src, width, height, radius = 14 }: { src: string | null; width: number; height: number; radius?: number }) {
+  const img = drawable(src);
+  return img ? (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img src={img} width={width} height={height} alt="" style={{ objectFit: "cover", borderRadius: radius }} />
+  ) : (
+    <div style={{ width, height, borderRadius: radius, display: "flex", alignItems: "center", justifyContent: "center", background: "#f3f4f6" }}>
+      <CarIcon size={Math.min(width, height) * 0.55} color="#c4c8cf" />
+    </div>
+  );
+}
 
-function Tile({ m, cat, t, width, photo, big }: {
-  m: CatalogueModel; cat: Catalogue; t: ReturnType<typeof catalogueT>; width: number; photo: number; big: boolean;
-}) {
-  const price = modelPrice(m, cat.currency, t);
-  const facts = modelFacts(m, t).join(" · ");
+/** Round corner badge, like a flyer's "BEST DEAL" sticker. */
+function Badge({ text, filled, size }: { text: string; filled: boolean; size: number }) {
   return (
-    <div style={{ width, display: "flex", flexDirection: "column", background: "#fff", borderRadius: 28, overflow: "hidden" }}>
-      <div style={{ display: "flex", position: "relative" }}>
-        <Photo src={m.cover} width={width} height={photo} radius={28} />
-        <div style={{
-          position: "absolute", top: 16, left: 16, display: "flex", padding: "6px 16px", borderRadius: 999,
-          background: "rgba(6,17,31,0.78)", color: "#fff", fontSize: big ? 28 : 22, fontWeight: 700,
-        }}>{t(m.count === 1 ? "catalogue.one_available" : "catalogue.n_available", { n: m.count })}</div>
+    <div style={{
+      position: "absolute", top: -size * 0.18, right: -size * 0.12, width: size, height: size, borderRadius: size,
+      background: filled ? ORANGE : "#fff", color: filled ? "#fff" : ORANGE, border: `4px solid ${filled ? "#fff" : ORANGE}`, display: "flex", alignItems: "center", justifyContent: "center",
+      textAlign: "center", fontSize: size * 0.18, fontWeight: 700, lineHeight: 1.05, padding: size * 0.12, textTransform: "uppercase",
+    }}>{text}</div>
+  );
+}
+
+function badgeFor(m: CatalogueModel, t: T): { text: string; filled: boolean } | null {
+  if (m.new_arrival) return { text: t("catalogue.badge_new"), filled: false };
+  if (m.count === 1) return { text: t("catalogue.badge_last"), filled: true };
+  return null;
+}
+
+/** The small orange tag over the price, then the price itself: big amount, small currency. */
+function Price({ m, cat, t, scale }: { m: CatalogueModel; cat: Catalogue; t: T; scale: number }) {
+  const from = m.max_price != null && m.min_price != null && m.max_price > m.min_price;
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 6 * scale }}>
+      <div style={{ display: "flex" }}>
+        <span style={{
+          background: ORANGE, color: "#fff", fontSize: 17 * scale, fontWeight: 700, padding: `${3 * scale}px ${10 * scale}px`,
+          borderRadius: 6 * scale, textTransform: "uppercase", letterSpacing: 0.5,
+        }}>{t(m.count === 1 ? "catalogue.one_available" : "catalogue.n_available", { n: m.count })}</span>
       </div>
-      <div style={{ display: "flex", flexDirection: "column", padding: big ? "22px 28px 26px" : "16px 20px 20px", gap: big ? 8 : 4 }}>
-        <span style={{ fontSize: big ? 46 : 32, fontWeight: 700, color: NAVY, lineHeight: 1.1 }}>{clip(m.name, big ? 34 : 24)}</span>
-        {price && <span style={{ fontSize: big ? 38 : 28, fontWeight: 700, color: BLUE }}>{price}</span>}
-        {facts && <span style={{ fontSize: big ? 28 : 21, color: "#5b6b80" }}>{clip(facts, big ? 60 : 38)}</span>}
+      {m.min_price != null ? (
+        <div style={{ display: "flex", flexDirection: "column" }}>
+          {from && <span style={{ fontSize: 17 * scale, color: MUTED, textTransform: "uppercase", fontWeight: 700 }}>{t("catalogue.from")}</span>}
+          <div style={{ display: "flex", alignItems: "flex-end", gap: 5 * scale }}>
+            <span style={{ fontSize: 33 * scale, fontWeight: 700, color: INK, lineHeight: 1, letterSpacing: -1, flexShrink: 0 }}>{money(m.min_price)}</span>
+            <span style={{ fontSize: 17 * scale, fontWeight: 700, color: INK, marginBottom: 2 * scale, flexShrink: 0 }}>{cat.currency}</span>
+          </div>
+        </div>
+      ) : (
+        <span style={{ fontSize: 24 * scale, fontWeight: 700, color: INK }}>{t("catalogue.price_on_request")}</span>
+      )}
+    </div>
+  );
+}
+
+/** The colours in stock as small dots (unknown names get a striped dot). */
+function Dots({ m, size }: { m: CatalogueModel; size: number }) {
+  if (!m.colors.length) return null;
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: size * 0.4 }}>
+      {m.colors.slice(0, 6).map((c) => (
+        <div key={c} style={{
+          width: size, height: size, borderRadius: size, border: "2px solid rgba(0,0,0,0.15)",
+          background: colorHex(c) ?? "repeating-linear-gradient(45deg, #e5e7eb 0px, #e5e7eb 3px, #ffffff 3px, #ffffff 6px)",
+        }} />
+      ))}
+      {m.colors.length > 6 && <span style={{ fontSize: size * 0.9, color: MUTED }}>+{m.colors.length - 6}</span>}
+    </div>
+  );
+}
+
+/** A grid cell: words on the left, photo on the right, as in a flyer. */
+function Cell({ m, cat, t, width, height, scale, photoW }: {
+  m: CatalogueModel; cat: Catalogue; t: T; width: number; height: number; scale: number; photoW: number;
+}) {
+  const badge = badgeFor(m, t);
+  const facts = modelFacts(m, t);
+  const photoH = Math.round(photoW * 10 / 16);
+  return (
+    <div style={{ width, height, display: "flex", alignItems: "center", padding: `0 ${22 * scale}px`, gap: 16 * scale }}>
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8 * scale, minWidth: 0 }}>
+        <Price m={m} cat={cat} t={t} scale={scale} />
+        <span style={{ fontSize: 23 * scale, fontWeight: 700, color: INK, lineHeight: 1.1, textTransform: "uppercase" }}>{clip(m.name, 30)}</span>
+        {facts.length > 0 && (
+          <span style={{ fontSize: 16 * scale, color: MUTED, lineHeight: 1.3 }}>{clip(facts.join(" · "), 70)}</span>
+        )}
+        <Dots m={m} size={16 * scale} />
+      </div>
+      <div style={{ display: "flex", position: "relative" }}>
+        <Photo src={m.cover} width={photoW} height={photoH} />
+        {badge && <Badge text={badge.text} filled={badge.filled} size={84 * scale} />}
+      </div>
+    </div>
+  );
+}
+
+/** One car filling the grid: big photo on top, words under it. */
+function Hero({ m, cat, t }: { m: CatalogueModel; cat: Catalogue; t: T }) {
+  const badge = badgeFor(m, t);
+  const facts = modelFacts(m, t);
+  return (
+    <div style={{ width: W, height: GRID_H, display: "flex", flexDirection: "column", padding: "34px 48px", gap: 26 }}>
+      <div style={{ display: "flex", position: "relative" }}>
+        <Photo src={m.cover} width={W - 96} height={Math.round((W - 96) * 10 / 16)} radius={20} />
+        {badge && <Badge text={badge.text} filled={badge.filled} size={150} />}
+      </div>
+      <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 24 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, flex: 1 }}>
+          <span style={{ fontSize: 46, fontWeight: 700, color: INK, textTransform: "uppercase", lineHeight: 1.05 }}>{clip(m.name, 32)}</span>
+          {facts.length > 0 && <span style={{ fontSize: 26, color: MUTED }}>{clip(facts.join(" · "), 60)}</span>}
+          <Dots m={m} size={26} />
+        </div>
+        <Price m={m} cat={cat} t={t} scale={1.35} />
+      </div>
+    </div>
+  );
+}
+
+/** The stock in numbers for the header: cars, models, lowest price. */
+function summary(cat: Catalogue, t: T): { value: string; label: string; labelFirst?: boolean }[] {
+  const prices = cat.models.map((m) => m.min_price).filter((p): p is number => p != null);
+  return [
+    { value: String(cat.total), label: t("catalogue.stat_cars") },
+    { value: String(cat.models.length), label: t("catalogue.stat_models") },
+    ...(prices.length ? [{ value: `${money(Math.min(...prices))} ${cat.currency}`, label: t("catalogue.from"), labelFirst: true }] : []),
+  ];
+}
+
+function Shell({ shop, cat, t, page, pages, children }: {
+  shop: CatalogueShop; cat: Catalogue; t: T; page: number; pages: number; children: ReactNode;
+}) {
+  return (
+    <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", background: "#fff", position: "relative" }}>
+      {/* White header: the shop, and the headline in orange */}
+      <div style={{
+        height: BAND, display: "flex", flexDirection: "column", justifyContent: "flex-end", padding: "0 56px 34px",
+        background: "#fff", color: INK, position: "relative",
+      }}>
+        {/* Soft orange circles in the corner, as on a printed flyer */}
+        <div style={{ position: "absolute", right: -140, top: -80, width: 460, height: 460, borderRadius: 460, background: ORANGE_SOFT }} />
+        <div style={{ position: "absolute", right: 70, top: 150, width: 170, height: 170, borderRadius: 170, border: `12px solid ${ORANGE}` }} />
+        <div style={{ display: "flex", alignItems: "center", gap: 18, marginBottom: 14 }}>
+          <Logo shop={shop} size={70} />
+          <span style={{ fontSize: 34, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1 }}>{clip(shop.name, 30)}</span>
+        </div>
+        <span style={{ fontSize: 104, fontWeight: 700, lineHeight: 0.95, textTransform: "uppercase", letterSpacing: -2, color: ORANGE }}>
+          {t("catalogue.headline")}
+        </span>
+        <div style={{ display: "flex", gap: 12, marginTop: 18 }}>
+          {summary(cat, t).map(({ value, label, labelFirst }) => (
+            <div key={label} style={{
+              display: "flex", alignItems: "baseline", gap: 8, padding: "8px 18px", borderRadius: 999,
+              flexDirection: labelFirst ? "row-reverse" : "row", background: ORANGE_SOFT, border: `2px solid #ffd9bf`,
+            }}>
+              <span style={{ fontSize: 30, fontWeight: 700, color: ORANGE }}>{value}</span>
+              <span style={{ fontSize: 20, fontWeight: 700, color: INK, textTransform: "uppercase" }}>{label}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Orange strip */}
+      <div style={{
+        height: STRIP, display: "flex", alignItems: "center", justifyContent: "center", background: ORANGE, color: "#fff",
+        fontSize: 28, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1.5,
+      }}>{t("catalogue.strip")}</div>
+
+      {/* Cars */}
+      <div style={{ height: GRID_H, display: "flex", flexWrap: "wrap", alignContent: "flex-start", overflow: "hidden" }}>{children}</div>
+
+      {/* Orange bar with the phone (inside the safe zone); white below, under WhatsApp's reply box */}
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", background: "#fff" }}>
+        <div style={{ height: FOOT, display: "flex", alignItems: "center", padding: "0 56px", gap: 18, background: ORANGE, color: "#fff" }}>
+          <span style={{ fontSize: 24, fontWeight: 700, textTransform: "uppercase", opacity: 0.9 }}>{t("catalogue.call_or_whatsapp")}</span>
+          <span style={{ fontSize: 42, fontWeight: 700, letterSpacing: 0.5 }}>{shop.phone ?? ""}</span>
+          {pages > 1 && <span style={{ marginLeft: "auto", fontSize: 26, fontWeight: 700, background: "rgba(0,0,0,0.18)", padding: "6px 16px", borderRadius: 999 }}>{page} / {pages}</span>}
+        </div>
+        <div style={{ flex: 1, display: "flex", alignItems: "flex-end", justifyContent: "center", paddingBottom: 40, fontSize: 22, color: MUTED }}>
+          {t("catalogue.powered")}
+        </div>
       </div>
     </div>
   );
@@ -118,51 +284,42 @@ export async function statusCard(cat: Catalogue, shop: CatalogueShop, lang: Lang
   const pages = Math.max(1, Math.ceil(cat.models.length / MODELS_PER_CARD));
   const p = Math.min(Math.max(page, 1), pages);
   const models = cat.models.slice((p - 1) * MODELS_PER_CARD, p * MODELS_PER_CARD);
-  const inner = STATUS.width - STATUS.side * 2;
-  const big = models.length <= 2;
-  const colW = big ? inner : (inner - 20) / 2;
-  // Sized so three rows (or two big tiles) fit between the shop and the
-  // contact button, inside the safe zone.
-  const photo = big ? (models.length === 1 ? 560 : 290) : 168;
+
+  let body: ReactNode;
+  if (models.length === 0) {
+    body = (
+      <div style={{ width: W, height: GRID_H, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 20 }}>
+        <CarIcon size={200} color="#c4c8cf" />
+        <span style={{ fontSize: 40, color: MUTED }}>{t("catalogue.empty")}</span>
+      </div>
+    );
+  } else if (models.length === 1) {
+    body = <Hero m={models[0]} cat={cat} t={t} />;
+  } else if (models.length === 2) {
+    // Two wide rows.
+    const h = GRID_H / 2;
+    body = models.map((m, i) => (
+      <div key={m.name} style={{ display: "flex", borderTop: i ? `2px solid ${LINE}` : "none" }}>
+        <Cell m={m} cat={cat} t={t} width={W} height={h - (i ? 2 : 0)} scale={1.45} photoW={560} />
+      </div>
+    ));
+  } else {
+    // Two columns, three rows, with flyer-style hairlines between cells.
+    const cw = W / 2;
+    const ch = GRID_H / 3;
+    body = models.map((m, i) => (
+      <div key={m.name} style={{
+        display: "flex", width: cw, height: ch,
+        borderLeft: i % 2 ? `2px solid ${LINE}` : "none", borderTop: i >= 2 ? `2px solid ${LINE}` : "none",
+      }}>
+        <Cell m={m} cat={cat} t={t} width={cw - (i % 2 ? 2 : 0)} height={ch - (i >= 2 ? 2 : 0)} scale={1} photoW={226} />
+      </div>
+    ));
+  }
 
   const image = new ImageResponse(
-    (
-      <div style={{
-        width: "100%", height: "100%", display: "flex", flexDirection: "column",
-        padding: `${STATUS.top}px ${STATUS.side}px ${STATUS.bottom}px`,
-        background: `linear-gradient(180deg, ${NAVY} 0%, ${NAVY_DEEP} 100%)`, color: "#fff",
-      }}>
-        {/* Shop */}
-        <div style={{ display: "flex", alignItems: "center", gap: 24 }}>
-          <Logo shop={shop} size={104} />
-          <div style={{ display: "flex", flexDirection: "column", flex: 1 }}>
-            <span style={{ fontSize: 50, fontWeight: 700, lineHeight: 1.1 }}>{clip(shop.name, 26)}</span>
-            <span style={{ fontSize: 30, color: "#9fb6d4", marginTop: 6 }}>
-              {t(cat.total === 1 ? "catalogue.one_in_stock" : "catalogue.n_in_stock", { n: cat.total })}
-            </span>
-          </div>
-        </div>
-
-        {/* Cars */}
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 20, marginTop: 28, flex: 1, alignContent: "flex-start", overflow: "hidden" }}>
-          {models.length ? models.map((m) => <Tile key={m.name} m={m} cat={cat} t={t} width={colW} photo={photo} big={big} />) : (
-            <span style={{ fontSize: 40, color: "#9fb6d4" }}>{t("catalogue.empty")}</span>
-          )}
-        </div>
-
-        {/* Contact */}
-        <div style={{ display: "flex", alignItems: "center", gap: 20, marginTop: 24 }}>
-          {shop.phone && (
-            <div style={{
-              display: "flex", alignItems: "center", gap: 14, padding: "16px 30px", borderRadius: 999,
-              background: GREEN, color: "#06260f", fontSize: 36, fontWeight: 700,
-            }}>{t("catalogue.call_or_whatsapp")} {shop.phone}</div>
-          )}
-          {pages > 1 && <span style={{ marginLeft: "auto", fontSize: 30, color: "#9fb6d4" }}>{p} / {pages}</span>}
-        </div>
-      </div>
-    ),
-    { width: STATUS.width, height: STATUS.height, fonts: await fonts() },
+    <Shell shop={shop} cat={cat} t={t} page={p} pages={pages}>{body}</Shell>,
+    { width: W, height: H, fonts: await fonts() },
   );
   return toJpeg(image, 88);
 }
@@ -171,29 +328,43 @@ export async function statusCard(cat: Catalogue, shop: CatalogueShop, lang: Lang
 export async function previewCard(cat: Catalogue, shop: CatalogueShop, lang: Lang): Promise<Buffer> {
   const t = catalogueT(lang);
   const photos = cat.models.map((m) => drawable(m.cover)).filter((s): s is string => !!s).slice(0, 4);
+  const one = photos.length === 1;
   const image = new ImageResponse(
     (
-      <div style={{ width: "100%", height: "100%", display: "flex", background: NAVY, color: "#fff" }}>
-        <div style={{ width: 560, display: "flex", flexDirection: "column", justifyContent: "center", padding: "0 56px", gap: 22 }}>
-          <Logo shop={shop} size={96} />
-          <span style={{ fontSize: 54, fontWeight: 700, lineHeight: 1.1 }}>{clip(shop.name, 30)}</span>
-          <span style={{ fontSize: 32, color: "#9fb6d4" }}>
+      <div style={{ width: "100%", height: "100%", display: "flex", background: "#fff" }}>
+        <div style={{
+          width: 540, display: "flex", flexDirection: "column", justifyContent: "center", padding: "0 52px", gap: 16,
+          background: "#fff", color: INK, borderRight: `10px solid ${ORANGE}`,
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+            <Logo shop={shop} size={78} />
+            <span style={{ fontSize: 30, fontWeight: 700, textTransform: "uppercase", lineHeight: 1.1 }}>{clip(shop.name, 28)}</span>
+          </div>
+          <span style={{ fontSize: 76, fontWeight: 700, lineHeight: 0.95, textTransform: "uppercase", letterSpacing: -1.5, marginTop: 8, color: ORANGE }}>
+            {t("catalogue.headline")}
+          </span>
+          <span style={{ fontSize: 28, fontWeight: 700, color: MUTED }}>
             {t(cat.total === 1 ? "catalogue.one_in_stock" : "catalogue.n_in_stock", { n: cat.total })}
           </span>
-          {shop.phone && <span style={{ fontSize: 30, color: GREEN, fontWeight: 700 }}>{shop.phone}</span>}
+          {shop.phone && (
+            <div style={{ display: "flex" }}>
+              <span style={{ background: ORANGE, color: "#fff", fontSize: 30, fontWeight: 700, padding: "10px 24px", borderRadius: 999 }}>{shop.phone}</span>
+            </div>
+          )}
         </div>
-        <div style={{ flex: 1, display: "flex", flexWrap: "wrap" }}>
-          {photos.length ? photos.map((src, i) => (
+        <div style={{ flex: 1, display: "flex", flexWrap: "wrap", padding: 8, gap: 8, background: "#fff" }}>
+          {photos.length ? photos.map((src, i) => {
+            const w = one ? 644 : 318;
+            const h = photos.length <= 2 ? 614 : 303;
             // eslint-disable-next-line @next/next/no-img-element
-            <img key={i} src={src} alt="" width={photos.length === 1 ? 640 : 320} height={photos.length <= 2 ? 630 : 315}
-              style={{ objectFit: "cover", width: photos.length === 1 ? 640 : 320, height: photos.length <= 2 ? 630 : 315 }} />
-          )) : (
-            <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}><CarIcon size={300} color="#3d5a80" /></div>
+            return <img key={i} src={src} alt="" width={w} height={h} style={{ objectFit: "cover", width: w, height: h, borderRadius: 12 }} />;
+          }) : (
+            <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}><CarIcon size={300} color="#c4c8cf" /></div>
           )}
         </div>
       </div>
     ),
     { width: 1200, height: 630, fonts: await fonts() },
   );
-  return toJpeg(image, 80, 290_000);
+  return toJpeg(image, 82, 290_000);
 }
