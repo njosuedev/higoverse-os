@@ -122,28 +122,45 @@ function badgeFor(m: CatalogueModel, t: T): { text: string; filled: boolean } | 
   return null;
 }
 
-/** The small orange tag over the price, then the price itself: big amount, small currency. */
+/** "6 available", or a true scarcity signal when few are left: "Only 2 left". */
+function availability(m: CatalogueModel, t: T): string {
+  return m.count <= 3 ? t("catalogue.only_left", { n: m.count }) : t("catalogue.n_available", { n: m.count });
+}
+
+/** The availability as an outlined tag (orange when few are left). */
+function Avail({ m, t, scale }: { m: CatalogueModel; t: T; scale: number }) {
+  const few = m.count <= 3;
+  return (
+    <div style={{ display: "flex" }}>
+      <span style={{
+        fontSize: 16 * scale, fontWeight: 700, padding: `${2 * scale}px ${9 * scale}px`, borderRadius: 6 * scale,
+        textTransform: "uppercase", letterSpacing: 0.5, border: `2px solid ${ORANGE}`,
+        background: few ? ORANGE : "#fff", color: few ? "#fff" : ORANGE,
+      }}>{availability(m, t)}</span>
+    </div>
+  );
+}
+
+/** The price as an orange ticket, the most contrasted thing in the cell:
+ *  small "From" and currency, big white amount. */
 function Price({ m, cat, t, scale }: { m: CatalogueModel; cat: Catalogue; t: T; scale: number }) {
   const from = m.max_price != null && m.min_price != null && m.max_price > m.min_price;
+  if (m.min_price == null) {
+    return <span style={{ fontSize: 24 * scale, fontWeight: 700, color: INK }}>{t("catalogue.price_on_request")}</span>;
+  }
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 6 * scale }}>
-      <div style={{ display: "flex" }}>
-        <span style={{
-          background: ORANGE, color: "#fff", fontSize: 17 * scale, fontWeight: 700, padding: `${3 * scale}px ${10 * scale}px`,
-          borderRadius: 6 * scale, textTransform: "uppercase", letterSpacing: 0.5,
-        }}>{t(m.count === 1 ? "catalogue.one_available" : "catalogue.n_available", { n: m.count })}</span>
-      </div>
-      {m.min_price != null ? (
-        <div style={{ display: "flex", flexDirection: "column" }}>
-          {from && <span style={{ fontSize: 17 * scale, color: MUTED, textTransform: "uppercase", fontWeight: 700 }}>{t("catalogue.from")}</span>}
-          <div style={{ display: "flex", alignItems: "flex-end", gap: 5 * scale }}>
-            <span style={{ fontSize: 33 * scale, fontWeight: 700, color: INK, lineHeight: 1, letterSpacing: -1, flexShrink: 0 }}>{money(m.min_price)}</span>
-            <span style={{ fontSize: 17 * scale, fontWeight: 700, color: INK, marginBottom: 2 * scale, flexShrink: 0 }}>{cat.currency}</span>
-          </div>
+    <div style={{ display: "flex" }}>
+      <div style={{
+        display: "flex", flexDirection: "column", background: ORANGE, color: "#fff",
+        padding: `${6 * scale}px ${12 * scale}px ${7 * scale}px`, borderRadius: 10 * scale,
+        borderTopLeftRadius: 2 * scale, boxShadow: "0 6px 14px rgba(255,104,0,0.25)",
+      }}>
+        {from && <span style={{ fontSize: 14 * scale, fontWeight: 700, textTransform: "uppercase", opacity: 0.9, lineHeight: 1.1 }}>{t("catalogue.from")}</span>}
+        <div style={{ display: "flex", alignItems: "flex-end", gap: 5 * scale }}>
+          <span style={{ fontSize: 30 * scale, fontWeight: 700, lineHeight: 1, letterSpacing: -1, flexShrink: 0 }}>{money(m.min_price)}</span>
+          <span style={{ fontSize: 15 * scale, fontWeight: 700, marginBottom: 2 * scale, flexShrink: 0 }}>{cat.currency}</span>
         </div>
-      ) : (
-        <span style={{ fontSize: 24 * scale, fontWeight: 700, color: INK }}>{t("catalogue.price_on_request")}</span>
-      )}
+      </div>
     </div>
   );
 }
@@ -174,8 +191,9 @@ function Cell({ m, cat, t, width, height, scale, photoW }: {
   return (
     <div style={{ width, height, display: "flex", alignItems: "center", padding: `0 ${22 * scale}px`, gap: 16 * scale }}>
       <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8 * scale, minWidth: 0 }}>
-        <Price m={m} cat={cat} t={t} scale={scale} />
+        <Avail m={m} t={t} scale={scale} />
         <span style={{ fontSize: 23 * scale, fontWeight: 700, color: INK, lineHeight: 1.1, textTransform: "uppercase" }}>{clip(m.name, 30)}</span>
+        <Price m={m} cat={cat} t={t} scale={scale} />
         {facts.length > 0 && (
           <span style={{ fontSize: 16 * scale, color: MUTED, lineHeight: 1.3 }}>{clip(facts.join(" · "), 70)}</span>
         )}
@@ -201,6 +219,7 @@ function Hero({ m, cat, t }: { m: CatalogueModel; cat: Catalogue; t: T }) {
       </div>
       <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 24 }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 8, flex: 1 }}>
+          <Avail m={m} t={t} scale={1.5} />
           <span style={{ fontSize: 46, fontWeight: 700, color: INK, textTransform: "uppercase", lineHeight: 1.05 }}>{clip(m.name, 32)}</span>
           {facts.length > 0 && <span style={{ fontSize: 26, color: MUTED }}>{clip(facts.join(" · "), 60)}</span>}
           <Dots m={m} size={26} />
@@ -221,9 +240,14 @@ function summary(cat: Catalogue, t: T): { value: string; label: string; labelFir
   ];
 }
 
-function Shell({ shop, cat, t, page, pages, children }: {
+function Shell({ shop, cat, t, page, pages, children, headline, pills }: {
   shop: CatalogueShop; cat: Catalogue; t: T; page: number; pages: number; children: ReactNode;
+  headline?: string; pills?: { value: string; label: string; labelFirst?: boolean }[];
 }) {
+  const title = headline ?? t("catalogue.headline");
+  // Long car names step down so the headline stays on one or two lines.
+  // (two lines at most, starting below WhatsApp's top bar).
+  const titleSize = title.length > 24 ? 64 : title.length > 16 ? 80 : 104;
   return (
     <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", background: "#fff", position: "relative" }}>
       {/* White header: the shop, and the headline in orange */}
@@ -238,11 +262,11 @@ function Shell({ shop, cat, t, page, pages, children }: {
           <Logo shop={shop} size={70} />
           <span style={{ fontSize: 34, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1 }}>{clip(shop.name, 30)}</span>
         </div>
-        <span style={{ fontSize: 104, fontWeight: 700, lineHeight: 0.95, textTransform: "uppercase", letterSpacing: -2, color: ORANGE }}>
-          {t("catalogue.headline")}
+        <span style={{ fontSize: titleSize, fontWeight: 700, lineHeight: 0.95, textTransform: "uppercase", letterSpacing: -2, color: ORANGE }}>
+          {clip(title, 40)}
         </span>
-        <div style={{ display: "flex", gap: 12, marginTop: 18 }}>
-          {summary(cat, t).map(({ value, label, labelFirst }) => (
+        <div style={{ display: (pills ?? summary(cat, t)).length ? "flex" : "none", gap: 12, marginTop: 18 }}>
+          {(pills ?? summary(cat, t)).map(({ value, label, labelFirst }) => (
             <div key={label} style={{
               display: "flex", alignItems: "baseline", gap: 8, padding: "8px 18px", borderRadius: 999,
               flexDirection: labelFirst ? "row-reverse" : "row", background: ORANGE_SOFT, border: `2px solid #ffd9bf`,
@@ -266,7 +290,7 @@ function Shell({ shop, cat, t, page, pages, children }: {
       {/* Orange bar with the phone (inside the safe zone); white below, under WhatsApp's reply box */}
       <div style={{ flex: 1, display: "flex", flexDirection: "column", background: "#fff" }}>
         <div style={{ height: FOOT, display: "flex", alignItems: "center", padding: "0 56px", gap: 18, background: ORANGE, color: "#fff" }}>
-          <span style={{ fontSize: 24, fontWeight: 700, textTransform: "uppercase", opacity: 0.9 }}>{t("catalogue.call_or_whatsapp")}</span>
+          <span style={{ fontSize: 22, fontWeight: 700, textTransform: "uppercase", opacity: 0.95, maxWidth: 330, lineHeight: 1.1 }}>{t("catalogue.reply_cta")}</span>
           <span style={{ fontSize: 42, fontWeight: 700, letterSpacing: 0.5 }}>{shop.phone ?? ""}</span>
           {pages > 1 && <span style={{ marginLeft: "auto", fontSize: 26, fontWeight: 700, background: "rgba(0,0,0,0.18)", padding: "6px 16px", borderRadius: 999 }}>{page} / {pages}</span>}
         </div>
@@ -276,6 +300,86 @@ function Shell({ shop, cat, t, page, pages, children }: {
       </div>
     </div>
   );
+}
+
+/** A spec as a labelled box, for the one-car advert. */
+function SpecBox({ label, value }: { label: string; value: string }) {
+  return (
+    <div style={{
+      display: "flex", flexDirection: "column", padding: "12px 18px", borderRadius: 16, background: ORANGE_SOFT,
+      border: "2px solid #ffd9bf", minWidth: 200,
+    }}>
+      <span style={{ fontSize: 18, fontWeight: 700, color: "#9a6b4a", textTransform: "uppercase", letterSpacing: 0.5 }}>{label}</span>
+      <span style={{ fontSize: 30, fontWeight: 700, color: INK }}>{value}</span>
+    </div>
+  );
+}
+
+/** One car as a Status advert: the car is the headline, then a big photo,
+ *  its price ticket and availability, labelled specs and the colours. */
+function Advert({ m, cat, t }: { m: CatalogueModel; cat: Catalogue; t: T }) {
+  const badge = badgeFor(m, t);
+  const years = m.years.length ? (m.years[0] === m.years[m.years.length - 1] ? String(m.years[0]) : `${m.years[0]}–${m.years[m.years.length - 1]}`) : null;
+  const specs = [
+    years && [t("catalogue.spec_year"), years],
+    m.car_types.length === 1 && [t("catalogue.spec_body"), carTypeName(m.car_types[0], t)],
+    m.battery_range && [t("catalogue.spec_range"), `${money(m.battery_range[0])} km`],
+    m.mileage && m.conditions[0] !== "new" && [t("catalogue.spec_mileage"), `${money(m.mileage[0])} km`],
+    m.conditions.length === 1 && [t("catalogue.spec_condition"), t(`proforma.condition_${m.conditions[0]}`)],
+  ].filter(Boolean).slice(0, 4) as [string, string][];
+  return (
+    <div style={{ width: W, height: GRID_H, display: "flex", flexDirection: "column", padding: "28px 48px", gap: 22 }}>
+      <div style={{ display: "flex", position: "relative" }}>
+        <Photo src={m.cover} width={W - 96} height={470} radius={22} />
+        {badge && <Badge text={badge.text} filled={badge.filled} size={150} />}
+      </div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 20 }}>
+        <Price m={m} cat={cat} t={t} scale={1.7} />
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 10 }}>
+          <Avail m={m} t={t} scale={1.5} />
+        </div>
+      </div>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 14 }}>
+        {specs.map(([label, value]) => <SpecBox key={label} label={label} value={value} />)}
+      </div>
+      {m.colors.length > 0 && (
+        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 12 }}>
+          <span style={{ fontSize: 20, fontWeight: 700, color: "#9a6b4a", textTransform: "uppercase" }}>{t("catalogue.spec_colours")}</span>
+          {m.colors.slice(0, 5).map((c) => (
+            <div key={c} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 14px 6px 6px", borderRadius: 999, border: `2px solid ${LINE}` }}>
+              <div style={{
+                width: 26, height: 26, borderRadius: 26, border: "2px solid rgba(0,0,0,0.15)",
+                background: colorHex(c) ?? "repeating-linear-gradient(45deg, #e5e7eb 0px, #e5e7eb 3px, #ffffff 3px, #ffffff 6px)",
+              }} />
+              <span style={{ fontSize: 22, fontWeight: 700, color: INK }}>{clip(c, 14)}{m.color_counts?.[c] ? ` × ${m.color_counts[c]}` : ""}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function carTypeName(value: string, t: T): string {
+  const key = `vehicle.car_type_${value}`;
+  const label = t(key);
+  return label === key ? value : label;
+}
+
+/** One car (by name) as a 1080×1920 Status advert, as JPEG; null if it isn't on sale. */
+export async function carCard(cat: Catalogue, shop: CatalogueShop, lang: Lang, name: string): Promise<Buffer | null> {
+  const t = catalogueT(lang);
+  const m = cat.models.find((x) => x.name === name);
+  if (!m) return null;
+  // The advert's own lines say availability and price; the header leads with the car alone.
+  const pills: { value: string; label: string }[] = [];
+  const image = new ImageResponse(
+    <Shell shop={shop} cat={cat} t={t} page={1} pages={1} headline={m.name} pills={pills}>
+      <Advert m={m} cat={cat} t={t} />
+    </Shell>,
+    { width: W, height: H, fonts: await fonts() },
+  );
+  return toJpeg(image, 88);
 }
 
 /** Page `page` (1-based) of the Status card, as JPEG. */

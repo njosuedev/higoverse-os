@@ -100,7 +100,7 @@ export default async function CataloguePage(props: Props) {
     "all", "new", "used", "sort", "sort_recommended", "sort_price_low", "sort_price_high", "sort_newest", "search",
     "no_results", "from", "price_on_request", "badge_new", "badge_last", "ask", "test_drive", "details", "close",
     "photos", "spec_year", "spec_body", "spec_range", "spec_mileage", "spec_condition", "spec_colours",
-    "spec_available", "spec_price", "call", "one_available", "n_available", "n_photos",
+    "spec_available", "spec_price", "call", "one_available", "n_available", "n_photos", "only_left",
   ] as (keyof Labels)[]).map((k) => [k, t(`catalogue.${k}`)])) as Labels;
 
   // The stock in four numbers.

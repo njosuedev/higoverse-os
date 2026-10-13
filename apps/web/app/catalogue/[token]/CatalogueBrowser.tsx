@@ -33,12 +33,31 @@ export type Labels = Record<
   | "all" | "new" | "used" | "sort" | "sort_recommended" | "sort_price_low" | "sort_price_high" | "sort_newest"
   | "search" | "no_results" | "from" | "price_on_request" | "badge_new" | "badge_last" | "ask" | "test_drive"
   | "details" | "close" | "photos" | "spec_year" | "spec_body" | "spec_range" | "spec_mileage" | "spec_condition"
-  | "spec_colours" | "spec_available" | "spec_price" | "call" | "one_available" | "n_available" | "n_photos",
+  | "spec_colours" | "spec_available" | "spec_price" | "call" | "one_available" | "n_available" | "n_photos" | "only_left",
   string
 >;
 
 const money = (n: number) => Math.round(n).toLocaleString("en-US");
 const nAvail = (L: Labels, n: number) => (n === 1 ? L.one_available : L.n_available.replace("{n}", String(n)));
+/** "6 available", or a true scarcity signal when few are left: "Only 2 left". */
+const availTag = (L: Labels, n: number) => (n <= 3 ? L.only_left.replace("{n}", String(n)) : nAvail(L, n));
+
+/** The price as an orange ticket laid on the photo, as in a sales advert. */
+function PriceTicket({ m, currency, L }: { m: ModelView; currency: string; L: Labels }) {
+  if (m.minPrice == null) {
+    return <span className="rounded-lg bg-white/95 px-2.5 py-1 text-xs font-bold text-[#1d2330] shadow">{L.price_on_request}</span>;
+  }
+  const from = m.maxPrice != null && m.maxPrice > m.minPrice;
+  return (
+    <span className="flex flex-col rounded-xl rounded-tl-sm bg-[#ff6800] px-3 py-1.5 text-white shadow-[0_8px_18px_-6px_rgba(255,104,0,0.6)]">
+      {from && <span className="text-[10px] font-bold uppercase leading-none tracking-wide text-white/90">{L.from}</span>}
+      <span className="flex items-baseline gap-1">
+        <span className="text-xl font-extrabold leading-tight tabular-nums">{money(m.minPrice)}</span>
+        <span className="text-[11px] font-bold">{currency}</span>
+      </span>
+    </span>
+  );
+}
 
 function Price({ m, currency, L, big = false }: { m: ModelView; currency: string; L: Labels; big?: boolean }) {
   if (m.minPrice == null) return <p className={`font-bold ${big ? "text-lg" : "text-sm"}`}>{L.price_on_request}</p>;
@@ -67,9 +86,10 @@ function Swatches({ colors, max = 6 }: { colors: ModelView["colors"]; max?: numb
 }
 
 function Specs({ m, L, dense = false }: { m: ModelView; L: Labels; dense?: boolean }) {
+  // On a card, year and body already head the name; the boxes add the rest.
   const items = [
-    m.year && { icon: Calendar, label: L.spec_year, value: m.year },
-    m.bodyLabel && { icon: CarFront, label: L.spec_body, value: m.bodyLabel },
+    !dense && m.year && { icon: Calendar, label: L.spec_year, value: m.year },
+    !dense && m.bodyLabel && { icon: CarFront, label: L.spec_body, value: m.bodyLabel },
     m.range && { icon: BatteryCharging, label: L.spec_range, value: m.range },
     m.mileage && { icon: Gauge, label: L.spec_mileage, value: m.mileage },
     m.conditionLabel && { icon: BadgeCheck, label: L.spec_condition, value: m.conditionLabel },
@@ -191,23 +211,26 @@ export default function CatalogueBrowser({ token, models, currency, L, phoneLink
                       <div className="flex h-full items-center justify-center text-[#c4c8cf]"><Car size={56} strokeWidth={1.25} /></div>
                     )}
                   </div>
-                  <span className="absolute left-3 top-3 rounded-md bg-[#ff6800] px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-white shadow">
-                    {nAvail(L, m.count)}
+                  <span className={`absolute left-3 top-3 rounded-md px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide shadow ${m.count <= 3 ? "bg-[#ff6800] text-white" : "bg-white text-[#ff6800]"}`}>
+                    {availTag(L, m.count)}
                   </span>
                   {m.photos > 1 && (
-                    <span className="absolute bottom-3 left-3 flex items-center gap-1 rounded-full bg-black/60 px-2 py-0.5 text-[11px] font-semibold text-white">
+                    <span className="absolute right-3 bottom-3 flex items-center gap-1 rounded-full bg-black/60 px-2 py-0.5 text-[11px] font-semibold text-white">
                       <Images size={12} /> {L.n_photos.replace("{n}", String(m.photos))}
                     </span>
                   )}
+                  <span className="absolute bottom-3 left-3"><PriceTicket m={m} currency={currency} L={L} /></span>
                   <Badge m={m} L={L} at="right-2 top-2 h-16 w-16 text-[9px]" />
                 </button>
                 <div className="flex flex-1 flex-col gap-3 p-4">
-                  <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-end justify-between gap-3">
                     <div className="min-w-0">
+                      {(m.year || m.bodyLabel) && (
+                        <p className="text-xs font-bold uppercase tracking-wide text-[#ff6800]">{[m.year, m.bodyLabel].filter(Boolean).join(" · ")}</p>
+                      )}
                       <h2 className="text-lg font-extrabold uppercase leading-tight">{m.name}</h2>
-                      <div className="mt-1.5"><Swatches colors={m.colors} /></div>
                     </div>
-                    <Price m={m} currency={currency} L={L} />
+                    <Swatches colors={m.colors} max={4} />
                   </div>
                   <Specs m={m} L={L} dense />
                   <div className="mt-auto grid grid-cols-2 gap-2 pt-1">
@@ -317,7 +340,7 @@ function Details({ m, token, currency, L, phoneLink, phone, onClose }: {
         <div className="overflow-y-auto p-5">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
-              <span className="inline-block rounded-md bg-[#ff6800] px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-white">{nAvail(L, m.count)}</span>
+              <span className="inline-block rounded-md bg-[#ff6800] px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-white">{availTag(L, m.count)}</span>
               <h2 className="mt-2 text-2xl font-extrabold uppercase leading-tight">{m.name}</h2>
             </div>
             <Price m={m} currency={currency} L={L} big />

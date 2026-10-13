@@ -11,6 +11,8 @@ import { notify } from "@/lib/dialogs";
 
 /** Models per Status card (lib/catalogue.ts MODELS_PER_CARD). */
 const PER_CARD = 6;
+/** Most one-car adverts made at once (a phone shares up to ~30 pictures). */
+const MAX_ADVERTS = 20;
 
 /**
  * Share the company's catalogue of cars on sale: as WhatsApp Status cards
@@ -26,6 +28,9 @@ export default function CatalogueShareModal({ onClose }: { onClose: () => void }
   const [token, setToken] = useState<string | null>(null);
   const [pages, setPages] = useState(0);
   const [cars, setCars] = useState(0);
+  const [names, setNames] = useState<string[]>([]);
+  // "pages": the catalogue, 6 models a card; "cars": one advert per car name.
+  const [mode, setMode] = useState<"pages" | "cars">("pages");
   const [failed, setFailed] = useState(false);
   const [busy, setBusy] = useState<"" | "status" | "download">("");
   const [copied, setCopied] = useState(false);
@@ -43,6 +48,7 @@ export default function CatalogueShareModal({ onClose }: { onClose: () => void }
         setToken(tok);
         setCars(data?.total ?? 0);
         setPages(Math.max(1, Math.ceil((data?.models?.length ?? 0) / PER_CARD)));
+        setNames(((data?.models ?? []) as { name: string }[]).map((m) => m.name).slice(0, MAX_ADVERTS));
       } catch (e) {
         console.warn(e);
         if (alive) setFailed(true);
@@ -53,14 +59,22 @@ export default function CatalogueShareModal({ onClose }: { onClose: () => void }
 
   const origin = typeof window !== "undefined" ? window.location.origin : "";
   const link = token ? `${origin}/catalogue/${token}?lang=${lang}` : "";
-  const cardUrl = (p: number) => `/catalogue/${token}/status?page=${p}&lang=${lang}`;
-  const pageList = Array.from({ length: pages }, (_, i) => i + 1);
+  // The pictures for the chosen mode: catalogue pages, or one advert per car.
+  const cards = mode === "pages"
+    ? Array.from({ length: pages }, (_, i) => ({
+      key: `p${i + 1}`, file: `catalogue-${i + 1}.jpg`, alt: `${t("catalogue.title")} ${i + 1}/${pages}`,
+      url: `/catalogue/${token}/status?page=${i + 1}&lang=${lang}`,
+    }))
+    : names.map((n, i) => ({
+      key: `c${n}`, file: `${String(i + 1).padStart(2, "0")}-${n.replace(/[^\w-]+/g, "-")}.jpg`, alt: n,
+      url: `/catalogue/${token}/status?car=${encodeURIComponent(n)}&lang=${lang}`,
+    }));
 
   async function cardFiles(): Promise<File[]> {
-    return Promise.all(pageList.map(async (p) => {
-      const res = await fetch(cardUrl(p));
-      if (!res.ok) throw new Error(`card ${p}: ${res.status}`);
-      return new File([await res.blob()], `catalogue-${p}.jpg`, { type: "image/jpeg" });
+    return Promise.all(cards.map(async (c) => {
+      const res = await fetch(c.url);
+      if (!res.ok) throw new Error(`${c.file}: ${res.status}`);
+      return new File([await res.blob()], c.file, { type: "image/jpeg" });
     }));
   }
 
@@ -139,6 +153,16 @@ export default function CatalogueShareModal({ onClose }: { onClose: () => void }
             </select>
           </div>
 
+          {/* What to make */}
+          <div role="radiogroup" aria-label={t("catalogue.mode")} className="grid grid-cols-2 gap-1 rounded-xl bg-slate-100 p-1">
+            {(["pages", "cars"] as const).map((v) => (
+              <button key={v} type="button" role="radio" aria-checked={mode === v} onClick={() => setMode(v)}
+                className={`rounded-lg px-3 py-2 text-sm font-semibold transition ${mode === v ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}>
+                {t(v === "pages" ? "catalogue.mode_pages" : "catalogue.mode_cars")}
+              </button>
+            ))}
+          </div>
+
           {/* Cards */}
           {failed ? (
             <p className="rounded-xl bg-red-50 px-3 py-3 text-sm text-red-600">{t("catalogue.load_failed")}</p>
@@ -148,12 +172,12 @@ export default function CatalogueShareModal({ onClose }: { onClose: () => void }
             <>
               <p className="text-xs text-slate-500">
                 {t(cars === 1 ? "catalogue.one_in_stock" : "catalogue.n_in_stock").replace("{n}", String(cars))}
-                {pages > 1 && <> · {t("catalogue.n_cards").replace("{n}", String(pages))}</>}
+                {cards.length > 1 && <> · {t("catalogue.n_cards").replace("{n}", String(cards.length))}</>}
               </p>
               <div className="flex gap-3 overflow-x-auto pb-1">
-                {pageList.map((p) => (
+                {cards.map((c) => (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img key={`${token}-${lang}-${p}`} src={cardUrl(p)} alt={`${t("catalogue.title")} ${p}/${pages}`}
+                  <img key={`${token}-${lang}-${c.key}`} src={c.url} alt={c.alt} loading="lazy"
                     className="h-64 w-36 shrink-0 rounded-xl border border-slate-200 bg-slate-100 object-cover" />
                 ))}
               </div>
