@@ -9,7 +9,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ token: s
   const shop = cat && (await getCatalogueShop(cat.shop_id));
   if (!cat || !shop) return new Response("Not found", { status: 404 });
 
-  const jpeg = await previewCard(cat, shop, catalogueLang(new URL(req.url).searchParams.get("lang")));
+  const jpeg = await previewCard(cat, shop, catalogueLang(new URL(req.url).searchParams.get("lang") ?? cat.lang ?? null));
   return new Response(new Uint8Array(jpeg), {
     headers: { "Content-Type": "image/jpeg", "Cache-Control": "public, max-age=300" },
   });

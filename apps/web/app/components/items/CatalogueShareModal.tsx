@@ -39,7 +39,8 @@ export default function CatalogueShareModal({ onClose }: { onClose: () => void }
     let alive = true;
     (async () => {
       try {
-        const r = await itemRequest(`/catalogue/link?prices=${prices ? "true" : "false"}&currency=${encodeURIComponent(currency)}`);
+        // A short code per prices / currency / language: higoverse.com/c/<code>.
+        const r = await itemRequest(`/catalogue/link?prices=${prices ? "true" : "false"}&currency=${encodeURIComponent(currency)}&lang=${lang}`);
         const tok = r?.data?.token as string | undefined;
         if (!tok) throw new Error("no token");
         const res = await fetch(`${PRODUCT_API}/catalogue/public/${tok}?size=160`);
@@ -55,19 +56,19 @@ export default function CatalogueShareModal({ onClose }: { onClose: () => void }
       }
     })();
     return () => { alive = false; };
-  }, [prices, currency]);
+  }, [prices, currency, lang]);
 
   const origin = typeof window !== "undefined" ? window.location.origin : "";
-  const link = token ? `${origin}/catalogue/${token}?lang=${lang}` : "";
+  const link = token ? `${origin}/c/${token}` : "";
   // The pictures for the chosen mode: catalogue pages, or one advert per car.
   const cards = mode === "pages"
     ? Array.from({ length: pages }, (_, i) => ({
       key: `p${i + 1}`, file: `catalogue-${i + 1}.jpg`, alt: `${t("catalogue.title")} ${i + 1}/${pages}`,
-      url: `/catalogue/${token}/status?page=${i + 1}&lang=${lang}`,
+      url: `/c/${token}/status?page=${i + 1}`,
     }))
     : names.map((n, i) => ({
       key: `c${n}`, file: `${String(i + 1).padStart(2, "0")}-${n.replace(/[^\w-]+/g, "-")}.jpg`, alt: n,
-      url: `/catalogue/${token}/status?car=${encodeURIComponent(n)}&lang=${lang}`,
+      url: `/c/${token}/status?car=${encodeURIComponent(n)}`,
     }));
 
   async function cardFiles(): Promise<File[]> {
@@ -147,7 +148,7 @@ export default function CatalogueShareModal({ onClose }: { onClose: () => void }
               <input type="checkbox" checked={prices} onChange={(e) => { setPrices(e.target.checked); setToken(null); setFailed(false); }} className="h-4 w-4 accent-[#0a66c2]" />
               {t("catalogue.show_prices")}
             </label>
-            <select value={lang} onChange={(e) => setLang(e.target.value as Lang)} aria-label={t("catalogue.language")}
+            <select value={lang} onChange={(e) => { setLang(e.target.value as Lang); setToken(null); setFailed(false); }} aria-label={t("catalogue.language")}
               className="ml-auto border border-slate-200 rounded-lg px-2 py-1.5 text-sm text-gray-800">
               {LANGUAGES.map((l) => <option key={l.code} value={l.code}>{l.flag} {l.label}</option>)}
             </select>
@@ -177,7 +178,7 @@ export default function CatalogueShareModal({ onClose }: { onClose: () => void }
               <div className="flex gap-3 overflow-x-auto pb-1">
                 {cards.map((c) => (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img key={`${token}-${lang}-${c.key}`} src={c.url} alt={c.alt} loading="lazy"
+                  <img key={`${token}-${c.key}`} src={c.url} alt={c.alt} loading="lazy"
                     className="h-64 w-36 shrink-0 rounded-xl border border-slate-200 bg-slate-100 object-cover" />
                 ))}
               </div>

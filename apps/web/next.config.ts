@@ -116,6 +116,10 @@ const nextConfig: NextConfig = {
         { source: "/", missing: [{ type: "cookie", key: "hgv_signed_in", value: "1" }], destination: "/welcome" },
       ],
       afterFiles: [
+      // Short catalogue links: higoverse.com/c/<code> is the catalogue page
+      // (app/catalogue/[token]); the address stays short.
+      { source: "/c/:code", destination: "/catalogue/:code" },
+      { source: "/c/:code/:rest*", destination: "/catalogue/:code/:rest*" },
       ...services.map(([name, port]) => ({ source: `/svc/${name}/:path*`, destination: `${target(name, port)}/:path*` })),
       {
         source: "/api/expenses/:path*",

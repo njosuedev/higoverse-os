@@ -2,8 +2,10 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { CalendarCheck, Car, MapPin, MessageCircle, Navigation, Phone, Sparkles, Tag } from "lucide-react";
 import { SITE } from "@/lib/site";
+import { PRODUCT_API } from "@/lib/api-config";
 import {
-  type CatalogueModel, catalogueLang, catalogueT, colorHex, getCatalogue, getCatalogueShop, phoneDigits,
+  type CatalogueModel, catalogueLang, cataloguePath, catalogueT, colorHex, getCatalogue, getCatalogueShop,
+  isCode, phoneDigits, withParam,
 } from "@/lib/catalogue";
 import CatalogueBrowser, { type Labels, type ModelView } from "./CatalogueBrowser";
 import ShareLinkButton from "./ShareLinkButton";
@@ -18,27 +20,31 @@ export const revalidate = 60;
 
 async function load(props: Props) {
   const [{ token }, sp] = await Promise.all([props.params, props.searchParams]);
-  const cat = await getCatalogue(token, 640);
+  // No photos in the data: the page loads each one as a cached image, so
+  // the page itself stays small.
+  const cat = await getCatalogue(token, 640, false);
   const shop = cat && (await getCatalogueShop(cat.shop_id));
   const car = Array.isArray(sp.car) ? sp.car[0] : sp.car;
-  return { token, lang: catalogueLang(sp.lang), cat, shop, car: car ?? null };
+  // A short link carries its language; ?lang= still wins when given.
+  const lang = catalogueLang(sp.lang ?? cat?.lang ?? null);
+  return { token, lang, cat, shop, car: car ?? null, path: cataloguePath(token, lang) };
 }
 
 export async function generateMetadata(props: Props): Promise<Metadata> {
-  const { token, lang, cat, shop } = await load(props);
+  const { token, lang, cat, shop, path } = await load(props);
   if (!cat || !shop) return { title: "Catalogue", robots: { index: false } };
   const t = catalogueT(lang);
   const title = t("catalogue.page_title", { shop: shop.name });
-  const description = t(cat.total === 1 ? "catalogue.one_in_stock" : "catalogue.n_in_stock", { n: cat.total })
-    + (cat.models.length ? ` · ${cat.models.slice(0, 4).map((m) => m.name).join(", ")}` : "");
-  const image = `${SITE.url}/catalogue/${token}/preview?lang=${lang}`;
+  // Short, as WhatsApp shows it under the link.
+  const description = t(cat.total === 1 ? "catalogue.one_in_stock" : "catalogue.n_in_stock", { n: cat.total });
+  const image = isCode(token) ? `${SITE.url}/c/${token}/preview` : `${SITE.url}/catalogue/${token}/preview?lang=${lang}`;
   return {
     title,
     description,
     // Shared by link only; search engines keep out.
     robots: { index: false, follow: false },
     openGraph: {
-      title, description, type: "website", url: `${SITE.url}/catalogue/${token}?lang=${lang}`,
+      title, description, type: "website", url: `${SITE.url}${path}`,
       images: [{ url: image, width: 1200, height: 630, type: "image/jpeg", alt: title }],
     },
     twitter: { card: "summary_large_image", title, description, images: [image] },
@@ -57,11 +63,12 @@ const span = (a: number, b: number, unit: string) => `${money(a)}${b > a ? `–$
  * claims the shop hasn't made.
  */
 export default async function CataloguePage(props: Props) {
-  const { token, lang, cat, shop, car } = await load(props);
+  const { token, lang, cat, shop, car, path } = await load(props);
   if (!cat || !shop) notFound();
   const t = catalogueT(lang);
   const phone = phoneDigits(shop.phone);
-  const link = `${SITE.url}/catalogue/${token}?lang=${lang}`;
+  const link = `${SITE.url}${path}`;
+  const coverUrl = (name: string) => `${PRODUCT_API}/catalogue/public/${token}/cover?name=${encodeURIComponent(name)}&size=640`;
   const wa = (text: string) => (phone ? `https://wa.me/${phone}?text=${encodeURIComponent(text)}` : null);
   const label = (key: string) => {
     const v = t(key);
@@ -78,8 +85,8 @@ export default async function CataloguePage(props: Props) {
       count: m.count,
       minPrice: m.min_price,
       maxPrice: m.max_price,
-      cover: m.cover,
-      photos: m.photos ?? (m.cover ? 1 : 0),
+      cover: m.has_cover || m.cover ? coverUrl(m.name) : null,
+      photos: m.photos ?? (m.has_cover ? 1 : 0),
       newArrival: !!m.new_arrival,
       body,
       bodyLabel: body ? (label(`vehicle.car_type_${body}`) ?? body) : null,
@@ -91,7 +98,7 @@ export default async function CataloguePage(props: Props) {
       colors: Object.entries(counts).map(([name, count]) => ({ name, count, hex: colorHex(name) })),
       lastAdded: m.last_added ?? null,
       // The link in the message opens this very car.
-      ask: wa(t("catalogue.ask_model", { shop: shop.name, model: m.name, link: `${link}&car=${encodeURIComponent(m.name)}` })),
+      ask: wa(t("catalogue.ask_model", { shop: shop.name, model: m.name, link: withParam(link, "car", m.name) })),
       testDrive: wa(t("catalogue.test_drive_msg", { shop: shop.name, model: m.name })),
     };
   });

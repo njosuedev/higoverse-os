@@ -11,7 +11,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ token: s
   if (!cat || !shop) return new Response("Not found", { status: 404 });
 
   const url = new URL(req.url);
-  const lang = catalogueLang(url.searchParams.get("lang"));
+  const lang = catalogueLang(url.searchParams.get("lang") ?? cat.lang ?? null);
   const car = url.searchParams.get("car");
   const page = Number(url.searchParams.get("page")) || 1;
   const jpeg = car ? await carCard(cat, shop, lang, car) : await statusCard(cat, shop, lang, page);

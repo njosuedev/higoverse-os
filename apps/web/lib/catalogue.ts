@@ -16,6 +16,8 @@ export interface CatalogueModel {
   battery_range: [number, number] | null;
   mileage: [number, number] | null;
   cover: string | null;
+  /** Has a photo (even when `cover` wasn't sent: the page loads it as an image). */
+  has_cover?: boolean;
   /** Stocked in this past week. */
   new_arrival?: boolean;
   /** Cars per colour. */
@@ -32,6 +34,8 @@ export interface Catalogue {
   total: number;
   models: CatalogueModel[];
   generated_at: string;
+  /** The language saved with a short link (older links have none). */
+  lang?: string | null;
 }
 
 export interface CatalogueShop {
@@ -51,15 +55,32 @@ function service(name: string, port: number): string {
   return remote ? `${remote}/${name}` : `http://127.0.0.1:${port}`;
 }
 
-/** Tokens look like "<shop id>.<p|n><CUR><signature>"; anything else is not tried. */
+/** A short link code ("k3J9xQ2m"), or an older signed token
+ *  ("<shop id>.<p|n><CUR><signature>"); anything else is not tried. */
 export function validToken(token: string): boolean {
-  return /^[\w-]{1,64}\.[pn][A-Za-z]{3}[\w-]{10,24}$/.test(token);
+  return isCode(token) || /^[\w-]{1,64}\.[pn][A-Za-z]{3}[\w-]{10,24}$/.test(token);
 }
 
-export async function getCatalogue(token: string, size = 640): Promise<Catalogue | null> {
+export function isCode(token: string): boolean {
+  return /^[A-Za-z0-9]{6,12}$/.test(token);
+}
+
+/** The catalogue's public address: /c/<code> for short links (the language
+ *  is saved with them), the older form otherwise. */
+export function cataloguePath(token: string, lang: string): string {
+  return isCode(token) ? `/c/${token}` : `/catalogue/${token}?lang=${lang}`;
+}
+
+/** `path` with one more query parameter. */
+export function withParam(path: string, key: string, value: string): string {
+  return `${path}${path.includes("?") ? "&" : "?"}${key}=${encodeURIComponent(value)}`;
+}
+
+/** `covers: false` leaves the photos out (the page loads them as images). */
+export async function getCatalogue(token: string, size = 640, covers = true): Promise<Catalogue | null> {
   if (!validToken(token)) return null;
   try {
-    const res = await fetch(`${service("products", 8001)}/catalogue/public/${encodeURIComponent(token)}?size=${size}`, {
+    const res = await fetch(`${service("products", 8001)}/catalogue/public/${encodeURIComponent(token)}?size=${size}${covers ? "" : "&covers=false"}`, {
       next: { revalidate: 60 }, signal: AbortSignal.timeout(10000),
     });
     if (!res.ok) return null;
