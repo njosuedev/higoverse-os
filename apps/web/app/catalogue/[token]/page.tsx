@@ -123,7 +123,7 @@ export default async function CataloguePage(props: Props) {
     ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${shop.name}, ${shop.address}`)}` : null;
   const logo = (size: string, text: string) => shop.logo ? (
     // eslint-disable-next-line @next/next/no-img-element
-    <img src={shop.logo} alt="" className={`${size} shrink-0 rounded-full border-4 border-[#ff6800] bg-white object-cover`} />
+    <img src={shop.logo} alt="" className={`${size} shrink-0 rounded-full border-2 border-[#e7e7ea] bg-white object-cover`} />
   ) : (
     <div className={`${size} ${text} flex shrink-0 items-center justify-center rounded-full bg-[#ff6800] font-bold text-white`}>
       {shop.name.trim().charAt(0).toUpperCase()}
@@ -131,25 +131,29 @@ export default async function CataloguePage(props: Props) {
   );
 
   return (
-    <main className="min-h-dvh bg-[#fffaf6] text-[#1d2330]" lang={lang === "zh" ? "zh-CN" : lang}
+    <main className="min-h-dvh bg-[#f7f7f8] text-[#1d2330]" lang={lang === "zh" ? "zh-CN" : lang}
       // Keyboard focus rings in the catalogue's orange, not the app's blue.
-      style={{ "--color-ink": "#ff6800" } as React.CSSProperties}>
-      <header className="relative overflow-hidden bg-white">
-        <div aria-hidden className="absolute -right-24 -top-20 h-80 w-80 rounded-full bg-[#fff1e6]" />
-        <div aria-hidden className="absolute right-20 top-24 h-32 w-32 rounded-full border-[8px] border-[#ff6800]" />
-        <div className="relative mx-auto max-w-5xl px-4 pb-6 pt-6">
+      style={{ "--color-ink": "#1d2330" } as React.CSSProperties}>
+      <header className="relative overflow-hidden border-b border-[#e7e7ea] bg-white">
+        <div aria-hidden className="absolute -right-28 -top-28 h-64 w-64 rounded-full bg-[#f4f4f5] sm:-right-24 sm:-top-20 sm:h-80 sm:w-80" />
+        <div className="relative mx-auto max-w-5xl px-4 pb-5 pt-4 sm:pb-6 sm:pt-6">
           <div className="flex min-w-0 items-center gap-3">
-            {logo("h-12 w-12", "text-xl")}
-            <div className="min-w-0">
+            {logo("h-11 w-11 sm:h-12 sm:w-12", "text-xl")}
+            <div className="min-w-0 flex-1">
               <p className="truncate text-base font-bold uppercase tracking-wide">{shop.name}</p>
               {shop.address && (
                 <p className="flex items-center gap-1 truncate text-xs text-[#6b7280]"><MapPin size={12} className="shrink-0" /> {shop.address}</p>
               )}
             </div>
+            {/* Phones: share sits in the corner; WhatsApp and Call live in the bottom bar. */}
+            <div className="sm:hidden">
+              <ShareLinkButton url={link} title={t("catalogue.page_title", { shop: shop.name })} label={t("catalogue.share")} copied={t("catalogue.copied")} iconOnly />
+            </div>
           </div>
-          <h1 className="mt-6 text-5xl font-extrabold uppercase leading-[0.95] tracking-tight text-[#ff6800] sm:text-7xl">{t("catalogue.headline")}</h1>
-          <p className="mt-3 max-w-xl text-base text-[#4b5563]">{t("catalogue.intro")}</p>
-          <div className="mt-5 flex flex-wrap gap-2">
+          <span aria-hidden className="mt-5 block h-1.5 w-12 rounded-full bg-[#ff6800] sm:mt-6" />
+          <h1 className="mt-3 text-3xl font-extrabold uppercase leading-none tracking-tight text-[#1d2330] sm:text-5xl">{t("catalogue.headline")}</h1>
+          <p className="mt-2.5 max-w-xl text-[15px] leading-snug text-[#4b5563] sm:mt-3 sm:text-base">{t("catalogue.intro")}</p>
+          <div className="mt-5 hidden flex-wrap gap-2 sm:flex">
             {phone && (
               <>
                 <a href={wa(t("catalogue.ask_shop", { shop: shop.name, link }))!} target="_blank" rel="noopener noreferrer"
@@ -157,7 +161,7 @@ export default async function CataloguePage(props: Props) {
                   <MessageCircle size={16} /> WhatsApp
                 </a>
                 <a href={`tel:+${phone}`}
-                  className="inline-flex items-center gap-2 rounded-full border-2 border-[#ff6800] bg-white px-4 py-1.5 text-sm font-bold text-[#ff6800] hover:bg-[#fff1e6]">
+                  className="inline-flex items-center gap-2 rounded-full border-2 border-[#d4d4d8] bg-white px-4 py-1.5 text-sm font-bold text-[#1d2330] hover:bg-[#f4f4f5]">
                   <Phone size={16} /> {shop.phone}
                 </a>
               </>
@@ -166,23 +170,19 @@ export default async function CataloguePage(props: Props) {
           </div>
 
           {/* Summary */}
-          <dl className="mt-6 grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <dl className="hgv-stories -mx-4 mt-4 flex gap-2 overflow-x-auto px-4 sm:mx-0 sm:mt-6 sm:grid sm:grid-cols-4 sm:overflow-visible sm:px-0">
             {stats.map(({ icon: Icon, value, label: l }) => (
-              <div key={l} className="flex items-center gap-3 rounded-2xl border border-[#f0e6de] bg-white px-3 py-2.5">
-                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#fff1e6] text-[#ff6800]"><Icon size={18} /></span>
+              <div key={l} className="flex shrink-0 items-center gap-2.5 rounded-2xl border border-[#f0e6de] bg-white px-3 py-2 sm:gap-3 sm:py-2.5">
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[#f4f4f5] text-[#52525b] sm:h-9 sm:w-9"><Icon size={17} /></span>
                 <div className="flex min-w-0 flex-col-reverse">
                   <dt className="truncate text-[11px] font-semibold uppercase tracking-wide text-[#6b7280]">{l}</dt>
-                  <dd className="truncate text-lg font-extrabold leading-tight tabular-nums">{value}</dd>
+                  <dd className="truncate text-base font-extrabold leading-tight tabular-nums sm:text-lg">{value}</dd>
                 </div>
               </div>
             ))}
           </dl>
         </div>
       </header>
-
-      <div className="bg-[#ff6800] px-4 py-2.5 text-center text-sm font-bold uppercase tracking-widest text-white">
-        {t("catalogue.strip")}
-      </div>
 
       {cat.models.length === 0 ? (
         <div className="flex flex-col items-center gap-3 py-24 text-[#6b7280]">
@@ -196,14 +196,14 @@ export default async function CataloguePage(props: Props) {
 
       {/* Visit / contact */}
       <section className="mx-auto max-w-5xl px-4 pb-10">
-        <div className="relative overflow-hidden rounded-3xl bg-[#ff6800] p-6 text-white sm:p-8">
+        <div className="relative overflow-hidden rounded-3xl bg-[#1d2330] p-6 text-white sm:p-8">
           <div aria-hidden className="absolute -right-16 -top-16 h-56 w-56 rounded-full bg-white/10" />
           <h2 className="relative text-2xl font-extrabold uppercase sm:text-3xl">{t("catalogue.visit_title")}</h2>
           <p className="relative mt-1 max-w-lg text-sm text-white/90">{t("catalogue.visit_text")}</p>
           <div className="relative mt-5 flex flex-wrap gap-2">
             {phone && (
               <a href={wa(t("catalogue.ask_shop", { shop: shop.name, link }))!} target="_blank" rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-bold text-[#ff6800] hover:bg-white/90">
+                className="inline-flex items-center gap-2 rounded-full bg-[#ff6800] px-4 py-2 text-sm font-bold text-white hover:bg-[#e85f00]">
                 <MessageCircle size={16} /> WhatsApp
               </a>
             )}
@@ -223,7 +223,24 @@ export default async function CataloguePage(props: Props) {
         </div>
       </section>
 
-      <footer className="border-t-4 border-[#ff6800] bg-white">
+      {/* Phones: the two things a buyer does, always under the thumb. */}
+      {phone && (
+        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-[#f0e6de] bg-white/95 px-3 pt-2.5 backdrop-blur sm:hidden"
+          style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 10px)" }}>
+          <div className="grid grid-cols-[1fr_auto] gap-2">
+            <a href={wa(t("catalogue.ask_shop", { shop: shop.name, link }))!} target="_blank" rel="noopener noreferrer"
+              className="flex h-12 items-center justify-center gap-2 rounded-full bg-[#ff6800] text-base font-bold text-white active:bg-[#e85f00]">
+              <MessageCircle size={19} /> WhatsApp
+            </a>
+            <a href={`tel:+${phone}`} aria-label={`${t("catalogue.call")} ${shop.phone}`}
+              className="flex h-12 items-center justify-center gap-2 rounded-full border-2 border-[#d4d4d8] px-5 text-base font-bold text-[#1d2330] active:bg-[#f4f4f5]">
+              <Phone size={19} /> {t("catalogue.call")}
+            </a>
+          </div>
+        </div>
+      )}
+
+      <footer className={`border-t border-[#e7e7ea] bg-white ${phone ? "pb-24 sm:pb-0" : ""}`}>
         <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-3 px-4 py-5">
           {logo("h-10 w-10", "text-base")}
           <div className="min-w-0">
@@ -233,7 +250,7 @@ export default async function CataloguePage(props: Props) {
           <p className="ml-auto text-xs text-[#6b7280]">
             {t("catalogue.updated", { time: new Date(cat.generated_at).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short", timeZone: "Africa/Kigali" }) })}
             {" · "}
-            <a href={SITE.url} className="text-[#ff6800] underline-offset-2 hover:underline">{t("catalogue.powered")}</a>
+            <a href={SITE.url} className="font-semibold text-[#1d2330] underline-offset-2 hover:underline">{t("catalogue.powered")}</a>
           </p>
         </div>
       </footer>

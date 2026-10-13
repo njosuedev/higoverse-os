@@ -24,8 +24,12 @@ import {
 } from "@/lib/catalogue";
 
 // The logo's orange on a mostly white page (public/higoverse-logo.png).
+// Orange is the accent only: the headline's bar and "Only N left". The rest
+// is white, light grey and charcoal.
 const ORANGE = "#ff6800";
-const ORANGE_SOFT = "#fff1e6";
+const SOFT = "#f4f4f5";
+const SOFT_LINE = "#e4e4e7";
+const LABEL = "#71717a";
 const INK = "#1d2330";
 const MUTED = "#6b7280";
 const LINE = "#e7e7ea";
@@ -34,10 +38,10 @@ const W = 1080;
 const H = 1920;
 const SAFE_BOTTOM = H - 420; // 1500
 const BAND = 520; // orange band; its words sit below WhatsApp's top bar (~230 px)
-const STRIP = 64; // blue strip under it
+const STRIP = 2; // a hairline between the header and the cars
 const FOOT = 92; // contact row, last thing inside the safe zone
 const GRID_TOP = BAND + STRIP;
-const GRID_H = SAFE_BOTTOM - FOOT - GRID_TOP; // 824
+const GRID_H = SAFE_BOTTOM - FOOT - GRID_TOP; // 886
 
 type T = ReturnType<typeof catalogueT>;
 
@@ -80,7 +84,7 @@ function CarIcon({ size, color }: { size: number; color: string }) {
   );
 }
 
-function Logo({ shop, size, ring = ORANGE }: { shop: CatalogueShop; size: number; ring?: string }) {
+function Logo({ shop, size, ring = SOFT_LINE }: { shop: CatalogueShop; size: number; ring?: string }) {
   const src = drawable(shop.logo);
   return src ? (
     // eslint-disable-next-line @next/next/no-img-element
@@ -106,11 +110,12 @@ function Photo({ src, width, height, radius = 14 }: { src: string | null; width:
 }
 
 /** Round corner badge, like a flyer's "BEST DEAL" sticker. */
-function Badge({ text, filled, size }: { text: string; filled: boolean; size: number }) {
+function Badge({ text, filled, size, inset = false }: { text: string; filled: boolean; size: number; inset?: boolean }) {
   return (
     <div style={{
-      position: "absolute", top: -size * 0.18, right: -size * 0.12, width: size, height: size, borderRadius: size,
-      background: filled ? ORANGE : "#fff", color: filled ? "#fff" : ORANGE, border: `4px solid ${filled ? "#fff" : ORANGE}`, display: "flex", alignItems: "center", justifyContent: "center",
+      // `inset` keeps it inside the photo (grid tiles at the card's edge).
+      position: "absolute", top: inset ? 8 : -size * 0.18, right: inset ? 8 : -size * 0.12, width: size, height: size, borderRadius: size,
+      background: filled ? INK : "#fff", color: filled ? "#fff" : INK, border: `4px solid ${filled ? "#fff" : INK}`, display: "flex", alignItems: "center", justifyContent: "center",
       textAlign: "center", fontSize: size * 0.18, fontWeight: 700, lineHeight: 1.05, padding: size * 0.12, textTransform: "uppercase",
     }}>{text}</div>
   );
@@ -134,8 +139,8 @@ function Avail({ m, t, scale }: { m: CatalogueModel; t: T; scale: number }) {
     <div style={{ display: "flex" }}>
       <span style={{
         fontSize: 16 * scale, fontWeight: 700, padding: `${2 * scale}px ${9 * scale}px`, borderRadius: 6 * scale,
-        textTransform: "uppercase", letterSpacing: 0.5, border: `2px solid ${ORANGE}`,
-        background: few ? ORANGE : "#fff", color: few ? "#fff" : ORANGE,
+        textTransform: "uppercase", letterSpacing: 0.5, border: `2px solid ${few ? ORANGE : "#fff"}`,
+        background: few ? ORANGE : "#fff", color: few ? "#fff" : INK,
       }}>{availability(m, t)}</span>
     </div>
   );
@@ -151,9 +156,9 @@ function Price({ m, cat, t, scale }: { m: CatalogueModel; cat: Catalogue; t: T; 
   return (
     <div style={{ display: "flex" }}>
       <div style={{
-        display: "flex", flexDirection: "column", background: ORANGE, color: "#fff",
+        display: "flex", flexDirection: "column", background: INK, color: "#fff",
         padding: `${6 * scale}px ${12 * scale}px ${7 * scale}px`, borderRadius: 10 * scale,
-        borderTopLeftRadius: 2 * scale, boxShadow: "0 6px 14px rgba(255,104,0,0.25)",
+        borderTopLeftRadius: 2 * scale, boxShadow: "0 6px 14px rgba(0,0,0,0.25)",
       }}>
         {from && <span style={{ fontSize: 14 * scale, fontWeight: 700, textTransform: "uppercase", opacity: 0.9, lineHeight: 1.1 }}>{t("catalogue.from")}</span>}
         <div style={{ display: "flex", alignItems: "flex-end", gap: 5 * scale }}>
@@ -247,49 +252,45 @@ function Shell({ shop, cat, t, page, pages, children, headline, pills }: {
   const title = headline ?? t("catalogue.headline");
   // Long car names step down so the headline stays on one or two lines.
   // (two lines at most, starting below WhatsApp's top bar).
-  const titleSize = title.length > 24 ? 64 : title.length > 16 ? 80 : 104;
+  const titleSize = title.length > 24 ? 46 : title.length > 16 ? 54 : 64;
   return (
     <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", background: "#fff", position: "relative" }}>
       {/* White header: the shop, and the headline in orange */}
       <div style={{
-        height: BAND, display: "flex", flexDirection: "column", justifyContent: "flex-end", padding: "0 56px 34px",
+        height: BAND, display: "flex", flexDirection: "column", justifyContent: "flex-end", padding: "0 56px 28px",
         background: "#fff", color: INK, position: "relative",
       }}>
         {/* Soft orange circles in the corner, as on a printed flyer */}
-        <div style={{ position: "absolute", right: -140, top: -80, width: 460, height: 460, borderRadius: 460, background: ORANGE_SOFT }} />
-        <div style={{ position: "absolute", right: 70, top: 150, width: 170, height: 170, borderRadius: 170, border: `12px solid ${ORANGE}` }} />
+        <div style={{ position: "absolute", right: -140, top: -80, width: 460, height: 460, borderRadius: 460, background: SOFT }} />
         <div style={{ display: "flex", alignItems: "center", gap: 18, marginBottom: 14 }}>
           <Logo shop={shop} size={70} />
           <span style={{ fontSize: 34, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1 }}>{clip(shop.name, 30)}</span>
         </div>
-        <span style={{ fontSize: titleSize, fontWeight: 700, lineHeight: 0.95, textTransform: "uppercase", letterSpacing: -2, color: ORANGE }}>
+        <div style={{ width: 72, height: 10, borderRadius: 10, background: ORANGE, marginBottom: 12 }} />
+        <span style={{ fontSize: titleSize, fontWeight: 700, lineHeight: 0.95, textTransform: "uppercase", letterSpacing: -2, color: INK }}>
           {clip(title, 40)}
         </span>
-        <div style={{ display: (pills ?? summary(cat, t)).length ? "flex" : "none", gap: 12, marginTop: 18 }}>
+        <div style={{ display: (pills ?? summary(cat, t)).length ? "flex" : "none", gap: 12, marginTop: 14 }}>
           {(pills ?? summary(cat, t)).map(({ value, label, labelFirst }) => (
             <div key={label} style={{
               display: "flex", alignItems: "baseline", gap: 8, padding: "8px 18px", borderRadius: 999,
-              flexDirection: labelFirst ? "row-reverse" : "row", background: ORANGE_SOFT, border: `2px solid #ffd9bf`,
+              flexDirection: labelFirst ? "row-reverse" : "row", background: SOFT, border: `2px solid ${SOFT_LINE}`,
             }}>
-              <span style={{ fontSize: 30, fontWeight: 700, color: ORANGE }}>{value}</span>
-              <span style={{ fontSize: 20, fontWeight: 700, color: INK, textTransform: "uppercase" }}>{label}</span>
+              <span style={{ fontSize: 30, fontWeight: 700, color: INK }}>{value}</span>
+              <span style={{ fontSize: 20, fontWeight: 700, color: LABEL, textTransform: "uppercase" }}>{label}</span>
             </div>
           ))}
         </div>
       </div>
 
-      {/* Orange strip */}
-      <div style={{
-        height: STRIP, display: "flex", alignItems: "center", justifyContent: "center", background: ORANGE, color: "#fff",
-        fontSize: 28, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1.5,
-      }}>{t("catalogue.strip")}</div>
+      <div style={{ height: STRIP, display: "flex", background: LINE }} />
 
       {/* Cars */}
       <div style={{ height: GRID_H, display: "flex", flexWrap: "wrap", alignContent: "flex-start", overflow: "hidden" }}>{children}</div>
 
       {/* Orange bar with the phone (inside the safe zone); white below, under WhatsApp's reply box */}
       <div style={{ flex: 1, display: "flex", flexDirection: "column", background: "#fff" }}>
-        <div style={{ height: FOOT, display: "flex", alignItems: "center", padding: "0 56px", gap: 18, background: ORANGE, color: "#fff" }}>
+        <div style={{ height: FOOT, display: "flex", alignItems: "center", padding: "0 56px", gap: 18, background: INK, color: "#fff" }}>
           <span style={{ fontSize: 22, fontWeight: 700, textTransform: "uppercase", opacity: 0.95, maxWidth: 330, lineHeight: 1.1 }}>{t("catalogue.reply_cta")}</span>
           <span style={{ fontSize: 42, fontWeight: 700, letterSpacing: 0.5 }}>{shop.phone ?? ""}</span>
           {pages > 1 && <span style={{ marginLeft: "auto", fontSize: 26, fontWeight: 700, background: "rgba(0,0,0,0.18)", padding: "6px 16px", borderRadius: 999 }}>{page} / {pages}</span>}
@@ -306,10 +307,10 @@ function Shell({ shop, cat, t, page, pages, children, headline, pills }: {
 function SpecBox({ label, value }: { label: string; value: string }) {
   return (
     <div style={{
-      display: "flex", flexDirection: "column", padding: "12px 18px", borderRadius: 16, background: ORANGE_SOFT,
-      border: "2px solid #ffd9bf", minWidth: 200,
+      display: "flex", flexDirection: "column", padding: "12px 18px", borderRadius: 16, background: SOFT,
+      border: `2px solid ${SOFT_LINE}`, minWidth: 200,
     }}>
-      <span style={{ fontSize: 18, fontWeight: 700, color: "#9a6b4a", textTransform: "uppercase", letterSpacing: 0.5 }}>{label}</span>
+      <span style={{ fontSize: 18, fontWeight: 700, color: LABEL, textTransform: "uppercase", letterSpacing: 0.5 }}>{label}</span>
       <span style={{ fontSize: 30, fontWeight: 700, color: INK }}>{value}</span>
     </div>
   );
@@ -330,7 +331,7 @@ function Advert({ m, cat, t }: { m: CatalogueModel; cat: Catalogue; t: T }) {
   return (
     <div style={{ width: W, height: GRID_H, display: "flex", flexDirection: "column", padding: "28px 48px", gap: 22 }}>
       <div style={{ display: "flex", position: "relative" }}>
-        <Photo src={m.cover} width={W - 96} height={470} radius={22} />
+        <Photo src={m.cover} width={W - 96} height={530} radius={22} />
         {badge && <Badge text={badge.text} filled={badge.filled} size={150} />}
       </div>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 20 }}>
@@ -344,7 +345,7 @@ function Advert({ m, cat, t }: { m: CatalogueModel; cat: Catalogue; t: T }) {
       </div>
       {m.colors.length > 0 && (
         <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 12 }}>
-          <span style={{ fontSize: 20, fontWeight: 700, color: "#9a6b4a", textTransform: "uppercase" }}>{t("catalogue.spec_colours")}</span>
+          <span style={{ fontSize: 20, fontWeight: 700, color: LABEL, textTransform: "uppercase" }}>{t("catalogue.spec_colours")}</span>
           {m.colors.slice(0, 5).map((c) => (
             <div key={c} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 14px 6px 6px", borderRadius: 999, border: `2px solid ${LINE}` }}>
               <div style={{
@@ -382,8 +383,49 @@ export async function carCard(cat: Catalogue, shop: CatalogueShop, lang: Lang, n
   return toJpeg(image, 88);
 }
 
-/** Page `page` (1-based) of the Status card, as JPEG. */
-export async function statusCard(cat: Catalogue, shop: CatalogueShop, lang: Lang, page: number): Promise<Buffer> {
+/** A grid tile, photo first as in an advert: a wide photo carrying the
+ *  availability tag, the price ticket and the badge; the name, colours and
+ *  specs under it. */
+function Tile({ m, cat, t, width, height }: { m: CatalogueModel; cat: Catalogue; t: T; width: number; height: number }) {
+  const badge = badgeFor(m, t);
+  const facts = modelFacts(m, t);
+  const photoW = width - 32;
+  return (
+    <div style={{ width, height, display: "flex", flexDirection: "column", padding: "14px 16px 0", gap: 8 }}>
+      <div style={{ display: "flex", position: "relative" }}>
+        <Photo src={m.cover} width={photoW} height={208} radius={14} />
+        <div style={{ position: "absolute", top: 10, left: 10, display: "flex" }}><Avail m={m} t={t} scale={0.9} /></div>
+        <div style={{ position: "absolute", bottom: 10, left: 10, display: "flex" }}><Price m={m} cat={cat} t={t} scale={0.82} /></div>
+        {badge && <Badge text={badge.text} filled={badge.filled} size={74} inset />}
+      </div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+        <span style={{ fontSize: 23, fontWeight: 700, color: INK, textTransform: "uppercase", lineHeight: 1.1 }}>{clip(m.name, 24)}</span>
+        <Dots m={m} size={15} />
+      </div>
+      {facts.length > 0 && <span style={{ fontSize: 17, color: MUTED, marginTop: -4 }}>{clip(facts.join(" · "), 44)}</span>}
+    </div>
+  );
+}
+
+/** Fills the empty cell of an odd page: where to see more, in the brand's soft orange. */
+function MoreTile({ t, width, height, link, phone }: { t: T; width: number; height: number; link?: string; phone: string | null }) {
+  return (
+    <div style={{ width, height, display: "flex", padding: 16 }}>
+      <div style={{
+        flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10,
+        borderRadius: 18, background: SOFT, border: `2px dashed ${SOFT_LINE}`, textAlign: "center", padding: 16,
+      }}>
+        <CarIcon size={70} color={LABEL} />
+        <span style={{ fontSize: 24, fontWeight: 700, color: INK, textTransform: "uppercase" }}>{t("catalogue.more_tile")}</span>
+        {(link || phone) && <span style={{ fontSize: 22, fontWeight: 700, color: INK }}>{link ?? phone}</span>}
+      </div>
+    </div>
+  );
+}
+
+/** Page `page` (1-based) of the Status card, as JPEG. `link` is the short
+ *  catalogue address printed on the card ("higoverse.com/c/…"). */
+export async function statusCard(cat: Catalogue, shop: CatalogueShop, lang: Lang, page: number, link?: string): Promise<Buffer> {
   const t = catalogueT(lang);
   const pages = Math.max(1, Math.ceil(cat.models.length / MODELS_PER_CARD));
   const p = Math.min(Math.max(page, 1), pages);
@@ -408,15 +450,18 @@ export async function statusCard(cat: Catalogue, shop: CatalogueShop, lang: Lang
       </div>
     ));
   } else {
-    // Two columns, three rows, with flyer-style hairlines between cells.
+    // Two columns, three rows of photo-first tiles; an odd page ends with a
+    // tile saying where to see more.
     const cw = W / 2;
     const ch = GRID_H / 3;
-    body = models.map((m, i) => (
-      <div key={m.name} style={{
+    const cells: (CatalogueModel | null)[] = models.length % 2 ? [...models, null] : models;
+    body = cells.map((m, i) => (
+      <div key={m?.name ?? "more"} style={{
         display: "flex", width: cw, height: ch,
         borderLeft: i % 2 ? `2px solid ${LINE}` : "none", borderTop: i >= 2 ? `2px solid ${LINE}` : "none",
       }}>
-        <Cell m={m} cat={cat} t={t} width={cw - (i % 2 ? 2 : 0)} height={ch - (i >= 2 ? 2 : 0)} scale={1} photoW={226} />
+        {m ? <Tile m={m} cat={cat} t={t} width={cw - (i % 2 ? 2 : 0)} height={ch - (i >= 2 ? 2 : 0)} />
+          : <MoreTile t={t} width={cw - 2} height={ch - 2} link={link} phone={shop.phone} />}
       </div>
     ));
   }
@@ -438,13 +483,14 @@ export async function previewCard(cat: Catalogue, shop: CatalogueShop, lang: Lan
       <div style={{ width: "100%", height: "100%", display: "flex", background: "#fff" }}>
         <div style={{
           width: 540, display: "flex", flexDirection: "column", justifyContent: "center", padding: "0 52px", gap: 16,
-          background: "#fff", color: INK, borderRight: `10px solid ${ORANGE}`,
+          background: "#fff", color: INK, borderRight: `2px solid ${SOFT_LINE}`,
         }}>
           <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
             <Logo shop={shop} size={78} />
             <span style={{ fontSize: 30, fontWeight: 700, textTransform: "uppercase", lineHeight: 1.1 }}>{clip(shop.name, 28)}</span>
           </div>
-          <span style={{ fontSize: 76, fontWeight: 700, lineHeight: 0.95, textTransform: "uppercase", letterSpacing: -1.5, marginTop: 8, color: ORANGE }}>
+          <div style={{ width: 60, height: 8, borderRadius: 8, background: ORANGE, marginTop: 8 }} />
+          <span style={{ fontSize: 76, fontWeight: 700, lineHeight: 0.95, textTransform: "uppercase", letterSpacing: -1.5, color: INK }}>
             {t("catalogue.headline")}
           </span>
           <span style={{ fontSize: 28, fontWeight: 700, color: MUTED }}>
@@ -452,7 +498,7 @@ export async function previewCard(cat: Catalogue, shop: CatalogueShop, lang: Lan
           </span>
           {shop.phone && (
             <div style={{ display: "flex" }}>
-              <span style={{ background: ORANGE, color: "#fff", fontSize: 30, fontWeight: 700, padding: "10px 24px", borderRadius: 999 }}>{shop.phone}</span>
+              <span style={{ background: INK, color: "#fff", fontSize: 30, fontWeight: 700, padding: "10px 24px", borderRadius: 999 }}>{shop.phone}</span>
             </div>
           )}
         </div>

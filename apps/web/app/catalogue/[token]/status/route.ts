@@ -1,4 +1,4 @@
-import { catalogueLang, getCatalogue, getCatalogueShop } from "@/lib/catalogue";
+import { catalogueLang, getCatalogue, getCatalogueShop, isCode } from "@/lib/catalogue";
 import { carCard, statusCard } from "@/lib/catalogue-card";
 
 // GET /catalogue/<token>/status?page=1&lang=rw: one page of the catalogue as
@@ -14,7 +14,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ token: s
   const lang = catalogueLang(url.searchParams.get("lang") ?? cat.lang ?? null);
   const car = url.searchParams.get("car");
   const page = Number(url.searchParams.get("page")) || 1;
-  const jpeg = car ? await carCard(cat, shop, lang, car) : await statusCard(cat, shop, lang, page);
+  // Short links are printed on the card; older ones are too long to type.
+  const link = isCode(token) ? `higoverse.com/c/${token}` : undefined;
+  const jpeg = car ? await carCard(cat, shop, lang, car) : await statusCard(cat, shop, lang, page, link);
   if (!jpeg) return new Response("Not found", { status: 404 });
   return new Response(new Uint8Array(jpeg), {
     headers: {
