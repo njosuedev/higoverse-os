@@ -73,7 +73,8 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
     return () => { window.removeEventListener("beforeprint", before); window.removeEventListener("afterprint", after); };
   }, []);
   // Messages: keys, team and live unread counts once signed in to a business.
-  useEffect(() => { if (ready && user?.shop_id) void startChat(); }, [ready, user?.shop_id]);
+  // Car companies only: shops have no Messages.
+  useEffect(() => { if (ready && user?.shop_id && layout === "car") void startChat(); }, [ready, user?.shop_id, layout]);
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -119,6 +120,8 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
   };
   const businessMenus: NavItem[] = BUSINESS_MENUS
     .filter((m) => layout !== "car" || m.href !== "/purchases")
+    // Messages and Stories are for car companies only.
+    .filter((m) => layout === "car" || m.href !== "/messages")
     .filter((m) => m.href !== "/reports" || canSeeFinancials)
     .filter((m) => m.href !== "/expenses" || canUseExpenses)
     // Payroll: the owner, managers and the accountant.
@@ -383,8 +386,10 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
         <TabLink href="/" icon={House} label={t("nav.home")} active={pathname === "/"} onClick={goHome} />
         <TabLink href="/items" icon={layout === "car" ? Car : PackageTab} label={t(layout === "car" ? "nav.vehicles" : "nav.stock")}
           active={isActiveHref(pathname, "/items")} />
-        <TabLink href="/messages" icon={ChatCircleDots} label={t("nav.messages")}
-          active={isActiveHref(pathname, "/messages")} badge={unread} />
+        {layout === "car" && (
+          <TabLink href="/messages" icon={ChatCircleDots} label={t("nav.messages")}
+            active={isActiveHref(pathname, "/messages")} badge={unread} />
+        )}
         <TabLink href="/sales" icon={ReceiptTab} label={t("nav.sales")} active={isActiveHref(pathname, "/sales")} />
         {/* The business, and every page opened from it (purchases, partners, reports…) */}
         <TabLink href="/business" icon={Storefront} label={t("nav.business")}

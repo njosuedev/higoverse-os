@@ -12,6 +12,7 @@ import { ArrowLeft, Check, CheckCheck, Clock, Download, ImagePlus, Lock, Message
 import EmojiPicker from "@/app/components/EmojiPicker";
 import type { FileRef } from "@/lib/chat-crypto";
 import { useLanguage } from "@/lib/language-context";
+import { useShop } from "@/lib/shop-context";
 import { codeWith, loadThread, MAX_PHOTOS, photoUrl, send, setOpenConversation, startChat, unreadTotal, useChat, type Member, type Msg } from "@/lib/chat";
 import { notify } from "@/lib/dialogs";
 
@@ -352,5 +353,12 @@ function PhotoLightbox({ file, onClose }: { file: FileRef; onClose: () => void }
 }
 
 export default function MessagesPage() {
+  // Messages are for car companies only; shops go back to Home.
+  const { layout } = useLanguage();
+  const { loading } = useShop();
+  const router = useRouter();
+  const allowed = !loading && layout === "car";
+  useEffect(() => { if (!loading && layout !== "car") router.replace("/"); }, [loading, layout, router]);
+  if (!allowed) return null;
   return <Suspense fallback={null}><MessagesInner /></Suspense>;
 }

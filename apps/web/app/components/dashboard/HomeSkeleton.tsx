@@ -48,9 +48,8 @@ export default function HomeSkeleton({ isCar, fin, prof }: { isCar: boolean; fin
               </div>
             </>
           ) : (
-            /* Stories sharing one band with the key figures */
+            /* Shops: the key figures (no stories) */
             <div className="flex flex-col gap-3 lg:flex-row lg:items-stretch">
-              <div className="min-w-0 shrink-0 lg:max-w-[58%]"><StoryRow /></div>
               <div className="grid min-w-0 flex-1 grid-cols-2 content-center gap-2 sm:grid-cols-3 lg:grid-cols-3">
                 {Array.from({ length: figures }, (_, i) => <Figure key={i} />)}
               </div>

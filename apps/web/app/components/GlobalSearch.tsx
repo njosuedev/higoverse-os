@@ -98,7 +98,7 @@ export default function GlobalSearch() {
     { key: "p-home", group: "search.pages", title: t("nav.dashboard"), icon: Home, href: "/" },
     { key: "p-items", group: "search.pages", title: t("nav.inventory"), icon: isCar ? Car : Package, href: "/items" },
     { key: "p-sales", group: "search.pages", title: t("nav.sales"), icon: ShoppingCart, href: "/sales" },
-    { key: "p-msg", group: "search.pages", title: t("nav.messages"), icon: MessageCircle, href: "/messages" },
+    ...(isCar ? [{ key: "p-msg", group: "search.pages", title: t("nav.messages"), icon: MessageCircle, href: "/messages" }] : []),
     { key: "p-team", group: "search.pages", title: t("team.title"), icon: Users, href: "/team" },
     { key: "p-partners", group: "search.pages", title: t("nav.partners"), icon: Users, href: "/partners" },
     ...(!isCar ? [{ key: "p-pur", group: "search.pages", title: t("nav.purchases"), icon: Truck, href: "/purchases" }] : []),
@@ -116,14 +116,15 @@ export default function GlobalSearch() {
 
   const needle = q.trim().toLowerCase();
   const local: Hit[] = useMemo(() => {
-    const people = chat.members.filter((m) => m.id !== chat.me && (!needle || m.name.toLowerCase().includes(needle)))
+    // Teammates open a conversation: car companies only (shops have no Messages).
+    const people = !isCar ? [] : chat.members.filter((m) => m.id !== chat.me && (!needle || m.name.toLowerCase().includes(needle)))
       .slice(0, 5)
       .map((m) => ({ key: `u-${m.id}`, group: "search.people", title: m.name, sub: t(`role.${m.role}`), icon: User, href: `/messages?with=${m.id}` }));
     const acts = actions.filter((a) => !needle || a.title.toLowerCase().includes(needle)).slice(0, needle ? 6 : 8);
     // Nothing typed yet: recent searches first.
     const past = needle ? [] : recent.map((r) => ({ key: `r-${r}`, group: "search.recent", title: r, icon: History, href: "", query: r }));
     return [...past, ...acts, ...people];
-  }, [actions, chat.members, chat.me, needle, t, recent]);
+  }, [actions, chat.members, chat.me, needle, t, recent, isCar]);
 
   // From the server, a moment after typing stops.
   useEffect(() => {

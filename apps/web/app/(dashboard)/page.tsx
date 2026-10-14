@@ -381,10 +381,8 @@ function DesktopHome() {
              counters, which fill the room the stories don't need. ── */}
         {isCar && <TodayStatus leading={<Stories />} />}
 
-        {/* Shops: the stories share one band with the key figures, which fill
-            the room the stories don't need (no half-empty row). */}
+        {/* Shops have no stories: the key figures have the band to themselves. */}
         <div className={isCar ? "" : "flex flex-col gap-3 lg:flex-row lg:items-stretch"}>
-        {!isCar && <div className="min-w-0 max-w-full shrink-0 empty:hidden lg:max-w-[58%]"><Stories /></div>}
 
         {/* ── KEY FIGURES — one compact row ─────────────────────────────────── */}
         <section className={`grid grid-cols-2 gap-2 sm:grid-cols-3 ${isCar ? (fin ? "lg:grid-cols-6" : "lg:grid-cols-5") : "min-w-0 flex-1 content-center lg:grid-cols-3"}`}>

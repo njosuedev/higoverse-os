@@ -112,7 +112,7 @@ export default function MobileHome() {
           <button type="button" onClick={() => void load()} className="rounded-full bg-ink px-4 py-2 text-sm font-semibold text-white">{t("common.retry")}</button>
         </div>
       ) : !d ? (
-        <HomeSkeleton />
+        <HomeSkeleton isCar={isCar} />
       ) : (
         <>
           {error && <p className="mb-2 rounded-lg border border-warning/35 bg-warning/10 px-3 py-2 text-[12.5px] font-semibold text-warning">{t("dash.offline")}</p>}
@@ -136,8 +136,8 @@ function Content({ d, t, lang, isCar, fin, currency, lowStock, day, setDay }: {
   return (
     <>
       {/* Stories first, straight under the top bar, as on Facebook. */}
-      <div className="empty:hidden"><Stories /></div>
-      <ActiveNow t={t} />
+      {isCar && <div className="empty:hidden"><Stories /></div>}
+      {isCar && <ActiveNow t={t} />}
       <div className="h-2" />
       <Overview d={d} t={t} lang={lang} fin={fin} fmt={fmt} day={day} setDay={setDay} />
       <div className="h-2" />
@@ -390,11 +390,11 @@ function TopSellers({ top, t, fin, currency, isCar }: { top: Row[]; t: (k: strin
 }
 
 /** Home's shape while its figures load. */
-function HomeSkeleton() {
+function HomeSkeleton({ isCar }: { isCar: boolean }) {
   return (
     <div aria-busy="true">
-      <div className="flex gap-2 overflow-hidden">{[0, 1, 2, 3].map((i) => <Bone key={i} w={112} h={200} r={12} className="shrink-0" />)}</div>
-      <div className="mt-3 rounded-xl border border-border bg-white p-3">
+      {isCar && <div className="mb-3 flex gap-2 overflow-hidden">{[0, 1, 2, 3].map((i) => <Bone key={i} w={112} h={200} r={12} className="shrink-0" />)}</div>}
+      <div className="rounded-xl border border-border bg-white p-3">
         <Bone w={44} /><Bone w={170} h={26} r={7} className="mt-2" /><Bone w={120} h={9} className="mt-1.5" />
         <div className="my-2.5 border-t border-border" />
         <Bone w={150} h={11} /><Bone w={90} h={8} className="mt-1.5" />

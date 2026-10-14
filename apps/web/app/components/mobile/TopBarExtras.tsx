@@ -86,7 +86,8 @@ export function useLiveSheet() {
 
 /** The connection and who of the team is online now. */
 export function LiveSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { t } = useLanguage();
+  const { t, layout } = useLanguage();
+  const isCar = layout === "car";
   const online = useConnection() === "online";
   const chat = useChat();
   const team = chat.members.filter((m) => m.id !== chat.me && chat.online.includes(m.id));
@@ -105,8 +106,9 @@ export function LiveSheet({ open, onClose }: { open: boolean; onClose: () => voi
           <button type="button" onClick={() => void checkNow()} className="rounded-full px-3 py-2 font-semibold text-ink">{t("live.reconnect")}</button>
         )}
       </div>
-      <p className="mt-[18px] text-[13px] font-bold text-text-muted">{t("live.active_now")}</p>
-      {team.length === 0 ? (
+      {/* Who's online, to message them: car companies only. */}
+      {isCar && <p className="mt-[18px] text-[13px] font-bold text-text-muted">{t("live.active_now")}</p>}
+      {!isCar ? null : team.length === 0 ? (
         <p className="py-3.5 text-text-faint">{t("live.nobody")}</p>
       ) : (
         team.map((m) => (

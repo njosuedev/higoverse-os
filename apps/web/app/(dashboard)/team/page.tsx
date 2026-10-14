@@ -15,7 +15,8 @@ const ROLES = ["manager", "cashier", "storekeeper", "accountant"];
 const inputCls = "border border-slate-200 text-gray-800 placeholder:text-gray-400 rounded-lg px-3 py-2 w-full text-sm focus:outline-none focus:ring-2 focus:ring-[#0a66c2]/30 focus:border-[#0a66c2] transition";
 
 export default function TeamPage() {
-  const { t } = useLanguage();
+  const { t, layout } = useLanguage();
+  const isCar = layout === "car";
   const chat = useChat();
   const [adding, setAdding] = useState(false);
   const [menu, setMenu] = useState<string | null>(null);
@@ -57,7 +58,7 @@ export default function TeamPage() {
                   {t(`role.${m.role}`)}{m.email ? ` · ${m.email}` : ""}{!m.is_active ? ` · ${t("team.off")}` : ""}
                 </p>
               </div>
-              {m.id !== chat.me && (
+              {isCar && m.id !== chat.me && (
                 <Link href={`/messages?with=${m.id}`} title={t("nav.messages")} className="rounded-full p-2 text-ink hover:bg-ink-soft"><MessageCircle size={18} /></Link>
               )}
               {chat.canManage && employee && (
