@@ -142,11 +142,12 @@ export default async function CataloguePage(props: Props) {
       <header className="border-b border-[#e7e7ea] bg-white">
         <div className="mx-auto max-w-6xl px-3 py-3 sm:px-4">
           <div className="flex min-w-0 items-center gap-2.5">
-            {logo("h-9 w-9", "text-sm")}
+            {logo("h-11 w-11 sm:h-10 sm:w-10", "text-base")}
             <div className="min-w-0 flex-1">
-              <p className="truncate text-[13px] font-bold uppercase tracking-wide">{shop.name}</p>
+              {/* The whole company name, on two lines if it needs them. */}
+              <p className="text-[15px] font-extrabold uppercase leading-tight tracking-wide [overflow-wrap:anywhere] sm:text-sm">{shop.name}</p>
               {shop.address && (
-                <p className="flex items-center gap-1 truncate text-[11px] text-[#6b7280]"><MapPin size={11} className="shrink-0" /> {shop.address}</p>
+                <p className="mt-0.5 flex items-center gap-1 text-[11px] text-[#6b7280]"><MapPin size={11} className="shrink-0" /> <span className="truncate">{shop.address}</span></p>
               )}
             </div>
             <div className="hidden items-center gap-1.5 sm:flex">
@@ -197,7 +198,7 @@ export default async function CataloguePage(props: Props) {
         </div>
       ) : (
         <CatalogueBrowser token={token} models={models} currency={cat.currency} L={L}
-          phoneLink={phone ? `tel:+${phone}` : null} phone={shop.phone} initialCar={car} />
+          phoneLink={phone ? `tel:+${phone}` : null} phone={shop.phone} shopName={shop.name} initialCar={car} />
       )}
 
       {/* Visit / contact */}
@@ -250,7 +251,7 @@ export default async function CataloguePage(props: Props) {
         <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-3 px-4 py-5">
           {logo("h-10 w-10", "text-base")}
           <div className="min-w-0">
-            <p className="truncate text-sm font-bold uppercase">{shop.name}</p>
+            <p className="text-sm font-bold uppercase [overflow-wrap:anywhere]">{shop.name}</p>
             {shop.phone && <p className="text-xs text-[#6b7280]">{t("catalogue.call_or_whatsapp")} {shop.phone}</p>}
           </div>
           <p className="ml-auto text-xs text-[#6b7280]">

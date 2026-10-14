@@ -45,15 +45,15 @@ const availTag = (L: Labels, n: number) => (n <= 3 ? L.only_left.replace("{n}", 
 /** The price as an orange ticket laid on the photo, as in a sales advert. */
 function PriceTicket({ m, currency, L }: { m: ModelView; currency: string; L: Labels }) {
   if (m.minPrice == null) {
-    return <span className="rounded-lg bg-white/95 px-2 py-1 text-[11px] font-bold text-[#1d2330] shadow">{L.price_on_request}</span>;
+    return <span className="rounded-lg bg-white/95 px-2.5 py-1 text-sm font-bold text-[#1d2330] shadow min-[540px]:px-2 min-[540px]:text-[11px]">{L.price_on_request}</span>;
   }
   const from = m.maxPrice != null && m.maxPrice > m.minPrice;
   return (
-    <span className="flex flex-col rounded-lg bg-white/95 px-2 py-1 text-[#1d2330] shadow-[0_4px_12px_-4px_rgba(0,0,0,0.35)] backdrop-blur">
-      {from && <span className="text-[8px] font-bold uppercase leading-none tracking-wide text-[#71717a] sm:text-[9px]">{L.from}</span>}
+    <span className="flex flex-col rounded-lg bg-white/95 px-2.5 py-1 text-[#1d2330] min-[540px]:px-2 shadow-[0_4px_12px_-4px_rgba(0,0,0,0.35)] backdrop-blur">
+      {from && <span className="text-[10px] font-bold uppercase leading-none tracking-wide text-[#71717a] min-[540px]:text-[9px]">{L.from}</span>}
       <span className="flex items-baseline gap-0.5">
-        <span className="text-[13px] font-extrabold leading-tight tabular-nums sm:text-sm">{money(m.minPrice)}</span>
-        <span className="text-[9px] font-bold text-[#71717a]">{currency}</span>
+        <span className="text-xl font-extrabold leading-tight tabular-nums min-[540px]:text-sm">{money(m.minPrice)}</span>
+        <span className="text-xs font-bold text-[#71717a] min-[540px]:text-[9px]">{currency}</span>
       </span>
     </span>
   );
@@ -73,12 +73,16 @@ function Price({ m, currency, L, big = false }: { m: ModelView; currency: string
 
 function Swatches({ colors, max = 6, small = false }: { colors: ModelView["colors"]; max?: number; small?: boolean }) {
   if (!colors.length) return null;
+  // Up to three colours are named; more are dots, so the card stays one line.
+  const named = colors.length <= 3;
   return (
-    <div className={`flex items-center ${small ? "gap-1" : "gap-1.5"}`}>
+    <div className={`flex min-w-0 flex-wrap items-center ${named ? "gap-x-2.5 gap-y-1" : small ? "gap-1" : "gap-1.5"}`}>
       {colors.slice(0, max).map((c) => (
-        <span key={c.name} title={`${c.name} (${c.count})`}
-          className={`${small ? "h-3 w-3" : "h-4 w-4"} rounded-full border border-black/15 shadow-inner`}
-          style={{ background: c.hex ?? "repeating-linear-gradient(45deg,#e5e7eb 0 3px,#fff 3px 6px)" }} />
+        <span key={c.name} title={`${c.name} (${c.count})`} className="flex min-w-0 items-center gap-1">
+          <span className={`${small ? "h-3 w-3" : "h-4 w-4"} shrink-0 rounded-full border border-black/20 shadow-inner`}
+            style={{ background: c.hex ?? "repeating-linear-gradient(45deg,#e5e7eb 0 3px,#fff 3px 6px)" }} />
+          {named && <span className="truncate text-xs font-semibold capitalize text-[#52525b] min-[540px]:text-[11px]">{c.name}</span>}
+        </span>
       ))}
       {colors.length > max && <span className={`${small ? "text-[10px]" : "text-xs"} text-[#6b7280]`}>+{colors.length - max}</span>}
     </div>
@@ -134,8 +138,8 @@ function Badge({ m, L, at }: { m: ModelView; L: Labels; at: string }) {
   );
 }
 
-export default function CatalogueBrowser({ token, models, currency, L, phoneLink, phone, initialCar }: {
-  token: string; models: ModelView[]; currency: string; L: Labels; phoneLink: string | null; phone: string | null;
+export default function CatalogueBrowser({ token, models, currency, L, phoneLink, phone, shopName, initialCar }: {
+  token: string; models: ModelView[]; currency: string; L: Labels; phoneLink: string | null; phone: string | null; shopName: string;
   /** ?car=<name>: a link to one car opens it at once. */
   initialCar?: string | null;
 }) {
@@ -239,51 +243,48 @@ export default function CatalogueBrowser({ token, models, currency, L, phoneLink
             <p>{L.no_results}</p>
           </div>
         ) : (
-          <ul className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 sm:gap-3.5 lg:grid-cols-4">
+          // Phones: one big card per row, like an advert; wider screens: 2–4 columns.
+          <ul className="grid grid-cols-1 gap-4 min-[540px]:grid-cols-2 min-[540px]:gap-3.5 md:grid-cols-3 lg:grid-cols-4">
             {shown.map((m) => (
-              <li key={m.name} className="group flex min-w-0 flex-col overflow-hidden rounded-xl border border-[#e7e7ea] bg-white shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition hover:-translate-y-0.5 hover:shadow-[0_10px_24px_-14px_rgba(0,0,0,0.25)]">
+              <li key={m.name} className="group flex min-w-0 flex-col overflow-hidden rounded-2xl border border-[#e7e7ea] bg-white shadow-[0_2px_10px_-4px_rgba(0,0,0,0.12)] transition hover:-translate-y-0.5 hover:shadow-[0_10px_24px_-14px_rgba(0,0,0,0.25)] min-[540px]:rounded-xl">
                 <button type="button" onClick={() => setOpen(m)} className="relative block text-left" aria-label={`${L.details}: ${m.name}`}>
                   <div className="aspect-[4/3] overflow-hidden bg-[#f3f4f6]">
                     {m.cover ? (
                       <FitPhoto src={m.cover} alt={m.name} lazy />
                     ) : (
-                      <div className="flex h-full items-center justify-center text-[#c4c8cf]"><Car size={36} strokeWidth={1.25} /></div>
+                      <div className="flex h-full items-center justify-center text-[#c4c8cf]"><Car size={44} strokeWidth={1.25} /></div>
                     )}
                   </div>
-                  <span className={`absolute left-1.5 top-1.5 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide shadow sm:left-2 sm:top-2 sm:text-[10px] ${m.count <= 3 ? "bg-[#ff6800] text-white" : "bg-white text-[#1d2330]"}`}>
+                  <span className={`absolute left-2.5 top-2.5 rounded-md px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide shadow min-[540px]:left-2 min-[540px]:top-2 min-[540px]:text-[10px] ${m.count <= 3 ? "bg-[#ff6800] text-white" : "bg-white text-[#1d2330]"}`}>
                     {availTag(L, m.count)}
                   </span>
-                  <span className="absolute bottom-1.5 left-1.5 sm:bottom-2 sm:left-2"><PriceTicket m={m} currency={currency} L={L} /></span>
-                  {/* Phones: the small photo stays clear; the gallery shows these. */}
-                  <div className="hidden sm:block">
-                    {m.photos > 1 && (
-                      <span className="absolute bottom-2 right-2 flex items-center gap-1 rounded-full bg-black/60 px-1.5 py-0.5 text-[10px] font-semibold text-white">
-                        <Images size={10} /> {m.photos}
-                      </span>
-                    )}
-                    <Badge m={m} L={L} at="right-1.5 top-1.5 h-12 w-12 border-2 text-[7px]" />
-                  </div>
+                  <span className="absolute bottom-2.5 left-2.5 min-[540px]:bottom-2 min-[540px]:left-2"><PriceTicket m={m} currency={currency} L={L} /></span>
+                  {m.photos > 1 && (
+                    <span className="absolute bottom-2.5 right-2.5 flex items-center gap-1 rounded-full bg-black/65 px-2 py-0.5 text-xs font-semibold text-white min-[540px]:bottom-2 min-[540px]:right-2 min-[540px]:text-[10px]">
+                      <Images size={12} /> {m.photos}
+                    </span>
+                  )}
+                  <Badge m={m} L={L} at="right-2 top-2 h-14 w-14 border-2 text-[8px] min-[540px]:right-1.5 min-[540px]:top-1.5 min-[540px]:h-12 min-[540px]:w-12 min-[540px]:text-[7px]" />
                 </button>
-                <div className="flex flex-1 flex-col gap-1.5 p-2.5 sm:gap-2 sm:p-3">
+                <div className="flex flex-1 flex-col gap-2 p-3.5 min-[540px]:p-3">
                   <div className="min-w-0">
                     {(m.year || m.bodyLabel) && (
-                      <p className="truncate text-[10px] font-bold uppercase tracking-wide text-[#71717a]">{[m.year, m.bodyLabel].filter(Boolean).join(" · ")}</p>
+                      <p className="truncate text-[11px] font-bold uppercase tracking-wide text-[#71717a] min-[540px]:text-[10px]">{[m.year, m.bodyLabel].filter(Boolean).join(" · ")}</p>
                     )}
-                    <h2 className="line-clamp-2 text-[13px] font-extrabold uppercase leading-tight sm:text-sm">{m.name}</h2>
+                    <h2 className="line-clamp-2 text-lg font-extrabold uppercase leading-tight min-[540px]:text-sm">{m.name}</h2>
                   </div>
-                  <Swatches colors={m.colors} max={4} small />
-                  <div className="hidden sm:block"><Specs m={m} L={L} dense /></div>
-                  <div className="mt-auto grid grid-cols-[auto_1fr] gap-1.5 pt-1 sm:grid-cols-2">
+                  <Specs m={m} L={L} dense />
+                  <Swatches colors={m.colors} max={6} small />
+                  <div className="mt-auto grid grid-cols-2 gap-2 pt-1 min-[540px]:gap-1.5">
                     {m.ask && (
                       <a href={m.ask} target="_blank" rel="noopener noreferrer"
-                        aria-label="WhatsApp"
-                        className="flex h-8 items-center justify-center gap-1 whitespace-nowrap rounded-full bg-[#ff6800] px-2.5 text-xs font-bold text-white hover:bg-[#e85f00] active:bg-[#e85f00]">
-                        <MessageCircle size={14} /> <span className="hidden sm:inline">WhatsApp</span>
+                        className="flex h-11 items-center justify-center gap-1.5 whitespace-nowrap rounded-full bg-[#ff6800] px-3 text-sm font-bold text-white hover:bg-[#e85f00] active:bg-[#e85f00] min-[540px]:h-8 min-[540px]:gap-1 min-[540px]:px-2.5 min-[540px]:text-xs">
+                        <MessageCircle size={16} /> WhatsApp
                       </a>
                     )}
                     <button type="button" onClick={() => setOpen(m)}
-                      className={`flex h-8 items-center justify-center gap-1 whitespace-nowrap rounded-full border border-[#d4d4d8] px-2.5 text-xs font-bold text-[#1d2330] hover:bg-[#f4f4f5] active:bg-[#f4f4f5] ${m.ask ? "" : "col-span-2"}`}>
-                      <Sparkles size={13} /> {L.details}
+                      className={`flex h-11 items-center justify-center gap-1.5 whitespace-nowrap rounded-full border border-[#d4d4d8] px-3 text-sm font-bold text-[#1d2330] hover:bg-[#f4f4f5] active:bg-[#f4f4f5] min-[540px]:h-8 min-[540px]:gap-1 min-[540px]:px-2.5 min-[540px]:text-xs ${m.ask ? "" : "col-span-2"}`}>
+                      <Sparkles size={15} /> {L.details}
                     </button>
                   </div>
                 </div>
@@ -294,7 +295,7 @@ export default function CatalogueBrowser({ token, models, currency, L, phoneLink
       </section>
 
       {open && (
-        <Details m={models.find((x) => x.name === open.name) ?? open} token={token} currency={currency} L={L} phoneLink={phoneLink} phone={phone} onClose={() => setOpen(null)} />
+        <Details m={models.find((x) => x.name === open.name) ?? open} token={token} currency={currency} L={L} phoneLink={phoneLink} phone={phone} shopName={shopName} onClose={() => setOpen(null)} />
       )}
     </>
   );
@@ -319,8 +320,8 @@ function FitPhoto({ src, alt, lazy = false }: { src: string; alt: string; lazy?:
  * the actions pinned to the bottom. Larger screens: a centred window with
  * arrows and thumbnails.
  */
-function Details({ m, token, currency, L, phoneLink, phone, onClose }: {
-  m: ModelView; token: string; currency: string; L: Labels; phoneLink: string | null; phone: string | null; onClose: () => void;
+function Details({ m, token, currency, L, phoneLink, phone, shopName, onClose }: {
+  m: ModelView; token: string; currency: string; L: Labels; phoneLink: string | null; phone: string | null; shopName: string; onClose: () => void;
 }) {
   const [photos, setPhotos] = useState<string[]>(m.cover ? [m.cover] : []);
   const [i, setI] = useState(0);
@@ -430,6 +431,7 @@ function Details({ m, token, currency, L, phoneLink, phone, onClose }: {
               <div className="min-w-0">
                 <span className={`inline-block rounded-md px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide ${m.count <= 3 ? "bg-[#ff6800] text-white" : "bg-[#f4f4f5] text-[#1d2330]"}`}>{availTag(L, m.count)}</span>
                 <h2 className="mt-2 text-xl font-extrabold uppercase leading-tight sm:text-2xl">{m.name}</h2>
+                <p className="mt-1 text-xs font-semibold uppercase tracking-wide text-[#71717a] [overflow-wrap:anywhere]">{shopName}</p>
               </div>
               <Price m={m} currency={currency} L={L} big />
             </div>
