@@ -292,7 +292,7 @@ export default function CatalogueBrowser({ token, models, currency, L, phoneLink
       </section>
 
       {open && (
-        <Details m={open} token={token} currency={currency} L={L} phoneLink={phoneLink} phone={phone} onClose={() => setOpen(null)} />
+        <Details m={models.find((x) => x.name === open.name) ?? open} token={token} currency={currency} L={L} phoneLink={phoneLink} phone={phone} onClose={() => setOpen(null)} />
       )}
     </>
   );

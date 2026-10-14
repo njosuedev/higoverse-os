@@ -9,14 +9,15 @@ import {
 } from "@/lib/catalogue";
 import CatalogueBrowser, { type Labels, type ModelView } from "./CatalogueBrowser";
 import ShareLinkButton from "./ShareLinkButton";
+import LiveUpdates from "./LiveUpdates";
 
 type Props = {
   params: Promise<{ token: string }>;
   searchParams: Promise<{ lang?: string | string[]; car?: string | string[] }>;
 };
 
-// Stock changes through the day: read again at most every minute.
-export const revalidate = 60;
+// Always the stock as it is now; LiveUpdates refreshes an open page.
+export const dynamic = "force-dynamic";
 
 async function load(props: Props) {
   const [{ token }, sp] = await Promise.all([props.params, props.searchParams]);
@@ -68,7 +69,7 @@ export default async function CataloguePage(props: Props) {
   const t = catalogueT(lang);
   const phone = phoneDigits(shop.phone);
   const link = `${SITE.url}${path}`;
-  const coverUrl = (name: string) => `${PRODUCT_API}/catalogue/public/${token}/cover?name=${encodeURIComponent(name)}&size=640`;
+  const coverUrl = (name: string) => `${PRODUCT_API}/catalogue/public/${token}/cover?name=${encodeURIComponent(name)}&size=640&v=${cat.version ?? ""}`;
   const wa = (text: string) => (phone ? `https://wa.me/${phone}?text=${encodeURIComponent(text)}` : null);
   const label = (key: string) => {
     const v = t(key);
@@ -136,6 +137,7 @@ export default async function CataloguePage(props: Props) {
     <main className="min-h-dvh bg-[#f7f7f8] text-[#1d2330]" lang={lang === "zh" ? "zh-CN" : lang}
       // Keyboard focus rings in the catalogue's orange, not the app's blue.
       style={{ "--color-ink": "#1d2330" } as React.CSSProperties}>
+      <LiveUpdates token={token} version={cat.version ?? null} />
       {/* A compact header: who, the headline and the stock in numbers; the cars come right after. */}
       <header className="border-b border-[#e7e7ea] bg-white">
         <div className="mx-auto max-w-6xl px-3 py-3 sm:px-4">

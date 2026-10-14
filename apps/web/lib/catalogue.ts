@@ -37,6 +37,8 @@ export interface Catalogue {
   generated_at: string;
   /** The language saved with a short link (older links have none). */
   lang?: string | null;
+  /** Changes whenever the cars on sale change (see /version). */
+  version?: string;
 }
 
 export interface CatalogueShop {
@@ -81,12 +83,13 @@ export function withParam(path: string, key: string, value: string): string {
   return `${path}${path.includes("?") ? "&" : "?"}${key}=${encodeURIComponent(value)}`;
 }
 
-/** `covers: false` leaves the photos out (the page loads them as images). */
+/** `covers: false` leaves the photos out (the page loads them as images).
+ *  Never cached here: product-service keeps it until the cars change. */
 export async function getCatalogue(token: string, size = 640, covers = true): Promise<Catalogue | null> {
   if (!validToken(token)) return null;
   try {
     const res = await fetch(`${service("products", 8001)}/catalogue/public/${encodeURIComponent(token)}?size=${size}${covers ? "" : "&covers=false"}`, {
-      next: { revalidate: 60 }, signal: AbortSignal.timeout(10000),
+      cache: "no-store", signal: AbortSignal.timeout(10000),
     });
     if (!res.ok) return null;
     return ((await res.json())?.data as Catalogue) ?? null;

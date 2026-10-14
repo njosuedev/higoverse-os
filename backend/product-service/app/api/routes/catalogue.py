@@ -6,6 +6,8 @@ GET /catalogue/link?prices=1&currency=RWF&lang=en  staff: the shop's short link 
 GET /catalogue/public/{token}                      anyone with the link: the cars on sale
 GET /catalogue/public/{token}/cover?name=          one car name's cover photo (JPEG)
 GET /catalogue/public/{token}/photos?name=         one car name's photos, for its gallery
+GET /catalogue/public/{token}/version              a fingerprint of the cars on sale, polled by
+                                                   the open page so it updates as stock changes
 
 A link is higoverse.com/c/<code>: 8 random letters and digits, stored with
 the shop, whether prices show, the currency and the language, so it can't be
@@ -136,10 +138,12 @@ def get_link(prices: bool = True, currency: str = "RWF", lang: str = "en",
                                       "prices": prices, "lang": lang}}
 
 
-def _retouch(data_url: str, size: int) -> str:
-    """The photo as the catalogue shows it: every car in the same 16:10 frame
-    (centred), gently auto-levelled, a little more colour and sharpened for
-    small screens. Only this copy changes; the stored photo never does."""
+def _retouch(data_url: str, size: int, crop: bool = True) -> str:
+    """The photo as the catalogue shows it: gently auto-levelled, a little
+    more colour and sharpened for small screens. With `crop`, every car in the
+    same 16:10 frame (centred), for the Status card and link preview; without,
+    the whole photo, for the page. Only this copy changes; the stored photo
+    never does."""
     try:
         from PIL import Image, ImageEnhance, ImageFilter, ImageOps
     except ImportError:
@@ -147,8 +151,11 @@ def _retouch(data_url: str, size: int) -> str:
     try:
         img = Image.open(io.BytesIO(base64.b64decode(data_url.split(",", 1)[1])))
         img = ImageOps.exif_transpose(img).convert("RGB")
-        w = min(size, img.width)
-        img = ImageOps.fit(img, (w, round(w * 10 / 16)), Image.LANCZOS, centering=(0.5, 0.55))
+        if crop:
+            w = min(size, img.width)
+            img = ImageOps.fit(img, (w, round(w * 10 / 16)), Image.LANCZOS, centering=(0.5, 0.55))
+        else:
+            img.thumbnail((size, size), Image.LANCZOS)
         img = ImageOps.autocontrast(img, cutoff=0.5, preserve_tone=True)
         img = ImageEnhance.Color(img).enhance(1.12)
         img = ImageEnhance.Contrast(img).enhance(1.04)
@@ -160,11 +167,11 @@ def _retouch(data_url: str, size: int) -> str:
         return data_url
 
 
-def _cover(pid: str, src: str, size: int) -> str:
-    key = ("catalogue", pid, len(src), src[-32:], size)
+def _cover(pid: str, src: str, size: int, crop: bool = True) -> str:
+    key = ("catalogue", pid, len(src), src[-32:], size, crop)
     cover = _COVER_CACHE.get(key)
     if cover is None:
-        cover = _retouch(src, size)
+        cover = _retouch(src, size, crop)
         _COVER_CACHE[key] = cover
         while len(_COVER_CACHE) > _COVER_CACHE_MAX:
             _COVER_CACHE.popitem(last=False)
@@ -196,6 +203,32 @@ def _on_sale(shop_id: str):
     """Cars a customer may see: in stock, not pending, with a photo."""
     return (Product.shop_id == shop_id, Product.quantity > 0, ~_attr_matches(_PENDING_RE),
             func.coalesce(Product.thumbnail, "") != "")
+
+
+_VERSIONS: dict[str, tuple[float, str]] = {}
+_VERSION_SECONDS = 3
+
+
+def _version(db: Session, shop_id: str) -> str:
+    """Changes whenever a car on sale is added, sold, repriced, re-described
+    or gets new photos; read from the small columns only (never `images`)."""
+    now = time.monotonic()
+    hit = _VERSIONS.get(shop_id)
+    if hit and now - hit[0] < _VERSION_SECONDS:
+        return hit[1]
+    rows = (
+        db.query(Product.id, Product.name, Product.quantity, Product.selling_price, Product.attributes,
+                 func.length(Product.thumbnail), func.length(Product.images))
+        .filter(*_on_sale(shop_id))
+        .order_by(Product.id)
+        .limit(2000)
+        .all()
+    )
+    digest = hashlib.sha1(repr([tuple(r) for r in rows]).encode()).hexdigest()[:12]
+    _VERSIONS[shop_id] = (now, digest)
+    if len(_VERSIONS) > 500:
+        _VERSIONS.clear()
+    return digest
 
 
 def _catalogue(db: Session, shop_id: str, prices: bool, currency: str, size: int, covers: bool = True) -> dict:
@@ -287,25 +320,35 @@ def _catalogue(db: Session, shop_id: str, prices: bool, currency: str, size: int
 def get_public(token: str, response: Response, size: int = 640, covers: bool = True, db: Session = Depends(get_db)):
     shop_id, prices, currency, lang = _resolve(db, token)
     size = min(max(size, 160), 1080)
-    key = (shop_id, prices, currency, size, covers)
+    # Kept until the cars change, so a sale shows at once.
+    version = _version(db, shop_id)
+    key = (shop_id, prices, currency, size, covers, version)
     now = time.monotonic()
     hit = _CACHE.get(key)
     if hit and now - hit[0] < _CACHE_SECONDS:
         data = hit[1]
     else:
-        data = _catalogue(db, shop_id, prices, currency, size, covers)
+        data = {**_catalogue(db, shop_id, prices, currency, size, covers), "version": version}
         _CACHE[key] = (now, data)
         if len(_CACHE) > 200:
             for k in sorted(_CACHE, key=lambda k: _CACHE[k][0])[:100]:
                 _CACHE.pop(k, None)
-    response.headers["Cache-Control"] = "public, max-age=60"
+    response.headers["Cache-Control"] = "no-cache"
     return {"success": True, "data": {**data, "lang": lang}}
+
+
+@router.get("/public/{token}/version")
+def get_version(token: str, response: Response, db: Session = Depends(get_db)):
+    shop_id, _, _, _ = _resolve(db, token)
+    response.headers["Cache-Control"] = "no-store"
+    return {"success": True, "data": {"version": _version(db, shop_id)}}
 
 
 @router.get("/public/{token}/cover")
 def get_cover(token: str, name: str, size: int = 640, db: Session = Depends(get_db)):
-    """One car name's cover as a JPEG file, so the page stays small and
-    browsers cache each photo."""
+    """One car name's cover as a JPEG file, the whole photo uncropped, so the
+    page stays small and browsers cache each photo (the page adds the
+    catalogue version to the address, so a new photo is a new file)."""
     shop_id, _, _, _ = _resolve(db, token)
     size = min(max(size, 160), 1280)
     row = (
@@ -317,14 +360,14 @@ def get_cover(token: str, name: str, size: int = 640, db: Session = Depends(get_
     src = _first_image(row.images, row.thumbnail) if row else None
     if not src:
         raise HTTPException(status_code=404, detail="No photo")
-    cover = _cover(row.id, src, size)
+    cover = _cover(row.id, src, size, crop=False)
     return Response(content=base64.b64decode(cover.split(",", 1)[1]), media_type="image/jpeg",
-                    headers={"Cache-Control": "public, max-age=300"})
+                    headers={"Cache-Control": "public, max-age=86400"})
 
 
-# A car name's gallery: the photos of its cars on sale, newest car first,
-# retouched like the covers. Read when a customer opens that car.
-_MAX_PHOTOS = 8
+# A car name's gallery: every photo of its cars on sale, newest car first,
+# whole and retouched like the covers. Read when a customer opens that car.
+_MAX_PHOTOS = 60
 
 
 @router.get("/public/{token}/photos")
@@ -352,10 +395,10 @@ def get_photos(token: str, name: str, response: Response, size: int = 960, db: S
             if mark in seen:
                 continue
             seen.add(mark)
-            out.append(_cover(f"{pid}:{n}", src, size))
+            out.append(_cover(f"{pid}:{n}", src, size, crop=False))
             if len(out) >= _MAX_PHOTOS:
                 break
         if len(out) >= _MAX_PHOTOS:
             break
-    response.headers["Cache-Control"] = "public, max-age=300"
+    response.headers["Cache-Control"] = "no-cache"
     return {"success": True, "data": out}
