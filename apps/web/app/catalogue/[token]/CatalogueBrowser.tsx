@@ -108,7 +108,7 @@ function Specs({ m, L, dense = false }: { m: ModelView; L: Labels; dense?: boole
     );
   }
   return (
-    <ul className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
+    <ul className="grid grid-cols-2 gap-1.5 sm:grid-cols-3 lg:grid-cols-2">
       {items.map(({ icon: Icon, label, value }) => (
         <li key={label} className="flex min-w-0 items-center gap-2 rounded-lg bg-[#f4f4f5] px-2 py-1.5">
           <Icon size={15} className="shrink-0 text-[#71717a]" />
@@ -243,10 +243,9 @@ export default function CatalogueBrowser({ token, models, currency, L, phoneLink
             {shown.map((m) => (
               <li key={m.name} className="group flex min-w-0 flex-col overflow-hidden rounded-xl border border-[#e7e7ea] bg-white shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition hover:-translate-y-0.5 hover:shadow-[0_10px_24px_-14px_rgba(0,0,0,0.25)]">
                 <button type="button" onClick={() => setOpen(m)} className="relative block text-left" aria-label={`${L.details}: ${m.name}`}>
-                  <div className="aspect-[16/10] overflow-hidden bg-[#f3f4f6]">
+                  <div className="aspect-[4/3] overflow-hidden bg-[#f3f4f6]">
                     {m.cover ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={m.cover} alt={m.name} loading="lazy" className="h-full w-full object-contain" />
+                      <FitPhoto src={m.cover} alt={m.name} lazy />
                     ) : (
                       <div className="flex h-full items-center justify-center text-[#c4c8cf]"><Car size={36} strokeWidth={1.25} /></div>
                     )}
@@ -254,13 +253,16 @@ export default function CatalogueBrowser({ token, models, currency, L, phoneLink
                   <span className={`absolute left-1.5 top-1.5 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide shadow sm:left-2 sm:top-2 sm:text-[10px] ${m.count <= 3 ? "bg-[#ff6800] text-white" : "bg-white text-[#1d2330]"}`}>
                     {availTag(L, m.count)}
                   </span>
-                  {m.photos > 1 && (
-                    <span className="absolute bottom-1.5 right-1.5 flex items-center gap-1 rounded-full bg-black/60 px-1.5 py-0.5 text-[10px] font-semibold text-white sm:bottom-2 sm:right-2">
-                      <Images size={10} /> {m.photos}
-                    </span>
-                  )}
                   <span className="absolute bottom-1.5 left-1.5 sm:bottom-2 sm:left-2"><PriceTicket m={m} currency={currency} L={L} /></span>
-                  <Badge m={m} L={L} at="right-1 top-1 h-10 w-10 border-2 text-[6px] sm:right-1.5 sm:top-1.5 sm:h-12 sm:w-12 sm:text-[7px]" />
+                  {/* Phones: the small photo stays clear; the gallery shows these. */}
+                  <div className="hidden sm:block">
+                    {m.photos > 1 && (
+                      <span className="absolute bottom-2 right-2 flex items-center gap-1 rounded-full bg-black/60 px-1.5 py-0.5 text-[10px] font-semibold text-white">
+                        <Images size={10} /> {m.photos}
+                      </span>
+                    )}
+                    <Badge m={m} L={L} at="right-1.5 top-1.5 h-12 w-12 border-2 text-[7px]" />
+                  </div>
                 </button>
                 <div className="flex flex-1 flex-col gap-1.5 p-2.5 sm:gap-2 sm:p-3">
                   <div className="min-w-0">
@@ -295,6 +297,20 @@ export default function CatalogueBrowser({ token, models, currency, L, phoneLink
         <Details m={models.find((x) => x.name === open.name) ?? open} token={token} currency={currency} L={L} phoneLink={phoneLink} phone={phone} onClose={() => setOpen(null)} />
       )}
     </>
+  );
+}
+
+/** The whole photo, never cropped, filling its frame: the bands beside a
+ *  tall or wide photo show a blurred, zoomed copy of it instead of grey. */
+function FitPhoto({ src, alt, lazy = false }: { src: string; alt: string; lazy?: boolean }) {
+  return (
+    <div className="relative h-full w-full overflow-hidden">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={src} alt="" aria-hidden loading={lazy ? "lazy" : undefined}
+        className="absolute inset-0 h-full w-full scale-110 object-cover opacity-70 blur-xl" />
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={src} alt={alt} loading={lazy ? "lazy" : undefined} className="relative h-full w-full object-contain" />
+    </div>
   );
 }
 
@@ -356,15 +372,19 @@ function Details({ m, token, currency, L, phoneLink, phone, onClose }: {
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm sm:items-center sm:p-4" onClick={onClose}>
       <div ref={box} tabIndex={-1} role="dialog" aria-modal="true" aria-label={m.name} onClick={(e) => e.stopPropagation()} style={{ outline: "none" }}
-        className="relative flex h-[100dvh] w-full max-w-3xl flex-col overflow-hidden bg-white sm:h-auto sm:max-h-[94dvh] sm:rounded-3xl">
-        <div className="flex-1 overflow-y-auto overscroll-contain">
+        className="relative flex h-[100dvh] w-full max-w-3xl flex-col overflow-hidden bg-white sm:h-auto sm:max-h-[94dvh] sm:rounded-3xl lg:h-[90dvh] lg:max-w-6xl">
+        {/* Phones and tablets: photos above the details, one scroll. Computers:
+            the photos fill the left at full height, the details beside them. */}
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain lg:flex lg:overflow-hidden">
+          <div className="bg-[#111] lg:flex lg:min-w-0 lg:flex-1 lg:flex-col">
           {/* Gallery */}
-          <div className="relative bg-[#111]">
+          <div className="relative lg:min-h-0 lg:flex-1">
             <div ref={strip} onScroll={(e) => setI(Math.round(e.currentTarget.scrollLeft / Math.max(e.currentTarget.clientWidth, 1)))}
-              className="hgv-stories flex aspect-[16/10] snap-x snap-mandatory overflow-x-auto">
+              className="hgv-stories flex aspect-square snap-x snap-mandatory overflow-x-auto sm:aspect-[16/10] lg:aspect-auto lg:h-full">
               {n ? photos.map((p, k) => (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img key={k} src={p} alt={`${m.name} ${k + 1}/${n}`} className="h-full w-full shrink-0 snap-center object-contain" />
+                <div key={k} className="h-full w-full shrink-0 snap-center">
+                  <FitPhoto src={p} alt={`${m.name} ${k + 1}/${n}`} />
+                </div>
               )) : (
                 <div className="flex h-full w-full items-center justify-center text-[#4b5563]"><Car size={80} strokeWidth={1} /></div>
               )}
@@ -393,7 +413,7 @@ function Details({ m, token, currency, L, phoneLink, phone, onClose }: {
             <Badge m={m} L={L} at="right-3 top-3 h-16 w-16 text-[9px] sm:left-3 sm:right-auto sm:h-20 sm:w-20 sm:text-[11px]" />
           </div>
           {n > 1 && (
-            <div className="hidden gap-2 overflow-x-auto bg-[#111] px-3 pb-3 sm:flex">
+            <div className="hgv-stories hidden shrink-0 gap-2 overflow-x-auto bg-[#111] px-3 pb-3 pt-1 sm:flex lg:pt-3">
               {photos.map((p, k) => (
                 <button key={k} type="button" onClick={() => go(k)} aria-label={`${k + 1}`}
                   className={`h-12 w-20 shrink-0 overflow-hidden rounded-md border-2 ${k === i ? "border-white" : "border-transparent opacity-60"}`}>
@@ -403,8 +423,9 @@ function Details({ m, token, currency, L, phoneLink, phone, onClose }: {
               ))}
             </div>
           )}
+          </div>
 
-          <div className="p-4 sm:p-5">
+          <div className="p-4 sm:p-5 lg:w-[400px] lg:shrink-0 lg:overflow-y-auto">
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0">
                 <span className={`inline-block rounded-md px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide ${m.count <= 3 ? "bg-[#ff6800] text-white" : "bg-[#f4f4f5] text-[#1d2330]"}`}>{availTag(L, m.count)}</span>
@@ -442,7 +463,7 @@ function Details({ m, token, currency, L, phoneLink, phone, onClose }: {
             </table>
 
             {/* Larger screens: the actions follow the details */}
-            <div className="mt-5 hidden gap-2 sm:grid sm:grid-cols-3">
+            <div className="mt-5 hidden gap-2 sm:grid sm:grid-cols-3 lg:grid-cols-1">
               {m.ask && (
                 <a href={m.ask} target="_blank" rel="noopener noreferrer"
                   className="flex items-center justify-center gap-2 rounded-full bg-[#ff6800] px-4 py-2.5 text-sm font-bold text-white hover:bg-[#e85f00]">
