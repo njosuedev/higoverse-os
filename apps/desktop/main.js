@@ -25,7 +25,8 @@
 // browser. Only location, clipboard and notification permissions exist, and
 // only for higoverse.com.
 
-const { app, BrowserWindow, Menu, shell, dialog, session, nativeTheme, ipcMain, screen } = require("electron");
+const { app, BrowserWindow, Menu, shell, dialog, session, nativeTheme, ipcMain, screen, Notification } = require("electron");
+const fs = require("fs");
 const path = require("path");
 const windowState = require("./window-state");
 const shellText = require("./shell-text");
@@ -418,6 +419,19 @@ app.on("child-process-gone", (_e, details) => {
   }
 });
 
+// "Pin to taskbar" ticked in the installer: Windows lets only the user pin an
+// app, so the first start says how, once the window is on the taskbar.
+function pinHint() {
+  const note = path.join(path.dirname(process.execPath), "pin-to-taskbar");
+  if (!app.isPackaged || !fs.existsSync(note)) return;
+  fs.rm(note, { force: true }, () => {});
+  if (!Notification.isSupported()) return;
+  setTimeout(() => {
+    const t = shellText.text(lang());
+    new Notification({ title: t.pin_title, body: t.pin_body, icon: ICON }).show();
+  }, 4000);
+}
+
 app.whenReady().then(() => {
   // Only what the website uses: location for the address map, clipboard
   // writes, notifications. Everything else (camera, microphone…) is refused,
@@ -446,6 +460,7 @@ app.whenReady().then(() => {
 
   buildMenu();
   createWindow();
+  pinHint();
   updates.init({
     getMainWindow: () => (win && !win.isDestroyed() ? win : null),
     api: process.env.HIGOVERSE_UPDATE_API || new URL("/svc/settings/api/app-updates/latest?platform=windows", APP_ORIGIN).toString(),

@@ -57,8 +57,10 @@ npm run dist        # → dist/Higoverse-Setup-<version>.exe
 
 The installer always installs for the current user (`%LOCALAPPDATA%\Programs\Higoverse`,
 `build/installer.nsh`), so updates never need an administrator; it
-creates Desktop and Start menu shortcuts, registers in **Settings → Apps** with
-an uninstaller, and can start Higoverse when it finishes.
+creates a Start menu shortcut, asks about a Desktop shortcut and pinning to
+the taskbar (Windows lets only the user pin, so the app's first start shows how
+in a notification), registers in **Settings → Apps** with an uninstaller, and
+can start Higoverse when it finishes.
 
 Raise `version` in `package.json` for each release. The installer is not
 code-signed; Windows SmartScreen may warn until a code-signing certificate is

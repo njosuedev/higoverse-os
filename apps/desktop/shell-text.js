@@ -25,6 +25,8 @@ const TEXT = {
     hung_title: "Higoverse isn't responding",
     hung_body: "The page is busy. You can wait for it or reload it.",
     wait: "Wait",
+    pin_title: "Pin Higoverse to the taskbar",
+    pin_body: "Right-click the Higoverse icon on the taskbar, then choose Pin to taskbar.",
   },
   rw: {
     loading: "Higoverse irafunguka…",
@@ -44,6 +46,8 @@ const TEXT = {
     hung_title: "Higoverse ntisubiza",
     hung_body: "Urupapuro ruhuze. Ushobora gutegereza cyangwa kongera kurufungura.",
     wait: "Tegereza",
+    pin_title: "Shyira Higoverse kuri taskbar",
+    pin_body: "Kanda iburyo ku kimenyetso cya Higoverse kiri kuri taskbar, uhitemo Pin to taskbar.",
   },
   fr: {
     loading: "Ouverture de Higoverse…",
@@ -63,6 +67,8 @@ const TEXT = {
     hung_title: "Higoverse ne répond pas",
     hung_body: "La page est occupée. Vous pouvez attendre ou la recharger.",
     wait: "Attendre",
+    pin_title: "Épinglez Higoverse à la barre des tâches",
+    pin_body: "Faites un clic droit sur l'icône Higoverse dans la barre des tâches, puis choisissez Épingler à la barre des tâches.",
   },
   sw: {
     loading: "Inafungua Higoverse…",
@@ -82,6 +88,8 @@ const TEXT = {
     hung_title: "Higoverse haijibu",
     hung_body: "Ukurasa una shughuli. Unaweza kusubiri au kuupakia upya.",
     wait: "Subiri",
+    pin_title: "Bandika Higoverse kwenye taskbar",
+    pin_body: "Bofya kulia ikoni ya Higoverse kwenye taskbar, kisha uchague Pin to taskbar.",
   },
   zh: {
     loading: "正在打开 Higoverse…",
@@ -101,6 +109,8 @@ const TEXT = {
     hung_title: "Higoverse 没有响应",
     hung_body: "页面正忙。您可以等待或重新加载。",
     wait: "等待",
+    pin_title: "将 Higoverse 固定到任务栏",
+    pin_body: "右键单击任务栏上的 Higoverse 图标，然后选择“固定到任务栏”。",
   },
 };
 
