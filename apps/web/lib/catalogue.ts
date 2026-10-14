@@ -3,6 +3,7 @@
 // server, for the public page, its link preview and the WhatsApp Status card.
 
 import { translate, type Lang, LANGUAGES } from "@/lib/i18n";
+import { splitAddress } from "@/lib/company";
 
 export interface CatalogueModel {
   name: string;
@@ -41,8 +42,12 @@ export interface Catalogue {
 export interface CatalogueShop {
   name: string;
   phone: string | null;
+  /** As people read it: the street from the map pin, else the typed text. */
   address: string | null;
   logo: string | null;
+  /** The map pin set in Settings, for directions. */
+  lat: number | null;
+  lng: number | null;
 }
 
 /** Models on one Status card (2 columns × 3 rows inside WhatsApp's safe zone). */
@@ -98,12 +103,41 @@ export async function getCatalogueShop(shopId: string): Promise<CatalogueShop | 
     if (!res.ok) return null;
     const s = (await res.json())?.data;
     if (!s?.name) return null;
+    // Stored as "City of Kigali, Rwanda|Lat:-1.95|Lng:30.11": the text, and the map pin.
+    const { text, lat, lng } = splitAddress(s.address ? String(s.address) : "");
+    const street = lat != null && lng != null ? await streetAddress(lat, lng) : null;
     return {
       name: String(s.name),
       phone: s.phone ? String(s.phone) : null,
-      address: s.address ? String(s.address) : null,
+      address: street || text || null,
       logo: typeof s.logo_url === "string" && s.logo_url ? s.logo_url : null,
+      lat, lng,
     };
+  } catch {
+    return null;
+  }
+}
+
+/** The street address at a map pin ("KG 17 Avenue, Gasabo District, City of
+ *  Kigali"), from OpenStreetMap. Kept a week per pin: shops rarely move, and
+ *  Nominatim asks callers to cache and identify themselves. */
+async function streetAddress(lat: number, lng: number): Promise<string | null> {
+  try {
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?lat=${lat.toFixed(5)}&lon=${lng.toFixed(5)}&format=json&zoom=18&addressdetails=1`,
+      {
+        headers: { "Accept-Language": "en", "User-Agent": "Higoverse/1.0 (https://higoverse.com)" },
+        next: { revalidate: 7 * 24 * 3600 }, signal: AbortSignal.timeout(4000),
+      },
+    );
+    if (!res.ok) return null;
+    const a = (await res.json())?.address as Record<string, string> | undefined;
+    if (!a) return null;
+    const road = [a.house_number, a.road].filter(Boolean).join(" ");
+    const parts = [road, a.neighbourhood || a.suburb || a.quarter || a.village, a.city_district || a.county, a.city || a.town || a.state]
+      .filter((p): p is string => !!p && p.trim() !== "");
+    const unique = parts.filter((p, i) => parts.indexOf(p) === i);
+    return unique.length >= 2 ? unique.join(", ") : null;
   } catch {
     return null;
   }

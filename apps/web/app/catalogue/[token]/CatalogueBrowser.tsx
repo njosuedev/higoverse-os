@@ -45,15 +45,15 @@ const availTag = (L: Labels, n: number) => (n <= 3 ? L.only_left.replace("{n}", 
 /** The price as an orange ticket laid on the photo, as in a sales advert. */
 function PriceTicket({ m, currency, L }: { m: ModelView; currency: string; L: Labels }) {
   if (m.minPrice == null) {
-    return <span className="rounded-lg bg-white/95 px-2.5 py-1 text-xs font-bold text-[#1d2330] shadow">{L.price_on_request}</span>;
+    return <span className="rounded-lg bg-white/95 px-2 py-1 text-[11px] font-bold text-[#1d2330] shadow">{L.price_on_request}</span>;
   }
   const from = m.maxPrice != null && m.maxPrice > m.minPrice;
   return (
-    <span className="flex flex-col rounded-xl bg-white/95 px-3 py-1.5 text-[#1d2330] shadow-[0_6px_16px_-6px_rgba(0,0,0,0.35)] backdrop-blur">
-      {from && <span className="text-[10px] font-bold uppercase leading-none tracking-wide text-[#71717a]">{L.from}</span>}
-      <span className="flex items-baseline gap-1">
-        <span className="text-xl font-extrabold leading-tight tabular-nums">{money(m.minPrice)}</span>
-        <span className="text-[11px] font-bold text-[#71717a]">{currency}</span>
+    <span className="flex flex-col rounded-lg bg-white/95 px-2 py-1 text-[#1d2330] shadow-[0_4px_12px_-4px_rgba(0,0,0,0.35)] backdrop-blur">
+      {from && <span className="text-[8px] font-bold uppercase leading-none tracking-wide text-[#71717a] sm:text-[9px]">{L.from}</span>}
+      <span className="flex items-baseline gap-0.5">
+        <span className="text-[13px] font-extrabold leading-tight tabular-nums sm:text-sm">{money(m.minPrice)}</span>
+        <span className="text-[9px] font-bold text-[#71717a]">{currency}</span>
       </span>
     </span>
   );
@@ -71,16 +71,16 @@ function Price({ m, currency, L, big = false }: { m: ModelView; currency: string
   );
 }
 
-function Swatches({ colors, max = 6 }: { colors: ModelView["colors"]; max?: number }) {
+function Swatches({ colors, max = 6, small = false }: { colors: ModelView["colors"]; max?: number; small?: boolean }) {
   if (!colors.length) return null;
   return (
-    <div className="flex items-center gap-1.5">
+    <div className={`flex items-center ${small ? "gap-1" : "gap-1.5"}`}>
       {colors.slice(0, max).map((c) => (
         <span key={c.name} title={`${c.name} (${c.count})`}
-          className="h-4 w-4 rounded-full border border-black/15 shadow-inner"
+          className={`${small ? "h-3 w-3" : "h-4 w-4"} rounded-full border border-black/15 shadow-inner`}
           style={{ background: c.hex ?? "repeating-linear-gradient(45deg,#e5e7eb 0 3px,#fff 3px 6px)" }} />
       ))}
-      {colors.length > max && <span className="text-xs text-[#6b7280]">+{colors.length - max}</span>}
+      {colors.length > max && <span className={`${small ? "text-[10px]" : "text-xs"} text-[#6b7280]`}>+{colors.length - max}</span>}
     </div>
   );
 }
@@ -99,8 +99,8 @@ function Specs({ m, L, dense = false }: { m: ModelView; L: Labels; dense?: boole
     return (
       <ul className="flex flex-wrap gap-1.5">
         {items.map(({ icon: Icon, label, value }) => (
-          <li key={label} title={label} className="flex items-center gap-1.5 rounded-full bg-[#f4f4f5] px-2.5 py-1 text-[13px] font-bold">
-            <Icon size={14} className="shrink-0 text-[#71717a]" aria-hidden />
+          <li key={label} title={label} className="flex items-center gap-1 rounded-full bg-[#f4f4f5] px-2 py-0.5 text-[11px] font-bold">
+            <Icon size={11} className="shrink-0 text-[#71717a]" aria-hidden />
             <span className="sr-only">{label}: </span>{value}
           </li>
         ))}
@@ -177,13 +177,13 @@ export default function CatalogueBrowser({ token, models, currency, L, phoneLink
     </>
   );
   const chip = (active: boolean) =>
-    `shrink-0 rounded-full border-2 px-3.5 py-1.5 text-sm font-bold transition ${active ? "border-[#1d2330] bg-[#1d2330] text-white" : "border-[#e4e4e7] bg-white text-[#1d2330] hover:border-[#a1a1aa]"}`;
+    `shrink-0 rounded-full border px-3 py-1 text-xs font-bold transition ${active ? "border-[#1d2330] bg-[#1d2330] text-white" : "border-[#e4e4e7] bg-white text-[#1d2330] hover:border-[#a1a1aa]"}`;
 
   return (
     <>
       {/* Filters */}
       <div className="sticky top-0 z-20 border-b border-[#e7e7ea] bg-white/95 backdrop-blur">
-        <div className="mx-auto flex max-w-5xl items-center gap-2 px-4 py-2.5 sm:py-3">
+        <div className="mx-auto flex max-w-6xl items-center gap-2 px-3 py-2 sm:px-4">
           {searching ? (
             <label className="relative flex-1 sm:hidden">
               <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#9ca3af]" />
@@ -194,7 +194,7 @@ export default function CatalogueBrowser({ token, models, currency, L, phoneLink
             </label>
           ) : (
             <button type="button" aria-label={L.search} onClick={() => setSearching(true)}
-              className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-2 sm:hidden ${q ? "border-[#1d2330] bg-[#1d2330] text-white" : "border-[#e4e4e7] text-[#1d2330]"}`}>
+              className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full border sm:hidden ${q ? "border-[#1d2330] bg-[#1d2330] text-white" : "border-[#e4e4e7] text-[#1d2330]"}`}>
               <Search size={16} />
             </button>
           )}
@@ -214,17 +214,17 @@ export default function CatalogueBrowser({ token, models, currency, L, phoneLink
             <label className="relative hidden sm:block sm:w-48">
               <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#9ca3af]" />
               <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={L.search} aria-label={L.search}
-                className="w-full rounded-full border-2 border-[#e7e7ea] py-1.5 pl-8 pr-3 text-sm outline-none focus:border-[#1d2330]" />
+                className="h-8 w-full rounded-full border border-[#e7e7ea] pl-8 pr-3 text-xs outline-none focus:border-[#1d2330]" />
             </label>
             {/* Phones: a sort icon (the native list opens over it); larger screens: the menu itself */}
-            <label className={`relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-2 sm:hidden ${sort !== "recommended" ? "border-[#1d2330] bg-[#1d2330] text-white" : "border-[#e4e4e7] text-[#1d2330]"}`}>
+            <label className={`relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full border sm:hidden ${sort !== "recommended" ? "border-[#1d2330] bg-[#1d2330] text-white" : "border-[#e4e4e7] text-[#1d2330]"}`}>
               <ArrowUpDown size={16} aria-hidden />
               <select value={sort} onChange={(e) => setSort(e.target.value)} aria-label={L.sort} className="absolute inset-0 opacity-0">
                 {sortOptions}
               </select>
             </label>
             <select value={sort} onChange={(e) => setSort(e.target.value)} aria-label={L.sort}
-              className="hidden h-9 rounded-full border-2 border-[#e7e7ea] bg-white px-3 text-sm font-semibold outline-none focus:border-[#1d2330] sm:block">
+              className="hidden h-8 rounded-full border border-[#e7e7ea] bg-white px-2.5 text-xs font-semibold outline-none focus:border-[#1d2330] sm:block">
               {sortOptions}
             </select>
           </div>
@@ -232,57 +232,56 @@ export default function CatalogueBrowser({ token, models, currency, L, phoneLink
       </div>
 
       {/* Cars */}
-      <section className="mx-auto max-w-5xl px-3 py-4 sm:px-4 sm:py-6">
+      <section className="mx-auto max-w-6xl px-3 py-3 sm:px-4 sm:py-5">
         {shown.length === 0 ? (
           <div className="flex flex-col items-center gap-3 py-20 text-[#6b7280]">
             <Car size={44} strokeWidth={1.5} />
             <p>{L.no_results}</p>
           </div>
         ) : (
-          <ul className="grid gap-4 sm:grid-cols-2 sm:gap-5 lg:grid-cols-3">
+          <ul className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 sm:gap-3.5 lg:grid-cols-4">
             {shown.map((m) => (
-              <li key={m.name} className="group flex min-w-0 flex-col overflow-hidden rounded-2xl border border-[#e7e7ea] bg-white shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition hover:-translate-y-0.5 hover:shadow-[0_12px_30px_-14px_rgba(0,0,0,0.25)]">
+              <li key={m.name} className="group flex min-w-0 flex-col overflow-hidden rounded-xl border border-[#e7e7ea] bg-white shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition hover:-translate-y-0.5 hover:shadow-[0_10px_24px_-14px_rgba(0,0,0,0.25)]">
                 <button type="button" onClick={() => setOpen(m)} className="relative block text-left" aria-label={`${L.details}: ${m.name}`}>
                   <div className="aspect-[16/10] overflow-hidden bg-[#f3f4f6]">
                     {m.cover ? (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={m.cover} alt={m.name} loading="lazy" className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]" />
+                      <img src={m.cover} alt={m.name} loading="lazy" className="h-full w-full object-contain" />
                     ) : (
-                      <div className="flex h-full items-center justify-center text-[#c4c8cf]"><Car size={56} strokeWidth={1.25} /></div>
+                      <div className="flex h-full items-center justify-center text-[#c4c8cf]"><Car size={36} strokeWidth={1.25} /></div>
                     )}
                   </div>
-                  <span className={`absolute left-3 top-3 rounded-md px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide shadow ${m.count <= 3 ? "bg-[#ff6800] text-white" : "bg-white text-[#1d2330]"}`}>
+                  <span className={`absolute left-1.5 top-1.5 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide shadow sm:left-2 sm:top-2 sm:text-[10px] ${m.count <= 3 ? "bg-[#ff6800] text-white" : "bg-white text-[#1d2330]"}`}>
                     {availTag(L, m.count)}
                   </span>
                   {m.photos > 1 && (
-                    <span className="absolute right-3 bottom-3 flex items-center gap-1 rounded-full bg-black/60 px-2 py-0.5 text-[11px] font-semibold text-white">
-                      <Images size={12} /> {L.n_photos.replace("{n}", String(m.photos))}
+                    <span className="absolute bottom-1.5 right-1.5 flex items-center gap-1 rounded-full bg-black/60 px-1.5 py-0.5 text-[10px] font-semibold text-white sm:bottom-2 sm:right-2">
+                      <Images size={10} /> {m.photos}
                     </span>
                   )}
-                  <span className="absolute bottom-3 left-3"><PriceTicket m={m} currency={currency} L={L} /></span>
-                  <Badge m={m} L={L} at="right-2 top-2 h-16 w-16 text-[9px]" />
+                  <span className="absolute bottom-1.5 left-1.5 sm:bottom-2 sm:left-2"><PriceTicket m={m} currency={currency} L={L} /></span>
+                  <Badge m={m} L={L} at="right-1 top-1 h-10 w-10 border-2 text-[6px] sm:right-1.5 sm:top-1.5 sm:h-12 sm:w-12 sm:text-[7px]" />
                 </button>
-                <div className="flex flex-1 flex-col gap-2.5 p-3.5 sm:gap-3 sm:p-4">
-                  <div className="flex items-end justify-between gap-3">
-                    <div className="min-w-0">
-                      {(m.year || m.bodyLabel) && (
-                        <p className="text-xs font-bold uppercase tracking-wide text-[#71717a]">{[m.year, m.bodyLabel].filter(Boolean).join(" · ")}</p>
-                      )}
-                      <h2 className="text-lg font-extrabold uppercase leading-tight">{m.name}</h2>
-                    </div>
-                    <Swatches colors={m.colors} max={4} />
+                <div className="flex flex-1 flex-col gap-1.5 p-2.5 sm:gap-2 sm:p-3">
+                  <div className="min-w-0">
+                    {(m.year || m.bodyLabel) && (
+                      <p className="truncate text-[10px] font-bold uppercase tracking-wide text-[#71717a]">{[m.year, m.bodyLabel].filter(Boolean).join(" · ")}</p>
+                    )}
+                    <h2 className="line-clamp-2 text-[13px] font-extrabold uppercase leading-tight sm:text-sm">{m.name}</h2>
                   </div>
-                  <Specs m={m} L={L} dense />
-                  <div className="mt-auto grid grid-cols-2 gap-2 pt-1">
+                  <Swatches colors={m.colors} max={4} small />
+                  <div className="hidden sm:block"><Specs m={m} L={L} dense /></div>
+                  <div className="mt-auto grid grid-cols-[auto_1fr] gap-1.5 pt-1 sm:grid-cols-2">
                     {m.ask && (
                       <a href={m.ask} target="_blank" rel="noopener noreferrer"
-                        className="flex h-11 items-center justify-center gap-1.5 whitespace-nowrap rounded-full bg-[#ff6800] px-3 text-sm font-bold text-white hover:bg-[#e85f00] active:bg-[#e85f00]">
-                        <MessageCircle size={15} /> WhatsApp
+                        aria-label="WhatsApp"
+                        className="flex h-8 items-center justify-center gap-1 whitespace-nowrap rounded-full bg-[#ff6800] px-2.5 text-xs font-bold text-white hover:bg-[#e85f00] active:bg-[#e85f00]">
+                        <MessageCircle size={14} /> <span className="hidden sm:inline">WhatsApp</span>
                       </a>
                     )}
                     <button type="button" onClick={() => setOpen(m)}
-                      className={`flex h-11 items-center justify-center gap-1.5 whitespace-nowrap rounded-full border-2 border-[#d4d4d8] px-3 text-sm font-bold text-[#1d2330] hover:bg-[#f4f4f5] active:bg-[#f4f4f5] ${m.ask ? "" : "col-span-2"}`}>
-                      <Sparkles size={15} /> {L.details}
+                      className={`flex h-8 items-center justify-center gap-1 whitespace-nowrap rounded-full border border-[#d4d4d8] px-2.5 text-xs font-bold text-[#1d2330] hover:bg-[#f4f4f5] active:bg-[#f4f4f5] ${m.ask ? "" : "col-span-2"}`}>
+                      <Sparkles size={13} /> {L.details}
                     </button>
                   </div>
                 </div>
@@ -365,7 +364,7 @@ function Details({ m, token, currency, L, phoneLink, phone, onClose }: {
               className="hgv-stories flex aspect-[16/10] snap-x snap-mandatory overflow-x-auto">
               {n ? photos.map((p, k) => (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img key={k} src={p} alt={`${m.name} ${k + 1}/${n}`} className="h-full w-full shrink-0 snap-center object-cover" />
+                <img key={k} src={p} alt={`${m.name} ${k + 1}/${n}`} className="h-full w-full shrink-0 snap-center object-contain" />
               )) : (
                 <div className="flex h-full w-full items-center justify-center text-[#4b5563]"><Car size={80} strokeWidth={1} /></div>
               )}

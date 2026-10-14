@@ -119,8 +119,10 @@ export default async function CataloguePage(props: Props) {
     { icon: CalendarCheck, value: String(cat.models.filter((m) => m.new_arrival).length), label: t("catalogue.stat_new") },
   ].filter(Boolean) as { icon: typeof Car; value: string; label: string }[];
 
-  const directions = shop.address
-    ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${shop.name}, ${shop.address}`)}` : null;
+  // The exact pin when the shop set one; otherwise a search for its address.
+  const directions = shop.lat != null && shop.lng != null
+    ? `https://www.google.com/maps/search/?api=1&query=${shop.lat},${shop.lng}`
+    : shop.address ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${shop.name}, ${shop.address}`)}` : null;
   const logo = (size: string, text: string) => shop.logo ? (
     // eslint-disable-next-line @next/next/no-img-element
     <img src={shop.logo} alt="" className={`${size} shrink-0 rounded-full border-2 border-[#e7e7ea] bg-white object-cover`} />
@@ -134,53 +136,55 @@ export default async function CataloguePage(props: Props) {
     <main className="min-h-dvh bg-[#f7f7f8] text-[#1d2330]" lang={lang === "zh" ? "zh-CN" : lang}
       // Keyboard focus rings in the catalogue's orange, not the app's blue.
       style={{ "--color-ink": "#1d2330" } as React.CSSProperties}>
-      <header className="relative overflow-hidden border-b border-[#e7e7ea] bg-white">
-        <div aria-hidden className="absolute -right-28 -top-28 h-64 w-64 rounded-full bg-[#f4f4f5] sm:-right-24 sm:-top-20 sm:h-80 sm:w-80" />
-        <div className="relative mx-auto max-w-5xl px-4 pb-5 pt-4 sm:pb-6 sm:pt-6">
-          <div className="flex min-w-0 items-center gap-3">
-            {logo("h-11 w-11 sm:h-12 sm:w-12", "text-xl")}
+      {/* A compact header: who, the headline and the stock in numbers; the cars come right after. */}
+      <header className="border-b border-[#e7e7ea] bg-white">
+        <div className="mx-auto max-w-6xl px-3 py-3 sm:px-4">
+          <div className="flex min-w-0 items-center gap-2.5">
+            {logo("h-9 w-9", "text-sm")}
             <div className="min-w-0 flex-1">
-              <p className="truncate text-base font-bold uppercase tracking-wide">{shop.name}</p>
+              <p className="truncate text-[13px] font-bold uppercase tracking-wide">{shop.name}</p>
               {shop.address && (
-                <p className="flex items-center gap-1 truncate text-xs text-[#6b7280]"><MapPin size={12} className="shrink-0" /> {shop.address}</p>
+                <p className="flex items-center gap-1 truncate text-[11px] text-[#6b7280]"><MapPin size={11} className="shrink-0" /> {shop.address}</p>
               )}
             </div>
-            {/* Phones: share sits in the corner; WhatsApp and Call live in the bottom bar. */}
+            <div className="hidden items-center gap-1.5 sm:flex">
+              {phone && (
+                <>
+                  <a href={wa(t("catalogue.ask_shop", { shop: shop.name, link }))!} target="_blank" rel="noopener noreferrer"
+                    className="inline-flex h-8 items-center gap-1.5 rounded-full bg-[#ff6800] px-3 text-xs font-bold text-white hover:bg-[#e85f00]">
+                    <MessageCircle size={14} /> WhatsApp
+                  </a>
+                  <a href={`tel:+${phone}`}
+                    className="inline-flex h-8 items-center gap-1.5 rounded-full border border-[#d4d4d8] bg-white px-3 text-xs font-bold text-[#1d2330] hover:bg-[#f4f4f5]">
+                    <Phone size={14} /> {shop.phone}
+                  </a>
+                </>
+              )}
+              <ShareLinkButton url={link} title={t("catalogue.page_title", { shop: shop.name })} label={t("catalogue.share")} copied={t("catalogue.copied")} compact />
+            </div>
+            {/* Phones: share in the corner; WhatsApp and Call live in the bottom bar. */}
             <div className="sm:hidden">
               <ShareLinkButton url={link} title={t("catalogue.page_title", { shop: shop.name })} label={t("catalogue.share")} copied={t("catalogue.copied")} iconOnly />
             </div>
           </div>
-          <span aria-hidden className="mt-5 block h-1.5 w-12 rounded-full bg-[#ff6800] sm:mt-6" />
-          <h1 className="mt-3 text-3xl font-extrabold uppercase leading-none tracking-tight text-[#1d2330] sm:text-5xl">{t("catalogue.headline")}</h1>
-          <p className="mt-2.5 max-w-xl text-[15px] leading-snug text-[#4b5563] sm:mt-3 sm:text-base">{t("catalogue.intro")}</p>
-          <div className="mt-5 hidden flex-wrap gap-2 sm:flex">
-            {phone && (
-              <>
-                <a href={wa(t("catalogue.ask_shop", { shop: shop.name, link }))!} target="_blank" rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 rounded-full bg-[#ff6800] px-4 py-2 text-sm font-bold text-white hover:bg-[#e85f00]">
-                  <MessageCircle size={16} /> WhatsApp
-                </a>
-                <a href={`tel:+${phone}`}
-                  className="inline-flex items-center gap-2 rounded-full border-2 border-[#d4d4d8] bg-white px-4 py-1.5 text-sm font-bold text-[#1d2330] hover:bg-[#f4f4f5]">
-                  <Phone size={16} /> {shop.phone}
-                </a>
-              </>
-            )}
-            <ShareLinkButton url={link} title={t("catalogue.page_title", { shop: shop.name })} label={t("catalogue.share")} copied={t("catalogue.copied")} />
-          </div>
 
-          {/* Summary */}
-          <dl className="hgv-stories -mx-4 mt-4 flex gap-2 overflow-x-auto px-4 sm:mx-0 sm:mt-6 sm:grid sm:grid-cols-4 sm:overflow-visible sm:px-0">
-            {stats.map(({ icon: Icon, value, label: l }) => (
-              <div key={l} className="flex shrink-0 items-center gap-2.5 rounded-2xl border border-[#f0e6de] bg-white px-3 py-2 sm:gap-3 sm:py-2.5">
-                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[#f4f4f5] text-[#52525b] sm:h-9 sm:w-9"><Icon size={17} /></span>
-                <div className="flex min-w-0 flex-col-reverse">
-                  <dt className="truncate text-[11px] font-semibold uppercase tracking-wide text-[#6b7280]">{l}</dt>
-                  <dd className="truncate text-base font-extrabold leading-tight tabular-nums sm:text-lg">{value}</dd>
+          <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+            <div className="min-w-0">
+              <h1 className="flex items-center gap-2 text-base font-extrabold uppercase tracking-tight sm:text-lg">
+                <span aria-hidden className="h-4 w-1 rounded-full bg-[#ff6800]" /> {t("catalogue.headline")}
+              </h1>
+              <p className="mt-0.5 text-xs text-[#6b7280]">{t("catalogue.intro")}</p>
+            </div>
+            <dl className="hgv-stories -mx-3 flex gap-1.5 overflow-x-auto px-3 sm:mx-0 sm:shrink-0 sm:px-0">
+              {stats.map(({ icon: Icon, value, label: l }) => (
+                <div key={l} className="flex shrink-0 items-center gap-1.5 rounded-full bg-[#f4f4f5] px-2.5 py-1 text-xs">
+                  <Icon size={13} className="text-[#71717a]" aria-hidden />
+                  <dd className="font-extrabold tabular-nums">{value}</dd>
+                  <dt className="text-[#6b7280]">{l}</dt>
                 </div>
-              </div>
-            ))}
-          </dl>
+              ))}
+            </dl>
+          </div>
         </div>
       </header>
 
@@ -195,7 +199,7 @@ export default async function CataloguePage(props: Props) {
       )}
 
       {/* Visit / contact */}
-      <section className="mx-auto max-w-5xl px-4 pb-10">
+      <section className="mx-auto max-w-6xl px-3 pb-10 sm:px-4">
         <div className="relative overflow-hidden rounded-3xl bg-[#1d2330] p-6 text-white sm:p-8">
           <div aria-hidden className="absolute -right-16 -top-16 h-56 w-56 rounded-full bg-white/10" />
           <h2 className="relative text-2xl font-extrabold uppercase sm:text-3xl">{t("catalogue.visit_title")}</h2>
