@@ -42,9 +42,10 @@ def hides_financials(user: dict) -> bool:
     return user.get("layout") == "car" and user.get("role") not in FINANCIAL_ROLES
 
 
-# The expense book (the list, each expense, adding, editing, deleting,
+# The expense book (the list, each expense, adding, editing,
 # receipts) is kept by the owner, the manager and the accountant, in every
 # kind of business; cashiers and storekeepers don't use it.
+# Deleting an expense is further limited to the system admin (see the route).
 EXPENSE_ROLES = FINANCIAL_ROLES | {"manager", "accountant"}
 
 

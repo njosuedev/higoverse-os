@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
 
 import 'config.dart';
 
@@ -76,6 +77,40 @@ class Api {
   Future<dynamic> patch(String path, Object? body) => _send('PATCH', uri(path), body: body);
 
   Future<dynamic> delete(String path) => _send('DELETE', uri(path));
+
+  /// POSTs [files] as multipart/form-data under the field [field] (e.g. an
+  /// expense's proof). Allowed longer than a plain request: photos are big.
+  Future<dynamic> upload(String path, List<({String name, String type, Uint8List bytes})> files,
+      {String field = 'files', bool retried = false}) async {
+    final token = tokens.accessToken;
+    final req = http.MultipartRequest('POST', uri(path))..headers['Accept'] = 'application/json';
+    if (token != null) req.headers['Authorization'] = 'Bearer $token';
+    for (final f in files) {
+      final type = f.type.split('/');
+      req.files.add(http.MultipartFile.fromBytes(field, f.bytes,
+          filename: f.name, contentType: MediaType(type.first, type.length > 1 ? type[1] : 'octet-stream')));
+    }
+    final http.Response res;
+    try {
+      res = await http.Response.fromStream(await _http.send(req).timeout(_timeout * 4)).timeout(_timeout * 4);
+    } on TimeoutException {
+      throw ApiException(0, 'The server took too long to answer. Check your connection and try again.', key: 'err.timeout');
+    } catch (_) {
+      throw ApiException(0, 'No connection to Higoverse. Check your internet and try again.', key: 'err.network');
+    }
+    if (res.statusCode == 401 && token != null && !retried) {
+      switch (await tokens.refresh()) {
+        case Renewal.renewed:
+          return upload(path, files, field: field, retried: true);
+        case Renewal.rejected:
+          await tokens.expire();
+          throw ApiException(401, 'Your session has ended. Please sign in again.', key: 'err.session');
+        case Renewal.unavailable:
+          throw ApiException(0, 'No connection to Higoverse. Check your internet and try again.', key: 'err.network');
+      }
+    }
+    return decode(res);
+  }
 
   Future<dynamic> _send(String method, Uri url, {Object? body, bool retried = false}) async {
     final headers = <String, String>{'Accept': 'application/json'};

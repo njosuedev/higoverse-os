@@ -8,6 +8,7 @@ import 'package:phosphor_icons/phosphor_icons.dart';
 import 'car_photos.dart';
 import 'api.dart';
 import 'config.dart';
+import 'expense_proof.dart';
 import 'format.dart';
 import 'i18n.dart';
 import 'live/scoped_route.dart';
@@ -1252,6 +1253,8 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
   String? _method;
   DateTime _date = DateTime.now();
   bool _saving = false;
+  // Receipt photos for a new expense, uploaded once it's saved.
+  final _proof = <ProofFile>[];
 
   @override
   void initState() {
@@ -1301,7 +1304,7 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
     final editing = widget.expense;
     try {
       if (editing == null) {
-        await s.api.post('${Svc.expenses}/expenses', {
+        final res = await s.api.post('${Svc.expenses}/expenses', {
           'title': _title.text.trim(),
           'category': _category,
           'amount': parseAmount(_amount.text),
@@ -1312,6 +1315,17 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
           if (_method == 'bank' && opt(_account) != null) 'bank_account': opt(_account),
           if (opt(_phone) != null) 'receiver_phone': opt(_phone),
         });
+        final id = res is Map && res['data'] is Map ? res['data']['id'] : null;
+        if (_proof.isNotEmpty && id != null) {
+          try {
+            await uploadExpenseProof(s, '$id', _proof);
+          } catch (e) {
+            // The expense is saved; the proof can be added from its details.
+            if (mounted) _say(context, '${t('exp.proof_failed')} ${errorText(t, e)}');
+            if (mounted) Navigator.pop(context, true);
+            return;
+          }
+        }
       } else {
         // Every field, so one cleared on the form is cleared on the server.
         await s.api.put('${Svc.expenses}/expenses/${editing['id']}', {
@@ -1384,6 +1398,46 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
         if (_method != null)
           _Field(t('form.receiver_phone'), _text(_phone, hint: t('form.optional'), keyboard: TextInputType.phone, caps: false)),
         _Field(t('sale.notes'), _text(_notes, hint: t('form.optional'), lines: 2)),
+        if (widget.expense == null)
+          _Field(
+            t('exp.proof'),
+            Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              if (_proof.isNotEmpty)
+                Wrap(spacing: 8, runSpacing: 8, children: [
+                  for (final (i, f) in _proof.indexed)
+                    Stack(clipBehavior: Clip.none, children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(10),
+                        child: Image.memory(f.bytes, width: 72, height: 72, fit: BoxFit.cover, cacheWidth: 216),
+                      ),
+                      Positioned(
+                        top: -8,
+                        right: -8,
+                        child: IconButton.filledTonal(
+                          visualDensity: VisualDensity.compact,
+                          iconSize: 16,
+                          onPressed: () => setState(() => _proof.removeAt(i)),
+                          icon: const Icon(Icons.close),
+                        ),
+                      ),
+                    ]),
+                ]),
+              if (_proof.length < maxProofFiles) ...[
+                if (_proof.isNotEmpty) const SizedBox(height: 10),
+                OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(46)),
+                  onPressed: _saving
+                      ? null
+                      : () async {
+                          final picked = await pickProofPhotos(context, room: maxProofFiles - _proof.length);
+                          if (picked.isNotEmpty && mounted) setState(() => _proof.addAll(picked));
+                        },
+                  icon: const Icon(Icons.add_a_photo_outlined),
+                  label: Text(t('exp.add_proof')),
+                ),
+              ],
+            ]),
+          ),
       ],
     );
   }

@@ -106,9 +106,12 @@ class Session extends ChangeNotifier implements TokenSource {
   /// Profit and margins: never at car companies. Mirrors useShowsProfit().
   bool get showsProfit => canSeeFinancials && !isCar;
 
-  /// Who keeps the expense book (view, add, edit, delete): the owner, the
+  /// Who keeps the expense book (view, add, edit): the owner, the
   /// manager and the accountant (expense-service's EXPENSE_ROLES).
   bool get canUseExpenses => const {'owner', 'admin', 'manager', 'accountant'}.contains(user?.role);
+
+  /// Deleting an expense: the system admin only (expense-service enforces it).
+  bool get canDeleteExpenses => user?.role == 'admin';
 
   static const _kAccess = 'hgv_access', _kRefresh = 'hgv_refresh', _kUser = 'hgv_user';
 

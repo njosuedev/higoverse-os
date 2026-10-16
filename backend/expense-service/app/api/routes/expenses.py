@@ -407,6 +407,9 @@ def delete_expense(
     db: Session = Depends(get_db),
     user: dict = Depends(require_expense_access),
 ):
+    # Expenses are financial records: only the system admin may remove one.
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Only the system admin can delete expenses.")
     expense = _get_or_404(db, expense_id, user["shop_id"])
     db.delete(expense)
     db.commit()

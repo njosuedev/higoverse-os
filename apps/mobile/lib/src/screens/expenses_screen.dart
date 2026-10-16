@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../config.dart';
+import '../expense_proof.dart';
 import '../format.dart';
 import '../forms.dart';
 import '../i18n.dart';
@@ -14,7 +15,7 @@ void openExpenses(BuildContext context) => pushScoped<void>(context, const Expen
 
 /// What the business spent this month (or the last 7 / 90 days), newest
 /// first, and a button to record one. An expense opens its details, to edit
-/// or delete it. The owner, the manager and the accountant
+/// it (deleting is for the system admin only). The owner, the manager and the accountant
 /// (expense-service's EXPENSE_ROLES).
 class ExpensesScreen extends StatefulWidget {
   const ExpensesScreen({super.key});
@@ -216,7 +217,9 @@ Future<bool> showExpenseSheet(BuildContext context, Map<String, dynamic> e) asyn
             const SizedBox(height: 4),
             Text(text(e['notes'])),
           ],
-          const SizedBox(height: 18),
+          const SizedBox(height: 14),
+          _ProofButton(expense: e, onAdded: () => changed = true),
+          const SizedBox(height: 10),
           Row(children: [
             Expanded(
               child: FilledButton.icon(
@@ -230,6 +233,7 @@ Future<bool> showExpenseSheet(BuildContext context, Map<String, dynamic> e) asyn
                 label: Text(t('app.edit')),
               ),
             ),
+            if (s.canDeleteExpenses) ...[
             const SizedBox(width: 10),
             Expanded(
               child: OutlinedButton.icon(
@@ -244,10 +248,65 @@ Future<bool> showExpenseSheet(BuildContext context, Map<String, dynamic> e) asyn
                 label: Text(t('app.delete')),
               ),
             ),
+            ],
           ]),
         ]),
       );
     },
   );
   return changed;
+}
+
+/// View the expense's proof, or attach receipt photos when it has none
+/// (an expense recorded without proof can get it later, as on the website).
+class _ProofButton extends StatefulWidget {
+  const _ProofButton({required this.expense, required this.onAdded});
+  final Map<String, dynamic> expense;
+  final VoidCallback onAdded;
+
+  @override
+  State<_ProofButton> createState() => _ProofButtonState();
+}
+
+class _ProofButtonState extends State<_ProofButton> {
+  var _busy = false;
+
+  bool get _hasProof => widget.expense['has_proof'] == true;
+
+  Future<void> _run(Future<void> Function() job) async {
+    setState(() => _busy = true);
+    try {
+      await job();
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(errorText(T.of(context), e))));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _add() async {
+    final t = T.of(context);
+    final s = SessionScope.of(context);
+    final files = await pickProofPhotos(context);
+    if (files.isEmpty || !mounted) return;
+    await _run(() async {
+      await uploadExpenseProof(s, '${widget.expense['id']}', files);
+      widget.expense['has_proof'] = true;
+      widget.onAdded();
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(t('exp.proof_added'))));
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = T.of(context);
+    return OutlinedButton.icon(
+      style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(46)),
+      onPressed: _busy ? null : (_hasProof ? () => _run(() => showExpenseProof(context, '${widget.expense['id']}')) : _add),
+      icon: _busy
+          ? const SizedBox.square(dimension: 18, child: CircularProgressIndicator(strokeWidth: 2))
+          : Icon(_hasProof ? Icons.attach_file : Icons.add_a_photo_outlined),
+      label: Text(_hasProof ? t('exp.view_proof') : t('exp.add_proof')),
+    );
+  }
 }
