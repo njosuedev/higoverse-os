@@ -117,6 +117,10 @@ export default function ExpenseManagementPage() {
 
   const fileInputRef    = useRef<HTMLInputElement>(null);
   const proofInputRef   = useRef<HTMLInputElement>(null);
+  // Attaching proof later, to an expense recorded without any.
+  const rowProofInputRef = useRef<HTMLInputElement>(null);
+  const [proofTargetId, setProofTargetId] = useState("");
+  const [uploadingProofId, setUploadingProofId] = useState("");
 
   function showAlert(title: string, message: string): Promise<void> {
     return new Promise((resolve) => {
@@ -572,6 +576,25 @@ export default function ExpenseManagementPage() {
     setProofEntries((prev) => prev.filter((_, i) => i !== idx));
   }
 
+  function pickProofFor(expenseId: string) {
+    setProofTargetId(expenseId);
+    rowProofInputRef.current?.click();
+  }
+
+  async function handleRowProofSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const picked = Array.from(e.target.files || []).slice(0, 5);
+    if (rowProofInputRef.current) rowProofInputRef.current.value = "";
+    const id = proofTargetId;
+    if (!picked.length || !id) return;
+    try {
+      setUploadingProofId(id);
+      await expenseUploadProof(id, picked);
+      await loadAll(true);
+    } catch (err: unknown) {
+      await showAlert(t("common.error_title"), err instanceof Error ? err.message : t("common.something_wrong"));
+    } finally { setUploadingProofId(""); setProofTargetId(""); }
+  }
+
   async function openProofViewer(expenseId: string) {
     try {
       const res = await expenseRequest(`/expenses/${expenseId}/proof`);
@@ -918,7 +941,11 @@ export default function ExpenseManagementPage() {
                             <Paperclip size={9} /> {t("common.view")}
                           </button>
                         ) : (
-                          <span className="text-slate-300 text-[11px] italic">-</span>
+                          <button onClick={() => pickProofFor(e.id)} disabled={uploadingProofId === e.id}
+                            title={t("expenses.attach_receipts")}
+                            className="flex items-center gap-0.5 px-1.5 py-0.5 rounded border border-dashed border-slate-300 hover:border-[#0a66c2] hover:bg-[#EBF2FD] text-slate-500 hover:text-[#0a66c2] transition text-[11px] font-medium disabled:opacity-40">
+                            {uploadingProofId === e.id ? <RefreshCw size={9} className="animate-spin" /> : <Plus size={9} />} {t("common.add")}
+                          </button>
                         )}
                       </td>
                       <td className="px-2.5 py-1">
@@ -932,6 +959,8 @@ export default function ExpenseManagementPage() {
                 })}
               </tbody>
             </table>
+            <input ref={rowProofInputRef} type="file" accept="image/*,application/pdf"
+              multiple className="hidden" onChange={handleRowProofSelect} />
           </div>
 
           {filteredExpenses.length === 0 && (
