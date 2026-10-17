@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { AUTH_API as AUTH_URL } from "@/lib/api-config";
 import { checkNow } from "@/lib/connection";
+import { SITE } from "@/lib/site";
 
 // Real app routes only — these mirror the authenticated nav, so a logged-out
 // visitor clicking one simply bounces to /login (same as typing the URL
@@ -294,6 +295,13 @@ export default function LoginPage() {
               <div className="mt-6 pt-5 border-t border-border">
                 <p className="text-xs font-semibold text-text-muted">{t("login.help_title")}</p>
                 <p className="text-xs text-text-faint mt-1">{t("login.admin_created_note")}</p>
+                <p className="text-xs text-text-faint mt-2">
+                  {t("login.account_contact")}{" "}
+                  <a href={`tel:${SITE.phone}`} className="font-semibold text-ink hover:underline whitespace-nowrap">+250 790 885 174</a>
+                  {" · "}
+                  <a href={`https://wa.me/${SITE.whatsapp}`} target="_blank" rel="noopener noreferrer"
+                    className="font-semibold text-ink hover:underline">WhatsApp</a>
+                </p>
               </div>
             </>
           )}
