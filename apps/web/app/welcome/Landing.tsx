@@ -12,6 +12,7 @@ import { LANGUAGES, type Lang } from "@/lib/i18n";
 import { hasSignedInCookie } from "@/lib/auth";
 import { SITE } from "@/lib/site";
 import type { AppReleases } from "@/lib/app-releases";
+import { SOLUTIONS } from "@/lib/solutions";
 import { FAQ_COUNT } from "./faq";
 
 const FEATURES = ["stock", "sales", "purchases", "expenses", "debts", "proforma", "payroll", "reports", "team", "messages"] as const;
@@ -251,6 +252,19 @@ export default function Landing({ releases }: { releases: AppReleases }) {
             </div>
           </div>
         </section>
+        {/* ── Solution pages (also how search engines find them) ── */}
+        <nav aria-labelledby="solutions-title" className="border-t border-border bg-white">
+          <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6">
+            <h2 id="solutions-title" className="text-xs font-semibold uppercase tracking-[0.14em] text-text-muted">{t("home.solutions")}</h2>
+            <ul className="mt-4 grid gap-x-8 gap-y-2 sm:grid-cols-2 lg:grid-cols-3">
+              {SOLUTIONS.map((s) => (
+                <li key={s.slug}>
+                  <Link href={`/solutions/${s.slug}`} lang={s.lang} className="text-sm font-semibold text-ink hover:underline">{s.title}</Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </nav>
       </main>
 
       <footer className="border-t border-border pb-20 md:pb-0">
@@ -258,6 +272,7 @@ export default function Landing({ releases }: { releases: AppReleases }) {
           <span>© {new Date().getFullYear()} Higoverse · {t("home.location")}</span>
           <Link href="/login" className="hover:text-text">{t("home.sign_in")}</Link>
           <Link href="/download" className="hover:text-text">{t("home.nav_download")}</Link>
+          <Link href="/solutions" className="hover:text-text">{t("home.solutions")}</Link>
           <Link href="/privacy" className="hover:text-text">{t("home.privacy_link")}</Link>
           <span className="flex gap-4 md:ml-auto">
             {SOCIAL.map((s) => (
