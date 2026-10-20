@@ -5,7 +5,6 @@ import { isZero } from "@/lib/format";
 import { expenseRequest, expenseUploadProof } from "@/lib/expense-api";
 import { useLanguage } from "@/lib/language-context";
 import { useShopSettings } from "@/lib/shop-settings-context";
-import { useAuth } from "@/lib/auth-context";
 import Pagination from "@/app/components/ui/Pagination";
 import DeepLink from "@/app/components/DeepLink";
 import DateRangeFilter from "@/app/components/ui/DateRangeFilter";
@@ -108,9 +107,6 @@ export default function ExpenseManagementPage() {
   const [showModal, setShowModal]     = useState(false);
   const [submitting, setSubmitting]   = useState(false);
   const [deletingId, setDeletingId]   = useState("");
-  // Only the system admin may delete an expense (expense-service enforces it).
-  const { user } = useAuth();
-  const canDelete = user?.role === "admin";
   const [form, setForm]               = useState(EMPTY_FORM);
 
   const [proofEntries, setProofEntries]   = useState<ProofEntry[]>([]);
@@ -953,10 +949,10 @@ export default function ExpenseManagementPage() {
                         )}
                       </td>
                       <td className="px-2.5 py-1">
-                        {canDelete && <button onClick={() => deleteExpense(e.id)} disabled={deletingId === e.id}
+                        <button onClick={() => deleteExpense(e.id)} disabled={deletingId === e.id}
                           className="p-0.5 rounded text-slate-500 hover:bg-red-50 hover:text-red-600 transition disabled:opacity-40">
                           <Trash2 size={10} />
-                        </button>}
+                        </button>
                       </td>
                     </tr>
                   );
