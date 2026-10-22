@@ -148,7 +148,7 @@ export default function VehicleGrid({ vehicles, currency, onOpenGallery, onEdit,
       </div>
       {pendingFor && <PendingForm v={pendingFor} currency={currency} onClose={() => setPendingFor(null)} onSaved={() => { setPendingFor(null); onChanged(); }} />}
       {depositFor && <DepositForm v={depositFor} currency={currency} onClose={() => setDepositFor(null)}
-        onSaved={() => { setDepositFor(null); onChanged(); }}
+        onSaved={() => { setDepositFor(null); onChanged(); }} onRefresh={onChanged}
         onSellByHand={() => { setDepositFor(null); onChanged(); router.push(`/sales?new=1&product=${depositFor.id}`); }} />}
       {penaltyFor && <PenaltyForm v={penaltyFor} onClose={() => setPenaltyFor(null)} onSaved={() => { setPenaltyFor(null); onChanged(); }} />}
     </>
@@ -436,12 +436,14 @@ function MethodPicker({ value, onChange }: { value: string; onChange: (m: string
 
 /** Add a deposit to a pending car. The one that completes the price records
  *  the sale to the reserved customer, which takes the car out of stock. */
-function DepositForm({ v, currency, onClose, onSaved, onSellByHand }: {
-  v: Vehicle; currency: string; onClose: () => void; onSaved: () => void; onSellByHand: () => void;
+function DepositForm({ v, currency, onClose, onSaved, onRefresh, onSellByHand }: {
+  v: Vehicle; currency: string; onClose: () => void; onSaved: () => void; onRefresh: () => void; onSellByHand: () => void;
 }) {
   const { t } = useLanguage();
-  const a = parseAttributes(v.attributes);
+  // Kept here so a changed agreed price shows straight away.
+  const [a, setA] = useState(() => parseAttributes(v.attributes));
   const pay = depositSummary(a, v.selling_price);
+  const [priceEdit, setPriceEdit] = useState<string | null>(null);
   const history = parseDeposits(a);
   const [amount, setAmount] = useState("");
   const [method, setMethod] = useState<string>("cash");
@@ -449,6 +451,45 @@ function DepositForm({ v, currency, onClose, onSaved, onSellByHand }: {
   const [saving, setSaving] = useState(false);
   const n = Number(amount);
   const final = n > 0 && n >= pay.balance;
+  // The deposit being changed (its position in the list) and its new values.
+  const [editing, setEditing] = useState<{ i: number; amount: string; method: string; date: string } | null>(null);
+
+  /** After deposits change: a fully paid car becomes the sale to the buyer. */
+  async function finish(merged: Attributes, savedMsg: string) {
+    if (!depositSummary(merged, v.selling_price).full) { notify(savedMsg, "success"); onSaved(); return; }
+    try {
+      if (await sellPaidCar(v, merged, t)) { notify(t("vehicle.paid_sold"), "success"); onSaved(); }
+      else { notify(t("vehicle.no_buyer_customer")); onSellByHand(); }
+    } catch { notify(t("vehicle.sale_failed")); onSaved(); }
+  }
+
+  /** Change an existing deposit's amount, date or method. The total paid
+   *  can't go over the agreed price; reaching it completes the sale. */
+  async function saveEdit() {
+    if (!editing) return;
+    const old = history[editing.i];
+    const m = Math.round(Number(editing.amount));
+    if (!old || !(m > 0) || m > pay.balance + old.amount) { notify(t("vehicle.deposit_invalid")); return; }
+    setSaving(true);
+    try {
+      let problem = false;
+      const merged = await patchAttributes(v.id, (fresh) => {
+        const list = parseDeposits(fresh);
+        // Find the same deposit in the latest data, in case it changed meanwhile.
+        const j = old.at ? list.findIndex((d) => d.at === old.at) : editing.i;
+        const cur = list[j];
+        if (!cur || m > depositSummary(fresh, v.selling_price).balance + cur.amount) { problem = true; return {}; }
+        list[j] = { ...cur, amount: m, method: editing.method, date: editing.date || cur.date };
+        return { deposits: JSON.stringify(list) };
+      });
+      if (problem) { setA(merged); notify(t("vehicle.deposit_invalid")); return; }
+      setEditing(null);
+      // Not fully paid yet: stay open so more deposits can be fixed.
+      if (!depositSummary(merged, v.selling_price).full) { setA(merged); notify(t("vehicle.deposit_updated"), "success"); onRefresh(); return; }
+      await finish(merged, t("vehicle.deposit_updated"));
+    } catch { notify(t("items.update_failed")); }
+    finally { setSaving(false); }
+  }
 
   async function save() {
     if (!(n > 0) || n > pay.balance) { notify(t("vehicle.deposit_invalid")); return; }
@@ -461,11 +502,31 @@ function DepositForm({ v, currency, onClose, onSaved, onSellByHand }: {
         return { deposits: JSON.stringify([...parseDeposits(fresh), { amount: n, method, date, at: new Date().toISOString() }]) };
       });
       if (tooBig) { notify(t("vehicle.deposit_invalid")); onSaved(); return; }
-      if (!depositSummary(merged, v.selling_price).full) { notify(t("vehicle.deposit_saved"), "success"); onSaved(); return; }
-      try {
-        if (await sellPaidCar(v, merged, t)) { notify(t("vehicle.paid_sold"), "success"); onSaved(); }
-        else { notify(t("vehicle.no_buyer_customer")); onSellByHand(); }
-      } catch { notify(t("vehicle.sale_failed")); onSaved(); }
+      await finish(merged, t("vehicle.deposit_saved"));
+    } catch { notify(t("items.update_failed")); }
+    finally { setSaving(false); }
+  }
+
+  /** Change the agreed price. It must stay above what's already paid: a
+   *  price the deposits already cover is a sale, done with the last deposit. */
+  async function savePrice() {
+    const p = Math.round(Number(priceEdit));
+    if (!(p > 0)) { notify(t("vehicle.price_invalid")); return; }
+    if (p <= pay.paid) { notify(t("vehicle.price_below_paid")); return; }
+    setSaving(true);
+    try {
+      let tooLow = false;
+      const merged = await patchAttributes(v.id, (fresh) => {
+        // Someone may have added a deposit meanwhile: check against the latest.
+        if (p <= depositSummary(fresh, v.selling_price).paid) { tooLow = true; return {}; }
+        return { agreed_price: String(p) };
+      });
+      setA(merged);
+      if (tooLow) { notify(t("vehicle.price_below_paid")); return; }
+      setPriceEdit(null);
+      setAmount("");
+      notify(t("vehicle.price_saved"), "success");
+      onRefresh();
     } catch { notify(t("items.update_failed")); }
     finally { setSaving(false); }
   }
@@ -480,12 +541,30 @@ function DepositForm({ v, currency, onClose, onSaved, onSellByHand }: {
       </>}>
       <dl className="grid grid-cols-3 gap-2 text-center">
         {([["vehicle.agreed_price", pay.price], ["vehicle.paid", pay.paid], ["vehicle.balance", pay.balance]] as const).map(([k, val]) => (
-          <div key={k} className="rounded-lg bg-paper-dim px-2 py-2">
+          <div key={k} className="relative rounded-lg bg-paper-dim px-2 py-2">
             <dt className="text-[11px] font-medium text-text-muted">{t(k)}</dt>
             <dd className="hgv-figure truncate text-sm font-bold text-text">{money(val)}</dd>
+            {k === "vehicle.agreed_price" && priceEdit === null && (
+              <button type="button" onClick={() => setPriceEdit(String(pay.price))} title={t("vehicle.edit_price")} aria-label={t("vehicle.edit_price")}
+                className="absolute right-1 top-1 rounded-full p-1 text-text-muted hover:bg-white hover:text-ink">
+                <Pencil size={13} />
+              </button>
+            )}
           </div>
         ))}
       </dl>
+      {priceEdit !== null && (
+        <div className="rounded-lg border border-border p-3">
+          <label className={labelCls}>{t("vehicle.agreed_price")} ({currency}) <span className="text-accent">*</span></label>
+          <div className="flex flex-wrap gap-2">
+            <input autoFocus type="number" min={pay.paid + 1} className={`${inputCls} hgv-figure min-w-0 flex-1`} value={priceEdit}
+              onChange={(e) => setPriceEdit(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") savePrice(); }} />
+            <button type="button" onClick={() => setPriceEdit(null)} className="h-10 rounded-full border border-border-strong px-4 text-sm font-semibold text-text hover:bg-paper-dim">{t("common.cancel")}</button>
+            <button type="button" onClick={savePrice} disabled={saving} className="h-10 rounded-full bg-ink px-4 text-sm font-semibold text-white hover:bg-ink-dark disabled:opacity-50">{t("common.save")}</button>
+          </div>
+          {pay.paid > 0 && <p className="mt-1 text-xs text-text-muted">{t("vehicle.price_above_paid")} ({money(pay.paid)} {currency})</p>}
+        </div>
+      )}
       <PaidBar paid={pay.paid} price={pay.price} />
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:items-end">
         <div><label className={labelCls}>{t("vehicle.deposit_amount")} ({currency}) <span className="text-accent">*</span></label>
@@ -503,10 +582,33 @@ function DepositForm({ v, currency, onClose, onSaved, onSellByHand }: {
         <p className="text-xs font-bold uppercase tracking-wide text-text-muted">{t("vehicle.deposits_title")}</p>
         {history.length === 0 ? <p className="mt-1 text-sm text-text-muted">{t("vehicle.no_deposits")}</p> : (
           <ul className="mt-1 divide-y divide-border rounded-lg border border-border">
-            {history.map((d, i) => (
+            {history.map((d, i) => editing?.i === i ? (
+              <li key={`${d.at}-${i}`} className="space-y-2 bg-paper-dim/50 px-3 py-2">
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  <div><label className={labelCls}>{t("vehicle.deposit_amount")} ({currency})</label>
+                    <input autoFocus type="number" min="1" max={pay.balance + d.amount} className={`${inputCls} hgv-figure`} value={editing.amount}
+                      onChange={(e) => setEditing({ ...editing, amount: e.target.value })} /></div>
+                  <div><label className={labelCls}>{t("vehicle.deposit_date")}</label>
+                    <input type="date" className={inputCls} value={editing.date} max={today()}
+                      onChange={(e) => setEditing({ ...editing, date: e.target.value })} /></div>
+                </div>
+                <MethodPicker value={editing.method} onChange={(m) => setEditing({ ...editing, method: m })} />
+                <div className="flex justify-end gap-2">
+                  <button type="button" onClick={() => setEditing(null)} className="h-9 rounded-full border border-border-strong px-4 text-sm font-semibold text-text hover:bg-paper-dim">{t("common.cancel")}</button>
+                  <button type="button" onClick={saveEdit} disabled={saving} className="h-9 rounded-full bg-ink px-4 text-sm font-semibold text-white hover:bg-ink-dark disabled:opacity-50">{t("common.save")}</button>
+                </div>
+              </li>
+            ) : (
               <li key={`${d.at}-${i}`} className="flex items-center justify-between gap-2 px-3 py-1.5 text-sm">
                 <span className="text-text-muted">{d.date} · {t(`sales.pm_${d.method}`)}</span>
-                <span className="hgv-figure font-semibold text-text">{money(d.amount)}</span>
+                <span className="flex items-center gap-1">
+                  <span className="hgv-figure font-semibold text-text">{money(d.amount)}</span>
+                  <button type="button" onClick={() => setEditing({ i, amount: String(d.amount), method: d.method, date: d.date })}
+                    disabled={saving} title={t("vehicle.edit_deposit")} aria-label={t("vehicle.edit_deposit")}
+                    className="rounded-full p-1 text-text-muted hover:bg-paper-dim hover:text-ink disabled:opacity-50">
+                    <Pencil size={13} />
+                  </button>
+                </span>
               </li>
             ))}
           </ul>
