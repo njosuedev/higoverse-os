@@ -14,6 +14,7 @@ import { useShopSettings } from "@/lib/shop-settings-context";
 import Pagination from "@/app/components/ui/Pagination";
 import ProductPicker from "@/app/components/ui/ProductPicker";
 import DateRangeFilter from "@/app/components/ui/DateRangeFilter";
+import { companySheet, getPrintShop, imageForPdf, pdfCompanyHeader, periodText } from "@/lib/print-shop";
 import {
   AlertCircle, Plus, Trash2, X, Truck, Package, History, LayoutGrid, Calendar, Download, Upload, FileSpreadsheet, FileText, ShoppingCart, RefreshCw, Search, Filter, ChevronDown,
 } from "lucide-react";
@@ -62,8 +63,8 @@ export default function PurchaseManagementPage() {
   const [purchasesTotal, setPurchasesTotal] = useState(0);
   const [histPage, setHistPage] = useState(1);
   const [histPageSize, setHistPageSize] = useState(25);
-  // Lists open on the last 7 days (the date picker's "7 days" preset).
-  const [dateFrom, setDateFrom] = useState(() => { const d = new Date(); d.setDate(d.getDate() - 6); return toDateStr(d); });
+  // Opens on this month (the date picker's "This month" preset).
+  const [dateFrom, setDateFrom] = useState(() => { const d = new Date(); d.setDate(1); return toDateStr(d); });
   const [dateTo, setDateTo] = useState(() => toDateStr(new Date()));
 
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
@@ -155,7 +156,8 @@ export default function PurchaseManagementPage() {
         "Total Cost": p.total_cost,
       }));
     }
-    const ws = XLSX.utils.json_to_sheet(data);
+    const ws = companySheet(XLSX, await getPrintShop(), tab === "inventory" ? "Inventory" : "Purchase history",
+      tab === "inventory" ? `${data.length} products` : periodText(dateFrom, dateTo), data);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, tab === "inventory" ? "Inventory" : "History");
     XLSX.writeFile(wb, `purchases_${tab}.xlsx`);
@@ -165,11 +167,12 @@ export default function PurchaseManagementPage() {
     const { jsPDF } = await import("jspdf");
     const { default: autoTable } = await import("jspdf-autotable");
     const doc = new jsPDF();
-    doc.setFontSize(14);
+    const shop = await getPrintShop();
+    const logo = await imageForPdf(shop.logo_url);
     if (tab === "inventory") {
-      doc.text("Inventory", 14, 16);
+      const startY = pdfCompanyHeader(doc, shop, logo, "Inventory", `${paginatedProducts.length} products`);
       autoTable(doc, {
-        startY: 22,
+        startY,
         head: [isCar ? ["Product", "Cost Price", "Selling Price", "Qty"] : ["Product", "Supplier", "Cost Price", "Selling Price", "Qty"]],
         body: paginatedProducts.map((p) => [
           p.name,
@@ -182,9 +185,9 @@ export default function PurchaseManagementPage() {
         headStyles: { fillColor: [19, 114, 230] },
       });
     } else {
-      doc.text("Purchase History", 14, 16);
+      const startY = pdfCompanyHeader(doc, shop, logo, "Purchase history", periodText(dateFrom, dateTo));
       autoTable(doc, {
-        startY: 22,
+        startY,
         head: [isCar ? ["Date", "Product", "Qty Added", "Cost Price", "Total"] : ["Date", "Product", "Supplier", "Qty Added", "Cost Price", "Total"]],
         body: purchases.map((p) => [
           p.created_at ? new Date(p.created_at).toLocaleDateString() : "-",

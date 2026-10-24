@@ -27,6 +27,7 @@ import { parseAttributes } from "@/lib/business-layout";
 import { useCanSeeFinancials, useShowsProfit } from "@/lib/permissions";
 import DeepLink from "@/app/components/DeepLink";
 import DateRangeFilter from "@/app/components/ui/DateRangeFilter";
+import { companySheet, getPrintShop, imageForPdf, pdfCompanyHeader, periodText } from "@/lib/print-shop";
 import {
   ShoppingBag, Filter, Plus, Trash2, Pencil, X, ReceiptText, Printer, Wallet, AlertCircle, CheckCircle2, Phone, ChevronDown, Download, Upload, FileSpreadsheet, FileText, RefreshCw, Search, Info,
 } from "lucide-react";
@@ -144,8 +145,8 @@ function SaleManagementPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
-  // Lists open on the last 7 days (the date picker's "7 days" preset).
-  const [dateFrom, setDateFrom] = useState(() => { const d = new Date(); d.setDate(d.getDate() - 6); return toDateStr(d); });
+  // Opens on this month (the date picker's "This month" preset).
+  const [dateFrom, setDateFrom] = useState(() => { const d = new Date(); d.setDate(1); return toDateStr(d); });
   const [dateTo, setDateTo] = useState(() => toDateStr(new Date()));
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
@@ -632,7 +633,7 @@ function SaleManagementPage() {
       Total: s.total_amount,
       ...(prof ? { Profit: s.profit || 0 } : {}),
     }));
-    const ws = XLSX.utils.json_to_sheet(data);
+    const ws = companySheet(XLSX, await getPrintShop(), "Sales report", periodText(dateFrom, dateTo), data);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Sales");
     XLSX.writeFile(wb, "sales.xlsx");
@@ -642,10 +643,10 @@ function SaleManagementPage() {
     const { jsPDF } = await import("jspdf");
     const { default: autoTable } = await import("jspdf-autotable");
     const doc = new jsPDF({ orientation: "landscape" });
-    doc.setFontSize(14);
-    doc.text("Sales Report", 14, 16);
+    const shop = await getPrintShop();
+    const startY = pdfCompanyHeader(doc, shop, await imageForPdf(shop.logo_url), "Sales report", periodText(dateFrom, dateTo));
     autoTable(doc, {
-      startY: 22,
+      startY,
       head: [["Date", "Product", "Customer", "Payment", "Qty", "Unit Price", "Total", ...(prof ? ["Profit"] : [])]],
       body: filtered.map((s) => [
         s.created_at ? new Date(s.created_at).toLocaleDateString() : "-",
