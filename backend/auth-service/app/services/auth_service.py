@@ -129,6 +129,25 @@ def refresh_tokens(db: Session, shop_db: Session, raw_refresh_token: str) -> dic
 
 
 # ----------------------------
+# SIGN OUT EVERYWHERE — after a password change or reset
+# ----------------------------
+def revoke_all_sessions(db: Session, user_id) -> None:
+    """Deletes every refresh token of this user, so no device (or anyone who
+    copied a session) can get a new access token. Access tokens already
+    issued still work until they expire (ACCESS_TOKEN_EXPIRE_MINUTES)."""
+    db.query(RefreshToken).filter(RefreshToken.user_id == user_id).delete()
+    db.commit()
+
+
+def issue_tokens(db: Session, shop_db: Session, user: User) -> dict:
+    """A new session for [user] (as at sign-in)."""
+    if user.role == "admin":
+        return _issue_tokens(db, user)
+    shop = shop_db.query(Shop).filter(Shop.id == user.shop_id).first() if user.shop_id else None
+    return _issue_tokens(db, user, (shop.layout or "retail") if shop else "retail")
+
+
+# ----------------------------
 # LOGOUT — revoke a refresh token
 # ----------------------------
 def logout_user(db: Session, raw_refresh_token: str) -> None:

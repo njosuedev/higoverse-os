@@ -55,6 +55,9 @@ login_failures = Throttle(limit=10, window=15 * 60)
 login_failures_any_ip = Throttle(limit=30, window=15 * 60)
 # Reset codes sent to one email: 3 per 15 minutes (stops inbox flooding).
 reset_requests = Throttle(limit=3, window=15 * 60)
+# Reset codes sent to one email: 10 per day. With 5 guesses per code, that
+# caps guessing a 6-digit code at 50 tries a day (instead of 480).
+reset_requests_daily = Throttle(limit=10, window=24 * 60 * 60)
 # Wrong reset codes for one email: after 5, every code sent to it is cancelled.
 reset_failures = Throttle(limit=5, window=15 * 60)
 

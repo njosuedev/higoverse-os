@@ -9,7 +9,9 @@ from app.core.auth_bearer import get_current_user
 from app.core.config import settings
 from app.core.permissions import default_permissions
 from app.core.security import verify_password, hash_password, create_access_token
-from app.core.throttle import client_ip, login_failures, login_failures_any_ip, reset_failures, reset_requests, too_many
+from app.core.throttle import (
+    client_ip, login_failures, login_failures_any_ip, reset_failures, reset_requests, reset_requests_daily, too_many,
+)
 from app.db.deps import get_db, get_shop_db
 from app.models.password_reset import PasswordReset
 from app.models.shop import Shop
@@ -18,7 +20,11 @@ from app.schemas.auth import (
     LoginRequest, RefreshRequest, LogoutRequest, ChangePasswordRequest,
     ForgotPasswordRequest, ResetPasswordRequest, UpdateProfileRequest,
 )
-from app.services.auth_service import login_user, refresh_tokens, logout_user
+from app.services.auth_service import issue_tokens, login_user, refresh_tokens, logout_user, revoke_all_sessions
+
+# Raise to 8 together with the apps' own checks (web settings/login,
+# mobile login_screen) in a release — older apps still allow 6.
+MIN_PASSWORD = 6
 from app.utils.email import send_otp_email
 
 logger = logging.getLogger("auth-service")
@@ -68,15 +74,20 @@ def logout(payload: LogoutRequest, db: Session = Depends(get_db)):
 def change_password(
     payload: ChangePasswordRequest,
     db: Session = Depends(get_db),
+    shop_db: Session = Depends(get_shop_db),
     current_user=Depends(get_current_user),
 ):
     if not verify_password(payload.current_password, current_user.password_hash):
         raise HTTPException(status_code=400, detail="Current password is incorrect")
-    if len(payload.new_password) < 6:
-        raise HTTPException(status_code=422, detail="New password must be at least 6 characters")
+    if len(payload.new_password) < MIN_PASSWORD:
+        raise HTTPException(status_code=422, detail=f"New password must be at least {MIN_PASSWORD} characters")
     current_user.password_hash = hash_password(payload.new_password)
     db.commit()
-    return {"success": True, "message": "Password changed successfully"}
+    # Every other device (or anyone holding a copied session) is signed out;
+    # this device gets a new session in the reply.
+    revoke_all_sessions(db, current_user.id)
+    logger.info("security: password changed user=%s", current_user.id)
+    return {"success": True, "message": "Password changed successfully", **issue_tokens(db, shop_db, current_user)}
 
 
 # ----------------------------
@@ -90,6 +101,8 @@ def forgot_password(payload: ForgotPasswordRequest, db: Session = Depends(get_db
     email = payload.email.lower()
     if reset_requests.hit(email) > reset_requests.limit:
         raise too_many()
+    if reset_requests_daily.hit(email) > reset_requests_daily.limit:
+        raise HTTPException(status_code=429, detail="Too many reset requests for this email today. Please try again tomorrow.")
 
     user = db.query(User).filter(User.email == payload.email).first()
     if not user:
@@ -125,8 +138,8 @@ def forgot_password(payload: ForgotPasswordRequest, db: Session = Depends(get_db
 # ----------------------------
 @router.post("/reset-password")
 def reset_password(payload: ResetPasswordRequest, db: Session = Depends(get_db)):
-    if len(payload.new_password) < 6:
-        raise HTTPException(status_code=422, detail="Password must be at least 6 characters")
+    if len(payload.new_password) < MIN_PASSWORD:
+        raise HTTPException(status_code=422, detail=f"Password must be at least {MIN_PASSWORD} characters")
 
     now = datetime.now(timezone.utc)
     record = db.query(PasswordReset).filter(
@@ -156,6 +169,9 @@ def reset_password(payload: ResetPasswordRequest, db: Session = Depends(get_db))
     record.used = True
     db.commit()
     reset_failures.clear(payload.email.lower())
+    # Whoever had a session before the reset (perhaps the reason for it) is out.
+    revoke_all_sessions(db, user.id)
+    logger.info("security: password reset user=%s", user.id)
 
     return {"success": True, "message": "Password reset successfully. You can now sign in."}
 

@@ -30,6 +30,20 @@ def _fmt(s: Shop) -> dict:
     }
 
 
+def _fmt_public(s: Shop) -> dict:
+    """What anyone may see of a company (the public catalogue page shows its
+    name, phone, address and logo). No email, TIN, owner or review status."""
+    return {
+        "id":        str(s.id),
+        "name":      s.name,
+        "phone":     s.phone,
+        "address":   s.address,
+        "logo_url":  s.logo_url,
+        "layout":    s.layout or "retail",
+        "is_active": s.is_active,
+    }
+
+
 def _fmt_list(s: Shop) -> dict:
     """Lean projection for the public directory listing — drops `description`
     (an unbounded text field, also used to store an encoded product catalog),
@@ -102,16 +116,16 @@ def shop_heartbeat(
     return {"success": True}
 
 
-# ── All shops (directory) — public, no login required ─────
+# ── All shops (directory) — signed-in users only ──────────
 @router.get("/shops")
 def list_shops(
     response: Response,
     db: Session = Depends(get_shop_db),
-    current_user=Depends(get_current_user_optional),
+    current_user=Depends(get_current_user),
     page: int = 1,
     limit: int = Query(200, ge=1, le=500),
 ):
-    response.headers["Cache-Control"] = "public, s-maxage=60, stale-while-revalidate=300"
+    response.headers["Cache-Control"] = "private, max-age=60"
 
     offset = (page - 1) * limit
     query = db.query(Shop).filter(Shop.is_active == True)  # noqa: E712
@@ -127,7 +141,7 @@ def list_shops(
     }
 
 
-# ── Single shop by id — public, no login required ─────────
+# ── Single shop by id — public fields for anyone, all for the company itself ──
 @router.get("/shops/{shop_id}")
 def get_shop_by_id(
     shop_id: str,
@@ -135,10 +149,16 @@ def get_shop_by_id(
     db: Session = Depends(get_shop_db),
     current_user=Depends(get_current_user_optional),
 ):
-    response.headers["Cache-Control"] = "public, s-maxage=60, stale-while-revalidate=300"
-
     shop = db.query(Shop).filter(Shop.id == shop_id, Shop.is_active == True).first()  # noqa: E712
     if not shop:
         raise HTTPException(status_code=404, detail="Shop not found")
 
-    return {"success": True, "data": _fmt(shop)}
+    own = current_user is not None and (current_user.role == "admin" or str(current_user.shop_id) == str(shop.id))
+    # The full profile must never sit in a shared cache (Cloudflare) where
+    # an anonymous visitor would get it.
+    response.headers["Vary"] = "Authorization"
+    if own:
+        response.headers["Cache-Control"] = "private, no-store"
+        return {"success": True, "data": _fmt(shop)}
+    response.headers["Cache-Control"] = "public, s-maxage=60, stale-while-revalidate=300"
+    return {"success": True, "data": _fmt_public(shop)}

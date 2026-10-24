@@ -1,5 +1,6 @@
 import { authFetch } from "@/lib/session";
 import { AUTH_API } from "@/lib/api-config";
+import { setAuth } from "@/lib/auth";
 
 
 export async function authRequest(endpoint: string, options: RequestInit = {}) {
@@ -63,8 +64,10 @@ export async function updateProfile(name: string): Promise<{ access_token: strin
 }
 
 export async function changePassword(currentPassword: string, newPassword: string): Promise<void> {
-  await authRequest("/api/v1/auth/change-password", {
+  const res = await authRequest("/api/v1/auth/change-password", {
     method: "PUT",
     body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
   });
+  // A password change signs out every device; this one gets a new session.
+  if (res?.access_token && res?.refresh_token && res?.user) setAuth(res);
 }
