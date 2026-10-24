@@ -56,9 +56,11 @@ const nextConfig: NextConfig = {
   },
 
   images: {
-    // Product/shop images are base64 data URIs today (no CDN), so this
-    // matters only if a real remote image URL is ever introduced.
-    remotePatterns: [{ protocol: "https", hostname: "**" }],
+    // Only the site's own files go through the image optimizer (product and
+    // shop images are data URIs). No remote hosts: with "**" the server would
+    // fetch any URL anyone asked for. Add a specific host here if ever needed.
+    remotePatterns: [],
+    dangerouslyAllowSVG: false,
   },
 
   async redirects() {
