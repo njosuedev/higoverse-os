@@ -84,6 +84,12 @@ def login_user(db: Session, shop_db: Session, email: str, password: str) -> dict
             raise HTTPException(status_code=403, detail="This shop is not active. Contact your platform administrator.")
         return _issue_tokens(db, user, shop.layout or "retail")
 
+    # The platform admin may have the second step on: then a code is needed
+    # before any token is issued (app/api/v1/mfa.py).
+    from app.api.v1.mfa import required_for
+    from app.core.mfa import make_ticket
+    if required_for(db, user):
+        return {"mfa_required": True, "mfa_ticket": make_ticket(str(user.id))}
     return _issue_tokens(db, user)
 
 

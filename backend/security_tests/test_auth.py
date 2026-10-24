@@ -255,3 +255,131 @@ def test_full_profile_is_never_publicly_cached(client):
     assert "no-store" in own.headers.get("cache-control", "") and "private" in own.headers.get("cache-control", "")
     anon = client.get(f"/api/v1/shops/{sid}")
     assert "Authorization" in anon.headers.get("vary", "")
+
+
+# ── Platform admin two-step sign-in ──────────────────────────────────────────
+
+def _admin():
+    email = f"admin-{uuid.uuid4().hex[:8]}@sectest.example.com"
+    with SessionLocal() as s:
+        s.add(User(id=uuid.uuid4(), name="Admin", email=email, password_hash=hash_password(PASSWORD),
+                   shop_id=None, role="admin", is_active=True))
+        s.commit()
+    return email
+
+
+def _now_code(secret, step=0):
+    import time
+    from app.core import mfa
+    return mfa._code(secret, int(time.time()) // mfa.STEP + step)
+
+
+def _enable(client, email):
+    access, refresh = _tokens(client, email)
+    secret = client.post("/api/v1/auth/mfa/setup", headers=auth(access)).json()["data"]["secret"]
+    r = client.post("/api/v1/auth/mfa/enable", headers=auth(access), json={"code": _now_code(secret)})
+    assert r.status_code == 200, r.text[:200]
+    return secret, r.json(), refresh
+
+
+def test_admin_without_two_step_signs_in_as_before(client):
+    email = _admin()
+    r = _login(client, email)
+    assert r.status_code == 200 and r.json().get("access_token")
+
+
+def test_two_step_is_admin_only(client):
+    _, email = _company()
+    access, _ = _tokens(client, email)
+    assert client.post("/api/v1/auth/mfa/setup", headers=auth(access)).status_code == 403
+
+
+def test_setup_alone_does_not_change_sign_in(client):
+    email = _admin()
+    access, _ = _tokens(client, email)
+    client.post("/api/v1/auth/mfa/setup", headers=auth(access))
+    assert _login(client, email).json().get("access_token"), "a half-finished setup must never lock the admin out"
+
+
+def test_enable_needs_a_working_code(client):
+    email = _admin()
+    access, _ = _tokens(client, email)
+    client.post("/api/v1/auth/mfa/setup", headers=auth(access))
+    assert client.post("/api/v1/auth/mfa/enable", headers=auth(access), json={"code": "000000"}).status_code in (400, 429)
+    assert _login(client, email).json().get("access_token")
+
+
+def test_after_enabling_password_alone_gives_no_session(client):
+    email = _admin()
+    secret, enabled, old_refresh = _enable(client, email)
+    assert len(enabled["data"]["recovery_codes"]) == 10 and enabled.get("access_token")
+    assert client.post("/api/v1/auth/refresh", json={"refresh_token": old_refresh}).status_code == 401, \
+        "sessions from before two-step was turned on must end"
+    r = _login(client, email)
+    assert r.status_code == 200
+    body = r.json()
+    assert body.get("mfa_required") and body.get("mfa_ticket") and not body.get("access_token") and not body.get("refresh_token")
+
+
+def test_ticket_is_not_an_access_token(client):
+    email = _admin()
+    _enable(client, email)
+    ticket = _login(client, email).json()["mfa_ticket"]
+    assert client.get("/api/v1/me", headers=auth(ticket)).status_code == 401
+    assert client.get("/api/v1/admin/stats", headers=auth(ticket)).status_code in (401, 403)
+
+
+def test_code_completes_sign_in_once(client):
+    email = _admin()
+    secret, _, _ = _enable(client, email)
+    import time
+    from app.core import mfa
+    time.sleep(max(0, mfa.STEP - time.time() % mfa.STEP) + 0.5)   # a fresh time step
+    code = _now_code(secret)
+    ticket = _login(client, email).json()["mfa_ticket"]
+    r = client.post("/api/v1/auth/mfa/verify", json={"mfa_ticket": ticket, "code": code})
+    assert r.status_code == 200 and r.json().get("access_token") and r.json().get("refresh_token")
+    ticket = _login(client, email).json()["mfa_ticket"]
+    again = client.post("/api/v1/auth/mfa/verify", json={"mfa_ticket": ticket, "code": code})
+    assert again.status_code == 400, "the same code worked twice"
+
+
+def test_code_guessing_is_limited(client):
+    email = _admin()
+    secret, _, _ = _enable(client, email)
+    ticket = _login(client, email).json()["mfa_ticket"]
+    wrong = f"{(int(_now_code(secret)) + 500000) % 10**6:06d}"
+    codes = [client.post("/api/v1/auth/mfa/verify", json={"mfa_ticket": ticket, "code": wrong}).status_code for _ in range(6)]
+    assert codes[:5] == [400] * 5 and codes[5] == 429, codes
+
+
+def test_recovery_code_works_once(client):
+    email = _admin()
+    _, enabled, _ = _enable(client, email)
+    rc = enabled["data"]["recovery_codes"][0]
+    ticket = _login(client, email).json()["mfa_ticket"]
+    assert client.post("/api/v1/auth/mfa/verify", json={"mfa_ticket": ticket, "code": rc}).status_code == 200
+    ticket = _login(client, email).json()["mfa_ticket"]
+    assert client.post("/api/v1/auth/mfa/verify", json={"mfa_ticket": ticket, "code": rc}).status_code == 400
+
+
+def test_forged_or_expired_ticket_refused(client):
+    email = _admin()
+    secret, _, _ = _enable(client, email)
+    from jose import jwt
+    from datetime import datetime, timedelta, timezone
+    with SessionLocal() as s:
+        uid = str(s.query(User).filter(User.email == email).first().id)
+    forged = jwt.encode({"sub": uid, "typ": "mfa", "exp": datetime.now(timezone.utc) + timedelta(minutes=5)},
+                        harness.TEST_SECRET, algorithm="HS256")   # signed with the plain key: not a ticket
+    assert client.post("/api/v1/auth/mfa/verify", json={"mfa_ticket": forged, "code": _now_code(secret)}).status_code == 401
+
+
+def test_disable_needs_password_and_code(client):
+    email = _admin()
+    secret, enabled, _ = _enable(client, email)
+    access = enabled["access_token"]
+    rc = enabled["data"]["recovery_codes"]
+    assert client.post("/api/v1/auth/mfa/disable", headers=auth(access), json={"password": "wrong", "code": rc[0]}).status_code == 400
+    assert client.post("/api/v1/auth/mfa/disable", headers=auth(access), json={"password": PASSWORD, "code": rc[1]}).status_code == 200
+    assert _login(client, email).json().get("access_token")

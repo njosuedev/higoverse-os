@@ -31,7 +31,7 @@ const PLATFORM_LINKS = [
   { key: "nav.settings",  href: "/settings",  icon: Settings },
 ];
 
-type Step = "login" | "forgot" | "otp" | "success";
+type Step = "login" | "mfa" | "forgot" | "otp" | "success";
 
 const noopSubscribe = () => () => {};
 
@@ -56,6 +56,9 @@ export default function LoginPage() {
   const [showPw,      setShowPw]      = useState(false);
   const [loading,     setLoading]     = useState(false);
   const [error,       setError]       = useState("");
+  // Platform admin with two-step sign-in: the ticket from the password step.
+  const [mfaTicket,   setMfaTicket]   = useState("");
+  const [mfaCode,     setMfaCode]     = useState("");
   // Set by expireSession() when a session could not be renewed.
   const expired = useSyncExternalStore(
     noopSubscribe,
@@ -93,6 +96,10 @@ export default function LoginPage() {
       });
       const data = await res.json();
       if (!res.ok) return setError(data?.detail || t("login.err_incorrect_credentials"));
+      if (data?.mfa_required && data?.mfa_ticket) {
+        setMfaTicket(data.mfa_ticket); setMfaCode(""); setStep("mfa");
+        return;
+      }
       login(data);
       // A full page load (not a client-side route change) so every screen
       // loads this account's data from scratch — nothing from before shows.
@@ -100,6 +107,25 @@ export default function LoginPage() {
     } catch { setError(t((await checkNow()) ? "login.err_network" : "login.err_offline")); }
     finally  { setLoading(false); }
   }, [email, password, login, router, t]);
+
+  const handleMfa = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    if (mfaCode.trim().length < 6) return setError(t("mfa.code_hint"));
+    setLoading(true);
+    try {
+      const res = await fetch(`${AUTH_URL}/api/v1/auth/mfa/verify`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mfa_ticket: mfaTicket, code: mfaCode.trim() }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 401) { setStep("login"); setMfaTicket(""); return setError(data?.detail || t("mfa.expired")); }
+      if (!res.ok) return setError(data?.detail || t("mfa.wrong_code"));
+      login(data);
+      window.location.replace(getNextPath());
+    } catch { setError(t((await checkNow()) ? "login.err_network" : "login.err_offline")); }
+    finally { setLoading(false); }
+  };
 
   const handleSendOtp = async (e: React.FormEvent) => {
     e.preventDefault(); setFpError("");
@@ -307,6 +333,33 @@ export default function LoginPage() {
           )}
 
           {/* ── forgot ── */}
+          {/* ── second step (platform admin) ── */}
+          {step === "mfa" && (
+            <>
+              <div className="mb-7">
+                <h2 className="font-display text-2xl font-semibold text-text">{t("mfa.code_title")}</h2>
+                <p className="text-sm text-text-muted mt-1">{t("mfa.code_hint")}</p>
+              </div>
+              {error && (
+                <div className="mb-4 rounded-press bg-accent-soft border border-accent/30 px-3 py-2.5 text-sm text-accent-dark">{error}</div>
+              )}
+              <form onSubmit={handleMfa} className="space-y-4">
+                <div>
+                  <label className={label} htmlFor="login-mfa">{t("mfa.code_label")}</label>
+                  <input id="login-mfa" inputMode="text" autoComplete="one-time-code" autoFocus maxLength={20}
+                    value={mfaCode} onChange={(e) => setMfaCode(e.target.value)}
+                    className={`${field} tracking-[0.3em] text-center font-semibold`} placeholder="123456" />
+                </div>
+                <button type="submit" disabled={loading}
+                  className="w-full h-12 rounded-press bg-ink hover:bg-ink-dark text-paper text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-60 transition-colors duration-200">
+                  {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : t("mfa.verify")}
+                </button>
+                <button type="button" onClick={() => { setStep("login"); setMfaTicket(""); setError(""); }}
+                  className="w-full text-xs text-ink hover:text-ink-dark font-medium">{t("mfa.back")}</button>
+              </form>
+            </>
+          )}
+
           {step === "forgot" && (
             <>
               <button onClick={goBackToLogin}

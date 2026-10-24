@@ -22,7 +22,7 @@ from fastapi.testclient import TestClient  # noqa: E402
 
 # Routes anyone may call without signing in (path regexes, per service).
 PUBLIC = {
-    "auth-service": [r"POST /api/v1/auth/(login|refresh|logout|forgot-password|reset-password)$",
+    "auth-service": [r"POST /api/v1/auth/(login|refresh|logout|forgot-password|reset-password|mfa/verify)$",
                      r"GET /api/v1/shops/\{shop_id\}$"],
     "product-service": [r"GET /catalogue/public/"],
     "settings-service": [r"GET /api/app-updates/latest$"],

@@ -14,6 +14,8 @@ from app.api.v1 import auth
 from app.api.v1 import shop
 from app.api.v1 import admin
 from app.api.v1 import team
+from app.api.v1 import mfa as mfa_routes
+from app.models.admin_mfa import AdminMfa
 from app.db.session import engine as auth_engine
 from app.db.shop_session import shop_engine
 from app.models.shop import Shop
@@ -73,6 +75,12 @@ app.add_middleware(
 )
 
 app.include_router(
+    mfa_routes.router,
+    prefix="/api/v1/auth/mfa",
+    tags=["Two-step sign-in"]
+)
+
+app.include_router(
     auth.router,
     prefix="/api/v1/auth",
     tags=["Authentication"]
@@ -121,6 +129,8 @@ def on_startup():
             Role.__table__.create(bind=engine, checkfirst=True)
             User.__table__.create(bind=engine, checkfirst=True)
             RefreshToken.__table__.create(bind=engine, checkfirst=True)
+            if engine is auth_engine:
+                AdminMfa.__table__.create(bind=engine, checkfirst=True)  # new table, nothing existing changes
             with engine.connect() as conn:
                 for sql in _MIGRATIONS:
                     conn.execute(text(sql))

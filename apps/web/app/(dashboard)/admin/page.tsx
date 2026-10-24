@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import { expenseRequest } from "@/lib/expense-api";
 import LayoutPicker from "@/app/components/admin/LayoutPicker";
+import TwoStepCard from "@/app/components/admin/TwoStepCard";
 import { normalizeLayout, type BusinessLayout } from "@/lib/business-layout";
 
 type Tab = "overview" | "shops" | "users" | "expenses";
@@ -713,6 +714,7 @@ export default function AdminPage() {
         {/* ══ OVERVIEW ════════════════════════════════════════════════════════ */}
         {tab === "overview" && (
           <div className="space-y-3">
+            <TwoStepCard />
             {loading ? (
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
                 {Array.from({ length: 8 }).map((_, i) => (

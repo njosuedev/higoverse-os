@@ -705,6 +705,26 @@ curl -s -o /dev/null -w "%{http_code}\n" http://127.0.0.1/
 
 ## 6. Deploying a code update
 
+**Since 2026-10-24** every `higoverse-*` service and the web app run as the
+limited system user `higoverse`, not root. Each has an override file
+`/etc/systemd/system/higoverse-<svc>.service.d/10-limited-user.conf`. Deploy
+exactly as before, as root: the units read their `.env` as root at start, the
+user can read the code and its own `.env` (ACL), and the web unit hands
+`.next` back to `higoverse` on every start. To put one service back on root:
+`higoverse-unroot <svc> undo` (or `web`). A new service needs
+`higoverse-unroot <svc>` once.
+
+SSH accepts keys only (`/etc/ssh/sshd_config.d/00-hardening.conf`). Keep your
+key, and the hosting provider's console login as a fallback.
+
+If `git pull` complains about `apps/web/package-lock.json`, it's npm's local
+rewrite during install: `git checkout -- apps/web/package-lock.json`, then pull.
+
+**Admin two-step sign-in, lost phone and recovery codes:** sign in with a
+recovery code. If all are lost, switch it off from the server (removes only the
+admin's second step, nothing else):
+`sudo -u postgres psql -d authdb -c "DELETE FROM admin_mfa;"`
+
 ```bash
 cd /root/projects/higoverse
 git pull
