@@ -8,7 +8,8 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { MessageCircle, MoreVertical, UserPlus, X } from "lucide-react";
 import { useLanguage } from "@/lib/language-context";
-import { addEmployee, changeEmployee, loadTeam, removeEmployee, startChat, useChat } from "@/lib/chat";
+import { addEmployee, changeEmployee, loadTeam, removeEmployee, setEmployeePassword, startChat, useChat } from "@/lib/chat";
+import SetPasswordDialog from "@/app/components/ui/SetPasswordDialog";
 import { askConfirm, notify } from "@/lib/dialogs";
 
 const ROLES = ["manager", "cashier", "storekeeper", "accountant"];
@@ -20,6 +21,7 @@ export default function TeamPage() {
   const chat = useChat();
   const [adding, setAdding] = useState(false);
   const [menu, setMenu] = useState<string | null>(null);
+  const [pwFor, setPwFor] = useState<{ id: string; name: string } | null>(null);
 
   useEffect(() => { void startChat(); void loadTeam().catch(() => {}); }, []);
 
@@ -74,6 +76,8 @@ export default function TeamPage() {
                       ))}
                       <button role="menuitem" type="button" onClick={() => act(() => changeEmployee(m.id, { is_active: !m.is_active }))}
                         className="block w-full border-t border-slate-100 px-3 py-2 text-left text-sm hover:bg-slate-50">{t(m.is_active ? "team.switch_off" : "team.switch_on")}</button>
+                      <button role="menuitem" type="button" onClick={() => { setMenu(null); setPwFor({ id: m.id, name: m.name }); }}
+                        className="block w-full border-t border-slate-100 px-3 py-2 text-left text-sm hover:bg-slate-50">{t("setpw.title")}</button>
                       <button role="menuitem" type="button"
                         onClick={async () => {
                           setMenu(null);
@@ -88,6 +92,7 @@ export default function TeamPage() {
           );
         })}
       </div>
+      {pwFor && <SetPasswordDialog name={pwFor.name} onClose={() => setPwFor(null)} onSave={(pw) => setEmployeePassword(pwFor.id, pw)} />}
       {adding && <AddEmployee onClose={() => setAdding(false)} />}
     </div>
   );

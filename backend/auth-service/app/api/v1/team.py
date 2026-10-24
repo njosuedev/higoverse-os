@@ -7,6 +7,7 @@ POST   /api/v1/team             add an employee            (owner/admin)
 PATCH  /api/v1/team/{id}        change role / switch on-off (owner/admin)
 DELETE /api/v1/team/{id}        remove an employee          (owner/admin)
 """
+import logging
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -16,9 +17,11 @@ from sqlalchemy.orm import Session
 from app.core.auth_bearer import get_current_user
 from app.core.permissions import default_permissions
 from app.core.security import hash_password
+from app.services.auth_service import revoke_all_sessions
 from app.db.deps import get_db
 from app.models.user import User
 
+logger = logging.getLogger("auth-service")
 router = APIRouter()
 
 MAX_EMPLOYEES = 3
@@ -131,6 +134,23 @@ def change_employee(user_id: str, payload: EmployeeChange, db: Session = Depends
     db.commit()
     db.refresh(u)
     return {"success": True, "data": _fmt(u)}
+
+
+class NewPassword(BaseModel):
+    new_password: str = Field(..., min_length=8, max_length=128)
+
+
+@router.patch("/team/{user_id}/password")
+def set_employee_password(user_id: str, payload: NewPassword, db: Session = Depends(get_db), me: User = Depends(get_current_user)):
+    """The owner sets a new password for one of their employees (for when
+    they forgot it). The employee is signed out everywhere."""
+    _require_manager(me)
+    u = _employee_or_404(db, _my_shop(me), user_id)
+    u.password_hash = hash_password(payload.new_password)
+    db.commit()
+    revoke_all_sessions(db, u.id)
+    logger.warning("security: password set by owner user=%s by=%s", u.id, me.id)
+    return {"success": True, "message": "Password changed. The employee can sign in with it now."}
 
 
 @router.delete("/team/{user_id}")

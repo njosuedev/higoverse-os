@@ -175,6 +175,14 @@ export async function toggleUser(userId: string): Promise<AdminUser> {
   return res?.data;
 }
 
+/** Sets a new password for any user (signs them out everywhere). */
+export async function setUserPassword(userId: string, newPassword: string): Promise<void> {
+  await adminRequest(`/api/v1/admin/users/${userId}/password`, {
+    method: "PATCH",
+    body: JSON.stringify({ new_password: newPassword }),
+  });
+}
+
 export async function updateUserRole(userId: string, role: string): Promise<AdminUser> {
   const res = await adminRequest(`/api/v1/admin/users/${userId}/role`, {
     method: "PATCH",

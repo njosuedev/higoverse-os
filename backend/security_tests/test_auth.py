@@ -383,3 +383,84 @@ def test_disable_needs_password_and_code(client):
     assert client.post("/api/v1/auth/mfa/disable", headers=auth(access), json={"password": "wrong", "code": rc[0]}).status_code == 400
     assert client.post("/api/v1/auth/mfa/disable", headers=auth(access), json={"password": PASSWORD, "code": rc[1]}).status_code == 200
     assert _login(client, email).json().get("access_token")
+
+
+# ── Setting a password for someone (no email needed) ─────────────────────────
+
+def _staff(client, owner_access, role="cashier"):
+    email = f"staff-{uuid.uuid4().hex[:8]}@sectest.example.com"
+    r = client.post("/api/v1/team", headers=auth(owner_access),
+                    json={"name": "Staff", "email": email, "password": "Staff-Pass-123", "role": role})
+    assert r.status_code in (200, 201), r.text[:200]
+    return r.json()["data"]["id"], email
+
+
+def test_owner_sets_staff_password_and_signs_them_out(client):
+    _, owner = _company()
+    access, _ = _tokens(client, owner)
+    sid, email = _staff(client, access)
+    old_refresh = _login(client, email, "Staff-Pass-123").json()["refresh_token"]
+    r = client.patch(f"/api/v1/team/{sid}/password", headers=auth(access), json={"new_password": "Brand-New-456"})
+    assert r.status_code == 200, r.text[:200]
+    assert _login(client, email, "Staff-Pass-123").status_code == 401
+    assert _login(client, email, "Brand-New-456").status_code == 200
+    assert client.post("/api/v1/auth/refresh", json={"refresh_token": old_refresh}).status_code == 401
+
+
+def test_set_password_needs_8_characters(client):
+    _, owner = _company()
+    access, _ = _tokens(client, owner)
+    sid, _ = _staff(client, access)
+    assert client.patch(f"/api/v1/team/{sid}/password", headers=auth(access), json={"new_password": "short"}).status_code == 422
+
+
+def test_other_company_cannot_set_my_staff_password(client):
+    _, a = _company()
+    _, b = _company()
+    a_access, _ = _tokens(client, a)
+    b_access, _ = _tokens(client, b)
+    sid, email = _staff(client, a_access)
+    assert client.patch(f"/api/v1/team/{sid}/password", headers=auth(b_access), json={"new_password": "Hijacked-789"}).status_code == 404
+    assert _login(client, email, "Hijacked-789").status_code == 401
+
+
+@pytest.mark.parametrize("role", ["manager", "cashier", "accountant", "storekeeper"])
+def test_staff_cannot_set_passwords(client, role):
+    _, owner = _company()
+    access, _ = _tokens(client, owner)
+    target, _ = _staff(client, access)
+    _, actor_email = _staff(client, access, role)
+    actor = _login(client, actor_email, "Staff-Pass-123").json()["access_token"]
+    assert client.patch(f"/api/v1/team/{target}/password", headers=auth(actor), json={"new_password": "Takeover-123"}).status_code == 403
+
+
+def test_owner_cannot_set_owner_or_admin_password(client):
+    _, a = _company()
+    _, other_owner = _company()
+    a_access, _ = _tokens(client, a)
+    admin_email = _admin()
+    with SessionLocal() as s:
+        ids = [str(s.query(User).filter(User.email == e).first().id) for e in (a, other_owner, admin_email)]
+    for uid in ids:
+        assert client.patch(f"/api/v1/team/{uid}/password", headers=auth(a_access), json={"new_password": "Takeover-123"}).status_code == 404
+
+
+def test_admin_sets_any_users_password(client):
+    _, owner = _company()
+    old_refresh = _tokens(client, owner)[1]
+    admin_access, _ = _tokens(client, _admin())
+    with SessionLocal() as s:
+        uid = str(s.query(User).filter(User.email == owner).first().id)
+    r = client.patch(f"/api/v1/admin/users/{uid}/password", headers=auth(admin_access), json={"new_password": "Admin-Set-123"})
+    assert r.status_code == 200, r.text[:200]
+    assert _login(client, owner, "Admin-Set-123").status_code == 200
+    assert client.post("/api/v1/auth/refresh", json={"refresh_token": old_refresh}).status_code == 401
+
+
+def test_only_admin_uses_admin_set_password(client):
+    _, owner = _company()
+    _, victim = _company()
+    access, _ = _tokens(client, owner)
+    with SessionLocal() as s:
+        uid = str(s.query(User).filter(User.email == victim).first().id)
+    assert client.patch(f"/api/v1/admin/users/{uid}/password", headers=auth(access), json={"new_password": "Takeover-123"}).status_code == 403

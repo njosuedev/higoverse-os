@@ -1,12 +1,15 @@
+import logging
 import uuid as _uuid
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.core.auth_bearer import get_current_user
 from app.core.permissions import default_permissions
 from app.core.security import hash_password
+from app.services.auth_service import revoke_all_sessions
 from app.db.deps import get_db, get_shop_db
 from app.models.shop import Shop
 from app.models.user import User
@@ -16,6 +19,7 @@ from app.schemas.user import AdminCreateUserRequest
 
 STAFF_ROLES = {"admin", "owner", "manager", "cashier", "storekeeper", "accountant"}
 
+logger = logging.getLogger("auth-service")
 router = APIRouter()
 
 
@@ -405,6 +409,31 @@ def admin_delete_user(
 
 
 # ── Toggle user active/inactive ───────────────────────────
+class AdminNewPassword(BaseModel):
+    new_password: str = Field(..., min_length=8, max_length=128)
+
+
+@router.patch("/users/{user_id}/password")
+def admin_set_password(
+    user_id: str,
+    payload: AdminNewPassword,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(require_admin),
+):
+    """Sets a new password for any user (when they can't reset it by email).
+    They are signed out everywhere."""
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    if str(user.id) == str(current_admin.id):
+        raise HTTPException(status_code=400, detail="Use Change password in Settings for your own account.")
+    user.password_hash = hash_password(payload.new_password)
+    db.commit()
+    revoke_all_sessions(db, user.id)
+    logger.warning("security: password set by admin user=%s by=%s", user.id, current_admin.id)
+    return {"success": True, "message": "Password changed."}
+
+
 @router.patch("/users/{user_id}/toggle")
 def admin_toggle_user(
     user_id: str,

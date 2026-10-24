@@ -239,6 +239,10 @@ export async function changeEmployee(id: string, v: { role?: string; is_active?:
   await api(AUTH_API, `/api/v1/team/${id}`, { method: "PATCH", body: JSON.stringify(v) });
   await loadTeam();
 }
+/** The owner sets a new password for an employee (signs them out everywhere). */
+export async function setEmployeePassword(id: string, newPassword: string) {
+  await api(AUTH_API, `/api/v1/team/${id}/password`, { method: "PATCH", body: JSON.stringify({ new_password: newPassword }) });
+}
 export async function removeEmployee(id: string) {
   await api(AUTH_API, `/api/v1/team/${id}`, { method: "DELETE" });
   await loadTeam();

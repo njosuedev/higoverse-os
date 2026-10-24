@@ -6,7 +6,7 @@ import { useLanguage } from "@/lib/language-context";
 import { useRouter } from "next/navigation";
 import {
   getAdminStats, getAdminShops, getAdminUsers,
-  toggleShop, deleteShop, updateShop, verifyShopEmail, toggleUser, updateUserRole, deleteUser, createShop, createShopUser,
+  toggleShop, deleteShop, updateShop, verifyShopEmail, toggleUser, updateUserRole, setUserPassword, deleteUser, createShop, createShopUser,
   STAFF_ROLES, type AdminStats, type AdminShop, type AdminUser, type CreateShopPayload, type CreateShopUserPayload, type StaffRole,
 } from "@/lib/admin-api";
 import { decodeShopHumanInfo, formatPublicAddress } from "@/lib/product-meta";
@@ -18,7 +18,7 @@ import {
 import {
   ShieldCheck, Store, AlertTriangle, Trash2,
   ToggleLeft, ToggleRight, RefreshCw, ChevronDown,
-  UserCog, Search, Mail, Phone, MapPin, Eye, EyeOff,
+  UserCog, KeyRound, Search, Mail, Phone, MapPin, Eye, EyeOff,
   CheckCircle, XCircle,
   UserX,
   Receipt, Pencil, X, ChevronLeft,
@@ -28,6 +28,7 @@ import {
 import { expenseRequest } from "@/lib/expense-api";
 import LayoutPicker from "@/app/components/admin/LayoutPicker";
 import TwoStepCard from "@/app/components/admin/TwoStepCard";
+import SetPasswordDialog from "@/app/components/ui/SetPasswordDialog";
 import { normalizeLayout, type BusinessLayout } from "@/lib/business-layout";
 
 type Tab = "overview" | "shops" | "users" | "expenses";
@@ -150,6 +151,7 @@ interface ConfirmState {
 // ── Component ─────────────────────────────────────────────────────────────────
 export default function AdminPage() {
   const { user, ready } = useAuth();
+  const [pwFor, setPwFor] = useState<{ id: string; name: string } | null>(null);
   const { t } = useLanguage();
   const router = useRouter();
 
@@ -643,6 +645,7 @@ export default function AdminPage() {
   return (
     <div className="min-h-screen bg-slate-50">
       <main className="max-w-6xl mx-auto px-3 sm:px-4 py-2.5 sm:py-3 space-y-3">
+        {pwFor && <SetPasswordDialog name={pwFor.name} onClose={() => setPwFor(null)} onSave={(pw) => setUserPassword(pwFor.id, pw)} />}
 
         {/* ── Hero header ─────────────────────────────────────────────────── */}
         <div className="hgv-header-in relative overflow-hidden rounded-2xl hgv-surface px-4 sm:px-5 py-3.5">
@@ -1258,6 +1261,11 @@ export default function AdminPage() {
                             <button onClick={() => handleToggleUser(u.id)} disabled={busy}
                               className="flex items-center gap-0.5 text-xs px-2.5 py-1 rounded-full border border-gray-300 text-gray-600 hover:border-gray-400 font-medium transition disabled:opacity-40">
                               {u.is_active ? <><ToggleRight size={11} />{t("admin.disable")}</> : <><ToggleLeft size={11} />{t("admin.enable")}</>}
+                            </button>
+                            <button onClick={() => setPwFor({ id: u.id, name: u.name || u.email })} disabled={busy}
+                              className="p-1.5 rounded-lg text-gray-300 hover:text-gray-600 hover:bg-gray-100 transition disabled:opacity-40"
+                              title={t("setpw.title")} aria-label={t("setpw.title")}>
+                              <KeyRound size={12} />
                             </button>
                             <button onClick={() => setRoleEdit({ id: u.id, role: u.role })} disabled={busy || roleEdit?.id === u.id}
                               className="p-1.5 rounded-lg text-gray-300 hover:text-gray-600 hover:bg-gray-100 transition disabled:opacity-40"
