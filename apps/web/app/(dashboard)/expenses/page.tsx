@@ -8,6 +8,7 @@ import { useShopSettings } from "@/lib/shop-settings-context";
 import Pagination from "@/app/components/ui/Pagination";
 import DeepLink from "@/app/components/DeepLink";
 import DateRangeFilter from "@/app/components/ui/DateRangeFilter";
+import { getPrintShop, imageForPdf, printShopLines } from "@/lib/print-shop";
 import {
   Plus, Trash2, X, Calendar, BarChart3, AlertCircle, Download, Upload, FileSpreadsheet, FileText, Paperclip, ImageIcon, FileIcon, Receipt, RefreshCw, Search, Filter, ChevronDown,
 } from "lucide-react";
@@ -226,8 +227,11 @@ export default function ExpenseManagementPage() {
 
   async function exportExcel() {
     const XLSX = await import("xlsx");
-    const rows = await fetchAllForExport();
+    const [rows, shop] = await Promise.all([fetchAllForExport(), getPrintShop()]);
     const now  = new Date();
+    // The company's name and details above each sheet.
+    const company = shop.name ? [[shop.name.toUpperCase()], ...printShopLines(shop).map((l) => [l]), []] : [];
+    const top = company.length;
 
     const headers = [
       "Date", "Title", "Category", `Amount (${currency})`,
@@ -253,6 +257,7 @@ export default function ExpenseManagementPage() {
     const grandTotal = rows.reduce((s, e) => s + Number(e.amount), 0);
 
     const wsData = [
+      ...company,
       [`EXPENSE REPORT: ${periodLabel.toUpperCase()}`],
       [`Period: ${dateFrom || "All time"}  →  ${dateTo || toDateStr(now)}  |  Generated: ${now.toLocaleString()}  |  Records: ${rows.length}`],
       [],
@@ -267,10 +272,7 @@ export default function ExpenseManagementPage() {
       { wch: 12 }, { wch: 30 }, { wch: 14 }, { wch: 14 },
       { wch: 18 }, { wch: 16 }, { wch: 18 }, { wch: 18 }, { wch: 35 },
     ];
-    ws["!merges"] = [
-      { s: { r: 0, c: 0 }, e: { r: 0, c: 8 } },
-      { s: { r: 1, c: 0 }, e: { r: 1, c: 8 } },
-    ];
+    ws["!merges"] = Array.from({ length: top + 2 }, (_, r) => ({ s: { r, c: 0 }, e: { r, c: 8 } }));
 
     // Summary by category sheet
     const catMap: Record<string, { total: number; count: number }> = {};
@@ -289,6 +291,7 @@ export default function ExpenseManagementPage() {
       ]);
 
     const ws2Data = [
+      ...company,
       ["EXPENSE SUMMARY BY CATEGORY"],
       [`Generated: ${now.toLocaleString()}`],
       [],
@@ -299,10 +302,7 @@ export default function ExpenseManagementPage() {
     ];
     const ws2 = XLSX.utils.aoa_to_sheet(ws2Data);
     ws2["!cols"] = [{ wch: 18 }, { wch: 16 }, { wch: 12 }, { wch: 14 }];
-    ws2["!merges"] = [
-      { s: { r: 0, c: 0 }, e: { r: 0, c: 3 } },
-      { s: { r: 1, c: 0 }, e: { r: 1, c: 3 } },
-    ];
+    ws2["!merges"] = Array.from({ length: top + 2 }, (_, r) => ({ s: { r, c: 0 }, e: { r, c: 3 } }));
 
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws,  "Expenses");
@@ -314,7 +314,8 @@ export default function ExpenseManagementPage() {
     const { jsPDF } = await import("jspdf");
     const { default: autoTable } = await import("jspdf-autotable");
 
-    const rows = await fetchAllForExport();
+    const [rows, shop] = await Promise.all([fetchAllForExport(), getPrintShop()]);
+    const logo = await imageForPdf(shop.logo_url);
     const now  = new Date();
 
     const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
@@ -340,23 +341,47 @@ export default function ExpenseManagementPage() {
     const catEntries = Object.entries(catMap).sort(([, a], [, b]) => b.total - a.total);
     const topCat     = catEntries[0];
 
-    // ── Header banner ────────────────────────────────────────────────────────
+    // ── Header banner: the company, then the report ─────────────────────────
+    const lines = printShopLines(shop);
+    const bannerH = shop.name ? 40 : 30;
     doc.setFillColor(...C_BLUE);
-    doc.rect(0, 0, PW, 30, "F");
+    doc.rect(0, 0, PW, bannerH, "F");
+
+    // The logo on a white tile, at most 24 mm square, keeping its shape.
+    let textX = 14;
+    if (logo) {
+      const box = bannerH - 12;
+      const k = Math.min(box / logo.w, box / logo.h);
+      const w = logo.w * k, h = logo.h * k;
+      doc.setFillColor(...C_WHITE);
+      doc.roundedRect(14, 6, box, box, 2, 2, "F");
+      try { doc.addImage(logo.data, 14 + (box - w) / 2, 6 + (box - h) / 2, w, h); } catch { /* unreadable image: tile stays empty */ }
+      textX = 14 + box + 5;
+    }
 
     doc.setTextColor(...C_WHITE);
+    let y = 11;
+    if (shop.name) {
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(14);
+      doc.text(shop.name.toUpperCase(), textX, y);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(7.5);
+      lines.forEach((l) => { y += 4.2; doc.text(l, textX, y, { maxWidth: PW / 2 }); });
+      y = bannerH - 11;
+    }
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(20);
-    doc.text("EXPENSE REPORT", 14, 13);
-
+    doc.setFontSize(shop.name ? 11 : 20);
+    doc.text("EXPENSE REPORT", textX, shop.name ? y : 13);
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(8);
+    doc.setFontSize(7.5);
     doc.text(
-      `Period: ${dateFrom || "All time"}  →  ${dateTo || toDateStr(now)}` +
-      (catFilter ? `   |   Category: ${catFilter}` : ""),
-      14, 20,
+      `Period: ${dateFrom || "All time"}  to  ${dateTo || toDateStr(now)}` +
+      (catFilter ? `   |   Category: ${catFilter}` : "") +
+      (shop.name ? `   |   Generated: ${now.toLocaleString()}` : ""),
+      textX, shop.name ? y + 5 : 20,
     );
-    doc.text(`Generated: ${now.toLocaleString()}`, 14, 26);
+    if (!shop.name) doc.text(`Generated: ${now.toLocaleString()}`, 14, 26);
 
     doc.setFont("helvetica", "bold");
     doc.setFontSize(18);
@@ -367,7 +392,7 @@ export default function ExpenseManagementPage() {
     doc.text(`${rows.length} records  ·  ${periodLabel}`, PW - 14, 26, { align: "right" });
 
     // ── Summary cards ────────────────────────────────────────────────────────
-    const cardY = 34;
+    const cardY = bannerH + 4;
     const cardH = 20;
     const gap   = 3;
     const cardW = (PW - 28 - gap * 3) / 4;
@@ -450,7 +475,7 @@ export default function ExpenseManagementPage() {
         doc.setFontSize(6.5);
         doc.setTextColor(...C_WHITE);
         doc.setFont("helvetica", "normal");
-        doc.text("Higoverse · Expense Management System", 14, PH - 3.5);
+        doc.text(`${shop.name || "Higoverse"} · Expense report`, 14, PH - 3.5);
         doc.text(`Page ${data.pageNumber}`, PW / 2, PH - 3.5, { align: "center" });
         doc.text(`Generated ${now.toLocaleDateString()}`, PW - 14, PH - 3.5, { align: "right" });
       },
