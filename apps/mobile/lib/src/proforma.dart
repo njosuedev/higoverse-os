@@ -1375,18 +1375,22 @@ const depositMethods = ['cash', 'mtn', 'airtel', 'bank', 'card'];
 /// Asks for a deposit / booking payment: amount (with quick 30 % / 50 % /
 /// full-balance picks), how it was paid, the date and a reference (MoMo
 /// transaction id, bank slip…). Returns {amount, method, date, reference}.
-Future<Map<String, dynamic>?> askDeposit(BuildContext context, {required num balance, required String currency}) =>
+///
+/// With [initial] (a deposit already recorded) the sheet opens filled in to
+/// change it; [balance] is then what it may go up to.
+Future<Map<String, dynamic>?> askDeposit(BuildContext context, {required num balance, required String currency, Map<String, dynamic>? initial}) =>
     showModalBottomSheet<Map<String, dynamic>>(
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
-      builder: (_) => _DepositSheet(balance: balance, currency: currency),
+      builder: (_) => _DepositSheet(balance: balance, currency: currency, initial: initial),
     );
 
 class _DepositSheet extends StatefulWidget {
-  const _DepositSheet({required this.balance, required this.currency});
+  const _DepositSheet({required this.balance, required this.currency, this.initial});
   final num balance;
   final String currency;
+  final Map<String, dynamic>? initial;
 
   @override
   State<_DepositSheet> createState() => _DepositSheetState();
@@ -1398,6 +1402,18 @@ class _DepositSheetState extends State<_DepositSheet> {
   String? _method;
   DateTime _date = DateTime.now();
   bool _tried = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final d = widget.initial;
+    if (d != null) {
+      _amount.text = groupDigits(_n(d['amount']).round());
+      _ref.text = '${d['reference'] ?? ''}';
+      _method = depositMethods.contains('${d['method']}') ? '${d['method']}' : null;
+      _date = DateTime.tryParse('${d['date'] ?? ''}') ?? _date;
+    }
+  }
 
   @override
   void dispose() {
@@ -1420,12 +1436,12 @@ class _DepositSheetState extends State<_DepositSheet> {
         key: _form,
         child: SingleChildScrollView(
           child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            Text(t('pf.deposit_title'), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
+            Text(t(widget.initial != null ? 'car.edit_deposit' : 'pf.deposit_title'), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
             Text(t('pf.balance_left', {'amount': money(widget.balance, cur)}), style: TextStyle(color: c.muted)),
             SectionTitle(t('pf.deposit_amount')),
             TextFormField(
               controller: _amount,
-              autofocus: true,
+              autofocus: widget.initial == null,
               keyboardType: TextInputType.number,
               inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9,]'))],
               decoration: InputDecoration(isDense: true, suffixText: cur),
@@ -1458,7 +1474,8 @@ class _DepositSheetState extends State<_DepositSheet> {
                 final picked = await showDatePicker(
                   context: context,
                   initialDate: _date,
-                  firstDate: DateTime.now().subtract(const Duration(days: 365)),
+                  // An older deposit being changed keeps its own date pickable.
+                  firstDate: [DateTime.now().subtract(const Duration(days: 365)), _date].reduce((x, y) => x.isBefore(y) ? x : y),
                   lastDate: DateTime.now(), // never in the future
                 );
                 if (picked != null) setState(() => _date = picked);
@@ -1483,7 +1500,11 @@ class _DepositSheetState extends State<_DepositSheet> {
                   'reference': _ref.text.trim(),
                 });
               },
-              child: Text(amount > 0 ? '${t('pf.record_deposit')} · ${money(amount, cur)}' : t('pf.record_deposit')),
+              child: Text(widget.initial != null
+                  ? t('form.save')
+                  : amount > 0
+                      ? '${t('pf.record_deposit')} · ${money(amount, cur)}'
+                      : t('pf.record_deposit')),
             ),
           ]),
         ),

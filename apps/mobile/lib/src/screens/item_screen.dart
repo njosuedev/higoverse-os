@@ -352,7 +352,12 @@ class _ItemScreenState extends State<ItemScreen> {
             ],
             if (_id.isNotEmpty && carPending) ...[
               const SizedBox(height: 12),
-              CarPaymentsCard(vehicle: item, onAdd: () => _carAction(() => takeCarDeposit(context, item))),
+              CarPaymentsCard(
+                vehicle: item,
+                onAdd: () => _carAction(() => takeCarDeposit(context, item)),
+                onEditDeposit: (d) => _carAction(() => changeCarDeposit(context, item, d)),
+                onEditPrice: () => _carAction(() => changeCarPrice(context, item)),
+              ),
               const SizedBox(height: 10),
               Row(children: [
                 Expanded(

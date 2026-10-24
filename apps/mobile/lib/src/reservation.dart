@@ -1,10 +1,12 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:phosphor_icons/phosphor_icons.dart';
 
 import 'config.dart';
 import 'format.dart';
+import 'forms.dart' show parseAmount;
 import 'i18n.dart';
 import 'proforma.dart' show askDeposit;
 import 'session.dart';
@@ -74,7 +76,7 @@ CarPayments carPayments(Map<String, String> a, Object? sellingPrice) {
 bool isPendingCar(Map<String, dynamic> v) => _n(v['quantity']) > 0 && attributesOf(v['attributes'])['sale_status'] == 'pending';
 
 /// Why a reservation or deposit was refused.
-enum ReserveProblem { idsMissing, buyerIncomplete, priceInvalid, depositIsFull, depositInvalid }
+enum ReserveProblem { idsMissing, buyerIncomplete, priceInvalid, depositIsFull, depositInvalid, priceBelowPaid }
 
 class ReserveException implements Exception {
   const ReserveException(this.problem);
@@ -87,6 +89,7 @@ class ReserveException implements Exception {
         ReserveProblem.priceInvalid => 'car.price_invalid',
         ReserveProblem.depositIsFull => 'car.deposit_is_full',
         ReserveProblem.depositInvalid => 'car.deposit_invalid',
+        ReserveProblem.priceBelowPaid => 'car.price_below_paid',
       });
 }
 
@@ -158,6 +161,41 @@ Future<DepositOutcome> addCarDeposit(Session s, Map<String, dynamic> vehicle, Ma
   return await sellPaidCar(s, vehicle, merged, t) ? DepositOutcome.sold : DepositOutcome.noCustomer;
 }
 
+/// Changes the deposit [old] (as listed by [depositsOf]) to [deposit]'s
+/// amount, method, date and reference, checked against the latest balance.
+/// The total paid can't pass the agreed price; reaching it records the sale.
+Future<DepositOutcome> editCarDeposit(Session s, Map<String, dynamic> vehicle, Map<String, dynamic> old, Map<String, dynamic> deposit, T t) async {
+  final amount = _n(deposit['amount']);
+  final merged = await patchCar(s, '${vehicle['id']}', (fresh) {
+    final pay = carPayments(fresh, vehicle['selling_price']);
+    final list = [...pay.deposits];
+    // The same deposit in the latest data: by when it was recorded.
+    final i = list.indexWhere((d) => '${d['at'] ?? ''}'.isNotEmpty && d['at'] == old['at']);
+    if (i < 0 || amount <= 0 || amount > pay.balance + _n(list[i]['amount'])) throw const ReserveException(ReserveProblem.depositInvalid);
+    final ref = '${deposit['reference'] ?? ''}'.trim();
+    list[i] = {
+      ...list[i],
+      'amount': amount,
+      'method': '${deposit['method'] ?? list[i]['method']}',
+      'date': '${deposit['date'] ?? list[i]['date']}',
+      'reference': ref,
+    }..removeWhere((k, v) => k == 'reference' && ref.isEmpty);
+    return {'deposits': jsonEncode(list)};
+  });
+  if (!carPayments(merged, vehicle['selling_price']).full) return DepositOutcome.saved;
+  return await sellPaidCar(s, vehicle, merged, t) ? DepositOutcome.sold : DepositOutcome.noCustomer;
+}
+
+/// Changes the agreed price. It must stay above what's already paid: a
+/// price the deposits already cover is a sale, done with the last deposit.
+Future<void> setCarPrice(Session s, Map<String, dynamic> vehicle, num price) async {
+  if (price <= 0) throw const ReserveException(ReserveProblem.priceInvalid);
+  await patchCar(s, '${vehicle['id']}', (fresh) {
+    if (price <= carPayments(fresh, vehicle['selling_price']).paid) throw const ReserveException(ReserveProblem.priceBelowPaid);
+    return {'agreed_price': '${price.round()}'};
+  });
+}
+
 /// Records the sale of a fully paid pending car to its buyer at the agreed
 /// price, as the website does: the payment method most of the money came
 /// by, and a note with every deposit and the car's plate and chassis (the
@@ -225,6 +263,85 @@ Future<bool> takeCarDeposit(BuildContext context, Map<String, dynamic> vehicle) 
   }
 }
 
+/// Tapping a deposit: the deposit form filled in, to change it. True when
+/// something changed.
+Future<bool> changeCarDeposit(BuildContext context, Map<String, dynamic> vehicle, Map<String, dynamic> old) async {
+  final s = SessionScope.of(context);
+  final t = T.of(context);
+  final pay = carPayments(attributesOf(vehicle['attributes']), vehicle['selling_price']);
+  final deposit = await askDeposit(context, balance: pay.balance + _n(old['amount']), currency: s.currency, initial: old);
+  if (deposit == null || !context.mounted) return false;
+  try {
+    final outcome = await editCarDeposit(s, vehicle, old, deposit, t);
+    if (!context.mounted) return true;
+    _say(context, t(switch (outcome) {
+      DepositOutcome.saved => 'car.deposit_updated',
+      DepositOutcome.sold => 'car.paid_sold',
+      DepositOutcome.noCustomer => 'car.no_buyer_customer',
+    }));
+    return true;
+  } on ReserveException catch (e) {
+    if (context.mounted) _say(context, e.text(t));
+    return true; // the deposits moved meanwhile: show the latest
+  } catch (e) {
+    if (context.mounted) _say(context, errorText(t, e));
+    return false;
+  }
+}
+
+/// The pencil on the agreed price: asks the new price and saves it.
+Future<bool> changeCarPrice(BuildContext context, Map<String, dynamic> vehicle) async {
+  final s = SessionScope.of(context);
+  final t = T.of(context);
+  final pay = carPayments(attributesOf(vehicle['attributes']), vehicle['selling_price']);
+  final ctrl = TextEditingController(text: groupDigits(pay.price.round()));
+  final price = await showDialog<num>(
+    context: context,
+    builder: (c) {
+      void ok() => Navigator.pop(c, parseAmount(ctrl.text) ?? 0);
+      return AlertDialog(
+        title: Text(t('car.edit_price')),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          keyboardType: TextInputType.number,
+          inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9,]'))],
+          decoration: InputDecoration(
+            isDense: true,
+            suffixText: s.currency,
+            helperText: pay.paid > 0 ? '${t('car.price_above_paid')} (${money(pay.paid, s.currency)})' : null,
+          ),
+          onSubmitted: (_) => ok(),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c), child: Text(t('app.cancel'))),
+          FilledButton(onPressed: ok, child: Text(t('form.save'))),
+        ],
+      );
+    },
+  );
+  if (price == null || !context.mounted) return false;
+  if (price <= 0) {
+    _say(context, t('car.price_invalid'));
+    return false;
+  }
+  if (price <= pay.paid) {
+    _say(context, t('car.price_below_paid'));
+    return false;
+  }
+  try {
+    await setCarPrice(s, vehicle, price);
+    if (context.mounted) _say(context, t('car.price_saved'));
+    return true;
+  } on ReserveException catch (e) {
+    if (context.mounted) _say(context, e.text(t));
+    return true;
+  } catch (e) {
+    if (context.mounted) _say(context, errorText(t, e));
+    return false;
+  }
+}
+
 /// A paid-up car whose sale wasn't recorded yet (or failed): record it.
 Future<bool> completeCarSale(BuildContext context, Map<String, dynamic> vehicle) async {
   final s = SessionScope.of(context);
@@ -279,11 +396,14 @@ Future<bool> confirmReleaseCar(BuildContext context, Map<String, dynamic> vehicl
 
 /// A pending car's payments: agreed price, paid so far and balance (one
 /// bar, in the brand's ink — colour only for the status itself), the buyer
-/// it's reserved for, and every deposit. [onAdd] adds a deposit.
+/// it's reserved for, and every deposit. [onAdd] adds a deposit,
+/// [onEditDeposit] changes one (tapped), [onEditPrice] the agreed price.
 class CarPaymentsCard extends StatelessWidget {
-  const CarPaymentsCard({super.key, required this.vehicle, this.onAdd, this.compact = false});
+  const CarPaymentsCard({super.key, required this.vehicle, this.onAdd, this.onEditDeposit, this.onEditPrice, this.compact = false});
   final Map<String, dynamic> vehicle;
   final VoidCallback? onAdd;
+  final void Function(Map<String, dynamic> deposit)? onEditDeposit;
+  final VoidCallback? onEditPrice;
 
   /// Without the list of deposits (the story card).
   final bool compact;
@@ -311,7 +431,18 @@ class CarPaymentsCard extends StatelessWidget {
           for (final (k, v) in [('car.agreed_price', pay.price), ('car.paid', pay.paid), ('car.balance', pay.balance)])
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(t(k), maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 11.5, color: c.muted)),
+                Row(children: [
+                  Flexible(child: Text(t(k), maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 11.5, color: c.muted))),
+                  if (k == 'car.agreed_price' && onEditPrice != null && !pay.full)
+                    InkWell(
+                      onTap: onEditPrice,
+                      customBorder: const CircleBorder(),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        child: Icon(PhosphorIconsRegular.pencilSimple, size: 15, color: c.muted, semanticLabel: t('car.edit_price')),
+                      ),
+                    ),
+                ]),
                 Text(groupDigits(v.round()),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -338,7 +469,10 @@ class CarPaymentsCard extends StatelessWidget {
             Text(t('car.no_deposits'), style: TextStyle(color: c.muted, fontSize: 12.5))
           else
             for (final d in pay.deposits)
-              Padding(
+              InkWell(
+                onTap: onEditDeposit == null || '${d['at'] ?? ''}'.isEmpty ? null : () => onEditDeposit!(d),
+                borderRadius: BorderRadius.circular(8),
+                child: Padding(
                 padding: const EdgeInsets.symmetric(vertical: 5),
                 child: Row(children: [
                   Icon(PhosphorIconsRegular.wallet, size: 18, color: c.muted),
@@ -356,7 +490,12 @@ class CarPaymentsCard extends StatelessWidget {
                     ),
                   ),
                   Text(money(_n(d['amount']), s.currency), style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800)),
+                  if (onEditDeposit != null && '${d['at'] ?? ''}'.isNotEmpty) ...[
+                    const SizedBox(width: 6),
+                    Icon(PhosphorIconsRegular.pencilSimple, size: 15, color: c.faint, semanticLabel: t('car.edit_deposit')),
+                  ],
                 ]),
+                ),
               ),
           const SizedBox(height: 6),
           Text(t('car.fines_still_yours'), style: TextStyle(fontSize: 11.5, color: c.faint, height: 1.3)),
