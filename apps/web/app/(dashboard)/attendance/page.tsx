@@ -37,7 +37,7 @@ export default function AttendancePage() {
   const { user } = useAuth();
   const { t } = useLanguage();
   const allowed = PAYROLL_ROLES.includes(user?.role ?? "");
-  const [tab, setTab] = useState<"day" | "month">("day");
+  const [tab, setTab] = useState<"day" | "month">("month");
 
   if (!allowed) {
     return (
@@ -205,8 +205,10 @@ function MonthView() {
 
   const days = useMemo(() => {
     if (!data) return [];
+    // Newest day first; days still to come in this month are left out.
+    const last = data.last < data.today ? data.last : data.today;
     const out: string[] = [];
-    for (let d = data.first; d <= data.last; d = shiftDay(d, 1)) out.push(d);
+    for (let d = last; d >= data.first; d = shiftDay(d, -1)) out.push(d);
     return out;
   }, [data]);
 
