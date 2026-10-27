@@ -153,47 +153,11 @@ class _ProductsScreenState extends State<ProductsScreen> with LiveListener {
     }
   }
 
-  /// Car dealers choose: several cars at once (then their numbers), or one.
+  /// Car dealers add one vehicle at a time, with its chassis and plate.
   Future<void> _add() async {
     final s = SessionScope.of(context);
-    if (!s.isCar) {
-      if (await editProduct(context) != null && mounted) _reload();
-      return;
-    }
-    final t = T.of(context);
-    final pick = await showModalBottomSheet<String>(
-      context: context,
-      showDragHandle: true,
-      builder: (c) => SafeArea(
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          ListTile(
-            leading: const Icon(Icons.playlist_add_rounded),
-            title: Text(t('stockin.title'), style: const TextStyle(fontWeight: FontWeight.w700)),
-            subtitle: Text(t('stockin.choice_hint')),
-            onTap: () => Navigator.pop(c, 'stock'),
-          ),
-          ListTile(
-            leading: const Icon(Icons.directions_car_outlined),
-            title: Text(t('vehicle.new'), style: const TextStyle(fontWeight: FontWeight.w700)),
-            subtitle: Text(t('stockin.one_hint')),
-            onTap: () => Navigator.pop(c, 'one'),
-          ),
-          const SizedBox(height: 8),
-        ]),
-      ),
-    );
-    if (!mounted || pick == null) return;
-    if (pick == 'one') {
-      if (await addVehicle(context) != null && mounted) _reload();
-      return;
-    }
-    final ids = await stockInCars(context);
-    if (!mounted || ids == null) return;
-    _reload();
-    if (ids.isNotEmpty) {
-      await openCarIds(context, ids: ids);
-      if (mounted) _reload();
-    }
+    final saved = s.isCar ? await addVehicle(context) : await editProduct(context);
+    if (saved != null && mounted) _reload();
   }
 
   @override

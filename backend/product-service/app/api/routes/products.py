@@ -1,7 +1,6 @@
 import base64
 import io
 import json
-import uuid
 from collections import OrderedDict
 from fastapi import APIRouter, Depends, HTTPException, Header
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -10,10 +9,10 @@ from sqlalchemy.orm import Session, defer
 
 from app.db.database import get_db
 from app.models.product import Product
-from app.schemas.product import AssignCars, ProductCreate, ProductUpdate, StockIn
+from app.schemas.product import AssignCars, ProductCreate, ProductUpdate
 from app.core.security import get_current_user, hides_financials
 from app.core.supplier_client import validate_supplier
-from app.core.car_names import car_names, check_car_name
+from app.core.car_names import check_car_name
 from app.core.events import emit
 
 router = APIRouter(prefix="/products", tags=["Products"])
@@ -171,6 +170,33 @@ def _ensure_unique_car(db: Session, shop_id: str, attributes, exclude_id: str | 
                     detail={"field": k, "product_id": other_id, "product_name": other_name,
                             "message": f'Another vehicle ("{other_name}") already has this {label}.'},
                 )
+
+
+def _is_car(user: dict) -> bool:
+    return user.get("layout") == "car"
+
+
+def _require_car_ids(attributes):
+    """A car company adds each vehicle on its own, with its chassis and plate."""
+    a = _parse_attrs(attributes)
+    for k, label in _UNIQUE_CAR_IDS:
+        if not _car_key(a.get(k)):
+            raise HTTPException(status_code=400, detail={
+                "field": k, "message": f"Enter the vehicle's {label}.",
+            })
+
+
+def _keep_car_ids(attributes, previous):
+    """A chassis or plate number, once given, can be changed but not erased."""
+    new, old = _parse_attrs(attributes), _parse_attrs(previous)
+    for k, label in _UNIQUE_CAR_IDS:
+        if _car_key(old.get(k)) and not _car_key(new.get(k)):
+            raise HTTPException(status_code=400, detail={
+                "field": k, "message": f"A vehicle's {label} can't be removed.",
+            })
+
+
+_ONE_CAR = "Each vehicle is one car: its quantity can only be 1 (in stock) or 0 (sold)."
 
 
 def calculate_profit(cost_price: float, selling_price: float):
@@ -447,6 +473,11 @@ def create_product(
             (authorization or "").replace("Bearer ", "")
         )
 
+        if _is_car(user):
+            # One vehicle per entry: no restocking, chassis and plate required.
+            if payload.quantity != 1:
+                raise HTTPException(status_code=400, detail=_ONE_CAR)
+            _require_car_ids(payload.attributes)
         _ensure_unique_car(db, user["shop_id"], payload.attributes)
         # Car companies pick the name from Settings → Car names.
         payload.name = check_car_name(payload.name, user, (authorization or "").replace("Bearer ", ""))
@@ -502,70 +533,17 @@ def create_product(
 
 
 # -----------------------------
-# STOCK IN (car companies)
+# STOCK IN (retired)
 # -----------------------------
-# "10 BYD Yuan Up, 20 Neta U Pro": each car becomes its own vehicle (quantity
-# 1) sharing its line's price and specs. Chassis and plate come later, car by
-# car (POST /products/assign); until then the car is "unassigned".
-_STOCK_SPECS = ("car_type", "year", "battery_range", "color", "condition", "mileage")
-
-
+# Car companies used to add "10 BYD Yuan Up" at once and give each car its
+# chassis and plate later. Now every vehicle is added on its own with both
+# numbers, so this only tells older apps what to do instead.
 @router.post("/stock")
-def stock_in(
-    payload: StockIn,
-    db: Session = Depends(get_db),
-    user: dict = Depends(get_current_user),
-    authorization: str = Header(None)
-):
-    if not user["shop_id"]:
-        raise HTTPException(status_code=400, detail="You need a shop before adding products")
-    if user.get("layout") != "car":
-        raise HTTPException(status_code=400, detail="Stock in by count is for car companies")
-
-    token = (authorization or "").replace("Bearer ", "")
-    names = car_names(token)
-    batch = str(uuid.uuid4())
-    try:
-        created = []
-        lines = []
-        for line in payload.lines:
-            name = check_car_name(" ".join(line.name.split()), user, token, names)
-            attrs = {k: " ".join(str(v).split()) for k in _STOCK_SPECS
-                     if (v := getattr(line, k)) is not None and str(v).strip()}
-            attrs["stock_batch"] = batch
-            attributes = json.dumps(attrs, ensure_ascii=False)
-            for _ in range(line.count):
-                product = Product(
-                    shop_id=user["shop_id"],
-                    name=name,
-                    # As on the vehicle form: car companies don't track cost.
-                    cost_price=line.selling_price,
-                    selling_price=line.selling_price,
-                    quantity=1,
-                    attributes=attributes,
-                )
-                db.add(product)
-                created.append(product)
-            lines.append({"name": name, "count": line.count})
-
-        db.flush()
-        ids = [p.id for p in created]
-        # One event for the whole stock in, not one notification per car.
-        emit(db, user, "product.stocked", {"batch": batch, "count": len(ids), "lines": lines})
-        db.commit()
-
-        return {
-            "success": True,
-            "message": f"{len(ids)} vehicles added",
-            "data": {"batch": batch, "count": len(ids), "ids": ids},
-        }
-
-    except StarletteHTTPException:
-        db.rollback()
-        raise
-    except Exception as e:
-        db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
+def stock_in(user: dict = Depends(get_current_user)):
+    raise HTTPException(
+        status_code=410,
+        detail="Stock in by count has been removed. Add each vehicle on its own with its chassis and plate number.",
+    )
 
 
 # -----------------------------
@@ -807,6 +785,16 @@ def update_product(
                 user["shop_id"],
                 (authorization or "").replace("Bearer ", "")
             )
+
+        if _is_car(user):
+            # A sale takes a car to 0 and a cancelled sale brings it back to
+            # 1; nothing adds more of the same car. (A few old rows hold more
+            # than 1: they may still go down, never up.)
+            qty = update_data.get("quantity")
+            if qty is not None and qty > 1 and qty > product.quantity:
+                raise HTTPException(status_code=400, detail=_ONE_CAR)
+            if "attributes" in update_data:
+                _keep_car_ids(update_data["attributes"], product.attributes)
 
         if "attributes" in update_data:
             _ensure_unique_car(db, user["shop_id"], update_data["attributes"],

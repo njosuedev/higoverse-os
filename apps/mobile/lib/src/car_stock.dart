@@ -120,14 +120,9 @@ class _CarModelsViewState extends State<CarModelsView> {
     if (mounted) widget.onChanged();
   }
 
-  Future<void> _stockIn(String name) async {
-    final ids = await stockInCars(context, name: name);
-    if (!mounted || ids == null) return;
-    widget.onChanged();
-    if (ids.isNotEmpty) {
-      await openCarIds(context, ids: ids);
-      if (mounted) widget.onChanged();
-    }
+  /// One more car of this model, with its own chassis and plate.
+  Future<void> _addCar(String name) async {
+    if (await addVehicle(context, name: name) != null && mounted) widget.onChanged();
   }
 
   @override
@@ -167,7 +162,7 @@ class _CarModelsViewState extends State<CarModelsView> {
             ),
           for (var i = 0; i < models.length; i++) ...[
             if (i > 0) const Divider(indent: 16, endIndent: 16),
-            _ModelTile(model: models[i], status: widget.status, onTap: () => _open(models[i]), onStockIn: () => _stockIn('${models[i]['name']}')),
+            _ModelTile(model: models[i], status: widget.status, onTap: () => _open(models[i]), onAdd: () => _addCar('${models[i]['name']}')),
           ],
         ],
       );
@@ -217,10 +212,10 @@ class _AssignBanner extends StatelessWidget {
 }
 
 class _ModelTile extends StatelessWidget {
-  const _ModelTile({required this.model, required this.status, required this.onTap, required this.onStockIn});
+  const _ModelTile({required this.model, required this.status, required this.onTap, required this.onAdd});
   final Map<String, dynamic> model;
   final String status;
-  final VoidCallback onTap, onStockIn;
+  final VoidCallback onTap, onAdd;
 
   @override
   Widget build(BuildContext context) {
@@ -254,8 +249,8 @@ class _ModelTile extends StatelessWidget {
         ]),
       ),
       trailing: IconButton(
-        tooltip: t('stockin.title'),
-        onPressed: onStockIn,
+        tooltip: t('vehicle.new'),
+        onPressed: onAdd,
         icon: Icon(Icons.add_circle_outline_rounded, color: c.ink),
       ),
     );

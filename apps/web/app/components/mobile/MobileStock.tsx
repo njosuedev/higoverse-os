@@ -115,7 +115,7 @@ export default function MobileStock() {
       {isCar && byName ? (
         <div className="px-2 pt-2">
           <ModelGroups q="" status={status === "all" ? "in_stock" : status} refreshKey={refreshKey}
-            onStockIn={(name) => router.push(full("/items", { stockin: name }))}
+            onAdd={(name) => router.push(full("/items", { add: "1", name }))}
             onEdit={(c) => router.push(full("/items", { open: String((c as { id: string }).id), do: "edit" }))}
             onChanged={() => setRefreshKey((k) => k + 1)} />
         </div>

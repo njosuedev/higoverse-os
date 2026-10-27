@@ -15,7 +15,6 @@ import { parseImages, shrinkDataUrl } from "@/lib/image";
 import CarImagesPicker from "@/app/components/items/CarImagesPicker";
 import CarGallery from "@/app/components/items/CarGallery";
 import VehicleGrid from "@/app/components/items/VehicleGrid";
-import StockInModal from "@/app/components/items/StockInModal";
 import AssignCarsModal from "@/app/components/items/AssignCarsModal";
 import ModelGroups from "@/app/components/items/ModelGroups";
 import CatalogueShareModal from "@/app/components/items/CatalogueShareModal";
@@ -25,7 +24,7 @@ import { useCanSeeFinancials, useShowsProfit } from "@/lib/permissions";
 import {
   Package, AlertCircle, Search, Filter, Plus, Trash2, Pencil, X, ShoppingCart,
   TrendingUp, TrendingDown, RefreshCw, ChevronDown,
-  FileSpreadsheet, FileText, Upload, Download, CheckCircle, XCircle, Car, PackagePlus, LayoutGrid, List, Hash, Layers, Share2,
+  FileSpreadsheet, FileText, Upload, Download, CheckCircle, XCircle, Car, LayoutGrid, List, Hash, Layers, Share2,
 } from "lucide-react";
 import { askConfirm, notify } from "@/lib/dialogs";
 
@@ -132,9 +131,7 @@ function ItemManagementPage() {
   const [deletingId, setDeletingId] = useState("");
   const [form, setForm] = useState(EMPTY_FORM);
 
-  // Car companies stock in by count ("10 BYD Yuan Up…"; they have no
-  // Purchases page), then give each car its chassis and plate.
-  const [stockIn, setStockIn] = useState<{ name?: string } | null>(null);
+  // Cars added before chassis and plate were required get them here.
   const [sharing, setSharing] = useState(false);
   const [assign, setAssign] = useState<{ ids?: string[] } | null>(null);
 
@@ -265,17 +262,18 @@ function ItemManagementPage() {
     const st = params.get("status");
     if (st && CAR_STATUS[st]) { setFilter(st); setPage(1); }
     if (params.get("stock") === "low") { setFilter(isCar ? "all" : "restock"); setPage(1); }
-    if (params.get("add") === "1") openCreateModal();
-    // /items?stockin=<car name> (dashboard restock circles), /items?assign=1,
-    // /items?share=catalogue
-    if (isCar && params.has("stockin")) setStockIn({ name: params.get("stockin") || undefined });
+    if (params.get("add") === "1") openCreateModal(params.get("name") || undefined);
+    // /items?add=1&name=<car name> (dashboard circles; old ?stockin= links
+    // also open one new car), /items?assign=1, /items?share=catalogue
+    if (isCar && params.has("stockin")) openCreateModal(params.get("stockin") || undefined);
     if (isCar && params.get("assign") === "1") setAssign({});
     if (isCar && params.get("share") === "catalogue") setSharing(true);
   }
 
-  function openCreateModal() {
+  /** `name`: another car of this model (cars are added one at a time). */
+  function openCreateModal(name?: string) {
     // Each car is one vehicle (unique chassis and plate), so it's added as 1.
-    setForm(isCar ? { ...EMPTY_FORM, quantity: "1" } : EMPTY_FORM); setEditingId(null); setModalMode("create");
+    setForm(isCar ? { ...EMPTY_FORM, quantity: "1", name: name ?? "" } : EMPTY_FORM); setEditingId(null); setModalMode("create");
     setPhotosReady(true);
     setShowModal(true);
   }
@@ -613,7 +611,7 @@ function ItemManagementPage() {
     <div className="min-h-screen">
       <div className="max-w-7xl mx-auto px-3 sm:px-5 py-3 sm:py-4">
 
-        <DeepLink keys={["stock", "add", "status", "open", "do", "stockin", "assign"]} onParams={handleDeepLink} />
+        <DeepLink keys={["stock", "add", "name", "status", "open", "do", "stockin", "assign"]} onParams={handleDeepLink} />
 
         {/* HEADER BANNER */}
         <div
@@ -677,16 +675,8 @@ function ItemManagementPage() {
                   <Share2 size={12} strokeWidth={2.5} /> <span className="hidden sm:inline">{t("catalogue.button")}</span>
                 </button>
               )}
-              {isCar && (
-                <button
-                  onClick={() => setStockIn({})}
-                  className="flex items-center gap-1.5 bg-white/10 hover:bg-white/20 border border-white/20 text-white px-3 py-1.5 rounded-lg text-xs font-bold active:scale-95 transition-all"
-                >
-                  <PackagePlus size={12} strokeWidth={2.5} /> {t("items.stock_in")}
-                </button>
-              )}
               <button
-                onClick={openCreateModal}
+                onClick={() => openCreateModal()}
                 className="flex items-center gap-1.5 bg-white text-[#0a66c2] px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-blue-50 active:scale-95 transition-all shadow-lg shadow-black/20"
               >
                 <Plus size={12} strokeWidth={3} /> {t("items.add")}
@@ -859,7 +849,7 @@ function ItemManagementPage() {
             q={debouncedSearch}
             status={CAR_STATUS[filter] ?? "in_stock"}
             refreshKey={lastUpdated?.getTime() ?? 0}
-            onStockIn={(name) => setStockIn({ name })}
+            onAdd={(name) => openCreateModal(name)}
             onEdit={(car) => openEditModal(car)}
             onChanged={() => loadData(true)}
           />
@@ -877,7 +867,6 @@ function ItemManagementPage() {
                 currency={currency}
                 onOpenGallery={(v) => setGalleryFor(products.find((x) => x.id === v.id) ?? null)}
                 onEdit={(v) => { const p = products.find((x) => x.id === v.id); if (p) openEditModal(p); }}
-                onStockIn={(v) => setStockIn({ name: v.name })}
                 onChanged={() => loadData(true)}
                 autoForm={autoForm}
               />
@@ -1146,10 +1135,10 @@ function ItemManagementPage() {
                       <td className="px-3 py-1.5">
                         <div className="flex items-center justify-center gap-1">
                           {isCar ? (<>
-                            {/* Stock in more cars of this model */}
-                            <button onClick={() => setStockIn({ name: p.name })} title={t("items.stock_in")}
+                            {/* Add another car of this model, with its own chassis and plate */}
+                            <button onClick={() => openCreateModal(p.name)} title={t("items.add")}
                               className="p-1 rounded text-slate-500 hover:bg-slate-100 hover:text-slate-900 transition">
-                              <PackagePlus size={11} />
+                              <Plus size={11} />
                             </button>
                             {p.quantity > 0 && !carIdsComplete(p) && (
                               <button onClick={() => setAssign({ ids: [p.id] })} title={t("assign.title")}
@@ -1196,7 +1185,7 @@ function ItemManagementPage() {
                 {search || filter !== "all" ? t("common.try_adjust_filters") : t("items.add_first")}
               </p>
               {!search && filter === "all" && (
-                <button onClick={openCreateModal}
+                <button onClick={() => openCreateModal()}
                   className="mt-5 flex items-center gap-1.5 bg-[#0a66c2] text-white text-sm font-semibold px-5 py-2.5 rounded-xl hover:opacity-90 transition">
                   <Plus size={14} /> {t("items.add")}
                 </button>
@@ -1211,11 +1200,6 @@ function ItemManagementPage() {
 
         {galleryFor && (
           <CarGallery productId={galleryFor.id} title={galleryFor.name} onClose={() => setGalleryFor(null)} />
-        )}
-
-        {stockIn && (
-          <StockInModal initialName={stockIn.name} onClose={() => setStockIn(null)}
-            onDone={(ids) => { setStockIn(null); loadData(true); if (ids.length) setAssign({ ids }); }} />
         )}
 
         {sharing && <CatalogueShareModal onClose={() => setSharing(false)} />}

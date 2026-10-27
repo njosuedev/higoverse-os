@@ -4,7 +4,7 @@ import { useCovers } from "@/lib/covers";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Car, Clock, PackagePlus, Pencil, ShieldAlert, ShieldCheck, ShieldQuestion, ShoppingCart, UserCheck, UserX, Wallet, X } from "lucide-react";
+import { Car, Clock, Pencil, ShieldAlert, ShieldCheck, ShieldQuestion, ShoppingCart, UserCheck, UserX, Wallet, X } from "lucide-react";
 import { itemRequest } from "@/lib/product-api";
 import { saleRequest } from "@/lib/sale-api";
 import { loadCustomers, type Customer } from "@/lib/supplier-api";
@@ -30,7 +30,6 @@ interface Props {
   onOpenGallery: (v: Vehicle) => void;
   onEdit: (v: Vehicle) => void;
   /** Stock in more cars of this model (opens the stock in form). */
-  onStockIn?: (v: Vehicle) => void;
   /** Called after a status/penalty change so the page can reload. */
   onChanged: () => void;
   /** Open this car's fines or pending form once it's shown (from a link). */
@@ -80,7 +79,7 @@ async function sellPaidCar(v: Vehicle, a: Attributes, t: (k: string) => string):
   return true;
 }
 
-export default function VehicleGrid({ vehicles, currency, onOpenGallery, onEdit, onStockIn, onChanged, autoForm }: Props) {
+export default function VehicleGrid({ vehicles, currency, onOpenGallery, onEdit, onChanged, autoForm }: Props) {
   // Sharp photos for the cards (the list's thumbnail is only 160 px).
   const covers = useCovers(vehicles.map((v) => v.id), 640);
   const { t } = useLanguage();
@@ -137,7 +136,6 @@ export default function VehicleGrid({ vehicles, currency, onOpenGallery, onEdit,
             currency={currency}
             onGallery={() => onOpenGallery(v)}
             onEdit={() => onEdit(v)}
-            onStockIn={onStockIn && (() => onStockIn(v))}
             onPending={() => setPendingFor(v)}
             onDeposit={() => setDepositFor(v)}
             onCompleteSale={() => completeSale(v)}
@@ -155,9 +153,9 @@ export default function VehicleGrid({ vehicles, currency, onOpenGallery, onEdit,
   );
 }
 
-function VehicleCard({ v, cover, currency, onGallery, onEdit, onStockIn, onPending, onDeposit, onCompleteSale, onRelease, onPenalties }: {
+function VehicleCard({ v, cover, currency, onGallery, onEdit, onPending, onDeposit, onCompleteSale, onRelease, onPenalties }: {
   v: Vehicle; cover?: string; currency: string;
-  onGallery: () => void; onEdit: () => void; onStockIn?: () => void; onPending: () => void; onDeposit: () => void;
+  onGallery: () => void; onEdit: () => void; onPending: () => void; onDeposit: () => void;
   onCompleteSale: () => void; onRelease: () => void; onPenalties: () => void;
 }) {
   const { t } = useLanguage();
@@ -240,7 +238,6 @@ function VehicleCard({ v, cover, currency, onGallery, onEdit, onStockIn, onPendi
         {status === "pending" && (
           <IconBtn onClick={onRelease} label={t("vehicle.release")} className="hover:text-ink"><UserX size={15} /></IconBtn>
         )}
-        {onStockIn && <IconBtn onClick={onStockIn} label={t("items.stock_in")} className="hover:text-ink"><PackagePlus size={14} /></IconBtn>}
         <IconBtn onClick={onEdit} label={t("common.edit")} className="hover:text-ink"><Pencil size={14} /></IconBtn>
       </div>
     </article>

@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:higoverse_inventory_mobile/src/car_stock.dart';
-import 'package:higoverse_inventory_mobile/src/forms.dart';
 import 'package:higoverse_inventory_mobile/src/i18n.dart';
 import 'package:higoverse_inventory_mobile/src/loading.dart';
 import 'package:higoverse_inventory_mobile/src/session.dart';
@@ -72,36 +71,6 @@ Future<void> _settle(WidgetTester tester) async {
 }
 
 void main() {
-  group('stock in', () {
-    test('a line says what is missing, in order', () {
-      final l = StockLine();
-      expect(l.problem, 'vehicle.pick_name');
-      l.name = 'BYD Yuan Up';
-      expect(l.problem, 'stockin.need_count');
-      l.count = 10;
-      expect(l.problem, 'form.need_price');
-      l.price = 25000000;
-      expect(l.problem, 'vehicle.need_type');
-      l.type = 'suv';
-      expect(l.problem, 'vehicle.need_year');
-      l.year = 2025;
-      expect(l.problem, 'vehicle.bad_range');
-      l.range = 400;
-      expect(l.problem, isNull);
-    });
-
-    test('the body sends each line, colour only when given', () {
-      final body = stockInBody([
-        StockLine(name: ' BYD Yuan Up ', count: 10, price: 25000000, type: 'suv', year: 2025, range: 400, color: 'White'),
-        StockLine(name: 'Neta U Pro', count: 20, price: 30000000, type: 'suv', year: 2025, range: 380),
-      ]);
-      final lines = body['lines'] as List;
-      expect(lines, hasLength(2));
-      expect(lines[0], {'name': 'BYD Yuan Up', 'count': 10, 'selling_price': 25000000, 'car_type': 'suv', 'year': 2025, 'battery_range': 400, 'color': 'White'});
-      expect((lines[1] as Map).containsKey('color'), isFalse);
-    });
-  });
-
   group('chassis and plate', () {
     final cars = [
       _car('a', 'BYD Yuan Up', '1', {'chassis_no': 'LGX001'}),
@@ -230,7 +199,7 @@ void main() {
   test('the new texts exist in every language', () {
     for (final lang in supportedLangs) {
       final t = T(lang);
-      for (final k in ['stockin.title', 'assign.title', 'models.view_by_name', 'stock.f_no_ids', 'act.cars_stocked']) {
+      for (final k in ['assign.title', 'models.view_by_name', 'stock.f_no_ids', 'act.cars_stocked']) {
         expect(t(k), isNot(k), reason: '$lang: $k');
       }
     }

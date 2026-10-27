@@ -10,10 +10,11 @@ export interface StockAlertItem {
   cost_price?: number | null; supplier_id?: string | null;
 }
 
-/** Where restocking one item happens: car companies stock in more of that
- *  car on the Vehicles page; shops open a purchase pre-filled with the item. */
+/** Where restocking one item happens: car companies add one more car of
+ *  that model (each with its own chassis and plate); shops open a purchase
+ *  pre-filled with the item. */
 export function restockHref(item: StockAlertItem, isCar: boolean) {
-  if (isCar) return `/items?stockin=${encodeURIComponent(item.name)}`;
+  if (isCar) return `/items?add=1&name=${encodeURIComponent(item.name)}`;
   const qs = new URLSearchParams({ name: item.name, selling: String(item.selling_price ?? "") });
   if (item.cost_price != null) qs.set("cost", String(item.cost_price));
   if (item.supplier_id) qs.set("supplierId", item.supplier_id);
@@ -53,7 +54,7 @@ export default function StockAlertCircles({ items, total, threshold, isCar, allH
             </div>
             <Link href={restockHref(it, isCar)}
               className="flex shrink-0 items-center gap-1 rounded-full bg-accent-soft px-3 py-1.5 text-xs font-semibold text-accent-dark hover:bg-[#f9d6d8]">
-              <Plus size={12} /> {isCar ? t("items.stock_in") : t("reports.restock")}
+              <Plus size={12} /> {isCar ? t("items.add") : t("reports.restock")}
             </Link>
           </div>
         );
