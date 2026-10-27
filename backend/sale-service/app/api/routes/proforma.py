@@ -17,23 +17,34 @@ from app.core.product_client import get_product, update_product_stock
 from app.core.events import emit
 from app.core import master_data
 from app.core import doc_code
+from app.core import car_booking
 from app.api.routes.sales import _live as _live_sale
 from app.api.routes.debts import _live as _live_debt
 
 router = APIRouter(prefix="/proforma", tags=["Proforma"])
 
-# A proforma lists the vehicles and the customer's details. Staff prepare it
-# (draft); one of these roles approves it; once the customer decides to buy,
-# the approved proforma becomes sales (sold).
+# A proforma lists the vehicles and the customer's details. It is pending as
+# soon as it's made (no approval step): for a car company that means the
+# customer paid a first deposit and its cars are booked for them
+# (core/car_booking.py). Once the customer pays the rest, it becomes sales
+# (sold). The status is stored as "approved" (its name before), shown as
+# "Pending"; "draft" and "sent" remain only on proformas made before.
+# Owner, admin or manager: may remove a deposit recorded by mistake.
 APPROVER_ROLES = {"owner", "admin", "manager"}
 
-# Statuses that may still be approved ("sent" is a draft that was shared).
+# Made before proformas went straight to pending: put on pending by /approve.
 _APPROVABLE = {"draft", "sent"}
-# Already approved ("accepted" is the old name, from before /approve).
+# Pending ("accepted" is an older name).
 _APPROVED = {"approved", "accepted"}
 
-# What changes the proforma's content; editing any of it after approval
-# sends it back to draft so it is approved again as it now reads.
+# What a pending car proforma can't change: its cars are booked for this
+# customer at these prices.
+_BOOKED_KEYS = {"customer_id", "lines", "subtotal", "tax_rate", "tax_amount", "grand_total", "currency"}
+
+NEED_DEPOSIT = "Record the customer's first deposit: a proforma puts its cars on pending."
+
+# What changes the proforma's content (its customer, vehicle and bank
+# details are then copied in again).
 _CONTENT_KEYS = {
     "customer_id", "customer", "customer_phone", "customer_address", "customer_id_no",
     "customer_tin", "customer_email", "customer_country", "customer_company",
@@ -200,18 +211,36 @@ def _token(authorization: str | None) -> str:
     return authorization.replace("Bearer ", "") if authorization else ""
 
 
-def _approve(p: Proforma, user: dict) -> None:
-    if not _is_approver(user):
-        raise HTTPException(status_code=403, detail="Only the owner or a manager can approve a proforma.")
-    if p.status not in _APPROVABLE:
-        raise HTTPException(status_code=409, detail=f"A {p.status} proforma can't be approved.")
+def _is_car(user: dict) -> bool:
+    return user.get("layout") == "car"
+
+
+def _itemise(p: Proforma, user: dict) -> None:
+    """Made before deposits were itemised: keep its amount as one cash
+    deposit (as create does for older apps) rather than lose it."""
+    if p.deposits or _num(p.deposit_amount) <= 0:
+        return
+    today = date.today().isoformat()
+    try:
+        on = min(date.fromisoformat(str(p.date)[:10]).isoformat(), today)
+    except ValueError:
+        on = today
+    legacy = DepositIn(amount=p.deposit_amount, method="cash", date=on)
+    p.deposits = [{**_deposit_entry(legacy, user), "by": "", "at": ""}]
+
+
+def _make_pending(p: Proforma, user: dict) -> None:
+    """Checks a proforma is complete and marks it pending. A car company's
+    also needs a deposit; its cars are booked by the caller."""
     if not (p.customer or "").strip():
-        raise HTTPException(status_code=400, detail="Add the customer's name before approving.")
+        raise HTTPException(status_code=400, detail="Add the customer's name.")
     if not p.lines:
-        raise HTTPException(status_code=400, detail="Add at least one vehicle or item before approving.")
+        raise HTTPException(status_code=400, detail="Add at least one vehicle or item.")
     _require_bank(user, p.bank_details)
+    if _is_car(user) and _paid_so_far(p) <= 0:
+        raise HTTPException(status_code=400, detail=NEED_DEPOSIT)
     p.status = "approved"
-    p.approved_by = user.get("name") or user.get("email") or ""
+    p.approved_by = None
     p.approved_at = datetime.now(timezone.utc)
 
 
@@ -275,13 +304,21 @@ def create_proforma(
         raise HTTPException(status_code=400, detail="The deposits can't be more than the proforma's total.")
     data["deposits"] = deposits
     data["deposit_amount"] = round(sum(d["amount"] for d in deposits), 2)
-    # Every proforma starts unapproved; approval is its own step.
-    data["status"] = data["status"] if data["status"] in ("draft", "sent") else "draft"
+    data.pop("status", None)
     proforma = Proforma(shop_id=user["shop_id"], **data)
+    # Pending as soon as it's made: no approval step.
+    _make_pending(proforma, user)
     db.add(proforma)
     db.flush()
-    emit(db, user, "proforma.created", _live(proforma))
-    db.commit()
+    token = _token(authorization)
+    booked = car_booking.book(proforma, deposits, token) if _is_car(user) else []
+    try:
+        emit(db, user, "proforma.created", _live(proforma))
+        db.commit()
+    except Exception:
+        db.rollback()
+        car_booking.undo(booked, token)
+        raise
     db.refresh(proforma)
     return {"success": True, "message": "Proforma created", "data": _fmt(proforma)}
 
@@ -313,26 +350,20 @@ def update_proforma(
     updates.pop("deposit_amount", None)
 
     changed = {k for k, v in updates.items() if _norm(k, getattr(proforma, k)) != _norm(k, v)}
+    if _is_car(user) and proforma.status in _APPROVED and changed & _BOOKED_KEYS:
+        raise HTTPException(status_code=409, detail=(
+            "This proforma's cars are pending for its customer at these prices. "
+            "To change the customer, vehicles or prices, delete it and make a new one."))
     for key, value in updates.items():
         setattr(proforma, key, value)
 
-    if status == "accepted":
-        # Older phone apps mark a proforma "accepted": that is approving it.
-        if proforma.status not in _APPROVED:
-            _approve(proforma, user)
-    elif status:
+    # "draft" (or an older app's "accepted") no longer applies: a proforma
+    # is pending until it's sold; only "expired" can be set by hand.
+    if status == "expired":
         proforma.status = status
-        if status == "draft":
-            proforma.approved_by = None
-            proforma.approved_at = None
-    if proforma.status in _APPROVED and changed & _CONTENT_KEYS:
-        proforma.status = "draft"
-        proforma.approved_by = None
-        proforma.approved_at = None
 
-    # A draft always carries the current customer, vehicle and bank details;
-    # an approved one keeps the copy it was approved with.
-    if proforma.status in _APPROVABLE or proforma.status == "expired":
+    # Carries the current customer, vehicle and bank details after a change.
+    if proforma.status in _APPROVABLE or changed & _CONTENT_KEYS:
         _apply_sync(proforma, user, _token(authorization))
 
     db.commit()
@@ -346,30 +377,30 @@ def add_deposit(
     payload: DepositIn,
     db: Session = Depends(get_db),
     user: dict = Depends(get_current_user),
+    authorization: str = Header(None),
 ):
     """A deposit or booking payment received on this proforma. It doesn't
     change the proforma's content, so an approved one stays approved."""
     proforma = _get_or_404(db, proforma_id, user["shop_id"])
     if proforma.status == "sold":
         raise HTTPException(status_code=409, detail="This proforma is already sold: record payments on the sale.")
-    if not proforma.deposits and _num(proforma.deposit_amount) > 0:
-        # Made before deposits were itemised: keep its amount as one cash
-        # deposit (as create does for older apps) rather than overwrite it.
-        today = date.today().isoformat()
-        try:
-            on = min(date.fromisoformat(str(proforma.date)[:10]).isoformat(), today)
-        except ValueError:
-            on = today
-        legacy = DepositIn(amount=proforma.deposit_amount, method="cash", date=on)
-        proforma.deposits = [{**_deposit_entry(legacy, user), "by": "", "at": ""}]
+    _itemise(proforma, user)
     balance = round(_num(proforma.grand_total) - _paid_so_far(proforma), 2)
     if float(payload.amount) > balance + 0.005:
         raise HTTPException(status_code=400, detail=f"The deposit can't be more than the balance due ({balance:,.0f}).")
     entry = _deposit_entry(payload, user)
     proforma.deposits = [*(proforma.deposits or []), entry]
     proforma.deposit_amount = _paid_so_far(proforma)
+    token = _token(authorization)
+    # A pending car proforma's deposits are paid on its cars too.
+    booked = car_booking.book(proforma, [entry], token) if _is_car(user) and proforma.status in _APPROVED else []
     emit(db, user, "proforma.deposit", {**_live(proforma), "amount": entry["amount"], "method": entry["method"]})
-    db.commit()
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        car_booking.undo(booked, token)
+        raise
     db.refresh(proforma)
     return {"success": True, "message": "Deposit recorded", "data": _fmt(proforma)}
 
@@ -380,6 +411,7 @@ def remove_deposit(
     deposit_id: str,
     db: Session = Depends(get_db),
     user: dict = Depends(get_current_user),
+    authorization: str = Header(None),
 ):
     """Corrects a deposit recorded by mistake (owner, admin or manager)."""
     if not _is_approver(user):
@@ -390,8 +422,12 @@ def remove_deposit(
     kept = [d for d in (proforma.deposits or []) if d.get("id") != deposit_id]
     if len(kept) == len(proforma.deposits or []):
         raise HTTPException(status_code=404, detail="Deposit not found")
+    if _is_car(user) and proforma.status in _APPROVED and not kept:
+        raise HTTPException(status_code=400, detail="A pending proforma keeps at least one deposit: record the right one first.")
     proforma.deposits = kept
     proforma.deposit_amount = _paid_so_far(proforma)
+    if _is_car(user) and proforma.status in _APPROVED:
+        car_booking.drop_deposit(proforma, deposit_id, _token(authorization))
     db.commit()
     db.refresh(proforma)
     return {"success": True, "message": "Deposit removed", "data": _fmt(proforma)}
@@ -404,15 +440,25 @@ def approve_proforma(
     user: dict = Depends(get_current_user),
     authorization: str = Header(None),
 ):
+    """Puts a proforma made before (still a draft) on pending, as new ones
+    are when made: a car company's needs a deposit and books its cars."""
     proforma = _get_or_404(db, proforma_id, user["shop_id"])
-    if proforma.status in _APPROVABLE:
-        # Approved as the details stand now; then frozen with the document.
-        _apply_sync(proforma, user, _token(authorization))
-    _approve(proforma, user)
-    emit(db, user, "proforma.approved", _live(proforma))
-    db.commit()
+    if proforma.status not in _APPROVABLE:
+        raise HTTPException(status_code=409, detail=f"A {proforma.status} proforma can't be put on pending.")
+    token = _token(authorization)
+    _apply_sync(proforma, user, token)
+    _itemise(proforma, user)
+    _make_pending(proforma, user)
+    booked = car_booking.book(proforma, proforma.deposits or [], token) if _is_car(user) else []
+    try:
+        emit(db, user, "proforma.approved", _live(proforma))
+        db.commit()
+    except Exception:
+        db.rollback()
+        car_booking.undo(booked, token)
+        raise
     db.refresh(proforma)
-    return {"success": True, "message": "Proforma approved", "data": _fmt(proforma)}
+    return {"success": True, "message": "Proforma pending", "data": _fmt(proforma)}
 
 
 @router.post("/{proforma_id}/sell")
@@ -429,7 +475,7 @@ def sell_proforma(
     if proforma.status == "sold":
         raise HTTPException(status_code=409, detail="This proforma is already sold.")
     if proforma.status not in _APPROVED:
-        raise HTTPException(status_code=409, detail="Approve the proforma before recording the sale.")
+        raise HTTPException(status_code=409, detail="Put the proforma on pending before recording the sale.")
 
     customer_id = (payload.customer_id or proforma.customer_id or "").strip() or None
     if user.get("layout") == "car" and not customer_id:
@@ -475,6 +521,10 @@ def sell_proforma(
             raise HTTPException(status_code=409, detail=f"{product.get('name')} is booked for {who}.")
         products[pid] = product
 
+    # A car company's deposits are on its cars (the proforma's, plus any paid
+    # on the Vehicles page): read before the cars leave stock.
+    paid_on_cars = car_booking.paid_on_cars(proforma, token) if _is_car(user) else None
+
     # Take everything out of stock; put it back if any update fails.
     done: list[str] = []
     for pid, qty in wanted.items():
@@ -486,7 +536,7 @@ def sell_proforma(
 
     grand_total = sum(float(l.get("unit_price") or 0) * int(round(float(l.get("qty") or 0))) for l in lines)
     on_credit = payload.payment_method == "debt"
-    deposited = min(_paid_so_far(proforma), grand_total)
+    deposited = min(paid_on_cars if paid_on_cars is not None else _paid_so_far(proforma), grand_total)
     # What the customer pays now comes on top of the deposits already paid;
     # the rest (if any) is owed.
     if payload.amount_paid is not None:

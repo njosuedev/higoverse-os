@@ -10,24 +10,27 @@ import 'format.dart';
 import 'forms.dart';
 import 'i18n.dart';
 import 'live/scoped_route.dart';
+import 'reservation.dart' show depositsOf;
 import 'session.dart';
 import 'theme.dart';
 import 'widgets.dart';
 
 // Proforma invoices on the phone, in Sales: the same records as the
 // website's Sales → Proforma tab (sale-service /proforma). A proforma lists
-// the vehicles and the customer's details; it changes no stock. The owner or
-// a manager approves it, and once the customer decides to buy, "Customer
-// buys" records the sales (stock goes down). Each one can be shared or
-// printed as an A4 PDF straight from the phone.
+// the vehicles and the customer's details; it changes no stock. It is pending
+// as soon as it's made (no approval step): a car company's needs the
+// customer's first deposit and puts its cars on pending for them. Once the
+// customer pays the rest, "Customer buys" records the sales (stock goes
+// down). Each one can be shared or printed as an A4 PDF from the phone.
 
 num _n(Object? v) => v is num ? v : num.tryParse('$v') ?? 0;
 
-/// Roles that may approve a proforma (APPROVER_ROLES in sale-service).
+/// Roles that may remove a deposit recorded by mistake (APPROVER_ROLES in sale-service).
 const proformaApprovers = {'owner', 'admin', 'manager'};
 
-/// draft → approved → sold; expired once the validity date has passed.
-/// "sent" and "accepted" are older statuses (draft and approved).
+/// pending ("approved", its stored name) → sold; expired once the validity
+/// date has passed. "draft" and "sent" are only on proformas made before;
+/// "accepted" is an older name for pending.
 String proformaStage(Map p) {
   final st = '${p['status'] ?? 'draft'}';
   final stage = switch (st) { 'accepted' || 'approved' => 'approved', 'sold' => 'sold', 'expired' => 'expired', _ => 'draft' };
@@ -168,7 +171,7 @@ class ProformaListState extends State<ProformaList> {
 }
 
 /// One proforma: the document as the customer sees it, Share PDF / Print,
-/// approve (owner or manager), "Customer buys" once approved, delete.
+/// put an older draft on pending, "Customer buys" once pending, delete.
 class ProformaScreen extends StatefulWidget {
   const ProformaScreen({super.key, required this.proforma});
   final Map<String, dynamic> proforma;
@@ -290,7 +293,7 @@ class _ProformaScreenState extends State<ProformaScreen> {
     final lines = (_p['lines'] as List? ?? []).whereType<Map>().toList();
     final stage = proformaStage(_p);
     final approved = const {'approved', 'accepted'}.contains('${_p['status']}');
-    final canApprove = proformaApprovers.contains(s.user?.role);
+    final canRemoveDeposit = proformaApprovers.contains(s.user?.role);
     String v(String k) => '${_p[k] ?? ''}'.trim();
     final pay = proformaPayments(_p);
     return PopScope(
@@ -318,7 +321,7 @@ class _ProformaScreenState extends State<ProformaScreen> {
                   label: Text(t('pf.share')),
                 ),
               ),
-              if (stage == 'draft' && canApprove) ...[
+              if (stage == 'draft') ...[
                 const SizedBox(width: 8),
                 Expanded(
                   child: FilledButton.icon(
@@ -344,10 +347,6 @@ class _ProformaScreenState extends State<ProformaScreen> {
         ),
         body: ListView(padding: const EdgeInsets.fromLTRB(12, 8, 12, 24), children: [
           _Steps(stage: stage),
-          if (stage == 'draft' && !canApprove)
-            Padding(padding: const EdgeInsets.fromLTRB(4, 0, 4, 8), child: Text(t('pf.wait_approval'), style: TextStyle(fontSize: 12.5, color: c.muted))),
-          if (v('approved_by').isNotEmpty && stage != 'draft')
-            Padding(padding: const EdgeInsets.fromLTRB(4, 0, 4, 8), child: Text(t('pf.approved_by', {'name': v('approved_by')}), style: TextStyle(fontSize: 12.5, color: c.muted))),
           Card(
             child: Padding(
               padding: const EdgeInsets.all(14),
@@ -405,7 +404,7 @@ class _ProformaScreenState extends State<ProformaScreen> {
           _PaymentsCard(
             proforma: _p,
             onAdd: stage == 'sold' || pay.balance <= 0 || _busy ? null : _addDeposit,
-            onRemove: stage == 'sold' || !canApprove || _busy ? null : _removeDeposit,
+            onRemove: stage == 'sold' || !canRemoveDeposit || _busy ? null : _removeDeposit,
           ),
         ]),
       ),
@@ -421,7 +420,7 @@ String _vehicleLine(Map l) => [
       if ('${l['chassis_no'] ?? ''}'.isNotEmpty) '${l['chassis_no']}',
     ].join(' · ');
 
-/// 1. Draft → 2. Approved → 3. Sold
+/// 1. Pending → 2. Sold (a draft made before shows its step first).
 class _Steps extends StatelessWidget {
   const _Steps({required this.stage});
   final String stage;
@@ -430,8 +429,8 @@ class _Steps extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = T.of(context);
     final c = Hgv.of(context);
-    const order = ['draft', 'approved', 'sold'];
-    final at = stage == 'expired' ? 1 : order.indexOf(stage);
+    final order = stage == 'draft' ? const ['draft', 'approved', 'sold'] : const ['approved', 'sold'];
+    final at = stage == 'expired' ? 0 : order.indexOf(stage);
     return Padding(
       padding: const EdgeInsets.fromLTRB(4, 2, 4, 10),
       child: Row(children: [
@@ -460,12 +459,45 @@ class _SellSheetState extends State<_SellSheet> {
   String _method = 'bank';
   // What's paid now, on top of the deposits: the balance by default.
   late final _paid = TextEditingController(text: groupDigits(proformaPayments(widget.proforma).balance));
+  // A car company's deposits are on its cars (the proforma's, plus any paid
+  // on the Vehicles screen): the server counts those at the sale.
+  num? _carPaid;
+
+  ({num paid, num balance}) get _pay {
+    final p = widget.proforma;
+    final paid = _carPaid ?? proformaPayments(p).paid;
+    return (paid: paid, balance: (_n(p['grand_total']) - paid).clamp(0, double.infinity));
+  }
+
+  Future<void> _loadCarPaid(Session s) async {
+    final p = widget.proforma;
+    num sum = 0;
+    var found = false;
+    for (final l in (p['lines'] as List? ?? const []).whereType<Map>()) {
+      if ('${l['product_id'] ?? ''}'.isEmpty) continue;
+      try {
+        final res = await s.api.get('${Svc.products}/products/${l['product_id']}');
+        final a = attributesOf(((res as Map)['data'] as Map?)?['attributes']);
+        if (a['sale_status'] == 'pending' && a['buyer_customer_id'] == '${p['customer_id'] ?? ''}') {
+          found = true;
+          sum += depositsOf(a).fold<num>(0, (x, d) => x + _n(d['amount']));
+        }
+      } catch (_) {}
+    }
+    if (!mounted || !found) return;
+    setState(() {
+      _carPaid = sum;
+      if (_method != 'debt') _paid.text = groupDigits(_pay.balance);
+    });
+  }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     if (_customers != null) return;
     _customers = const [];
+    final ss = SessionScope.of(context);
+    if (ss.isCar) _loadCarPaid(ss);
     final want = '${widget.proforma['customer_id'] ?? ''}';
     loadCustomers(SessionScope.of(context)).then((list) {
       if (!mounted) return;
@@ -490,7 +522,7 @@ class _SellSheetState extends State<_SellSheet> {
     final p = widget.proforma;
     final cur = '${p['currency'] ?? s.currency}';
     final total = _n(p['grand_total']);
-    final pay = proformaPayments(p);
+    final pay = _pay;
     final owed = pay.balance - (parseAmount(_paid.text) ?? 0);
     final typed = (p['lines'] as List? ?? []).whereType<Map>().where((l) => '${l['product_id'] ?? ''}'.isEmpty).toList();
     final needCustomer = s.isCar && _customerId == null;
@@ -713,6 +745,9 @@ class _ProformaFormScreenState extends State<ProformaFormScreen> {
       problem = 'pf.err_pick_bank';
     } else if (_deposit != null && _n(_deposit!['amount']) > _subtotal + _taxAmount) {
       problem = 'pf.err_deposit_total';
+    } else if (ss.isCar && _deposit == null) {
+      // Making the proforma puts the car on pending: it comes with a deposit.
+      problem = 'pf.need_deposit';
     }
     if (problem != null) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(t(problem))));
@@ -761,7 +796,6 @@ class _ProformaFormScreenState extends State<ProformaFormScreen> {
       'tax_amount': _taxAmount,
       'grand_total': _subtotal + _taxAmount,
       'currency': s.currency,
-      'status': 'draft',
     };
     setState(() => _saving = true);
     try {
@@ -1103,7 +1137,6 @@ Future<Uint8List> proformaPdf(Map<String, dynamic> p, Session s, T t) async {
   final total = _n(p['grand_total']);
   final deposit = _n(p['deposit_amount']);
   final terms = v(p['terms']).split('\n').map((x) => x.trim()).where((x) => x.isNotEmpty).toList();
-  final approved = const {'approved', 'accepted', 'sold'}.contains(v(p['status']));
 
   // A4 sheets like the dealer's paper proforma (and the website's print):
   // details, customer, vehicles and payment first; the last sheet carries the
@@ -1129,13 +1162,6 @@ Future<Uint8List> proformaPdf(Map<String, dynamic> p, Session s, T t) async {
       pw.Column(children: [
         pw.Text(t('pf.title_doc').toUpperCase(), textAlign: pw.TextAlign.center, style: const pw.TextStyle(fontSize: 17)),
         pw.Text(t('pf.non_binding'), style: const pw.TextStyle(fontSize: 8.5, color: muted)),
-        if (approved)
-          pw.Container(
-            margin: const pw.EdgeInsets.only(top: 4),
-            padding: const pw.EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-            decoration: pw.BoxDecoration(border: pw.Border.all(color: navy, width: 0.6), borderRadius: pw.BorderRadius.circular(3)),
-            child: pw.Text('${t('pf.status_approved')}${v(p['approved_by']).isEmpty ? '' : ' · ${v(p['approved_by'])}'}', style: const pw.TextStyle(fontSize: 8, color: navy)),
-          ),
       ]),
     ]),
   );

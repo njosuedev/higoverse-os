@@ -49,3 +49,21 @@ def update_product_stock(product_id: str, new_quantity: int, product: dict, toke
     except Exception as e:
         logger.error("Failed to update stock for product %s: %s", product_id, e)
         return False
+
+
+def update_product_attributes(product_id: str, attributes: str | None, token: str) -> bool:
+    """Saves a car's details (its `attributes` JSON text), e.g. to book it
+    for a proforma's customer. Only the attributes are sent."""
+    try:
+        res = requests.put(
+            f"{settings.PRODUCT_SERVICE_URL}/products/{product_id}",
+            json={"attributes": attributes},
+            headers={**_internal_headers(token), "Content-Type": "application/json"},
+            timeout=10,
+        )
+        if not res.ok:
+            logger.warning("product-service PUT /products/%s returned %s: %s", product_id, res.status_code, res.text)
+        return res.ok
+    except Exception as e:
+        logger.error("Failed to update attributes of product %s: %s", product_id, e)
+        return False

@@ -4,6 +4,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
+from app.models.proforma import Proforma
 from app.models.sale import Sale
 from app.schemas.sale import SaleCreate, SaleUpdate
 from app.core.security import get_current_user, hides_financials
@@ -311,10 +312,36 @@ def create_sale(
     db.add(sale)
     db.flush()
     emit(db, user, "sale.created", _live(sale))
+    if user.get("layout") == "car" and sale.customer_id:
+        _close_proformas(db, user, sale)
     db.commit()
     db.refresh(sale)
 
     return _scrub(user, {"success": True, "message": "Sale recorded successfully", "data": _fmt(sale)})
+
+
+def _close_proformas(db: Session, user: dict, sale: Sale) -> None:
+    """A car pending on a proforma was sold to its customer (the deposit
+    that completed its price, on the Vehicles page): the proforma is sold
+    once every car on it is."""
+    pending = (
+        db.query(Proforma)
+        .filter(Proforma.shop_id == user["shop_id"], Proforma.status.in_(("approved", "accepted")),
+                Proforma.customer_id == sale.customer_id)
+        .all()
+    )
+    for p in pending:
+        cars = [l.get("product_id") for l in (p.lines or []) if l.get("product_id")]
+        if sale.product_id not in cars:
+            continue
+        ids = [*(p.sale_ids or []), sale.id]
+        p.sale_ids = ids
+        sold = {pid for (pid,) in db.query(Sale.product_id).filter(Sale.id.in_(ids)).all()}
+        if all(c in sold for c in cars):
+            p.status = "sold"
+            p.sold_at = datetime.now(timezone.utc)
+            emit(db, user, "proforma.sold", {"id": p.id, "invoice_no": p.invoice_no, "customer": p.customer or "",
+                                             "grand_total": float(p.grand_total or 0), "status": p.status})
 
 
 # ─────────────────────────────────────────

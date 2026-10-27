@@ -48,7 +48,6 @@ export function proformaPrintHtml(
     `<tr><th>${esc(a)}</th><td>${av}</td>${b !== undefined ? `<th>${esc(b)}</th><td>${bv ?? ""}</td>` : `<td colspan="2" class="blank"></td>`}</tr>`;
   const val = (v: unknown) => esc(v || "N/A");
   const cur = esc(p.currency);
-  const approved = p.status === "approved" || p.status === "accepted" || p.status === "sold";
 
   const head = `
     <header class="head">
@@ -63,7 +62,6 @@ export function proformaPrintHtml(
       <div class="title">
         <div class="t">${esc(t("proforma.print_title_1"))}<br>${esc(t("proforma.print_title_2"))}</div>
         <div class="s">${esc(t("proforma.non_binding"))}</div>
-        ${approved ? `<div class="stamp">${esc(t("proforma.stage_approved"))}${p.approved_by ? ` · ${esc(p.approved_by)}` : ""}</div>` : ""}
       </div>
     </header>`;
 
@@ -196,7 +194,6 @@ export function proformaPrintHtml(
   .title { text-align: center; min-width: 170px; }
   .title .t { font-size: 22px; letter-spacing: .5px; line-height: 1.1; text-transform: uppercase; }
   .title .s { font-size: 10px; color: #444; margin-top: 2px; }
-  .stamp { display: inline-block; margin-top: 5px; font-size: 10px; color: #1f3a68; border: 1px solid #1f3a68; border-radius: 4px; padding: 1px 6px; }
 
   h2 { color: #1f3a68; font-size: 13.5px; text-transform: uppercase; margin: 16px 0 8px; padding: 0 0 5px 10px; border-bottom: 1px solid #1f3a68; }
   table { width: 100%; border-collapse: collapse; }

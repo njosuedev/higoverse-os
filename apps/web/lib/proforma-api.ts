@@ -1,13 +1,15 @@
 import { saleRequest } from "@/lib/sale-api";
 
 /**
- * draft → approved (by the owner or a manager) → sold (the customer decided
- * to buy and the sales were recorded). "sent" and "accepted" are older
- * statuses: shown as draft and approved.
+ * pending → sold. A proforma is pending as soon as it's made (stored as
+ * "approved", its name before): a car company's needs the customer's first
+ * deposit and puts its cars on pending for them. "draft" and "sent" are only
+ * on proformas made before, put on pending with approveProforma; "accepted"
+ * is an older name for pending.
  */
 export type ProformaStatus = "draft" | "sent" | "accepted" | "approved" | "sold" | "expired";
 
-/** Roles that may approve a proforma (APPROVER_ROLES in sale-service). */
+/** Roles that may remove a deposit recorded by mistake (APPROVER_ROLES in sale-service). */
 export const PROFORMA_APPROVER_ROLES = new Set(["owner", "admin", "manager"]);
 
 /** The status as the app shows it (older statuses folded in). */
@@ -137,6 +139,7 @@ export async function updateProforma(
   return res?.data ?? null;
 }
 
+/** Puts a proforma made before (a draft) on pending; a car company's needs a deposit. */
 export async function approveProforma(id: string): Promise<Proforma> {
   const res = await saleRequest(`/proforma/${id}/approve`, { method: "POST" });
   return res.data;
@@ -150,7 +153,7 @@ export async function sellProforma(
   return res.data;
 }
 
-/** Records a deposit / booking payment (keeps the approval). */
+/** Records a deposit / booking payment (a pending car proforma's goes on its cars too). */
 export async function addDeposit(id: string, d: Omit<Deposit, "id" | "by" | "at">): Promise<Proforma> {
   const res = await saleRequest(`/proforma/${id}/deposits`, { method: "POST", body: JSON.stringify(d) });
   return res.data;

@@ -11,7 +11,8 @@ import { loadCustomers, partnerRequest, type Customer } from "@/lib/supplier-api
 import { formatPublicAddress, decodeShopHumanInfo } from "@/lib/product-meta";
 import { prettyPhone, shopTin, bankText, type BankAccount } from "@/lib/company";
 import Link from "next/link";
-import { CAR_TYPES, carTypeLabel, parseAttributes } from "@/lib/business-layout";
+import { CAR_TYPES, carTypeLabel, parseAttributes, parseDeposits } from "@/lib/business-layout";
+import { itemRequest } from "@/lib/product-api";
 import ProductPicker, { type PickerProduct } from "@/app/components/ui/ProductPicker";
 import DepositForm from "@/app/components/sales/DepositForm";
 import { proformaPrintHtml } from "@/lib/proforma-print";
@@ -134,11 +135,12 @@ function Badge({ s }: { s: Stage }) {
   return <span className={`inline-flex items-center text-[11px] font-semibold px-2 py-0.5 rounded-full border ${STAGE_STYLE[s]}`}>{t(`proforma.stage_${s}`)}</span>;
 }
 
-/** draft → approved → sold, with the current step highlighted. */
+/** pending → sold (a draft made before shows its step first), with the
+ *  current step highlighted. */
 function Steps({ s }: { s: Stage }) {
   const { t } = useLanguage();
-  const order: Stage[] = ["draft", "approved", "sold"];
-  const at = s === "expired" ? 1 : order.indexOf(s);
+  const order: Stage[] = s === "draft" ? ["draft", "approved", "sold"] : ["approved", "sold"];
+  const at = s === "expired" ? 0 : order.indexOf(s);
   return (
     <div className="flex items-center gap-1.5 text-[11px] font-semibold">
       {order.map((o, i) => (
@@ -160,7 +162,8 @@ export default function ProformaPanel({ onSold, startNew = false }: {
   const { user } = useAuth();
   const { print: printPrefs } = useShopSettings();
   const isCar = layout === "car";
-  const canApprove = PROFORMA_APPROVER_ROLES.has(user?.role ?? "");
+  // Owner, admin or manager: may remove a deposit recorded by mistake.
+  const canRemoveDeposit = PROFORMA_APPROVER_ROLES.has(user?.role ?? "");
 
   const [shop, setShop] = useState<ShopInfo>({ name: "" });
   const [shopLoaded, setShopLoaded] = useState(false);
@@ -256,6 +259,9 @@ export default function ProformaPanel({ onSold, startNew = false }: {
   const { paid: depositPaid, balance } = depositTotals({ grand_total: grandTotal, deposits, deposit_amount: current?.deposit_amount });
   const stage: Stage = current ? stageOf(current) : "draft";
   const locked = current?.status === "sold";
+  // A pending car proforma's cars are booked for its customer at its prices:
+  // those can't change (delete it and make a new one).
+  const booked = isCar && !!current && proformaStage(current.status) === "approved";
   const filled = form.lines.filter((l) => l.product_name.trim());
 
   const input = "border border-slate-200 text-gray-800 placeholder:text-gray-400 rounded-lg px-3 py-2 w-full text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition disabled:bg-slate-50 disabled:text-slate-600";
@@ -359,6 +365,12 @@ export default function ProformaPanel({ onSold, startNew = false }: {
       requestAnimationFrame(() => document.querySelector<HTMLElement>("[aria-invalid='true']")?.focus());
       return null;
     }
+    // A car proforma puts its cars on pending: the customer's first deposit comes with it.
+    if (isCar && !current && !newDeposit) {
+      notify(t("proforma.need_deposit"));
+      setDepositOpen(true);
+      return null;
+    }
     setBusy(true);
     try {
       const saved = current
@@ -371,12 +383,13 @@ export default function ProformaPanel({ onSold, startNew = false }: {
   }
 
   async function saveOnly() {
-    const was = current ? stageOf(current) : "draft";
+    const isNew = !current;
     const p = await save();
     if (!p) return;
-    notify(was === "approved" && proformaStage(p.status) === "draft" ? t("proforma.back_to_draft") : t("proforma.saved_success"), "success");
+    notify(t(isNew && proformaStage(p.status) === "approved" ? "proforma.approved_ok" : "proforma.saved_success"), "success");
   }
 
+  /** A draft made before: put it on pending (a car one needs a deposit). */
   async function approve(p?: Proforma | null) {
     const target = p ?? (await save());
     if (!target) return;
@@ -500,7 +513,7 @@ export default function ProformaPanel({ onSold, startNew = false }: {
             </div>
           </div>
           <div className="flex items-center gap-2 mt-3 flex-wrap">
-            {(["all", "draft", "approved", "sold", "expired"] as const).map((s) => (
+            {(["all", ...(counts.draft ? ["draft" as const] : []), "approved", "sold", "expired"] as const).map((s) => (
               <button key={s} onClick={() => setStageFilter(s)}
                 className={`text-xs font-semibold px-2.5 py-1 rounded-full border transition ${stageFilter === s ? "bg-slate-900 text-white border-slate-900" : "border-slate-200 text-slate-600 hover:border-slate-400"}`}>
                 {s === "all" ? t("sales.all") : t(`proforma.stage_${s}`)}
@@ -551,14 +564,13 @@ export default function ProformaPanel({ onSold, startNew = false }: {
                       <p className="text-xs text-slate-500 mt-0.5 truncate">{what || "—"}</p>
                       <p className="text-[11px] text-slate-400 mt-0.5">
                         {dotDate(p.date)} · {t("proforma.valid_until_short")} {dotDate(p.valid_until)}
-                        {p.approved_by && s !== "draft" ? ` · ${t("proforma.approved_by")} ${p.approved_by}` : ""}
                       </p>
                     </button>
                     <div className="text-right shrink-0">
                       <p className="font-bold text-slate-800 tabular-nums text-sm">{money(p.grand_total)} <span className="text-[11px] font-normal text-slate-400">{p.currency}</span></p>
                     </div>
                     <div className="flex items-center gap-1 shrink-0">
-                      {s === "draft" && canApprove && (
+                      {s === "draft" && (
                         <button onClick={() => approve(p)} disabled={busy} className="text-[11px] font-bold px-2 py-1 rounded-lg border border-blue-200 text-blue-700 hover:bg-blue-50 disabled:opacity-40">
                           {t("proforma.approve")}
                         </button>
@@ -602,7 +614,6 @@ export default function ProformaPanel({ onSold, startNew = false }: {
           <p className="text-sm font-bold text-slate-800 flex items-center gap-2">
             <span className="font-mono text-blue-700">{form.invoice_no}</span> {current && <Badge s={stage} />}
           </p>
-          {current?.approved_by && stage !== "draft" && <p className="text-[11px] text-slate-500">{t("proforma.approved_by")} {current.approved_by}</p>}
         </div>
         <div className="ml-auto"><Steps s={current ? stage : "draft"} /></div>
       </div>
@@ -612,7 +623,7 @@ export default function ProformaPanel({ onSold, startNew = false }: {
           <Lock size={13} /> {t("proforma.sold_locked")}
         </div>
       )}
-      {!locked && stage === "approved" && (
+      {!locked && booked && (
         <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 text-blue-800 text-xs rounded-lg px-3 py-2 mb-2">
           <AlertCircle size={13} /> {t("proforma.edit_unapproves")}
         </div>
@@ -640,6 +651,7 @@ export default function ProformaPanel({ onSold, startNew = false }: {
             </div>
           </section>
 
+          <fieldset disabled={booked} className="space-y-3 min-w-0">
           {/* Customer information */}
           <section className="bg-white rounded-xl border border-slate-200 p-4">
             <h3 className="text-xs font-bold uppercase tracking-wide text-[#1f3a68] mb-3 flex items-center gap-2"><User size={14} /> {t("proforma.customer_info")}</h3>
@@ -702,7 +714,7 @@ export default function ProformaPanel({ onSold, startNew = false }: {
                     {isCar ? null : l.product_id
                       ? <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-green-50 text-green-700 border border-green-200">{t("proforma.from_stock")}</span>
                       : <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200">{t("proforma.typed_in")}</span>}
-                    {!locked && (
+                    {!locked && !booked && (
                       <div className="flex-1 max-w-sm">
                         <ProductPicker
                           onSelect={(p) => pickProduct(l.key, p)}
@@ -760,6 +772,7 @@ export default function ProformaPanel({ onSold, startNew = false }: {
             <datalist id="pf-genres">{CAR_TYPES.map((c) => <option key={c} value={carTypeLabel(t, c)} />)}</datalist>
             <datalist id="pf-energy">{ENERGY_TYPES.map((c) => <option key={c} value={c} />)}</datalist>
           </section>
+          </fieldset>
 
           {/* Payment & finance terms */}
           <section className="bg-white rounded-xl border border-slate-200 p-4">
@@ -791,7 +804,7 @@ export default function ProformaPanel({ onSold, startNew = false }: {
                         <span className="font-semibold tabular-nums">{money(d.amount)}</span>
                         <span className="text-slate-600">· {t(`sales.pm_${d.method}`)} · {dotDate(d.date)}{d.reference ? ` · ${d.reference}` : ""}</span>
                         {d.by && <span className="text-xs text-slate-400">· {d.by}</span>}
-                        {current?.status !== "sold" && (!current || canApprove) && (
+                        {current?.status !== "sold" && (!current || canRemoveDeposit) && (
                           <button type="button" onClick={() => dropDeposit(d)} title={t("deposit.remove")} aria-label={t("deposit.remove")}
                             className="ml-auto p-1 rounded text-slate-300 hover:text-red-500 hover:bg-red-50"><X size={13} /></button>
                         )}
@@ -863,13 +876,11 @@ export default function ProformaPanel({ onSold, startNew = false }: {
                   <Save size={15} /> {busy ? t("proforma.saving") : t(current ? "proforma.update_proforma" : "proforma.save_draft")}
                 </button>
               )}
-              {!locked && stage !== "approved" && (canApprove ? (
+              {current && !locked && proformaStage(current.status) === "draft" && (
                 <button onClick={() => approve()} disabled={busy} className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 text-white font-semibold hover:bg-blue-700 disabled:opacity-40 text-sm">
-                  <CheckCircle2 size={15} /> {t("proforma.save_approve")}
+                  <CheckCircle2 size={15} /> {t("proforma.approve")}
                 </button>
-              ) : (
-                <p className="text-[11px] text-slate-500 text-center">{t("proforma.wait_approval")}</p>
-              ))}
+              )}
               {current && proformaStage(current.status) === "approved" && (
                 <button onClick={() => setSelling(current)} disabled={busy} className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-green-600 text-white font-semibold hover:bg-green-700 disabled:opacity-40 text-sm">
                   <ShoppingBag size={15} /> {t("proforma.sell")}
@@ -912,9 +923,29 @@ function SellDialog({ p, customers, isCar, onClose, onDone, onCustomers }: {
   const linked = customers.find((c) => c.id === p.customer_id);
   const [customerId, setCustomerId] = useState(linked?.id ?? "");
   const [method, setMethod] = useState<string>("bank");
-  const dep = depositTotals(p);
+  const [carPaid, setCarPaid] = useState<number | null>(null);
+  // A car company's deposits are on its cars (the proforma's, plus any paid
+  // on the Vehicles page): the server counts those at the sale.
+  const dep = carPaid === null ? depositTotals(p) : { paid: carPaid, balance: Math.max(0, p.grand_total - carPaid) };
   // Paid now, on top of the deposits: the balance by default.
   const [paid, setPaid] = useState(String(Math.round(dep.balance)));
+  useEffect(() => {
+    if (!isCar) return;
+    let alive = true;
+    Promise.all(p.lines.filter((l) => l.product_id).map((l) => itemRequest(`/products/${l.product_id}`).catch(() => null)))
+      .then((rows) => {
+        let sum = 0, found = false;
+        for (const r of rows) {
+          const a = parseAttributes(r?.data?.attributes);
+          if (a.sale_status === "pending" && a.buyer_customer_id === p.customer_id) {
+            found = true;
+            sum += parseDeposits(a).reduce((s, d) => s + d.amount, 0);
+          }
+        }
+        if (alive && found) { setCarPaid(sum); setPaid(String(Math.round(Math.max(0, p.grand_total - sum)))); }
+      });
+    return () => { alive = false; };
+  }, [isCar, p]);
   const [busy, setBusy] = useState(false);
   const typed = p.lines.filter((l) => !l.product_id);
   const expired = p.valid_until && p.valid_until < today();
