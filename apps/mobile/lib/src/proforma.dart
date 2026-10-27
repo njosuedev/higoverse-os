@@ -1245,7 +1245,7 @@ Future<Uint8List> proformaPdf(Map<String, dynamic> p, Session s, T t) async {
           h2(t('pf.payment_terms')),
           grid([
             (t('pf.payment_method'), v(p['payment_method']), false), (t('pf.currency'), cur, false),
-            (t('pf.deposit'), groupDigits(deposit), false), (t('pf.balance_due'), groupDigits(total - deposit), true),
+            (t('pf.deposit'), groupDigits(deposit), false), (t('pf.balance_due'), groupDigits(total), true), // the deposit is refundable: the full price stays due
             // Every deposit received, as on a receipt.
             for (final (i, d) in proformaPayments(p).list.indexed)
               (t('pf.deposit_n', {'n': i + 1}),
