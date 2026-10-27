@@ -124,7 +124,12 @@ export default function TodayStatus({ leading }: {
     added: t("dash.recent_added"), fines: t("dash.recent_fines"), pending: t("dash.recent_pending"),
   };
   const count = (k: Kind) => entries?.filter((e) => e.kind === k).length ?? 0;
-  const visible = (entries ?? []).filter((e) => !filter || e.kind === filter);
+  // One card per car: a car added and then put on pending shows once, with
+  // what matters most (entries are sorted fines → pending → added). The
+  // counters above still count each event.
+  const visible = filter
+    ? (entries ?? []).filter((e) => e.kind === filter)
+    : (entries ?? []).filter((e, i, all) => all.findIndex((x) => x.car.id === e.car.id) === i);
   const shown = visible.slice(0, MAX_SHOWN);
   const extra = visible.length - shown.length;
   // Sharp photos for the cards and the counters' little faces (max 30).
