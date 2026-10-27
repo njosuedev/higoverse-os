@@ -233,10 +233,12 @@ ${body}
 <script>
   // Draw each sheet's content at the largest size that fits its page, full
   // width: laid out narrower then scaled up (or wider then scaled down), so
-  // text re-wraps and the content always spans the page.
+  // text re-wraps and the content always spans the page. 8% of the page is
+  // kept spare: printing lays text out a little taller than the screen
+  // (fonts, logo), and content fitted exactly lost its last rows.
   function fitSheets() {
     document.querySelectorAll(".room").forEach(function (room) {
-      var fit = room.firstElementChild, have = room.clientHeight;
+      var fit = room.firstElementChild, have = room.clientHeight * 0.92;
       function heightAt(s) {
         fit.style.width = (100 / s) + "%";
         fit.style.transform = "scale(" + s + ")";
