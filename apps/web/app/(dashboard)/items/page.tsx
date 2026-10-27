@@ -849,7 +849,6 @@ function ItemManagementPage() {
             q={debouncedSearch}
             status={CAR_STATUS[filter] ?? "in_stock"}
             refreshKey={lastUpdated?.getTime() ?? 0}
-            onAdd={(name) => openCreateModal(name)}
             onEdit={(car) => openEditModal(car)}
             onChanged={() => loadData(true)}
           />
@@ -1135,11 +1134,6 @@ function ItemManagementPage() {
                       <td className="px-3 py-1.5">
                         <div className="flex items-center justify-center gap-1">
                           {isCar ? (<>
-                            {/* Add another car of this model, with its own chassis and plate */}
-                            <button onClick={() => openCreateModal(p.name)} title={t("items.add")}
-                              className="p-1 rounded text-slate-500 hover:bg-slate-100 hover:text-slate-900 transition">
-                              <Plus size={11} />
-                            </button>
                             {p.quantity > 0 && !carIdsComplete(p) && (
                               <button onClick={() => setAssign({ ids: [p.id] })} title={t("assign.title")}
                                 className="p-1 rounded text-amber-600 hover:bg-amber-50 transition">

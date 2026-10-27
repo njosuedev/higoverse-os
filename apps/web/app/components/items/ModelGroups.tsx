@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Car, ChevronDown, ChevronRight, Pencil, Plus, ShoppingCart } from "lucide-react";
+import { Car, ChevronDown, ChevronRight, Pencil, ShoppingCart } from "lucide-react";
 import { Bone, SkeletonRegion, useSkeleton } from "@/app/components/ui/Skeleton";
 import { itemRequest } from "@/lib/product-api";
 import { useLanguage } from "@/lib/language-context";
@@ -29,14 +29,12 @@ type IdField = "chassis_no" | "plate_no";
  * opening one lists its cars, where a missing chassis or plate number is
  * typed straight in and saved for the whole group at once.
  */
-export default function ModelGroups({ q, status, refreshKey, onAdd, onEdit, onChanged }: {
+export default function ModelGroups({ q, status, refreshKey, onEdit, onChanged }: {
   q: string;
   /** The page's car status filter (GET /products `status`). */
   status: string;
   /** Changes whenever the page reloads, so open groups reload too. */
   refreshKey: number;
-  /** Add one more car of this model (with its own chassis and plate). */
-  onAdd: (name: string) => void;
   onEdit: (car: ModelCar) => void;
   onChanged: () => void;
 }) {
@@ -107,10 +105,6 @@ export default function ModelGroups({ q, status, refreshKey, onAdd, onEdit, onCh
               <span className="shrink-0 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold tabular-nums text-slate-800">
                 {t("models.cars").replace("{n}", String(m.count))}
               </span>
-              <button onClick={() => onAdd(m.name)} title={t("items.add")}
-                className="shrink-0 rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-900 transition">
-                <Plus size={14} />
-              </button>
             </div>
             {isOpen && <ModelCars name={m.name} status={status} refreshKey={refreshKey} onEdit={onEdit} onChanged={onChanged} />}
           </section>
