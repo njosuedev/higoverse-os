@@ -8,8 +8,8 @@ from sqlalchemy.orm import Session
 
 from app.db.database import get_db
 from app.models.expense import Expense, ExpenseCategory
-from app.models.payroll import Attendance, Employee, SalaryAdvance, SalaryPayment
-from app.schemas.payroll import AdvanceIn, AttendanceIn, EmployeeIn, PaymentIn
+from app.models.payroll import Attendance, Employee, SalaryAdvance, SalaryBonus, SalaryPayment
+from app.schemas.payroll import AdvanceIn, AttendanceIn, BonusIn, EmployeeIn, PaymentIn
 from app.core.security import get_current_user
 from app.core.events import emit
 from app.core import doc_code
@@ -114,6 +114,22 @@ def _advance(a: SalaryAdvance) -> dict:
         "given_by_name": a.given_by_name,
         "created_at": a.created_at.isoformat() if a.created_at else None,
         "doc_code": doc_code.make("A", a.shop_id, a.id),
+    }
+
+
+def _bonus(b: SalaryBonus) -> dict:
+    return {
+        "id": b.id,
+        "payment_id": b.payment_id,
+        "employee_id": b.employee_id,
+        "employee_name": b.employee_name,
+        "amount": _money(b.amount),
+        "given_on": b.given_on.isoformat(),
+        "method": b.method,
+        "reference": b.reference,
+        "note": b.note,
+        "given_by_name": b.given_by_name,
+        "created_at": b.created_at.isoformat() if b.created_at else None,
     }
 
 
@@ -224,11 +240,20 @@ def month(period: str, db: Session = Depends(get_db), user: dict = Depends(requi
     for a in _outstanding(db, shop):
         advances.setdefault(a.employee_id, []).append(_advance(a))
     counts = _attendance_counts(db, shop, first, last)
+    bonuses: dict[str, list[dict]] = {}
+    paid_ids = [p.id for p in payments.values()]
+    if paid_ids:
+        for b in (db.query(SalaryBonus).filter(SalaryBonus.shop_id == shop, SalaryBonus.payment_id.in_(paid_ids))
+                  .order_by(SalaryBonus.given_on, SalaryBonus.created_at)):
+            bonuses.setdefault(b.payment_id, []).append(_bonus(b))
     rows = [{"employee": _employee(e), "payment": _payment(payments.pop(e.id)) if e.id in payments else None,
              "advances": advances.get(e.id, []), "attendance": counts.get(e.id, _NO_MARKS),
              "slip_code": _slip_code(shop, e.id, period)} for e in employees]
+    for r in rows:
+        r["bonuses"] = bonuses.get(r["payment"]["id"], []) if r["payment"] else []
     # Paid, though no longer in the list for that month (dates changed since).
-    rows += [{"employee": None, "payment": _payment(p), "advances": [], "slip_code": _slip_code(shop, p.employee_id, period)}
+    rows += [{"employee": None, "payment": _payment(p), "advances": [], "bonuses": bonuses.get(p.id, []),
+              "slip_code": _slip_code(shop, p.employee_id, period)}
              for p in payments.values()]
     paid = [r["payment"] for r in rows if r["payment"]]
     due = [r["employee"] for r in rows if not r["payment"] and r["employee"]]
@@ -243,6 +268,7 @@ def month(period: str, db: Session = Depends(get_db), user: dict = Depends(requi
                 "paid_count": len(paid),
                 "paid_net": sum(p["net"] for p in paid),
                 "paid_gross": sum(p["gross"] for p in paid),
+                "paid_bonus": sum(p["bonus"] for p in paid),
                 "due_count": len(due),
                 "due_gross": sum(e["monthly_salary"] for e in due),
                 "advances_outstanding": sum(a["amount"] for r in rows for a in r["advances"]),
@@ -398,10 +424,89 @@ def undo_payment(payment_id: str, db: Session = Depends(get_db), user: dict = De
         raise HTTPException(status_code=404, detail="Payment not found")
     if p.expense_id:
         db.query(Expense).filter(Expense.id == p.expense_id, Expense.shop_id == user["shop_id"]).delete()
+    # Bonuses added to it go with it, with their expenses.
+    for b in db.query(SalaryBonus).filter(SalaryBonus.shop_id == user["shop_id"], SalaryBonus.payment_id == p.id).all():
+        if b.expense_id:
+            db.query(Expense).filter(Expense.id == b.expense_id, Expense.shop_id == user["shop_id"]).delete()
+        db.delete(b)
     # The advances it deducted are owed again, to come off the next payment.
     db.query(SalaryAdvance).filter(SalaryAdvance.shop_id == user["shop_id"], SalaryAdvance.payment_id == p.id) \
         .update({"payment_id": None})
     db.delete(p)
+    db.commit()
+    return {"success": True}
+
+
+# ─────────────────────────────────────────
+# BONUSES (added to a salary already paid)
+# ─────────────────────────────────────────
+
+@router.post("/payments/{payment_id}/bonuses")
+def add_bonus(payment_id: str, payload: BonusIn, db: Session = Depends(get_db), user: dict = Depends(require_payroll)):
+    """A bonus on top of a salary already paid: its own "salaries" expense on
+    the day it's given, added to the payment's bonus and net (pay slip)."""
+    shop = user["shop_id"]
+    p = (db.query(SalaryPayment).filter(SalaryPayment.id == payment_id, SalaryPayment.shop_id == shop)
+         .with_for_update().first())
+    if not p:
+        raise HTTPException(status_code=404, detail="Payment not found")
+    if payload.given_on > _today():
+        raise HTTPException(status_code=400, detail="The date can't be in the future.")
+    if (p.bonus or 0) + payload.amount > Decimal("1000000000"):
+        raise HTTPException(status_code=400, detail="That bonus is too large.")
+    expense = Expense(
+        shop_id=shop,
+        created_by=user.get("user_id") or "",
+        title=f"Bonus {_period_label(p.period)}: {p.employee_name}",
+        category=ExpenseCategory.salaries,
+        amount=payload.amount,
+        notes="; ".join(x for x in [
+            p.position, payload.note, f"Ref {payload.reference}" if payload.reference else None,
+        ] if x) or None,
+        expense_date=datetime.combine(payload.given_on, time(12, 0), tzinfo=timezone.utc),
+        payment_method=payload.method,
+    )
+    db.add(expense)
+    db.flush()
+    b = SalaryBonus(
+        shop_id=shop,
+        payment_id=p.id,
+        employee_id=p.employee_id,
+        employee_name=p.employee_name,
+        amount=payload.amount,
+        given_on=payload.given_on,
+        method=payload.method,
+        reference=payload.reference,
+        note=payload.note,
+        expense_id=expense.id,
+        given_by=user.get("user_id"),
+        given_by_name=user.get("name") or user.get("email"),
+    )
+    db.add(b)
+    p.bonus = (p.bonus or 0) + payload.amount
+    p.net = p.net + payload.amount
+    emit(db, user, "expense.created", {"id": expense.id, "title": expense.title, "amount": float(payload.amount), "category": "salaries"}, financial=True)
+    db.commit()
+    db.refresh(p)
+    db.refresh(b)
+    return {"success": True, "data": {"bonus": _bonus(b), "payment": _payment(p)}}
+
+
+@router.delete("/bonuses/{bonus_id}")
+def remove_bonus(bonus_id: str, db: Session = Depends(get_db), user: dict = Depends(require_payroll)):
+    """Takes back a bonus recorded by mistake, with the expense it added."""
+    shop = user["shop_id"]
+    b = db.query(SalaryBonus).filter(SalaryBonus.id == bonus_id, SalaryBonus.shop_id == shop).first()
+    if not b:
+        raise HTTPException(status_code=404, detail="Bonus not found")
+    p = (db.query(SalaryPayment).filter(SalaryPayment.id == b.payment_id, SalaryPayment.shop_id == shop)
+         .with_for_update().first())
+    if p:
+        p.bonus = max((p.bonus or 0) - b.amount, Decimal("0"))
+        p.net = max(p.net - b.amount, Decimal("0"))
+    if b.expense_id:
+        db.query(Expense).filter(Expense.id == b.expense_id, Expense.shop_id == shop).delete()
+    db.delete(b)
     db.commit()
     return {"success": True}
 

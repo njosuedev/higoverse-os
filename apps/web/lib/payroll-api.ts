@@ -100,6 +100,8 @@ export interface AttendanceCounts { present: number; absent: number; late: numbe
  *  month's marks (shown beside the salary, never deducted by themselves). */
 export interface MonthRow {
   employee: Employee | null; payment: SalaryPayment | null; advances: SalaryAdvance[]; attendance?: AttendanceCounts;
+  /** Bonuses added after the salary was paid (already in the payment's bonus and net). */
+  bonuses?: SalaryBonus[];
   /** The pay slip's QR code, paid or not. */
   slip_code?: string;
 }
@@ -112,6 +114,8 @@ export interface Month {
   totals: {
     employees: number; paid_count: number; paid_net: number; paid_gross: number; due_count: number; due_gross: number;
     advances_outstanding: number;
+    /** Bonuses in the salaries paid (at payment and added later). */
+    paid_bonus?: number;
   };
 }
 
@@ -144,6 +148,17 @@ export const undoPayment = async (id: string) => expenseRequest(`/payroll/paymen
 export const giveAdvance = async (a: AdvanceInput): Promise<SalaryAdvance> =>
   (await expenseRequest("/payroll/advances", { method: "POST", body: JSON.stringify(a) }))?.data;
 export const removeAdvance = async (id: string) => expenseRequest(`/payroll/advances/${id}`, { method: "DELETE" });
+
+/** A bonus added to a salary already paid: its own expense, and in the pay slip. */
+export interface SalaryBonus {
+  id: string; payment_id: string; employee_id: string; employee_name: string;
+  amount: number; given_on: string; method: PayMethod; reference: string | null; note: string | null;
+  given_by_name: string | null; created_at: string | null;
+}
+export interface BonusInput { amount: number; given_on: string; method: PayMethod; reference: string | null; note: string | null }
+export const addBonus = async (paymentId: string, b: BonusInput): Promise<{ bonus: SalaryBonus; payment: SalaryPayment }> =>
+  (await expenseRequest(`/payroll/payments/${paymentId}/bonuses`, { method: "POST", body: JSON.stringify(b) }))?.data;
+export const removeBonus = async (id: string) => expenseRequest(`/payroll/bonuses/${id}`, { method: "DELETE" });
 
 // ── Attendance: each day, who came (present / absent / late / on leave) ──
 export const ATTENDANCE = ["present", "absent", "late", "leave", "sick"] as const;

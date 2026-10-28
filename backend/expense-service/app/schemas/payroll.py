@@ -108,6 +108,28 @@ class AdvanceIn(BaseModel):
         return _clean(v)
 
 
+
+class BonusIn(BaseModel):
+    """A bonus added to a salary already paid."""
+    amount:    Decimal = Field(..., gt=0, le=Decimal("1000000000"))
+    given_on:  date
+    method:    str
+    reference: str | None = Field(None, max_length=100)
+    note:      str | None = Field(None, max_length=255)
+
+    @field_validator("method")
+    @classmethod
+    def valid_method(cls, v: str) -> str:
+        if v not in PAY_METHODS:
+            raise ValueError(f"method must be one of: {', '.join(sorted(PAY_METHODS))}")
+        return v
+
+    @field_validator("reference", "note")
+    @classmethod
+    def tidy(cls, v: str | None) -> str | None:
+        return _clean(v)
+
+
 ATTENDANCE = {"present", "absent", "late", "leave", "sick"}
 
 

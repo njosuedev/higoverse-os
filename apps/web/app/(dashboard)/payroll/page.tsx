@@ -2,7 +2,7 @@
 
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ChevronLeft, ChevronRight, HandCoins, Pencil, Plus, Printer, Trash2, Undo2, Users, Wallet, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Gift, HandCoins, Pencil, Plus, Printer, Search, Trash2, Undo2, Users, Wallet, X } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { useLanguage } from "@/lib/language-context";
 import { askConfirm, notify } from "@/lib/dialogs";
@@ -11,9 +11,9 @@ import { decodeShopHumanInfo, formatPublicAddress } from "@/lib/product-meta";
 import { prettyPhone, shopTin } from "@/lib/company";
 import type { PrintShop } from "@/lib/proforma-print";
 import {
-  PAY_METHODS, PAYROLL_ROLES, addEmployee, deleteEmployee, getMonth, giveAdvance, listEmployees, payrollError, periodOf, recordPayment,
-  removeAdvance, shiftPeriod, undoPayment, updateEmployee,
-  type Employee, type EmployeeInput, type Month, type PayMethod, type SalaryAdvance, type SalaryPayment,
+  PAY_METHODS, PAYROLL_ROLES, addBonus, addEmployee, deleteEmployee, getMonth, giveAdvance, listEmployees, payrollError, periodOf, recordPayment,
+  removeAdvance, removeBonus, shiftPeriod, undoPayment, updateEmployee,
+  type Employee, type EmployeeInput, type Month, type PayMethod, type SalaryAdvance, type SalaryBonus, type SalaryPayment,
 } from "@/lib/payroll-api";
 import { advanceReceiptHtml, monthLabel, payrollSheetHtml, salaryLettersHtml } from "@/lib/payroll-print";
 import { printHtml } from "@/lib/print-frame";
@@ -40,6 +40,9 @@ export default function PayrollPage() {
   const [editing, setEditing] = useState<Employee | "new" | null>(null);
   const [paying, setPaying] = useState<{ employee: Employee; advances: SalaryAdvance[] } | null>(null);
   const [advancing, setAdvancing] = useState<{ employee: Employee; owed: number } | null>(null);
+  const [bonusing, setBonusing] = useState<SalaryPayment | null>(null);
+  // Narrows the month's list by name or position.
+  const [query, setQuery] = useState("");
   const skeleton = useSkeleton((tab === "month" ? month : employees) === null && !failed);
 
   // Loads the month and the list; bumping `reloads` loads them again.
@@ -129,6 +132,18 @@ export default function PayrollPage() {
     catch (err) { notify(payrollError(err) || t("common.error")); }
   }
 
+  async function takeBackBonus(b: SalaryBonus) {
+    if (!(await askConfirm({ message: t("payroll.confirm_remove_bonus").replace("{name}", b.employee_name), danger: true }))) return;
+    try { await removeBonus(b.id); notify(t("payroll.bonus_removed"), "success"); load(); }
+    catch (err) { notify(payrollError(err) || t("common.error")); }
+  }
+
+  // Right after a bonus: the updated pay slip to sign is one click away.
+  async function bonusPrompt(p: SalaryPayment) {
+    notify(t("payroll.bonus_ok").replace("{name}", p.employee_name), "success");
+    if (await askConfirm({ message: t("payroll.print_now"), confirmLabel: t("payroll.print_letter") })) printLetters([p]);
+  }
+
   async function remove(e: Employee) {
     if (!(await askConfirm({ message: t("payroll.confirm_delete").replace("{name}", e.full_name), danger: true }))) return;
     try { await deleteEmployee(e.id); load(); }
@@ -145,6 +160,9 @@ export default function PayrollPage() {
   }
 
   const totals = month?.totals;
+  const q = query.trim().toLowerCase();
+  const shownRows = (month?.rows ?? []).filter((r) => !q
+    || [r.payment?.employee_name ?? r.employee?.full_name, r.payment?.position ?? r.employee?.position].some((v) => v?.toLowerCase().includes(q)));
   return (
     <div className="min-h-screen">
       <main className="mx-auto max-w-6xl space-y-3 px-3 py-3 sm:px-5">
@@ -177,19 +195,32 @@ export default function PayrollPage() {
 
         {tab === "month" ? (
           <>
-            {/* Month and its totals */}
-            <section className="flex flex-wrap items-center gap-3 rounded-data border border-border bg-white p-3">
-              <div className="flex items-center gap-1">
-                <button onClick={() => changeMonth(-1)} aria-label={t("payroll.prev_month")} className="rounded-press p-1.5 text-text-muted hover:bg-paper-dim hover:text-text"><ChevronLeft size={18} /></button>
-                <span className="min-w-[150px] text-center font-display text-base font-semibold capitalize text-text">{monthLabel(period, lang)}</span>
-                <button onClick={() => changeMonth(1)} aria-label={t("payroll.next_month")} className="rounded-press p-1.5 text-text-muted hover:bg-paper-dim hover:text-text"><ChevronRight size={18} /></button>
-              </div>
-              <div className="flex flex-1 flex-wrap gap-x-6 gap-y-1 text-sm">
-                <span className="text-text-muted">{t("payroll.paid")}: <b className="hgv-figure text-success">{totals ? `${totals.paid_count} · ${fmt(totals.paid_net)} RWF` : "–"}</b></span>
-                <span className="text-text-muted">{t("payroll.to_pay")}: <b className={`hgv-figure ${totals?.due_count ? "text-warning" : "text-text"}`}>{totals ? `${totals.due_count} · ${fmt(totals.due_gross)} RWF` : "–"}</b></span>
-                {!!totals?.advances_outstanding && (
-                  <span className="text-text-muted">{t("payroll.advances_out")}: <b className="hgv-figure text-text">{fmt(totals.advances_outstanding)} RWF</b></span>
+            {/* The month, and where its payroll stands */}
+            <section className="rounded-data border border-border bg-white">
+              <div className="flex flex-wrap items-center gap-2 border-b border-border px-3 py-2">
+                <div className="flex items-center gap-1">
+                  <button onClick={() => changeMonth(-1)} aria-label={t("payroll.prev_month")} className="rounded-press p-1.5 text-text-muted hover:bg-paper-dim hover:text-text"><ChevronLeft size={18} /></button>
+                  <span className="min-w-[150px] text-center font-display text-base font-semibold capitalize text-text">{monthLabel(period, lang)}</span>
+                  <button onClick={() => changeMonth(1)} aria-label={t("payroll.next_month")} className="rounded-press p-1.5 text-text-muted hover:bg-paper-dim hover:text-text"><ChevronRight size={18} /></button>
+                </div>
+                {period !== periodOf(new Date()) && (
+                  <button onClick={() => { setMonth(null); setPicked(new Set()); setPeriod(periodOf(new Date())); }}
+                    className="rounded-press border border-border px-2.5 py-1 text-xs font-semibold text-text-muted hover:bg-paper-dim hover:text-text">
+                    {t("payroll.this_month")}
+                  </button>
                 )}
+              </div>
+              {/* 1px gaps over the border colour draw the lines between tiles */}
+              <div className="grid grid-cols-2 gap-px overflow-hidden rounded-b-data bg-border lg:grid-cols-4">
+                <Tile label={t("payroll.tile_total")} value={totals ? fmt(totals.paid_net + totals.due_gross) : "–"}
+                  sub={totals ? t("payroll.people_n").replace("{n}", String(totals.employees)) : ""} />
+                <Tile label={t("payroll.paid")} value={totals ? fmt(totals.paid_net) : "–"} tone="success"
+                  sub={totals ? t("payroll.paid_of").replace("{paid}", String(totals.paid_count)).replace("{n}", String(totals.employees)) : ""}
+                  progress={totals && totals.employees ? totals.paid_count / totals.employees : undefined} />
+                <Tile label={t("payroll.to_pay")} value={totals ? fmt(totals.due_gross) : "–"} tone={totals?.due_count ? "warning" : undefined}
+                  sub={totals ? t("payroll.people_n").replace("{n}", String(totals.due_count)) : ""} />
+                <Tile label={t("payroll.tile_bonuses")} value={totals ? fmt(totals.paid_bonus ?? 0) : "–"}
+                  sub={totals?.advances_outstanding ? `${t("payroll.advances_out")}: ${fmt(totals.advances_outstanding)}` : "RWF"} />
               </div>
             </section>
 
@@ -199,10 +230,11 @@ export default function PayrollPage() {
               <section className="hgv-fade-in overflow-hidden rounded-data border border-border bg-white">
                 {/* Every pay slip of the month at once (one A4 page each), and the month's sheet */}
                 <div className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-2.5">
-                  <p className="mr-auto text-sm text-text-muted">
-                    {t("payroll.table_count").replace("{n}", String(month.rows.length))}
-                    {totals && totals.due_count > 0 && <span className="text-warning"> · {t("payroll.not_paid_yet").replace("{n}", String(totals.due_count))}</span>}
-                  </p>
+                  <label className="relative mr-auto w-full sm:w-64">
+                    <Search size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-text-faint" aria-hidden="true" />
+                    <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t("payroll.search")} aria-label={t("payroll.search")}
+                      className="w-full rounded-press border border-border bg-white py-1.5 pl-8 pr-2 text-sm text-text placeholder:text-text-faint focus:border-ink focus:outline-none focus:ring-2 focus:ring-ink/20" />
+                  </label>
                   <button onClick={() => openPrint(payrollSheetHtml(period, paid, shop, t, lang, { autoPrint: true, qr: printPrefs.showQr, code: month?.doc_code }))} disabled={paid.length === 0}
                     className="flex items-center gap-1.5 rounded-press border border-border px-3 py-1.5 text-sm font-semibold text-text hover:bg-paper-dim disabled:opacity-40">
                     <Printer size={14} /> {t("payroll.print_sheet")}
@@ -246,10 +278,14 @@ export default function PayrollPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {month.rows.map((r, i) => {
+                      {shownRows.length === 0 && (
+                        <tr><td colSpan={10} className="px-3 py-10 text-center text-sm text-text-muted">{t("payroll.no_match")}</td></tr>
+                      )}
+                      {shownRows.map((r, i) => {
                         const e = r.employee, p = r.payment;
                         const name = p?.employee_name ?? e?.full_name ?? "";
                         const advances = r.advances ?? [];
+                        const bonuses = r.bonuses ?? [];
                         const owed = advances.reduce((sum, a) => sum + a.amount, 0);
                         const extras = p ? (p.bonus || 0) + (p.accommodation || 0) + (p.overtime_amount || 0) : 0;
                         const att = r.attendance;
@@ -268,7 +304,14 @@ export default function PayrollPage() {
                                 <p className="text-xs text-text-muted">{p?.position ?? e?.position ?? ""}</p>
                               </td>
                               <td className="hgv-figure px-3 py-2.5 text-right">{fmt(p?.gross ?? e?.monthly_salary ?? 0)}</td>
-                              <td className="hgv-figure px-3 py-2.5 text-right">{extras ? `+${fmt(extras)}` : "-"}</td>
+                              <td className="hgv-figure px-3 py-2.5 text-right"
+                                title={p && extras ? [
+                                  p.bonus ? `${t("payroll.bonus")}: ${fmt(p.bonus)}` : "",
+                                  p.accommodation ? `${t("payroll.accommodation")}: ${fmt(p.accommodation)}` : "",
+                                  p.overtime_amount ? `${t("payroll.overtime_amount")}: ${fmt(p.overtime_amount)}` : "",
+                                ].filter(Boolean).join("\n") : undefined}>
+                                {extras ? <span className="text-success">+{fmt(extras)}</span> : "-"}
+                              </td>
                               <td className="hgv-figure px-3 py-2.5 text-right">
                                 {p ? (p.deductions ? `-${fmt(p.deductions)}` : "-") : owed ? <span className="text-text-muted">-{fmt(owed)}</span> : "-"}
                               </td>
@@ -286,9 +329,12 @@ export default function PayrollPage() {
                               </td>
                               <td className="px-3 py-2.5">
                                 {p ? (
-                                  <span className="whitespace-nowrap rounded-full bg-success/10 px-2.5 py-1 text-xs font-semibold text-success" title={`${p.paid_on} · ${t(`payroll.method_${p.method}`)}`}>
-                                    {t("payroll.status_paid")}
-                                  </span>
+                                  <div>
+                                    <span className="whitespace-nowrap rounded-full bg-success/10 px-2.5 py-1 text-xs font-semibold text-success">
+                                      {t("payroll.status_paid")}
+                                    </span>
+                                    <p className="mt-1.5 whitespace-nowrap text-[11px] text-text-faint">{p.paid_on} · {t(`payroll.method_${p.method}`)}</p>
+                                  </div>
                                 ) : (
                                   <span className="whitespace-nowrap rounded-full bg-warning/10 px-2.5 py-1 text-xs font-semibold text-warning">{t("payroll.status_due")}</span>
                                 )}
@@ -299,6 +345,10 @@ export default function PayrollPage() {
                                     <button onClick={() => printLetters([p])} title={t("payroll.print_letter")}
                                       className="flex items-center gap-1.5 whitespace-nowrap rounded-press border border-border px-2.5 py-1.5 text-xs font-semibold text-text hover:bg-paper-dim">
                                       <Printer size={13} /> {t("payroll.print_letter")}
+                                    </button>
+                                    <button onClick={() => setBonusing(p)} title={t("payroll.add_bonus")}
+                                      className="flex items-center gap-1.5 whitespace-nowrap rounded-press border border-success/40 px-2.5 py-1.5 text-xs font-semibold text-success hover:bg-success/10">
+                                      <Gift size={13} /> {t("payroll.bonus")}
                                     </button>
                                     <button onClick={() => undo(p)} title={t("payroll.undo")} aria-label={t("payroll.undo")}
                                       className="rounded-press p-1.5 text-text-muted hover:bg-paper-dim hover:text-accent-dark"><Undo2 size={15} /></button>
@@ -319,6 +369,25 @@ export default function PayrollPage() {
                                 </div>
                               </td>
                             </tr>
+                            {/* Bonuses added after paying, under their person */}
+                            {bonuses.length > 0 && (
+                              <tr className="border-b border-border">
+                                <td colSpan={10} className="px-3 pb-2.5 pt-0">
+                                  <ul className="ml-8 space-y-1 border-l-2 border-success/40 pl-3">
+                                    {bonuses.map((b) => (
+                                      <li key={b.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-text-muted">
+                                        <span className="font-semibold text-success"><Gift size={12} className="mr-1 inline align-[-1px]" />{t("payroll.bonus")} · <span className="hgv-figure">+{fmt(b.amount)} RWF</span></span>
+                                        <span>{b.given_on} · {t(`payroll.method_${b.method}`)}{b.note ? ` · ${b.note}` : ""}{b.given_by_name ? ` · ${b.given_by_name}` : ""}</span>
+                                        <span className="ml-auto">
+                                          <button onClick={() => takeBackBonus(b)} title={t("payroll.remove_bonus")} aria-label={t("payroll.remove_bonus")}
+                                            className="rounded-press p-1 text-text-muted hover:bg-paper-dim hover:text-accent-dark"><Trash2 size={13} /></button>
+                                        </span>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </td>
+                              </tr>
+                            )}
                             {/* Advances given and still to deduct, under their person */}
                             {advances.length > 0 && (
                               <tr className="border-b border-border">
@@ -408,6 +477,10 @@ export default function PayrollPage() {
             if (await askConfirm({ message: t("payroll.print_now_many").replace("{n}", String(done.length)), confirmLabel: t("payroll.print_all_slips").replace("{n}", String(done.length)) })) printLetters(done);
           }} />
       )}
+      {bonusing && (
+        <BonusForm payment={bonusing} onClose={() => setBonusing(null)}
+          onAdded={(p) => { setBonusing(null); load(); bonusPrompt(p); }} />
+      )}
       {advancing && (
         <AdvanceForm employee={advancing.employee} owed={advancing.owed} onClose={() => setAdvancing(null)}
           onGiven={(a) => { setAdvancing(null); load(); advancePrompt(a); }} />
@@ -415,6 +488,25 @@ export default function PayrollPage() {
     </div>
   );
 
+}
+
+/** One figure of the month's summary (RWF), with a line under it. */
+function Tile({ label, value, sub, tone, progress }: {
+  label: string; value: string; sub: string; tone?: "success" | "warning"; progress?: number;
+}) {
+  const color = tone === "success" ? "text-success" : tone === "warning" ? "text-warning" : "text-text";
+  return (
+    <div className="bg-white px-4 py-3">
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-text-muted">{label}</p>
+      <p className={`hgv-figure mt-1 text-xl font-bold ${color}`}>{value}</p>
+      {progress !== undefined && (
+        <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-paper-dim" aria-hidden="true">
+          <div className="h-full rounded-full bg-success transition-[width]" style={{ width: `${Math.round(progress * 100)}%` }} />
+        </div>
+      )}
+      <p className="mt-1 truncate text-xs text-text-muted">{sub}</p>
+    </div>
+  );
 }
 
 function Empty({ text, action, onAction }: { text: string; action: string; onAction: () => void }) {
@@ -653,9 +745,12 @@ function PayManyForm({ people, period, onClose, onDone }: {
   const [method, setMethod] = useState<PayMethod>("bank");
   const [reference, setReference] = useState("");
   const [saving, setSaving] = useState<number | null>(null);   // how many are done while saving
+  // Each person's bonus this month, typed beside their name (optional).
+  const [bonuses, setBonuses] = useState<Record<string, string>>({});
   const lines = people.map(({ employee, advances }) => {
     const advanced = advances.filter((a) => a.given_on <= paidOn).reduce((sum, a) => sum + a.amount, 0);
-    return { employee, advanced, net: employee.monthly_salary - advanced };
+    const bonus = Number((bonuses[employee.id] ?? "").replace(/,/g, "")) || 0;
+    return { employee, advanced, bonus, net: employee.monthly_salary + bonus - advanced };
   });
   const total = lines.reduce((sum, l) => sum + Math.max(0, l.net), 0);
 
@@ -666,7 +761,7 @@ function PayManyForm({ people, period, onClose, onDone }: {
     for (const l of lines) {
       try {
         done.push(await recordPayment({
-          employee_id: l.employee.id, period, gross: l.employee.monthly_salary, bonus: 0, accommodation: 0, overtime_hours: 0, overtime_amount: 0,
+          employee_id: l.employee.id, period, gross: l.employee.monthly_salary, bonus: l.bonus, accommodation: 0, overtime_hours: 0, overtime_amount: 0,
           deductions: 0, deduction_note: null, paid_on: paidOn, method, reference: reference.trim() || null,
         }));
       } catch (err) {
@@ -687,11 +782,24 @@ function PayManyForm({ people, period, onClose, onDone }: {
         </button>
       </>}>
       <div className="overflow-hidden rounded-lg border border-border">
+        <div className="flex items-center gap-3 border-b border-border bg-paper-dim/60 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-text-muted">
+          <span className="flex-1">{t("payroll.col_employee")}</span>
+          <span className="w-24 text-right">{t("payroll.bonus")}</span>
+          <span className="w-28 text-right">{t("payroll.col_net")}</span>
+        </div>
         {lines.map((l) => (
           <div key={l.employee.id} className="flex items-center gap-3 border-b border-border px-3 py-2 text-sm last:border-0">
-            <span className="min-w-0 flex-1 truncate font-semibold text-text">{l.employee.full_name}</span>
-            {l.advanced > 0 && <span className="text-xs text-text-muted">{t("payroll.advance")} -{fmt(l.advanced)}</span>}
-            <span className="hgv-figure font-semibold text-text">{fmt(l.net)} RWF</span>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate font-semibold text-text">{l.employee.full_name}</span>
+              <span className="block text-xs text-text-muted">
+                {fmt(l.employee.monthly_salary)}{l.advanced > 0 && ` · ${t("payroll.advance")} -${fmt(l.advanced)}`}
+              </span>
+            </span>
+            <input value={bonuses[l.employee.id] ?? ""} inputMode="numeric" placeholder="0" disabled={saving !== null}
+              onChange={(e) => setBonuses((b) => ({ ...b, [l.employee.id]: e.target.value }))}
+              aria-label={`${t("payroll.bonus")} · ${l.employee.full_name}`}
+              className="w-24 rounded-lg border border-border bg-white px-2 py-1 text-right text-sm tabular-nums text-text placeholder:text-text-faint focus:border-ink focus:outline-none focus:ring-2 focus:ring-ink/20" />
+            <span className="hgv-figure w-28 text-right font-semibold text-text">{fmt(l.net)} RWF</span>
           </div>
         ))}
       </div>
@@ -715,6 +823,67 @@ function PayManyForm({ people, period, onClose, onDone }: {
         </div>
       </div>
       <p className="text-xs text-text-faint">{t("payroll.mark_paid_hint")}</p>
+    </Modal>
+  );
+}
+
+/** A bonus on top of a salary already paid: its own expense on the day it's
+ *  given, and added to the pay slip. */
+function BonusForm({ payment, onClose, onAdded }: {
+  payment: SalaryPayment; onClose: () => void; onAdded: (p: SalaryPayment) => void;
+}) {
+  const { t, lang } = useLanguage();
+  const [amount, setAmount] = useState("");
+  const [givenOn, setGivenOn] = useState(today());
+  const [method, setMethod] = useState<PayMethod>(payment.method);
+  const [reference, setReference] = useState("");
+  const [note, setNote] = useState("");
+  const [saving, setSaving] = useState(false);
+  const a = Number(amount.replace(/,/g, "")) || 0;
+
+  async function save() {
+    if (!(a > 0)) { notify(t("payroll.err_amount")); return; }
+    try {
+      setSaving(true);
+      const res = await addBonus(payment.id, {
+        amount: a, given_on: givenOn, method, reference: reference.trim() || null, note: note.trim() || null,
+      });
+      onAdded(res.payment);
+    } catch (err) { notify(payrollError(err) || t("common.error")); }
+    finally { setSaving(false); }
+  }
+
+  return (
+    <Modal title={t("payroll.bonus_title").replace("{name}", payment.employee_name)} subtitle={monthLabel(payment.period, lang)} onClose={onClose}
+      footer={<>
+        <button onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-text-muted hover:bg-paper-dim">{t("common.cancel")}</button>
+        <button onClick={save} disabled={saving || !(a > 0)} className="flex items-center gap-1.5 rounded-lg bg-success px-5 py-2 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-60">
+          <Gift size={15} /> {saving ? t("common.saving") : t("payroll.add_bonus")}
+        </button>
+      </>}>
+      <dl className="grid grid-cols-3 gap-2 rounded-lg bg-paper-dim px-3 py-2.5 text-sm">
+        <div><dt className="text-xs text-text-muted">{t("payroll.net")}</dt><dd className="hgv-figure font-semibold text-text">{fmt(payment.net)}</dd></div>
+        <div><dt className="text-xs text-text-muted">{t("payroll.bonus")}</dt><dd className="hgv-figure font-semibold text-success">+{fmt(a)}</dd></div>
+        <div><dt className="text-xs text-text-muted">{t("payroll.new_net")}</dt><dd className="hgv-figure font-bold text-text">{fmt(payment.net + a)}</dd></div>
+      </dl>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field label={t("payroll.bonus_amount")}><input className={`${inputCls} tabular-nums`} inputMode="numeric" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0" autoFocus /></Field>
+        <Field label={t("payroll.bonus_date")}><input type="date" className={inputCls} value={givenOn} max={today()} onChange={(e) => setGivenOn(e.target.value)} /></Field>
+      </div>
+      <Field label={t("payroll.bonus_reason")} optional><input className={inputCls} value={note} onChange={(e) => setNote(e.target.value)} placeholder={t("payroll.bonus_reason_hint")} /></Field>
+      <div>
+        <span className="mb-1 block text-xs font-medium text-text-muted">{t("payroll.method")} <span className="text-accent">*</span></span>
+        <div className="flex flex-wrap gap-1.5">
+          {PAY_METHODS.map((m) => (
+            <button key={m} type="button" onClick={() => setMethod(m)} aria-pressed={method === m}
+              className={`rounded-full border px-3 py-1.5 text-sm font-medium transition-colors ${method === m ? "border-ink bg-ink-soft text-ink" : "border-border text-text-muted hover:border-border-strong"}`}>
+              {t(`payroll.method_${m}`)}
+            </button>
+          ))}
+        </div>
+      </div>
+      <Field label={t("payroll.reference")} optional><input className={inputCls} value={reference} onChange={(e) => setReference(e.target.value)} /></Field>
+      <p className="text-xs text-text-faint">{t("payroll.bonus_hint")}</p>
     </Modal>
   );
 }

@@ -128,3 +128,28 @@ class Attendance(Base):
     marked_by      = Column(String, nullable=True)
     marked_by_name = Column(String(150), nullable=True)
     updated_at     = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+
+class SalaryBonus(Base):
+    """A bonus added to a salary already paid (e.g. at the end of the month).
+    It is its own "salaries" expense on the day it's given, and is added to
+    the payment's bonus and net, so the pay slip and the payroll sheet show
+    it. Undoing the payment takes its bonuses back too."""
+    __tablename__ = "payroll_bonuses"
+
+    id               = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    shop_id          = Column(String, index=True, nullable=False)
+    payment_id       = Column(String, index=True, nullable=False)
+    employee_id      = Column(String, index=True, nullable=False)
+    employee_name    = Column(String(150), nullable=False)
+
+    amount           = Column(Numeric(12, 2), nullable=False)
+    given_on         = Column(Date, nullable=False)
+    method           = Column(String(20), nullable=False)        # cash | mtn | airtel | bank
+    reference        = Column(String(100), nullable=True)
+    note             = Column(String(255), nullable=True)        # what it's for
+
+    expense_id       = Column(String, nullable=True)             # the "salaries" expense it added
+    given_by         = Column(String, nullable=True)
+    given_by_name    = Column(String(150), nullable=True)
+    created_at       = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
