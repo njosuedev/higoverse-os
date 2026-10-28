@@ -42,6 +42,9 @@ class _Grouped extends TextInputFormatter {
   }
 }
 
+/// Groups digits as they're typed, for amount fields outside this file.
+TextInputFormatter groupedDigits() => _Grouped();
+
 String _amountText(num? v) => v == null || v <= 0 ? '' : groupDigits(v.round());
 
 void _say(BuildContext context, String text) =>

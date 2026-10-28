@@ -13,6 +13,7 @@ import '../updates/update_controller.dart';
 import '../widgets.dart';
 import 'activity_screen.dart';
 import 'expenses_screen.dart';
+import 'payroll_screen.dart';
 import 'team_screen.dart';
 import '../live/scoped_route.dart';
 
@@ -128,6 +129,15 @@ class MoreScreen extends StatelessWidget {
                 subtitle: Text(t('exp.menu_sub')),
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () => openExpenses(context),
+              ),
+              // Same roles as Expenses (expense-service PAYROLL_ROLES).
+              const Divider(indent: 16, endIndent: 16),
+              ListTile(
+                leading: const Icon(Icons.badge_outlined),
+                title: Text(t('pr.title')),
+                subtitle: Text(t('pr.menu_sub')),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => openPayroll(context),
               ),
             ],
           ]),
