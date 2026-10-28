@@ -73,6 +73,8 @@ def on_startup():
             conn.execute(text("ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS id_number VARCHAR"))
             for col, kind in (("tin", "VARCHAR(9)"), ("company", "VARCHAR"), ("country", "VARCHAR")):
                 conn.execute(text(f"ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS {col} {kind}"))
+            # No default: rows made before keep an empty date (nothing rewritten).
+            conn.execute(text("ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS created_at TIMESTAMP"))
             conn.commit()
     except Exception:
         pass

@@ -43,6 +43,8 @@ export async function partnerRequest(
 export interface Customer {
   id: string; name: string; phone?: string | null; address?: string | null; id_number?: string | null;
   email?: string | null; tin?: string | null; company?: string | null; country?: string | null;
+  /** When it was added; the API lists customers newest first. */
+  created_at?: string | null;
 }
 
 /** Customers saved in the Customers section (suppliers carry a TIN in their

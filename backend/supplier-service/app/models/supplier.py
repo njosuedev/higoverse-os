@@ -1,4 +1,6 @@
-from sqlalchemy import Column, String
+from datetime import datetime, timezone
+
+from sqlalchemy import Column, DateTime, String
 from uuid import uuid4
 
 from app.db.database import Base
@@ -30,3 +32,7 @@ class Supplier(Base):
     tin = Column(String(9))
     company = Column(String)
     country = Column(String)
+
+    # When it was added (newest first in pickers). Empty on records made
+    # before this column existed.
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))

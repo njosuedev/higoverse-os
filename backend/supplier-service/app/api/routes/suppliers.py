@@ -115,6 +115,8 @@ def get_suppliers(
         .filter(
             Supplier.shop_id == current_user["shop_id"]
         )
+        # Newest first; ones made before dates were kept follow, A to Z.
+        .order_by(Supplier.created_at.desc().nullslast(), Supplier.name)
         .all()
     )
 
@@ -131,7 +133,8 @@ def get_suppliers(
                 "id_number": supplier.id_number,
                 "tin": supplier.tin,
                 "company": supplier.company,
-                "country": supplier.country
+                "country": supplier.country,
+                "created_at": supplier.created_at.isoformat() if supplier.created_at else None,
             }
             for supplier in suppliers
         ]

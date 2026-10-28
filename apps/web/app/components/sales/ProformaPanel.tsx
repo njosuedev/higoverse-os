@@ -14,6 +14,7 @@ import Link from "next/link";
 import { CAR_TYPES, carTypeLabel, parseAttributes, parseDeposits } from "@/lib/business-layout";
 import { itemRequest } from "@/lib/product-api";
 import ProductPicker, { type PickerProduct } from "@/app/components/ui/ProductPicker";
+import CustomerPicker from "@/app/components/ui/CustomerPicker";
 import DepositForm from "@/app/components/sales/DepositForm";
 import { proformaPrintHtml } from "@/lib/proforma-print";
 import {
@@ -235,6 +236,13 @@ export default function ProformaPanel({ onSold, startNew = false }: {
       }
       if (cust.status === "fulfilled") setCustomers(cust.value as Cust[]);
     });
+  }, []);
+  // A customer added in Customers (opened in another tab) is in the list on
+  // coming back, at the top.
+  useEffect(() => {
+    const refresh = () => { if (document.visibilityState === "visible") loadCustomers().then((c) => setCustomers(c as Cust[])).catch(() => {}); };
+    document.addEventListener("visibilitychange", refresh);
+    return () => document.removeEventListener("visibilitychange", refresh);
   }, []);
 
   const loadList = useCallback(async () => {
@@ -660,12 +668,10 @@ export default function ProformaPanel({ onSold, startNew = false }: {
                 <label className={label}>{t("proforma.pick_customer")}{isCar && " *"}</label>
                 <Link href="/partners" target="_blank" className="text-[11px] font-semibold text-blue-600 hover:underline mb-1">{t("proforma.edit_in_customers")}</Link>
               </div>
-              <select className={cls("customer")} aria-invalid={!!bad("customer")} value={form.customer_id ?? ""} onChange={(e) => pickCustomer(e.target.value)}>
-                <option value="">{isCar ? t("proforma.choose_customer") : t("proforma.new_customer_typed")}</option>
-                {[...customers].sort((a, b) => a.name.localeCompare(b.name)).map((c) => (
-                  <option key={c.id} value={c.id}>{c.name}{c.phone ? ` · ${c.phone}` : ""}</option>
-                ))}
-              </select>
+              {/* Newest customers first, as the API lists them; searchable. */}
+              <CustomerPicker customers={customers} value={form.customer_id} onChange={pickCustomer} invalid={!!bad("customer")}
+                placeholder={isCar ? t("proforma.choose_customer") : t("proforma.new_customer_typed")}
+                clearLabel={isCar ? undefined : t("proforma.new_customer_typed")} />
               {msg("customer")}
             </div>
             {form.customer_id || isCar ? (
@@ -973,7 +979,7 @@ function SellDialog({ p, customers, isCar, onClose, onDone, onCustomers }: {
           }),
         });
         cid = res?.data?.id ?? "";
-        if (cid) onCustomers([...customers, res.data]);
+        if (cid) onCustomers([res.data, ...customers]);
       }
       const done = await sellProforma(p.id, {
         payment_method: method,
@@ -1019,7 +1025,7 @@ function SellDialog({ p, customers, isCar, onClose, onDone, onCustomers }: {
             <select value={customerId} onChange={(e) => setCustomerId(e.target.value)}
               className="border border-slate-200 rounded-lg px-3 py-2 w-full text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20">
               <option value="">{isCar ? t("proforma.save_as_customer").replace("{name}", p.customer || "—") : t("proforma.no_saved_customer")}</option>
-              {[...customers].sort((a, b) => a.name.localeCompare(b.name)).map((c) => (
+              {customers.map((c) => (
                 <option key={c.id} value={c.id}>{c.name}{c.phone ? ` · ${c.phone}` : ""}</option>
               ))}
             </select>
