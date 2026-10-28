@@ -20,7 +20,7 @@ export default function GlobalError({ error }: { error: Error & { digest?: strin
           .hgv-ge{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;
             font-family:system-ui,-apple-system,"Segoe UI",sans-serif;background:#f4f2ee;color:#191919}
           .hgv-ge p{color:#5e5e5e}
-          .hgv-ge button{font:inherit;font-size:14px;font-weight:600;border-radius:6px;padding:8px 16px;cursor:pointer}
+          .hgv-ge :is(button,a){text-decoration:none;display:inline-block;font:inherit;font-size:14px;font-weight:600;border-radius:6px;padding:8px 16px;cursor:pointer}
           .hgv-ge .go{background:#0a66c2;color:#fff;border:1px solid #0a66c2}
           .hgv-ge .back{background:transparent;color:inherit;border:1px solid #d6d4cf}
           @media (prefers-color-scheme:dark){.hgv-ge{background:#0c1014;color:#f1f1f1}.hgv-ge p{color:#a8a8a8}.hgv-ge .back{border-color:#3a3f45}}
@@ -28,10 +28,17 @@ export default function GlobalError({ error }: { error: Error & { digest?: strin
         {!reloading && (
           <main style={{ maxWidth: 420, padding: 24 }}>
             <h1 style={{ fontSize: 24, margin: "0 0 8px" }}>Higoverse couldn&apos;t load this page</h1>
-            <p style={{ margin: "0 0 24px", fontSize: 15 }}>Reload to try again, or go back.</p>
+            <p style={{ margin: "0 0 24px", fontSize: 15 }}>Something went wrong. Your data is safe: reload to try again, or go back.</p>
             <div style={{ display: "flex", gap: 8 }}>
               <button className="go" onClick={() => window.location.reload()}>Reload</button>
-              <button className="back" onClick={() => window.history.back()}>Back</button>
+              <button className="back" onClick={() => {
+                let sameSite = false;
+                try { sameSite = new URL(document.referrer).origin === window.location.origin; } catch { /* no referrer */ }
+                // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- the app itself failed
+                if (window.history.length > 1 && sameSite) window.history.back(); else window.location.assign("/");
+              }}>Back</button>
+              {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- a full load: the app itself failed */}
+              <a className="back" href="/">Dashboard</a>
             </div>
           </main>
         )}
