@@ -105,8 +105,7 @@ export function proformaPrintHtml(
     </table>`;
 
   const paidDeposits = (p.deposits ?? []).reduce((a, d) => a + (Number(d.amount) || 0), 0) || (p.deposit_amount || 0);
-  // The deposit is refundable, printed apart: the full price stays due.
-  const due = p.grand_total;
+  const due = Math.max(0, p.grand_total - paidDeposits);
   // Every deposit received, as on a receipt (two per row).
   const deps = (p.deposits ?? []).map((d, i) => [
     `${t("deposit.n")} ${i + 1}`,
