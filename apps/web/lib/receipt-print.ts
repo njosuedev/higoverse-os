@@ -185,8 +185,6 @@ function a4Html(r: ReceiptData, t: T, lang: string, print: PrintSettings, opts: 
   .totals tr.grand td { font-size: 15px; font-weight: 800; border-top: 2px solid #111; border-bottom: 2px solid #111; }
   .warn { color: #b91c1c; font-weight: 700; }
   .msg { margin-top: 18px; text-align: center; color: #444; }
-  .signs { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-top: 46px; font-size: 12px; }
-  .signs .line { border-bottom: 1px solid #111; height: 40px; margin-bottom: 6px; }
   .foot { margin-top: 28px; padding-top: 8px; border-top: 1px solid #ddd; text-align: center; font-size: 10.5px; color: #777; }
 </style></head>
 <body>
@@ -224,10 +222,6 @@ function a4Html(r: ReceiptData, t: T, lang: string, print: PrintSettings, opts: 
   </table>
   </div>
   <p class="msg">${esc(print.receiptFooter.trim() || t("sales.thank_you"))}</p>
-  <div class="signs">
-    <div><div class="line"></div>${esc(t("print.sign_seller"))}</div>
-    <div><div class="line"></div>${esc(t("print.sign_customer"))}</div>
-  </div>
   <div class="foot">${esc(t("sales.powered_by"))} Higoverse</div>
   ${opts.autoPrint ? `<script>(function(){var printed=false;function go(){if(printed)return;printed=true;setTimeout(function(){window.print();},350);}
   if(document.readyState==="complete")go();else window.addEventListener("load",go);})();</script>` : ""}
