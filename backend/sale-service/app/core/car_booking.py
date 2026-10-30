@@ -148,6 +148,62 @@ def book(p, deposits: list[dict], token: str) -> list[tuple[str, str | None, str
     return changes
 
 
+# What marks a car pending (cleared the same way as on the Vehicles page).
+_PENDING_KEYS = ("sale_status", "buyer_customer_id", "buyer_name", "buyer_phone", "buyer_id_no",
+                 "pending_since", "pending_at", "pending_note", "proforma_id", "agreed_price", "deposits")
+
+
+def rebook(p, old_lines: list[dict], old_customer_id: str | None, token: str) -> list[tuple[str, str | None, str]]:
+    """A pending proforma's customer, cars or prices were changed: takes its
+    booking off the cars it had, then books the cars it has now. A car that
+    leaves the proforma (or whose buyer changes) goes back to available,
+    unless payments were recorded on it from the Vehicles page: those are
+    the customer's money, so it refuses. Returns what changed, for `undo`."""
+    ours = {d.get("id") for d in p.deposits or [] if d.get("id")}
+    keep_ids = {l.get("product_id") for l in p.lines or [] if l.get("product_id")}
+    same_customer = (old_customer_id or "") == (p.customer_id or "")
+
+    released = []
+    seen = set()
+    for line in old_lines or []:
+        pid = line.get("product_id")
+        if not pid or pid in seen:
+            continue
+        seen.add(pid)
+        product = get_product(pid, token)
+        if not product:
+            continue
+        a = attrs_of(product)
+        if a.get("sale_status") != "pending":
+            continue
+        if a.get("proforma_id") not in (None, "", p.id):
+            continue  # booked by another proforma
+        if (a.get("buyer_customer_id") or "") != (old_customer_id or ""):
+            continue  # booked for someone else
+        deps = _car_deposits(a)
+        others = [d for d in deps if d.get("proforma_deposit_id") not in ours]
+        stays = pid in keep_ids and same_customer
+        if others and not stays:
+            name = product.get("name") or line.get("product_name") or "A vehicle"
+            raise HTTPException(status_code=409, detail=(
+                f"{name} has payments recorded on the Vehicles page. Remove them there first, "
+                "or keep this vehicle and customer on the proforma."))
+        if stays:
+            # Kept: its proforma deposits are spread again by `book`.
+            new = {**a, "deposits": json.dumps(others, ensure_ascii=False)} if others else {k: v for k, v in a.items() if k != "deposits"}
+        else:
+            new = {k: v for k, v in a.items() if k not in _PENDING_KEYS}
+        released.append((pid, product.get("attributes"), json.dumps(new, ensure_ascii=False)))
+
+    _save(released, token)
+    try:
+        booked = book(p, p.deposits or [], token)
+    except Exception:
+        undo(released, token)
+        raise
+    return released + booked
+
+
 def drop_deposit(p, deposit_id: str, token: str) -> None:
     """Takes a deposit removed from the proforma off its cars too."""
     changes = []

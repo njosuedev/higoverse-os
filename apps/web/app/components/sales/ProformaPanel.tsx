@@ -269,7 +269,7 @@ export default function ProformaPanel({ onSold, startNew = false }: {
   const stage: Stage = current ? stageOf(current) : "draft";
   const locked = current?.status === "sold";
   // A pending car proforma's cars are booked for its customer at its prices:
-  // those can't change (delete it and make a new one).
+  // saving a change there moves the booking to the new customer, cars or prices.
   const booked = isCar && !!current && proformaStage(current.status) === "approved";
   const filled = form.lines.filter((l) => l.product_name.trim());
 
@@ -678,7 +678,7 @@ export default function ProformaPanel({ onSold, startNew = false }: {
             </div>
           </section>
 
-          <fieldset disabled={booked} className="space-y-3 min-w-0">
+          <div className="space-y-3 min-w-0">
           {/* Customer information */}
           <section className="bg-white rounded-xl border border-slate-200 p-4">
             <h3 className="text-xs font-bold uppercase tracking-wide text-[#1f3a68] mb-3 flex items-center gap-2"><User size={14} /> {t("proforma.customer_info")}</h3>
@@ -739,7 +739,7 @@ export default function ProformaPanel({ onSold, startNew = false }: {
                     {isCar ? null : l.product_id
                       ? <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-green-50 text-green-700 border border-green-200">{t("proforma.from_stock")}</span>
                       : <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200">{t("proforma.typed_in")}</span>}
-                    {!locked && !booked && (
+                    {!locked && (
                       <div className="flex-1 max-w-sm">
                         <ProductPicker
                           onSelect={(p) => pickProduct(l.key, p)}
@@ -797,7 +797,7 @@ export default function ProformaPanel({ onSold, startNew = false }: {
             <datalist id="pf-genres">{CAR_TYPES.map((c) => <option key={c} value={carTypeLabel(t, c)} />)}</datalist>
             <datalist id="pf-energy">{ENERGY_TYPES.map((c) => <option key={c} value={c} />)}</datalist>
           </section>
-          </fieldset>
+          </div>
 
           {/* Payment & finance terms */}
           <section className="bg-white rounded-xl border border-slate-200 p-4">

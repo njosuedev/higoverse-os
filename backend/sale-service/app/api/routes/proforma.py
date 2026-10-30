@@ -350,10 +350,11 @@ def update_proforma(
     updates.pop("deposit_amount", None)
 
     changed = {k for k, v in updates.items() if _norm(k, getattr(proforma, k)) != _norm(k, v)}
-    if _is_car(user) and proforma.status in _APPROVED and changed & _BOOKED_KEYS:
-        raise HTTPException(status_code=409, detail=(
-            "This proforma's cars are pending for its customer at these prices. "
-            "To change the customer, vehicles or prices, delete it and make a new one."))
+    # A pending car proforma's cars are booked for its customer at its
+    # prices: a change there moves the booking (core/car_booking.rebook).
+    rebook = _is_car(user) and proforma.status in _APPROVED and bool(changed & _BOOKED_KEYS)
+    old_lines = [dict(l) for l in (proforma.lines or [])]
+    old_customer_id = proforma.customer_id
     for key, value in updates.items():
         setattr(proforma, key, value)
 
@@ -366,7 +367,23 @@ def update_proforma(
     if proforma.status in _APPROVABLE or changed & _CONTENT_KEYS:
         _apply_sync(proforma, user, _token(authorization))
 
-    db.commit()
+    token = _token(authorization)
+    booked = []
+    if rebook:
+        if _paid_so_far(proforma) > float(proforma.grand_total or 0) + 0.005:
+            db.rollback()
+            raise HTTPException(status_code=400, detail="The deposits already paid are more than the new total.")
+        try:
+            booked = car_booking.rebook(proforma, old_lines, old_customer_id, token)
+        except Exception:
+            db.rollback()
+            raise
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        car_booking.undo(booked, token)
+        raise
     db.refresh(proforma)
     return {"success": True, "message": "Proforma updated", "data": _fmt(proforma)}
 
