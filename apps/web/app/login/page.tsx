@@ -39,6 +39,14 @@ const noopSubscribe = () => () => {};
 // Read from window.location at call time instead of useSearchParams(): that
 // hook forces a Suspense boundary which made the prerendered HTML empty, so
 // crawlers and link previews saw a blank page.
+/** The server's reason as words, or the fallback. A validation error (422)
+ *  comes as a list of objects, which can't be shown as text: rendering it
+ *  crashed the page (e.g. an email like "name@company"). */
+function reason(data: unknown, fallback: string): string {
+  const d = (data as { detail?: unknown } | null)?.detail;
+  return typeof d === "string" && d ? d : fallback;
+}
+
 function getNextPath() {
   if (typeof window === "undefined") return "/";
   const next = new URLSearchParams(window.location.search).get("next") || "/";
@@ -95,7 +103,8 @@ export default function LoginPage() {
         body: JSON.stringify({ email, password }),
       });
       const data = await res.json();
-      if (!res.ok) return setError(data?.detail || t("login.err_incorrect_credentials"));
+      if (res.status === 422) return setError(t("login.err_invalid_email"));
+      if (!res.ok) return setError(reason(data, t("login.err_incorrect_credentials")));
       if (data?.mfa_required && data?.mfa_ticket) {
         setMfaTicket(data.mfa_ticket); setMfaCode(""); setStep("mfa");
         return;
@@ -119,8 +128,8 @@ export default function LoginPage() {
         body: JSON.stringify({ mfa_ticket: mfaTicket, code: mfaCode.trim() }),
       });
       const data = await res.json().catch(() => ({}));
-      if (res.status === 401) { setStep("login"); setMfaTicket(""); return setError(data?.detail || t("mfa.expired")); }
-      if (!res.ok) return setError(data?.detail || t("mfa.wrong_code"));
+      if (res.status === 401) { setStep("login"); setMfaTicket(""); return setError(reason(data, t("mfa.expired"))); }
+      if (!res.ok) return setError(reason(data, t("mfa.wrong_code")));
       login(data);
       window.location.replace(getNextPath());
     } catch { setError(t((await checkNow()) ? "login.err_network" : "login.err_offline")); }
@@ -149,14 +158,14 @@ export default function LoginPage() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        const detail = (data?.detail ?? "").toLowerCase();
+        const detail = reason(data, "").toLowerCase();
         if (detail.includes("not found") || detail.includes("no user") || detail.includes("does not exist")) {
           return setFpError(t("login.err_no_account"));
         }
         if (detail.includes("deleted") || detail.includes("inactive") || detail.includes("disabled")) {
           return setFpError(t("login.err_account_deactivated"));
         }
-        return setFpError(data?.detail || t("login.err_send_code_failed"));
+        return setFpError(reason(data, t(res.status === 422 ? "login.err_invalid_email" : "login.err_send_code_failed")));
       }
       setStep("otp"); setResendTimer(60);
     } catch { setFpError(t((await checkNow()) ? "login.err_network" : "login.err_offline")); }
@@ -186,7 +195,7 @@ export default function LoginPage() {
         body: JSON.stringify({ email: fpEmail, otp: otp.trim(), new_password: newPw }),
       });
       const data = await res.json();
-      if (!res.ok) return setFpError(data?.detail || t("login.err_reset_failed"));
+      if (!res.ok) return setFpError(reason(data, t("login.err_reset_failed")));
       setStep("success");
     } catch { setFpError(t((await checkNow()) ? "login.err_network" : "login.err_offline")); }
     finally  { setFpLoading(false); }

@@ -9,11 +9,10 @@ import { useShop } from "@/lib/shop-context";
 import { useAppTheme, useThemePref } from "@/lib/theme";
 import { LANGUAGES } from "@/lib/i18n";
 import { settingsRequest } from "@/lib/settings-api";
-import { getEffectiveRole } from "@/lib/auth";
 import { useCanSeeFinancials, useCanUseExpenses } from "@/lib/permissions";
 import { Sun, Moon, Monitor,
   Home, Package, Truck, ShoppingCart, BarChart3,
-  Users, ChevronDown, ShieldCheck, Receipt,
+  Users, ChevronDown, Receipt,
   Settings, LogOut, Globe,
   MessageCircle, Search, UsersRound, HandCoins, CalendarCheck,
 } from "lucide-react";
@@ -25,6 +24,7 @@ import GlobalSearch, { OPEN_SEARCH_EVENT } from "@/app/components/GlobalSearch";
 import NotificationBell from "@/app/components/dashboard/NotificationBell";
 import { startChat, unreadTotal, useChat } from "@/lib/chat";
 import { LiveSheet, QuickAddButton, useLiveSheet } from "@/app/components/mobile/TopBarExtras";
+import AdminChrome from "@/app/components/admin/AdminChrome";
 
 type NavItem = { key: string; href: string; icon: typeof Home };
 
@@ -43,7 +43,6 @@ const BUSINESS_MENUS: NavItem[] = [
   { key: "nav.reports",   href: "/reports",   icon: BarChart3    },
   { key: "nav.payroll",   href: "/payroll",   icon: HandCoins    },
 ];
-const ADMIN_ITEM: NavItem = { key: "nav.admin", href: "/admin", icon: ShieldCheck };
 
 function isActiveHref(pathname: string, href: string) {
   if (href === "/") return pathname === "/";
@@ -102,8 +101,6 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
   // The menu depends on the business type (cars vs shops): wait for the
   // business as well as the user, so the wrong menu never flashes.
   const isResolving = !ready || shopLoading;
-  const role        = isResolving ? null : getEffectiveRole(user ?? null);
-  const isAdmin     = role === "ADMIN";
 
   // Regular business menus (everyone with dashboard access) vs. the
   // admin-only item, kept separate so the nav can render a divider between them.
@@ -112,6 +109,9 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
   // (company finances) from their staff.
   const canSeeFinancials = useCanSeeFinancials();
   const canUseExpenses = useCanUseExpenses();
+  // The platform admin gets a frame of their own: no business menus at all.
+  // Known as soon as the user is (an admin has no business to wait for).
+  if (ready && user?.role === "admin") return <AdminChrome />;
   /** The logo: Home, or the top of Home when already there (as on Facebook). */
   const goHome = (e: React.MouseEvent) => {
     if (pathname !== "/") return;
@@ -224,15 +224,9 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
                       </p>
                       <p className="mt-0.5 truncate text-[11px] text-paper/60">{user?.email ?? ""}</p>
                       <div className="mt-2">
-                        {isAdmin ? (
-                          <span className="hgv-stamp text-[11px] text-accent border-accent/60">
-                            {t("nav.admin")}
-                          </span>
-                        ) : (
-                          <span className="hgv-stamp text-[11px] text-paper/85 border-paper/40">
-                            {t("common.shop_owner")}
-                          </span>
-                        )}
+                        <span className="hgv-stamp text-[11px] text-paper/85 border-paper/40">
+                          {t("common.shop_owner")}
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -352,11 +346,6 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
                   <SideGroup label={t("nav.employees")}>
                     <SideLink menu={{ key: "nav.attendance", href: "/attendance", icon: CalendarCheck }} pathname={pathname} t={t} />
                     <SideLink menu={{ key: "nav.payroll", href: "/payroll", icon: HandCoins }} pathname={pathname} t={t} />
-                  </SideGroup>
-                )}
-                {isAdmin && (
-                  <SideGroup label={t("nav.admin")}>
-                    <SideLink menu={ADMIN_ITEM} pathname={pathname} t={t} />
                   </SideGroup>
                 )}
               </>)}

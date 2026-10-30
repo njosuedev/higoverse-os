@@ -616,6 +616,11 @@ select:-webkit-autofill {
    green #58C322, red #ED4956.
    ══════════════════════════════════════════════════════════════════════ */
 html[data-theme="dark"] {
+  /* Admin charts: two series, validated for colour-blind readers on the dark surface. */
+  --hgv-series-1: #3987e5;
+  --hgv-series-2: #d95926;
+  --hgv-chart-grid: #2c3237;
+  --hgv-chart-axis: #9aa0a6;
   color-scheme: dark;
   --btn-primary: #0095f6;
   --btn-primary-hover: #1877f2;
@@ -875,4 +880,13 @@ html[data-theme="dark"] { scrollbar-color: #363636 var(--color-paper); }
   .hgv-surface, [class*="shadow"] { box-shadow: none !important; }
   .rounded-xl, .rounded-data, .hgv-card-hover { break-inside: avoid; }
   a { color: inherit !important; text-decoration: none !important; }
+}
+
+/* Admin charts: two series (brand blue, orange), validated for colour-blind
+   readers on the light surface; dark steps are in html[data-theme="dark"]. */
+:root {
+  --hgv-series-1: #0a66c2;
+  --hgv-series-2: #e8730c;
+  --hgv-chart-grid: #ececec;
+  --hgv-chart-axis: #6b6b6b;
 }

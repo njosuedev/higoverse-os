@@ -23,6 +23,7 @@ async function adminRequest(endpoint: string, options: RequestInit = {}) {
       const body = JSON.parse(text);
       const detail = body?.detail;
       if (typeof detail === "string") message = detail;
+      else if (typeof detail?.message === "string") message = detail.message;
       // Pydantic prefixes its own checks with "Value error, ".
       else if (Array.isArray(detail) && detail[0]?.msg) message = detail.map((d) => String(d.msg).replace(/^Value error, /, "")).join("; ");
     } catch { /* not JSON, use raw text */ }
@@ -74,10 +75,14 @@ export interface AdminUser {
   shop_id: string | null;
   shop_name: string | null;
   created_at: string | null;
+  /** When they last signed in or renewed their session. */
+  last_active_at?: string | null;
 }
 
-// Keep in sync with STAFF_ROLES in backend/auth-service/app/api/v1/admin.py
-export const STAFF_ROLES = ["admin", "owner", "manager", "cashier", "storekeeper", "accountant"] as const;
+// A company's people. Keep in sync with SHOP_ROLES in
+// backend/auth-service/app/api/v1/admin.py. "admin" (the platform admin) is
+// never given to anyone in a company.
+export const STAFF_ROLES = ["owner", "manager", "cashier", "storekeeper", "accountant"] as const;
 export type StaffRole = (typeof STAFF_ROLES)[number];
 
 export interface CreateShopPayload {
@@ -195,9 +200,83 @@ export async function deleteUser(userId: string): Promise<void> {
   await adminRequest(`/api/v1/admin/users/${userId}`, { method: "DELETE" });
 }
 
-export async function clearUserEmail(userId: string): Promise<void> {
-  await adminRequest(`/api/v1/admin/users/${userId}`, {
+/** A user's name or email (nothing else). */
+export async function updateUser(userId: string, payload: { name?: string | null; email?: string }): Promise<AdminUser> {
+  const res = await adminRequest(`/api/v1/admin/users/${userId}`, {
     method: "PATCH",
-    body: JSON.stringify({ email: `_deleted_${Date.now()}_${userId.slice(0, 8)}@removed.invalid` }),
+    body: JSON.stringify(payload),
   });
+  return res?.data;
+}
+
+// ── How the companies are doing ───────────────────────────────────────────────
+export type CompanyHealth = "active" | "slowing" | "new" | "dormant" | "inactive";
+export const COMPANY_HEALTH: CompanyHealth[] = ["active", "slowing", "new", "dormant", "inactive"];
+
+export interface CompanySetup {
+  profile: boolean; logo: boolean; email: boolean; products: boolean; first_sale: boolean; team: boolean;
+}
+
+/** One company's use of Higoverse: counts and dates only, never money. */
+export interface CompanyInsight {
+  shop_id: string;
+  health: CompanyHealth;
+  products: number;
+  sales_total: number;
+  sales_30d: number;
+  sales_prev_30d: number;
+  sales_7d: number;
+  purchases: number;
+  expenses: number;
+  proformas: number;
+  records_30d: number;
+  staff: number;
+  first_sale_month: string | null;
+  last_sale_at: string | null;
+  last_record_at: string | null;
+  last_activity_at: string | null;
+  /** Sales recorded in each of the last 12 months (oldest first). */
+  monthly_sales: number[];
+  setup: CompanySetup;
+}
+
+export interface PlatformMonth {
+  month: string; // YYYY-MM
+  new_shops: number;
+  new_users: number;
+  sales: number;
+  active_shops: number;
+  total_shops: number;
+}
+
+export interface AdminInsights {
+  generated_at: string;
+  months: string[];
+  health: Partial<Record<CompanyHealth, number>>;
+  companies: CompanyInsight[];
+  timeline: PlatformMonth[];
+  totals: { sales_30d: number; sales_prev_30d: number; products: number; with_first_sale: number };
+}
+
+export async function getAdminInsights(): Promise<AdminInsights> {
+  const res = await adminRequest("/api/v1/admin/insights");
+  return res?.data;
+}
+
+export interface AuditEntry {
+  id: string;
+  at: string | null;
+  admin_email: string | null;
+  action: string;
+  target_type: "shop" | "user";
+  target_id: string | null;
+  target_label: string | null;
+  detail: Record<string, unknown>;
+}
+
+export async function getAdminAudit(opts: { limit?: number; targetId?: string } = {}): Promise<AuditEntry[]> {
+  const q = new URLSearchParams({ limit: String(opts.limit ?? 300) });
+  if (opts.targetId) q.set("target_id", opts.targetId);
+  const res = await adminRequest(`/api/v1/admin/audit?${q}`);
+  return res?.data ?? [];
 }

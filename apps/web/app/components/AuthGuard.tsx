@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
+import { isAdminRoute } from "@/lib/admin-nav";
 
 const PUBLIC_ROUTES = ["/login"];
 
@@ -16,6 +17,8 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
     if (PUBLIC_ROUTES.includes(pathname)) return; // public — always ok
     // Unauthenticated on a protected route — come back here after signing in.
     if (!user) router.replace(pathname === "/" ? "/login" : `/login?next=${encodeURIComponent(pathname)}`);
+    // The platform admin has no business of their own: only the admin panel.
+    else if (user.role === "admin" && !isAdminRoute(pathname)) router.replace("/admin");
   }, [ready, user, pathname, router]);
 
   // Public routes render immediately, no auth needed
@@ -26,6 +29,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
 
   // Protected route: only render children once authenticated
   if (!user) return null;
+  if (user.role === "admin" && !isAdminRoute(pathname)) return null;
 
   return <>{children}</>;
 }

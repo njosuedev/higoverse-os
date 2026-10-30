@@ -464,3 +464,199 @@ def test_only_admin_uses_admin_set_password(client):
     with SessionLocal() as s:
         uid = str(s.query(User).filter(User.email == victim).first().id)
     assert client.patch(f"/api/v1/admin/users/{uid}/password", headers=auth(access), json={"new_password": "Takeover-123"}).status_code == 403
+
+
+# ── Platform admin: companies and their people ───────────────────────────────
+
+def _admin_h(client):
+    return auth(_tokens(client, _admin())[0])
+
+
+def _uid(email):
+    with SessionLocal() as s:
+        return str(s.query(User).filter(User.email == email).first().id)
+
+
+def _admin_company(client, h):
+    email = f"own-{uuid.uuid4().hex[:8]}@sectest.example.com"
+    r = client.post("/api/v1/admin/shops", headers=h, json={
+        "shop_name": "Admin Co", "phone": "0788123456", "tin": "123456789",
+        "owner_email": email, "owner_password": PASSWORD, "owner_name": "Owner"})
+    assert r.status_code == 200, r.text[:200]
+    return r.json()["data"]["shop_id"], email
+
+
+def _admin_staff(client, h, sid, role="cashier"):
+    r = client.post("/api/v1/admin/users", headers=h, json={
+        "shop_id": sid, "email": f"st-{uuid.uuid4().hex[:8]}@sectest.example.com", "password": PASSWORD, "role": role})
+    assert r.status_code == 200, r.text[:200]
+    return r.json()["data"]
+
+
+def _insert(engine, table, sid):
+    from sqlalchemy import text
+    with engine.begin() as c:
+        c.execute(text(f"INSERT INTO {table} (id, shop_id, created_at) VALUES (:i, :s, now())"),
+                  {"i": str(uuid.uuid4()), "s": sid})
+
+
+@pytest.fixture
+def business_tables():
+    """Minimal business tables on the throwaway database, dropped afterwards
+    when this test made them (the real services create the full ones)."""
+    from sqlalchemy import text
+    from app.db.shop_session import shop_engine
+    made = []
+    with shop_engine.begin() as c:
+        for t in ("sales", "products"):
+            if c.execute(text(f"SELECT to_regclass('public.{t}')")).scalar() is None:
+                c.execute(text(f"CREATE TABLE {t} (id varchar PRIMARY KEY, shop_id varchar NOT NULL, "
+                               f"created_at timestamptz NOT NULL DEFAULT now())"))
+                made.append(t)
+    yield lambda t, sid: _insert(shop_engine, t, sid)
+    with shop_engine.begin() as c:
+        for t in made:
+            c.execute(text(f"DROP TABLE {t}"))
+
+
+def test_admin_crud_round_trip(client):
+    h = _admin_h(client)
+    sid, owner = _admin_company(client, h)
+    r = client.patch(f"/api/v1/admin/shops/{sid}", headers=h, json={"name": "Renamed Co"})
+    assert r.json()["data"]["name"] == "Renamed Co"
+    staff = _admin_staff(client, h, sid)
+    assert staff["shop_name"] == "Renamed Co"
+    # Every reply keeps the person's company (the list used to lose it).
+    for r in (client.patch(f"/api/v1/admin/users/{staff['id']}/role", headers=h, json={"role": "manager"}),
+              client.patch(f"/api/v1/admin/users/{staff['id']}/toggle", headers=h),
+              client.patch(f"/api/v1/admin/users/{staff['id']}", headers=h, json={"name": "New Name"})):
+        assert r.status_code == 200, r.text[:200]
+        assert r.json()["data"]["shop_name"] == "Renamed Co"
+    listed = {u["id"]: u for u in client.get("/api/v1/admin/users", headers=h).json()["data"]}
+    assert listed[staff["id"]]["role"] == "manager" and listed[staff["id"]]["name"] == "New Name"
+    assert listed[_uid(owner)]["shop_id"] == sid
+
+
+@pytest.mark.parametrize("how", ["create", "promote"])
+def test_company_people_never_become_platform_admin(client, how):
+    h = _admin_h(client)
+    sid, _ = _admin_company(client, h)
+    if how == "create":
+        r = client.post("/api/v1/admin/users", headers=h, json={
+            "shop_id": sid, "email": f"x-{uuid.uuid4().hex[:8]}@sectest.example.com",
+            "password": PASSWORD, "role": "admin"})
+    else:
+        staff = _admin_staff(client, h, sid)
+        r = client.patch(f"/api/v1/admin/users/{staff['id']}/role", headers=h, json={"role": "admin"})
+    assert r.status_code == 422
+    with SessionLocal() as s:
+        assert s.query(User).filter(User.shop_id == sid, User.role == "admin").count() == 0
+
+
+def test_platform_admin_gets_no_company_role(client):
+    h = _admin_h(client)
+    other = _uid(_admin())
+    assert client.patch(f"/api/v1/admin/users/{other}/role", headers=h, json={"role": "owner"}).status_code == 400
+
+
+def test_deleting_a_signed_in_user_works(client):
+    h = _admin_h(client)
+    sid, owner = _admin_company(client, h)
+    staff = _admin_staff(client, h, sid)
+    _tokens(client, staff["email"])  # has a session now
+    r = client.delete(f"/api/v1/admin/users/{staff['id']}", headers=h)
+    assert r.status_code == 200, r.text[:200]
+    # Only that person goes: the company and its owner stay.
+    with ShopSessionLocal() as s:
+        assert s.query(Shop).filter(Shop.id == sid).count() == 1
+    assert _login(client, owner).status_code == 200
+
+
+def test_company_must_be_off_and_empty_to_delete(client, business_tables):
+    h = _admin_h(client)
+    sid, owner = _admin_company(client, h)
+    _tokens(client, owner)
+    assert client.delete(f"/api/v1/admin/shops/{sid}", headers=h).status_code == 409  # still on
+    assert client.patch(f"/api/v1/admin/shops/{sid}/toggle", headers=h).json()["data"]["is_active"] is False
+    business_tables("sales", sid)
+    r = client.delete(f"/api/v1/admin/shops/{sid}", headers=h)
+    assert r.status_code == 409 and r.json()["detail"]["records"] == {"sales": 1}
+    with ShopSessionLocal() as s:
+        assert s.query(Shop).filter(Shop.id == sid).count() == 1  # nothing deleted
+
+
+def test_empty_company_with_signed_in_people_deletes(client):
+    h = _admin_h(client)
+    sid, owner = _admin_company(client, h)
+    _tokens(client, owner)
+    client.patch(f"/api/v1/admin/shops/{sid}/toggle", headers=h)
+    r = client.delete(f"/api/v1/admin/shops/{sid}", headers=h)
+    assert r.status_code == 200, r.text[:200]
+    assert _login(client, owner).status_code == 401
+
+
+def test_turning_off_signs_people_out(client):
+    h = _admin_h(client)
+    sid, owner = _admin_company(client, h)
+    staff = _admin_staff(client, h, sid)
+    _, owner_refresh = _tokens(client, owner)
+    _, staff_refresh = _tokens(client, staff["email"])
+    client.patch(f"/api/v1/admin/users/{staff['id']}/toggle", headers=h)
+    assert client.post("/api/v1/auth/refresh", json={"refresh_token": staff_refresh}).status_code == 401
+    client.patch(f"/api/v1/admin/shops/{sid}/toggle", headers=h)
+    assert client.post("/api/v1/auth/refresh", json={"refresh_token": owner_refresh}).status_code in (401, 403)
+    assert _login(client, owner).status_code == 403
+
+
+def test_user_edit_checks_email(client):
+    h = _admin_h(client)
+    sid, owner = _admin_company(client, h)
+    staff = _admin_staff(client, h, sid)
+    assert client.patch(f"/api/v1/admin/users/{staff['id']}", headers=h, json={"email": "not-an-email"}).status_code == 422
+    assert client.patch(f"/api/v1/admin/users/{staff['id']}", headers=h, json={"email": owner.upper()}).status_code == 400
+    # Only name and email: not the role, the company or the active flag.
+    client.patch(f"/api/v1/admin/users/{staff['id']}", headers=h, json={"role": "owner", "shop_id": None, "is_active": False})
+    with SessionLocal() as s:
+        u = s.query(User).filter(User.id == staff["id"]).first()
+        assert (u.role, str(u.shop_id), u.is_active) == ("cashier", sid, True)
+
+
+def test_admin_actions_are_logged(client):
+    h = _admin_h(client)
+    sid, _ = _admin_company(client, h)
+    staff = _admin_staff(client, h, sid)
+    client.patch(f"/api/v1/admin/users/{staff['id']}/role", headers=h, json={"role": "manager"})
+    client.patch(f"/api/v1/admin/shops/{sid}/toggle", headers=h)
+    log = client.get("/api/v1/admin/audit", headers=h).json()["data"]
+    mine = [(e["action"], e["target_id"]) for e in log]
+    assert ("shop.create", sid) in mine and ("shop.disable", sid) in mine
+    assert ("user.create", staff["id"]) in mine
+    role = next(e for e in log if e["action"] == "user.role" and e["target_id"] == staff["id"])
+    assert role["detail"] == {"from": "cashier", "to": "manager"}
+
+
+def test_insights_track_each_company(client, business_tables):
+    h = _admin_h(client)
+    busy, _ = _admin_company(client, h)
+    quiet, _ = _admin_company(client, h)
+    for _ in range(3):
+        business_tables("sales", busy)
+    business_tables("products", busy)
+    business_tables("products", quiet)  # setting up: products, no sale yet
+    r = client.get("/api/v1/admin/insights", headers=h)
+    assert r.status_code == 200, r.text[:200]
+    d = r.json()["data"]
+    by = {c["shop_id"]: c for c in d["companies"]}
+    assert by[busy]["sales_30d"] == 3 and by[busy]["products"] == 1 and by[busy]["health"] == "active"
+    assert by[busy]["monthly_sales"][-1] == 3 and by[busy]["setup"]["first_sale"] is True
+    assert by[quiet]["sales_total"] == 0 and by[quiet]["health"] == "new"
+    assert len(d["timeline"]) == 12 and d["timeline"][-1]["sales"] >= 3
+    # Activity only: no money figures for any company.
+    assert not any(k in by[busy] for k in ("revenue", "profit", "total_amount"))
+
+
+@pytest.mark.parametrize("path", ["/api/v1/admin/insights", "/api/v1/admin/audit"])
+def test_insights_and_log_are_admin_only(client, path):
+    _, owner = _company()
+    access, _ = _tokens(client, owner)
+    assert client.get(path, headers=auth(access)).status_code == 403

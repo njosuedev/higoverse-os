@@ -1,13 +1,15 @@
 "use client";
 
-import { useEffect, useState, useCallback, useMemo, useRef } from "react";
+import { Suspense, useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { useLanguage } from "@/lib/language-context";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { toAdminTab } from "@/lib/admin-nav";
 import {
-  getAdminStats, getAdminShops, getAdminUsers,
+  getAdminStats, getAdminShops, getAdminUsers, getAdminInsights,
   toggleShop, deleteShop, updateShop, verifyShopEmail, toggleUser, updateUserRole, setUserPassword, deleteUser, createShop, createShopUser,
   STAFF_ROLES, type AdminStats, type AdminShop, type AdminUser, type CreateShopPayload, type CreateShopUserPayload, type StaffRole,
+  type AdminInsights, type CompanyHealth, COMPANY_HEALTH,
 } from "@/lib/admin-api";
 import { decodeShopHumanInfo, formatPublicAddress } from "@/lib/product-meta";
 import { cleanTin, joinAddress, mergeDescription, normalizePhone, phoneError, prettyPhone, shopTin, splitAddress, tinError } from "@/lib/company";
@@ -21,45 +23,27 @@ import {
   UserCog, KeyRound, Search, Mail, Phone, MapPin, Eye, EyeOff,
   CheckCircle, XCircle,
   UserX,
-  Receipt, Pencil, X, ChevronLeft,
+  Pencil, X, Download,
   Plus, Loader2, Lock, User as UserIcon, UserPlus,
-  LayoutDashboard, Users, Activity, TrendingUp, Car, Hash,
+  Users, Activity, TrendingUp, Car, Hash,
 } from "lucide-react";
-import { expenseRequest } from "@/lib/expense-api";
 import LayoutPicker from "@/app/components/admin/LayoutPicker";
 import TwoStepCard from "@/app/components/admin/TwoStepCard";
+import PasswordCard from "@/app/components/admin/PasswordCard";
+import GrowthPanel from "@/app/components/admin/GrowthPanel";
+import CompanyDetail from "@/app/components/admin/CompanyDetail";
+import AuditLog from "@/app/components/admin/AuditLog";
+import EditUserDialog from "@/app/components/admin/EditUserDialog";
+import { HealthBadge, ago } from "@/app/components/admin/insight-ui";
 import SetPasswordDialog from "@/app/components/ui/SetPasswordDialog";
 import { normalizeLayout, type BusinessLayout } from "@/lib/business-layout";
 
-type Tab = "overview" | "shops" | "users" | "expenses";
-type ShopSort = "newest" | "lastActive" | "name" | "users";
+type ShopSort = "newest" | "mostActive" | "lastActive" | "name" | "users";
 
 const LI_BLUE  = "#0a66c2";
 const LI_LIGHT = "#5B9DF3";
 const LI_GRAY  = "#C9CDD2";
 const POLL_INTERVAL = 30;
-
-const EXP_CATEGORIES = [
-  "rent","utilities","salaries","supplies",
-  "maintenance","marketing","transport","taxes","other",
-] as const;
-const BANK_NAMES = ["Equity Bank","BK Bank","GT Bank","Access Bank","I&M Bank"];
-
-interface AdminExpense {
-  id: string; shop_id: string; title: string; category: string;
-  amount: number; notes?: string; expense_date: string; created_at: string;
-  has_proof?: boolean; payment_method?: string;
-  bank_name?: string; bank_account?: string; receiver_phone?: string;
-}
-interface EditExpForm {
-  title: string; category: string; amount: string; notes: string;
-  expense_date: string; payment_method: string;
-  bank_name: string; bank_account: string; receiver_phone: string;
-}
-const EMPTY_EDIT: EditExpForm = {
-  title: "", category: "other", amount: "", notes: "", expense_date: "",
-  payment_method: "", bank_name: "", bank_account: "", receiver_phone: "",
-};
 
 // ── UTC helpers ───────────────────────────────────────────────────────────────
 function parseUTC(ts: string | null | undefined): Date {
@@ -145,17 +129,23 @@ interface ConfirmState {
   id: string;
   label: string;
   extra?: string;     // display label (shop name or linked shop name)
-  shopId?: string;    // shop to co-delete when removing a user
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
+// The tab lives in the URL (/admin?tab=shops) so the sidebar and the phone's
+// tab bar can open it; useSearchParams needs a Suspense boundary.
 export default function AdminPage() {
+  return <Suspense fallback={null}><AdminPanel /></Suspense>;
+}
+
+function AdminPanel() {
   const { user, ready } = useAuth();
   const [pwFor, setPwFor] = useState<{ id: string; name: string } | null>(null);
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const router = useRouter();
 
-  const [tab, setTab]                     = useState<Tab>("overview");
+  const params = useSearchParams();
+  const tab = toAdminTab(params.get("tab"));
   const [stats, setStats]                 = useState<AdminStats | null>(null);
   const [shops, setShops]                 = useState<AdminShop[]>([]);
   const [users, setUsers]                 = useState<AdminUser[]>([]);
@@ -166,11 +156,13 @@ export default function AdminPage() {
   const [confirm, setConfirm]             = useState<ConfirmState | null>(null);
   const [roleEdit, setRoleEdit]           = useState<{ id: string; role: string } | null>(null);
   const [shopSearch, setShopSearch]       = useState("");
-  const [shopFilter, setShopFilter]       = useState<"all" | "active" | "inactive">("all");
+  const [shopFilter, setShopFilter]       = useState<"all" | CompanyHealth>("all");
   const [shopSort, setShopSort]           = useState<ShopSort>("newest");
   const [userSearch, setUserSearch]       = useState("");
   const [userRoleFilter, setUserRoleFilter] = useState<"all" | "admin" | "owner" | "staff">("all");
-  const [expandedShop, setExpandedShop]   = useState<string | null>(null);
+  const [insights, setInsights]           = useState<AdminInsights | null>(null);
+  const [detailId, setDetailId]           = useState<string | null>(null);
+  const [editingUser, setEditingUser]     = useState<AdminUser | null>(null);
   const [lastUpdated, setLastUpdated]     = useState<Date | null>(null);
 
   // Create-shop modal state
@@ -200,18 +192,6 @@ export default function AdminPage() {
   const [creatingUser, setCreatingUser]       = useState(false);
   const [showUserPassword, setShowUserPassword] = useState(false);
 
-  // Expenses tab state
-  const [expShopId, setExpShopId]           = useState<string | null>(null);
-  const [expShopName, setExpShopName]       = useState("");
-  const [expShopSearch, setExpShopSearch]   = useState("");
-  const [expenseRows, setExpenseRows]       = useState<AdminExpense[]>([]);
-  const [expTotal, setExpTotal]             = useState(0);
-  const [expPage, setExpPage]               = useState(1);
-  const [expLoading, setExpLoading]         = useState(false);
-  const [editingExp, setEditingExp]         = useState<AdminExpense | null>(null);
-  const [editForm, setEditForm]             = useState<EditExpForm>(EMPTY_EDIT);
-  const [editSaving, setEditSaving]         = useState(false);
-  const [expError, setExpError]             = useState<string | null>(null);
   // When the next silent refresh is due (shown by <Countdown>).
   const [nextAt, setNextAt]               = useState(() => Date.now() + POLL_INTERVAL * 1000);
   const nextAtRef                         = useRef(nextAt);
@@ -226,8 +206,11 @@ export default function AdminPage() {
     if (!silent) setLoading(true); else setRefreshing(true);
     setError(null);
     try {
-      const [s, sh, u] = await Promise.all([getAdminStats(), getAdminShops(), getAdminUsers()]);
+      const [s, sh, u, ins] = await Promise.all([
+        getAdminStats(), getAdminShops(), getAdminUsers(), getAdminInsights().catch(() => null),
+      ]);
       setStats(s); setShops(sh); setUsers(u);
+      if (ins) setInsights(ins);
       setLastUpdated(new Date());
       nextAtRef.current = Date.now() + POLL_INTERVAL * 1000;
       setNextAt(nextAtRef.current);
@@ -257,11 +240,9 @@ export default function AdminPage() {
     return map;
   }, [users]);
 
-  // Cross-reference: hide shops whose owner user was soft-deleted (role="_deleted_" → filtered from users)
-  const visibleShops = useMemo(() => {
-    const userEmails = new Set(users.map((u) => u.email));
-    return shops.filter((s) => s.owner_email === null || userEmails.has(s.owner_email));
-  }, [shops, users]);
+  // Every company, including one whose owner account was removed.
+  const visibleShops = shops;
+  const insightOf = useMemo(() => new Map((insights?.companies ?? []).map((c) => [c.shop_id, c])), [insights]);
 
   const activeShops  = useMemo(() => visibleShops.filter((s) => s.is_active), [visibleShops]);
 
@@ -326,53 +307,25 @@ export default function AdminPage() {
     setActionId(id);
     setError(null);
     try {
-      // Delete every user that belongs to this shop
-      const members = shopUsers[id] ?? [];
-      for (const member of members) {
-        try { await deleteUser(member.id); } catch { /* continue deleting others */ }
-      }
-
-      // Also delete the shop owner if not already in members list
-      const targetShop = shops.find((s) => s.id === id);
-      if (targetShop?.owner_email) {
-        const memberIds = new Set(members.map((m) => m.id));
-        const ownerUser = users.find(
-          (u) => u.email === targetShop.owner_email && !memberIds.has(u.id)
-        );
-        if (ownerUser) {
-          try { await deleteUser(ownerUser.id); } catch { /* continue */ }
-        }
-      }
-
-      // Delete the shop itself
       await deleteShop(id);
-      if (expandedShop === id) setExpandedShop(null);
-
-      // Reload from backend so UI reflects true server state
+      if (detailId === id) setDetailId(null);
       await loadAll(true);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : t("admin.err_delete_shop"));
-      await loadAll(true);
     } finally {
       setActionId(null);
       setConfirm(null);
     }
   };
 
-  const handleDeleteUser = async (id: string, shopId?: string) => {
+  const handleDeleteUser = async (id: string) => {
     setActionId(id);
     setError(null);
     try {
-      // Scramble the user email first — this is the guaranteed step that permanently
-      // hides the user AND their shop from all admin lists (shop filtered by owner_email).
       await deleteUser(id);
-      // Also attempt to hard-delete the shop (best effort — no throw if it fails)
-      if (shopId) await deleteShop(shopId);
-      // Reload from backend — scrambled records are now filtered out
       await loadAll(true);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : t("admin.err_delete_account"));
-      await loadAll(true);
     } finally {
       setActionId(null);
       setConfirm(null);
@@ -522,83 +475,42 @@ export default function AdminPage() {
     finally { setActionId(null); }
   };
 
-  // ── Admin expense helpers ─────────────────────────────────────────────────
-  const loadShopExpenses = useCallback(async (shopId: string, page = 1) => {
-    setExpLoading(true);
-    try {
-      const res = await expenseRequest(`/expenses/admin/list?shop_id=${shopId}&page=${page}&limit=50`);
-      setExpenseRows(res?.data?.items || []);
-      setExpTotal(res?.data?.total || 0);
-      setExpPage(page);
-    } catch { /* ignore */ }
-    finally { setExpLoading(false); }
-  }, []);
-
-  const selectExpShop = (shop: AdminShop) => {
-    setExpShopId(shop.id);
-    setExpShopName(shop.name ?? shop.id);
-    setExpenseRows([]);
-    setExpTotal(0);
-    setExpPage(1);
-    loadShopExpenses(shop.id, 1);
-  };
-
-  const openEditExp = (e: AdminExpense) => {
-    const d = e.expense_date ? new Date(e.expense_date) : new Date();
-    const dateStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
-    setEditForm({
-      title: e.title, category: e.category, amount: String(e.amount),
-      notes: e.notes || "", expense_date: dateStr,
-      payment_method: e.payment_method || "",
-      bank_name: e.bank_name || "", bank_account: e.bank_account || "",
-      receiver_phone: e.receiver_phone || "",
-    });
-    setExpError(null);
-    setEditingExp(e);
-  };
-
-  const saveEditExp = async () => {
-    if (!editingExp) return;
-    const amount = Number(editForm.amount);
-    if (!editForm.title.trim() || !Number.isFinite(amount) || amount <= 0 || !editForm.expense_date) {
-      setExpError(t("admin.err_expense_fields")); return;
-    }
-    setEditSaving(true);
-    setExpError(null);
-    try {
-      const res = await expenseRequest(`/expenses/admin/${editingExp.id}`, {
-        method: "PUT",
-        body: JSON.stringify({
-          title: editForm.title.trim(),
-          category: editForm.category,
-          amount,
-          notes: editForm.notes.trim() || undefined,
-          expense_date: editForm.expense_date + "T00:00:00",
-          payment_method: editForm.payment_method || undefined,
-          bank_name: editForm.payment_method === "bank" ? editForm.bank_name || undefined : undefined,
-          bank_account: editForm.payment_method === "bank" ? editForm.bank_account || undefined : undefined,
-          receiver_phone: editForm.receiver_phone || undefined,
-        }),
-      });
-      if (res?.data) {
-        setExpenseRows((prev) => prev.map((r) => r.id === editingExp.id ? res.data : r));
-      }
-      setEditingExp(null);
-    } catch (e: unknown) {
-      // Was silently ignored: the admin thought it saved.
-      setExpError(e instanceof Error ? e.message : t("admin.err_expense_save"));
-    }
-    finally { setEditSaving(false); }
-  };
-
   // Confirm dialog execution
   const execConfirm = async () => {
     if (!confirm) return;
     if (confirm.type === "delete-shop") {
       await handleDeleteShop(confirm.id);
     } else if (confirm.type === "delete-user") {
-      await handleDeleteUser(confirm.id, confirm.shopId);
+      await handleDeleteUser(confirm.id);
     }
+  };
+
+  const detailShop = detailId ? visibleShops.find((s) => s.id === detailId) ?? null : null;
+
+  /** The listed companies and how each is doing, as a spreadsheet file. */
+  const exportCompaniesCsv = (list: AdminShop[]) => {
+    const head = ["Company", "Status", "Health", "Type", "Owner", "Phone", "TIN", "People", "Products",
+      "Sales (30 days)", "Sales (previous 30)", "Sales (all time)", "Purchases", "Expenses", "Proformas",
+      "Setup done", "Joined", "Last activity"];
+    const cell = (v: unknown) => {
+      const x = v == null ? "" : String(v);
+      // Quote everything; neutralise formulas so a spreadsheet never runs one.
+      return `"${(/^[=+\-@]/.test(x) ? "'" + x : x).replace(/"/g, '""')}"`;
+    };
+    const lines = list.map((s) => {
+      const c = insightOf.get(s.id);
+      const setup = c ? Object.values(c.setup).filter(Boolean).length : 0;
+      return [s.name, s.is_active ? "on" : "off", c?.health ?? "", normalizeLayout(s.layout), s.owner_email ?? "",
+        s.phone ?? "", shopTin(s), s.user_count, c?.products ?? "", c?.sales_30d ?? "", c?.sales_prev_30d ?? "",
+        c?.sales_total ?? "", c?.purchases ?? "", c?.expenses ?? "", c?.proformas ?? "", c ? `${setup}/6` : "",
+        s.created_at?.slice(0, 10) ?? "", c?.last_activity_at?.slice(0, 16).replace("T", " ") ?? ""].map(cell).join(",");
+    });
+    const blob = new Blob(["﻿" + [head.map(cell).join(","), ...lines].join("\r\n")], { type: "text/csv;charset=utf-8" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `higoverse-companies-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   };
 
   if (!ready || !user || user.role !== "admin") return null;
@@ -606,7 +518,7 @@ export default function AdminPage() {
   // ── Filtered shops / users / applications ─────────────────────────────────
   // From every visible shop (not just active ones), so "Inactive" and "All" work.
   const filteredShops = visibleShops
-    .filter((s) => shopFilter === "all" || (shopFilter === "active" ? s.is_active : !s.is_active))
+    .filter((s) => shopFilter === "all" || (insightOf.get(s.id)?.health ?? (s.is_active ? "new" : "inactive")) === shopFilter)
     .filter((s) => {
       if (!shopSearch) return true;
       const q = shopSearch.toLowerCase();
@@ -618,6 +530,8 @@ export default function AdminPage() {
     .sort((a, b) => {
       if (shopSort === "name")       return (a.name ?? "").localeCompare(b.name ?? "");
       if (shopSort === "users")      return b.user_count - a.user_count;
+      if (shopSort === "mostActive") return (insightOf.get(b.id)?.sales_30d ?? 0) - (insightOf.get(a.id)?.sales_30d ?? 0)
+                                        || (insightOf.get(b.id)?.records_30d ?? 0) - (insightOf.get(a.id)?.records_30d ?? 0);
       if (shopSort === "lastActive") return parseUTC(b.last_seen_at).getTime() - parseUTC(a.last_seen_at).getTime();
       return parseUTC(b.created_at).getTime() - parseUTC(a.created_at).getTime();
     });
@@ -634,17 +548,25 @@ export default function AdminPage() {
       return u.email?.toLowerCase().includes(q) || u.name?.toLowerCase().includes(q) || u.shop_name?.toLowerCase().includes(q);
     });
 
-  const TABS: { key: Tab; label: string; count?: number; urgent?: boolean; icon: typeof LayoutDashboard }[] = [
-    { key: "overview",      label: t("admin.tab_overview"),  icon: LayoutDashboard },
-    { key: "shops",         label: t("admin.tab_shops"),     count: visibleShops.length, icon: Store },
-    { key: "users",         label: t("admin.tab_users"),     count: users.length,      icon: Users },
-    { key: "expenses",      label: t("admin.tab_expenses"),  icon: Receipt },
-  ];
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-slate-50">
       <main className="max-w-6xl mx-auto px-3 sm:px-4 py-2.5 sm:py-3 space-y-3">
+        {editingUser && (
+          <EditUserDialog user={editingUser} t={t} onClose={() => setEditingUser(null)}
+            onSaved={(u) => { setUsers((p) => p.map((x) => x.id === u.id ? u : x)); setEditingUser(null); }} />
+        )}
+        {detailShop && (
+          <CompanyDetail shop={detailShop} insight={insightOf.get(detailShop.id)} months={insights?.months ?? []}
+            members={shopUsers[detailShop.id] ?? []} busy={actionId === detailShop.id} t={t} lang={lang}
+            onClose={() => setDetailId(null)}
+            onEdit={() => openEditShop(detailShop)}
+            onToggle={() => handleToggleShop(detailShop.id)}
+            onVerify={() => handleVerifyEmail(detailShop.id)}
+            onDelete={() => setConfirm({ type: "delete-shop", id: detailShop.id, label: detailShop.name ?? t("admin.this_shop"), extra: detailShop.owner_email ?? undefined })}
+            onAddUser={() => openCreateUser(detailShop.id)} />
+        )}
         {pwFor && <SetPasswordDialog name={pwFor.name} onClose={() => setPwFor(null)} onSave={(pw) => setUserPassword(pwFor.id, pw)} />}
 
         {/* ── Hero header ─────────────────────────────────────────────────── */}
@@ -688,36 +610,13 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* ── Tabs ────────────────────────────────────────────────────────── */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 px-1 py-1 flex gap-1 w-fit overflow-x-auto max-w-full">
-          {TABS.map((t) => {
-            const active = tab === t.key;
-            return (
-              <button key={t.key} onClick={() => setTab(t.key)}
-                className={`relative flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all ${
-                  active ? "text-white shadow-sm" : "text-gray-500 hover:text-gray-800 hover:bg-gray-50"
-                }`}
-                style={active ? { background: LI_BLUE } : undefined}>
-                <t.icon size={12} className={active ? "text-white" : "text-gray-400"} />
-                {t.label}
-                {t.count !== undefined && t.count > 0 && (
-                  <span className="ml-0.5 text-[11px] font-bold px-1.5 py-0.5 rounded-full"
-                    style={{
-                      background: active ? "rgba(255,255,255,0.2)" : "#eef2f6",
-                      color: active ? "#fff" : "#8a94a6",
-                    }}>
-                    {t.count}
-                  </span>
-                )}
-              </button>
-            );
-          })}
-        </div>
-
         {/* ══ OVERVIEW ════════════════════════════════════════════════════════ */}
         {tab === "overview" && (
           <div className="space-y-3">
-            <TwoStepCard />
+            <GrowthPanel insights={insights} shops={visibleShops} loading={loading} t={t} lang={lang}
+              onOpenCompany={setDetailId}
+              onFilterHealth={(h) => { setShopFilter(h); router.replace("/admin?tab=shops", { scroll: false }); }} />
+            <h2 className="pt-2 text-[11px] font-semibold uppercase tracking-wider text-gray-400">{t("admin.platform_section")}</h2>
             {loading ? (
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
                 {Array.from({ length: 8 }).map((_, i) => (
@@ -726,11 +625,10 @@ export default function AdminPage() {
               </div>
             ) : stats ? (
               <>
-                {/* Pending applications callout */}
                 {/* KPI row */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
                   {[
-                    { label: t("admin.tab_shops"),      value: stats.active_shops,   sub: `${stats.inactive_shops} ${t("admin.inactive_suffix")}`, icon: Store    },
+                    { label: t("admin.series_companies"), value: stats.total_shops, sub: `${stats.inactive_shops} ${t("admin.inactive_suffix")}`, icon: Store    },
                     { label: t("admin.total_users"),    value: stats.total_users,    sub: `${stats.active_users} ${t("common.active")}`, icon: Users    },
                     { label: t("admin.online_now"),     value: onlineNow,            sub: t("admin.shops_live_sub"), icon: Activity },
                     { label: t("admin.new_this_week"),  value: newThisWeek,          sub: t("admin.new_shops_joined_sub"), icon: UserPlus },
@@ -897,18 +795,20 @@ export default function AdminPage() {
                   <select value={shopSort} onChange={(e) => setShopSort(e.target.value as ShopSort)}
                     className="text-xs border border-gray-200 rounded-lg pl-2.5 pr-6 py-1.5 bg-white text-gray-600 appearance-none focus:outline-none focus:ring-2 focus:ring-blue-100 cursor-pointer">
                     <option value="newest">{t("admin.sort_newest")}</option>
+                    <option value="mostActive">{t("admin.sort_most_active")}</option>
                     <option value="lastActive">{t("admin.sort_last_active")}</option>
                     <option value="users">{t("admin.sort_most_users")}</option>
                     <option value="name">{t("admin.sort_name_az")}</option>
                   </select>
                   <ChevronDown size={10} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
                 </div>
-                <div className="flex text-xs rounded-lg overflow-hidden border border-gray-200">
-                  {(["all", "active", "inactive"] as const).map((f) => (
-                    <button key={f} onClick={() => setShopFilter(f)}
-                      className="px-2.5 py-1.5 capitalize border-r last:border-r-0 border-gray-200 transition font-medium"
+                <div className="flex text-xs rounded-lg overflow-x-auto border border-gray-200 max-w-full">
+                  {(["all", ...COMPANY_HEALTH] as const).map((f) => (
+                    <button key={f} onClick={() => setShopFilter(f)} aria-pressed={shopFilter === f}
+                      className="px-2.5 py-1.5 whitespace-nowrap border-r last:border-r-0 border-gray-200 transition font-medium"
                       style={shopFilter === f ? { background: LI_BLUE, color: "#fff" } : { background: "#fff", color: "#666" }}>
-                      {f === "all" ? t("common.all") : f === "active" ? t("admin.status_active") : t("admin.status_inactive")}
+                      {f === "all" ? t("common.all") : t(`admin.health_${f}`)}
+                      <span className="ml-1 opacity-70 tabular-nums">{f === "all" ? visibleShops.length : (insights?.health[f] ?? 0)}</span>
                     </button>
                   ))}
                 </div>
@@ -919,7 +819,11 @@ export default function AdminPage() {
                   placeholder={t("admin.search_shops_placeholder")}
                   className="pl-7 pr-3 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-100 w-44" />
               </div>
-              <span className="text-xs text-gray-400 shrink-0 font-medium">{filteredShops.length} / {activeShops.length}</span>
+              <span className="text-xs text-gray-400 shrink-0 font-medium">{filteredShops.length} / {visibleShops.length}</span>
+              <button onClick={() => exportCompaniesCsv(filteredShops)} disabled={filteredShops.length === 0}
+                className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-gray-600 font-semibold transition shrink-0 hover:bg-gray-50 disabled:opacity-40">
+                <Download size={12} /> {t("admin.export_csv")}
+              </button>
               <button onClick={openCreateShop}
                 className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg text-white font-semibold transition shrink-0 shadow-sm hover:opacity-90"
                 style={{ background: LI_BLUE }}>
@@ -943,8 +847,7 @@ export default function AdminPage() {
                 {filteredShops.map((shop) => {
                   const online   = isOnline(shop.last_seen_at);
                   const busy     = actionId === shop.id;
-                  const expanded = expandedShop === shop.id;
-                  const members  = shopUsers[shop.id] ?? [];
+                  const info     = insightOf.get(shop.id);
                   return (
                     <div key={shop.id}>
                       <div className="flex items-center gap-2.5 px-4 py-2.5 hover:bg-slate-50/70 transition-colors">
@@ -965,7 +868,8 @@ export default function AdminPage() {
                         {/* Info */}
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <span className="text-[13px] font-semibold text-gray-900">{shop.name}</span>
+                            <button onClick={() => setDetailId(shop.id)} className="text-[13px] font-semibold text-gray-900 hover:text-[#0a66c2] hover:underline text-left">{shop.name}</button>
+                            {info && <HealthBadge health={info.health} t={t} />}
                             {online && (
                               <span className="flex items-center gap-1 text-[11px] font-bold px-1.5 py-0.5 rounded-full text-white" style={{ background: "#057642" }}>
                                 <span className="w-1 h-1 rounded-full bg-white animate-pulse" /> {t("admin.live")}
@@ -1008,12 +912,20 @@ export default function AdminPage() {
                         {/* Stats */}
                         <div className="hidden md:flex items-center gap-4 shrink-0 text-xs text-gray-500">
                           <div className="text-center">
+                            <p className="text-gray-400 text-[11px]">{t("admin.sales_30d_short")}</p>
+                            <p className="font-bold text-gray-800 text-xs tabular-nums">{info?.sales_30d ?? "-"}</p>
+                          </div>
+                          <div className="text-center">
+                            <p className="text-gray-400 text-[11px]">{t("admin.products_short")}</p>
+                            <p className="font-bold text-gray-800 text-xs tabular-nums">{info?.products ?? "-"}</p>
+                          </div>
+                          <div className="text-center">
                             <p className="text-gray-400 text-[11px]">{t("admin.users_label")}</p>
                             <p className="font-bold text-gray-800 text-xs">{shop.user_count}</p>
                           </div>
                           <div className="text-center">
-                            <p className="text-gray-400 text-[11px]">{t("dash.last_seen")}</p>
-                            <p className="font-semibold text-gray-800">{online ? t("common.online") : timeAgo(shop.last_seen_at, t)}</p>
+                            <p className="text-gray-400 text-[11px]">{t("admin.last_activity")}</p>
+                            <p className="font-semibold text-gray-800">{online ? t("common.online") : ago(info?.last_activity_at ?? shop.last_seen_at, t)}</p>
                           </div>
                           <div className="text-center">
                             <p className="text-gray-400 text-[11px]">{t("admin.joined")}</p>
@@ -1023,9 +935,9 @@ export default function AdminPage() {
 
                         {/* Actions */}
                         <div className="flex items-center gap-1 shrink-0">
-                          <button onClick={() => setExpandedShop(expanded ? null : shop.id)}
+                          <button onClick={() => setDetailId(shop.id)} title={t("admin.open_company")} aria-label={t("admin.open_company")}
                             className="p-1.5 rounded-lg transition text-gray-400 hover:text-gray-700 hover:bg-gray-100">
-                            {expanded ? <EyeOff size={14} /> : <Eye size={14} />}
+                            <Eye size={14} />
                           </button>
                           <button onClick={() => openEditShop(shop)}
                             title={t("admin.edit_shop_title")}
@@ -1038,116 +950,13 @@ export default function AdminPage() {
                           </button>
                           <button
                             onClick={() => setConfirm({ type: "delete-shop", id: shop.id, label: shop.name ?? t("admin.this_shop"), extra: shop.owner_email ?? undefined })}
-                            disabled={busy}
-                            title={t("admin.delete_shop_title")}
+                            disabled={busy || shop.is_active}
+                            title={shop.is_active ? t("admin.delete_needs_off") : t("admin.delete_shop_title")}
                             className="p-1.5 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition disabled:opacity-40">
                             <Trash2 size={13} />
                           </button>
                         </div>
                       </div>
-
-                      {/* Expanded */}
-                      {expanded && (
-                        <div className="px-4 pb-3 pt-1 border-t border-gray-100" style={{ background: "#F9F8F6" }}>
-                          <div className="grid sm:grid-cols-3 gap-2.5 mt-2">
-                            {/* Info */}
-                            <div className="bg-white rounded-lg border border-gray-200 p-3">
-                              <p className="text-[11px] uppercase tracking-wider text-gray-400 font-semibold mb-2.5">{t("admin.shop_info")}</p>
-                              {shop.logo_url && (
-                                // eslint-disable-next-line @next/next/no-img-element
-                                <img src={shop.logo_url} alt={shop.name} className="w-16 h-16 rounded-xl object-cover mb-3 border border-gray-100" />
-                              )}
-                              <div className="space-y-2">
-                                {[
-                                  { icon: <Store size={11} />,  label: t("common.name"),    value: shop.name },
-                                  { icon: <Mail size={11} />,   label: t("common.email"),   value: shop.email ?? "-" },
-                                  { icon: <Phone size={11} />,  label: t("common.phone"),   value: prettyPhone(shop.phone) || "-" },
-                                  { icon: <Hash size={11} />,   label: "TIN",               value: shopTin(shop) || "-" },
-                                  { icon: <MapPin size={11} />, label: t("common.address"), value: formatPublicAddress(shop.address) || "-" },
-                                ].map((d) => (
-                                  <div key={d.label} className="flex items-start gap-2 text-xs">
-                                    <span className="text-gray-300 mt-0.5 shrink-0">{d.icon}</span>
-                                    <span className="text-gray-400 w-12 shrink-0">{d.label}</span>
-                                    <span className="text-gray-700 font-medium break-all">{d.value}</span>
-                                  </div>
-                                ))}
-                                {shop.owner_email && (
-                                  <div className="flex items-center gap-2 text-xs pt-1">
-                                    <span className="text-gray-300 mt-0.5 shrink-0"><ShieldCheck size={11} /></span>
-                                    <span className="text-gray-400 w-12 shrink-0">{t("common.email")}</span>
-                                    {shop.email_verified ? (
-                                      <span className="text-slate-700 font-medium flex items-center gap-1"><CheckCircle size={11} /> {t("admin.verified")}</span>
-                                    ) : (
-                                      <button onClick={() => handleVerifyEmail(shop.id)} disabled={actionId === shop.id}
-                                        className="text-amber-600 font-medium flex items-center gap-1 hover:underline disabled:opacity-40">
-                                        <AlertTriangle size={11} /> {t("admin.unverified_click_verify")}
-                                      </button>
-                                    )}
-                                  </div>
-                                )}
-                                {(() => { const { desc } = decodeShopHumanInfo(shop.description); return desc ? <p className="text-xs text-gray-400 italic border-t border-gray-100 pt-2 mt-1">{desc}</p> : null; })()}
-                              </div>
-                            </div>
-
-                            {/* Activity */}
-                            <div className="bg-white rounded-lg border border-gray-200 p-3">
-                              <p className="text-[11px] uppercase tracking-wider text-gray-400 font-semibold mb-2.5">{t("admin.activity")}</p>
-                              <div className="space-y-2 text-xs">
-                                {[
-                                  { label: t("common.status"),      value: isOnline(shop.last_seen_at) ? t("common.online") : t("admin.offline"), highlight: isOnline(shop.last_seen_at) },
-                                  { label: t("dash.last_seen"),     value: timeAgo(shop.last_seen_at, t) },
-                                  { label: t("admin.exact_time"),   value: shop.last_seen_at ? parseUTC(shop.last_seen_at).toLocaleString() : t("admin.never") },
-                                  { label: t("admin.active_today"), value: wasActiveToday(shop.last_seen_at) ? t("common.yes") : t("common.no"), highlight: wasActiveToday(shop.last_seen_at) },
-                                  { label: t("admin.joined"),       value: fmtDate(shop.created_at) },
-                                  { label: t("common.updated"),     value: fmtDate(shop.updated_at) },
-                                ].map((r) => (
-                                  <div key={r.label} className="flex justify-between gap-2">
-                                    <span className="text-gray-400">{r.label}</span>
-                                    <span className={`${r.highlight ? "font-bold text-gray-900" : "font-medium text-gray-700"}`}>{r.value}</span>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-
-                            {/* Users */}
-                            <div className="bg-white rounded-lg border border-gray-200 p-3">
-                              <div className="flex items-center justify-between mb-2.5">
-                                <p className="text-[11px] uppercase tracking-wider text-gray-400 font-semibold flex items-center gap-1.5">
-                                  {t("admin.team_members")} <span className="font-bold text-gray-600 normal-case">{members.length}</span>
-                                </p>
-                                <button onClick={() => openCreateUser(shop.id)}
-                                  title={t("admin.register_user_for_shop_title")}
-                                  className="flex items-center gap-1 text-[11px] font-semibold px-2 py-1 rounded-lg hover:opacity-90 transition text-white shadow-sm"
-                                  style={{ background: LI_BLUE }}>
-                                  <UserPlus size={10} /> {t("common.add")}
-                                </button>
-                              </div>
-                              {members.length === 0 ? (
-                                <p className="text-gray-400 text-xs py-3 text-center">{t("admin.no_users_assigned")}</p>
-                              ) : (
-                                <div className="space-y-2">
-                                  {members.map((m) => (
-                                    <div key={m.id} className="flex items-center gap-2 text-xs">
-                                      <div className="w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold text-white shrink-0"
-                                        style={{ background: LI_BLUE }}>
-                                        {m.email[0].toUpperCase()}
-                                      </div>
-                                      <span className="flex-1 text-gray-700 truncate">{m.email}</span>
-                                      <span className="text-gray-400 capitalize shrink-0">{m.role}</span>
-                                      <button
-                                        onClick={() => setConfirm({ type: "delete-user", id: m.id, label: m.email })}
-                                        title={t("admin.delete_user_title")}
-                                        className="p-0.5 rounded text-red-400 hover:text-red-600 hover:bg-red-50 transition">
-                                        <UserX size={11} />
-                                      </button>
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      )}
                     </div>
                   );
                 })}
@@ -1185,8 +994,8 @@ export default function AdminPage() {
             </div>
 
             {/* Header */}
-            <div className="hidden sm:grid grid-cols-[1fr_1fr_auto_auto_auto] gap-4 px-4 py-1.5 border-b border-gray-100" style={{ background: "#F9F8F6" }}>
-              {[t("common.user"), t("admin.shop_label"), t("admin.role_label"), t("common.status"), t("common.actions")].map((h) => (
+            <div className="hidden sm:grid grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_6.5rem_7.5rem_15rem] gap-4 px-4 py-1.5 border-b border-gray-100" style={{ background: "#F9F8F6" }}>
+              {[t("common.user"), t("admin.shop_label"), t("admin.role_label"), t("admin.last_activity"), t("common.actions")].map((h) => (
                 <span key={h} className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">{h}</span>
               ))}
             </div>
@@ -1209,20 +1018,20 @@ export default function AdminPage() {
                   const busy = actionId === u.id;
                   return (
                     <div key={u.id}
-                      className={`grid grid-cols-[1fr_1fr_auto_auto_auto] gap-4 items-center px-4 py-2 hover:bg-slate-50/70 transition ${!u.is_active ? "opacity-50" : ""}`}>
+                      className={`grid grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_6.5rem_7.5rem_15rem] gap-4 items-center px-4 py-2 hover:bg-slate-50/70 transition ${!u.is_active ? "opacity-50" : ""}`}>
                       <div className="min-w-0 flex items-center gap-2">
                         <div className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold text-white shrink-0 ring-2 ring-white shadow-sm"
                           style={{ background: LI_BLUE }}>
                           {u.email[0].toUpperCase()}
                         </div>
                         <div className="min-w-0">
-                          <p className="text-xs font-medium text-gray-900 truncate">{u.email}</p>
-                          <p className="text-[11px] text-gray-400">{fmtDate(u.created_at)}</p>
+                          <p className="text-xs font-medium text-gray-900 truncate">{u.name || u.email}</p>
+                          <p className="text-[11px] text-gray-400 truncate">{u.name ? u.email : fmtDate(u.created_at)}</p>
                         </div>
                       </div>
                       <div className="min-w-0">
                         {u.shop_name
-                          ? <p className="text-xs text-gray-600 truncate">{u.shop_name}</p>
+                          ? <button onClick={() => u.shop_id && setDetailId(u.shop_id)} className="text-xs text-gray-600 truncate hover:text-[#0a66c2] hover:underline text-left max-w-full">{u.shop_name}</button>
                           : <p className="text-xs text-gray-300 italic">{t("admin.no_shop")}</p>}
                       </div>
                       <div className="shrink-0">
@@ -1231,9 +1040,7 @@ export default function AdminPage() {
                             <div className="relative">
                               <select value={roleEdit.role} onChange={(e) => setRoleEdit({ id: u.id, role: e.target.value })}
                                 className="text-xs border border-gray-300 rounded-lg px-2 py-1 pr-5 appearance-none focus:outline-none bg-white">
-                                <option value="admin">{t("nav.admin")}</option>
-                                <option value="owner">{t("admin.role_owner")}</option>
-                                <option value="staff">{t("admin.role_staff")}</option>
+                                {STAFF_ROLES.map((r) => <option key={r} value={r}>{t(`role.${r}`)}</option>)}
                               </select>
                               <ChevronDown size={9} className="absolute right-1 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
                             </div>
@@ -1245,15 +1052,15 @@ export default function AdminPage() {
                         ) : (
                           <span className="text-xs font-semibold capitalize px-2 py-0.5 rounded-full"
                             style={{ background: "#EBF2FD", color: LI_BLUE }}>
-                            {u.role === "admin" ? t("nav.admin") : u.role === "owner" ? t("admin.role_owner") : t("admin.role_staff")}
+                            {u.role === "admin" ? t("nav.admin") : t(`role.${u.role}`)}
                           </span>
                         )}
                       </div>
-                      <div className="flex items-center gap-1.5 shrink-0">
+                      <div className="flex items-center gap-1.5 shrink-0 w-28">
                         {u.is_active
-                          ? <CheckCircle size={13} className="text-slate-700" />
-                          : <XCircle size={13} className="text-gray-300" />}
-                        <span className="text-xs text-gray-500">{u.is_active ? t("admin.status_active") : t("admin.status_inactive")}</span>
+                          ? <CheckCircle size={13} className="text-slate-700" aria-label={t("admin.status_active")} />
+                          : <XCircle size={13} className="text-gray-300" aria-label={t("admin.status_inactive")} />}
+                        <span className="text-xs text-gray-500 truncate">{u.is_active ? ago(u.last_active_at, t) : t("admin.status_inactive")}</span>
                       </div>
                       <div className="flex items-center gap-1 shrink-0">
                         {!isMe ? (
@@ -1267,15 +1074,22 @@ export default function AdminPage() {
                               title={t("setpw.title")} aria-label={t("setpw.title")}>
                               <KeyRound size={12} />
                             </button>
-                            <button onClick={() => setRoleEdit({ id: u.id, role: u.role })} disabled={busy || roleEdit?.id === u.id}
+                            <button onClick={() => setEditingUser(u)} disabled={busy}
                               className="p-1.5 rounded-lg text-gray-300 hover:text-gray-600 hover:bg-gray-100 transition disabled:opacity-40"
-                              title={t("admin.change_role_title")}>
-                              <UserCog size={12} />
+                              title={t("admin.edit_user")} aria-label={t("admin.edit_user")}>
+                              <Pencil size={12} />
                             </button>
+                            {u.shop_id && u.role !== "admin" && (
+                              <button onClick={() => setRoleEdit({ id: u.id, role: u.role })} disabled={busy || roleEdit?.id === u.id}
+                                className="p-1.5 rounded-lg text-gray-300 hover:text-gray-600 hover:bg-gray-100 transition disabled:opacity-40"
+                                title={t("admin.change_role_title")} aria-label={t("admin.change_role_title")}>
+                                <UserCog size={12} />
+                              </button>
+                            )}
                             <button
-                              onClick={() => setConfirm({ type: "delete-user", id: u.id, label: u.email, extra: u.shop_name ?? undefined, shopId: u.shop_id ?? undefined })}
+                              onClick={() => setConfirm({ type: "delete-user", id: u.id, label: u.email, extra: u.shop_name ?? undefined })}
                               disabled={busy}
-                              title={t("admin.delete_user_shop_title")}
+                              title={t("admin.delete_user_title")}
                               className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg text-slate-600 hover:bg-red-50 hover:text-red-600 font-medium border border-slate-200 hover:border-red-200 transition disabled:opacity-40">
                               <UserX size={11} /> {t("common.delete")}
                             </button>
@@ -1291,326 +1105,19 @@ export default function AdminPage() {
             )}
           </div>
         )}
-        {/* ══ SHOP EXPENSES ══════════════════════════════════════════════════ */}
-        {tab === "expenses" && (
-          <div className="space-y-3">
 
-            {/* Shop selector / back bar */}
-            {!expShopId ? (
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                <div className="flex items-center justify-between px-4 py-2.5 border-b border-gray-100 bg-slate-50/60">
-                  <h2 className="font-semibold text-gray-800 text-sm flex items-center gap-2">
-                    <span className="w-5 h-5 rounded-lg flex items-center justify-center" style={{ background: "#EBF2FD" }}>
-                      <Receipt size={10} style={{ color: LI_BLUE }} />
-                    </span>
-                    {t("admin.select_shop_expenses")}
-                  </h2>
-                  <div className="relative">
-                    <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
-                    <input value={expShopSearch} onChange={(e) => setExpShopSearch(e.target.value)}
-                      placeholder={t("admin.search_shops_placeholder")}
-                      className="pl-7 pr-3 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-100 w-44" />
-                  </div>
-                </div>
-                {loading ? (
-                  <div className="p-4 space-y-2">
-                    {Array.from({ length: 5 }).map((_, i) => (
-                      <div key={i} className="h-12 rounded-xl hgv-shimmer" />
-                    ))}
-                  </div>
-                ) : (
-                  <div className="divide-y divide-gray-50">
-                    {activeShops
-                      .filter((s) => !expShopSearch || s.name?.toLowerCase().includes(expShopSearch.toLowerCase()) || s.owner_email?.toLowerCase().includes(expShopSearch.toLowerCase()))
-                      .map((shop) => (
-                        <button key={shop.id} onClick={() => selectExpShop(shop)}
-                          className="w-full flex items-center gap-2.5 px-4 py-2.5 hover:bg-[#EBF2FD] transition-colors text-left group">
-                          <div className="w-8 h-8 rounded-full overflow-hidden flex items-center justify-center text-xs font-bold text-white shrink-0"
-                            style={{ background: shop.logo_url ? "transparent" : LI_BLUE }}>
-                            {shop.logo_url
-                              // eslint-disable-next-line @next/next/no-img-element
-                              ? <img src={shop.logo_url} alt={shop.name} className="w-8 h-8 object-cover" />
-                              : (shop.name ?? "?")[0].toUpperCase()}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-[13px] font-semibold text-gray-900 group-hover:text-[#0a66c2] transition-colors">{shop.name}</p>
-                            {shop.owner_email && <p className="text-[11px] text-gray-400 truncate">{shop.owner_email}</p>}
-                          </div>
-                          <div className="flex items-center gap-4 text-xs text-gray-400 shrink-0">
-                            <span>{shop.user_count} {t("admin.users_suffix")}</span>
-                            {isOnline(shop.last_seen_at) && (
-                              <span className="flex items-center gap-1 text-[11px] font-bold px-1.5 py-0.5 rounded-full text-white" style={{ background: "#057642" }}>
-                                <span className="w-1 h-1 rounded-full bg-white animate-pulse" />{t("admin.live")}
-                              </span>
-                            )}
-                            <Receipt size={13} style={{ color: LI_BLUE }} className="opacity-0 group-hover:opacity-100 transition-opacity" />
-                          </div>
-                        </button>
-                      ))}
-                  </div>
-                )}
-              </div>
-            ) : (
-              <>
-                {/* Back + shop header */}
-                <div className="bg-white rounded-xl shadow-sm border border-gray-200 px-3.5 py-2.5 flex items-center gap-2.5">
-                  <button onClick={() => { setExpShopId(null); setExpenseRows([]); }}
-                    className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-800 font-medium transition border border-gray-200 rounded-lg px-2.5 py-1.5 hover:bg-gray-50 shrink-0">
-                    <ChevronLeft size={12} /> {t("admin.all_shops")}
-                  </button>
-                  <span className="w-6 h-6 rounded-lg flex items-center justify-center shrink-0" style={{ background: "#EBF2FD" }}>
-                    <Receipt size={12} style={{ color: LI_BLUE }} />
-                  </span>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-[13px] font-semibold text-gray-900">{expShopName}</p>
-                    <p className="text-[11px] text-gray-400">{expTotal.toLocaleString()} {t("admin.expenses_total")}</p>
-                  </div>
-                  <button onClick={() => loadShopExpenses(expShopId, expPage)} disabled={expLoading}
-                    className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 transition disabled:opacity-40 shrink-0">
-                    <RefreshCw size={11} className={expLoading ? "animate-spin" : ""} /> {t("common.refresh")}
-                  </button>
-                </div>
+        {/* ══ ACTIVITY: what the admins did ═════════════════════════════════ */}
+        {tab === "activity" && <AuditLog t={t} lang={lang} />}
 
-                {/* Expenses table */}
-                <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                  {expLoading ? (
-                    <div className="p-4 space-y-2">
-                      {Array.from({ length: 8 }).map((_, i) => (
-                        <div key={i} className="h-10 rounded-lg hgv-shimmer" />
-                      ))}
-                    </div>
-                  ) : expenseRows.length === 0 ? (
-                    <div className="py-16 text-center">
-                      <Receipt size={32} className="mx-auto mb-3 text-gray-200" />
-                      <p className="text-sm font-semibold text-gray-400">{t("expenses.no_expenses")}</p>
-                      <p className="text-xs text-gray-300 mt-0.5">{t("admin.shop_no_expenses_sub")}</p>
-                    </div>
-                  ) : (
-                    <div className="overflow-x-auto">
-                      <table className="w-full">
-                        <thead>
-                          <tr className="bg-slate-50 border-b border-slate-100">
-                            {[t("common.date"),t("expenses.title_field"),t("expenses.category"),t("expenses.amount"),t("admin.col_payment"),t("admin.col_bank_name"),t("admin.col_account_ref"),t("admin.col_receiver_phone"),t("common.notes"),""].map((h) => (
-                              <th key={h} data-primary={h === t("expenses.title_field") || undefined} className="px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-400 whitespace-nowrap">{h}</th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-50">
-                          {expenseRows.map((e) => {
-                            const d = e.expense_date ? new Date(e.expense_date) : null;
-                            return (
-                              <tr key={e.id} className="hover:bg-slate-50/60 transition-colors">
-                                {/* Date */}
-                                <td className="px-3 py-1.5 whitespace-nowrap">
-                                  {d ? (
-                                    <div>
-                                      <p className="text-xs font-medium text-slate-700">{d.toLocaleDateString()}</p>
-                                      <p className="text-[11px] text-slate-400">{d.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})}</p>
-                                    </div>
-                                  ) : <span className="text-slate-300 text-xs">-</span>}
-                                </td>
-                                {/* Title */}
-                                <td className="px-3 py-1.5">
-                                  <p className="text-xs font-semibold text-slate-800">{e.title}</p>
-                                  <p className="text-[11px] text-slate-400 font-mono">{e.id.slice(0,8)}</p>
-                                </td>
-                                {/* Category */}
-                                <td className="px-3 py-1.5">
-                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[11px] font-semibold bg-blue-100 text-blue-700 capitalize">{t(`expenses.cat.${e.category}`)}</span>
-                                </td>
-                                {/* Amount */}
-                                <td className="px-3 py-1.5 text-xs font-bold tabular-nums" style={{ color: LI_BLUE }}>
-                                  {Number(e.amount).toLocaleString()}
-                                </td>
-                                {/* Payment Method */}
-                                <td className="px-3 py-1.5 whitespace-nowrap">
-                                  {e.payment_method === "mtn" && (
-                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[11px] font-semibold bg-slate-100 text-slate-700">{t("admin.payment_mtn")}</span>
-                                  )}
-                                  {e.payment_method === "bank" && (
-                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[11px] font-semibold bg-blue-100 text-blue-700">{t("admin.payment_bank")}</span>
-                                  )}
-                                  {!e.payment_method && <span className="text-slate-300 text-[11px]">-</span>}
-                                </td>
-                                {/* Bank Name */}
-                                <td className="px-3 py-1.5 text-[11px] text-slate-600 whitespace-nowrap">
-                                  {e.bank_name || <span className="text-slate-300">-</span>}
-                                </td>
-                                {/* Account / Ref */}
-                                <td className="px-3 py-1.5 text-[11px] text-slate-600 font-mono whitespace-nowrap">
-                                  {e.bank_account || <span className="text-slate-300 font-sans">-</span>}
-                                </td>
-                                {/* Receiver Phone */}
-                                <td className="px-3 py-1.5 text-[11px] text-slate-600 whitespace-nowrap">
-                                  {e.receiver_phone || <span className="text-slate-300">-</span>}
-                                </td>
-                                {/* Notes */}
-                                <td className="px-3 py-1.5 text-[11px] text-slate-500 max-w-[140px] truncate">
-                                  {e.notes || <span className="text-slate-300 italic">-</span>}
-                                </td>
-                                {/* Edit */}
-                                <td className="px-3 py-1.5">
-                                  <button onClick={() => openEditExp(e)} title={t("admin.edit_expense_title")}
-                                    className="p-1.5 rounded-md hover:bg-[#EBF2FD] text-gray-300 hover:text-[#0a66c2] transition">
-                                    <Pencil size={12} />
-                                  </button>
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-
-                  {/* Pagination */}
-                  {expTotal > 50 && (
-                    <div className="flex items-center justify-between px-4 py-2 border-t border-slate-100 bg-slate-50/50">
-                      <p className="text-[11px] text-slate-500">
-                        {t("admin.page")} <span className="font-semibold">{expPage}</span> · {expTotal.toLocaleString()} {t("common.total")}
-                      </p>
-                      <div className="flex gap-1">
-                        <button disabled={expPage <= 1 || expLoading} onClick={() => loadShopExpenses(expShopId, expPage - 1)}
-                          className="px-2.5 py-1 rounded-md text-[11px] border border-slate-200 text-slate-500 hover:bg-slate-100 disabled:opacity-30 transition">
-                          ← {t("admin.prev")}
-                        </button>
-                        <button disabled={expPage * 50 >= expTotal || expLoading} onClick={() => loadShopExpenses(expShopId, expPage + 1)}
-                          className="px-2.5 py-1 rounded-md text-[11px] border border-slate-200 text-slate-500 hover:bg-slate-100 disabled:opacity-30 transition">
-                          {t("admin.next")} →
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </>
-            )}
+        {/* ══ ACCOUNT: the admin's own sign-in ═══════════════════════════════ */}
+        {tab === "account" && (
+          <div className="grid gap-3 lg:grid-cols-2 lg:items-start">
+            <PasswordCard />
+            <TwoStepCard />
           </div>
         )}
 
       </main>
-
-      {/* ── EDIT EXPENSE MODAL (admin) ─────────────────────────────────────────── */}
-      {editingExp && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col max-h-[90dvh]">
-            {/* Header */}
-            <div className="flex items-center justify-between px-3.5 py-2.5 border-b border-slate-100 shrink-0 bg-slate-50">
-              <div className="flex items-center gap-2.5">
-                <span className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{ background: LI_BLUE }}>
-                  <Pencil size={13} className="text-white" />
-                </span>
-                <div>
-                  <p className="text-sm font-bold text-slate-800">{t("admin.edit_expense")}</p>
-                  <p className="text-[11px] text-slate-400">{expShopName} · {editingExp.id.slice(0,8)}</p>
-                </div>
-              </div>
-              <button onClick={() => setEditingExp(null)} className="p-1 rounded-md hover:bg-slate-100 text-slate-400 transition">
-                <X size={14} />
-              </button>
-            </div>
-
-            {/* Body */}
-            <div className="px-4 py-3 grid gap-2 overflow-y-auto flex-1">
-              {expError && (
-                <div className="flex items-center gap-2 text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
-                  <AlertTriangle size={12} /> {expError}
-                </div>
-              )}
-              {/* Title */}
-              <div>
-                <label className="block text-[11px] font-medium text-gray-500 mb-0.5">{t("expenses.title_field")} <span className="text-red-400">*</span></label>
-                <input className="border border-slate-200 rounded-md px-2 py-1 w-full text-[11px] text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#0a66c2]/30 focus:border-[#0a66c2] transition"
-                  value={editForm.title} onChange={(e) => setEditForm({ ...editForm, title: e.target.value })} />
-              </div>
-
-              {/* Category + Amount */}
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="block text-[11px] font-medium text-gray-500 mb-0.5">{t("expenses.category")}</label>
-                  <select className="border border-slate-200 rounded-md px-2 py-1 w-full text-[11px] text-gray-800 focus:outline-none focus:ring-1 focus:ring-[#0a66c2]/30 focus:border-[#0a66c2] transition"
-                    value={editForm.category} onChange={(e) => setEditForm({ ...editForm, category: e.target.value })}>
-                    {EXP_CATEGORIES.map((c) => <option key={c} value={c} className="capitalize">{t(`expenses.cat.${c}`)}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-[11px] font-medium text-gray-500 mb-0.5">{t("expenses.amount")} <span className="text-red-400">*</span></label>
-                  <input type="number" min="0" className="border border-slate-200 rounded-md px-2 py-1 w-full text-[11px] text-gray-800 focus:outline-none focus:ring-1 focus:ring-[#0a66c2]/30 focus:border-[#0a66c2] transition"
-                    value={editForm.amount} onChange={(e) => setEditForm({ ...editForm, amount: e.target.value })} />
-                </div>
-              </div>
-
-              {/* Date + Notes */}
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="block text-[11px] font-medium text-gray-500 mb-0.5">{t("common.date")}</label>
-                  <input type="date" className="border border-slate-200 rounded-md px-2 py-1 w-full text-[11px] text-gray-800 focus:outline-none focus:ring-1 focus:ring-[#0a66c2]/30 focus:border-[#0a66c2] transition"
-                    value={editForm.expense_date} onChange={(e) => setEditForm({ ...editForm, expense_date: e.target.value })} />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-medium text-gray-500 mb-0.5">{t("common.notes")}</label>
-                  <input className="border border-slate-200 rounded-md px-2 py-1 w-full text-[11px] text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#0a66c2]/30 focus:border-[#0a66c2] transition"
-                    placeholder={`${t("common.optional")}…`} value={editForm.notes} onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })} />
-                </div>
-              </div>
-
-              {/* Payment method */}
-              <div className="border border-slate-100 rounded-lg p-2 bg-slate-50/50">
-                <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">{t("admin.payment_method")}</p>
-                <div className="flex gap-1.5 mb-1.5">
-                  {(["","mtn","bank"] as const).map((m) => (
-                    <button key={m} type="button"
-                      onClick={() => setEditForm({ ...editForm, payment_method: m, bank_name: "", bank_account: "", receiver_phone: "" })}
-                      className={`flex-1 py-1 rounded-md text-[11px] font-semibold border transition-all ${
-                        editForm.payment_method === m
-                          ? "bg-[#0a66c2] border-[#0a66c2] text-white"
-                          : "bg-white border-slate-200 text-slate-600 hover:border-slate-300"
-                      }`}>
-                      {m === "" ? t("admin.payment_none") : m === "mtn" ? t("admin.payment_mtn") : t("admin.payment_bank")}
-                    </button>
-                  ))}
-                </div>
-                {editForm.payment_method === "bank" && (
-                  <div className="grid grid-cols-2 gap-1.5 mb-1.5">
-                    <div>
-                      <label className="block text-[11px] font-medium text-gray-500 mb-0.5">{t("admin.col_bank_name")}</label>
-                      <select className="border border-slate-200 rounded-md px-2 py-1 w-full text-[11px] text-gray-800 focus:outline-none focus:ring-1 focus:ring-[#0a66c2]/30 focus:border-[#0a66c2] transition"
-                        value={editForm.bank_name} onChange={(e) => setEditForm({ ...editForm, bank_name: e.target.value })}>
-                        <option value="">{t("admin.select_bank_placeholder")}</option>
-                        {BANK_NAMES.map((b) => <option key={b} value={b}>{b}</option>)}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-[11px] font-medium text-gray-500 mb-0.5">{t("admin.col_account_ref")}</label>
-                      <input className="border border-slate-200 rounded-md px-2 py-1 w-full text-[11px] text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#0a66c2]/30 focus:border-[#0a66c2] transition"
-                        placeholder={t("admin.account_ref_placeholder")} value={editForm.bank_account} onChange={(e) => setEditForm({ ...editForm, bank_account: e.target.value })} />
-                    </div>
-                  </div>
-                )}
-                {editForm.payment_method !== "" && (
-                  <div>
-                    <label className="block text-[11px] font-medium text-gray-500 mb-0.5">{t("admin.col_receiver_phone")}</label>
-                    <input className="border border-slate-200 rounded-md px-2 py-1 w-full text-[11px] text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#0a66c2]/30 focus:border-[#0a66c2] transition"
-                      placeholder="+250 7XX XXX XXX" value={editForm.receiver_phone} onChange={(e) => setEditForm({ ...editForm, receiver_phone: e.target.value })} />
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Footer */}
-            <div className="flex justify-end gap-1.5 px-4 py-2.5 border-t border-slate-100 shrink-0">
-              <button onClick={() => setEditingExp(null)}
-                className="px-3 py-1 rounded-md border border-slate-200 text-[11px] font-medium text-slate-600 hover:bg-slate-50 transition">
-                {t("common.cancel")}
-              </button>
-              <button onClick={saveEditExp} disabled={editSaving || !editForm.title.trim() || !editForm.amount}
-                className="px-3 py-1 rounded-md text-[11px] font-semibold text-white transition disabled:opacity-60 hover:opacity-90 shadow-sm"
-                style={{ background: LI_BLUE }}>
-                {editSaving ? t("common.saving") : t("common.save")}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* ── CREATE SHOP MODAL (admin) ──────────────────────────────────────────── */}
       {showCreateShop && (
@@ -1963,8 +1470,7 @@ export default function AdminPage() {
                 {confirm.type === "delete-shop" && (
                   <>
                     <p>• {t("admin.delete_shop_bullet1")}</p>
-                    <p>• {t("admin.delete_shop_bullet2")}</p>
-                    <p>• {t("admin.delete_shop_bullet3")}</p>
+                    <p>• {t("admin.delete_shop_only_empty")}</p>
                     {confirm.extra && <p>• {t("admin.owner_label")} <strong>{confirm.extra}</strong></p>}
                   </>
                 )}
@@ -1972,11 +1478,8 @@ export default function AdminPage() {
                   <>
                     <p>• {t("admin.delete_user_bullet1")}</p>
                     <p>• {t("admin.delete_user_bullet2")}</p>
-                    {confirm.extra && confirm.shopId && (
-                      <p>• {t("admin.their_shop_prefix")} <strong>&ldquo;{confirm.extra}&rdquo;</strong> {t("admin.and_data_deleted")}</p>
-                    )}
-                    {confirm.extra && !confirm.shopId && (
-                      <p>• {t("admin.previously_linked")} <strong>{confirm.extra}</strong>.</p>
+                    {confirm.extra && (
+                      <p>• {t("admin.company_stays").replace("{company}", confirm.extra)}</p>
                     )}
                     <p>• {t("admin.cannot_undo")}</p>
                   </>
