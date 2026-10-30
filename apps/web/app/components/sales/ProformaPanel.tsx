@@ -17,13 +17,14 @@ import ProductPicker, { type PickerProduct } from "@/app/components/ui/ProductPi
 import CustomerPicker from "@/app/components/ui/CustomerPicker";
 import DepositForm from "@/app/components/sales/DepositForm";
 import { proformaPrintHtml } from "@/lib/proforma-print";
+import { downloadProformaDocx } from "@/lib/proforma-docx";
 import {
   listProformas, createProforma, updateProforma, approveProforma, sellProforma, deleteProforma, addDeposit, removeDeposit, depositTotals,
   proformaStage, PROFORMA_APPROVER_ROLES,
   type Proforma, type ProformaLine, type ProformaPayload, type Deposit,
 } from "@/lib/proforma-api";
 import {
-  Plus, Trash2, Printer, X, FileText, User, Car, Wallet, ScrollText, Save, CheckCircle2,
+  Plus, Trash2, Printer, X, FileText, FileDown, User, Car, Wallet, ScrollText, Save, CheckCircle2,
   ShoppingBag, Search, ChevronLeft, Lock, AlertCircle, Pencil, RefreshCw,
 } from "lucide-react";
 import { askConfirm, notify } from "@/lib/dialogs";
@@ -456,6 +457,20 @@ export default function ProformaPanel({ onSold, startNew = false }: {
     printHtml(html);
   }
 
+  // ── Word (.docx): the same proforma, editable ────────────────────────────
+  const [wordBusy, setWordBusy] = useState<string | null>(null);
+  async function downloadWord(p: Proforma) {
+    setWordBusy(p.id);
+    try {
+      await downloadProformaDocx(p, { ...shop, address: formatPublicAddress(shop.address) }, t, isCar, { qr: printPrefs.showQr });
+    } catch { notify(t("proforma.word_failed")); }
+    finally { setWordBusy(null); }
+  }
+  async function wordNow() {
+    if (!locked) { const p = await save(); if (p) await downloadWord(p); }
+    else if (current) await downloadWord(current);
+  }
+
   // ── List ──────────────────────────────────────────────────────────────────
   const counts = useMemo(() => {
     const c: Record<Stage, number> = { draft: 0, approved: 0, sold: 0, expired: 0 };
@@ -589,6 +604,10 @@ export default function ProformaPanel({ onSold, startNew = false }: {
                         </button>
                       )}
                       <button onClick={() => printProforma(p)} title={t("common.print")} className="p-1.5 rounded-lg hover:bg-blue-50 text-slate-400 hover:text-blue-600"><Printer size={14} /></button>
+                      <button onClick={() => downloadWord(p)} disabled={wordBusy === p.id} title={t("proforma.download_word")} aria-label={t("proforma.download_word")}
+                        className="p-1.5 rounded-lg hover:bg-blue-50 text-slate-400 hover:text-blue-600 disabled:opacity-40">
+                        {wordBusy === p.id ? <RefreshCw size={14} className="animate-spin" /> : <FileDown size={14} />}
+                      </button>
                       {p.status !== "sold" && (
                         <button onClick={() => remove(p)} title={t("common.delete")} className="p-1.5 rounded-lg hover:bg-red-50 text-slate-300 hover:text-red-500"><Trash2 size={14} /></button>
                       )}
@@ -894,6 +913,9 @@ export default function ProformaPanel({ onSold, startNew = false }: {
               )}
               <button onClick={printNow} disabled={busy} className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-slate-200 text-slate-700 font-semibold hover:bg-slate-50 disabled:opacity-40 text-sm">
                 <Printer size={15} /> {t(locked ? "common.print" : "proforma.save_print_pdf")}
+              </button>
+              <button onClick={wordNow} disabled={busy || wordBusy !== null} className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-slate-200 text-slate-700 font-semibold hover:bg-slate-50 disabled:opacity-40 text-sm">
+                {wordBusy !== null ? <RefreshCw size={15} className="animate-spin" /> : <FileDown size={15} />} {t(locked ? "proforma.download_word" : "proforma.save_download_word")}
               </button>
               {current && !locked && (
                 <button onClick={() => remove(current)} className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-red-600 hover:bg-red-50 text-xs font-semibold">
