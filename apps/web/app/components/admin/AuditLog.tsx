@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  History, KeyRound, Pencil, Plus, RefreshCw, Search, ShieldCheck, Store, ToggleLeft, ToggleRight, Trash2, UserCog, Users,
+  ClipboardPaste, History, KeyRound, Landmark, Pencil, Plus, RefreshCw, Search, ShieldCheck, Store, ToggleLeft, ToggleRight, Trash2, UserCog, Users,
 } from "lucide-react";
 import { getAdminAudit, type AuditEntry } from "@/lib/admin-api";
 import { fullDate } from "./insight-ui";
@@ -12,6 +12,7 @@ const ICONS: Record<string, typeof History> = {
   "shop.verify_email": ShieldCheck, "shop.delete": Trash2,
   "user.create": Plus, "user.edit": Pencil, "user.enable": ToggleRight, "user.disable": ToggleLeft,
   "user.role": UserCog, "user.password": KeyRound, "user.delete": Trash2,
+  "client.create": Plus, "client.edit": Pencil, "client.import": ClipboardPaste, "client.delete": Trash2,
 };
 
 /** One line of the log in words, e.g. "Changed the role of a@b.rw: Cashier → Manager". */
@@ -23,7 +24,7 @@ export function actionLabel(e: AuditEntry, t: (k: string) => string): string {
   const d = e.detail ?? {};
   if (e.action === "user.role" && typeof d.from === "string" && typeof d.to === "string") {
     s += `: ${t(`role.${d.from}`)} → ${t(`role.${d.to}`)}`;
-  } else if (e.action === "shop.edit" && Array.isArray(d.fields)) {
+  } else if ((e.action === "shop.edit" || e.action === "client.edit") && Array.isArray(d.fields)) {
     s += ` (${(d.fields as string[]).map((f) => t(`audit.field_${f}`).startsWith("audit.") ? f : t(`audit.field_${f}`)).join(", ")})`;
   } else if (e.action === "user.create" && typeof d.role === "string") {
     s += ` · ${t(`role.${d.role}`)}${typeof d.shop === "string" ? ` · ${d.shop}` : ""}`;
@@ -35,7 +36,7 @@ export function actionLabel(e: AuditEntry, t: (k: string) => string): string {
 export default function AuditLog({ t, lang }: { t: (k: string) => string; lang: string }) {
   const [rows, setRows] = useState<AuditEntry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [kind, setKind] = useState<"all" | "shop" | "user">("all");
+  const [kind, setKind] = useState<"all" | "shop" | "user" | "client">("all");
   const [q, setQ] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -73,7 +74,7 @@ export default function AuditLog({ t, lang }: { t: (k: string) => string; lang: 
       <div className="flex flex-col gap-2 border-b border-gray-100 bg-slate-50/60 px-4 py-2.5 sm:flex-row sm:items-center">
         <h2 className="flex items-center gap-2 text-sm font-semibold text-gray-800"><History size={14} className="text-ink" /> {t("admin.tab_activity")}</h2>
         <div className="flex overflow-hidden rounded-lg border border-gray-200 text-xs sm:ml-3">
-          {([["all", t("common.all"), History], ["shop", t("admin.tab_shops"), Store], ["user", t("admin.tab_users"), Users]] as const).map(([k, label, Icon]) => (
+          {([["all", t("common.all"), History], ["shop", t("admin.tab_shops"), Store], ["user", t("admin.tab_users"), Users], ["client", t("admin.tab_clients"), Landmark]] as const).map(([k, label, Icon]) => (
             <button key={k} onClick={() => setKind(k)} aria-pressed={kind === k}
               className={`flex items-center gap-1 border-r border-gray-200 px-2.5 py-1.5 font-medium last:border-r-0 ${kind === k ? "bg-ink text-white" : "bg-white text-gray-600"}`}>
               <Icon size={11} /> {label}

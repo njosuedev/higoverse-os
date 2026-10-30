@@ -14,9 +14,11 @@ from app.api.v1 import auth
 from app.api.v1 import shop
 from app.api.v1 import admin
 from app.api.v1 import team
+from app.api.v1 import tax_clients
 from app.api.v1 import mfa as mfa_routes
 from app.models.admin_mfa import AdminMfa
 from app.models.admin_audit import AdminAudit
+from app.models.tax_client import TaxClient
 from app.db.session import engine as auth_engine
 from app.db.shop_session import shop_engine
 from app.models.shop import Shop
@@ -100,6 +102,12 @@ app.include_router(
 )
 
 app.include_router(
+    tax_clients.router,
+    prefix="/api/v1/admin",
+    tags=["Admin"]
+)
+
+app.include_router(
     team.router,
     prefix="/api/v1",
     tags=["Team"]
@@ -133,6 +141,7 @@ def on_startup():
             if engine is auth_engine:
                 AdminMfa.__table__.create(bind=engine, checkfirst=True)  # new table, nothing existing changes
                 AdminAudit.__table__.create(bind=engine, checkfirst=True)  # new table, rows only added
+                TaxClient.__table__.create(bind=engine, checkfirst=True)  # new table, nothing existing changes
             with engine.connect() as conn:
                 for sql in _MIGRATIONS:
                     conn.execute(text(sql))

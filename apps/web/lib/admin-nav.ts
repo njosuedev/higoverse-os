@@ -1,12 +1,14 @@
-import { LayoutDashboard, Store, Users, History, KeyRound } from "lucide-react";
+import { LayoutDashboard, Store, Users, Landmark, History, KeyRound } from "lucide-react";
 
-// The platform admin's sections. The admin manages companies and the people
-// in them — never a company's own sales, stock or money — so these are the
-// only pages an admin sees (the shop pages redirect to /admin).
+// The platform admin's sections. The admin manages companies, the people in
+// them and Higoverse's own tax clients — never a company's own sales, stock
+// or money — so these are the only pages an admin sees (the shop pages
+// redirect to /admin).
 export const ADMIN_TABS = [
   { key: "overview", label: "admin.tab_overview", icon: LayoutDashboard },
   { key: "shops",    label: "admin.tab_shops",    icon: Store },
   { key: "users",    label: "admin.tab_users",    icon: Users },
+  { key: "clients",  label: "admin.tab_clients",  icon: Landmark },
   { key: "activity", label: "admin.tab_activity", icon: History },
   { key: "account",  label: "admin.tab_account",  icon: KeyRound },
 ] as const;

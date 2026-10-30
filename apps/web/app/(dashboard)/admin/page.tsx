@@ -33,6 +33,7 @@ import PasswordCard from "@/app/components/admin/PasswordCard";
 import GrowthPanel from "@/app/components/admin/GrowthPanel";
 import CompanyDetail from "@/app/components/admin/CompanyDetail";
 import AuditLog from "@/app/components/admin/AuditLog";
+import TaxClients from "@/app/components/admin/TaxClients";
 import EditUserDialog from "@/app/components/admin/EditUserDialog";
 import { HealthBadge, ago } from "@/app/components/admin/insight-ui";
 import SetPasswordDialog from "@/app/components/ui/SetPasswordDialog";
@@ -1105,6 +1106,9 @@ function AdminPanel() {
             )}
           </div>
         )}
+
+        {/* ══ TAX CLIENTS: Higoverse's own customers for tax filing ═════════ */}
+        {tab === "clients" && <TaxClients t={t} shops={shops} />}
 
         {/* ══ ACTIVITY: what the admins did ═════════════════════════════════ */}
         {tab === "activity" && <AuditLog t={t} lang={lang} />}

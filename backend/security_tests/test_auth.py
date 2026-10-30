@@ -660,3 +660,51 @@ def test_insights_and_log_are_admin_only(client, path):
     _, owner = _company()
     access, _ = _tokens(client, owner)
     assert client.get(path, headers=auth(access)).status_code == 403
+
+
+# ── Platform admin: Higoverse's own tax clients ──────────────────────────────
+
+def test_tax_clients_admin_crud(client):
+    h = _admin_h(client)
+    tin = str(uuid.uuid4().int)[:9]
+    r = client.post("/api/v1/admin/tax-clients", headers=h,
+                    json={"name": "  Example  Trading Ltd ", "delegate": "Jane", "phone": "788000001", "tin": tin})
+    assert r.status_code == 201, r.text[:200]
+    c = r.json()["data"]
+    assert c["name"] == "Example Trading Ltd" and c["phone"] == "+250788000001" and c["tin"] == tin
+    # One client per TIN.
+    assert client.post("/api/v1/admin/tax-clients", headers=h, json={"name": "Copy", "tin": tin}).status_code == 409
+    # Checked like a company's TIN and phone.
+    assert client.post("/api/v1/admin/tax-clients", headers=h, json={"name": "X", "tin": "123"}).status_code == 422
+    assert client.post("/api/v1/admin/tax-clients", headers=h, json={"name": "X", "phone": "12"}).status_code == 422
+    r = client.patch(f"/api/v1/admin/tax-clients/{c['id']}", headers=h, json={"delegate": "Doe", "phone": ""})
+    assert r.status_code == 200 and r.json()["data"]["delegate"] == "Doe" and r.json()["data"]["phone"] is None
+    ids = [x["id"] for x in client.get("/api/v1/admin/tax-clients", headers=h).json()["data"]]
+    assert c["id"] in ids
+    assert client.delete(f"/api/v1/admin/tax-clients/{c['id']}", headers=h).status_code == 200
+    assert client.get("/api/v1/admin/tax-clients", headers=h).json()["data"] == [] or \
+        c["id"] not in [x["id"] for x in client.get("/api/v1/admin/tax-clients", headers=h).json()["data"]]
+    actions = [e["action"] for e in client.get("/api/v1/admin/audit", headers=h).json()["data"] if e["target_id"] == c["id"]]
+    assert {"client.create", "client.edit", "client.delete"} <= set(actions)
+
+
+def test_tax_client_import_skips_known_tins(client):
+    h = _admin_h(client)
+    t1, t2 = str(uuid.uuid4().int)[:9], str(uuid.uuid4().int)[-9:]
+    client.post("/api/v1/admin/tax-clients", headers=h, json={"name": "Already here", "tin": t1})
+    r = client.post("/api/v1/admin/tax-clients/import", headers=h, json={"rows": [
+        {"name": "Again", "tin": t1}, {"name": "New one", "tin": t2, "phone": "0788000002"},
+        {"name": "Twice", "tin": t2}, {"name": "No TIN"},
+    ]})
+    assert r.status_code == 200, r.text[:200]
+    assert r.json()["data"] == {"added": 2, "skipped": ["Again", "Twice"]}
+    names = {x["name"] for x in client.get("/api/v1/admin/tax-clients", headers=h).json()["data"]}
+    assert {"Already here", "New one", "No TIN"} <= names and "Again" not in names
+
+
+def test_tax_clients_are_admin_only(client):
+    _, owner = _company()
+    access, _ = _tokens(client, owner)
+    assert client.get("/api/v1/admin/tax-clients", headers=auth(access)).status_code == 403
+    assert client.post("/api/v1/admin/tax-clients", headers=auth(access), json={"name": "X"}).status_code == 403
+    assert client.post("/api/v1/admin/tax-clients/import", headers=auth(access), json={"rows": [{"name": "X"}]}).status_code == 403

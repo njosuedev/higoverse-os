@@ -268,7 +268,7 @@ export interface AuditEntry {
   at: string | null;
   admin_email: string | null;
   action: string;
-  target_type: "shop" | "user";
+  target_type: "shop" | "user" | "client";
   target_id: string | null;
   target_label: string | null;
   detail: Record<string, unknown>;
@@ -279,4 +279,47 @@ export async function getAdminAudit(opts: { limit?: number; targetId?: string } 
   if (opts.targetId) q.set("target_id", opts.targetId);
   const res = await adminRequest(`/api/v1/admin/audit?${q}`);
   return res?.data ?? [];
+}
+
+// ── Higoverse's own tax clients (platform admin only) ──────────────────────
+
+export interface TaxClient {
+  id: string;
+  name: string;
+  /** The person we deal with at the client. */
+  delegate: string | null;
+  /** International form, +250… */
+  phone: string | null;
+  /** RRA TIN, 9 digits. */
+  tin: string | null;
+  notes: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+export type TaxClientInput = Pick<TaxClient, "name" | "delegate" | "phone" | "tin" | "notes">;
+
+export async function getTaxClients(): Promise<TaxClient[]> {
+  const res = await adminRequest("/api/v1/admin/tax-clients");
+  return res?.data ?? [];
+}
+
+export async function createTaxClient(payload: TaxClientInput): Promise<TaxClient> {
+  const res = await adminRequest("/api/v1/admin/tax-clients", { method: "POST", body: JSON.stringify(payload) });
+  return res.data;
+}
+
+export async function updateTaxClient(id: string, payload: Partial<TaxClientInput>): Promise<TaxClient> {
+  const res = await adminRequest(`/api/v1/admin/tax-clients/${id}`, { method: "PATCH", body: JSON.stringify(payload) });
+  return res.data;
+}
+
+export async function deleteTaxClient(id: string): Promise<void> {
+  await adminRequest(`/api/v1/admin/tax-clients/${id}`, { method: "DELETE" });
+}
+
+/** Adds many at once; rows whose TIN is already on the list come back in `skipped`. */
+export async function importTaxClients(rows: TaxClientInput[]): Promise<{ added: number; skipped: string[] }> {
+  const res = await adminRequest("/api/v1/admin/tax-clients/import", { method: "POST", body: JSON.stringify({ rows }) });
+  return res.data;
 }
