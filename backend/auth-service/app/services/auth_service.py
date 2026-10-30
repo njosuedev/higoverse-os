@@ -43,7 +43,7 @@ def _issue_tokens(db: Session, user: User, layout: str = "retail", rotated: Refr
         id=uuid.uuid4(),
         user_id=user.id,
         token=_hash_token(raw_refresh),
-        expires_at=datetime.now(timezone.utc) + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS),
+        expires_at=datetime.now(timezone.utc) + timedelta(days=max(_MIN_SESSION_DAYS, settings.REFRESH_TOKEN_EXPIRE_DAYS)),
     )
     db.add(successor)
     if rotated is not None:
@@ -96,6 +96,15 @@ def login_user(db: Session, shop_db: Session, email: str, password: str) -> dict
 # ----------------------------
 # REFRESH — rotate a valid refresh token for a new access token
 # ----------------------------
+# Sliding session length: at least a year, whatever an older .env says (the
+# server's still sets 30). Each renewal starts a new period.
+_MIN_SESSION_DAYS = 365
+
+# Two renewals with the same token this close together are one device racing
+# itself: both replies stay valid.
+_RACE_GRACE = timedelta(minutes=5)
+
+
 def refresh_tokens(db: Session, shop_db: Session, raw_refresh_token: str) -> dict:
     token_hash = _hash_token(raw_refresh_token)
     record = db.query(RefreshToken).filter(RefreshToken.token == token_hash).first()
@@ -123,9 +132,14 @@ def refresh_tokens(db: Session, shop_db: Session, raw_refresh_token: str) -> dic
     # device received the new token. Deleting it straight away signed people
     # out whenever a refresh reply was lost on a slow or dropped connection.
     if record.replaced_by is not None:
-        # The device is still on this token: its successor never arrived.
-        # Drop that unused successor and issue a fresh one in its place.
-        db.query(RefreshToken).filter(RefreshToken.id == record.replaced_by).delete()
+        # The device is still on this token: its successor never arrived, or
+        # two renewals ran at once (two windows, a retry) and the device may
+        # keep either reply. Drop the unused successor only once it's clearly
+        # stale: deleting a fresh one signed out whoever had just stored it.
+        db.query(RefreshToken).filter(
+            RefreshToken.id == record.replaced_by,
+            RefreshToken.created_at < now - _RACE_GRACE,
+        ).delete()
     else:
         # The device holds the newest token: the one before it can go.
         db.query(RefreshToken).filter(RefreshToken.replaced_by == record.id).delete()
