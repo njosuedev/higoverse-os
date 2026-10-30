@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  CheckCircle2, ClipboardPaste, Download, Landmark, Loader2, Pencil, Phone, Plus, RefreshCw, Search, Trash2, X,
+  CheckCircle2, ClipboardPaste, Download, Landmark, Loader2, Pencil, Phone, Plus, RefreshCw, Search, Store, Trash2, X,
 } from "lucide-react";
 import {
   createTaxClient, deleteTaxClient, getTaxClients, importTaxClients, updateTaxClient,
@@ -188,11 +188,18 @@ function ImportDialog({ t, onClose, onDone }: { t: T; onClose: () => void; onDon
 }
 
 /** Higoverse's own tax clients: who they are, who we deal with, how to reach them. */
-export default function TaxClients({ t, shops }: { t: T; shops: AdminShop[] }) {
+export default function TaxClients({ t, shops, onOpenCompany, onRows, initialQuery = "" }: {
+  t: T; shops: AdminShop[];
+  /** Opens a company's details (a client whose TIN is on Higoverse). */
+  onOpenCompany: (shopId: string) => void;
+  /** The list as it now stands, so the Companies tab can mark tax clients. */
+  onRows?: (rows: TaxClient[]) => void;
+  initialQuery?: string;
+}) {
   const [rows, setRows] = useState<TaxClient[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [q, setQ] = useState("");
+  const [q, setQ] = useState(initialQuery);
   const [busy, setBusy] = useState(false);
   const [editing, setEditing] = useState<TaxClient | "new" | null>(null);
   const [importing, setImporting] = useState(false);
@@ -209,8 +216,14 @@ export default function TaxClients({ t, shops }: { t: T; shops: AdminShop[] }) {
   // eslint-disable-next-line react-hooks/set-state-in-effect -- loads once when the tab opens
   useEffect(() => { void load(); }, [load]);
 
-  // Clients that also run their business on Higoverse (same TIN).
-  const onHigoverse = useMemo(() => new Set(shops.map((s) => shopTin(s)).filter(Boolean)), [shops]);
+  // Clients that also run their business on Higoverse: the company with the same TIN.
+  const companyByTin = useMemo(() => {
+    const m = new Map<string, AdminShop>();
+    for (const s of shops) { const tin = shopTin(s); if (tin && !m.has(tin)) m.set(tin, s); }
+    return m;
+  }, [shops]);
+
+  useEffect(() => { if (rows) onRows?.(rows); }, [rows, onRows]);
 
   const shown = useMemo(() => {
     const s = q.trim().toLowerCase();
@@ -305,11 +318,17 @@ export default function TaxClients({ t, shops }: { t: T; shops: AdminShop[] }) {
                   <td className="px-4 py-2 tabular-nums text-gray-400">{i + 1}</td>
                   <td className="px-2 py-2">
                     <span className="font-medium text-gray-800">{r.name}</span>
-                    {r.tin && onHigoverse.has(r.tin) && (
-                      <span title={t("clients.on_higoverse_hint")} className="ml-2 rounded-full bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700">
-                        {t("clients.on_higoverse")}
-                      </span>
-                    )}
+                    {(() => {
+                      const co = r.tin ? companyByTin.get(r.tin) : undefined;
+                      if (!co) return null;
+                      return (
+                        <button onClick={() => onOpenCompany(co.id)} title={`${t("clients.on_higoverse_hint")}: ${co.name}`}
+                          className="ml-2 inline-flex max-w-[14rem] items-center gap-1 rounded-full bg-emerald-50 px-1.5 py-0.5 align-middle text-[10px] font-semibold text-emerald-700 hover:underline">
+                          <Store size={10} className="shrink-0" />
+                          <span className="truncate">{t("clients.on_higoverse")}{co.name.trim().toLowerCase() !== r.name.trim().toLowerCase() ? ` · ${co.name}` : ""}</span>
+                        </button>
+                      );
+                    })()}
                     {r.notes && <span className="block max-w-xs truncate text-[11px] text-gray-400" title={r.notes}>{r.notes}</span>}
                   </td>
                   <td className="px-2 py-2 text-gray-600">{r.delegate ?? "-"}</td>

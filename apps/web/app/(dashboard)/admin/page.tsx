@@ -4,9 +4,10 @@ import { Suspense, useEffect, useState, useCallback, useMemo, useRef } from "rea
 import { useAuth } from "@/lib/auth-context";
 import { useLanguage } from "@/lib/language-context";
 import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { toAdminTab } from "@/lib/admin-nav";
 import {
-  getAdminStats, getAdminShops, getAdminUsers, getAdminInsights,
+  getAdminStats, getAdminShops, getAdminUsers, getAdminInsights, getTaxClients,
   toggleShop, deleteShop, updateShop, verifyShopEmail, toggleUser, updateUserRole, setUserPassword, deleteUser, createShop, createShopUser,
   STAFF_ROLES, type AdminStats, type AdminShop, type AdminUser, type CreateShopPayload, type CreateShopUserPayload, type StaffRole,
   type AdminInsights, type CompanyHealth, COMPANY_HEALTH,
@@ -25,7 +26,7 @@ import {
   UserX,
   Pencil, X, Download,
   Plus, Loader2, Lock, User as UserIcon, UserPlus,
-  Users, Activity, TrendingUp, Car, Hash,
+  Users, Activity, TrendingUp, Car, Hash, Landmark,
 } from "lucide-react";
 import LayoutPicker from "@/app/components/admin/LayoutPicker";
 import TwoStepCard from "@/app/components/admin/TwoStepCard";
@@ -163,6 +164,8 @@ function AdminPanel() {
   const [userRoleFilter, setUserRoleFilter] = useState<"all" | "admin" | "owner" | "staff">("all");
   const [insights, setInsights]           = useState<AdminInsights | null>(null);
   const [detailId, setDetailId]           = useState<string | null>(null);
+  // TINs on the tax clients list: matching companies are marked "Tax client".
+  const [taxTins, setTaxTins]             = useState<Set<string>>(new Set());
   const [editingUser, setEditingUser]     = useState<AdminUser | null>(null);
   const [lastUpdated, setLastUpdated]     = useState<Date | null>(null);
 
@@ -207,11 +210,13 @@ function AdminPanel() {
     if (!silent) setLoading(true); else setRefreshing(true);
     setError(null);
     try {
-      const [s, sh, u, ins] = await Promise.all([
+      const [s, sh, u, ins, tc] = await Promise.all([
         getAdminStats(), getAdminShops(), getAdminUsers(), getAdminInsights().catch(() => null),
+        getTaxClients().catch(() => null),
       ]);
       setStats(s); setShops(sh); setUsers(u);
       if (ins) setInsights(ins);
+      if (tc) setTaxTins(new Set(tc.map((c) => c.tin).filter((x): x is string => !!x)));
       setLastUpdated(new Date());
       nextAtRef.current = Date.now() + POLL_INTERVAL * 1000;
       setNextAt(nextAtRef.current);
@@ -243,6 +248,9 @@ function AdminPanel() {
 
   // Every company, including one whose owner account was removed.
   const visibleShops = shops;
+  const onTaxRows = useCallback((rows: { tin: string | null }[]) => {
+    setTaxTins(new Set(rows.map((c) => c.tin).filter((x): x is string => !!x)));
+  }, []);
   const insightOf = useMemo(() => new Map((insights?.companies ?? []).map((c) => [c.shop_id, c])), [insights]);
 
   const activeShops  = useMemo(() => visibleShops.filter((s) => s.is_active), [visibleShops]);
@@ -871,6 +879,12 @@ function AdminPanel() {
                           <div className="flex items-center gap-2 flex-wrap">
                             <button onClick={() => setDetailId(shop.id)} className="text-[13px] font-semibold text-gray-900 hover:text-[#0a66c2] hover:underline text-left">{shop.name}</button>
                             {info && <HealthBadge health={info.health} t={t} />}
+                            {taxTins.has(shopTin(shop)) && (
+                              <Link href={`/admin?tab=clients&tin=${shopTin(shop)}`} title={t("clients.tax_client_hint")}
+                                className="flex items-center gap-1 text-[11px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-800 hover:underline">
+                                <Landmark size={10} /> {t("clients.tax_client")}
+                              </Link>
+                            )}
                             {online && (
                               <span className="flex items-center gap-1 text-[11px] font-bold px-1.5 py-0.5 rounded-full text-white" style={{ background: "#057642" }}>
                                 <span className="w-1 h-1 rounded-full bg-white animate-pulse" /> {t("admin.live")}
@@ -1108,7 +1122,10 @@ function AdminPanel() {
         )}
 
         {/* ══ TAX CLIENTS: Higoverse's own customers for tax filing ═════════ */}
-        {tab === "clients" && <TaxClients t={t} shops={shops} />}
+        {tab === "clients" && (
+          <TaxClients t={t} shops={shops} onOpenCompany={setDetailId} initialQuery={params.get("tin") ?? ""}
+            onRows={onTaxRows} />
+        )}
 
         {/* ══ ACTIVITY: what the admins did ═════════════════════════════════ */}
         {tab === "activity" && <AuditLog t={t} lang={lang} />}
