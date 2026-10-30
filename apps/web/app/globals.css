@@ -592,6 +592,21 @@ select:-webkit-autofill {
   table.hgv-cards td[data-role="actions"] :is(button, a) { min-width: 40px; min-height: 40px; }
 }
 
+/* ── COMPACT ON COMPUTERS ───────────────────────────────────────
+   On a mouse-driven screen the whole app is drawn at 90%: text, spacing
+   and controls alike (much of the app sizes in px, so zoom is the one
+   switch that shrinks all of it). Phones and tablets keep full size.
+   Full-height layouts divide the viewport by the zoom so they still reach
+   the bottom of the window; anything placed from getBoundingClientRect
+   divides by it too (lib/page-zoom.ts). */
+@media (pointer: fine) and (min-width: 1024px) {
+  html {
+    zoom: 0.9;
+    --hgv-dvh: calc(100dvh / 0.9);
+  }
+  .min-h-screen { min-height: calc(100vh / 0.9); }
+}
+
 /* ── NO ZOOM ON TAP (iPhone) ────────────────────────────────────
    iOS Safari zooms the whole page into any field whose text is under
    16px and leaves it zoomed. On touch screens fields use 16px. */

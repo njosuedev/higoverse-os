@@ -32,6 +32,7 @@ import {
   ShoppingBag, Filter, Plus, Trash2, Pencil, X, ReceiptText, Printer, Wallet, AlertCircle, CheckCircle2, Phone, ChevronDown, Download, Upload, FileSpreadsheet, FileText, RefreshCw, Search, Info,
 } from "lucide-react";
 import { askConfirm, notify } from "@/lib/dialogs";
+import { pageZoom } from "@/lib/page-zoom";
 
 interface Sale {
   id: string; product_id: string; product_name?: string;
@@ -998,8 +999,8 @@ function SaleManagementPage() {
                       <div className="flex items-center gap-1.5">
                         <span className="relative">
                           <button onClick={(e) => {
-                              const r = e.currentTarget.getBoundingClientRect();
-                              setPrintAt({ top: r.bottom + 4, right: window.innerWidth - r.right });
+                              const r = e.currentTarget.getBoundingClientRect(), z = pageZoom();
+                              setPrintAt({ top: (r.bottom + 4) / z, right: (window.innerWidth - r.right) / z });
                               setPrintMenu(printMenu === s.id ? null : s.id);
                             }} title={t("common.print")}
                             aria-haspopup="menu" aria-expanded={printMenu === s.id}

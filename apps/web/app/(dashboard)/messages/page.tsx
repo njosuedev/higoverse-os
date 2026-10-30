@@ -73,7 +73,7 @@ function MessagesInner() {
   }
 
   return (
-    <div className="mx-auto flex h-[calc(100dvh-52px-env(safe-area-inset-top)-var(--hgv-tabbar,0px))] max-w-7xl overflow-hidden border-x border-border bg-white">
+    <div className="mx-auto flex h-[calc(var(--hgv-dvh,100dvh)-52px-env(safe-area-inset-top)-var(--hgv-tabbar,0px))] max-w-7xl overflow-hidden border-x border-border bg-white">
       {/* ── People ── */}
       <aside className={`${person ? "hidden md:flex" : "flex"} w-full flex-col border-r border-border md:w-[360px] md:flex-none`}>
         <div className="flex items-center justify-between px-4 pb-2 pt-4">

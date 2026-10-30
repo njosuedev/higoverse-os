@@ -7,6 +7,7 @@ import { itemRequest } from "@/lib/product-api";
 import { useDebounce } from "@/lib/hooks";
 import { useLanguage } from "@/lib/language-context";
 import { parseAttributes } from "@/lib/business-layout";
+import { pageZoom } from "@/lib/page-zoom";
 
 export interface PickerProduct {
   id: string;
@@ -43,13 +44,17 @@ type Anchor = { left: number; width: number; top?: number; bottom?: number };
 
 /** Where to float the list: under the field, or above it when there's no room. */
 function anchorFor(el: HTMLElement): Anchor {
-  const r = el.getBoundingClientRect();
+  // Everything in the page's own (zoomed) pixels, as the list is placed in them.
+  const z = pageZoom();
+  const b = el.getBoundingClientRect();
+  const r = { left: b.left / z, top: b.top / z, bottom: b.bottom / z, width: b.width / z };
+  const vw = window.innerWidth / z, vh = window.innerHeight / z;
   // At least 320px on wide screens; on a phone exactly the field's width, so
   // the list never runs past the edge of the form it opens from.
-  const width = window.innerWidth < 640 ? r.width : Math.min(Math.max(r.width, 320), window.innerWidth - 16);
-  const left = Math.max(8, Math.min(r.left, window.innerWidth - width - 8));
-  return window.innerHeight - r.bottom < LIST_MAX_H + 12 && r.top > LIST_MAX_H
-    ? { left, width, bottom: window.innerHeight - r.top + 4 }
+  const width = window.innerWidth < 640 ? r.width : Math.min(Math.max(r.width, 320), vw - 16);
+  const left = Math.max(8, Math.min(r.left, vw - width - 8));
+  return vh - r.bottom < LIST_MAX_H + 12 && r.top > LIST_MAX_H
+    ? { left, width, bottom: vh - r.top + 4 }
     : { left, width, top: r.bottom + 4 };
 }
 
