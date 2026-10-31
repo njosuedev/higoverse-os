@@ -12,8 +12,13 @@ import '../theme.dart';
 import '../updates/update_controller.dart';
 import '../widgets.dart';
 import 'activity_screen.dart';
+import 'attendance_screen.dart';
 import 'expenses_screen.dart';
+import 'partners_screen.dart';
 import 'payroll_screen.dart';
+import 'purchases_screen.dart';
+import 'reports_screen.dart';
+import 'settings_screen.dart';
 import 'team_screen.dart';
 import '../live/scoped_route.dart';
 
@@ -140,6 +145,58 @@ class MoreScreen extends StatelessWidget {
                 onTap: () => openPayroll(context),
               ),
             ],
+            if (s.canUsePayroll) ...[
+              const Divider(indent: 16, endIndent: 16),
+              ListTile(
+                leading: const Icon(Icons.event_available_outlined),
+                title: Text(t('att.title')),
+                subtitle: Text(t('att.subtitle')),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => openAttendance(context),
+              ),
+            ],
+          ]),
+        ),
+        // The website's other sections, now in the app too.
+        SectionTitle(t('nav.more')),
+        Card(
+          child: Column(children: [
+            // Car companies stock in from Vehicles: no Purchases.
+            if (!s.isCar) ...[
+              ListTile(
+                leading: const Icon(Icons.local_shipping_outlined),
+                title: Text(t('nav.purchases')),
+                subtitle: Text(t('m.purchases_sub')),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => openPurchases(context),
+              ),
+              const Divider(indent: 16, endIndent: 16),
+            ],
+            ListTile(
+              leading: const Icon(Icons.contacts_outlined),
+              title: Text(s.isCar ? t('partners.customers') : t('nav.partners')),
+              subtitle: Text(s.isCar ? t('m.customers_sub') : t('m.partners_sub')),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => openPartners(context),
+            ),
+            if (s.canSeeFinancials) ...[
+              const Divider(indent: 16, endIndent: 16),
+              ListTile(
+                leading: const Icon(Icons.bar_chart_rounded),
+                title: Text(t('nav.reports')),
+                subtitle: Text(t('m.reports_sub')),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => openReports(context),
+              ),
+            ],
+            const Divider(indent: 16, endIndent: 16),
+            ListTile(
+              leading: const Icon(Icons.settings_outlined),
+              title: Text(t('nav.settings')),
+              subtitle: Text(t('nav.settings_hint')),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => openSettings(context),
+            ),
           ]),
         ),
         SectionTitle(t('acc.notifications')),

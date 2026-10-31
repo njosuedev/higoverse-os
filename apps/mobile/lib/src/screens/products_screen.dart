@@ -136,6 +136,20 @@ class _ProductsScreenState extends State<ProductsScreen> with LiveListener {
       _error = null;
     });
     try {
+      // Shops: Home's "need restock" opens what is low or sold out (as the
+      // website's /items?stock=low), lowest first, all at once.
+      if (!s.isCar && _status == 'low') {
+        final res = await s.api.get('${Svc.products}/products/stock-alerts', query: {'threshold': '${s.lowStock}'});
+        final list = ((res as Map)['data'] as List? ?? []).map((e) => Map<String, dynamic>.from(e as Map)).toList()
+          ..sort((a, b) => (a['quantity'] as num? ?? 0).compareTo(b['quantity'] as num? ?? 0));
+        if (!mounted || gen != _gen) return;
+        setState(() {
+          _items.addAll(list);
+          _total = list.length;
+          _page++;
+        });
+        return;
+      }
       final q = <String, String>{'page': '${_page + 1}', 'limit': '$_pageSize'};
       if (s.isCar && _status != 'all') q['status'] = _status;
       final res = await s.api.get('${Svc.products}/products', query: q);
@@ -172,6 +186,24 @@ class _ProductsScreenState extends State<ProductsScreen> with LiveListener {
         label: Text(s.isCar ? t('vehicle.new') : t('form.new_product')),
       ),
       body: Column(children: [
+        if (!s.isCar && _status == 'low') ...[
+          Container(
+            color: Hgv.of(context).chrome,
+            padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+            alignment: Alignment.centerLeft,
+            child: InputChip(
+              avatar: Icon(Icons.warning_rounded, size: 18, color: Hgv.of(context).warning),
+              label: Text(t('dash.need_restock')),
+              selected: true,
+              showCheckmark: false,
+              onDeleted: () {
+                _status = 'all';
+                _reload();
+              },
+            ),
+          ),
+          const Divider(),
+        ],
         if (s.isCar) ...[
         Container(
           color: Hgv.of(context).chrome,

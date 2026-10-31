@@ -8,6 +8,7 @@ import 'i18n.dart';
 import 'live/scoped_route.dart';
 import 'screens/item_screen.dart';
 import 'session.dart';
+import 'shop_sale.dart';
 import 'theme.dart';
 import 'widgets.dart';
 
@@ -94,6 +95,40 @@ Future<void> showSaleSheet(BuildContext context, Map<String, dynamic> sale) {
         Text(t('sale.notes'), style: TextStyle(color: c.muted, fontWeight: FontWeight.w600)),
         const SizedBox(height: 4),
         Text('${sale['notes']}'),
+      ],
+      // Shops: the receipt, and fix or undo a sale (as on the website).
+      if (!s.isCar && sale['id'] != null) ...[
+        const SizedBox(height: 16),
+        OutlinedButton.icon(
+          style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(46)),
+          onPressed: () => showReceiptDone(context, [sale],
+              method: '${sale['payment_method'] ?? 'cash'}', paid: paid ?? (sale['payment_method'] == 'debt' ? 0 : total)),
+          icon: const Icon(Icons.receipt_long_outlined),
+          label: Text(t('m.receipt')),
+        ),
+        const SizedBox(height: 10),
+        Row(children: [
+          Expanded(
+            child: FilledButton.icon(
+              onPressed: () async {
+                if (await editSale(context, sale) && context.mounted) Navigator.pop(context);
+              },
+              icon: const Icon(Icons.edit_outlined),
+              label: Text(t('app.edit')),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(50), foregroundColor: c.danger, side: BorderSide(color: c.danger)),
+              onPressed: () async {
+                if (await deleteSale(context, sale) && context.mounted) Navigator.pop(context);
+              },
+              icon: const Icon(Icons.delete_outline),
+              label: Text(t('app.delete')),
+            ),
+          ),
+        ]),
       ],
     ]);
   });

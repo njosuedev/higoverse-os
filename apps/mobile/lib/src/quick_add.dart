@@ -6,6 +6,7 @@ import 'forms.dart';
 import 'i18n.dart';
 import 'live/scoped_route.dart';
 import 'proforma.dart';
+import 'screens/purchases_screen.dart';
 import 'session.dart';
 import 'theme.dart';
 
@@ -23,6 +24,8 @@ List<QuickAction> quickActions(BuildContext context) {
       (label: t('vehicle.new'), icon: PhosphorIconsRegular.car, run: () async => addVehicle(context))
     else
       (label: t('form.new_product'), icon: PhosphorIconsRegular.package, run: () async => editProduct(context)),
+    // Shops buy stock from suppliers; car companies stock in from Vehicles.
+    if (!s.isCar) (label: t('purchases.add'), icon: PhosphorIconsRegular.truck, run: () async => recordPurchase(context)),
     if (s.canUseExpenses) (label: t('form.new_expense'), icon: PhosphorIconsRegular.wallet, run: () async => recordExpense(context)),
     (label: t('form.new_debt'), icon: PhosphorIconsRegular.handCoins, run: () async => recordDebt(context)),
     (label: t('pf.new'), icon: PhosphorIconsRegular.fileText, run: () => newProforma(context)),

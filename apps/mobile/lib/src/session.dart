@@ -221,6 +221,21 @@ class Session extends ChangeNotifier implements TokenSource {
     return c.future;
   }
 
+  /// Takes up a new session the server handed out (after a password change,
+  /// which signs out every other device).
+  Future<void> adopt(Map<String, dynamic> data) async {
+    if (data['access_token'] is! String) return;
+    await _save(data);
+    notifyListeners();
+  }
+
+  /// The roles that keep the payroll and attendance (expense-service's
+  /// PAYROLL_ROLES).
+  bool get canUsePayroll => const {'owner', 'admin', 'manager', 'accountant'}.contains(user?.role);
+
+  /// Who may change the business's bank accounts (settings-service's BANK_EDITORS).
+  bool get canEditBank => const {'owner', 'admin'}.contains(user?.role);
+
   @override
   Future<void> expire() async {
     await _clear();

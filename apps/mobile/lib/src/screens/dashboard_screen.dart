@@ -270,9 +270,9 @@ class _DashboardScreenState extends State<DashboardScreen> with LiveListener {
     final low = n('low_stock') + sold;
 
     // Fines first (they cost money every day), then transfers waiting.
-    // Car dealers: fines and transfers; shops: sold out, running low, best
-    // sellers this week and new stock.
-    final stories = storyGroups(isCar: s.isCar, fined: _fined, pending: _pending, alerts: _alerts, top: _top, newest: _newest);
+    // Stories and who is active now are for car companies only (as on the
+    // website); shops start with their figures.
+    final stories = s.isCar ? storyGroups(isCar: true, fined: _fined, pending: _pending, alerts: _alerts, top: _top, newest: _newest) : const <StoryGroup>[];
 
     return [
       // Stories first, straight under the top bar, as on Facebook.
@@ -280,8 +280,10 @@ class _DashboardScreenState extends State<DashboardScreen> with LiveListener {
         StoriesRow(groups: stories),
         const SizedBox(height: 4),
       ],
-      const ActiveNowRow(),
-      const SizedBox(height: 8),
+      if (s.isCar) ...[
+        const ActiveNowRow(),
+        const SizedBox(height: 8),
+      ],
       _overview(s, t),
       const SizedBox(height: 8),
       // ── Status strip ──
@@ -306,7 +308,7 @@ class _DashboardScreenState extends State<DashboardScreen> with LiveListener {
           _StatusTile(label: t('dash.products'), value: total, icon: Icons.inventory_2_rounded, color: c.ink,
               onTap: () => widget.onOpenTab(Tabs.stock)),
           _StatusTile(label: t('dash.need_restock'), value: low, icon: Icons.warning_rounded,
-              color: low > 0 ? c.warning : c.success, onTap: () => widget.onOpenTab(Tabs.stock)),
+              color: low > 0 ? c.warning : c.success, onTap: () => widget.onOpenProducts('low')),
         ]),
       // ── Stock alert ──
       if (s.isCar && total > 0 && available <= s.lowStock)
@@ -321,7 +323,8 @@ class _DashboardScreenState extends State<DashboardScreen> with LiveListener {
           ),
         ),
       // ── Stock alerts: nested circles, as on the website ──
-      SectionHeader(t('dash.stock_alerts'), count: low.toInt(), action: t('app.view_all'), onAction: () => widget.onOpenTab(Tabs.stock)),
+      SectionHeader(t('dash.stock_alerts'), count: low.toInt(), action: t('app.view_all'),
+          onAction: () => s.isCar ? widget.onOpenTab(Tabs.stock) : widget.onOpenProducts('low')),
       if (_alerts.isEmpty)
         _AlertCard(icon: Icons.check_circle_rounded, color: c.success, title: t('dash.all_healthy'), body: t('dash.no_restock'))
       else

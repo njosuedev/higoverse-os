@@ -109,8 +109,6 @@ class _HomeShellState extends State<HomeShell> {
     if (_live == null) {
       final s = SessionScope.of(context);
       _live = Live(s)..start();
-      // Messages: this device's keys, the team and unread counts from the start.
-      ChatService.of(s).start(_live);
       _feed = ActivityFeed(s, live: _live)..seed();
       _freshSub = _feed!.fresh.listen(_onFresh);
     }
@@ -222,10 +220,28 @@ class _HomeShellState extends State<HomeShell> {
     }
   }
 
+  /// Messages are for car companies only (as on the website): the chat
+  /// starts once the business is known to be one.
+  bool _chatStarted = false;
+
+  /// The tabs this business has, in order: shops have no Messages.
+  List<int> _visible(Session s) =>
+      s.isCar ? const [Tabs.home, Tabs.stock, Tabs.messages, Tabs.sales, Tabs.business] : const [Tabs.home, Tabs.stock, Tabs.sales, Tabs.business];
+
   @override
   Widget build(BuildContext context) {
     final s = SessionScope.of(context);
     final t = T.of(context);
+    if (s.isCar && !_chatStarted) {
+      _chatStarted = true;
+      // Messages: this device's keys, the team and unread counts from the start.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) ChatService.of(s).start(_live);
+      });
+    }
+    final visible = _visible(s);
+    // A shop found to be one after Messages was open: back Home.
+    if (!visible.contains(_tab)) _tab = Tabs.home;
     return LiveScope(
       live: _live!,
       child: FeedScope(
@@ -238,8 +254,8 @@ class _HomeShellState extends State<HomeShell> {
             bottomNavigationBar: ListenableBuilder(
               listenable: Listenable.merge([AppUpdates.instance, ChatService.of(s)]),
               builder: (context, _) => BottomBar(
-                index: _tab,
-                onTap: _openTab,
+                index: visible.indexOf(_tab),
+                onTap: (i) => _openTab(visible[i]),
                 items: [
                   NavItem(
                       label: t('nav.home'), icon: PhosphorIconsRegular.house, activeIcon: PhosphorIconsFill.house, dot: _newHome && _tab != Tabs.home),
@@ -249,12 +265,13 @@ class _HomeShellState extends State<HomeShell> {
                     activeIcon: s.isCar ? PhosphorIconsFill.car : PhosphorIconsFill.package,
                     badge: _newStock,
                   ),
-                  NavItem(
-                    label: t('nav.messages'),
-                    icon: PhosphorIconsRegular.chatCircleDots,
-                    activeIcon: PhosphorIconsFill.chatCircleDots,
-                    badge: ChatService.of(s).unreadTotal,
-                  ),
+                  if (s.isCar)
+                    NavItem(
+                      label: t('nav.messages'),
+                      icon: PhosphorIconsRegular.chatCircleDots,
+                      activeIcon: PhosphorIconsFill.chatCircleDots,
+                      badge: ChatService.of(s).unreadTotal,
+                    ),
                   NavItem(
                       label: t('nav.sales'), icon: PhosphorIconsRegular.receipt, activeIcon: PhosphorIconsFill.receipt, badge: _newSales),
                   // The business profile: same size and style as the other icons;
@@ -284,7 +301,7 @@ class _HomeShellState extends State<HomeShell> {
                     child: IndexedStack(index: _tab, children: [
                       DashboardScreen(onOpenTab: _openTab, onOpenProducts: _openProducts, scroll: _homeScroll),
                       ProductsScreen(filter: _productFilter),
-                      const MessagesScreen(),
+                      if (s.isCar) const MessagesScreen() else const SizedBox.shrink(),
                       const SalesScreen(),
                       const MoreScreen(),
                     ]),

@@ -13,8 +13,11 @@ import 'format.dart';
 import 'i18n.dart';
 import 'live/scoped_route.dart';
 import 'reservation.dart';
+import 'screens/partners_screen.dart';
+import 'screens/purchases_screen.dart';
 import 'session.dart';
 import 'sheets.dart';
+import 'shop_sale.dart';
 import 'theme.dart';
 import 'widgets.dart';
 
@@ -32,7 +35,7 @@ num? parseAmount(String text) {
 }
 
 /// Numbers with digits grouped as you type them ("1500000" → "1,500,000").
-class _Grouped extends TextInputFormatter {
+class GroupedDigits extends TextInputFormatter {
   @override
   TextEditingValue formatEditUpdate(TextEditingValue old, TextEditingValue next) {
     final digits = next.text.replaceAll(RegExp(r'[^0-9]'), '');
@@ -43,17 +46,17 @@ class _Grouped extends TextInputFormatter {
 }
 
 /// Groups digits as they're typed, for amount fields outside this file.
-TextInputFormatter groupedDigits() => _Grouped();
+TextInputFormatter groupedDigits() => GroupedDigits();
 
-String _amountText(num? v) => v == null || v <= 0 ? '' : groupDigits(v.round());
+String amountText(num? v) => v == null || v <= 0 ? '' : groupDigits(v.round());
 
-void _say(BuildContext context, String text) =>
+void say(BuildContext context, String text) =>
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
 
 /// A form on its own page: fields that scroll, the save button kept above
 /// the keyboard.
-class _FormPage extends StatelessWidget {
-  const _FormPage({required this.title, required this.formKey, required this.children, required this.saveLabel, required this.saving, required this.onSave});
+class FormPage extends StatelessWidget {
+  const FormPage({super.key, required this.title, required this.formKey, required this.children, required this.saveLabel, required this.saving, required this.onSave});
   final String title, saveLabel;
   final GlobalKey<FormState> formKey;
   final List<Widget> children;
@@ -86,8 +89,8 @@ class _FormPage extends StatelessWidget {
 }
 
 /// A labelled field.
-class _Field extends StatelessWidget {
-  const _Field(this.label, this.child, {this.hint});
+class LabeledField extends StatelessWidget {
+  const LabeledField(this.label, this.child, {super.key, this.hint});
   final String label;
   final String? hint;
   final Widget child;
@@ -107,7 +110,7 @@ class _Field extends StatelessWidget {
       );
 }
 
-Widget _text(TextEditingController c,
+Widget textField(TextEditingController c,
         {String? hint, String? Function(String?)? validator, TextInputType? keyboard, int lines = 1, bool caps = true}) =>
     TextFormField(
       controller: c,
@@ -119,19 +122,19 @@ Widget _text(TextEditingController c,
       decoration: InputDecoration(hintText: hint),
     );
 
-Widget _moneyField(TextEditingController c, {String? suffix, String? Function(String?)? validator, ValueChanged<String>? onChanged}) =>
+Widget moneyField(TextEditingController c, {String? suffix, String? Function(String?)? validator, ValueChanged<String>? onChanged}) =>
     TextFormField(
       controller: c,
       validator: validator,
       onChanged: onChanged,
       keyboardType: TextInputType.number,
-      inputFormatters: [_Grouped()],
+      inputFormatters: [GroupedDigits()],
       decoration: InputDecoration(suffixText: suffix, hintText: '0'),
     );
 
 /// Choice of one among a few, as chips.
-class _Choices<V> extends StatelessWidget {
-  const _Choices({required this.options, required this.value, required this.onChanged});
+class Choices<V> extends StatelessWidget {
+  const Choices({super.key, required this.options, required this.value, required this.onChanged});
   final List<(V, String)> options;
   final V? value;
   final ValueChanged<V> onChanged;
@@ -146,8 +149,11 @@ class _Choices<V> extends StatelessWidget {
 // ─────────────────────────── Sale ───────────────────────────
 
 /// Opens the sale form, optionally for one product. True when a sale was recorded.
+/// Shops sell several items at once (as on the website); car companies one car.
 Future<bool> recordSale(BuildContext context, {Map<String, dynamic>? product}) async =>
-    await pushScoped<bool>(context, SaleFormScreen(product: product)) == true;
+    await pushScoped<bool>(
+        context, SessionScope.of(context).isCar ? SaleFormScreen(product: product) : ShopSaleFormScreen(product: product)) ==
+    true;
 
 class SaleFormScreen extends StatefulWidget {
   const SaleFormScreen({super.key, this.product});
@@ -205,7 +211,7 @@ class _SaleFormScreenState extends State<SaleFormScreen> {
     _product = p;
     _qty = 1;
     final price = p['selling_price'];
-    _price.text = price == null ? '' : _amountText(_n(price));
+    _price.text = price == null ? '' : amountText(_n(price));
     _followPrice();
   }
 
@@ -217,7 +223,7 @@ class _SaleFormScreenState extends State<SaleFormScreen> {
   num get _remaining => (_total - _paid).clamp(0, _total);
 
   void _followPrice() {
-    if (!_paidTouched) _paidNow.text = _total > 0 ? _amountText(_total) : '';
+    if (!_paidTouched) _paidNow.text = _total > 0 ? amountText(_total) : '';
   }
 
   Future<void> _pickProduct() async {
@@ -237,11 +243,11 @@ class _SaleFormScreenState extends State<SaleFormScreen> {
     final t = T.of(context);
     final s = SessionScope.of(context);
     setState(() => _tried = true);
-    if (_product == null) return _say(context, t('form.pick_product_first'));
+    if (_product == null) return say(context, t('form.pick_product_first'));
     if (!_form.currentState!.validate()) return;
     if (s.isCar) {
-      if (_customer == null) return _say(context, t('form.pick_buyer'));
-      if (!customerComplete(_customer!)) return _say(context, t('form.buyer_incomplete'));
+      if (_customer == null) return say(context, t('form.pick_buyer'));
+      if (!customerComplete(_customer!)) return say(context, t('form.buyer_incomplete'));
     }
     // Car companies: paid less than the agreed price today, the car is
     // reserved for the buyer (pending) with this as its first deposit, and
@@ -276,15 +282,15 @@ class _SaleFormScreenState extends State<SaleFormScreen> {
             if (sale is Map && sale['id'] != null) 'sale_id': '${sale['id']}',
           });
         } catch (_) {
-          if (mounted) _say(context, t('form.debt_not_saved'));
+          if (mounted) say(context, t('form.debt_not_saved'));
         }
       }
       if (!mounted) return;
       HapticFeedback.mediumImpact();
-      _say(context, t('form.sale_saved', {'amount': money(total, s.currency)}));
+      say(context, t('form.sale_saved', {'amount': money(total, s.currency)}));
       Navigator.pop(context, true);
     } catch (e) {
-      if (mounted) _say(context, errorText(t, e));
+      if (mounted) say(context, errorText(t, e));
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -303,12 +309,12 @@ class _SaleFormScreenState extends State<SaleFormScreen> {
           buyer: _customer!, price: _total, deposit: paid > 0 ? {'amount': paid, 'method': _method} : null, note: _notes.text);
       if (!mounted) return;
       HapticFeedback.mediumImpact();
-      _say(context, t('car.marked_pending'));
+      say(context, t('car.marked_pending'));
       Navigator.pop(context, true);
     } on ReserveException catch (e) {
-      if (mounted) _say(context, e.text(t));
+      if (mounted) say(context, e.text(t));
     } catch (e) {
-      if (mounted) _say(context, errorText(t, e));
+      if (mounted) say(context, errorText(t, e));
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -320,14 +326,14 @@ class _SaleFormScreenState extends State<SaleFormScreen> {
     final c = Hgv.of(context);
     final s = SessionScope.of(context);
     final p = _product;
-    return _FormPage(
+    return FormPage(
       title: t('form.new_sale'),
       formKey: _form,
       saving: _saving,
       saveLabel: _reserves ? t('car.reserve_save') : t('form.save_sale'),
       onSave: _save,
       children: [
-        _Field(
+        LabeledField(
           s.isCar ? t('form.vehicle') : t('form.product'),
           Card(
             margin: EdgeInsets.zero,
@@ -347,7 +353,7 @@ class _SaleFormScreenState extends State<SaleFormScreen> {
           ),
         ),
         if (!s.isCar)
-          _Field(
+          LabeledField(
             t('sale.quantity'),
             Row(children: [
               IconButton.outlined(
@@ -363,17 +369,17 @@ class _SaleFormScreenState extends State<SaleFormScreen> {
               ),
             ]),
           ),
-        _Field(
+        LabeledField(
           // Car companies: the price agreed with the buyer, paid now or in part.
           s.isCar ? t('sale.agreed_price') : t('sale.unit_price'),
-          _moneyField(_price,
+          moneyField(_price,
               suffix: s.currency,
               onChanged: (_) => setState(_followPrice),
               validator: (v) => (parseAmount(v ?? '') ?? -1) < 0 ? t('form.need_price') : null),
           hint: s.isCar ? t('sale.agreed_hint') : null,
         ),
         if (s.isCar)
-          _Field(
+          LabeledField(
             t('form.buyer'),
             FutureBuilder<List<Map<String, dynamic>>>(
               future: _customers,
@@ -401,9 +407,9 @@ class _SaleFormScreenState extends State<SaleFormScreen> {
             ),
             hint: _customer != null && !customerComplete(_customer!) ? t('form.buyer_incomplete') : null,
           ),
-        _Field(
+        LabeledField(
           t('sale.payment'),
-          _Choices<String>(
+          Choices<String>(
             options: [for (final m in _methods) (m, payLabel(t, m))],
             value: _method,
             onChanged: (m) => setState(() => _method = m),
@@ -412,11 +418,11 @@ class _SaleFormScreenState extends State<SaleFormScreen> {
         // Car companies: part of the agreed price may be paid today, the
         // rest later (the buyer is the debtor). Credit: nothing today.
         if (s.isCar && _method != 'debt')
-          _Field(
+          LabeledField(
             t('sale.paid_now'),
             Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Expanded(
-                child: _moneyField(_paidNow,
+                child: moneyField(_paidNow,
                     suffix: s.currency,
                     onChanged: (_) => setState(() => _paidTouched = true),
                     validator: (v) => (parseAmount(v ?? '') ?? 0) > _total ? t('form.paid_over') : null),
@@ -438,13 +444,13 @@ class _SaleFormScreenState extends State<SaleFormScreen> {
             hint: t('sale.paid_now_hint'),
           ),
         if (!s.isCar && _method == 'debt') ...[
-          _Field(
+          LabeledField(
             t('form.debtor_name'),
-            _text(_debtor, validator: (v) => (v ?? '').trim().isEmpty ? t('form.need_debtor') : null),
+            textField(_debtor, validator: (v) => (v ?? '').trim().isEmpty ? t('form.need_debtor') : null),
           ),
-          _Field(t('form.phone'), _text(_phone, keyboard: TextInputType.phone, caps: false)),
+          LabeledField(t('form.phone'), textField(_phone, keyboard: TextInputType.phone, caps: false)),
         ],
-        _Field(t('sale.notes'), _text(_notes, hint: t('form.optional'), lines: 2)),
+        LabeledField(t('sale.notes'), textField(_notes, hint: t('form.optional'), lines: 2)),
         const SizedBox(height: 18),
         if (s.isCar)
           _PaySummary(total: _total, paid: _paid, left: _remaining, currency: s.currency)
@@ -531,7 +537,7 @@ class ReserveCarScreen extends StatefulWidget {
 
 class _ReserveCarScreenState extends State<ReserveCarScreen> {
   final _form = GlobalKey<FormState>();
-  late final _price = TextEditingController(text: _amountText(_n(widget.vehicle['selling_price'])));
+  late final _price = TextEditingController(text: amountText(_n(widget.vehicle['selling_price'])));
   final _deposit = TextEditingController();
   final _note = TextEditingController();
   String _method = 'cash';
@@ -556,7 +562,7 @@ class _ReserveCarScreenState extends State<ReserveCarScreen> {
   Future<void> _save() async {
     final t = T.of(context);
     final s = SessionScope.of(context);
-    if (_buyer == null) return _say(context, t('form.pick_buyer'));
+    if (_buyer == null) return say(context, t('form.pick_buyer'));
     if (!_form.currentState!.validate()) return;
     final first = parseAmount(_deposit.text) ?? 0;
     setState(() => _saving = true);
@@ -567,12 +573,12 @@ class _ReserveCarScreenState extends State<ReserveCarScreen> {
           deposit: first > 0 ? {'amount': first, 'method': _method} : null,
           note: _note.text);
       if (!mounted) return;
-      _say(context, t('car.marked_pending'));
+      say(context, t('car.marked_pending'));
       Navigator.pop(context, true);
     } on ReserveException catch (e) {
-      if (mounted) _say(context, e.text(t));
+      if (mounted) say(context, e.text(t));
     } catch (e) {
-      if (mounted) _say(context, errorText(t, e));
+      if (mounted) say(context, errorText(t, e));
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -586,7 +592,7 @@ class _ReserveCarScreenState extends State<ReserveCarScreen> {
     final a = attributesOf(widget.vehicle['attributes']);
     final idsMissing = (a['plate_no'] ?? '').trim().isEmpty || (a['chassis_no'] ?? '').trim().isEmpty;
     final first = parseAmount(_deposit.text) ?? 0;
-    return _FormPage(
+    return FormPage(
       title: t('car.mark_pending'),
       formKey: _form,
       saving: _saving || idsMissing,
@@ -597,7 +603,7 @@ class _ReserveCarScreenState extends State<ReserveCarScreen> {
           padding: const EdgeInsets.only(top: 8),
           child: Text(t('car.pending_explain'), style: TextStyle(color: c.muted, height: 1.35)),
         ),
-        _Field(t('form.vehicle'), Text('${widget.vehicle['name'] ?? ''}', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800))),
+        LabeledField(t('form.vehicle'), Text('${widget.vehicle['name'] ?? ''}', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800))),
         // Plate and chassis identify the car; they're changed with Edit, never here.
         InfoRow(t('car.plate_no'), (a['plate_no'] ?? '').isEmpty ? '-' : a['plate_no']!),
         InfoRow(t('car.chassis_no'), (a['chassis_no'] ?? '').isEmpty ? '-' : a['chassis_no']!),
@@ -606,7 +612,7 @@ class _ReserveCarScreenState extends State<ReserveCarScreen> {
             padding: const EdgeInsets.only(top: 4),
             child: Text(t('car.ids_missing'), style: TextStyle(color: c.danger, fontWeight: FontWeight.w600, fontSize: 12.5)),
           ),
-        _Field(
+        LabeledField(
           t('form.buyer'),
           FutureBuilder<List<Map<String, dynamic>>>(
             future: _customers,
@@ -632,27 +638,27 @@ class _ReserveCarScreenState extends State<ReserveCarScreen> {
             },
           ),
         ),
-        _Field(
+        LabeledField(
           t('car.agreed_price'),
-          _moneyField(_price,
+          moneyField(_price,
               suffix: s.currency,
               onChanged: (_) => setState(() {}),
               validator: (v) => (parseAmount(v ?? '') ?? 0) <= 0 ? t('car.price_invalid') : null),
         ),
-        _Field(
+        LabeledField(
           t('car.first_deposit'),
-          _moneyField(_deposit, suffix: s.currency, onChanged: (_) => setState(() {}), validator: (v) {
+          moneyField(_deposit, suffix: s.currency, onChanged: (_) => setState(() {}), validator: (v) {
             final d = parseAmount(v ?? '') ?? 0;
             return d > 0 && d >= (parseAmount(_price.text) ?? 0) ? t('car.deposit_is_full') : null;
           }),
           hint: t('form.optional'),
         ),
         if (first > 0)
-          _Field(
+          LabeledField(
             t('pf.deposit_method'),
-            _Choices<String>(options: [for (final m in carDepositMethods) (m, payLabel(t, m))], value: _method, onChanged: (m) => setState(() => _method = m)),
+            Choices<String>(options: [for (final m in carDepositMethods) (m, payLabel(t, m))], value: _method, onChanged: (m) => setState(() => _method = m)),
           ),
-        _Field(t('car.pending_note'), _text(_note, hint: t('car.pending_note_placeholder'))),
+        LabeledField(t('car.pending_note'), textField(_note, hint: t('car.pending_note_placeholder'))),
         const SizedBox(height: 12),
         Text(t('car.fines_still_yours'), style: TextStyle(fontSize: 12, color: c.faint, height: 1.3)),
       ],
@@ -792,7 +798,7 @@ Future<bool> recordDebtPayment(BuildContext context, Map<String, dynamic> debt) 
   final s = SessionScope.of(context);
   final owed = _n(debt['amount_owed']), paid = _n(debt['amount_paid']);
   final balance = owed - paid;
-  final ctrl = TextEditingController(text: _amountText(balance));
+  final ctrl = TextEditingController(text: amountText(balance));
   final key = GlobalKey<FormState>();
   final amount = await showDialog<num>(
     context: context,
@@ -807,7 +813,7 @@ Future<bool> recordDebtPayment(BuildContext context, Map<String, dynamic> debt) 
             controller: ctrl,
             autofocus: true,
             keyboardType: TextInputType.number,
-            inputFormatters: [_Grouped()],
+            inputFormatters: [GroupedDigits()],
             decoration: InputDecoration(labelText: t('form.amount_received'), suffixText: s.currency),
             validator: (v) {
               final a = parseAmount(v ?? '') ?? 0;
@@ -836,11 +842,11 @@ Future<bool> recordDebtPayment(BuildContext context, Map<String, dynamic> debt) 
     await s.api.put('${Svc.sales}/debts/${debt['id']}', {'amount_paid': paid + amount});
     if (context.mounted) {
       HapticFeedback.mediumImpact();
-      _say(context, t(paid + amount >= owed ? 'form.debt_settled' : 'form.payment_saved', {'amount': money(amount, s.currency)}));
+      say(context, t(paid + amount >= owed ? 'form.debt_settled' : 'form.payment_saved', {'amount': money(amount, s.currency)}));
     }
     return true;
   } catch (e) {
-    if (context.mounted) _say(context, errorText(t, e));
+    if (context.mounted) say(context, errorText(t, e));
     return false;
   }
 }
@@ -883,10 +889,10 @@ class _DebtFormScreenState extends State<DebtFormScreen> {
         if (_notes.text.trim().isNotEmpty) 'notes': _notes.text.trim(),
       });
       if (!mounted) return;
-      _say(context, t('form.debt_saved'));
+      say(context, t('form.debt_saved'));
       Navigator.pop(context, true);
     } catch (e) {
-      if (mounted) _say(context, errorText(t, e));
+      if (mounted) say(context, errorText(t, e));
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -896,27 +902,27 @@ class _DebtFormScreenState extends State<DebtFormScreen> {
   Widget build(BuildContext context) {
     final t = T.of(context);
     final s = SessionScope.of(context);
-    return _FormPage(
+    return FormPage(
       title: t('form.new_debt'),
       formKey: _form,
       saving: _saving,
       saveLabel: t('form.save'),
       onSave: _save,
       children: [
-        _Field(t('form.debtor_name'), _text(_name, validator: (v) => (v ?? '').trim().isEmpty ? t('form.need_debtor') : null)),
-        _Field(t('form.phone'), _text(_phone, keyboard: TextInputType.phone, caps: false)),
-        _Field(
+        LabeledField(t('form.debtor_name'), textField(_name, validator: (v) => (v ?? '').trim().isEmpty ? t('form.need_debtor') : null)),
+        LabeledField(t('form.phone'), textField(_phone, keyboard: TextInputType.phone, caps: false)),
+        LabeledField(
           t('debts.owed'),
-          _moneyField(_owed, suffix: s.currency, validator: (v) => (parseAmount(v ?? '') ?? 0) <= 0 ? t('form.need_amount') : null),
+          moneyField(_owed, suffix: s.currency, validator: (v) => (parseAmount(v ?? '') ?? 0) <= 0 ? t('form.need_amount') : null),
         ),
-        _Field(
+        LabeledField(
           t('form.already_paid'),
-          _moneyField(_paid,
+          moneyField(_paid,
               suffix: s.currency,
               validator: (v) =>
                   (parseAmount(v ?? '') ?? 0) > (parseAmount(_owed.text) ?? 0) ? t('form.more_than_balance') : null),
         ),
-        _Field(t('sale.notes'), _text(_notes, hint: t('form.optional'), lines: 2)),
+        LabeledField(t('sale.notes'), textField(_notes, hint: t('form.optional'), lines: 2)),
       ],
     );
   }
@@ -941,12 +947,22 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
   late final p = widget.product;
   late final _name = TextEditingController(text: '${p?['name'] ?? ''}');
   late final _category = TextEditingController(text: '${p?['category'] ?? ''}');
-  late final _cost = TextEditingController(text: _amountText(p == null ? null : _n(p!['cost_price'])));
-  late final _price = TextEditingController(text: _amountText(p == null ? null : _n(p!['selling_price'])));
+  late final _cost = TextEditingController(text: amountText(p == null ? null : _n(p!['cost_price'])));
+  late final _price = TextEditingController(text: amountText(p == null ? null : _n(p!['selling_price'])));
   late final _qty = TextEditingController(text: p == null ? '' : '${_n(p!['quantity']).toInt()}');
   late final _barcode = TextEditingController(text: '${p?['barcode'] ?? ''}');
   late final _description = TextEditingController(text: '${p?['description'] ?? ''}');
   bool _saving = false;
+
+  /// Who supplies it (Partners with a TIN), as on the website.
+  late String? _supplierId = '${p?['supplier_id'] ?? ''}'.isEmpty ? null : '${p!['supplier_id']}';
+  Future<List<Partner>>? _suppliers;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _suppliers ??= loadSuppliers(SessionScope.of(context)).catchError((_) => <Partner>[]);
+  }
 
   /// New products: up to 7 photos, the first is the cover. (An existing
   /// product's photos are managed on its page.)
@@ -960,7 +976,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
       final picked = await pickPhotos(context, room: maxCarPhotos - _photos.length);
       if (mounted) setState(() => _photos.addAll(picked.take(maxCarPhotos - _photos.length)));
     } catch (_) {
-      if (mounted) _say(context, T.of(context)('photo.unreadable'));
+      if (mounted) say(context, T.of(context)('photo.unreadable'));
     } finally {
       if (mounted) setState(() => _picking = false);
     }
@@ -989,6 +1005,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
       'quantity': int.tryParse(_qty.text.trim()) ?? 0,
       'barcode': opt(_barcode),
       'description': opt(_description),
+      'supplier_id': _supplierId,
       if (p == null && _photos.isNotEmpty) ...{
         'images': jsonEncode([for (final x in _photos) x.photo]),
         'thumbnail': _photos.first.thumb,
@@ -1001,10 +1018,10 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
           : await s.api.put('${Svc.products}/products/${p!['id']}', body);
       final data = (res as Map?)?['data'];
       if (!mounted) return;
-      _say(context, t(p == null ? 'form.product_added' : 'form.product_saved'));
+      say(context, t(p == null ? 'form.product_added' : 'form.product_saved'));
       Navigator.pop(context, data is Map ? Map<String, dynamic>.from(data) : <String, dynamic>{...?p, ...body});
     } catch (e) {
-      if (mounted) _say(context, errorText(t, e));
+      if (mounted) say(context, errorText(t, e));
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -1014,26 +1031,26 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
   Widget build(BuildContext context) {
     final t = T.of(context);
     final s = SessionScope.of(context);
-    return _FormPage(
+    return FormPage(
       title: t(p == null ? 'form.new_product' : 'form.edit_product'),
       formKey: _form,
       saving: _saving,
       saveLabel: t('form.save'),
       onSave: _save,
       children: [
-        _Field(t('form.product_name'), _text(_name, validator: (v) => (v ?? '').trim().isEmpty ? t('form.need_name') : null)),
-        _Field(t('detail.category'), _text(_category, hint: t('form.optional'))),
+        LabeledField(t('form.product_name'), textField(_name, validator: (v) => (v ?? '').trim().isEmpty ? t('form.need_name') : null)),
+        LabeledField(t('detail.category'), textField(_category, hint: t('form.optional'))),
         Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Expanded(
-            child: _Field(
+            child: LabeledField(
               t('form.cost_price'),
-              _moneyField(_cost, suffix: s.currency, validator: (v) => (parseAmount(v ?? '') ?? 0) <= 0 ? t('form.need_amount') : null),
+              moneyField(_cost, suffix: s.currency, validator: (v) => (parseAmount(v ?? '') ?? 0) <= 0 ? t('form.need_amount') : null),
             ),
           ),
           const SizedBox(width: 10),
-          Expanded(child: _Field(t('form.selling_price'), _moneyField(_price, suffix: s.currency))),
+          Expanded(child: LabeledField(t('form.selling_price'), moneyField(_price, suffix: s.currency))),
         ]),
-        _Field(
+        LabeledField(
           t('detail.in_stock'),
           TextFormField(
             controller: _qty,
@@ -1043,10 +1060,30 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
             validator: (v) => int.tryParse((v ?? '').trim()) == null ? t('form.need_quantity') : null,
           ),
         ),
-        _Field(t('detail.barcode'), _text(_barcode, hint: t('form.optional'), caps: false)),
-        _Field(t('form.description'), _text(_description, hint: t('form.optional'), lines: 3)),
+        LabeledField(
+          t('purchases.col_supplier'),
+          FutureBuilder<List<Partner>>(
+            future: _suppliers,
+            builder: (context, snap) {
+              final list = snap.data ?? const <Partner>[];
+              return DropdownButtonFormField<String?>(
+                key: ValueKey(list.length),
+                isExpanded: true,
+                initialValue: list.any((x) => x.id == _supplierId) ? _supplierId : null,
+                hint: Text(t('form.optional')),
+                items: [
+                  DropdownMenuItem<String?>(value: null, child: Text(t('m.no_supplier'))),
+                  for (final x in list) DropdownMenuItem<String?>(value: x.id, child: Text(x.name, overflow: TextOverflow.ellipsis)),
+                ],
+                onChanged: (v) => setState(() => _supplierId = v),
+              );
+            },
+          ),
+        ),
+        LabeledField(t('detail.barcode'), textField(_barcode, hint: t('form.optional'), caps: false)),
+        LabeledField(t('form.description'), textField(_description, hint: t('form.optional'), lines: 3)),
         if (p == null)
-          _Field(
+          LabeledField(
             '${t('form.photos')} (${_photos.length}/$maxCarPhotos)',
             _PhotoStrip(
               photos: _photos,
@@ -1140,57 +1177,18 @@ class _PhotoStrip extends StatelessWidget {
   }
 }
 
-/// Stock received: adds to what the server has now (not what this phone
-/// last saw). Returns the new quantity.
+/// Stock received: recorded as a purchase (cost, supplier), as the
+/// website's Restock does; the server adds it to what is in stock now.
+/// Returns the new quantity.
 Future<int?> restock(BuildContext context, Map<String, dynamic> product) async {
-  final t = T.of(context);
   final s = SessionScope.of(context);
-  final ctrl = TextEditingController();
-  final key = GlobalKey<FormState>();
-  final add = await showDialog<int>(
-    context: context,
-    builder: (c) => AlertDialog(
-      title: Text(t('form.restock')),
-      content: Form(
-        key: key,
-        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('${product['name'] ?? ''}', style: const TextStyle(fontWeight: FontWeight.w700)),
-          Text(t('stock.in_stock_n', {'n': groupDigits(_n(product['quantity']))}), style: TextStyle(color: Hgv.of(c).muted)),
-          const SizedBox(height: 12),
-          TextFormField(
-            controller: ctrl,
-            autofocus: true,
-            keyboardType: TextInputType.number,
-            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-            decoration: InputDecoration(labelText: t('form.received_qty')),
-            validator: (v) => (int.tryParse((v ?? '').trim()) ?? 0) <= 0 ? t('form.need_quantity') : null,
-          ),
-        ]),
-      ),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(c), child: Text(t('app.cancel'))),
-        FilledButton(
-          style: FilledButton.styleFrom(minimumSize: const Size(0, 40)),
-          onPressed: () {
-            if (key.currentState!.validate()) Navigator.pop(c, int.parse(ctrl.text.trim()));
-          },
-          child: Text(t('form.add_stock')),
-        ),
-      ],
-    ),
-  );
-  ctrl.dispose();
-  if (add == null || !context.mounted) return null;
+  final bought = await recordPurchase(context, product: product);
+  if (bought == null || !context.mounted) return null;
   try {
-    final id = product['id'];
-    final fresh = (await s.api.get('${Svc.products}/products/$id') as Map)['data'] as Map;
-    final next = _n(fresh['quantity']).toInt() + add;
-    await s.api.put('${Svc.products}/products/$id', {'quantity': next});
-    if (context.mounted) _say(context, t('form.restocked', {'n': groupDigits(next)}));
-    return next;
-  } catch (e) {
-    if (context.mounted) _say(context, errorText(t, e));
-    return null;
+    final fresh = (await s.api.get('${Svc.products}/products/${product['id']}') as Map)['data'] as Map;
+    return _n(fresh['quantity']).toInt();
+  } catch (_) {
+    return _n(product['quantity']).toInt() + _n(bought['quantity_added']).toInt();
   }
 }
 
@@ -1230,10 +1228,10 @@ Future<bool> deleteExpense(BuildContext context, Map<String, dynamic> expense) a
   if (ok != true || !context.mounted) return false;
   try {
     await SessionScope.of(context).api.delete('${Svc.expenses}/expenses/${expense['id']}');
-    if (context.mounted) _say(context, t('exp.deleted'));
+    if (context.mounted) say(context, t('exp.deleted'));
     return true;
   } catch (e) {
-    if (context.mounted) _say(context, errorText(t, e));
+    if (context.mounted) say(context, errorText(t, e));
     return false;
   }
 }
@@ -1300,7 +1298,7 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
   Future<void> _save() async {
     final t = T.of(context);
     if (!_form.currentState!.validate()) return;
-    if (_method == null) return _say(context, t('form.need_method'));
+    if (_method == null) return say(context, t('form.need_method'));
     final s = SessionScope.of(context);
     String? opt(TextEditingController c) => c.text.trim().isEmpty ? null : c.text.trim();
     setState(() => _saving = true);
@@ -1324,7 +1322,7 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
             await uploadExpenseProof(s, '$id', _proof);
           } catch (e) {
             // The expense is saved; the proof can be added from its details.
-            if (mounted) _say(context, '${t('exp.proof_failed')} ${errorText(t, e)}');
+            if (mounted) say(context, '${t('exp.proof_failed')} ${errorText(t, e)}');
             if (mounted) Navigator.pop(context, true);
             return;
           }
@@ -1344,10 +1342,10 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
         });
       }
       if (!mounted) return;
-      _say(context, editing == null ? t('form.expense_saved') : t('exp.updated'));
+      say(context, editing == null ? t('form.expense_saved') : t('exp.updated'));
       Navigator.pop(context, true);
     } catch (e) {
-      if (mounted) _say(context, errorText(t, e));
+      if (mounted) say(context, errorText(t, e));
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -1357,27 +1355,27 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
   Widget build(BuildContext context) {
     final t = T.of(context);
     final s = SessionScope.of(context);
-    return _FormPage(
+    return FormPage(
       title: widget.expense == null ? t('form.new_expense') : t('exp.edit'),
       formKey: _form,
       saving: _saving,
       saveLabel: t('form.save'),
       onSave: _save,
       children: [
-        _Field(t('form.expense_title'), _text(_title, hint: t('form.expense_title_hint'), validator: (v) => (v ?? '').trim().isEmpty ? t('form.need_title') : null)),
-        _Field(
+        LabeledField(t('form.expense_title'), textField(_title, hint: t('form.expense_title_hint'), validator: (v) => (v ?? '').trim().isEmpty ? t('form.need_title') : null)),
+        LabeledField(
           t('form.amount'),
-          _moneyField(_amount, suffix: s.currency, validator: (v) => (parseAmount(v ?? '') ?? 0) <= 0 ? t('form.need_amount') : null),
+          moneyField(_amount, suffix: s.currency, validator: (v) => (parseAmount(v ?? '') ?? 0) <= 0 ? t('form.need_amount') : null),
         ),
-        _Field(
+        LabeledField(
           t('detail.category'),
-          _Choices<String>(
+          Choices<String>(
             options: [for (final k in expenseCategories) (k, t('exp.cat_$k'))],
             value: _category,
             onChanged: (v) => setState(() => _category = v),
           ),
         ),
-        _Field(
+        LabeledField(
           t('sale.time'),
           OutlinedButton.icon(
             style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(46), alignment: Alignment.centerLeft),
@@ -1386,23 +1384,23 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
             label: Text(daysAgo(_date) == 0 ? t('act.today') : '${t.weekday(_date.weekday)} ${t.date(_date)} ${_date.year}'),
           ),
         ),
-        _Field(
+        LabeledField(
           t('form.paid_with'),
-          _Choices<String>(
+          Choices<String>(
             options: [('mtn', payLabel(t, 'mtn')), ('bank', payLabel(t, 'bank'))],
             value: _method,
             onChanged: (v) => setState(() => _method = v),
           ),
         ),
         if (_method == 'bank') ...[
-          _Field(t('form.bank_name'), _text(_bank, hint: t('form.optional'))),
-          _Field(t('form.bank_account'), _text(_account, hint: t('form.optional'), keyboard: TextInputType.number, caps: false)),
+          LabeledField(t('form.bank_name'), textField(_bank, hint: t('form.optional'))),
+          LabeledField(t('form.bank_account'), textField(_account, hint: t('form.optional'), keyboard: TextInputType.number, caps: false)),
         ],
         if (_method != null)
-          _Field(t('form.receiver_phone'), _text(_phone, hint: t('form.optional'), keyboard: TextInputType.phone, caps: false)),
-        _Field(t('sale.notes'), _text(_notes, hint: t('form.optional'), lines: 2)),
+          LabeledField(t('form.receiver_phone'), textField(_phone, hint: t('form.optional'), keyboard: TextInputType.phone, caps: false)),
+        LabeledField(t('sale.notes'), textField(_notes, hint: t('form.optional'), lines: 2)),
         if (widget.expense == null)
-          _Field(
+          LabeledField(
             t('exp.proof'),
             Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
               if (_proof.isNotEmpty)
@@ -1496,7 +1494,7 @@ class _VehicleFormScreenState extends State<VehicleFormScreen> {
   late final _mileage = TextEditingController(text: _a['mileage'] ?? '');
   // Optional; printed on proformas: 'new' or 'used'.
   late String? _condition = (_a['condition'] ?? '').isEmpty ? null : _a['condition'];
-  late final _price = TextEditingController(text: _amountText(v == null ? null : _n(v!['selling_price'])));
+  late final _price = TextEditingController(text: amountText(v == null ? null : _n(v!['selling_price'])));
   late String? _type = (_a['car_type'] ?? '').isEmpty ? null : _a['car_type'];
   final List<CarPhoto> _photos = [];
   bool _saving = false, _picking = false;
@@ -1599,7 +1597,7 @@ class _VehicleFormScreenState extends State<VehicleFormScreen> {
       final picked = await pickPhotos(context, room: maxCarPhotos - _photos.length);
       if (mounted) setState(() => _photos.addAll(picked.take(maxCarPhotos - _photos.length)));
     } catch (_) {
-      if (mounted) _say(context, T.of(context)('photo.unreadable'));
+      if (mounted) say(context, T.of(context)('photo.unreadable'));
     } finally {
       if (mounted) setState(() => _picking = false);
     }
@@ -1608,8 +1606,8 @@ class _VehicleFormScreenState extends State<VehicleFormScreen> {
   Future<void> _save() async {
     final t = T.of(context);
     if (!_form.currentState!.validate()) return;
-    if (_type == null) return _say(context, t('vehicle.need_type'));
-    if (_state.values.contains(_Unique.checking)) return _say(context, t('vehicle.checking'));
+    if (_type == null) return say(context, t('vehicle.need_type'));
+    if (_state.values.contains(_Unique.checking)) return say(context, t('vehicle.checking'));
     final s = SessionScope.of(context);
     final price = parseAmount(_price.text) ?? 0;
     final details = {
@@ -1652,7 +1650,7 @@ class _VehicleFormScreenState extends State<VehicleFormScreen> {
       final data = (res as Map?)?['data'];
       if (!mounted) return;
       HapticFeedback.mediumImpact();
-      _say(context, t(_editing ? 'vehicle.saved' : 'vehicle.added'));
+      say(context, t(_editing ? 'vehicle.saved' : 'vehicle.added'));
       Navigator.pop(context, data is Map ? Map<String, dynamic>.from(data) : <String, dynamic>{...?v, ...body});
     } on ApiException catch (e) {
       if (!mounted) return;
@@ -1665,10 +1663,10 @@ class _VehicleFormScreenState extends State<VehicleFormScreen> {
         });
         _form.currentState?.validate();
       } else {
-        _say(context, e.status == 409 ? t('vehicle.duplicate') : errorText(t, e));
+        say(context, e.status == 409 ? t('vehicle.duplicate') : errorText(t, e));
       }
     } catch (e) {
-      if (mounted) _say(context, errorText(t, e));
+      if (mounted) say(context, errorText(t, e));
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -1690,7 +1688,7 @@ class _VehicleFormScreenState extends State<VehicleFormScreen> {
           onChanged: (x) => _onIdChanged(field, x),
           validator: (x) => _idValidator(field, x),
         );
-    return _FormPage(
+    return FormPage(
       title: t(_editing ? 'vehicle.edit' : 'vehicle.new'),
       formKey: _form,
       saving: _saving,
@@ -1698,10 +1696,10 @@ class _VehicleFormScreenState extends State<VehicleFormScreen> {
       onSave: _save,
       children: [
         // The name is picked from the owner's list (website Settings → Car names).
-        _Field(
+        LabeledField(
           t('vehicle.name'),
           s.carNames.isEmpty
-              ? _text(_name, hint: 'BYD Yuan Up', validator: need)
+              ? textField(_name, hint: 'BYD Yuan Up', validator: need)
               : DropdownButtonFormField<String>(
                   initialValue: _name.text.isEmpty ? null : _name.text,
                   isExpanded: true,
@@ -1715,11 +1713,11 @@ class _VehicleFormScreenState extends State<VehicleFormScreen> {
                 ),
           hint: s.carNames.isEmpty ? null : t('vehicle.names_on_web'),
         ),
-        _Field(t('detail.chassis'), idField('chassis_no', _chassis, 'LL31233343'), hint: t('vehicle.unique_hint')),
-        _Field(t('detail.plate'), idField('plate_no', _plate, 'RAC 123 A')),
-        _Field(
+        LabeledField(t('detail.chassis'), idField('chassis_no', _chassis, 'LL31233343'), hint: t('vehicle.unique_hint')),
+        LabeledField(t('detail.plate'), idField('plate_no', _plate, 'RAC 123 A')),
+        LabeledField(
           t('detail.type'),
-          _Choices<String>(
+          Choices<String>(
             options: types,
             value: _type,
             onChanged: (x) => setState(() => _type = x),
@@ -1727,7 +1725,7 @@ class _VehicleFormScreenState extends State<VehicleFormScreen> {
         ),
         Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Expanded(
-            child: _Field(
+            child: LabeledField(
               t('detail.year'),
               TextFormField(
                 controller: _year,
@@ -1743,7 +1741,7 @@ class _VehicleFormScreenState extends State<VehicleFormScreen> {
           ),
           const SizedBox(width: 10),
           Expanded(
-            child: _Field(
+            child: LabeledField(
               t('vehicle.range'),
               TextFormField(
                 controller: _range,
@@ -1758,10 +1756,10 @@ class _VehicleFormScreenState extends State<VehicleFormScreen> {
             ),
           ),
         ]),
-        _Field(t('detail.colour'), _text(_color, hint: t('vehicle.color_hint'), validator: need)),
+        LabeledField(t('detail.colour'), textField(_color, hint: t('vehicle.color_hint'), validator: need)),
         Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Expanded(
-            child: _Field(
+            child: LabeledField(
               '${t('pf.mileage')} (${t('form.optional')})',
               TextFormField(
                 controller: _mileage,
@@ -1773,9 +1771,9 @@ class _VehicleFormScreenState extends State<VehicleFormScreen> {
           ),
           const SizedBox(width: 10),
           Expanded(
-            child: _Field(
+            child: LabeledField(
               '${t('pf.condition')} (${t('form.optional')})',
-              _Choices<String>(
+              Choices<String>(
                 options: [('new', t('pf.condition_new')), ('used', t('pf.condition_used'))],
                 value: _condition,
                 onChanged: (x) => setState(() => _condition = _condition == x ? null : x),
@@ -1783,10 +1781,10 @@ class _VehicleFormScreenState extends State<VehicleFormScreen> {
             ),
           ),
         ]),
-        _Field(t('form.selling_price'),
-            _moneyField(_price, suffix: s.currency, validator: (x) => (parseAmount(x ?? '') ?? 0) <= 0 ? t('form.need_price') : null)),
+        LabeledField(t('form.selling_price'),
+            moneyField(_price, suffix: s.currency, validator: (x) => (parseAmount(x ?? '') ?? 0) <= 0 ? t('form.need_price') : null)),
         if (!_editing)
-          _Field(
+          LabeledField(
             '${t('form.photos')} (${_photos.length}/$maxCarPhotos)',
             _PhotoStrip(
               photos: _photos,

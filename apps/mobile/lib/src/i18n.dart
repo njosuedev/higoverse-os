@@ -1,6 +1,7 @@
 import 'package:flutter/widgets.dart';
 
 import 'format.dart';
+import 'i18n_more.dart';
 
 /// The app's languages — the same five as the website (apps/web/lib/i18n.ts),
 /// with the website's wording wherever the two say the same thing.
@@ -23,7 +24,7 @@ class T {
   static T of(BuildContext context) => context.dependOnInheritedWidgetOfExactType<LangScope>()?.t ?? const T('en');
 
   String call(String key, [Map<String, Object?> args = const {}]) {
-    var s = _dict[lang]?[key] ?? _dict['en']![key] ?? key;
+    var s = _dict[lang]?[key] ?? moreStrings[lang]?[key] ?? _dict['en']![key] ?? moreStrings['en']![key] ?? key;
     args.forEach((k, v) => s = s.replaceAll('{$k}', '$v'));
     return s;
   }
@@ -58,7 +59,8 @@ class LangScope extends InheritedWidget {
 
 /// Every key, per language — tests check that no language misses one.
 @visibleForTesting
-Map<String, Set<String>> get translationKeys => {for (final e in _dict.entries) e.key: e.value.keys.toSet()};
+Map<String, Set<String>> get translationKeys =>
+    {for (final e in _dict.entries) e.key: {...e.value.keys, ...?moreStrings[e.key]?.keys}};
 
 const _months = {
   'en': ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
