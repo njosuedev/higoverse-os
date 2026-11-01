@@ -227,7 +227,7 @@ class _DashboardScreenState extends State<DashboardScreen> with LiveListener {
                 // Only until the first figures arrive: refreshes and live
                 // updates keep what is on screen.
                 else if (!_hasData)
-                  const HomeSkeleton()
+                  HomeSkeleton(car: s.isCar)
                 else ...[
                   if (_error != null) _OfflineNote(t('dash.offline')),
                   ..._content(s, t),

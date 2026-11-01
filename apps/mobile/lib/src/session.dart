@@ -98,6 +98,14 @@ class Session extends ChangeNotifier implements TokenSource {
   bool get signedIn => accessToken != null && user != null;
   bool get isCar => shop?.layout == 'car';
 
+  /// The business's layout from the last time the app was open, kept on the
+  /// phone so the starting skeleton can be drawn before the shop loads.
+  String? _savedLayout;
+
+  /// Car company or shop as best known right now: the loaded shop, else the
+  /// one remembered on this phone (car until either is known).
+  bool get looksCar => shop != null ? isCar : (_savedLayout ?? 'car') == 'car';
+
   /// Car companies keep money figures from their staff; owners and admins
   /// (and every other kind of business) see them. Mirrors hides_financials().
   /// Until the shop is known (it failed to load), staff see none.
@@ -110,7 +118,7 @@ class Session extends ChangeNotifier implements TokenSource {
   /// manager and the accountant (expense-service's EXPENSE_ROLES).
   bool get canUseExpenses => const {'owner', 'admin', 'manager', 'accountant'}.contains(user?.role);
 
-  static const _kAccess = 'hgv_access', _kRefresh = 'hgv_refresh', _kUser = 'hgv_user';
+  static const _kAccess = 'hgv_access', _kRefresh = 'hgv_refresh', _kUser = 'hgv_user', _kLayout = 'hgv_layout';
 
   /// Picks up a session saved on this phone. Returns false when there is none
   /// or it can no longer be renewed.
@@ -120,11 +128,14 @@ class Session extends ChangeNotifier implements TokenSource {
       _refreshToken = await _store.read(key: _kRefresh);
       final u = await _store.read(key: _kUser);
       user = u == null ? null : User.fromJson(jsonDecode(u) as Map<String, dynamic>);
+      _savedLayout = await _store.read(key: _kLayout);
     } catch (_) {
       await _clear();
       return false;
     }
     if (!signedIn) return false;
+    // The starting skeleton takes the remembered layout while the shop loads.
+    if (_savedLayout != null) notifyListeners();
     try {
       await loadAccount();
       return signedIn;
@@ -166,7 +177,15 @@ class Session extends ChangeNotifier implements TokenSource {
 
     final results = await Future.wait([fetch('${Svc.auth}/api/v1/shop'), fetch('${Svc.settings}/settings')]);
     final s = results[0];
-    if (s is Map && s['data'] is Map) shop = Shop.fromJson(Map<String, dynamic>.from(s['data'] as Map));
+    if (s is Map && s['data'] is Map) {
+      shop = Shop.fromJson(Map<String, dynamic>.from(s['data'] as Map));
+      if (shop!.layout != _savedLayout) {
+        _savedLayout = shop!.layout;
+        try {
+          await _store.write(key: _kLayout, value: _savedLayout);
+        } catch (_) {}
+      }
+    }
     final st = results[1];
     if (st is Map && st['data'] is Map) {
       final d = st['data'] as Map;
@@ -275,6 +294,7 @@ class Session extends ChangeNotifier implements TokenSource {
     _refreshToken = null;
     user = null;
     shop = null;
+    _savedLayout = null;
     currency = 'RWF';
     lowStock = 10;
     taxRate = 0;
@@ -284,7 +304,7 @@ class Session extends ChangeNotifier implements TokenSource {
     accountLanguage = null;
     try {
       // Only this account's keys: device preferences (appearance) stay.
-      for (final k in const [_kAccess, _kRefresh, _kUser]) {
+      for (final k in const [_kAccess, _kRefresh, _kUser, _kLayout]) {
         await _store.delete(key: k);
       }
     } catch (_) {}

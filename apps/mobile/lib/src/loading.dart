@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import 'i18n.dart';
+import 'session.dart';
 import 'theme.dart';
 
 /// Drives every [Bone] below it with one animation and one gradient laid
@@ -378,13 +379,15 @@ class LoadMoreIndicator extends StatelessWidget {
 /// The whole app while it starts: the top bar, Home's placeholders and the
 /// tab bar, laid out as the signed-in app draws them, so when Home takes
 /// over with the same [HomeSkeleton] nothing moves: one skeleton, shown
-/// once, no spinner.
+/// once, no spinner. Car company or shop as remembered from the last visit
+/// (shops have no Stories and no Messages tab).
 class AppSkeleton extends StatelessWidget {
   const AppSkeleton({super.key});
 
   @override
   Widget build(BuildContext context) {
     final c = Hgv.of(context);
+    final car = SessionScope.of(context).looksCar;
     return Scaffold(
       backgroundColor: c.chrome,
       body: Column(children: [
@@ -417,11 +420,11 @@ class AppSkeleton extends StatelessWidget {
             child: ListView(
               physics: const NeverScrollableScrollPhysics(),
               padding: const EdgeInsets.fromLTRB(8, 8, 8, 20),
-              children: const [HomeSkeleton()],
+              children: [HomeSkeleton(car: car)],
             ),
           ),
         ),
-        // Same sizes as BottomBar: five icons.
+        // Same sizes as BottomBar: five icons, four for shops.
         Divider(height: 1, thickness: 0.6, color: c.border),
         SafeArea(
           top: false,
@@ -429,7 +432,7 @@ class AppSkeleton extends StatelessWidget {
             height: 52,
             child: Shimmer(
               child: Row(children: [
-                for (var i = 0; i < 5; i++) const Expanded(child: Center(child: Bone(width: 26, height: 26, radius: 8))),
+                for (var i = 0; i < (car ? 5 : 4); i++) const Expanded(child: Center(child: Bone(width: 26, height: 26, radius: 8))),
               ]),
             ),
           ),
@@ -439,11 +442,16 @@ class AppSkeleton extends StatelessWidget {
   }
 }
 
-/// Home's content while its figures load, block for block: stories, the
-/// day's card with the week's bars, the four status tiles, stock alerts and
-/// new arrivals. Used both while the app starts and by Home itself.
+/// Home's content while its figures load, block for block: stories (car
+/// companies only), the day's card with the week's bars, the four status
+/// tiles, stock alerts and new arrivals. Used both while the app starts and
+/// by Home itself.
 class HomeSkeleton extends StatelessWidget {
-  const HomeSkeleton({super.key});
+  const HomeSkeleton({super.key, this.car = true});
+
+  /// Car company: Stories on top and count tiles. Shops start with the day's
+  /// card, and their first tile is the week's revenue (a wider figure).
+  final bool car;
 
   /// A row of [count] blocks wider than the screen, cut at its edge as the
   /// real horizontal lists are.
@@ -466,9 +474,11 @@ class HomeSkeleton extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Shimmer(
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          // Stories.
-          _strip(200, 4, const Bone(width: 112, height: 200, radius: 12)),
-          const SizedBox(height: 12),
+          if (car) ...[
+            // Stories.
+            _strip(200, 4, const Bone(width: 112, height: 200, radius: 12)),
+            const SizedBox(height: 12),
+          ],
           // Today, then the week.
           Card(
             child: Padding(
@@ -503,18 +513,18 @@ class HomeSkeleton extends StatelessWidget {
           // Status tiles.
           Row(children: [
             for (var i = 0; i < 4; i++)
-              const Expanded(
+              Expanded(
                 child: Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 3),
+                  padding: const EdgeInsets.symmetric(horizontal: 3),
                   child: Card(
                     child: Padding(
-                      padding: EdgeInsets.fromLTRB(10, 10, 8, 9),
+                      padding: const EdgeInsets.fromLTRB(10, 10, 8, 9),
                       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        Bone(height: 26, circle: true),
-                        SizedBox(height: 8),
-                        Bone(width: 30, height: 15),
-                        SizedBox(height: 6),
-                        Bone(width: 48, height: 9),
+                        const Bone(height: 26, circle: true),
+                        const SizedBox(height: 8),
+                        Bone(width: !car && i == 0 ? 56 : 30, height: 15),
+                        const SizedBox(height: 6),
+                        const Bone(width: 48, height: 9),
                       ]),
                     ),
                   ),
