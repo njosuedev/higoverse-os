@@ -78,10 +78,19 @@ const nextConfig: NextConfig = {
       { source: "/PartnerManagement",  destination: "/partners",  permanent: true },
       { source: "/PurchaseManagement", destination: "/purchases", permanent: true },
       { source: "/ExpenseManagement",  destination: "/expenses",  permanent: true },
-      // The home page's only address is "/" (rewritten to app/welcome):
-      // /welcome itself moves there, so search engines never see a
-      // duplicate of the home page.
-      { source: "/welcome", destination: "/", permanent: true },
+      // higoverse.com/ is the dashboard for people signed in on this browser
+      // and the sign-in page for everyone else, search engines included.
+      // Sign-in lives in the browser, so a yes/no cookie set at sign-in
+      // (lib/auth.ts SIGNED_IN_COOKIE) decides. Not permanent: it depends
+      // on the visitor.
+      {
+        source: "/",
+        missing: [{ type: "cookie", key: "hgv_signed_in", value: "1" }],
+        destination: "/login",
+        permanent: false,
+      },
+      // The old public home page.
+      { source: "/welcome", destination: "/login", permanent: true },
       // Dashboard now lives at the root URL, not /dashboard.
       { source: "/dashboard",          destination: "/",          permanent: true },
       // Higoverse dropped the public marketplace — old shared links now
@@ -110,13 +119,7 @@ const nextConfig: NextConfig = {
     ];
     const target = (name: string, port: number) => (remote ? `${remote}/${name}` : local(port));
     return {
-      // higoverse.com/ is two pages in one: the dashboard for people signed
-      // in on this browser, the public home page (app/welcome) for everyone
-      // else, search engines included. Sign-in lives in the browser, so a
-      // yes/no cookie set at sign-in (lib/auth.ts SIGNED_IN_COOKIE) decides.
-      beforeFiles: [
-        { source: "/", missing: [{ type: "cookie", key: "hgv_signed_in", value: "1" }], destination: "/welcome" },
-      ],
+      beforeFiles: [],
       afterFiles: [
       // Short catalogue links: higoverse.com/c/<code> is the catalogue page
       // (app/catalogue/[token]); the address stays short.

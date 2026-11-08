@@ -5,9 +5,8 @@ import { SITE } from "@/lib/site";
 // inherited file-based image, so it has to be referenced explicitly.
 const shareImage = { url: "/opengraph-image", width: 1200, height: 630, alt: `${SITE.name} · ${SITE.shortTitle}` };
 
-// Sign-in page. The public home page (app/welcome, served at "/") carries
-// the full description and structured data; this page stays indexable so
-// people searching for "Higoverse sign in" land here.
+// Sign-in page, and what visitors and search engines get at "/" (see the
+// "/" redirect in next.config.ts), so it carries the site's structured data.
 export const metadata: Metadata = {
   title: "Sign in",
   description: SITE.description,
