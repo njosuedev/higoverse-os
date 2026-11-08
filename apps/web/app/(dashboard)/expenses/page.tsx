@@ -9,8 +9,9 @@ import Pagination from "@/app/components/ui/Pagination";
 import DeepLink from "@/app/components/DeepLink";
 import DateRangeFilter from "@/app/components/ui/DateRangeFilter";
 import { getPrintShop, imageForPdf, printShopLines } from "@/lib/print-shop";
+import type { DataValidation as ExcelDataValidation } from "exceljs";
 import {
-  Plus, Trash2, X, Calendar, BarChart3, AlertCircle, Download, Upload, FileSpreadsheet, FileText, Paperclip, ImageIcon, FileIcon, Receipt, RefreshCw, Search, Filter, ChevronDown,
+  Plus, Pencil, Trash2, X, Calendar, BarChart3, AlertCircle, Download, Upload, FileSpreadsheet, FileText, Paperclip, ImageIcon, FileIcon, Receipt, RefreshCw, Search, Filter, ChevronDown,
 } from "lucide-react";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -82,6 +83,43 @@ function toDateStr(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
+// Expense import template: headers on this row, then this many blank rows.
+const TPL_HEADER_ROW = 3;
+const TPL_ROWS = 500;
+const TPL_COLUMNS = [
+  { key: "title",        label: "Title *",          width: 32 },
+  { key: "category",     label: "Category *",       width: 16 },
+  { key: "amount",       label: "Amount *",         width: 14 },
+  { key: "date",         label: "Date *",           width: 14 },
+  { key: "payment",      label: "Payment method *", width: 18 },
+  { key: "bank_name",    label: "Bank name",        width: 18 },
+  { key: "bank_account", label: "Account / ref",    width: 20 },
+  { key: "phone",        label: "Receiver phone",   width: 18 },
+  { key: "notes",        label: "Notes",            width: 36 },
+];
+/** Header text (letters only, lower case) → column; covers the old template's names too. */
+const TPL_HEADER_KEYS: Record<string, string> = {
+  title: "title", category: "category", amount: "amount",
+  date: "date", expensedate: "date",
+  paymentmethod: "payment", payment: "payment",
+  bankname: "bank_name", account: "bank_account", accountref: "bank_account", bankaccount: "bank_account",
+  receiverphone: "phone", phone: "phone", notes: "notes",
+};
+
+/** A date cell as YYYY-MM-DD: an Excel date number, or text like 2026-11-08 or 08/11/2026. */
+function cellDate(v: unknown, XLSX: typeof import("xlsx")): string {
+  if (typeof v === "number" && v > 0) {
+    const d = XLSX.SSF.parse_date_code(v);
+    return d ? `${d.y}-${String(d.m).padStart(2, "0")}-${String(d.d).padStart(2, "0")}` : "";
+  }
+  const s = String(v ?? "").trim();
+  let m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (m) return `${m[1]}-${m[2].padStart(2, "0")}-${m[3].padStart(2, "0")}`;
+  m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);   // day/month/year, as written in Rwanda
+  if (m) return `${m[3]}-${m[2].padStart(2, "0")}-${m[1].padStart(2, "0")}`;
+  return "";
+}
+
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export default function ExpenseManagementPage() {
@@ -108,6 +146,7 @@ export default function ExpenseManagementPage() {
   const [showModal, setShowModal]     = useState(false);
   const [submitting, setSubmitting]   = useState(false);
   const [deletingId, setDeletingId]   = useState("");
+  const [editingId, setEditingId]     = useState("");   // "" = recording a new expense
   const [form, setForm]               = useState(EMPTY_FORM);
 
   const [proofEntries, setProofEntries]   = useState<ProofEntry[]>([]);
@@ -145,64 +184,141 @@ export default function ExpenseManagementPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { if (!loading) { loadSummaries(); loadByCategory(); } }, [dateFrom, dateTo, catFilter]);
 
+  // ── Import template ──────────────────────────────────────────────────────
+  // A blank, protected workbook: the title, notes and column headers are locked;
+  // only the expense rows below them can be filled in, with dropdowns for the
+  // category and the payment method. Import reads it back (and older files).
   async function downloadTemplate() {
-    const XLSX = await import("xlsx");
-    const today = toDateStr(new Date());
-    const ws = XLSX.utils.aoa_to_sheet([
-      ["HIGOVERSE · Expense Import Template  |  Do not modify column headers  |  payment_method: mtn or bank  |  category: rent | utilities | salaries | supplies | maintenance | marketing | transport | taxes | other"],
-      [],
-      ["title *", "category *", "amount *", "expense_date *", "payment_method *", "bank_name", "bank_account", "receiver_phone", "notes"],
-      ["Monthly Office Rent", "rent",      200000, today, "bank", "BK Bank",     "001-200-456",  "",              "Q2 office space"],
-      ["Staff Salaries",      "salaries",  850000, today, "bank", "Equity Bank", "ACC-78901",    "+250788123456", "June payroll"],
-      ["Airtime & Internet",  "utilities",  12000, today, "mtn",  "",            "",             "+250788654321", "Monthly plan"],
-    ]);
-    ws["!cols"] = [
-      { wch: 28 }, { wch: 14 }, { wch: 12 }, { wch: 16 },
-      { wch: 18 }, { wch: 15 }, { wch: 18 }, { wch: 20 }, { wch: 35 },
-    ];
-    ws["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 8 } }];
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Import Template");
-    XLSX.writeFile(wb, "expense_import_template.xlsx");
+    const ExcelJS = (await import("exceljs")).default;
+    const wb = new ExcelJS.Workbook();
+    wb.creator = "Higoverse";
+    const ws = wb.addWorksheet("Expenses", { views: [{ state: "frozen", ySplit: TPL_HEADER_ROW }] });
+    const last = TPL_HEADER_ROW + TPL_ROWS;
+    const lastCol = String.fromCharCode(64 + TPL_COLUMNS.length);
+
+    ws.columns = TPL_COLUMNS.map((c) => ({ width: c.width }));
+    ws.mergeCells(`A1:${lastCol}1`);
+    ws.mergeCells(`A2:${lastCol}2`);
+    ws.getCell("A1").value = "Higoverse · Expense import";
+    ws.getCell("A1").font = { bold: true, size: 14, color: { argb: "FF0A66C2" } };
+    ws.getCell("A2").value =
+      `Type one expense per row, from row ${TPL_HEADER_ROW + 1}. Columns with * are required. ` +
+      "Pick Category and Payment method from the list; Date as YYYY-MM-DD. Then use Import on the Expenses page.";
+    ws.getCell("A2").font = { size: 10, color: { argb: "FF4B5563" } };
+    ws.getCell("A2").alignment = { wrapText: true, vertical: "top" };
+    ws.getRow(2).height = 30;
+
+    const head = ws.getRow(TPL_HEADER_ROW);
+    TPL_COLUMNS.forEach((c, i) => {
+      const cell = head.getCell(i + 1);
+      cell.value = c.label;
+      cell.font = { bold: true, color: { argb: "FFFFFFFF" } };
+      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF0A66C2" } };
+      cell.alignment = { vertical: "middle" };
+    });
+    head.height = 20;
+
+    // The fill-in rows: unlocked, typed per column.
+    for (let r = TPL_HEADER_ROW + 1; r <= last; r++) {
+      const row = ws.getRow(r);
+      TPL_COLUMNS.forEach((c, i) => {
+        const cell = row.getCell(i + 1);
+        cell.protection = { locked: false };
+        if (c.key === "amount") cell.numFmt = "#,##0";
+        else if (c.key === "date") cell.numFmt = "yyyy-mm-dd";
+        else cell.numFmt = "@";   // text: keeps phone numbers' leading + and 0
+      });
+    }
+    // One rule per column (rules set cell by cell come out as overlapping
+    // ranges, which Excel can report as a damaged file).
+    const range = (key: string) => {
+      const c = String.fromCharCode(65 + TPL_COLUMNS.findIndex((x) => x.key === key));
+      return `${c}${TPL_HEADER_ROW + 1}:${c}${last}`;
+    };
+    const rules = (ws as unknown as { dataValidations: { add(range: string, rule: ExcelDataValidation): void } }).dataValidations;
+    const err = { allowBlank: true, showErrorMessage: true, errorStyle: "stop" as const };
+    const categories = ALL_CATEGORIES.map((c) => c[0].toUpperCase() + c.slice(1)).join(",");
+    rules.add(range("category"), { type: "list", formulae: [`"${categories}"`], ...err, errorTitle: "Category", error: "Pick a category from the list." });
+    rules.add(range("payment"), { type: "list", formulae: ['"MTN MoMo,Bank"'], ...err, errorTitle: "Payment method", error: "Pick MTN MoMo or Bank." });
+    rules.add(range("amount"), { type: "decimal", operator: "greaterThan", formulae: [0], ...err, errorTitle: "Amount", error: "Enter an amount greater than 0." });
+    rules.add(range("date"), { type: "date", operator: "between", formulae: [new Date(Date.UTC(2000, 0, 1)), new Date(Date.UTC(2100, 11, 31))], ...err, errorTitle: "Date", error: "Enter a date, e.g. 2026-11-08." });
+
+    // Random password nobody keeps: the layout cannot be unlocked, only filled in.
+    await ws.protect(crypto.randomUUID(), {
+      selectLockedCells: true, selectUnlockedCells: true,
+      formatColumns: true, formatRows: true,
+      insertRows: false, deleteRows: false, insertColumns: false, deleteColumns: false, sort: false, autoFilter: false,
+    });
+
+    const buf = await wb.xlsx.writeBuffer();
+    const url = URL.createObjectURL(new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
+    const a = document.createElement("a");
+    a.href = url; a.download = "higoverse_expense_import_template.xlsx";
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
   async function handleImport(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+    e.target.value = "";
+    let rows: unknown[][];
+    let XLSX: typeof import("xlsx");
     try {
-      const XLSX = await import("xlsx");
-      const data = await file.arrayBuffer();
-      const wb = XLSX.read(data);
-      const ws = wb.Sheets[wb.SheetNames[0]];
-      const rows: Record<string, string>[] = XLSX.utils.sheet_to_json(ws);
-      let imported = 0, failed = 0;
-      for (const row of rows) {
-        try {
-          const title = (row.title || row.Title || "").trim();
-          const amount = Number(row.amount || row.Amount || 0);
-          const expDate = (row.expense_date || row["Expense Date"] || toDateStr(new Date())).trim();
-          if (!title || !amount) { failed++; continue; }
-          const cat = (row.category || row.Category || "other").toLowerCase() as Category;
-          await expenseRequest("/expenses", {
-            method: "POST",
-            body: JSON.stringify({
-              title,
-              category: ALL_CATEGORIES.includes(cat) ? cat : "other",
-              amount,
-              notes: (row.notes || row.Notes || "").trim() || undefined,
-              expense_date: expDate + (expDate.includes("T") ? "" : "T00:00:00"),
-            }),
-          });
-          imported++;
-        } catch { failed++; }
-      }
-      e.target.value = "";
-      await showAlert(
-        t("expenses.import_complete_title"),
-        `${t("expenses.import_summary_imported")} ${imported} ${t("expenses.import_summary_records")}${failed ? ` · ${failed} ${t("expenses.import_summary_failed")}` : ""}.`
-      );
-      await loadAll(true);
-    } catch { await showAlert(t("expenses.import_failed_title"), t("expenses.import_failed_msg")); }
+      XLSX = await import("xlsx");
+      const wb = XLSX.read(await file.arrayBuffer());
+      rows = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: true, defval: "" });
+    } catch { await showAlert(t("expenses.import_failed_title"), t("expenses.import_failed_msg")); return; }
+
+    // The header row is the one starting with "Title" (row 3 in the template,
+    // row 1 or 3 in older files); each column is found by its name.
+    const norm = (v: unknown) => String(v ?? "").toLowerCase().replace(/[^a-z]/g, "");
+    const headerAt = rows.findIndex((r) => norm(r?.[0]) === "title");
+    if (headerAt < 0) { await showAlert(t("expenses.import_failed_title"), t("expenses.import_failed_msg")); return; }
+    const col: Record<string, number> = {};
+    rows[headerAt].forEach((h, i) => {
+      const k = TPL_HEADER_KEYS[norm(h)];
+      if (k && col[k] === undefined) col[k] = i;
+    });
+    const get = (r: unknown[], k: string) => (col[k] === undefined ? "" : r[col[k]]);
+    const text = (r: unknown[], k: string) => String(get(r, k) ?? "").trim();
+
+    let imported = 0;
+    const failedRows: number[] = [];
+    for (let i = headerAt + 1; i < rows.length; i++) {
+      const r = rows[i];
+      if (!r || r.every((v) => String(v ?? "").trim() === "")) continue;   // empty row
+      const title = text(r, "title");
+      const amountRaw = get(r, "amount");
+      const amount = typeof amountRaw === "number" ? amountRaw : Number(String(amountRaw).replace(/[,\s]/g, ""));
+      const date = cellDate(get(r, "date"), XLSX);
+      const pm = text(r, "payment").toLowerCase();
+      const payment = pm.includes("bank") ? "bank" : (pm.includes("mtn") || pm.includes("momo")) ? "mtn" : "";
+      const cat = (text(r, "category").toLowerCase() || "other") as Category;
+      if (!title || !(amount > 0) || !date || !payment || !ALL_CATEGORIES.includes(cat)) { failedRows.push(i + 1); continue; }
+      try {
+        await expenseRequest("/expenses", {
+          method: "POST",
+          body: JSON.stringify({
+            title, category: cat, amount,
+            notes: text(r, "notes") || undefined,
+            expense_date: date + "T00:00:00",
+            payment_method: payment,
+            bank_name:      payment === "bank" ? (text(r, "bank_name") || undefined) : undefined,
+            bank_account:   payment === "bank" ? (text(r, "bank_account") || undefined) : undefined,
+            receiver_phone: text(r, "phone") || undefined,
+          }),
+        });
+        imported++;
+      } catch { failedRows.push(i + 1); }
+    }
+    const shown = failedRows.slice(0, 15).join(", ") + (failedRows.length > 15 ? "…" : "");
+    await showAlert(
+      t("expenses.import_complete_title"),
+      `${t("expenses.import_summary_imported")} ${imported} ${t("expenses.import_summary_records")}` +
+      (failedRows.length ? ` · ${failedRows.length} ${t("expenses.import_summary_failed")} (${t("expenses.import_rows")} ${shown})` : "") + ".",
+    );
+    await loadAll(true);
   }
 
   async function fetchAllForExport(): Promise<Expense[]> {
@@ -573,7 +689,23 @@ export default function ExpenseManagementPage() {
   }
 
   function openModal() {
+    setEditingId("");
     setForm({ ...EMPTY_FORM, expense_date: toDateStr(new Date()) });
+    setProofEntries([]);
+    setShowModal(true);
+  }
+
+  /** Opens the same form filled with an expense, to correct it. */
+  function openEdit(e: Expense) {
+    const method: PaymentMethod = e.payment_method === "mtn" || e.payment_method === "bank" ? e.payment_method : "";
+    setEditingId(e.id);
+    setForm({
+      title: e.title, category: e.category, amount: String(e.amount), notes: e.notes ?? "",
+      // The day as stored ("2026-11-06T00:00:00"), not shifted by the browser's time zone.
+      expense_date: (e.expense_date || "").slice(0, 10),
+      payment_method: method,
+      bank_name: e.bank_name ?? "", bank_account: e.bank_account ?? "", receiver_phone: e.receiver_phone ?? "",
+    });
     setProofEntries([]);
     setShowModal(true);
   }
@@ -637,6 +769,28 @@ export default function ExpenseManagementPage() {
 
     try {
       setSubmitting(true);
+      if (editingId) {
+        // null clears a field (e.g. bank details after switching to MoMo).
+        await expenseRequest(`/expenses/${editingId}`, {
+          method: "PUT",
+          body: JSON.stringify({
+            title: form.title.trim(),
+            category: form.category,
+            amount: Number(form.amount),
+            notes: form.notes.trim() || null,
+            expense_date: form.expense_date + "T00:00:00",
+            payment_method: form.payment_method || null,
+            bank_name:      form.payment_method === "bank" ? (form.bank_name.trim() || null) : null,
+            bank_account:   form.payment_method === "bank" ? (form.bank_account.trim() || null) : null,
+            receiver_phone: form.payment_method ? (form.receiver_phone.trim() || null) : null,
+          }),
+        });
+        setShowModal(false);
+        setEditingId("");
+        setForm(EMPTY_FORM);
+        await loadAll(true);
+        return;
+      }
       const res = await expenseRequest("/expenses", {
         method: "POST",
         body: JSON.stringify({
@@ -974,10 +1128,17 @@ export default function ExpenseManagementPage() {
                         )}
                       </td>
                       <td className="px-2.5 py-1">
-                        <button onClick={() => deleteExpense(e.id)} disabled={deletingId === e.id}
-                          className="p-0.5 rounded text-slate-500 hover:bg-red-50 hover:text-red-600 transition disabled:opacity-40">
-                          <Trash2 size={10} />
-                        </button>
+                        <div className="flex items-center gap-1">
+                          <button onClick={() => openEdit(e)} title={t("common.edit")} aria-label={t("common.edit")}
+                            className="flex items-center gap-0.5 px-1.5 py-0.5 rounded border border-slate-200 text-slate-600 hover:border-[#0a66c2] hover:bg-[#EBF2FD] hover:text-[#0a66c2] transition text-[11px] font-medium">
+                            <Pencil size={9} /> {t("common.edit")}
+                          </button>
+                          <button onClick={() => deleteExpense(e.id)} disabled={deletingId === e.id}
+                            title={t("common.delete")} aria-label={t("common.delete")}
+                            className="p-0.5 rounded text-slate-500 hover:bg-red-50 hover:text-red-600 transition disabled:opacity-40">
+                            <Trash2 size={10} />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -1147,7 +1308,7 @@ export default function ExpenseManagementPage() {
 
               {/* Header */}
               <div className="flex justify-between items-center px-3 py-2 border-b border-slate-100 shrink-0">
-                <h2 className="text-xs font-semibold text-slate-800">{t("expenses.add_title")}</h2>
+                <h2 className="text-xs font-semibold text-slate-800">{t(editingId ? "expenses.edit_title" : "expenses.add_title")}</h2>
                 <button onClick={() => { setShowModal(false); setForm(EMPTY_FORM); setProofEntries([]); }}
                   className="p-1 rounded-md hover:bg-slate-100 text-slate-400 transition"><X size={12} /></button>
               </div>
@@ -1227,6 +1388,7 @@ export default function ExpenseManagementPage() {
                           onChange={(e) => setForm({ ...form, bank_name: e.target.value })}>
                           <option value="">{t("expenses.select_bank")}</option>
                           {BANK_NAMES.map((b) => <option key={b} value={b}>{b}</option>)}
+                          {form.bank_name && !BANK_NAMES.includes(form.bank_name) && <option value={form.bank_name}>{form.bank_name}</option>}
                         </select>
                       </div>
                       <div>
@@ -1248,8 +1410,8 @@ export default function ExpenseManagementPage() {
                   )}
                 </div>
 
-                {/* Proof upload */}
-                <div>
+                {/* Proof upload (new expenses; a saved one's proof is managed from its row) */}
+                {!editingId && <div>
                   <label className="flex items-center gap-1 text-[11px] font-medium text-gray-500 mb-0.5">
                     <Paperclip size={9} /> {t("expenses.proof")}
                     <span className="text-slate-400 font-normal ml-1">{t("expenses.proof_hint")}</span>
@@ -1285,7 +1447,7 @@ export default function ExpenseManagementPage() {
                       {proofEntries.length === 0 ? t("expenses.attach_receipts") : `${t("expenses.add_more")} (${5 - proofEntries.length})`}
                     </button>
                   )}
-                </div>
+                </div>}
 
                 {/* Summary hint */}
                 {form.amount && Number(form.amount) > 0 && (
@@ -1305,7 +1467,7 @@ export default function ExpenseManagementPage() {
                 <button onClick={submitForm} disabled={submitting}
                   className="px-3 py-1 rounded-md text-white text-[11px] font-semibold transition disabled:opacity-60 hover:opacity-90 flex items-center gap-1" style={{ background: "#0a66c2" }}>
                   {proofEntries.length > 0 && !submitting && <Paperclip size={9} />}
-                  {submitting ? t("common.saving") : t("expenses.add")}
+                  {submitting ? t("common.saving") : t(editingId ? "common.save" : "expenses.add")}
                 </button>
               </div>
             </div>

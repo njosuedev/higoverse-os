@@ -78,6 +78,8 @@ export interface BankAccount {
   bank_name: string; bank_account: string; bank_holder: string;
   /** The account a new proforma starts with. */
   is_default?: boolean;
+  /** Settings screen only: the owner picked "Other bank" and types the name. Never sent. */
+  _other?: boolean;
 }
 
 /** Banks most Rwandan businesses use; any other name can be typed. */

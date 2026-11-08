@@ -757,12 +757,15 @@ export default function SettingsPage() {
           {bankErr && <ErrorBanner msg={bankErr} />}
           <p className="text-xs text-slate-500 mb-3">{t(isCar ? "bank.hint_required" : "bank.hint")}</p>
           {!canEditBank && <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-3">{t("bank.owner_only")}</p>}
-          <datalist id="hgv-banks">{RWANDA_BANKS.map((b) => <option key={b} value={b} />)}</datalist>
           <fieldset disabled={!canEditBank} className="space-y-3">
             {banks.length === 0 && (
               <p className="text-sm text-slate-500 border border-dashed border-slate-300 rounded-lg px-4 py-6 text-center">{t("bank.none_yet")}</p>
             )}
-            {banks.map((b, i) => (
+            {banks.map((b, i) => {
+              // A bank from the list is picked in the dropdown; any other bank is typed.
+              const listed = RWANDA_BANKS.includes(b.bank_name.trim());
+              const other = !!b._other || (!listed && !!b.bank_name.trim());
+              return (
               <div key={b.id ?? `new-${i}`} className={`rounded-xl border p-3 ${b.is_default ? "border-[#0a66c2]/40 bg-[#EBF2FD]/40" : "border-slate-200"}`}>
                 <div className="flex items-center justify-between gap-2 mb-2">
                   <label className="flex items-center gap-2 text-xs font-semibold text-slate-600 cursor-pointer">
@@ -775,8 +778,22 @@ export default function SettingsPage() {
                 </div>
                 <div className="grid md:grid-cols-3 gap-3">
                   <Field label={t("bank.bank_name")} required>
-                    <input className={`${inputCls} ${bankBad(i, "bank_name") ? "!border-red-400" : ""}`} list="hgv-banks" placeholder="Equity Bank" aria-invalid={!!bankBad(i, "bank_name")}
-                      value={b.bank_name} onChange={(e) => setBankRow(i, { bank_name: e.target.value })} />
+                    <select className={`${inputCls} ${bankBad(i, "bank_name") && !other ? "!border-red-400" : ""}`} aria-invalid={!!bankBad(i, "bank_name") && !other}
+                      value={other ? "__other" : listed ? b.bank_name.trim() : ""}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        if (v === "__other") setBankRow(i, { bank_name: listed ? "" : b.bank_name, _other: true });
+                        else setBankRow(i, { bank_name: v, _other: undefined });
+                      }}>
+                      <option value="" disabled>{t("bank.choose")}</option>
+                      {RWANDA_BANKS.map((name) => <option key={name} value={name}>{name}</option>)}
+                      <option value="__other">{t("bank.other")}</option>
+                    </select>
+                    {other && (
+                      <input className={`${inputCls} mt-2 ${bankBad(i, "bank_name") ? "!border-red-400" : ""}`} placeholder={t("bank.other_ph")} aria-invalid={!!bankBad(i, "bank_name")}
+                        aria-label={t("bank.other_ph")} autoFocus={!!b._other && !b.bank_name} maxLength={100}
+                        value={b.bank_name} onChange={(e) => setBankRow(i, { bank_name: e.target.value, _other: true })} />
+                    )}
                     {bankBad(i, "bank_name") && <p className="text-[11px] text-red-600 mt-1">{bankBad(i, "bank_name")}</p>}
                   </Field>
                   <Field label={t("bank.account_no")} required>
@@ -791,7 +808,8 @@ export default function SettingsPage() {
                   </Field>
                 </div>
               </div>
-            ))}
+              );
+            })}
             {banks.length < 10 && (
               <button type="button" onClick={addBank}
                 className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-50 transition">
