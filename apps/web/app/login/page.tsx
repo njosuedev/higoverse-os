@@ -11,25 +11,10 @@ import {
   Loader2, ArrowLeft, Eye, EyeOff, RefreshCw,
   CheckCircle2, KeyRound, Mail, Lock,
   Boxes, BarChart3, ShieldCheck, Truck,
-  Package, Users, Wallet, Settings, Home,
 } from "lucide-react";
 import { AUTH_API as AUTH_URL } from "@/lib/api-config";
 import { checkNow } from "@/lib/connection";
 import { SITE } from "@/lib/site";
-
-// Real app routes only — these mirror the authenticated nav, so a logged-out
-// visitor clicking one simply bounces to /login (same as typing the URL
-// directly today). No fabricated marketing pages.
-const PLATFORM_LINKS = [
-  { key: "nav.dashboard", href: "/",          icon: Home },
-  { key: "nav.inventory", href: "/items",     icon: Package },
-  { key: "nav.purchases", href: "/purchases", icon: Truck },
-  { key: "nav.partners",  href: "/partners",  icon: Users },
-  { key: "nav.sales",     href: "/sales",     icon: Boxes },
-  { key: "nav.expenses",  href: "/expenses",  icon: Wallet },
-  { key: "nav.reports",   href: "/reports",   icon: BarChart3 },
-  { key: "nav.settings",  href: "/settings",  icon: Settings },
-];
 
 type Step = "login" | "mfa" | "forgot" | "otp" | "success";
 
@@ -489,7 +474,7 @@ export default function LoginPage() {
       </div>
     </div>
 
-      {/* ══ FOOTER — language switcher + a full index of what Higoverse does ══ */}
+      {/* ══ FOOTER — language switcher, about and links ══ */}
       <footer className="border-t border-border bg-white">
         <div className="max-w-5xl mx-auto px-6 py-8 space-y-6">
 
@@ -510,22 +495,6 @@ export default function LoginPage() {
           </div>
 
           <div className="hgv-notch-divider" aria-hidden="true" />
-
-          {/* Platform index */}
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-text-faint mb-2">{t("login.footer_explore")}</p>
-            <div className="flex flex-wrap gap-x-5 gap-y-2">
-              {PLATFORM_LINKS.map((p) => {
-                const Icon = p.icon;
-                return (
-                  <Link key={p.href} href={p.href} className="flex items-center gap-1.5 text-xs text-text-muted hover:text-ink transition-colors duration-200">
-                    <Icon size={12} />
-                    {t(p.key)}
-                  </Link>
-                );
-              })}
-            </div>
-          </div>
 
           {/* About + copyright */}
           <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 pt-2">
