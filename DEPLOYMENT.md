@@ -1006,12 +1006,14 @@ since there is no public self-registration.
      (rewrites every commit SHA, breaks any existing fork/clone's ability
      to fast-forward) — do it deliberately, coordinate with anyone else
      with a clone, and only after step 1, not instead of it.
-- **SMTP is not configured** (`SMTP_USER`/`SMTP_PASS` are blank in
-  `auth-service/.env`), so "forgot password" emails will 503 with "Email
-  service is not configured" until you provide real SMTP credentials (a
-  Gmail address + App Password, given the default host is `smtp.gmail.com`).
-  Once you have them: fill in `backend/auth-service/.env` and
-  `systemctl restart higoverse-auth-service`.
+- **SMTP (forgot-password emails)** sends from `higoverse@gmail.com` with a
+  Gmail App Password. The password lives only in `/etc/higoverse/smtp_pass`
+  (root, `chmod 600`, never in git); `deploy/write_envs.sh` reads it into
+  `auth-service/.env`, so re-running that script keeps email working. To set
+  or rotate it: write the new App Password (no spaces) to that file, set
+  `SMTP_PASS=` in `backend/auth-service/.env` to the same value, then
+  `systemctl restart higoverse-auth-service`. If the file is missing,
+  "forgot password" answers 503 "Email service is not configured".
 - ~~No automated backups~~ — **done 2026-10-03**: nightly verified dumps on
   the VPS plus a daily off-server copy; see §4 "Database backups".
 - **Single VPS, no redundancy.** Fine for now; if this becomes

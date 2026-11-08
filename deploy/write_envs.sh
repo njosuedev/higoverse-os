@@ -4,6 +4,9 @@ set -euo pipefail
 ROOT=/root/projects/higoverse/backend
 JWT=$(cat /etc/higoverse/jwt_secret)
 PGPASS=$(cat /etc/higoverse/pg_app_password)
+# Gmail app password for reset-code emails; kept out of git like the secrets
+# above. Missing file = empty, and "forgot password" answers 503.
+SMTP_PASS=$(cat /etc/higoverse/smtp_pass 2>/dev/null || true)
 
 # Driver is pinned explicitly (+psycopg2) rather than left as bare
 # "postgresql://": SQLAlchemy 2.1 changed the default driver for an
@@ -38,9 +41,9 @@ write_env auth-service \
   "CORS_ALLOWED_ORIGIN_REGEX=^https?://localhost(:\\d+)?\$|^https?://127\\.0\\.0\\.1(:\\d+)?\$|^https?://102\\.202\\.208\\.195(:\\d+)?\$" \
   "SMTP_HOST=smtp.gmail.com" \
   "SMTP_PORT=587" \
-  "SMTP_USER=" \
-  "SMTP_PASS=" \
-  "SMTP_FROM=Higoverse <noreply@higoverse.com>"
+  "SMTP_USER=higoverse@gmail.com" \
+  "SMTP_PASS=${SMTP_PASS}" \
+  "SMTP_FROM=Higoverse <higoverse@gmail.com>"
 
 write_env product-service \
   "DATABASE_URL=${SHOPDB}" \

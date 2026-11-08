@@ -70,14 +70,30 @@ def send_otp_email(to_email: str, otp: str) -> None:
 </html>
 """
 
+    text = (
+        f"Your Higoverse password reset code is {otp}\n\n"
+        "It expires in 10 minutes. If you didn't ask to reset your password, "
+        "ignore this email; your password will not change.\n"
+    )
+
     msg = MIMEMultipart("alternative")
     msg["Subject"] = f"Your Higoverse reset code: {otp}"
     msg["From"]    = settings.SMTP_FROM
     msg["To"]      = to_email
-    msg.attach(MIMEText(html, "html"))
+    # Plain text first, HTML last: mail apps show the last part they can.
+    msg.attach(MIMEText(text, "plain", "utf-8"))
+    msg.attach(MIMEText(html, "html", "utf-8"))
 
-    with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT) as server:
-        server.ehlo()
-        server.starttls()
+    # Port 465 talks TLS from the start; 587 (Gmail's default) upgrades with STARTTLS.
+    # The timeout keeps a slow mail server from holding the request open.
+    if settings.SMTP_PORT == 465:
+        server = smtplib.SMTP_SSL(settings.SMTP_HOST, settings.SMTP_PORT, timeout=20)
+    else:
+        server = smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT, timeout=20)
+    with server:
+        if settings.SMTP_PORT != 465:
+            server.ehlo()
+            server.starttls()
+            server.ehlo()
         server.login(settings.SMTP_USER, settings.SMTP_PASS)
-        server.sendmail(settings.SMTP_USER, to_email, msg.as_string())
+        server.sendmail(settings.SMTP_USER, [to_email], msg.as_string())
