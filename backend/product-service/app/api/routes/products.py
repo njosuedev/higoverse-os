@@ -67,7 +67,6 @@ def _live(product, **extra) -> dict:
         **extra,
     }
 
-
 def get_product_or_404(db: Session, product_id: str, shop_id: str):
     product = (
         db.query(Product)
