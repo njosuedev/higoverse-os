@@ -9,6 +9,7 @@ from app.api.routes.sales import router as sale_router
 from app.api.routes.debts import router as debt_router
 from app.api.routes.proforma import router as proforma_router
 from app.api.routes.chat import router as chat_router
+from app.api.routes.ebm import router as ebm_router
 from app.realtime import router as live_router, hub
 from app.db.database import Base, engine
 
@@ -46,6 +47,7 @@ app.include_router(sale_router)
 app.include_router(debt_router)
 app.include_router(proforma_router)
 app.include_router(chat_router)
+app.include_router(ebm_router)
 app.include_router(live_router)
 
 
@@ -78,6 +80,11 @@ def on_startup():
                 ("bank_account_ids", "JSON"), ("deposits", "JSON"),
             ):
                 conn.execute(text(f"ALTER TABLE proformas ADD COLUMN IF NOT EXISTS {col} {kind}"))
+            # RRA EBM: added after the first release of these tables.
+            conn.execute(text("ALTER TABLE ebm_configs ADD COLUMN IF NOT EXISTS default_origin VARCHAR(2)"))
+            conn.execute(text("ALTER TABLE ebm_invoices ADD COLUMN IF NOT EXISTS refund_note TEXT"))
+            conn.execute(text("ALTER TABLE ebm_configs ADD COLUMN IF NOT EXISTS enabled_at TIMESTAMP WITH TIME ZONE"))
+            conn.execute(text("ALTER TABLE ebm_invoices ADD COLUMN IF NOT EXISTS refund_recipient VARCHAR(100)"))
             conn.commit()
     except Exception:
         pass

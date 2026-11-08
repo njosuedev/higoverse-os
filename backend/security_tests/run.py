@@ -21,7 +21,7 @@ failed = []
 for s in sys.argv[1:] or SERVICES:
     print(f"\n=== {s}", flush=True)
     env = {**os.environ, "HGV_SERVICE": s, "PYTHONDONTWRITEBYTECODE": "1"}
-    files = ["test_service.py"] + (["test_auth.py"] if s == "auth-service" else [])
+    files = ["test_service.py"] + (["test_auth.py"] if s == "auth-service" else [])         + (["test_ebm.py"] if s == "sale-service" else [])
     r = subprocess.run([sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", *files], cwd=HERE, env=env)
     if r.returncode not in (0, 5):
         failed.append(s)

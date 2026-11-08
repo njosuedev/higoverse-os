@@ -19,6 +19,7 @@ import { printSettingsBody, printSettingsFrom, setReceiptPaper, useReceiptPaper,
 import { receiptHtml, receiptQr, type ReceiptData } from "@/lib/receipt-print";
 import { printHtml } from "@/lib/print-frame";
 import PageSkeleton from "@/app/components/dashboard/PageSkeleton";
+import EbmSettingsCard from "@/app/components/ebm/EbmSettingsCard";
 import {
   Save, Store, Phone, MapPin, DollarSign, AlertCircle, FileText, Lock, Eye, EyeOff, CheckCircle2, ChevronDown, Globe, BarChart, ShieldCheck, Pencil, ImagePlus, X, Loader2, Target, Car, Plus, Settings, RefreshCw, Landmark, BellRing, BellOff, Volume2,
   Printer,
@@ -906,6 +907,9 @@ export default function SettingsPage() {
 
         {/* ── PRINTING ─────────────────────────── */}
         <PrintingCard />
+
+        {/* ── RRA EBM receipts ─────────────────── */}
+        <EbmSettingsCard />
 
         {/* ── LANGUAGE ─────────────────────────── */}
         <Section

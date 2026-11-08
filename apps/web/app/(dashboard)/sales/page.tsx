@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { isZero } from "@/lib/format";
 import { printHtml } from "@/lib/print-frame";
 import { receiptHtml, receiptQr, type ReceiptData } from "@/lib/receipt-print";
+import { ebmApi, ebmLinesOf, ebmReceiptOf, type EbmCodes, type EbmConfig, type EbmInvoice, type EbmSaleStatus } from "@/lib/ebm-api";
 import { shopTin } from "@/lib/company";
 import { receiptPaper } from "@/lib/print-settings";
 import { useSearchParams } from "next/navigation";
@@ -16,6 +17,8 @@ import { loadCustomers, partnerRequest } from "@/lib/supplier-api";
 import { saleRequest } from "@/lib/sale-api";
 import { settingsRequest } from "@/lib/settings-api";
 import ProformaPanel from "@/app/components/sales/ProformaPanel";
+import EbmReportsPanel from "@/app/components/ebm/EbmReportsPanel";
+import EbmStatusBar from "@/app/components/ebm/EbmStatusBar";
 import { useAutoRefresh, useDebounce } from "@/lib/hooks";
 import { useLanguage } from "@/lib/language-context";
 import { useShopSettings } from "@/lib/shop-settings-context";
@@ -30,6 +33,8 @@ import DateRangeFilter from "@/app/components/ui/DateRangeFilter";
 import { companySheet, getPrintShop, imageForPdf, pdfCompanyHeader, periodText } from "@/lib/print-shop";
 import {
   ShoppingBag, Filter, Plus, Trash2, Pencil, X, ReceiptText, Printer, Wallet, AlertCircle, CheckCircle2, Phone, ChevronDown, Download, Upload, FileSpreadsheet, FileText, RefreshCw, Search, Info,
+  Landmark, Undo2, Loader2,
+  Lock,
 } from "lucide-react";
 import { askConfirm, notify } from "@/lib/dialogs";
 import { pageZoom } from "@/lib/page-zoom";
@@ -216,6 +221,22 @@ function SaleManagementPage() {
 
   const [receipts, setReceipts] = useState<Sale[]>([]);
 
+  // RRA EBM (Settings → RRA EBM): each sale is signed by RRA and its receipt
+  // printed with RRA's data. ebmBySale: the listed sales' receipts.
+  const [ebmCfg, setEbmCfg] = useState<EbmConfig | null>(null);
+  const [ebmCodes, setEbmCodes] = useState<EbmCodes | null>(null);
+  const [ebmBySale, setEbmBySale] = useState<Record<string, EbmSaleStatus>>({});
+  // The receipt of the sale just recorded (shown in the receipt pop-up).
+  const [receiptEbm, setReceiptEbm] = useState<EbmInvoice | null>(null);
+  const [ebmBusy, setEbmBusy] = useState(false);
+  const [refundFor, setRefundFor] = useState<string | null>(null);
+  const [refundReason, setRefundReason] = useState("06");
+  const [refundNote, setRefundNote] = useState("");
+  const [refundRecipient, setRefundRecipient] = useState("");
+  const [showReports, setShowReports] = useState(false);
+  // Receipts already printed once here: printing again makes a COPY.
+  const printedEbm = useRef<Set<string>>(new Set());
+
   // Debts state
   const [debts, setDebts] = useState<Debt[]>([]);
   const [debtsLoading, setDebtsLoading] = useState(false);
@@ -242,7 +263,13 @@ function SaleManagementPage() {
 
   useEffect(() => {
     loadData(); loadDebts();
+    ebmApi.config().then((r) => { setEbmCfg(r.data); setEbmCodes(r.codes); }).catch(() => {});
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // Which listed sales are on an RRA receipt (and how it stands).
+  useEffect(() => {
+    if (!ebmCfg?.enabled || sales.length === 0) return;
+    ebmApi.lookup(sales.map((s) => s.id)).then((r) => setEbmBySale(r.data)).catch(() => {});
+  }, [sales, ebmCfg?.enabled]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { if (!loading) loadData(true); }, [dateFrom, dateTo, page, pageSize]);
 
@@ -406,12 +433,16 @@ function SaleManagementPage() {
         setSubmitting(true);
         await saleRequest(`/sales/${editingId}`, { method: "PUT", body: JSON.stringify(payload) });
         closeModal(); await loadData(true);
-      } catch (err: unknown) { notify(err instanceof Error ? err.message : t("common.error")); }
+      } catch (err: unknown) { notify(apiDetail(err) || (err instanceof Error ? err.message : t("common.error"))); }
       finally { setSubmitting(false); }
       return;
     }
 
     const validLines = lineItems.filter((l) => l.product_id && l.quantity > 0 && l.unit_price >= 0);
+    if (ebmCfg?.enabled) {
+      const st = await ebmApi.status().then((r) => r.data).catch(() => ({ ok: false, reason: null }));
+      if (!ebmCfg.ready || !st.ok) { notify(`${t("ebm.cannot_sell")}\n${st.reason || ""}`, "warning"); return; }
+    }
     if (validLines.length === 0) { notify(t("sales.need_one_item")); return; }
     if (isCar) {
       setBuyerTried(true);
@@ -444,6 +475,7 @@ function SaleManagementPage() {
         try {
           const res = await saleRequest("/sales", {
             method: "POST",
+            headers: ebmCfg?.enabled ? { "X-Higoverse-EBM": "defer" } : undefined,
             body: JSON.stringify({
               product_id: line.product_id,
               customer_id: customerId || undefined,
@@ -502,9 +534,85 @@ function SaleManagementPage() {
 
       closeModal();
       if (created.length > 0) setReceipts(created);
+      setReceiptEbm(null);
+      // One RRA receipt for the whole checkout (a sale row per product).
+      if (created.length > 0 && ebmCfg?.enabled) void sendToRra(created.map((c) => c.id));
       if (errors.length > 0) notify(`${t("sales.some_items_failed")}\n${errors.join("\n")}`);
       await loadData(true);
     } finally { setSubmitting(false); }
+  }
+
+  /** The server's own reason in an API error ("Sale API error: 409 {detail}"). */
+  function apiDetail(err: unknown): string {
+    const m = err instanceof Error ? err.message : "";
+    try { const d = JSON.parse(m.slice(m.indexOf("{"))).detail; if (typeof d === "string") return d; } catch { /* not JSON */ }
+    return "";
+  }
+
+  function rememberEbm(inv: EbmInvoice) {
+    if (inv.receipt_type !== "S") return;
+    setEbmBySale((m) => {
+      const next = { ...m };
+      for (const id of inv.sale_ids) next[id] = { id: inv.id, invoice_no: inv.invoice_no, status: inv.status, refunded: inv.refunded };
+      return next;
+    });
+  }
+
+  /** Signs these sales with RRA as one receipt (or sends a failed one again). */
+  async function sendToRra(saleIds: string[], invoiceId?: string): Promise<EbmInvoice | null> {
+    setEbmBusy(true);
+    try {
+      const r = invoiceId ? await ebmApi.retry(invoiceId) : await ebmApi.issue(saleIds);
+      rememberEbm(r.data);
+      if (receipts.length === 0 || saleIds.includes(receipts[0]?.id) || r.data.sale_ids.includes(receipts[0]?.id)) setReceiptEbm(r.data);
+      if (r.data.status !== "signed") notify(`${t("ebm.not_signed")}\n${r.data.error || ""}`, "warning");
+      return r.data;
+    } catch (e) {
+      notify(`${t("ebm.not_signed")}\n${e instanceof Error ? e.message : ""}`, "warning");
+      return null;
+    } finally { setEbmBusy(false); }
+  }
+
+  /** A listed sale's RRA receipt: send it (again), or discard one RRA refused. */
+  async function ebmAction(s: Sale, action: "send" | "refund" | "discard") {
+    const known = ebmBySale[s.id];
+    if (action === "send") { await sendToRra([s.id], known && known.status !== "signed" ? known.id : undefined); return; }
+    if (!known) return;
+    if (action === "refund") { setRefundReason("06"); setRefundNote(""); setRefundRecipient(""); setRefundFor(known.id); return; }
+    if (!(await askConfirm({ message: t("ebm.discard_confirm"), danger: true }))) return;
+    try {
+      const r = await ebmApi.discard(known.id);
+      setEbmBySale((m) => { const n = { ...m }; for (const id of r.data.sale_ids) delete n[id]; return n; });
+    } catch (e) { notify(e instanceof Error ? e.message : t("common.error")); }
+  }
+
+  async function confirmRefund() {
+    if (!refundFor) return;
+    setEbmBusy(true);
+    try {
+      if (refundNote.trim().length < 3 || refundRecipient.trim().length < 2) { notify(t("ebm.refund_log_required")); return; }
+      const r = await ebmApi.refund(refundFor, refundReason, refundNote.trim(), refundRecipient.trim());
+      setRefundFor(null);
+      if (r.data.status !== "signed") { notify(`${t("ebm.not_signed")}\n${r.data.error || ""}`, "warning"); return; }
+      setEbmBySale((m) => { const n = { ...m }; for (const id of r.data.sale_ids) if (n[id]) n[id] = { ...n[id], refunded: true }; return n; });
+      notify(t("ebm.refund_done"), "success");
+      await printEbmInvoice(r.data, "receipt");
+    } catch (e) { notify(e instanceof Error ? e.message : t("common.error")); }
+    finally { setEbmBusy(false); }
+  }
+
+  /** Prints an RRA receipt on its own (a refund, NR). */
+  async function printEbmInvoice(inv: EbmInvoice, format: "receipt" | "a4") {
+    const data: ReceiptData = {
+      shop: { name: shop?.name || shopName, address: formatPublicAddress(shop?.address), phone: shop?.phone, logoUrl: shop?.logo_url,
+        email: shop?.email, tin: shop ? shopTin(shop) : null },
+      receiptNo: String(inv.invoice_no), date: new Date(inv.signed_at || inv.created_at || Date.now()).toLocaleString([], { dateStyle: "medium", timeStyle: "short" }),
+      customer: inv.customer_name, currency, lines: ebmLinesOf(inv), payment: inv.payment_label,
+      ebm: ebmReceiptOf(inv, shop ? shopTin(shop) : null, printedEbm.current.has(inv.id)),
+    };
+    if (printedEbm.current.has(inv.id)) void ebmApi.logCopy(inv.id).catch(() => {});
+    printedEbm.current.add(inv.id);
+    printHtml(receiptHtml(data, t, lang, format === "a4" ? "a4" : receiptPaper(), printPrefs, { autoPrint: true }));
   }
 
   async function deleteSale(id: string) {
@@ -513,7 +621,7 @@ function SaleManagementPage() {
       setDeletingId(id);
       await saleRequest(`/sales/${id}`, { method: "DELETE" });
       await loadData(true);
-    } catch { notify(t("common.delete_failed")); }
+    } catch (e) { notify(apiDetail(e) || t("common.delete_failed")); }
     finally { setDeletingId(""); }
   }
 
@@ -681,7 +789,7 @@ function SaleManagementPage() {
   }
 
   /** Prints the sale(s): "receipt" on this device's roll (Settings → Printing), or "a4". */
-  async function printReceiptPopup(salesToPrint: Sale[], format: "receipt" | "a4" = "receipt") {
+  async function printReceiptPopup(salesToPrint: Sale[], format: "receipt" | "a4" = "receipt", fromList = false) {
     const receiptNo = salesToPrint[0]?.id?.slice(0, 8)?.toUpperCase() || t("sales.receipt_fallback_no");
     const dateStr = salesToPrint[0]?.created_at
       ? new Date(salesToPrint[0].created_at).toLocaleString([], { dateStyle: "medium", timeStyle: "short" })
@@ -698,8 +806,25 @@ function SaleManagementPage() {
       lines: salesToPrint.map((s) => ({ name: s.product_name || "", quantity: s.quantity, unitPrice: s.unit_price ?? 0, total: s.total_amount ?? 0 })),
       payment: pm ? t(`sales.pm_${pm}`) : null, paid, change, left, onCredit: pm === "debt",
     };
+    // RRA EBM: a receipt prints only once RRA signed it (CIS spec §10), with
+    // RRA's lines, taxes and SDC block. Any later print is a COPY (§7.18),
+    // counted on the X/Z reports.
+    if (ebmCfg?.enabled && salesToPrint[0]?.id) {
+      const first = salesToPrint[0].id;
+      const inv = receiptEbm?.sale_ids.includes(first) && receiptEbm.status === "signed" ? receiptEbm
+        : await ebmApi.bySale(first).then((r) => r.data).catch(() => null);
+      if (!inv || inv.status !== "signed") { notify(t("ebm.print_needs_signature"), "warning"); return; }
+      const copy = fromList || printedEbm.current.has(inv.id);
+      data.lines = ebmLinesOf(inv);
+      data.receiptNo = String(inv.invoice_no);
+      data.payment = inv.payment_label;
+      data.ebm = ebmReceiptOf(inv, shop ? shopTin(shop) : null, copy);
+      if (inv.customer_name && !data.customer) data.customer = inv.customer_name;
+      if (copy) void ebmApi.logCopy(inv.id).catch(() => {});
+      printedEbm.current.add(inv.id);
+    }
     // The QR: the first sale's signed code (only the Higoverse app can read it).
-    if (printPrefs.showQr && salesToPrint[0]?.id) {
+    if (!data.ebm && printPrefs.showQr && salesToPrint[0]?.id) {
       const res = await saleRequest(`/sales/${encodeURIComponent(salesToPrint[0].id)}/receipt-code`).catch(() => null);
       data.qrSvg = await receiptQr(res?.data?.code);
     }
@@ -727,12 +852,27 @@ function SaleManagementPage() {
       const name = (s.product_name || productMap[s.product_id]?.name || "").toLowerCase();
       const cust = customerMap[s.customer_id || ""]?.name?.toLowerCase() || "";
       if (q && !name.includes(q) && !cust.includes(q) && !(s.notes || "").toLowerCase().includes(q)) return false;
+      if (filter === "ebm:unsigned") return ebmBySale[s.id]?.status !== "signed";
+      if (filter === "ebm:signed") return ebmBySale[s.id]?.status === "signed" && !ebmBySale[s.id]?.refunded;
+      if (filter === "ebm:refunded") return !!ebmBySale[s.id]?.refunded;
       if (filter === "profit") return (s.profit || 0) > 0;
       if (filter === "loss") return (s.profit || 0) <= 0;
       if (filter.startsWith("pay:")) return (s.payment_method || "cash") === filter.slice(4);
       return true;
     });
-  }, [sales, debouncedSearch, filter, productMap, customerMap]);
+  }, [sales, debouncedSearch, filter, productMap, customerMap, ebmBySale]);
+
+  // How many of the loaded sales RRA signed, still has to sign, or refunded.
+  const ebmCounts = useMemo(() => {
+    let signed = 0, unsigned = 0, refunded = 0;
+    for (const s of sales) {
+      const e = ebmBySale[s.id];
+      if (e?.refunded) refunded++;
+      else if (e?.status === "signed") signed++;
+      else unsigned++;
+    }
+    return { signed, unsigned, refunded };
+  }, [sales, ebmBySale]);
 
   const stats = useMemo(() => {
     const revenue = sales.reduce((s, x) => s + x.total_amount, 0);
@@ -806,7 +946,7 @@ function SaleManagementPage() {
               </div>
             </div>
             <div className="flex items-center gap-1.5 shrink-0">
-              <button onClick={() => loadData(true)} disabled={refreshing}
+              <button onClick={() => loadData(true)} disabled={refreshing} title={t("common.refresh")} aria-label={t("common.refresh")}
                 className="w-7 h-7 rounded-lg bg-white/10 hover:bg-white/20 border border-white/15 flex items-center justify-center text-white transition-all disabled:opacity-40">
                 <RefreshCw size={12} className={refreshing ? "animate-spin" : ""} />
               </button>
@@ -846,6 +986,13 @@ function SaleManagementPage() {
                   <option value="all" className="text-gray-800">{t("sales.all")}</option>
                   {prof && <option value="profit" className="text-gray-800">{t("sales.profit")}</option>}
                   {prof && <option value="loss" className="text-gray-800">{t("sales.loss")}</option>}
+                  {ebmCfg?.enabled && (
+                    <optgroup label="RRA EBM" className="text-gray-600">
+                      <option value="ebm:unsigned" className="text-gray-800">{t("ebmbar.filter_unsigned")}</option>
+                      <option value="ebm:signed" className="text-gray-800">{t("ebm.badge_signed")}</option>
+                      <option value="ebm:refunded" className="text-gray-800">{t("ebm.badge_refunded")}</option>
+                    </optgroup>
+                  )}
                   <optgroup label={t("sales.by_payment")} className="text-gray-600">
                     {PAYMENT_METHODS.map((m) => (
                       <option key={m.value} value={`pay:${m.value}`} className="text-gray-800">{t(m.labelKey)} {t("sales.only_suffix")}</option>
@@ -864,6 +1011,30 @@ function SaleManagementPage() {
             />
           </div>
         </div>
+
+        {/* RRA EBM: can RRA sign now, what still waits for its signature, reports */}
+        {ebmCfg?.enabled && ebmCfg.connected && (
+          <EbmStatusBar cfg={ebmCfg} refreshKey={sales} onReports={() => setShowReports(true)} onSigned={() => void loadData(true)} />
+        )}
+
+        {/* RRA EBM: one-click filters by RRA status */}
+        {ebmCfg?.enabled && sales.length > 0 && (
+          <div role="group" aria-label="RRA EBM" className="mb-2 flex flex-wrap items-center gap-1.5">
+            {([
+              ["all", t("sales.all"), sales.length, "border-slate-300 bg-slate-800 text-white", "text-slate-600"],
+              ["ebm:signed", t("ebm.badge_signed"), ebmCounts.signed, "border-green-600 bg-green-600 text-white", "text-green-700"],
+              ["ebm:unsigned", t("ebmbar.filter_unsigned"), ebmCounts.unsigned, "border-amber-500 bg-amber-500 text-white", "text-amber-700"],
+              ["ebm:refunded", t("ebm.badge_refunded"), ebmCounts.refunded, "border-slate-500 bg-slate-500 text-white", "text-slate-600"],
+            ] as const).map(([value, label, n, on, off]) => (
+              <button key={value} aria-pressed={filter === value}
+                onClick={() => { setFilter(filter === value && value !== "all" ? "all" : value); setPage(1); }}
+                className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold transition ${filter === value ? on : `border-slate-200 bg-white hover:bg-slate-50 ${off}`}`}>
+                {label}
+                <span className={`rounded-full px-1.5 tabular-nums ${filter === value ? "bg-white/25" : "bg-slate-100"}`}>{n.toLocaleString()}</span>
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* STAT CARDS */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-1.5 mb-2">
@@ -909,6 +1080,7 @@ function SaleManagementPage() {
               <span className="font-semibold text-slate-700">{filtered.length.toLocaleString()}</span> {t("common.of")} <span className="font-semibold text-slate-700">{salesTotal.toLocaleString()}</span> {t("sales.sales_word")}
             </p>
             <div className="flex flex-wrap items-center gap-1.5">
+              {!ebmCfg?.enabled && <>
               <button onClick={downloadTemplate} title={t("sales.download_template_tooltip")}
                 className="flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 transition">
                 <Download size={10} /> {t("common.template")}
@@ -917,6 +1089,7 @@ function SaleManagementPage() {
                 className="flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 transition">
                 <Upload size={10} /> {t("common.import")}
               </button>
+              </>}
               <button onClick={exportSalesExcel} title={t("sales.export_excel_tooltip")}
                 className="flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 transition">
                 <FileSpreadsheet size={10} /> Excel
@@ -938,7 +1111,7 @@ function SaleManagementPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-200">
-                {[t("sales.col_date"), t("sales.col_product"), t("sales.col_customer"), t("sales.payment"), t("sales.col_qty"), t("sales.col_price"), t("sales.col_total"), ...(prof ? [t("sales.profit_margin_col")] : []), t("common.notes"), ""].map((h) => (
+                {[t("sales.col_date"), t("sales.col_product"), t("sales.col_customer"), t("sales.payment"), t("sales.col_qty"), t("sales.col_price"), t("sales.col_total"), ...(ebmCfg?.enabled ? ["RRA"] : []), ...(prof ? [t("sales.profit_margin_col")] : []), t("common.notes"), ""].map((h) => (
                   <th key={h} data-primary={h === t("sales.col_product") || undefined} className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-400 whitespace-nowrap">{h}</th>
                 ))}
               </tr>
@@ -986,6 +1159,28 @@ function SaleManagementPage() {
                     <td className="px-3 py-2 font-medium text-slate-700 tabular-nums">{s.quantity}</td>
                     <td className="px-3 py-2 text-slate-600 tabular-nums">{s.unit_price.toLocaleString()}</td>
                     <td className="px-3 py-2 font-semibold text-slate-800 tabular-nums">{s.total_amount.toLocaleString()}</td>
+                    {ebmCfg?.enabled && (() => {
+                      const e = ebmBySale[s.id];
+                      const [label, cls] = !e ? [t("ebmbar.chip_unsigned"), "border-amber-200 bg-amber-50 text-amber-700"]
+                        : e.refunded ? [t("ebmbar.chip_refunded"), "border-slate-200 bg-slate-50 text-slate-500"]
+                        : e.status === "signed" ? [`NS ${e.invoice_no}`, "border-green-200 bg-green-50 text-green-700"]
+                        : [t("ebmbar.chip_unsigned"), "border-red-200 bg-red-50 text-red-600"];
+                      // Signed: print an RRA copy. Not signed: send it to RRA now.
+                      const signed = e?.status === "signed" && !e.refunded;
+                      const canSend = !signed && !e?.refunded && ebmCfg.ready;
+                      const tip = signed ? t("ebm.print_copy") : canSend ? t(e ? "ebm.send_again" : "ebm.send") : undefined;
+                      return (
+                        <td className="px-3 py-2">
+                          {tip ? (
+                            <button title={tip} aria-label={`${label} · ${tip}`} disabled={ebmBusy}
+                              onClick={() => signed ? void printReceiptPopup([s], "receipt", true) : void ebmAction(s, "send")}
+                              className={`whitespace-nowrap rounded-full border px-2 py-0.5 text-[11px] font-semibold transition hover:shadow-sm hover:brightness-95 disabled:opacity-50 ${cls}`}>
+                              {label}
+                            </button>
+                          ) : <span className={`whitespace-nowrap rounded-full border px-2 py-0.5 text-[11px] font-semibold ${cls}`}>{label}</span>}
+                        </td>
+                      );
+                    })()}
                     {prof && <td className={`px-3 py-2 tabular-nums ${isProfit ? "text-slate-900" : "text-red-600"}`}>
                       <span className="font-semibold">{isProfit ? "+" : ""}{(s.profit || 0).toLocaleString()}</span>
                       {s.total_amount > 0 && (
@@ -1004,31 +1199,65 @@ function SaleManagementPage() {
                               setPrintMenu(printMenu === s.id ? null : s.id);
                             }} title={t("common.print")}
                             aria-haspopup="menu" aria-expanded={printMenu === s.id}
-                            className="p-1.5 rounded-lg bg-slate-50 hover:bg-slate-100 text-slate-500 transition">
+                            className="relative p-1.5 rounded-lg bg-slate-50 hover:bg-slate-100 text-slate-500 transition">
                             <Printer size={14} />
+                            {ebmCfg?.enabled && ebmBySale[s.id] && (
+                              <span title={t(`ebm.badge_${ebmBySale[s.id].refunded ? "refunded" : ebmBySale[s.id].status}`)}
+                                className={`absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full ring-2 ring-white ${ebmBySale[s.id].refunded ? "bg-slate-400" : ebmBySale[s.id].status === "signed" ? "bg-green-500" : "bg-amber-500"}`} />
+                            )}
                           </button>
                           {printMenu === s.id && (
                             <span role="menu" style={{ top: printAt.top, right: printAt.right }}
                               className="fixed z-[90] flex w-36 flex-col overflow-hidden rounded-lg border border-slate-200 bg-white py-1 text-left shadow-lg">
-                              <button role="menuitem" onClick={() => { setPrintMenu(null); printReceiptPopup([s], "receipt"); }}
+                              <button role="menuitem" onClick={() => { setPrintMenu(null); printReceiptPopup([s], "receipt", true); }}
                                 className="flex !justify-start items-center gap-2 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50">
                                 <ReceiptText size={13} /> {t("print.receipt")}
                               </button>
-                              <button role="menuitem" onClick={() => { setPrintMenu(null); printReceiptPopup([s], "a4"); }}
+                              <button role="menuitem" onClick={() => { setPrintMenu(null); printReceiptPopup([s], "a4", true); }}
                                 className="flex !justify-start items-center gap-2 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50">
                                 <FileText size={13} /> {t("print.a4")}
                               </button>
+                              {ebmCfg?.enabled && (() => {
+                                const e = ebmBySale[s.id];
+                                const item = (label: string, icon: React.ReactNode, act: "send" | "refund" | "discard", danger = false) => (
+                                  <button role="menuitem" disabled={ebmBusy} onClick={() => { setPrintMenu(null); void ebmAction(s, act); }}
+                                    className={`flex !justify-start items-center gap-2 px-3 py-2 text-xs font-medium hover:bg-slate-50 disabled:opacity-50 ${danger ? "text-red-600" : "text-slate-700"}`}>
+                                    {icon} {label}
+                                  </button>
+                                );
+                                return (
+                                  <span className="border-t border-slate-100">
+                                    {(!e || e.status !== "signed") && ebmCfg.ready && item(t(e ? "ebm.send_again" : "ebm.send"), <Landmark size={13} />, "send")}
+                                    {e && e.status === "failed" && item(t("ebm.discard"), <Trash2 size={13} />, "discard", true)}
+                                    {e && e.status === "signed" && !e.refunded && item(t("ebm.refund"), <Undo2 size={13} />, "refund", true)}
+                                  </span>
+                                );
+                              })()}
                             </span>
                           )}
                         </span>
-                        <button onClick={() => openEditModal(s)}
-                          className="p-1.5 rounded-lg bg-[#EBF2FD] hover:bg-[#D5E8FB] text-[#0a66c2] transition">
-                          <Pencil size={14} />
-                        </button>
-                        <button onClick={() => deleteSale(s.id)} disabled={deletingId === s.id}
-                          className="p-1.5 rounded-lg text-slate-500 hover:bg-red-50 hover:text-red-600 transition disabled:opacity-40">
-                          <Trash2 size={14} />
-                        </button>
+                        {(() => {
+                          // A sale RRA has (signed, waiting or refused) can't change until it's
+                          // refunded or the refused receipt is discarded — the server says 409.
+                          const e = ebmCfg?.enabled ? ebmBySale[s.id] : undefined;
+                          if (e && !e.refunded) return (
+                            <span title={t(e.status === "failed" ? "ebm.locked_failed" : "ebm.locked_hint")}
+                              aria-label={t(e.status === "failed" ? "ebm.locked_failed" : "ebm.locked_hint")}
+                              className="p-1.5 rounded-lg text-slate-400 bg-slate-50 cursor-help">
+                              <Lock size={14} />
+                            </span>
+                          );
+                          return <>
+                            <button onClick={() => openEditModal(s)} title={t("common.edit")} aria-label={t("common.edit")}
+                              className="p-1.5 rounded-lg bg-[#EBF2FD] hover:bg-[#D5E8FB] text-[#0a66c2] transition">
+                              <Pencil size={14} />
+                            </button>
+                            <button onClick={() => deleteSale(s.id)} disabled={deletingId === s.id} title={t("common.delete")} aria-label={t("common.delete")}
+                              className="p-1.5 rounded-lg text-slate-500 hover:bg-red-50 hover:text-red-600 transition disabled:opacity-40">
+                              <Trash2 size={14} />
+                            </button>
+                          </>;
+                        })()}
                       </div>
                     </td>
                   </tr>
@@ -1042,7 +1271,8 @@ function SaleManagementPage() {
                   <tr className="bg-slate-50 border-t-2 border-slate-200 text-xs font-semibold text-slate-500">
                     <td className="px-4 py-2" colSpan={6}>{t("sales.subtotal_label")} · {filtered.length} {t("sales.sales_word")}</td>
                     <td className="px-4 py-2 tabular-nums text-slate-700">{fRev.toLocaleString()}</td>
-                    {prof && <td className={`px-4 py-2 tabular-nums ${fProfit >= 0 ? "text-slate-900" : "text-red-600"}`}>
+                    {ebmCfg?.enabled && <td />}
+                    {prof &&<td className={`px-4 py-2 tabular-nums ${fProfit >= 0 ? "text-slate-900" : "text-red-600"}`}>
                       {fProfit >= 0 ? "+" : ""}{fProfit.toLocaleString()}
                       <span className="block text-[11px] font-normal opacity-70">{fMargin.toFixed(1)}% {t("sales.margin_suffix")}</span>
                     </td>}
@@ -1601,6 +1831,40 @@ function SaleManagementPage() {
         )}
 
         {/* RECEIPT PREVIEW MODAL */}
+        {showReports && <EbmReportsPanel onClose={() => setShowReports(false)} />}
+
+        {refundFor && (
+          <div className="fixed inset-0 z-[95] flex items-center justify-center bg-black/40 p-4" onClick={() => !ebmBusy && setRefundFor(null)}>
+            <div role="dialog" aria-modal="true" aria-label={t("ebm.refund")} onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-sm rounded-xl bg-white p-5 shadow-xl">
+              <h3 className="text-sm font-semibold text-slate-800">{t("ebm.refund")}</h3>
+              <p className="mt-1 text-xs text-slate-500">{t("ebm.refund_hint")}</p>
+              <label className="mt-3 block text-xs font-medium text-slate-600">{t("ebm.refund_reason")}
+                <select value={refundReason} onChange={(e) => setRefundReason(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-[#0a66c2]">
+                  {Object.entries(ebmCodes?.refund_reasons || { "06": "Refund" }).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                </select>
+              </label>
+              <label className="mt-3 block text-xs font-medium text-slate-600">{t("ebm.refund_note")}
+                <textarea value={refundNote} onChange={(e) => setRefundNote(e.target.value)} maxLength={500} rows={2}
+                  className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-[#0a66c2]" />
+              </label>
+              <label className="mt-3 block text-xs font-medium text-slate-600">{t("ebm.refund_recipient")}
+                <input value={refundRecipient} onChange={(e) => setRefundRecipient(e.target.value)} maxLength={100}
+                  className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-[#0a66c2]" />
+              </label>
+              <div className="mt-4 flex justify-end gap-2">
+                <button onClick={() => setRefundFor(null)} disabled={ebmBusy}
+                  className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-600 hover:bg-slate-50">{t("common.cancel")}</button>
+                <button onClick={() => void confirmRefund()} disabled={ebmBusy}
+                  className="flex items-center gap-1.5 rounded-lg bg-red-600 px-3 py-2 text-xs font-semibold text-white hover:bg-red-700 disabled:opacity-50">
+                  {ebmBusy && <Loader2 size={12} className="animate-spin" />} {t("ebm.refund_confirm")}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {receipts.length > 0 && (
           <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden">
@@ -1623,7 +1887,7 @@ function SaleManagementPage() {
                 <div className="space-y-1.5 text-xs text-slate-600 mb-3">
                   <div className="flex justify-between">
                     <span className="text-slate-400">{t("sales.receipt_no")}</span>
-                    <span className="font-semibold">{receipts[0]?.id?.slice(0, 8)?.toUpperCase()}</span>
+                    <span className="font-semibold">{receiptEbm?.status === "signed" ? receiptEbm.invoice_no : receipts[0]?.id?.slice(0, 8)?.toUpperCase()}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-slate-400">{t("common.date")}</span>
@@ -1689,6 +1953,37 @@ function SaleManagementPage() {
                 <div className="border-t border-dashed border-slate-300 my-3" />
                 <p className="text-center text-xs text-slate-400">{t("sales.thank_you")}</p>
               </div>
+
+              {ebmCfg?.enabled && (
+                <div className="flex items-center gap-2 border-t border-slate-100 px-3 py-2 text-xs">
+                  <Landmark size={14} className="shrink-0 text-slate-400" />
+                  {ebmBusy ? (
+                    <span className="flex items-center gap-1.5 text-slate-500"><Loader2 size={12} className="animate-spin" /> {t("ebm.sending")}</span>
+                  ) : receiptEbm?.status === "signed" ? (
+                    <div className="min-w-0 flex-1">
+                      <p className="font-semibold text-green-700">{t("ebm.signed")} · {receiptEbm.receipt_no}/{receiptEbm.total_receipt_no} {receiptEbm.label}</p>
+                      <p className="mt-0.5 truncate font-mono text-[10.5px] text-slate-500" title={receiptEbm.signature_grouped}>
+                        SDC {receiptEbm.sdc_id} · {receiptEbm.signature_grouped}
+                      </p>
+                      <p className="mt-0.5 text-[10.5px] text-slate-500">
+                        {t("ebmr.tax")}: {receiptEbm.total_tax.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} · MRC {receiptEbm.mrc_no}
+                      </p>
+                    </div>
+                  ) : (
+                    <>
+                      <span className={`min-w-0 flex-1 ${receiptEbm ? "text-red-600" : "text-slate-500"}`} title={receiptEbm?.error || undefined}>
+                        {receiptEbm ? `${t("ebm.not_signed")} ${receiptEbm.error || ""}` : t("ebm.not_sent")}
+                      </span>
+                      {ebmCfg.ready && (
+                        <button onClick={() => void sendToRra(receipts.map((r) => r.id), receiptEbm && receiptEbm.status !== "void" ? receiptEbm.id : undefined)}
+                          className="shrink-0 rounded-lg border border-[#0a66c2] px-2 py-1 font-semibold text-[#0a66c2] hover:bg-[#EBF2FD]">
+                          {t(receiptEbm ? "ebm.send_again" : "ebm.send")}
+                        </button>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
 
               <div className="flex gap-2 px-3 py-2 border-t border-slate-100 bg-slate-50">
                 <button onClick={() => { setReceipts([]); openCreateModal(); }}

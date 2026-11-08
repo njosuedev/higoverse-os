@@ -18,6 +18,7 @@ from app.core.events import emit
 from app.core import master_data
 from app.core import doc_code
 from app.core import car_booking
+from app.ebm import service as ebm
 from app.api.routes.sales import _live as _live_sale
 from app.api.routes.debts import _live as _live_debt
 
@@ -491,6 +492,8 @@ def sell_proforma(
     proforma = _get_or_404(db, proforma_id, user["shop_id"])
     if proforma.status == "sold":
         raise HTTPException(status_code=409, detail="This proforma is already sold.")
+    # RRA EBM on: the sale is signed below, so RRA's VSDC must be able to.
+    ebm_on = ebm.guard_sale(db, user["shop_id"]) is not None
     if proforma.status not in _APPROVED:
         raise HTTPException(status_code=409, detail="Put the proforma on pending before recording the sale.")
 
@@ -619,7 +622,11 @@ def sell_proforma(
     emit(db, user, "proforma.sold", _live(proforma))
     db.commit()
     db.refresh(proforma)
-    return {"success": True, "message": "Sale recorded", "data": _fmt(proforma)}
+    out = {"success": True, "message": "Sale recorded", "data": _fmt(proforma)}
+    # One RRA receipt for the whole proforma.
+    if ebm_on:
+        out["ebm"] = ebm.sign_new_sales(db, user, (authorization or "").replace("Bearer ", ""), [s.id for s in sales])
+    return out
 
 
 @router.delete("/{proforma_id}")

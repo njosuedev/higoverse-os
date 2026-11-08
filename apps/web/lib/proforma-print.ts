@@ -101,6 +101,8 @@ export function proformaPrintHtml(
         <tr><td colspan="4" class="r">${esc(t("proforma.subtotal"))}</td><td class="r">${money(p.subtotal)}</td></tr>
         ${p.tax_rate > 0 ? `<tr><td colspan="4" class="r">${esc(t("proforma.tax"))} (${p.tax_rate}%)</td><td class="r">${money(p.tax_amount)}</td></tr>` : ""}
         <tr class="gt"><td colspan="4" class="r">${esc(t("proforma.grand_total"))}</td><td class="r">${money(p.grand_total)} ${cur}</td></tr>
+        <!-- RRA's CIS specification §11: a proforma is not a receipt and says so, in English, larger than the amounts. -->
+        <tr><td colspan="5" style="text-align:center;font-weight:700;font-size:1.6em;letter-spacing:1px;padding-top:10px">PROFORMA · THIS IS NOT AN OFFICIAL RECEIPT</td></tr>
       </tfoot>` : ""}
     </table>`;
 

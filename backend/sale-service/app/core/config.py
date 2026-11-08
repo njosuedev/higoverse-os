@@ -10,6 +10,9 @@ class Settings(BaseSettings):
     SUPPLIER_SERVICE_URL:   str = os.getenv("SUPPLIER_SERVICE_URL", "http://127.0.0.1:8002")
     SETTINGS_SERVICE_URL:   str = os.getenv("SETTINGS_SERVICE_URL", "http://127.0.0.1:8006")
     SERVICE_NAME:           str = "sale-service"
+    # RRA EBM: the VSDC this server runs (app/ebm/vsdc.py). Empty = EBM off.
+    EBM_VSDC_URL:           str = os.getenv("EBM_VSDC_URL", "")
+    EBM_TIMEOUT_SECONDS:    float = float(os.getenv("EBM_TIMEOUT_SECONDS", "30"))
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

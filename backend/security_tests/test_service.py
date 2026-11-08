@@ -167,7 +167,7 @@ def _records(client):
     if SERVICE == "sale-service":
         did = _create(client, "/debts", {"debtor_name": "Sec Test Debtor", "phone": "0788000000", "amount_owed": 5000})
         pf = _create(client, "/proforma", {"invoice_no": f"SEC-{uuid.uuid4().hex[:6]}", "date": "2026-10-01",
-                                           "valid_until": "2026-10-31", "customer_name": "Sec Test Buyer",
+                                           "valid_until": "2026-10-31", "customer": "Sec Test Buyer",
                                            "lines": [{"product_name": "x", "qty": 1, "unit_price": 5000}],
                                            "subtotal": 5000, "grand_total": 5000})
         sid = _orm_row("app.models.sale.Sale", shop_id=SHOP_A, product_id=str(uuid.uuid4()), product_name="Sec Test Item",
@@ -201,7 +201,7 @@ def test_cross_company_access_denied(client):
                 continue
             if m == "PUT" and own:
                 # A valid body (A's own record, renamed) so only ownership can stop it.
-                body = {k: v for k, v in own.items() if v is not None and not isinstance(v, (dict, list)) or k == "lines"}
+                body = {k: v for k, v in own.items() if k != "status" and v is not None and not isinstance(v, (dict, list)) or k == "lines"}
                 body.update({k: "hijack" for k in NAME_FIELDS if k in own})
                 if "lines" in body:
                     body["lines"] = [{**ln, "product_name": "hijack"} for ln in body["lines"]]

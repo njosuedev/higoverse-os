@@ -11,6 +11,8 @@ from app.core.security import get_current_user, hides_financials
 from app.core.product_client import get_product, update_product_stock
 from app.core.events import emit
 from app.core import doc_code
+from app.ebm import service as ebm
+from app.ebm.service import sale_lock
 
 router = APIRouter(prefix="/sales", tags=["Sales"])
 
@@ -67,6 +69,13 @@ def _live(s: Sale) -> dict:
     d = _fmt(s)
     d.pop("notes", None)
     return d
+
+
+def _refuse_if_declared(db: Session, sale: Sale) -> None:
+    """A sale on an RRA EBM receipt is declared to RRA: only a refund undoes it."""
+    reason = sale_lock(db, sale.shop_id, sale.id)
+    if reason:
+        raise HTTPException(status_code=409, detail=reason)
 
 
 def _token(authorization: str | None) -> str:
@@ -261,9 +270,13 @@ def create_sale(
     db: Session = Depends(get_db),
     user: dict = Depends(get_current_user),
     authorization: str = Header(None),
+    # "defer": the web checkout signs its whole basket as one RRA receipt itself.
+    x_higoverse_ebm: str | None = Header(None),
 ):
     if not user["shop_id"]:
         raise HTTPException(status_code=400, detail="You need a shop before recording sales")
+    # RRA EBM on: no sale while RRA's VSDC can't sign it.
+    ebm_on = ebm.guard_sale(db, user["shop_id"]) is not None
     # Car companies sell every vehicle to a named customer (the app collects
     # their full name, phone, ID and address before this call).
     if user.get("layout") == "car" and not (payload.customer_id or "").strip():
@@ -317,7 +330,11 @@ def create_sale(
     db.commit()
     db.refresh(sale)
 
-    return _scrub(user, {"success": True, "message": "Sale recorded successfully", "data": _fmt(sale)})
+    out = {"success": True, "message": "Sale recorded successfully", "data": _fmt(sale)}
+    # Every sale is declared to RRA, from any app (the mobile app included).
+    if ebm_on and (x_higoverse_ebm or "").lower() != "defer":
+        out["ebm"] = ebm.sign_new_sales(db, user, token, [sale.id])
+    return _scrub(user, out)
 
 
 def _close_proformas(db: Session, user: dict, sale: Sale) -> None:
@@ -454,6 +471,7 @@ def update_sale(
 ):
     token = _token(authorization)
     sale = _get_or_404(db, sale_id, user["shop_id"])
+    _refuse_if_declared(db, sale)
 
     old_product_id = sale.product_id
     old_qty = sale.quantity
@@ -510,6 +528,7 @@ def delete_sale(
 ):
     token = _token(authorization)
     sale = _get_or_404(db, sale_id, user["shop_id"])
+    _refuse_if_declared(db, sale)
 
     product = get_product(sale.product_id, token)
     if product:

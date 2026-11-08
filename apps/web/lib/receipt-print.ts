@@ -6,13 +6,18 @@
 
 import { qrSvg } from "./doc-qr";
 import type { PrintSettings, ReceiptPaper } from "./print-settings";
+import { ebmReceiptHtml, type EbmReceipt } from "./ebm-receipt-print";
 
 type T = (key: string) => string;
 
 const esc = (s: unknown) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
 const amount = (n: unknown) => Math.round(Number(n) || 0).toLocaleString("en-US");
 
-export interface ReceiptLine { name: string; quantity: number; unitPrice: number; total: number }
+export interface ReceiptLine {
+  name: string; quantity: number; unitPrice: number; total: number;
+  /** RRA tax type (A–D) and item code, on EBM receipts. */
+  tax?: string; code?: string;
+}
 
 export interface ReceiptData {
   shop: { name: string; address?: string | null; phone?: string | null; logoUrl?: string | null; email?: string | null; tin?: string | null };
@@ -30,6 +35,8 @@ export interface ReceiptData {
   onCredit?: boolean;
   /** The receipt's QR code as SVG (receiptQr), shown when Settings → Printing allows. */
   qrSvg?: string | null;
+  /** What RRA signed: the receipt then follows RRA's EBM layout (lib/ebm-receipt-print). */
+  ebm?: EbmReceipt | null;
 }
 
 /** The receipt's QR code (SVG, sharp on any printer) for the signed code the
@@ -55,6 +62,7 @@ const PAPER: Record<ReceiptPaper, { page: string; width: string; roll: number | 
 };
 
 export function receiptHtml(r: ReceiptData, t: T, lang: string, paper: ReceiptPaper, print: PrintSettings, opts: { autoPrint?: boolean } = {}): string {
+  if (r.ebm) return ebmReceiptHtml(r, t, lang, paper, print, opts);
   if (paper === "a4") return a4Html(r, t, lang, print, opts);
   const p = PAPER[paper];
   const total = r.lines.reduce((s, l) => s + (Number(l.total) || 0), 0);
