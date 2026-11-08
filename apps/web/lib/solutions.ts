@@ -40,6 +40,54 @@ export { ui as solutionUi };
 
 export const SOLUTIONS: Solution[] = [
   {
+    slug: "business-management-software-kigali",
+    lang: "en",
+    title: "Business Management Software in Kigali",
+    name: "Business software in Kigali",
+    description:
+      "Higoverse is business management software made in Kigali for shops and car dealers in Kigali: stock, sales, purchases, expenses, customer debts, proforma invoices, payroll and reports, on the web, Android and Windows.",
+    h1: "Business management software in Kigali",
+    intro:
+      "Higoverse is built and supported in Kigali for the shops, wholesalers and car dealers of Kigali and the rest of Rwanda. One account keeps your stock, sales, purchases, expenses, customer debts, proformas and staff, updated live on your phone, your computer and the website.",
+    forWho: [
+      "Shops and boutiques in Kigali",
+      "Wholesalers, hardware stores and spare parts dealers",
+      "Car dealers who follow each vehicle by chassis and plate",
+      "Businesses with staff in more than one place",
+    ],
+    sections: [
+      {
+        title: "Everything your business records, in one place",
+        text: "Each sale takes the goods out of stock, each delivery from a supplier adds them back with what they cost, and the reports show revenue, expenses and profit day by day and month by month.",
+        points: [
+          "Stock and inventory with low-stock alerts",
+          "Sales paid in full or with a balance due",
+          "Purchases and suppliers",
+          "Expenses, customer debts and payroll",
+          "Proforma invoices with your logo and bank details",
+        ],
+      },
+      {
+        title: "Made in Kigali, supported in Kigali",
+        text: "Higoverse is a Kigali company. We set up your business with you, help you bring in the products you already have from Excel, and answer on WhatsApp, by phone and by email when you have a question.",
+      },
+      {
+        title: "In your team's language",
+        text: "Each person uses Higoverse in Kinyarwanda, English, French, Swahili or Chinese, with their own sign-in and only what their role allows.",
+      },
+      {
+        title: "On every device you already have",
+        text: "Use the website from any browser, the Android app on your phone, or the Windows app at the counter. The records are the same everywhere.",
+      },
+    ],
+    faq: [
+      { q: "What is the best business management software in Kigali?", a: "Higoverse was built in Kigali for businesses in Rwanda. It keeps stock, sales, purchases, expenses, customer debts, proformas and payroll in one account, works in Kinyarwanda, English and French, and runs on the web, Android and Windows." },
+      { q: "Is Higoverse a Rwandan company?", a: "Yes. Higoverse is registered in Rwanda and based in Kigali, and support is given by people in Kigali." },
+      { q: "How do I get started?", a: "Call or write to us on WhatsApp. We create your business and your sign-in, and help you add your products or vehicles." },
+      { q: "Does it work for car dealers in Kigali?", a: "Yes. Every vehicle is followed by its chassis and plate number, with buyers' deposits and balances, traffic fines and vehicle proformas." },
+    ],
+  },
+  {
     slug: "inventory-management-software-rwanda",
     lang: "en",
     title: "Inventory Management Software in Rwanda",

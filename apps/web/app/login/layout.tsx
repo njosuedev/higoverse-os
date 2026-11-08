@@ -8,7 +8,9 @@ const shareImage = { url: "/opengraph-image", width: 1200, height: 630, alt: `${
 // Sign-in page, and what visitors and search engines get at "/" (see the
 // "/" redirect in next.config.ts), so it carries the site's structured data.
 export const metadata: Metadata = {
-  title: "Sign in",
+  // What Google shows for higoverse.com, so it names what Higoverse is and
+  // where, not just "Sign in".
+  title: { absolute: `${SITE.name} | Business Management Software in Kigali, Rwanda` },
   description: SITE.description,
   alternates: { canonical: "/login" },
   // Nested objects replace the root layout's rather than merging, so repeat
@@ -42,6 +44,20 @@ const jsonLd = {
       email: SITE.contactEmail,
       telephone: SITE.phone,
       address: { "@type": "PostalAddress", addressLocality: SITE.city, addressCountry: SITE.country },
+      foundingLocation: { "@type": "Place", name: "Kigali, Rwanda" },
+      areaServed: [
+        { "@type": "City", name: "Kigali" },
+        { "@type": "Country", name: "Rwanda" },
+      ],
+      contactPoint: {
+        "@type": "ContactPoint",
+        contactType: "customer support",
+        telephone: SITE.phone,
+        email: SITE.contactEmail,
+        areaServed: "RW",
+        availableLanguage: ["English", "Kinyarwanda", "French", "Swahili"],
+      },
+      sameAs: SITE.social,
     },
     {
       "@type": "WebSite",

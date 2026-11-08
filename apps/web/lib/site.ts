@@ -6,7 +6,7 @@ export const SITE = {
   title: "Higoverse | Business Management Platform for Shops & Car Dealers",
   shortTitle: "Business management platform",
   description:
-    "Higoverse is the business management platform for shops and car dealers in Rwanda: inventory and stock, sales, purchases, expenses, customer debts, proforma invoices, payroll and real-time reports, on the web, Android and Windows.",
+    "Higoverse is the business management platform for shops and car dealers in Kigali and across Rwanda: inventory and stock, sales, purchases, expenses, customer debts, proforma invoices, payroll and real-time reports, on the web, Android and Windows.",
   logo: "/higoverse-logo.png",
   locale: "en_US",
   themeColor: "#0a66c2",
