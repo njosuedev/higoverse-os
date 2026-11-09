@@ -7,7 +7,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowRightLeft, Paperclip, Pencil, Plus, RefreshCw, Search, Trash2, TrendingUp, X, History, Globe2 } from "lucide-react";
+import { ArrowRightLeft, Paperclip, Pencil, Plus, RefreshCw, Search, Trash2, TrendingUp, X, History } from "lucide-react";
 import { useLanguage } from "@/lib/language-context";
 import DeepLink from "@/app/components/DeepLink";
 import DateRangeFilter from "@/app/components/ui/DateRangeFilter";
@@ -38,7 +38,8 @@ export default function IncomePage() {
   const [from, setFrom] = useState(ymd(new Date(now.getFullYear(), now.getMonth(), 1)));
   const [to, setTo] = useState(ymd(now));
   const [source, setSource] = useState<IncomeSource | "">("");
-  const [scopeFilter, setScopeFilter] = useState<Scope | "">("");
+  // Shown by default: income received in Rwanda ("" = abroad and Rwanda).
+  const [scopeFilter, setScopeFilter] = useState<Scope | "">("rwanda");
   const [search, setSearch] = useState("");
   const [items, setItems] = useState<Income[]>([]);
   const [totals, setTotals] = useState<IncomeTotals | null>(null);
@@ -77,9 +78,9 @@ export default function IncomePage() {
     const q = search.trim().toLowerCase();
     return items
       .filter((i) => !source || i.source === source)
-      .filter((i) => !scopeFilter || (i.scope ?? "rwanda") === scopeFilter)
+      .filter((i) => !isCar || !scopeFilter || (i.scope ?? "rwanda") === scopeFilter)
       .filter((i) => !q || [i.title, i.payer, i.reference, i.notes].some((x) => (x || "").toLowerCase().includes(q)));
-  }, [items, source, scopeFilter, search]);
+  }, [items, source, scopeFilter, isCar, search]);
 
   const bySource = useMemo(() => {
     const m: Record<string, number> = {};
@@ -207,7 +208,9 @@ export default function IncomePage() {
 
         {/* Figures */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 mb-2">
-          <Figure label={t("income.total")} value={`${currency} ${money(totals?.total ?? 0)}`} detail={`${totals?.recordedCount ?? 0} ${t("income.records")}`} strong />
+          <Figure label={isCar && scopeFilter ? `${t("income.total")} · ${t(scopeFilter === "abroad" ? "scope.abroad_short" : "scope.rwanda_short")}` : t("income.total")}
+            value={`${currency} ${money(isCar && scopeFilter ? (totals?.[scopeFilter] ?? 0) : (totals?.total ?? 0))}`}
+            detail={`${rows.length} ${t("income.records")}`} strong />
           {isCar
             ? <Figure label={t("scope.split")} value={money(totals?.rwanda ?? 0)} detail={`${t("scope.rwanda_short")} · ${t("scope.abroad_short")} ${money(totals?.abroad ?? 0)}`} />
             : <Figure label={t("income.recorded_here")} value={money(totals?.recorded ?? 0)} detail={`${totals?.recordedCount ?? 0} ${t("income.records")}`} />}

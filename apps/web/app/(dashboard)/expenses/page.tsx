@@ -153,7 +153,10 @@ export default function ExpenseManagementPage() {
   const [dateTo, setDateTo]           = useState(() => toDateStr(new Date()));
   const [catFilter, setCatFilter]     = useState<Category | "">("");
   // Car importers: abroad (before the cars reach Rwanda) or in Rwanda.
-  const [scopeFilter, setScopeFilter] = useState<"" | "rwanda" | "abroad">("");
+  // Shown by default: what was spent in Rwanda ("" = abroad and Rwanda).
+  const [scopeFilter, setScopeFilter] = useState<"" | "rwanda" | "abroad">("rwanda");
+  // Only car companies have the filter; the scope sent is empty for everyone else.
+  const scopeParam = isCar ? scopeFilter : "";
   const [search, setSearch]           = useState("");
 
   const [summaryFiltered, setSummaryFiltered] = useState({ total_expenses: 0, count: 0, total_in: 0, count_in: 0, abroad: 0, rwanda: 0 });
@@ -227,9 +230,9 @@ export default function ExpenseManagementPage() {
 
   useEffect(() => { loadAll(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { if (!loading) loadExpenses(); }, [page, pageSize, dateFrom, dateTo, catFilter, scopeFilter]);
+  useEffect(() => { if (!loading) loadExpenses(); }, [page, pageSize, dateFrom, dateTo, catFilter, scopeParam]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { if (!loading) { loadSummaries(); loadByCategory(); } }, [dateFrom, dateTo, catFilter, scopeFilter]);
+  useEffect(() => { if (!loading) { loadSummaries(); loadByCategory(); } }, [dateFrom, dateTo, catFilter, scopeParam]);
 
   // ── Import template ──────────────────────────────────────────────────────
   // A blank, protected workbook: the title, notes and column headers are locked;
@@ -394,7 +397,7 @@ export default function ExpenseManagementPage() {
       ...(dateFrom  && { from_date: dateFrom }),
       ...(dateTo    && { to_date: dateTo }),
       ...(catFilter && { category: catFilter }),
-      ...(scopeFilter && { scope: scopeFilter }),
+      ...(scopeParam && { scope: scopeParam }),
     });
     const res = await expenseRequest(`/expenses?${params}`);
     const all: Expense[] = res?.data?.items || [];
@@ -749,7 +752,7 @@ export default function ExpenseManagementPage() {
         ...(dateFrom && { from_date: dateFrom }),
         ...(dateTo   && { to_date: dateTo }),
         ...(catFilter && { category: catFilter }),
-        ...(scopeFilter && { scope: scopeFilter }),
+        ...(scopeParam && { scope: scopeParam }),
       });
       const res = await expenseRequest(`/expenses?${params}`);
       setExpenses(res?.data?.items || []);
@@ -763,7 +766,7 @@ export default function ExpenseManagementPage() {
         ...(dateFrom  && { from_date: dateFrom }),
         ...(dateTo    && { to_date: dateTo }),
         ...(catFilter && { category: catFilter }),
-        ...(scopeFilter && { scope: scopeFilter }),
+        ...(scopeParam && { scope: scopeParam }),
       });
       const res = await expenseRequest(`/expenses/summary?${params}`);
       // Numbers whatever the server sent: a missing total is 0, not a blank page.
@@ -780,7 +783,7 @@ export default function ExpenseManagementPage() {
       const params = new URLSearchParams({
         ...(dateFrom && { from_date: dateFrom }),
         ...(dateTo   && { to_date: dateTo }),
-        ...(scopeFilter && { scope: scopeFilter }),
+        ...(scopeParam && { scope: scopeParam }),
       });
       const res = await expenseRequest(`/expenses/by-category?${params}`);
       const rows: Partial<CategoryStat>[] = Array.isArray(res?.data) ? res.data : [];
@@ -1114,7 +1117,7 @@ export default function ExpenseManagementPage() {
             {
               label: `${t("common.total")} · ${periodLabelLocalized}`,
               value: displayTotal.toLocaleString(),
-              sub: (isCar && !search && !scopeFilter && summaryFiltered.abroad > 0
+              sub: (isCar && !search && !scopeParam && summaryFiltered.abroad > 0
                 ? `${t("scope.abroad_short")} ${summaryFiltered.abroad.toLocaleString()} · ${t("scope.rwanda_short")} ${summaryFiltered.rwanda.toLocaleString()}`
                 : `${displayCount} ${t("expenses.records")}`) +
                 (displayIn > 0 ? ` · +${displayIn.toLocaleString()} ${t("expenses.received_not_counted")}` : ""),
@@ -1158,8 +1161,8 @@ export default function ExpenseManagementPage() {
               {t("common.showing")} <span className="font-semibold text-slate-700">{filteredExpenses.length.toLocaleString()}</span> {t("common.of")} <span className="font-semibold text-slate-700">{total.toLocaleString()}</span> {t("expenses.records")}
             </p>
             <div className="flex flex-wrap items-center gap-1.5">
-              {(search || catFilter || scopeFilter) && (
-                <button onClick={() => { setSearch(""); setCatFilter(""); setScopeFilter(""); setPage(1); }} className="flex items-center gap-1 text-[11px] text-slate-400 hover:text-slate-600 transition mr-1"><X size={10} /> {t("daterange.clear")}</button>
+              {(search || catFilter || (isCar && scopeFilter !== "rwanda")) && (
+                <button onClick={() => { setSearch(""); setCatFilter(""); setScopeFilter("rwanda"); setPage(1); }} className="flex items-center gap-1 text-[11px] text-slate-400 hover:text-slate-600 transition mr-1"><X size={10} /> {t("daterange.clear")}</button>
               )}
               <button onClick={downloadTemplate} title={t("expenses.download_template_title")}
                 className="flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 transition">
