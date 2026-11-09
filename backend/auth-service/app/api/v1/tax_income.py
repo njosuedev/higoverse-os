@@ -8,6 +8,7 @@ GET    /tax-income?period=YYYY-MM&months=6   the month's figures, each
 GET    /tax-payments?client_id=              a client's payments, newest first
 GET    /tax-payments/balance?client_id=&period=   expected, paid and left for a month
 POST   /tax-payments
+PATCH  /tax-payments/{id}                     correct a payment
 DELETE /tax-payments/{id}
 
 A month can't be paid for more than once: a payment is refused when it
@@ -133,15 +134,18 @@ def income(period: Optional[str] = None, months: int = 6, db: Session = Depends(
     }}
 
 
-def _balance(db: Session, client_id, period: str) -> dict:
+def _balance(db: Session, client_id, period: str, without=None) -> dict:
     """What [client_id] owes for [period]: the fee of their latest contract
-    started by the end of the month, what is already paid, and what's left."""
+    started by the end of the month, what is already paid (not counting the
+    payment [without], being corrected), and what's left."""
     end = _month_end(period)
     c = db.query(TaxContract).filter(TaxContract.client_id == client_id, TaxContract.start_date <= end) \
         .order_by(TaxContract.start_date.desc(), TaxContract.created_at.desc()).first()
     expected = float(c.monthly_fee) if c else 0.0
-    paid = float(db.query(func.coalesce(func.sum(TaxPayment.amount), 0))
-                 .filter(TaxPayment.client_id == client_id, TaxPayment.period == period).scalar() or 0)
+    q = db.query(func.coalesce(func.sum(TaxPayment.amount), 0)).filter(TaxPayment.client_id == client_id, TaxPayment.period == period)
+    if without is not None:
+        q = q.filter(TaxPayment.id != without)
+    paid = float(q.scalar() or 0)
     return {"period": period, "expected": expected, "paid": paid, "left": max(0.0, round(expected - paid, 2))}
 
 
@@ -166,6 +170,20 @@ def payments(client_id: Optional[str] = None, db: Session = Depends(get_db), _: 
     return {"success": True, "data": [_fmt(p) for p in rows]}
 
 
+def _check_room(db: Session, client_id, period: str, amount: float, without=None) -> None:
+    """Refuses [amount] for [period] if it would take the month over its fee
+    (or if nothing is owed for it). The client's row is locked so two payments
+    sent at once can't both pass."""
+    db.query(TaxClient).filter(TaxClient.id == client_id).with_for_update().first()
+    bal = _balance(db, client_id, period, without)
+    if bal["expected"] <= 0:
+        raise HTTPException(status_code=409, detail=f"No contract had started for {period}: nothing is owed for that month.")
+    if amount > bal["left"] + 0.005:
+        if bal["left"] <= 0:
+            raise HTTPException(status_code=409, detail=f"{period} is already paid in full ({bal['paid']:,.0f} of {bal['expected']:,.0f} Rwf).")
+        raise HTTPException(status_code=409, detail=f"Only {bal['left']:,.0f} Rwf is left to pay for {period} ({bal['paid']:,.0f} of {bal['expected']:,.0f} already paid).")
+
+
 @router.post("/tax-payments", status_code=201)
 def record_payment(body: PaymentIn, db: Session = Depends(get_db), admin: User = Depends(require_admin)):
     try:
@@ -176,20 +194,54 @@ def record_payment(body: PaymentIn, db: Session = Depends(get_db), admin: User =
     if not client:
         raise HTTPException(status_code=404, detail="Client not found")
     period = _period(body.period)
-    # Lock the client's row so two payments sent at once can't both pass the check.
-    db.query(TaxClient).filter(TaxClient.id == cid).with_for_update().first()
-    bal = _balance(db, cid, period)
-    if bal["expected"] <= 0:
-        raise HTTPException(status_code=409, detail=f"No contract had started for {period}: nothing is owed for that month.")
-    if float(body.amount) > bal["left"] + 0.005:
-        if bal["left"] <= 0:
-            raise HTTPException(status_code=409, detail=f"{period} is already paid in full ({bal['paid']:,.0f} of {bal['expected']:,.0f} Rwf).")
-        raise HTTPException(status_code=409, detail=f"Only {bal['left']:,.0f} Rwf is left to pay for {period} ({bal['paid']:,.0f} of {bal['expected']:,.0f} already paid).")
+    _check_room(db, cid, period, float(body.amount))
     p = TaxPayment(client_id=cid, period=period, amount=body.amount, paid_on=body.paid_on,
                    method=body.method, reference=body.reference, notes=body.notes, created_by=admin.email)
     db.add(p)
     db.flush()
     _audit(db, admin, "payment.create", "payment", p.id, client.name, amount=float(p.amount), period=p.period)
+    db.commit()
+    db.refresh(p)
+    return {"success": True, "data": _fmt(p)}
+
+
+class PaymentEdit(BaseModel):
+    period: str
+    amount: Decimal = Field(..., gt=0, le=Decimal("1000000000"))
+    paid_on: date
+    method: Optional[Literal["cash", "mtn", "bank"]] = None
+    reference: Optional[str] = Field(None, max_length=100)
+    notes: Optional[str] = Field(None, max_length=1000)
+
+    @field_validator("reference", "notes", mode="before")
+    @classmethod
+    def _tidy(cls, v):
+        if v is None:
+            return None
+        v = " ".join(str(v).split())
+        return v or None
+
+
+@router.patch("/tax-payments/{payment_id}")
+def edit_payment(payment_id: str, body: PaymentEdit, db: Session = Depends(get_db), admin: User = Depends(require_admin)):
+    """Corrects a payment (month, amount, date, method, reference, notes);
+    the month still can't go over its fee."""
+    try:
+        p = db.query(TaxPayment).filter(TaxPayment.id == _uuid.UUID(payment_id)).first()
+    except ValueError:
+        p = None
+    if not p:
+        raise HTTPException(status_code=404, detail="Payment not found")
+    period = _period(body.period)
+    _check_room(db, p.client_id, period, float(body.amount), without=p.id)
+    before = {"period": p.period, "amount": float(p.amount), "paid_on": p.paid_on.isoformat(), "method": p.method, "reference": p.reference}
+    p.period, p.amount, p.paid_on = period, body.amount, body.paid_on
+    p.method, p.reference, p.notes = body.method, body.reference, body.notes
+    after = {"period": p.period, "amount": float(p.amount), "paid_on": p.paid_on.isoformat(), "method": p.method, "reference": p.reference}
+    changed = {k: [before[k], after[k]] for k in before if before[k] != after[k]}
+    if changed:
+        client = db.query(TaxClient).filter(TaxClient.id == p.client_id).first()
+        _audit(db, admin, "payment.edit", "payment", p.id, client.name if client else None, changes=changed)
     db.commit()
     db.refresh(p)
     return {"success": True, "data": _fmt(p)}

@@ -6,9 +6,9 @@
 // window to record a client's payment and see their payments.
 
 import { useEffect, useState } from "react";
-import { Loader2, Plus, Trash2, Wallet, X } from "lucide-react";
+import { Check, Loader2, Pencil, Plus, Trash2, Wallet, X } from "lucide-react";
 import {
-  deleteTaxPayment, getTaxIncome, getTaxPaymentBalance, getTaxPayments, recordTaxPayment,
+  deleteTaxPayment, getTaxIncome, getTaxPaymentBalance, getTaxPayments, recordTaxPayment, updateTaxPayment,
   type TaxClient, type TaxIncome as Income, type TaxPayment,
 } from "@/lib/admin-api";
 import AmountInput from "@/app/components/ui/AmountInput";
@@ -80,6 +80,8 @@ export function TaxPaymentsDialog({ client, period, expected, received, t, onClo
   });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // The payment being corrected (the form then saves changes to it).
+  const [editing, setEditing] = useState<TaxPayment | null>(null);
   // The chosen month: its fee, what's paid, what's left (a month is paid once).
   const [bal, setBal] = useState<{ period: string; expected: number; paid: number; left: number } | null>(null);
   const [balVersion, setBalVersion] = useState(0);
@@ -88,13 +90,27 @@ export function TaxPaymentsDialog({ client, period, expected, received, t, onClo
     getTaxPaymentBalance(client.id, form.period).then((b) => {
       if (!alive) return;
       setBal(b);
-      // What's left is what usually comes in; more is refused.
-      setForm((f) => ({ ...f, amount: b.left > 0 ? String(b.left) : "" }));
+      // What's left is what usually comes in; more is refused. (Not while
+      // correcting a payment: its own amount stays in the form.)
+      if (!editing) setForm((f) => ({ ...f, amount: b.left > 0 ? String(b.left) : "" }));
     }).catch(() => { if (alive) setBal(null); });
     return () => { alive = false; };
-  }, [client.id, form.period, balVersion]);
-  const full = !!bal && bal.expected > 0 && bal.left <= 0;
-  const nothingDue = !!bal && bal.expected <= 0;
+  }, [client.id, form.period, balVersion, editing]);
+  // While correcting, the payment itself doesn't count as already paid.
+  const room = bal && editing && editing.period === bal.period
+    ? { ...bal, paid: bal.paid - editing.amount, left: bal.left + editing.amount } : bal;
+  const full = !!room && room.expected > 0 && room.left <= 0;
+  const nothingDue = !!room && room.expected <= 0;
+
+  function startEdit(p: TaxPayment) {
+    setError(null);
+    setEditing(p);
+    setForm({ period: p.period, amount: String(p.amount), paid_on: p.paid_on, method: p.method ?? "", reference: p.reference ?? "", notes: p.notes ?? "" });
+  }
+  function cancelEdit() {
+    setEditing(null);
+    setForm((f) => ({ ...f, period, paid_on: new Date().toISOString().slice(0, 10), method: "mtn", reference: "", notes: "" }));
+  }
 
   async function load() {
     try { setRows(await getTaxPayments(client.id)); } catch (e) { setRows([]); setError(e instanceof Error ? e.message : t("admin.err_load")); }
@@ -104,12 +120,19 @@ export function TaxPaymentsDialog({ client, period, expected, received, t, onClo
   async function save() {
     const amount = Number(form.amount);
     if (!(amount > 0)) { setError(t("tinc.err_amount")); return; }
-    if (bal && amount > bal.left + 0.005) { setError(t("tinc.err_over").replace("{left}", money(bal.left))); return; }
+    if (room && amount > room.left + 0.005) { setError(t("tinc.err_over").replace("{left}", money(room.left))); return; }
     setBusy(true); setError(null);
     try {
-      await recordTaxPayment({ client_id: client.id, period: form.period, amount, paid_on: form.paid_on, method: form.method || null,
-        reference: form.reference || null, notes: form.notes || null });
-      setForm((f) => ({ ...f, amount: "", reference: "", notes: "" }));
+      const fields = { period: form.period, amount, paid_on: form.paid_on, method: form.method || null,
+        reference: form.reference || null, notes: form.notes || null };
+      if (editing) {
+        await updateTaxPayment(editing.id, fields);
+        setEditing(null);
+        setForm((f) => ({ ...f, period, paid_on: new Date().toISOString().slice(0, 10), method: "mtn", reference: "", notes: "" }));
+      } else {
+        await recordTaxPayment({ client_id: client.id, ...fields });
+        setForm((f) => ({ ...f, amount: "", reference: "", notes: "" }));
+      }
       setBalVersion((v) => v + 1);
       await load(); onChanged();
     } catch (e) { setError(e instanceof Error ? e.message : t("common.error")); }
@@ -117,7 +140,7 @@ export function TaxPaymentsDialog({ client, period, expected, received, t, onClo
   }
   async function remove(id: string) {
     setBusy(true);
-    try { await deleteTaxPayment(id); setBalVersion((v) => v + 1); await load(); onChanged(); }
+    try { await deleteTaxPayment(id); if (editing?.id === id) cancelEdit(); setBalVersion((v) => v + 1); await load(); onChanged(); }
     catch (e) { setError(e instanceof Error ? e.message : t("common.error")); }
     finally { setBusy(false); }
   }
@@ -148,17 +171,19 @@ export function TaxPaymentsDialog({ client, period, expected, received, t, onClo
               <option value="mtn">MTN MoMo</option><option value="bank">Bank</option><option value="cash">Cash</option><option value="">-</option>
             </select>)}
             <div className="col-span-2">{label("tinc.reference", <input className={input} value={form.reference} onChange={(e) => setForm({ ...form, reference: e.target.value })} />)}</div>
-            {bal && (
+            {room && (
               <p className={`col-span-2 rounded-lg px-3 py-2 text-xs ${full ? "bg-emerald-50 text-emerald-800" : nothingDue ? "bg-slate-50 text-slate-600" : "bg-blue-50 text-blue-800"}`}>
                 {nothingDue ? t("tinc.nothing_due")
-                  : full ? t("tinc.month_paid").replace("{paid}", money(bal.paid))
-                  : `${t("tinc.expected")} ${money(bal.expected)} · ${t("tinc.st_paid")} ${money(bal.paid)} · ${t("tinc.left")} ${money(bal.left)} Rwf`}
+                  : full ? t("tinc.month_paid").replace("{paid}", money(room.paid))
+                  : `${t("tinc.expected")} ${money(room.expected)} · ${t("tinc.st_paid")} ${money(room.paid)} · ${t("tinc.left")} ${money(room.left)} Rwf`}
               </p>
             )}
-            <div className="col-span-2 flex justify-end">
+            <div className="col-span-2 flex items-center justify-end gap-2">
+              {editing && <span className="mr-auto text-xs font-semibold text-amber-700">{t("tinc.editing")}</span>}
+              {editing && <button onClick={cancelEdit} disabled={busy} className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600">{t("common.cancel")}</button>}
               <button onClick={() => void save()} disabled={busy || full || nothingDue}
                 className="flex items-center gap-1.5 rounded-lg bg-[#057642] px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50">
-                {busy ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />} {t("tinc.record")}
+                {busy ? <Loader2 size={13} className="animate-spin" /> : editing ? <Check size={13} /> : <Plus size={13} />} {t(editing ? "tinc.save_changes" : "tinc.record")}
               </button>
             </div>
           </div>
@@ -169,12 +194,14 @@ export function TaxPaymentsDialog({ client, period, expected, received, t, onClo
           ) : (
             <ul className="divide-y divide-slate-100">
               {rows.map((p) => (
-                <li key={p.id} className="flex items-center gap-3 px-4 py-2.5">
+                <li key={p.id} className={`flex items-center gap-3 px-4 py-2.5 ${editing?.id === p.id ? "bg-amber-50" : ""}`}>
                   <span className="w-16 shrink-0 text-xs font-semibold text-slate-700">{monthLabel(p.period)}</span>
                   <span className="min-w-0 flex-1 truncate text-xs text-slate-500">
                     {p.paid_on}{p.method ? ` · ${p.method === "mtn" ? "MTN MoMo" : p.method === "bank" ? "Bank" : "Cash"}` : ""}{p.reference ? ` · ${p.reference}` : ""}
                   </span>
                   <span className="text-sm font-bold tabular-nums text-[#057642]">{money(p.amount)}</span>
+                  <button onClick={() => startEdit(p)} disabled={busy} aria-label={t("common.edit")} title={t("common.edit")}
+                    className="rounded-md p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700"><Pencil size={13} /></button>
                   <button onClick={() => void remove(p.id)} disabled={busy} aria-label={t("common.delete")}
                     className="rounded-md p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-600"><Trash2 size={13} /></button>
                 </li>

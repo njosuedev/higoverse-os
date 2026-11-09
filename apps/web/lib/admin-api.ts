@@ -429,6 +429,12 @@ export async function recordTaxPayment(p: Omit<TaxPayment, "id" | "created_by" |
   return res.data;
 }
 
+/** Corrects a payment (the month still can't go over its fee). */
+export async function updateTaxPayment(id: string, p: Pick<TaxPayment, "period" | "amount" | "paid_on" | "method" | "reference" | "notes">): Promise<TaxPayment> {
+  const res = await adminRequest(`/api/v1/admin/tax-payments/${id}`, { method: "PATCH", body: JSON.stringify(p) });
+  return res.data;
+}
+
 export async function deleteTaxPayment(id: string): Promise<void> {
   await adminRequest(`/api/v1/admin/tax-payments/${id}`, { method: "DELETE" });
 }
