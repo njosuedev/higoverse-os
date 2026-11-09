@@ -130,13 +130,12 @@ export function taxContractHtml(c: TaxContract, opts: { autoPrint?: boolean; log
   /* Signatures */
   .done { margin: 8px 0 5px; }
   .sign { display: grid; grid-template-columns: 1fr 1fr; gap: 12mm; margin-top: 4px; break-inside: avoid; }
-  .sbox { position: relative; border: 1px solid var(--rule); border-radius: 3px; padding: 8px 10px 10px; }
-  /* A stamp with signature, pressed over the signature line and stamp space
-     like a real one: on top of the lines, slightly turned. "multiply" lets the
-     lines show through a white background (a scanned stamp). */
-  .seal { position: absolute; right: 6mm; bottom: 3mm; width: 46mm; height: 34mm; display: flex; align-items: center; justify-content: center;
-          pointer-events: none; }
-  .seal img { max-width: 100%; max-height: 100%; object-fit: contain; transform: rotate(-4deg); mix-blend-mode: multiply; opacity: .95; }
+  .sbox { border: 1px solid var(--rule); border-radius: 3px; padding: 8px 10px 10px; }
+  /* A stamp with signature takes the place of the signature and date lines,
+     in the middle of the box. "multiply" lets a white background (a scanned
+     stamp) disappear into the paper. */
+  .seal { display: flex; align-items: center; justify-content: center; height: 36mm; margin-top: 3mm; }
+  .seal img { max-width: 70%; max-height: 100%; object-fit: contain; mix-blend-mode: multiply; }
   .sbox .role { font-family: Arial, Helvetica, sans-serif; font-size: 7.5pt; font-weight: 700; letter-spacing: 1.4px; color: var(--accent); text-transform: uppercase; }
   .sbox .pn { font-weight: 700; color: var(--ink); margin: 2px 0 6px; }
   .sbox .row { display: flex; align-items: flex-end; gap: 6px; margin-top: 6.5mm; font-size: 9pt; color: var(--muted); }
@@ -246,17 +245,19 @@ export function taxContractHtml(c: TaxContract, opts: { autoPrint?: boolean; log
       <div class="role">K’uruhande rw’umukiriya</div>
       <div class="pn">${client}</div>
       <div>${v(c.client_representative, 55)}</div>
-      <div class="row">Umukono<span class="l"></span></div>
+      ${opts.clientStamp ? `<div class="seal"><img src="${esc(opts.clientStamp)}" alt=""></div>`
+        : `<div class="row">Umukono<span class="l"></span></div>
       <div class="row">Itariki<span class="l"></span></div>
-      ${opts.clientStamp ? `<div class="stamp" style="border-color:transparent"></div><div class="seal"><img src="${esc(opts.clientStamp)}" alt=""></div>` : `<div class="stamp">KASHE</div>`}
+      <div class="stamp">KASHE</div>`}
     </div>
     <div class="sbox">
       <div class="role">K’uruhande rw’umujyanama</div>
       <div class="pn">${name}</div>
       <div>${v(co.representative, 55)}${co.title ? `, <i>${esc(co.title)}</i>` : ""}</div>
-      <div class="row">Umukono<span class="l"></span></div>
+      ${opts.companyStamp ? `<div class="seal"><img src="${esc(opts.companyStamp)}" alt=""></div>`
+        : `<div class="row">Umukono<span class="l"></span></div>
       <div class="row">Itariki<span class="l"></span></div>
-      ${opts.companyStamp ? `<div class="stamp" style="border-color:transparent"></div><div class="seal"><img src="${esc(opts.companyStamp)}" alt=""></div>` : `<div class="stamp">KASHE</div>`}
+      <div class="stamp">KASHE</div>`}
     </div>
   </div>
 
