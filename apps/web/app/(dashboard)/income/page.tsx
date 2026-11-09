@@ -7,7 +7,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowRightLeft, Paperclip, Pencil, Plus, RefreshCw, Search, Trash2, TrendingUp, X, History } from "lucide-react";
+import { ArrowRightLeft, Download, FileSpreadsheet, FileText, Paperclip, Pencil, Plus, RefreshCw, Search, Trash2, TrendingUp, Upload, X, History } from "lucide-react";
+import { downloadIncomeTemplate, exportIncomeExcel, exportIncomePdf, importIncomeFile } from "@/lib/income-files";
 import { useLanguage } from "@/lib/language-context";
 import DeepLink from "@/app/components/DeepLink";
 import DateRangeFilter from "@/app/components/ui/DateRangeFilter";
@@ -55,6 +56,28 @@ export default function IncomePage() {
   const canCorrect = CORRECTION_ROLES.has(user?.role ?? "");
   const [moving, setMoving] = useState<{ i: Income; category: string; method: ExpenseMethod | ""; reason: string } | null>(null);
   const [showHistory, setShowHistory] = useState(false);
+  const [fileBusy, setFileBusy] = useState(false);
+
+  /** Runs a file action (template, import, Excel, PDF) one at a time. */
+  async function withFile(job: () => Promise<void>) {
+    if (fileBusy) return;
+    setFileBusy(true);
+    try { await job(); } catch { notify(t("common.error")); } finally { setFileBusy(false); }
+  }
+  async function onImport(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    await withFile(async () => {
+      const r = await importIncomeFile(file);
+      if (!r) { notify(t("expenses.import_failed_msg")); return; }
+      const shown = r.failedRows.slice(0, 15).join(", ") + (r.failedRows.length > 15 ? "…" : "");
+      notify(`${t("expenses.import_summary_imported")} ${r.imported} ${t("expenses.import_summary_records")}` +
+        (r.failedRows.length ? ` · ${r.failedRows.length} ${t("expenses.import_summary_failed")} (${t("expenses.import_rows")} ${shown})` : "") + ".",
+        r.failedRows.length ? "warning" : "success");
+      await load();
+    });
+  }
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -181,6 +204,22 @@ export default function IncomePage() {
             <button onClick={() => void load()} title={t("common.refresh")} className="w-8 h-8 rounded-lg border border-slate-200 flex items-center justify-center text-slate-500 hover:text-[#057642]">
               <RefreshCw size={13} className={loading ? "animate-spin" : ""} />
             </button>
+            <div className="flex items-center gap-1">
+              {([
+                ["template", Download, t("common.template"), () => withFile(() => downloadIncomeTemplate(isCar))],
+                ["excel", FileSpreadsheet, "Excel", () => withFile(() => exportIncomeExcel(rows, { from, to, currency, isCar }))],
+                ["pdf", FileText, "PDF", () => withFile(() => exportIncomePdf(rows, { from, to, currency, isCar }))],
+              ] as const).map(([k, Icon, label, run]) => (
+                <button key={k} onClick={() => void run()} disabled={fileBusy || (k !== "template" && rows.length === 0)}
+                  className="flex items-center gap-1 rounded-lg border border-slate-200 px-2 py-1.5 text-[11px] font-semibold text-slate-600 hover:border-[#057642] hover:text-[#057642] disabled:opacity-40">
+                  <Icon size={12} /> {label}
+                </button>
+              ))}
+              <label className={`flex cursor-pointer items-center gap-1 rounded-lg border border-slate-200 px-2 py-1.5 text-[11px] font-semibold text-slate-600 hover:border-[#057642] hover:text-[#057642] ${fileBusy ? "pointer-events-none opacity-40" : ""}`}>
+                <Upload size={12} /> {t("common.import")}
+                <input type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={(e) => void onImport(e)} />
+              </label>
+            </div>
             <button onClick={openNew} className="flex items-center gap-1.5 text-white text-xs font-bold px-3 py-2 rounded-lg bg-[#057642] hover:opacity-90">
               <Plus size={13} strokeWidth={3} /> {t("income.new")}
             </button>

@@ -1,5 +1,6 @@
 ﻿"use client";
 
+import { stampPdf } from "@/lib/printed-doc";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { isZero } from "@/lib/format";
 import Link from "next/link";
@@ -201,6 +202,10 @@ export default function PurchaseManagementPage() {
         headStyles: { fillColor: [19, 114, 230] },
       });
     }
+    await stampPdf(doc, tab === "inventory"
+      ? { kind: "inventory", title: "Inventory", records: paginatedProducts.length }
+      : { kind: "purchases", title: "Purchase history", period_from: dateFrom || null, period_to: dateTo || null,
+          records: purchases.length, total: purchases.reduce((s, p) => s + (p.total_cost || 0), 0) });
     doc.save(`purchases_${tab}.pdf`);
   }
   // eslint-disable-next-line react-hooks/exhaustive-deps

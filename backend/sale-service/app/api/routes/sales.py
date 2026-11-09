@@ -1,11 +1,13 @@
 from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException, Header, Query
 from sqlalchemy import func
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
 from app.models.proforma import Proforma
 from app.models.sale import Sale
+from app.models.printed import PrintedDocument  # noqa: F401  (table for create_all)
 from app.schemas.sale import SaleCreate, SaleUpdate
 from app.core.security import get_current_user, hides_financials
 from app.core.product_client import get_product, update_product_stock
@@ -368,8 +370,51 @@ def _close_proformas(db: Session, user: dict, sale: Sale) -> None:
 # that only Higoverse can read: scanning it in the app opens the document,
 # and only inside the business that printed it.
 
+class PrintedIn(BaseModel):
+    """A list about to be printed as a PDF (lib/printed-doc.ts)."""
+    kind: str = Field(..., min_length=1, max_length=30)
+    title: str = Field(..., min_length=1, max_length=200)
+    period_from: str | None = Field(None, max_length=10)
+    period_to: str | None = Field(None, max_length=10)
+    records: int | None = Field(None, ge=0)
+    total: float | None = None
+    currency: str | None = Field(None, max_length=10)
+
+
+@router.post("/printed")
+def register_printed(payload: PrintedIn, db: Session = Depends(get_db), user: dict = Depends(get_current_user)):
+    """Notes a printed list and gives the code for its QR (kind "D")."""
+    if not user.get("shop_id"):
+        raise HTTPException(status_code=400, detail="This account has no business.")
+    from app.models.printed import PrintedDocument
+    p = PrintedDocument(shop_id=user["shop_id"], printed_by=str(user.get("user_id") or ""),
+                        printed_by_name=(user.get("name") or user.get("email") or "")[:150] or None,
+                        **payload.model_dump())
+    db.add(p)
+    db.commit()
+    return {"success": True, "data": {"code": doc_code.make("D", p.shop_id, p.id)}}
+
+
 def _check_code(code: str, user: dict, db: Session) -> tuple[str, dict]:
     found = doc_code.parse(code, user["shop_id"] or "")
+    if found and found[0] == "L":
+        from app.api.routes.rentals import _fmt as _fmt_rental
+        from app.models.rental import CarRental
+        r = db.query(CarRental).filter(CarRental.id == found[1], CarRental.shop_id == user["shop_id"]).first()
+        if r:
+            return "rental", _fmt_rental(r)
+    if found and found[0] == "D":
+        from app.models.printed import PrintedDocument
+        p = db.query(PrintedDocument).filter(PrintedDocument.id == found[1], PrintedDocument.shop_id == user["shop_id"]).first()
+        if p:
+            # Money totals only for those who may see them (car company staff don't).
+            show_money = not hides_financials(user)
+            return "printed", {
+                "kind": p.kind, "title": p.title, "period_from": p.period_from, "period_to": p.period_to,
+                "records": p.records, "total": float(p.total) if (p.total is not None and show_money) else None,
+                "currency": p.currency, "printed_by_name": p.printed_by_name,
+                "printed_at": p.created_at.isoformat() if p.created_at else None,
+            }
     if found and found[0] == "R":
         sale = db.query(Sale).filter(Sale.id == found[1], Sale.shop_id == user["shop_id"]).first()
         if sale:

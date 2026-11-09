@@ -293,11 +293,15 @@ export interface TaxClient {
   /** RRA TIN, 9 digits. */
   tin: string | null;
   notes: string | null;
+  /** Agreed monthly fee (Rwf); the client's contract is made with it. */
+  monthly_fee?: number | null;
+  /** How many contracts the client has (every client must have one). */
+  contracts?: number;
   created_at: string | null;
   updated_at: string | null;
 }
 
-export type TaxClientInput = Pick<TaxClient, "name" | "delegate" | "phone" | "tin" | "notes">;
+export type TaxClientInput = Pick<TaxClient, "name" | "delegate" | "phone" | "tin" | "notes" | "monthly_fee">;
 
 export async function getTaxClients(): Promise<TaxClient[]> {
   const res = await adminRequest("/api/v1/admin/tax-clients");
@@ -321,5 +325,66 @@ export async function deleteTaxClient(id: string): Promise<void> {
 /** Adds many at once; rows whose TIN is already on the list come back in `skipped`. */
 export async function importTaxClients(rows: TaxClientInput[]): Promise<{ added: number; skipped: string[] }> {
   const res = await adminRequest("/api/v1/admin/tax-clients/import", { method: "POST", body: JSON.stringify({ rows }) });
+  return res.data;
+}
+
+// ── Tax advisory contracts with those clients (platform admin only) ───────
+
+/** Higoverse's side as printed on a contract (kept in the database). */
+export interface TaxContractCompany {
+  name?: string; tin?: string; representative?: string; title?: string;
+  phone?: string; phone2?: string; email?: string; website?: string; address?: string;
+  momo_code?: string; bank_name?: string; bank_account?: string;
+}
+
+export interface TaxContract {
+  id: string;
+  client_id: string | null;
+  contract_date: string;   // YYYY-MM-DD
+  start_date: string;
+  client_name: string;
+  client_tin: string | null;
+  client_phone: string | null;
+  client_representative: string | null;
+  monthly_fee: number;
+  payment_day: number;
+  notes: string | null;
+  company: TaxContractCompany;
+  created_by: string | null;
+  created_at: string | null;
+  /** For the printed contract's QR. */
+  doc_code?: string;
+}
+
+export type TaxContractInput = Omit<TaxContract, "id" | "created_by" | "created_at" | "doc_code">;
+
+export async function getTaxContracts(clientId?: string): Promise<TaxContract[]> {
+  const res = await adminRequest(`/api/v1/admin/tax-contracts${clientId ? `?client_id=${encodeURIComponent(clientId)}` : ""}`);
+  return res?.data ?? [];
+}
+
+/** Higoverse's side as on the last contract (empty before the first). */
+export async function getTaxContractCompany(): Promise<TaxContractCompany> {
+  const res = await adminRequest("/api/v1/admin/tax-contracts/company");
+  return res?.data ?? {};
+}
+
+export async function createTaxContract(payload: TaxContractInput): Promise<TaxContract> {
+  const res = await adminRequest("/api/v1/admin/tax-contracts", { method: "POST", body: JSON.stringify(payload) });
+  return res.data;
+}
+
+export async function updateTaxContract(id: string, payload: TaxContractInput): Promise<TaxContract> {
+  const res = await adminRequest(`/api/v1/admin/tax-contracts/${id}`, { method: "PATCH", body: JSON.stringify(payload) });
+  return res.data;
+}
+
+export async function deleteTaxContract(id: string): Promise<void> {
+  await adminRequest(`/api/v1/admin/tax-contracts/${id}`, { method: "DELETE" });
+}
+
+/** A contract for every client that has none (with their agreed fee); clients with no fee are named. */
+export async function fillMissingTaxContracts(): Promise<{ made: number; no_fee: string[] }> {
+  const res = await adminRequest("/api/v1/admin/tax-contracts/fill-missing", { method: "POST" });
   return res.data;
 }

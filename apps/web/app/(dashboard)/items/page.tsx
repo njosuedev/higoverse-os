@@ -1,5 +1,6 @@
 ﻿"use client";
 
+import { stampPdf } from "@/lib/printed-doc";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { isZero } from "@/lib/format";
 import PhoneOr from "@/app/components/mobile/PhoneOr";
@@ -469,6 +470,7 @@ function ItemManagementPage() {
         headStyles: { fillColor: [10, 102, 194], textColor: 255, fontStyle: "bold", fontSize: 7 },
         alternateRowStyles: { fillColor: [245, 247, 250] },
       });
+      await stampPdf(doc, { kind: "inventory", title: "Vehicle stock", records: carRows.length });
       doc.save(`inventory_${new Date().toISOString().slice(0, 10)}.pdf`);
       return;
     }
@@ -496,6 +498,7 @@ function ItemManagementPage() {
       },
     });
 
+    await stampPdf(doc, { kind: "inventory", title: "Inventory report", records: rows.length });
     doc.save(`inventory_${new Date().toISOString().slice(0, 10)}.pdf`);
   }
 

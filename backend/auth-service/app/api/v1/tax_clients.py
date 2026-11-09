@@ -5,6 +5,7 @@ own data; adding, editing or deleting one is noted in the admin activity log.
 """
 import uuid as _uuid
 from datetime import datetime, timedelta, timezone
+from decimal import Decimal
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -15,11 +16,13 @@ from app.api.v1.admin import _audit, require_admin
 from app.core.company import clean_phone, clean_tin
 from app.db.deps import get_db
 from app.models.tax_client import TaxClient
+from app.models.tax_contract import TaxContract
+from sqlalchemy import func
 from app.models.user import User
 
 router = APIRouter()
 
-_FIELDS = ("name", "delegate", "phone", "tin", "notes")
+_FIELDS = ("name", "delegate", "phone", "tin", "notes", "monthly_fee")
 
 
 def _blank_to_none(v):
@@ -35,6 +38,15 @@ class TaxClientIn(BaseModel):
     phone: Optional[str] = None
     tin: Optional[str] = None
     notes: Optional[str] = Field(None, max_length=2000)
+    # Agreed monthly fee (Rwf); the client's contract is made with it.
+    monthly_fee: Optional[Decimal] = Field(None, ge=0, le=Decimal("1000000000"))
+
+    @field_validator("monthly_fee", mode="before")
+    @classmethod
+    def _fee(cls, v):
+        if v is None or (isinstance(v, str) and not v.strip()):
+            return None
+        return str(v).replace(",", "").replace(" ", "") if isinstance(v, str) else v
 
     @field_validator("name")
     @classmethod
@@ -71,10 +83,13 @@ class TaxClientImport(BaseModel):
     rows: list[TaxClientIn] = Field(..., min_length=1, max_length=2000)
 
 
-def _fmt(c: TaxClient) -> dict:
+def _fmt(c: TaxClient, contracts: int = 0) -> dict:
     return {
         "id": str(c.id), "name": c.name, "delegate": c.delegate, "phone": c.phone,
         "tin": c.tin, "notes": c.notes,
+        "monthly_fee": float(c.monthly_fee) if c.monthly_fee is not None else None,
+        # Every client must have a contract: the list shows who still hasn't.
+        "contracts": contracts,
         "created_at": c.created_at.isoformat() if c.created_at else None,
         "updated_at": c.updated_at.isoformat() if c.updated_at else None,
     }
@@ -103,7 +118,8 @@ def _tin_taken(db: Session, tin: str | None, except_id=None) -> bool:
 @router.get("/tax-clients")
 def list_tax_clients(db: Session = Depends(get_db), _: User = Depends(require_admin)):
     rows = db.query(TaxClient).order_by(TaxClient.created_at.asc(), TaxClient.name.asc()).all()
-    return {"success": True, "data": [_fmt(c) for c in rows]}
+    counts = dict(db.query(TaxContract.client_id, func.count(TaxContract.id)).group_by(TaxContract.client_id).all())
+    return {"success": True, "data": [_fmt(c, counts.get(c.id, 0)) for c in rows]}
 
 
 @router.post("/tax-clients", status_code=201)
@@ -158,7 +174,8 @@ def update_tax_client(client_id: str, body: TaxClientPatch, db: Session = Depend
         _audit(db, admin, "client.edit", "client", c.id, c.name, fields=changed)
     db.commit()
     db.refresh(c)
-    return {"success": True, "data": _fmt(c)}
+    n = db.query(func.count(TaxContract.id)).filter(TaxContract.client_id == c.id).scalar() or 0
+    return {"success": True, "data": _fmt(c, n)}
 
 
 @router.delete("/tax-clients/{client_id}")

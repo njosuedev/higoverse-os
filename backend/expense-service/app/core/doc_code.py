@@ -5,11 +5,14 @@ It says nothing by itself (no business, no amounts): only Higoverse can tell
 what it is. The signature is an HMAC of the kind, the business and the
 document with a key derived from the server's secret, so a code can't be made
 up or pointed at another document, and it is only valid inside the business
-that printed it. The same file is in sale-service and expense-service.
+that printed it. The same file is in sale-service, expense-service and
+auth-service.
 
-Kinds: R sale receipt, P proforma (sale-service); S pay slip (an employee's
-month, paid or not), A salary advance, M a month's payroll sheet
-(expense-service).
+Kinds: R sale receipt, P proforma, L rental agreement, D a printed list
+(sale-service); S pay slip (an employee's month, paid or not), A salary
+advance, M a month's payroll sheet (expense-service); T Higoverse's tax
+advisory contract with a client (auth-service, platform admin; signed with
+the platform's own "shop" id "higoverse").
 """
 import hashlib
 import hmac

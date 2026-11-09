@@ -2,22 +2,26 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  CheckCircle2, ClipboardPaste, Download, Landmark, Loader2, Pencil, Phone, Plus, RefreshCw, Search, Store, Trash2, X,
+  AlertTriangle, CheckCircle2, ClipboardPaste, Download, FileSignature, Landmark, Loader2, Pencil, Phone, Plus, RefreshCw, Search, Store, Trash2, X,
 } from "lucide-react";
 import {
-  createTaxClient, deleteTaxClient, getTaxClients, importTaxClients, updateTaxClient,
+  createTaxClient, deleteTaxClient, fillMissingTaxContracts, getTaxClients, importTaxClients, updateTaxClient,
   type AdminShop, type TaxClient, type TaxClientInput,
 } from "@/lib/admin-api";
 import { cleanTin, normalizePhone, prettyPhone, shopTin, tinError } from "@/lib/company";
+import TaxContracts from "@/app/components/admin/TaxContracts";
 
 type T = (k: string) => string;
 
 const input = "w-full h-10 rounded-lg border border-slate-200 px-3 text-sm focus:outline-none focus:border-[#0a66c2]";
 
 /** The form's values checked like the server checks them; null fields stay empty. */
-function check(v: { name: string; delegate: string; phone: string; tin: string; notes: string }):
-  { data: TaxClientInput; errors: Partial<Record<"name" | "phone" | "tin", string>> } {
-  const errors: Partial<Record<"name" | "phone" | "tin", string>> = {};
+function check(v: { name: string; delegate: string; phone: string; tin: string; notes: string; fee?: string }):
+  { data: TaxClientInput; errors: Partial<Record<"name" | "phone" | "tin" | "fee", string>> } {
+  const errors: Partial<Record<"name" | "phone" | "tin" | "fee", string>> = {};
+  const feeText = (v.fee ?? "").replace(/[,\s]/g, "").replace(/rwf|frw/gi, "");
+  const fee = feeText ? Number(feeText) : null;
+  if (fee !== null && !(fee >= 0)) errors.fee = "clients.err_fee";
   const name = v.name.replace(/\s+/g, " ").trim();
   if (!name) errors.name = "clients.err_name";
   const phone = v.phone.trim() ? normalizePhone(v.phone) : null;
@@ -25,19 +29,19 @@ function check(v: { name: string; delegate: string; phone: string; tin: string; 
   const tinErr = tinError(v.tin, false);
   if (tinErr) errors.tin = tinErr;
   return {
-    data: { name, delegate: v.delegate.trim() || null, phone, tin: cleanTin(v.tin) || null, notes: v.notes.trim() || null },
+    data: { name, delegate: v.delegate.trim() || null, phone, tin: cleanTin(v.tin) || null, notes: v.notes.trim() || null, monthly_fee: fee },
     errors,
   };
 }
 
-/** Rows pasted from a spreadsheet: [No,] Name, Representative, Phone, TIN — tab separated. */
+/** Rows pasted from a spreadsheet: [No,] Name, Representative, Phone, TIN[, Monthly fee] — tab separated. */
 function parsePaste(text: string) {
   return text.split(/\r?\n/).map((line) => line.split("\t").map((c) => c.trim()))
     // Title rows ("Higoverse") have a single cell; header rows name the TIN column.
     .filter((cells) => cells.filter(Boolean).length >= 2 && !cells.some((c) => /^tin$/i.test(c)))
     // A leading row number ("1", "27") is dropped.
     .map((cells) => (cells.length >= 5 && /^\d{0,4}$/.test(cells[0]) ? cells.slice(1) : cells))
-    .map(([name = "", delegate = "", phone = "", tin = ""]) => check({ name, delegate, phone, tin, notes: "" }));
+    .map(([name = "", delegate = "", phone = "", tin = "", fee = ""]) => check({ name, delegate, phone, tin, notes: "", fee }));
 }
 
 function ClientDialog({ client, t, onClose, onSaved }: {
@@ -46,6 +50,7 @@ function ClientDialog({ client, t, onClose, onSaved }: {
   const [v, setV] = useState({
     name: client?.name ?? "", delegate: client?.delegate ?? "", phone: client?.phone ? prettyPhone(client.phone) : "",
     tin: client?.tin ?? "", notes: client?.notes ?? "",
+    fee: client?.monthly_fee != null ? String(client.monthly_fee) : "",
   });
   const [shown, setShown] = useState<Partial<Record<string, string>>>({});
   const [busy, setBusy] = useState(false);
@@ -92,6 +97,7 @@ function ClientDialog({ client, t, onClose, onSaved }: {
             {field("phone", t("common.phone"), { inputMode: "tel", placeholder: "0788 123 456" })}
             {field("tin", t("clients.tin"), { inputMode: "numeric", maxLength: 11, placeholder: "123456789" })}
           </div>
+          {field("fee", t("clients.fee"), { inputMode: "numeric", placeholder: "20000" })}
           <label className="block">
             <span className="mb-1 block text-xs font-semibold text-slate-600">{t("common.notes")}</span>
             <textarea value={v.notes} onChange={set("notes")} maxLength={2000} rows={2}
@@ -205,6 +211,11 @@ export default function TaxClients({ t, shops, onOpenCompany, onRows, initialQue
   const [importing, setImporting] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [confirmId, setConfirmId] = useState<string | null>(null);
+  // The tax advisory contracts of one client.
+  const [contractsOf, setContractsOf] = useState<TaxClient | null>(null);
+  const [filling, setFilling] = useState(false);
+  // Every client must have a contract.
+  const missing = useMemo(() => (rows ?? []).filter((r) => !r.contracts), [rows]);
 
   const load = useCallback(async () => {
     setBusy(true); setError(null);
@@ -215,6 +226,17 @@ export default function TaxClients({ t, shops, onOpenCompany, onRows, initialQue
 
   // eslint-disable-next-line react-hooks/set-state-in-effect -- loads once when the tab opens
   useEffect(() => { void load(); }, [load]);
+
+  async function fillMissing() {
+    setFilling(true); setError(null);
+    try {
+      const r = await fillMissingTaxContracts();
+      setNotice(t("clients.filled").replace("{made}", String(r.made)) +
+        (r.no_fee.length ? ` ${t("clients.no_fee").replace("{names}", r.no_fee.slice(0, 8).join(", ") + (r.no_fee.length > 8 ? "…" : ""))}` : ""));
+      await load();
+    } catch (e) { setError(e instanceof Error ? e.message : t("admin.err_generic")); }
+    finally { setFilling(false); }
+  }
 
   // Clients that also run their business on Higoverse: the company with the same TIN.
   const companyByTin = useMemo(() => {
@@ -247,8 +269,8 @@ export default function TaxClients({ t, shops, onOpenCompany, onRows, initialQue
       const x = v == null ? "" : String(v);
       return `"${(/^[=+\-@]/.test(x) ? "'" + x : x).replace(/"/g, '""')}"`;
     };
-    const head = ["No", t("clients.name"), t("clients.delegate"), t("common.phone"), t("clients.tin"), t("common.notes")];
-    const lines = shown.map((r, i) => [i + 1, r.name, r.delegate ?? "", prettyPhone(r.phone), r.tin ?? "", r.notes ?? ""].map(cell).join(","));
+    const head = ["No", t("clients.name"), t("clients.delegate"), t("common.phone"), t("clients.tin"), t("common.notes"), t("clients.fee")];
+    const lines = shown.map((r, i) => [i + 1, r.name, r.delegate ?? "", prettyPhone(r.phone), r.tin ?? "", r.notes ?? "", r.monthly_fee ?? ""].map(cell).join(","));
     const blob = new Blob(["﻿" + [head.map(cell).join(","), ...lines].join("\r\n")], { type: "text/csv;charset=utf-8" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
@@ -276,6 +298,12 @@ export default function TaxClients({ t, shops, onOpenCompany, onRows, initialQue
             <Plus size={12} /> {t("clients.add")}
           </button>
           <button onClick={() => setImporting(true)} className={btn}><ClipboardPaste size={12} /> {t("clients.paste_short")}</button>
+          {missing.length > 0 && (
+            <button onClick={() => void fillMissing()} disabled={filling} title={t("clients.fill_hint")}
+              className="flex items-center gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-800 hover:bg-amber-100 disabled:opacity-50">
+              {filling ? <Loader2 size={12} className="animate-spin" /> : <FileSignature size={12} />} {t("clients.fill").replace("{n}", String(missing.length))}
+            </button>
+          )}
           <button onClick={exportCsv} disabled={!shown.length} className={btn}><Download size={12} /> {t("admin.export_csv")}</button>
           <button onClick={load} disabled={busy} aria-label={t("common.refresh")} className={btn}>
             <RefreshCw size={12} className={busy ? "animate-spin" : ""} />
@@ -309,7 +337,9 @@ export default function TaxClients({ t, shops, onOpenCompany, onRows, initialQue
                 <th className="px-2 py-2 font-semibold">{t("clients.delegate")}</th>
                 <th className="px-2 py-2 font-semibold">{t("common.phone")}</th>
                 <th className="px-2 py-2 font-semibold">{t("clients.tin")}</th>
-                <th className="w-24 px-4 py-2" />
+                <th className="px-2 py-2 font-semibold text-right">{t("clients.fee_short")}</th>
+                <th className="px-2 py-2 font-semibold">{t("contract.title_short")}</th>
+                <th className="w-28 px-4 py-2" />
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
@@ -340,6 +370,14 @@ export default function TaxClients({ t, shops, onOpenCompany, onRows, initialQue
                     ) : <span className="text-gray-400">-</span>}
                   </td>
                   <td className="px-2 py-2 font-mono text-[13px] text-gray-700">{r.tin ?? "-"}</td>
+                  <td className="px-2 py-2 text-right tabular-nums text-gray-700">{r.monthly_fee != null ? Math.round(r.monthly_fee).toLocaleString() : <span className="text-amber-600">—</span>}</td>
+                  <td className="px-2 py-2">
+                    <button onClick={() => setContractsOf(r)}
+                      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ${r.contracts ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"} hover:underline`}>
+                      {r.contracts ? <CheckCircle2 size={11} /> : <AlertTriangle size={11} />}
+                      {r.contracts ? t("clients.has_contract") : t("clients.no_contract")}
+                    </button>
+                  </td>
                   <td className="px-4 py-2">
                     {confirmId === r.id ? (
                       <span className="flex items-center justify-end gap-1">
@@ -353,6 +391,8 @@ export default function TaxClients({ t, shops, onOpenCompany, onRows, initialQue
                       </span>
                     ) : (
                       <span className="flex items-center justify-end gap-1">
+                        <button onClick={() => setContractsOf(r)} title={t("contract.title")} aria-label={`${t("contract.title")} ${r.name}`}
+                          className="rounded-md p-1.5 text-gray-400 hover:bg-blue-50 hover:text-[#0a66c2]"><FileSignature size={13} /></button>
                         <button onClick={() => setEditing(r)} aria-label={`${t("common.edit")} ${r.name}`}
                           className="rounded-md p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700"><Pencil size={13} /></button>
                         <button onClick={() => setConfirmId(r.id)} aria-label={`${t("common.delete")} ${r.name}`}
@@ -372,10 +412,14 @@ export default function TaxClients({ t, shops, onOpenCompany, onRows, initialQue
       {editing && (
         <ClientDialog client={editing === "new" ? null : editing} t={t} onClose={() => setEditing(null)}
           onSaved={(c) => {
+            const isNew = !(rows ?? []).some((r) => r.id === c.id);
             setRows((p) => (p ?? []).some((r) => r.id === c.id) ? (p ?? []).map((r) => (r.id === c.id ? c : r)) : [...(p ?? []), c]);
             setEditing(null);
+            // Every client must have a contract: a new one goes straight to it.
+            if (isNew || !c.contracts) setContractsOf(c);
           }} />
       )}
+      {contractsOf && <TaxContracts client={contractsOf} t={t} onClose={() => { setContractsOf(null); void load(); }} />}
       {importing && (
         <ImportDialog t={t} onClose={() => setImporting(false)}
           onDone={(msg) => { setImporting(false); setNotice(msg); void load(); }} />

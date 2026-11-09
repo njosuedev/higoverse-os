@@ -6,6 +6,7 @@
 //
 // Pure: builds an HTML string for lib/print-frame.ts.
 
+import { qrBlockHtml } from "./doc-qr";
 import type { PrintShop } from "./proforma-print";
 import type { Rental } from "./rental-api";
 
@@ -50,7 +51,7 @@ interface Words {
   p5b: (renter: string) => string;
   a6: string; p6: string; done: (date: string) => string;
   lessor: string; renterRole: string; name: string; signStamp: string; sign: string; date: string;
-  days: (n: number) => string; tinL: string; telL: string; addrL: string;
+  days: (n: number) => string; tinL: string; telL: string; addrL: string; qr: string;
 }
 
 const RW: Words = {
@@ -81,6 +82,7 @@ const RW: Words = {
   done: (date) => `Bikorewe i Kigali, ku wa ${date}.`,
   lessor: "UKODESHWA", renterRole: "UKODESHA", name: "Amazina", signStamp: "Umukono na kashe", sign: "Umukono", date: "Itariki",
   days: (n) => `iminsi ${n}`, tinL: "TIN", telL: "Telefoni", addrL: "Aderesi",
+  qr: "Suzuma aya masezerano muri porogaramu ya Higoverse",
 };
 
 const EN: Words = {
@@ -111,6 +113,7 @@ const EN: Words = {
   done: (date) => `Done at Kigali, on ${date}.`,
   lessor: "THE COMPANY", renterRole: "THE RENTER", name: "Name", signStamp: "Signature and stamp", sign: "Signature", date: "Date",
   days: (n) => `${n} day${n === 1 ? "" : "s"}`, tinL: "TIN", telL: "Telephone", addrL: "Address",
+  qr: "Scan in the Higoverse app to check this agreement",
 };
 
 const FR: Words = {
@@ -141,6 +144,7 @@ const FR: Words = {
   done: (date) => `Fait à Kigali, le ${date}.`,
   lessor: "LA SOCIÉTÉ", renterRole: "LE LOCATAIRE", name: "Nom", signStamp: "Signature et cachet", sign: "Signature", date: "Date",
   days: (n) => `${n} jour${n === 1 ? "" : "s"}`, tinL: "TIN", telL: "Téléphone", addrL: "Adresse",
+  qr: "Scannez dans l’application Higoverse pour vérifier ce contrat",
 };
 
 const WORDS: Record<AgreementLang, Words> = { rw: RW, en: EN, fr: FR };
@@ -225,6 +229,7 @@ export function rentalAgreementHtml(r: Rental, shop: PrintShop, lang: AgreementL
       <p>${esc(w.date)}: <span class="line" style="width:58mm"></span></p>
     </div>
   </div>
+  <div style="margin-top:10mm">${qrBlockHtml(r.doc_code, w.qr, "24mm")}</div>
   ${opts.autoPrint ? `<script>window.onload=function(){setTimeout(function(){window.focus();window.print();},250)}</script>` : ""}
 </body></html>`;
 }

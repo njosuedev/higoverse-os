@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import Column, DateTime, Index, String, Text
+from sqlalchemy import Column, DateTime, Index, Numeric, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 
 from app.db.base import Base
@@ -23,6 +23,9 @@ class TaxClient(Base):
     phone = Column(String(20), nullable=True)      # international form, +250…
     tin = Column(String(9), nullable=True)         # RRA TIN, 9 digits
     notes = Column(Text, nullable=True)
+    # What the client pays Higoverse each month (Rwf), as agreed; their
+    # contract (tax_contracts) is made with it.
+    monthly_fee = Column(Numeric(14, 2), nullable=True)
     created_at = Column(DateTime(timezone=True), nullable=False, default=_now)
     updated_at = Column(DateTime(timezone=True), nullable=False, default=_now, onupdate=_now)
 

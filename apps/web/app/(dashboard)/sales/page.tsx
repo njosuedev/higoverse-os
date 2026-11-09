@@ -1,5 +1,6 @@
 "use client";
 
+import { stampPdf } from "@/lib/printed-doc";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { isZero } from "@/lib/format";
 import { printHtml } from "@/lib/print-frame";
@@ -771,6 +772,10 @@ function SaleManagementPage() {
       ]),
       styles: { fontSize: 7 },
       headStyles: { fillColor: [19, 114, 230] },
+    });
+    await stampPdf(doc, {
+      kind: "sales", title: "Sales report", period_from: dateFrom || null, period_to: dateTo || null,
+      records: filtered.length, total: filtered.reduce((s, x) => s + (x.total_amount || 0), 0),
     });
     doc.save("sales.pdf");
   }

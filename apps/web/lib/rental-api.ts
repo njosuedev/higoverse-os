@@ -29,9 +29,11 @@ export interface Rental {
   return_note: string;
   created_by_name: string;
   created_at?: string | null;
+  /** For the printed agreement's QR (only the Higoverse app can read it). */
+  doc_code?: string;
 }
 
-export type RentalInput = Omit<Rental, "id" | "rental_no" | "status" | "returned_at" | "deposit_returned" | "return_note" | "created_by_name" | "created_at">;
+export type RentalInput = Omit<Rental, "id" | "rental_no" | "status" | "returned_at" | "deposit_returned" | "return_note" | "created_by_name" | "created_at" | "doc_code">;
 
 /** Roles that may delete a rental (MANAGER_ROLES in sale-service). */
 export const RENTAL_MANAGER_ROLES = new Set(["owner", "admin", "manager"]);

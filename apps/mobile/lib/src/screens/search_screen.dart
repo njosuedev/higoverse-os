@@ -129,14 +129,16 @@ class _SearchScreenState extends State<SearchScreen> {
 
   void _remember() => AppSettingsScope.of(context).rememberSearch(_query);
 
-  /// A scanned Higoverse document (receipt, proforma, pay slip, advance
-  /// receipt or payroll sheet: `HGV1.<kind>.<id>.<signature>`): the server
+  /// A scanned Higoverse document (receipt, proforma, rental agreement,
+  /// printed list, pay slip, advance receipt or payroll sheet:
+  /// `HGV1.<kind>.<id>.<signature>`): the server
   /// says whether it's genuine and from this business, then it opens.
   Future<void> _openDoc(String code) async {
     final t = T.of(context);
     final s = SessionScope.of(context);
     final kind = code.length > 6 ? code[5] : '';
-    final path = 'RP'.contains(kind) ? '${Svc.sales}/sales/doc-check' : '${Svc.expenses}/payroll/doc-check';
+    // R receipt, P proforma, L rental agreement, D printed list: sale-service; the rest: payroll.
+    final path = kind.isNotEmpty && 'RPLD'.contains(kind) ? '${Svc.sales}/sales/doc-check' : '${Svc.expenses}/payroll/doc-check';
     try {
       final res = (await s.api.get(path, query: {'code': code})) as Map;
       final data = Map<String, dynamic>.from((res['data'] as Map?) ?? {});

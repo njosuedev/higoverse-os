@@ -13,6 +13,7 @@ const ICONS: Record<string, typeof History> = {
   "user.create": Plus, "user.edit": Pencil, "user.enable": ToggleRight, "user.disable": ToggleLeft,
   "user.role": UserCog, "user.password": KeyRound, "user.delete": Trash2,
   "client.create": Plus, "client.edit": Pencil, "client.import": ClipboardPaste, "client.delete": Trash2,
+  "contract.create": Plus, "contract.edit": Pencil, "contract.delete": Trash2,
 };
 
 /** One line of the log in words, e.g. "Changed the role of a@b.rw: Cashier → Manager". */

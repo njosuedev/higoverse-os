@@ -219,7 +219,13 @@ Future<void> showPayrollDocSheet(BuildContext context, String kind, Map<String, 
   return _sheet(context, (context) {
     final t = T.of(context);
     final c = Hgv.of(context);
-    final title = t(switch (kind) { 'pay_slip' => 'doc.pay_slip', 'advance' => 'doc.advance', _ => 'doc.payroll_sheet' });
+    final title = switch (kind) {
+      'pay_slip' => t('doc.pay_slip'),
+      'advance' => t('doc.advance'),
+      'rental' => t('doc.rental'),
+      'printed' => '${d['title'] ?? t('doc.printed')}',
+      _ => t('doc.payroll_sheet'),
+    };
     final rows = <Widget>[];
     String amount;
     if (kind == 'pay_slip') {
@@ -236,6 +242,27 @@ Future<void> showPayrollDocSheet(BuildContext context, String kind, Map<String, 
         InfoRow(t('doc.employee'), '${d['employee_name'] ?? ''}'),
         InfoRow(t('doc.given_on'), t.dateTime(d['given_on'] as String?)),
         if ('${d['note'] ?? ''}'.trim().isNotEmpty) InfoRow(t('sale.notes'), '${d['note']}'),
+      ]);
+    } else if (kind == 'rental') {
+      // A car rental agreement (Sales → Rentals on the website).
+      amount = money(_n(d['rent_amount']), s.currency);
+      rows.addAll([
+        InfoRow(t('doc.rental_no'), '${d['rental_no'] ?? ''}'),
+        InfoRow(t('doc.renter'), '${d['customer'] ?? ''}'),
+        InfoRow(t('doc.car'), [d['car_name'], d['plate_no']].where((x) => '${x ?? ''}'.isNotEmpty).join(' · ')),
+        InfoRow(t('doc.period'), '${d['start_date'] ?? ''} → ${d['end_date'] ?? ''}'),
+        InfoRow(t('doc.deposit'), money(_n(d['deposit']), s.currency)),
+        InfoRow(t('doc.status'), t('doc.rental_${d['status'] ?? 'active'}')),
+      ]);
+    } else if (kind == 'printed') {
+      // A list printed as a PDF (expenses, income, sales…): what it held.
+      amount = d['total'] == null ? '${d['records'] ?? 0} ${t('doc.records')}' : money(_n(d['total']), '${d['currency'] ?? s.currency}');
+      final from = '${d['period_from'] ?? ''}', to = '${d['period_to'] ?? ''}';
+      rows.addAll([
+        if (from.isNotEmpty || to.isNotEmpty) InfoRow(t('doc.period'), '${from.isEmpty ? '…' : from} → ${to.isEmpty ? '…' : to}'),
+        if (d['records'] != null) InfoRow(t('doc.records_label'), '${d['records']}'),
+        InfoRow(t('doc.printed_by'), '${d['printed_by_name'] ?? ''}'),
+        InfoRow(t('doc.printed_on'), t.dateTime(d['printed_at'] as String?)),
       ]);
     } else {
       final tot = Map<String, dynamic>.from((d['totals'] as Map?) ?? {});

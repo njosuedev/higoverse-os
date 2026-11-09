@@ -16,7 +16,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
-from app.core import master_data
+from app.core import doc_code, master_data
 from app.core.security import get_current_user
 from app.db.database import get_db
 from app.models.rental import CarRental
@@ -68,6 +68,8 @@ def _fmt(r: CarRental) -> dict:
         "return_note": r.return_note or "",
         "created_by_name": r.created_by_name or "",
         "created_at": r.created_at.isoformat() if r.created_at else None,
+        # For the printed agreement's QR (only the Higoverse app can read it).
+        "doc_code": doc_code.make("L", r.shop_id, r.id),
     }
 
 

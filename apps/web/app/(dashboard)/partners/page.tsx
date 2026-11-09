@@ -1,5 +1,6 @@
 ﻿"use client";
 
+import { stampPdf } from "@/lib/printed-doc";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { isZero } from "@/lib/format";
 import Link from "next/link";
@@ -166,6 +167,7 @@ export default function PartnerManagementPage() {
       styles: { fontSize: 8 },
       headStyles: { fillColor: [19, 114, 230] },
     });
+    await stampPdf(doc, { kind: "partners", title: "Partners", records: filtered.length });
     doc.save("partners.pdf");
   }
 

@@ -1,5 +1,6 @@
 "use client";
 
+import { stampPdf } from "@/lib/printed-doc";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { isZero } from "@/lib/format";
 import { expenseRequest, expenseUploadProof } from "@/lib/expense-api";
@@ -734,6 +735,10 @@ export default function ExpenseManagementPage() {
       margin: { left: 14, right: 14 },
     });
 
+    await stampPdf(doc, {
+      kind: "expenses", title: `Expense report · ${periodLabel}`, period_from: dateFrom || null, period_to: dateTo || null,
+      records: rows.length, total: grandTotal, currency,
+    });
     doc.save(`expense_report_${toDateStr(now)}.pdf`);
   }
 
