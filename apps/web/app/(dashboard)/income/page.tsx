@@ -7,7 +7,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowRightLeft, Paperclip, Pencil, Plus, RefreshCw, Search, Trash2, TrendingUp, X, History } from "lucide-react";
+import { ArrowRightLeft, Paperclip, Pencil, Plus, RefreshCw, Search, Trash2, TrendingUp, X, History, Globe2 } from "lucide-react";
 import { useLanguage } from "@/lib/language-context";
 import DeepLink from "@/app/components/DeepLink";
 import DateRangeFilter from "@/app/components/ui/DateRangeFilter";
@@ -17,7 +17,7 @@ import CorrectionHistory from "@/app/components/finance/CorrectionHistory";
 import { settingsRequest } from "@/lib/settings-api";
 import {
   apiError, CORRECTION_ROLES, deleteIncome, EXPENSE_CATEGORIES, incomeProof, incomeTotals, INCOME_SOURCES, listIncomes, moveIncomeToExpense, saveIncome,
-  type Income, type IncomeInput, type IncomeMethod, type IncomeSource, type IncomeTotals,
+  type Income, type IncomeInput, type IncomeMethod, type IncomeSource, type IncomeTotals, type Scope,
 } from "@/lib/income";
 
 const pad = (n: number) => String(n).padStart(2, "0");
@@ -27,16 +27,18 @@ const money = (n: number) => Math.round(n || 0).toLocaleString();
 const apiDetail = apiError;
 
 type ExpenseMethod = "mtn" | "bank";
-interface Form { title: string; source: IncomeSource; amount: string; date: string; method: IncomeMethod | ""; payer: string; reference: string; notes: string }
-const emptyForm = (): Form => ({ title: "", source: "services", amount: "", date: ymd(new Date()), method: "", payer: "", reference: "", notes: "" });
+interface Form { title: string; source: IncomeSource; amount: string; date: string; method: IncomeMethod | ""; payer: string; reference: string; notes: string; scope: Scope }
+const emptyForm = (): Form => ({ title: "", source: "services", amount: "", date: ymd(new Date()), method: "", payer: "", reference: "", notes: "", scope: "rwanda" });
 const asExpenseMethod = (m?: string | null): ExpenseMethod | "" => (m === "mtn" || m === "bank" ? m : "");
 
 export default function IncomePage() {
-  const { t } = useLanguage();
+  const { t, layout } = useLanguage();
+  const isCar = layout === "car";
   const now = new Date();
   const [from, setFrom] = useState(ymd(new Date(now.getFullYear(), now.getMonth(), 1)));
   const [to, setTo] = useState(ymd(now));
   const [source, setSource] = useState<IncomeSource | "">("");
+  const [scopeFilter, setScopeFilter] = useState<Scope | "">("");
   const [search, setSearch] = useState("");
   const [items, setItems] = useState<Income[]>([]);
   const [totals, setTotals] = useState<IncomeTotals | null>(null);
@@ -75,8 +77,9 @@ export default function IncomePage() {
     const q = search.trim().toLowerCase();
     return items
       .filter((i) => !source || i.source === source)
+      .filter((i) => !scopeFilter || (i.scope ?? "rwanda") === scopeFilter)
       .filter((i) => !q || [i.title, i.payer, i.reference, i.notes].some((x) => (x || "").toLowerCase().includes(q)));
-  }, [items, source, search]);
+  }, [items, source, scopeFilter, search]);
 
   const bySource = useMemo(() => {
     const m: Record<string, number> = {};
@@ -90,6 +93,7 @@ export default function IncomePage() {
     setForm({
       title: i.title, source: i.source, amount: String(i.amount), date: (i.income_date || "").slice(0, 10),
       method: i.payment_method ?? "", payer: i.payer ?? "", reference: i.reference ?? "", notes: i.notes ?? "",
+      scope: i.scope === "abroad" ? "abroad" : "rwanda",
     });
   }
   const set = (p: Partial<Form>) => setForm((f) => (f ? { ...f, ...p } : f));
@@ -102,6 +106,7 @@ export default function IncomePage() {
     const body: IncomeInput = {
       title: form.title.trim(), source: form.source, amount: Number(form.amount), income_date: `${form.date}T00:00:00`,
       payment_method: form.method || null, payer: form.payer.trim() || null, reference: form.reference.trim() || null, notes: form.notes.trim() || null,
+      scope: isCar ? form.scope : "rwanda",
     };
     setBusy(true);
     try {
@@ -185,6 +190,12 @@ export default function IncomePage() {
               <option value="">{t("income.all_sources")}</option>
               {INCOME_SOURCES.map((s) => <option key={s} value={s}>{t(`income.src_${s}`)}</option>)}
             </select>
+            {isCar && <select value={scopeFilter} onChange={(e) => setScopeFilter(e.target.value as Scope | "")}
+              className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs bg-white">
+              <option value="">{t("scope.all")}</option>
+              <option value="abroad">{t("scope.abroad")}</option>
+              <option value="rwanda">{t("scope.rwanda")}</option>
+            </select>}
             <DateRangeFilter from={from} to={to} onFrom={setFrom} onTo={setTo} onClear={() => { setFrom(""); setTo(""); }} />
             <div className="hgv-search hgv-search--sm hgv-page-search ml-auto w-full sm:w-64">
               <Search size={15} className="hgv-search-icon" />
@@ -197,7 +208,9 @@ export default function IncomePage() {
         {/* Figures */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 mb-2">
           <Figure label={t("income.total")} value={`${currency} ${money(totals?.total ?? 0)}`} detail={`${totals?.recordedCount ?? 0} ${t("income.records")}`} strong />
-          <Figure label={t("income.recorded_here")} value={money(totals?.recorded ?? 0)} detail={`${totals?.recordedCount ?? 0} ${t("income.records")}`} />
+          {isCar
+            ? <Figure label={t("scope.split")} value={money(totals?.rwanda ?? 0)} detail={`${t("scope.rwanda_short")} · ${t("scope.abroad_short")} ${money(totals?.abroad ?? 0)}`} />
+            : <Figure label={t("income.recorded_here")} value={money(totals?.recorded ?? 0)} detail={`${totals?.recordedCount ?? 0} ${t("income.records")}`} />}
           <Figure label={t("income.top_source")} value={bySource[0] ? t(`income.src_${bySource[0][0]}`) : "-"} detail={bySource[0] ? money(bySource[0][1]) : t("common.no_data")} />
           <Figure label={t("income.from_expenses")} value={money(totals?.fromExpenses ?? 0)} detail={t("income.from_expenses_hint")} />
         </div>
@@ -241,6 +254,7 @@ export default function IncomePage() {
                   <div className="w-20 shrink-0 text-xs text-slate-500 tabular-nums">{(i.income_date || "").slice(0, 10)}</div>
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-semibold text-slate-800 truncate">{i.title}
+                      {isCar && i.scope === "abroad" && <span className="ml-1.5 inline-flex rounded bg-indigo-50 border border-indigo-200 px-1 text-[10px] font-semibold text-indigo-700 align-middle">{t("scope.abroad_short")}</span>}
                       {i.corrected && <span title={t("move.corrected_tag_hint")} className="ml-1.5 inline-flex rounded bg-amber-50 border border-amber-200 px-1 text-[10px] font-semibold text-amber-700 align-middle">{t("move.corrected_tag")}</span>}
                     </p>
                     <p className="text-xs text-slate-500 truncate">
@@ -308,6 +322,17 @@ export default function IncomePage() {
               <button onClick={() => setForm(null)} aria-label={t("common.close")} className="p-1 rounded hover:bg-slate-100"><X size={16} /></button>
             </div>
             <div className="p-4 space-y-3">
+              {isCar && <div>
+                {label("scope.where_received")}
+                <div className="grid grid-cols-2 gap-1 rounded-lg bg-slate-100 p-0.5">
+                  {(["abroad", "rwanda"] as const).map((w) => (
+                    <button key={w} type="button" onClick={() => set({ scope: w })}
+                      className={`rounded-md px-2 py-1 text-xs font-semibold transition ${form.scope === w ? "bg-white shadow-sm text-[#057642]" : "text-slate-500"}`}>
+                      {t(w === "abroad" ? "scope.abroad" : "scope.rwanda")}
+                    </button>
+                  ))}
+                </div>
+              </div>}
               <div>{label("income.what", true)}<input className={inputCls} value={form.title} placeholder={t("income.what_ph")} onChange={(e) => set({ title: e.target.value })} /></div>
               <div className="grid grid-cols-2 gap-2">
                 <div>{label("income.source", true)}

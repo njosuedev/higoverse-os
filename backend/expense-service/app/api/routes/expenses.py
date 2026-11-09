@@ -3,6 +3,8 @@ import json
 from datetime import datetime, timedelta, timezone
 from typing import List
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from typing import Literal
+
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
@@ -21,6 +23,15 @@ router = APIRouter(prefix="/expenses", tags=["Expenses"])
 
 # Money spent: every row except those marked as money received ("in").
 _SPENT = or_(Expense.direction.is_(None), Expense.direction != "in")
+
+Scope = Literal["rwanda", "abroad"]
+# Abroad: before the goods reach Rwanda. Everything else (older rows) is Rwanda.
+_ABROAD = Expense.scope == "abroad"
+_RWANDA = or_(Expense.scope.is_(None), Expense.scope != "abroad")
+
+
+def _in_scope(q, scope: str | None):
+    return q.filter(_ABROAD if scope == "abroad" else _RWANDA) if scope else q
 
 
 def _get_or_404(db: Session, expense_id: str, shop_id: str) -> Expense:
@@ -47,6 +58,7 @@ def _fmt(e: Expense, include_proof: bool = False) -> dict:
         "bank_account":   e.bank_account,
         "receiver_phone": e.receiver_phone,
         "direction":      "in" if e.direction == "in" else "out",
+        "scope":          "abroad" if e.scope == "abroad" else "rwanda",
     }
     if include_proof:
         result["proof_data"] = e.proof_data
@@ -66,6 +78,7 @@ def list_expenses(
     category: ExpenseCategory | None = None,
     from_date: str | None = None,
     to_date: str | None = None,
+    scope: Scope | None = None,
 ):
     # No shop yet (e.g. account not linked to a shop) — nothing to list.
     if not user["shop_id"]:
@@ -75,6 +88,7 @@ def list_expenses(
 
     if category:
         q = q.filter(Expense.category == category)
+    q = _in_scope(q, scope)
     if from_date:
         q = q.filter(Expense.expense_date >= datetime.fromisoformat(from_date + "T00:00:00"))
     if to_date:
@@ -109,11 +123,13 @@ def get_summary(
     user: dict = Depends(require_expense_totals),
     from_date: str | None = None,
     to_date: str | None = None,
+    scope: Scope | None = None,
 ):
     if not user["shop_id"]:
-        return {"success": True, "data": {"total_expenses": 0.0, "count": 0, "total_in": 0.0, "count_in": 0}}
+        return {"success": True, "data": {"total_expenses": 0.0, "count": 0, "total_in": 0.0, "count_in": 0,
+                                          "rwanda": 0.0, "abroad": 0.0}}
 
-    q = db.query(Expense).filter(Expense.shop_id == user["shop_id"])
+    q = _in_scope(db.query(Expense).filter(Expense.shop_id == user["shop_id"]), scope)
     if from_date:
         q = q.filter(Expense.expense_date >= datetime.fromisoformat(from_date + "T00:00:00"))
     if to_date:
@@ -128,6 +144,8 @@ def get_summary(
         func.coalesce(func.sum(Expense.amount), 0).label("total"),
         func.count(Expense.id).label("count"),
     ).one()
+    # Spending in two parts: abroad (before the goods reach Rwanda) and in Rwanda.
+    abroad = q.filter(_SPENT, _ABROAD).with_entities(func.coalesce(func.sum(Expense.amount), 0)).scalar()
 
     return {
         "success": True,
@@ -136,6 +154,8 @@ def get_summary(
             "count": int(row.count),
             "total_in": float(got.total),
             "count_in": int(got.count),
+            "abroad": float(abroad or 0),
+            "rwanda": float(row.total_expenses) - float(abroad or 0),
         },
     }
 
@@ -150,11 +170,12 @@ def get_by_category(
     user: dict = Depends(require_expense_totals),
     from_date: str | None = None,
     to_date: str | None = None,
+    scope: Scope | None = None,
 ):
     if not user["shop_id"]:
         return {"success": True, "data": []}
 
-    q = db.query(Expense).filter(Expense.shop_id == user["shop_id"])
+    q = _in_scope(db.query(Expense).filter(Expense.shop_id == user["shop_id"]), scope)
     if from_date:
         q = q.filter(Expense.expense_date >= datetime.fromisoformat(from_date + "T00:00:00"))
     if to_date:
@@ -244,6 +265,7 @@ def create_expense(
         bank_account=payload.bank_account,
         receiver_phone=payload.receiver_phone,
         direction="in" if payload.direction == "in" else None,
+        scope="abroad" if payload.scope == "abroad" else None,
     )
     db.add(expense)
     db.flush()
@@ -359,6 +381,8 @@ def update_expense(
     for key, value in payload.model_dump(exclude_unset=True).items():
         if key == "direction":
             value = "in" if value == "in" else None
+        if key == "scope":
+            value = "abroad" if value == "abroad" else None
         setattr(expense, key, value)
 
     db.commit()
@@ -413,6 +437,8 @@ def admin_update_expense(
     for key, value in payload.model_dump(exclude_unset=True).items():
         if key == "direction":
             value = "in" if value == "in" else None
+        if key == "scope":
+            value = "abroad" if value == "abroad" else None
         setattr(expense, key, value)
     db.commit()
     db.refresh(expense)

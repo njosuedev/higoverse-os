@@ -18,6 +18,7 @@ class ExpenseCreate(BaseModel):
     bank_account:   str | None = None
     receiver_phone: str | None = None
     direction:      Literal["in", "out"] = "out"   # "in": money received, not spent
+    scope:          Literal["rwanda", "abroad"] = "rwanda"   # before the goods reach Rwanda, or here
 
     @field_validator("payment_method")
     @classmethod
@@ -38,6 +39,7 @@ class ExpenseUpdate(BaseModel):
     bank_account:   str | None = None
     receiver_phone: str | None = None
     direction:      Literal["in", "out"] | None = None
+    scope:          Literal["rwanda", "abroad"] | None = None
 
     @field_validator("payment_method")
     @classmethod

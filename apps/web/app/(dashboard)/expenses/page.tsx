@@ -15,7 +15,7 @@ import { useAuth } from "@/lib/auth-context";
 import CorrectionHistory from "@/app/components/finance/CorrectionHistory";
 import type { DataValidation as ExcelDataValidation } from "exceljs";
 import {
-  Plus, Pencil, Trash2, X, Calendar, BarChart3, AlertCircle, Download, Upload, FileSpreadsheet, FileText, Paperclip, ImageIcon, FileIcon, Receipt, RefreshCw, Search, Filter, ChevronDown, ArrowRightLeft, History } from "lucide-react";
+  Plus, Pencil, Trash2, X, Calendar, BarChart3, AlertCircle, Download, Upload, FileSpreadsheet, FileText, Paperclip, ImageIcon, FileIcon, Receipt, RefreshCw, Search, Filter, ChevronDown, ArrowRightLeft, History, Globe2 } from "lucide-react";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -44,6 +44,8 @@ interface Expense {
   receiver_phone?: string;
   /** It came here from Income by a correction. */
   corrected?: boolean;
+  /** Abroad (before the goods reach Rwanda) or in Rwanda (older rows). */
+  scope?: "rwanda" | "abroad";
   /** "in": money received, kept here for the record but never counted as spending. */
   direction?: "in" | "out";
 }
@@ -87,6 +89,7 @@ const EMPTY_FORM = {
   title: "", category: "other" as Category, amount: "", notes: "", expense_date: "",
   payment_method: "" as PaymentMethod, bank_name: "", bank_account: "", receiver_phone: "",
   direction: "out" as "in" | "out",
+  scope: "rwanda" as "rwanda" | "abroad",
 };
 
 function toDateStr(d: Date) {
@@ -107,6 +110,7 @@ const TPL_COLUMNS = [
   { key: "phone",        label: "Receiver phone",   width: 18 },
   { key: "notes",        label: "Notes",            width: 36 },
   { key: "direction",    label: "Money in / out",   width: 16 },
+  { key: "scope",        label: "Where",            width: 14 },
 ];
 /** Header text (letters only, lower case) → column; covers the old template's names too. */
 const TPL_HEADER_KEYS: Record<string, string> = {
@@ -116,6 +120,7 @@ const TPL_HEADER_KEYS: Record<string, string> = {
   bankname: "bank_name", account: "bank_account", accountref: "bank_account", bankaccount: "bank_account",
   receiverphone: "phone", phone: "phone", notes: "notes",
   moneyinout: "direction", direction: "direction", type: "direction", inout: "direction",
+  where: "scope", scope: "scope",
 };
 
 /** A date cell as YYYY-MM-DD: an Excel date number, or text like 2026-11-08 or 08/11/2026. */
@@ -135,7 +140,8 @@ function cellDate(v: unknown, XLSX: typeof import("xlsx")): string {
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export default function ExpenseManagementPage() {
-  const { t } = useLanguage();
+  const { t, layout } = useLanguage();
+  const isCar = layout === "car";
   const { currency } = useShopSettings();
 
   const [expenses, setExpenses]       = useState<Expense[]>([]);
@@ -146,9 +152,11 @@ export default function ExpenseManagementPage() {
   const [dateFrom, setDateFrom]       = useState(() => { const d = new Date(); d.setDate(1); return toDateStr(d); });
   const [dateTo, setDateTo]           = useState(() => toDateStr(new Date()));
   const [catFilter, setCatFilter]     = useState<Category | "">("");
+  // Car importers: abroad (before the cars reach Rwanda) or in Rwanda.
+  const [scopeFilter, setScopeFilter] = useState<"" | "rwanda" | "abroad">("");
   const [search, setSearch]           = useState("");
 
-  const [summaryFiltered, setSummaryFiltered] = useState({ total_expenses: 0, count: 0, total_in: 0, count_in: 0 });
+  const [summaryFiltered, setSummaryFiltered] = useState({ total_expenses: 0, count: 0, total_in: 0, count_in: 0, abroad: 0, rwanda: 0 });
   const [byCategory, setByCategory]          = useState<CategoryStat[]>([]);
 
   const [loading, setLoading]         = useState(true);
@@ -219,9 +227,9 @@ export default function ExpenseManagementPage() {
 
   useEffect(() => { loadAll(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { if (!loading) loadExpenses(); }, [page, pageSize, dateFrom, dateTo, catFilter]);
+  useEffect(() => { if (!loading) loadExpenses(); }, [page, pageSize, dateFrom, dateTo, catFilter, scopeFilter]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { if (!loading) { loadSummaries(); loadByCategory(); } }, [dateFrom, dateTo, catFilter]);
+  useEffect(() => { if (!loading) { loadSummaries(); loadByCategory(); } }, [dateFrom, dateTo, catFilter, scopeFilter]);
 
   // ── Import template ──────────────────────────────────────────────────────
   // A blank, protected workbook: the title, notes and column headers are locked;
@@ -243,7 +251,8 @@ export default function ExpenseManagementPage() {
     ws.getCell("A2").value =
       `Type one expense per row, from row ${TPL_HEADER_ROW + 1}. Columns with * are required. ` +
       "Pick Category and Payment method from the list; Date as YYYY-MM-DD. Money in / out: Out (or empty) for money spent, " +
-      "In for money received (it is recorded in Income). Then use Import on the Expenses page.";
+      "In for money received (it is recorded in Income). Where: Abroad for costs before the goods reach Rwanda " +
+      "(buying, shipping…), Rwanda (or empty) for costs here. Then use Import on the Expenses page.";
     ws.getCell("A2").font = { size: 10, color: { argb: "FF4B5563" } };
     ws.getCell("A2").alignment = { wrapText: true, vertical: "top" };
     ws.getRow(2).height = 30;
@@ -280,6 +289,7 @@ export default function ExpenseManagementPage() {
     const categories = ALL_CATEGORIES.map((c) => c[0].toUpperCase() + c.slice(1)).join(",");
     rules.add(range("category"), { type: "list", formulae: [`"${categories}"`], ...err, errorTitle: "Category", error: "Pick a category from the list." });
     rules.add(range("payment"), { type: "list", formulae: ['"MTN MoMo,Bank"'], ...err, errorTitle: "Payment method", error: "Pick MTN MoMo or Bank." });
+    rules.add(range("scope"), { type: "list", formulae: ['"Rwanda,Abroad"'], ...err, errorTitle: "Where", error: "Pick Rwanda or Abroad (before the goods reach Rwanda)." });
     rules.add(range("direction"), { type: "list", formulae: ['"Out,In"'], ...err, errorTitle: "Money in / out", error: "Pick Out (money spent) or In (money received)." });
     rules.add(range("amount"), { type: "decimal", operator: "greaterThan", formulae: [0], ...err, errorTitle: "Amount", error: "Enter an amount greater than 0." });
     rules.add(range("date"), { type: "date", operator: "between", formulae: [new Date(Date.UTC(2000, 0, 1)), new Date(Date.UTC(2100, 11, 31))], ...err, errorTitle: "Date", error: "Enter a date, e.g. 2026-11-08." });
@@ -337,6 +347,7 @@ export default function ExpenseManagementPage() {
       const payment = pm.includes("bank") ? "bank" : (pm.includes("mtn") || pm.includes("momo")) ? "mtn" : "";
       const cat = (text(r, "category").toLowerCase() || "other") as Category;
       const dir = /^(in|received|income|credit)/i.test(text(r, "direction")) ? "in" : "out";
+      const where = /^(abroad|outside|foreign|china|hanze)/i.test(text(r, "scope")) ? "abroad" : "rwanda";
       if (!title || !(amount > 0) || !date || !payment || !ALL_CATEGORIES.includes(cat)) { failedRows.push(i + 1); continue; }
       try {
         if (dir === "in") {
@@ -344,7 +355,7 @@ export default function ExpenseManagementPage() {
           await expenseRequest("/incomes", {
             method: "POST",
             body: JSON.stringify({
-              title, source: "other", amount, income_date: date + "T00:00:00", payment_method: payment,
+              title, source: "other", amount, income_date: date + "T00:00:00", payment_method: payment, scope: where,
               reference: payment === "bank" ? (text(r, "bank_account") || undefined) : undefined,
               notes: text(r, "notes") || undefined,
             }),
@@ -362,6 +373,7 @@ export default function ExpenseManagementPage() {
             bank_name:      payment === "bank" ? (text(r, "bank_name") || undefined) : undefined,
             bank_account:   payment === "bank" ? (text(r, "bank_account") || undefined) : undefined,
             receiver_phone: text(r, "phone") || undefined,
+            scope: where,
           }),
         });
         imported++;
@@ -382,6 +394,7 @@ export default function ExpenseManagementPage() {
       ...(dateFrom  && { from_date: dateFrom }),
       ...(dateTo    && { to_date: dateTo }),
       ...(catFilter && { category: catFilter }),
+      ...(scopeFilter && { scope: scopeFilter }),
     });
     const res = await expenseRequest(`/expenses?${params}`);
     const all: Expense[] = res?.data?.items || [];
@@ -408,7 +421,7 @@ export default function ExpenseManagementPage() {
     const top = company.length;
 
     const headers = [
-      "Date", "Title", "Category", `Amount (${currency})`,
+      "Date", "Title", "Category", ...(isCar ? ["Where"] : []), `Amount (${currency})`,
       "Payment Method", "Bank Name", "Account / Ref", "Receiver Phone", "Notes",
     ];
 
@@ -418,6 +431,7 @@ export default function ExpenseManagementPage() {
         d ? toDateStr(d) : "",
         e.title,
         e.category,
+        ...(isCar ? [e.scope === "abroad" ? "Abroad" : "Rwanda"] : []),
         Number(e.amount),
         e.payment_method === "mtn"  ? "MTN Mobile Money"
           : e.payment_method === "bank" ? "Bank Transfer" : "",
@@ -438,7 +452,7 @@ export default function ExpenseManagementPage() {
       headers,
       ...dataRows,
       [],
-      ["", "TOTAL", "", grandTotal, "", "", "", "", ""],
+      ["", "TOTAL", "", ...(isCar ? [""] : []), grandTotal, "", "", "", "", ""],
     ];
 
     const ws = XLSX.utils.aoa_to_sheet(wsData);
@@ -735,6 +749,7 @@ export default function ExpenseManagementPage() {
         ...(dateFrom && { from_date: dateFrom }),
         ...(dateTo   && { to_date: dateTo }),
         ...(catFilter && { category: catFilter }),
+        ...(scopeFilter && { scope: scopeFilter }),
       });
       const res = await expenseRequest(`/expenses?${params}`);
       setExpenses(res?.data?.items || []);
@@ -748,12 +763,14 @@ export default function ExpenseManagementPage() {
         ...(dateFrom  && { from_date: dateFrom }),
         ...(dateTo    && { to_date: dateTo }),
         ...(catFilter && { category: catFilter }),
+        ...(scopeFilter && { scope: scopeFilter }),
       });
       const res = await expenseRequest(`/expenses/summary?${params}`);
       // Numbers whatever the server sent: a missing total is 0, not a blank page.
       setSummaryFiltered({
         total_expenses: Number(res?.data?.total_expenses) || 0, count: Number(res?.data?.count) || 0,
         total_in: Number(res?.data?.total_in) || 0, count_in: Number(res?.data?.count_in) || 0,
+        abroad: Number(res?.data?.abroad) || 0, rwanda: Number(res?.data?.rwanda) || 0,
       });
     } catch { /* ignore */ }
   }
@@ -763,6 +780,7 @@ export default function ExpenseManagementPage() {
       const params = new URLSearchParams({
         ...(dateFrom && { from_date: dateFrom }),
         ...(dateTo   && { to_date: dateTo }),
+        ...(scopeFilter && { scope: scopeFilter }),
       });
       const res = await expenseRequest(`/expenses/by-category?${params}`);
       const rows: Partial<CategoryStat>[] = Array.isArray(res?.data) ? res.data : [];
@@ -792,6 +810,7 @@ export default function ExpenseManagementPage() {
       expense_date: (e.expense_date || "").slice(0, 10),
       payment_method: method,
       direction: e.direction === "in" ? "in" : "out",
+      scope: e.scope === "abroad" ? "abroad" : "rwanda",
       bank_name: e.bank_name ?? "", bank_account: e.bank_account ?? "", receiver_phone: e.receiver_phone ?? "",
     });
     setProofEntries([]);
@@ -871,6 +890,7 @@ export default function ExpenseManagementPage() {
             bank_name:      form.payment_method === "bank" ? (form.bank_name.trim() || null) : null,
             bank_account:   form.payment_method === "bank" ? (form.bank_account.trim() || null) : null,
             receiver_phone: form.payment_method ? (form.receiver_phone.trim() || null) : null,
+            ...(isCar ? { scope: form.scope } : {}),
           }),
         });
         setShowModal(false);
@@ -891,6 +911,7 @@ export default function ExpenseManagementPage() {
           bank_name:      form.payment_method === "bank" ? (form.bank_name.trim() || undefined) : undefined,
           bank_account:   form.payment_method === "bank" ? (form.bank_account.trim() || undefined) : undefined,
           receiver_phone: form.receiver_phone.trim() || undefined,
+          scope: isCar ? form.scope : "rwanda",
         }),
       });
 
@@ -1067,6 +1088,15 @@ export default function ExpenseManagementPage() {
                 </select>
                 <ChevronDown size={14} className="shrink-0" />
               </div>
+              {isCar && <div className="hgv-filter">
+                <Globe2 size={14} className="shrink-0" />
+                <select value={scopeFilter} onChange={(e) => { setScopeFilter(e.target.value as "" | "rwanda" | "abroad"); setPage(1); }}>
+                  <option value="" className="text-gray-800">{t("scope.all")}</option>
+                  <option value="abroad" className="text-gray-800">{t("scope.abroad")}</option>
+                  <option value="rwanda" className="text-gray-800">{t("scope.rwanda")}</option>
+                </select>
+                <ChevronDown size={14} className="shrink-0" />
+              </div>}
             </div>
             <DateRangeFilter
               from={dateFrom} to={dateTo}
@@ -1084,7 +1114,9 @@ export default function ExpenseManagementPage() {
             {
               label: `${t("common.total")} · ${periodLabelLocalized}`,
               value: displayTotal.toLocaleString(),
-              sub: `${displayCount} ${t("expenses.records")}` +
+              sub: (isCar && !search && !scopeFilter && summaryFiltered.abroad > 0
+                ? `${t("scope.abroad_short")} ${summaryFiltered.abroad.toLocaleString()} · ${t("scope.rwanda_short")} ${summaryFiltered.rwanda.toLocaleString()}`
+                : `${displayCount} ${t("expenses.records")}`) +
                 (displayIn > 0 ? ` · +${displayIn.toLocaleString()} ${t("expenses.received_not_counted")}` : ""),
               color: "text-slate-900",
             },
@@ -1126,8 +1158,8 @@ export default function ExpenseManagementPage() {
               {t("common.showing")} <span className="font-semibold text-slate-700">{filteredExpenses.length.toLocaleString()}</span> {t("common.of")} <span className="font-semibold text-slate-700">{total.toLocaleString()}</span> {t("expenses.records")}
             </p>
             <div className="flex flex-wrap items-center gap-1.5">
-              {(search || catFilter) && (
-                <button onClick={() => { setSearch(""); setCatFilter(""); setPage(1); }} className="flex items-center gap-1 text-[11px] text-slate-400 hover:text-slate-600 transition mr-1"><X size={10} /> {t("daterange.clear")}</button>
+              {(search || catFilter || scopeFilter) && (
+                <button onClick={() => { setSearch(""); setCatFilter(""); setScopeFilter(""); setPage(1); }} className="flex items-center gap-1 text-[11px] text-slate-400 hover:text-slate-600 transition mr-1"><X size={10} /> {t("daterange.clear")}</button>
               )}
               <button onClick={downloadTemplate} title={t("expenses.download_template_title")}
                 className="flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 transition">
@@ -1198,6 +1230,7 @@ export default function ExpenseManagementPage() {
                       </td>
                       <td className="px-2.5 py-1">
                         <p className="font-semibold text-slate-800 text-xs leading-tight">{e.title}
+                          {isCar && e.scope === "abroad" && <span className="ml-1 inline-flex rounded bg-indigo-50 border border-indigo-200 px-1 text-[10px] font-semibold text-indigo-700 align-middle">{t("scope.abroad_short")}</span>}
                           {e.corrected && <span title={t("move.corrected_tag_hint")} className="ml-1 inline-flex rounded bg-amber-50 border border-amber-200 px-1 text-[10px] font-semibold text-amber-700 align-middle">{t("move.corrected_tag")}</span>}
                         </p>
                         <p className="text-[11px] text-slate-400 font-mono leading-tight">{e.id.slice(0, 8)}</p>
@@ -1451,6 +1484,20 @@ export default function ExpenseManagementPage() {
                   <input className={inputCls} placeholder={t("expenses.title_placeholder")}
                     value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
                 </div>
+
+                {/* Car importers: before the cars reach Rwanda, or here */}
+                {isCar && <div>
+                  <label className="block text-[11px] font-medium text-gray-500 mb-0.5">{t("scope.where_spent")}</label>
+                  <div className="grid grid-cols-2 gap-1 rounded-md bg-slate-100 p-0.5">
+                    {(["abroad", "rwanda"] as const).map((w) => (
+                      <button key={w} type="button" onClick={() => setForm({ ...form, scope: w })}
+                        className={`rounded px-2 py-1 text-[11px] font-semibold transition ${form.scope === w ? "bg-white shadow-sm text-[#0a66c2]" : "text-slate-500"}`}>
+                        {t(w === "abroad" ? "scope.abroad" : "scope.rwanda")}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="mt-0.5 text-[10.5px] text-slate-400">{t(form.scope === "abroad" ? "scope.abroad_hint" : "scope.rwanda_hint")}</p>
+                </div>}
 
                 {/* Category + Amount */}
                 <div className="grid grid-cols-2 gap-2">

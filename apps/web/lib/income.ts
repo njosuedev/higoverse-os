@@ -12,6 +12,8 @@ export type IncomeSource = "rental" | "services" | "commission" | "transport" | 
 /** Sources offered when recording income (rentals are recorded in Sales → Rentals). */
 export const INCOME_SOURCES: IncomeSource[] = ["services", "commission", "transport", "interest", "other"];
 export type IncomeMethod = "cash" | "mtn" | "bank";
+/** Where money went or came from: abroad (before the goods reach Rwanda) or in Rwanda. */
+export type Scope = "rwanda" | "abroad";
 
 export interface Income {
   id: string;
@@ -27,6 +29,7 @@ export interface Income {
   has_proof?: boolean;
   /** It came here from Expenses by a correction. */
   corrected?: boolean;
+  scope?: Scope;
   created_at?: string | null;
 }
 
@@ -39,13 +42,15 @@ export interface IncomeInput {
   payer?: string | null;
   reference?: string | null;
   notes?: string | null;
+  scope?: Scope;
 }
 
-export async function listIncomes(p: { from?: string; to?: string; source?: string; limit?: number } = {}): Promise<Income[]> {
+export async function listIncomes(p: { from?: string; to?: string; source?: string; scope?: Scope | ""; limit?: number } = {}): Promise<Income[]> {
   const q = new URLSearchParams({ page: "1", limit: String(p.limit ?? 1000) });
   if (p.from) q.set("from_date", p.from);
   if (p.to) q.set("to_date", p.to);
   if (p.source) q.set("source", p.source);
+  if (p.scope) q.set("scope", p.scope);
   const res = await expenseRequest(`/incomes?${q}`);
   return (res?.data?.items as Income[]) ?? [];
 }
@@ -73,6 +78,9 @@ export interface IncomeTotals {
   rentalsCount: number;
   /** Kept in Expenses as "money received". */
   fromExpenses: number;
+  /** `total` in two parts: abroad (before the goods reach Rwanda) and in Rwanda. */
+  abroad: number;
+  rwanda: number;
 }
 
 /** Income outside sales for a period (dates YYYY-MM-DD, both included),
@@ -94,6 +102,7 @@ export async function incomeTotals(from: string | undefined, to: string | undefi
   return {
     total: recorded + fromExpenses, recorded, recordedCount: n(d.count),
     rentals: rent, rentalsCount: rs.length, fromExpenses,
+    abroad: n(d.abroad), rwanda: recorded + fromExpenses - n(d.abroad),
   };
 }
 

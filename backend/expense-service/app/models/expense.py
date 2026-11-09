@@ -40,3 +40,7 @@ class Expense(Base):
     # "in": money received, recorded here by mistake or for the record; never
     # counted as spending. Empty (older rows) or "out": money spent.
     direction        = Column(String(3), nullable=True)
+    # Where the money went or came from: "abroad" before the goods reach
+    # Rwanda (buying in China, shipping…), "rwanda" once here (duties,
+    # clearing, rent…). Empty on older rows = Rwanda.
+    scope            = Column(String(10), nullable=True)

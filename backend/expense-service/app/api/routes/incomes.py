@@ -42,6 +42,8 @@ from app.models.income import INCOME_SOURCES, Income
 router = APIRouter(prefix="/incomes", tags=["Income"])
 
 Source = Literal["rental", "services", "commission", "transport", "interest", "other"]
+# Abroad (before the goods reach Rwanda) or in Rwanda; older rows = Rwanda.
+Scope = Literal["rwanda", "abroad"]
 Method = Literal["cash", "mtn", "bank"]
 
 
@@ -59,6 +61,7 @@ class IncomeIn(BaseModel):
     payer: str | None = Field(None, max_length=150)
     reference: str | None = Field(None, max_length=100)
     notes: str | None = Field(None, max_length=2000)
+    scope: Scope = "rwanda"
 
     @field_validator("title", "payer", "reference", "notes")
     @classmethod
@@ -75,11 +78,25 @@ class IncomeUpdate(BaseModel):
     payer: str | None = Field(None, max_length=150)
     reference: str | None = Field(None, max_length=100)
     notes: str | None = Field(None, max_length=2000)
+    scope: Scope | None = None
 
     @field_validator("title", "payer", "reference", "notes")
     @classmethod
     def tidy(cls, v: str | None) -> str | None:
         return _clean(v)
+
+
+def _abroad(scope: str | None) -> str | None:
+    """Stored as "abroad" or empty (Rwanda), like Expense.scope."""
+    return "abroad" if scope == "abroad" else None
+
+
+def _in_scope(q, scope: str | None):
+    if not scope:
+        return q
+    if scope == "abroad":
+        return q.filter(Income.scope == "abroad")
+    return q.filter((Income.scope.is_(None)) | (Income.scope != "abroad"))
 
 
 def _fmt(i: Income) -> dict:
@@ -94,6 +111,7 @@ def _fmt(i: Income) -> dict:
         "reference": i.reference,
         "notes": i.notes,
         "has_proof": bool(i.proof_data),
+        "scope": "abroad" if i.scope == "abroad" else "rwanda",
         "created_at": i.created_at.isoformat() if i.created_at else None,
     }
 
@@ -123,6 +141,7 @@ def list_incomes(
     source: Source | None = None,
     from_date: str | None = None,
     to_date: str | None = None,
+    scope: Scope | None = None,
     db: Session = Depends(get_db),
     user: dict = Depends(require_expense_access),
 ):
@@ -132,6 +151,7 @@ def list_incomes(
     q = db.query(Income).filter(Income.shop_id == user["shop_id"])
     if source:
         q = q.filter(Income.source == source)
+    q = _in_scope(q, scope)
     q = _period(q, Income.income_date, from_date, to_date).order_by(Income.income_date.desc(), Income.created_at.desc())
     total = q.count()
     items = q.offset((max(page, 1) - 1) * limit).limit(limit).all()
@@ -148,11 +168,12 @@ def income_summary(
     db: Session = Depends(get_db),
     user: dict = Depends(require_expense_totals),
 ):
-    empty = {"total_income": 0.0, "count": 0, "from_expenses": 0.0, "from_expenses_count": 0}
+    empty = {"total_income": 0.0, "count": 0, "from_expenses": 0.0, "from_expenses_count": 0, "abroad": 0.0, "rwanda": 0.0}
     if not user["shop_id"]:
         return {"success": True, "data": empty}
     q = _period(db.query(Income).filter(Income.shop_id == user["shop_id"]), Income.income_date, from_date, to_date)
     row = q.with_entities(func.coalesce(func.sum(Income.amount), 0), func.count(Income.id)).one()
+    abroad = _in_scope(q, "abroad").with_entities(func.coalesce(func.sum(Income.amount), 0)).scalar() or 0
     e = _period(db.query(Expense).filter(Expense.shop_id == user["shop_id"], Expense.direction == "in"),
                 Expense.expense_date, from_date, to_date)
     erow = e.with_entities(func.coalesce(func.sum(Expense.amount), 0), func.count(Expense.id)).one()
@@ -162,6 +183,9 @@ def income_summary(
         "count": int(row[1]),
         "from_expenses": float(erow[0]),
         "from_expenses_count": int(erow[1]),
+        # Recorded here, in two parts (money received kept in Expenses counts as Rwanda).
+        "abroad": float(abroad),
+        "rwanda": float(row[0]) - float(abroad),
     }}
 
 
@@ -184,7 +208,9 @@ def income_by_source(
 def create_income(payload: IncomeIn, db: Session = Depends(get_db), user: dict = Depends(require_expense_access)):
     if not user["shop_id"]:
         raise HTTPException(status_code=400, detail="You need a business before recording income")
-    i = Income(shop_id=user["shop_id"], created_by=str(user["user_id"]), **payload.model_dump())
+    data = payload.model_dump()
+    data["scope"] = _abroad(data.get("scope"))
+    i = Income(shop_id=user["shop_id"], created_by=str(user["user_id"]), **data)
     db.add(i)
     db.commit()
     db.refresh(i)
@@ -198,6 +224,8 @@ def update_income(income_id: str, payload: IncomeUpdate, db: Session = Depends(g
     for k in ("title", "amount", "income_date", "source"):
         if k in data and data[k] is None:
             raise HTTPException(status_code=422, detail=f"{k} can't be empty")
+    if "scope" in data:
+        data["scope"] = _abroad(data["scope"])
     for k, v in data.items():
         setattr(i, k, v)
     db.commit()
@@ -272,7 +300,7 @@ def _snapshot_expense(e: Expense) -> str:
         "id": e.id, "title": e.title, "category": getattr(e.category, "value", e.category), "amount": str(e.amount),
         "expense_date": _iso(e.expense_date), "payment_method": e.payment_method, "bank_name": e.bank_name,
         "bank_account": e.bank_account, "receiver_phone": e.receiver_phone, "notes": e.notes,
-        "direction": e.direction, "has_proof": bool(e.proof_data), "created_by": e.created_by, "created_at": _iso(e.created_at),
+        "direction": e.direction, "scope": e.scope or "rwanda", "has_proof": bool(e.proof_data), "created_by": e.created_by, "created_at": _iso(e.created_at),
     })
 
 
@@ -280,7 +308,7 @@ def _snapshot_income(i: Income) -> str:
     return json.dumps({
         "id": i.id, "title": i.title, "source": i.source, "amount": str(i.amount), "income_date": _iso(i.income_date),
         "payment_method": i.payment_method, "payer": i.payer, "reference": i.reference, "notes": i.notes,
-        "has_proof": bool(i.proof_data), "created_by": i.created_by, "created_at": _iso(i.created_at),
+        "has_proof": bool(i.proof_data), "scope": i.scope or "rwanda", "created_by": i.created_by, "created_at": _iso(i.created_at),
     })
 
 
@@ -336,7 +364,7 @@ def expense_to_income(expense_id: str, payload: ToIncome, db: Session = Depends(
         reference=(e.bank_account or None) and e.bank_account[:100],
         notes=_join(e.notes, f"Bank: {e.bank_name}" if e.bank_name else None,
                     f"Phone: {e.receiver_phone}" if e.receiver_phone else None),
-        proof_data=e.proof_data,
+        proof_data=e.proof_data, scope=e.scope,
     )
     db.add(i)
     db.flush()
@@ -363,7 +391,7 @@ def income_to_expense(income_id: str, payload: ToExpense, db: Session = Depends(
         bank_account=i.reference if method == "bank" else None,
         notes=_join(i.notes, f"Paid by: {i.payer}" if i.payer else None,
                     f"Ref: {i.reference}" if i.reference and method != "bank" else None),
-        proof_data=i.proof_data,
+        proof_data=i.proof_data, scope=i.scope,
     )
     db.add(e)
     db.flush()

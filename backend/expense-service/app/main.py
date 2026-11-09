@@ -66,6 +66,8 @@ def on_startup():
                 "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS receiver_phone TEXT",
                 "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS direction VARCHAR(3)",
                 "ALTER TABLE incomes ADD COLUMN IF NOT EXISTS proof_data TEXT",
+                "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS scope VARCHAR(10)",
+                "ALTER TABLE incomes ADD COLUMN IF NOT EXISTS scope VARCHAR(10)",
                 # Pay slip details
                 "ALTER TABLE payroll_employees ADD COLUMN IF NOT EXISTS bank_name VARCHAR(100)",
                 "ALTER TABLE payroll_employees ADD COLUMN IF NOT EXISTS bank_account VARCHAR(60)",

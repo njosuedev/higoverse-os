@@ -60,6 +60,8 @@ export default function ReportsPage() {
   const [recentPurchases, setRecentPurchases] = useState<PurchaseRecord[]>([]);
   const [purchaseTotalSpent, setPurchaseTotalSpent] = useState(0);
   const [expenseTotalPeriod, setExpenseTotalPeriod] = useState(0);
+  // Car importers: spending abroad (before the cars reach Rwanda) and in Rwanda.
+  const [expenseSplit, setExpenseSplit] = useState({ abroad: 0, rwanda: 0 });
   // Income outside sales (Income page, Rentals): lib/income.ts.
   const [otherIncome, setOtherIncome] = useState<IncomeTotals | null>(null);
   const [expenseCount, setExpenseCount] = useState(0);
@@ -127,6 +129,7 @@ export default function ReportsPage() {
       if (expenseRes.status === "fulfilled") {
         const expData = expenseRes.value?.data ?? {};
         setExpenseTotalPeriod(expData.total_expenses ?? 0);
+        setExpenseSplit({ abroad: Number(expData.abroad) || 0, rwanda: Number(expData.rwanda ?? expData.total_expenses) || 0 });
         setExpenseCount(expData.count ?? 0);
       }
 
@@ -277,6 +280,27 @@ export default function ReportsPage() {
               detail={`${fmtNum(summary.total_products)} ${t("reports.products_word")} · ${summary.low_stock + summary.out_of_stock} ${t("reports.need_restock_word")}`} />
           </div>
         )}
+
+        {/* ── CAR IMPORTERS: the real result inside Rwanda ───────────────────── */}
+        {summary && isCar && (expenseSplit.abroad > 0 || (otherIncome?.abroad ?? 0) > 0) && (() => {
+          const sales = summary.revenue + (otherIncome?.rentals ?? 0);
+          const inRwanda = sales + (otherIncome?.rwanda ?? 0) - expenseSplit.rwanda;
+          const abroad = (otherIncome?.abroad ?? 0) - expenseSplit.abroad;
+          return (
+            <div className="rounded-xl border border-slate-200 bg-white p-3">
+              <p className="text-xs font-bold text-slate-700">{t("scope.report_title")}</p>
+              <p className="text-[11px] text-slate-500 mb-2">{t("scope.report_hint")}</p>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <Figure label={t("scope.abroad")} value={`${currency} ${fmtNum(expenseSplit.abroad)}`}
+                  detail={`${t("scope.spent")} · ${t("scope.received")} ${fmtNum(otherIncome?.abroad ?? 0)}`} />
+                <Figure label={t("scope.rwanda")} value={`${currency} ${fmtNum(expenseSplit.rwanda)}`}
+                  detail={`${t("scope.spent")} · ${t("scope.received")} ${fmtNum(otherIncome?.rwanda ?? 0)}`} />
+                <Figure label={t("scope.profit_rwanda")} value={`${currency} ${fmtNum(inRwanda)}`}
+                  detail={`${t("scope.overall")}: ${currency} ${fmtNum(inRwanda + abroad)}`} />
+              </div>
+            </div>
+          );
+        })()}
 
         {/* ── WEEKLY PERFORMANCE — 8 weeks, this week vs last ─────────────────── */}
         <WeeklyPerformance isCar={isCar} currency={currency} fmt={fmtRWF} />
