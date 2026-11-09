@@ -16,6 +16,7 @@ import { itemRequest } from "@/lib/product-api";
 import { loadCustomers, partnerRequest } from "@/lib/supplier-api";
 import { saleRequest } from "@/lib/sale-api";
 import { settingsRequest } from "@/lib/settings-api";
+import RentalPanel from "@/app/components/sales/RentalPanel";
 import ProformaPanel from "@/app/components/sales/ProformaPanel";
 import EbmReportsPanel from "@/app/components/ebm/EbmReportsPanel";
 import EbmStatusBar from "@/app/components/ebm/EbmStatusBar";
@@ -34,8 +35,7 @@ import { companySheet, getPrintShop, imageForPdf, pdfCompanyHeader, periodText }
 import {
   ShoppingBag, Filter, Plus, Trash2, Pencil, X, ReceiptText, Printer, Wallet, AlertCircle, CheckCircle2, Phone, ChevronDown, Download, Upload, FileSpreadsheet, FileText, RefreshCw, Search, Info,
   Landmark, Undo2, Loader2,
-  Lock,
-} from "lucide-react";
+  Lock, CarFront } from "lucide-react";
 import { askConfirm, notify } from "@/lib/dialogs";
 import { pageZoom } from "@/lib/page-zoom";
 
@@ -252,7 +252,8 @@ function SaleManagementPage() {
 
   // Sales | Proforma. A proforma (vehicles + customer) is approved first and
   // becomes sales once the customer decides to buy. /sales?tab=proforma
-  const [tab, setTab] = useState<"sales" | "proforma">("sales");
+  // Car companies also have Rentals (/sales?tab=rentals).
+  const [tab, setTab] = useState<"sales" | "proforma" | "rentals">("sales");
   const [proformaNew, setProformaNew] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -321,6 +322,7 @@ function SaleManagementPage() {
   // Dashboard "Record sale" and vehicle-card "Sell" links: /sales?new=1[&product=<id>]
   function handleDeepLink(params: URLSearchParams) {
     if (params.get("tab") === "proforma") { setTab("proforma"); return; }
+    if (params.get("tab") === "rentals" && isCar) { setTab("rentals"); return; }
     // The "+" at the top → New proforma: /sales?proforma=new
     if (params.get("proforma") === "new") { setTab("proforma"); setProformaNew(true); return; }
     setTab("sales");
@@ -916,7 +918,7 @@ function SaleManagementPage() {
         <DeepLink keys={["new", "product", "tab", "pay", "debt", "proforma"]} onParams={handleDeepLink} />
 
         <div role="tablist" className="flex gap-1 mb-2 bg-white border border-slate-200 rounded-xl p-1 w-full sm:w-fit">
-          {([["sales", ShoppingBag, t("nav.sales")], ["proforma", FileText, t("nav.proforma")]] as const).map(([k, Icon, label]) => (
+          {([["sales", ShoppingBag, t("nav.sales")], ["proforma", FileText, t("nav.proforma")], ...(isCar ? [["rentals", CarFront, t("rental.title")]] as const : [])] as const).map(([k, Icon, label]) => (
             <button key={k} role="tab" aria-selected={tab === k} onClick={() => setTab(k)}
               className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-semibold transition ${tab === k ? "text-white" : "text-slate-600 hover:bg-slate-50"}`}
               style={tab === k ? { background: "#0a66c2" } : undefined}>
@@ -928,6 +930,8 @@ function SaleManagementPage() {
         <div className={tab === "proforma" ? "" : "hidden"}>
           <ProformaPanel startNew={proformaNew} onSold={() => { setTab("sales"); loadData(true); loadDebts(); }} />
         </div>
+
+        {isCar && tab === "rentals" && <RentalPanel />}
 
         <div className={tab === "sales" ? "" : "hidden"}>
 
