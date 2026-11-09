@@ -418,6 +418,12 @@ export async function getTaxPayments(clientId: string): Promise<TaxPayment[]> {
   return res?.data ?? [];
 }
 
+/** What a client owes for a month: the expected fee, what's paid, what's left. */
+export async function getTaxPaymentBalance(clientId: string, period: string): Promise<{ period: string; expected: number; paid: number; left: number }> {
+  const res = await adminRequest(`/api/v1/admin/tax-payments/balance?client_id=${encodeURIComponent(clientId)}&period=${period}`);
+  return res.data;
+}
+
 export async function recordTaxPayment(p: Omit<TaxPayment, "id" | "created_by" | "created_at">): Promise<TaxPayment> {
   const res = await adminRequest("/api/v1/admin/tax-payments", { method: "POST", body: JSON.stringify(p) });
   return res.data;

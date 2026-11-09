@@ -8,7 +8,7 @@
 import { useEffect, useState } from "react";
 import { Loader2, Plus, Trash2, Wallet, X } from "lucide-react";
 import {
-  deleteTaxPayment, getTaxIncome, getTaxPayments, recordTaxPayment,
+  deleteTaxPayment, getTaxIncome, getTaxPaymentBalance, getTaxPayments, recordTaxPayment,
   type TaxClient, type TaxIncome as Income, type TaxPayment,
 } from "@/lib/admin-api";
 import AmountInput from "@/app/components/ui/AmountInput";
@@ -80,6 +80,21 @@ export function TaxPaymentsDialog({ client, period, expected, received, t, onClo
   });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // The chosen month: its fee, what's paid, what's left (a month is paid once).
+  const [bal, setBal] = useState<{ period: string; expected: number; paid: number; left: number } | null>(null);
+  const [balVersion, setBalVersion] = useState(0);
+  useEffect(() => {
+    let alive = true;
+    getTaxPaymentBalance(client.id, form.period).then((b) => {
+      if (!alive) return;
+      setBal(b);
+      // What's left is what usually comes in; more is refused.
+      setForm((f) => ({ ...f, amount: b.left > 0 ? String(b.left) : "" }));
+    }).catch(() => { if (alive) setBal(null); });
+    return () => { alive = false; };
+  }, [client.id, form.period, balVersion]);
+  const full = !!bal && bal.expected > 0 && bal.left <= 0;
+  const nothingDue = !!bal && bal.expected <= 0;
 
   async function load() {
     try { setRows(await getTaxPayments(client.id)); } catch (e) { setRows([]); setError(e instanceof Error ? e.message : t("admin.err_load")); }
@@ -89,18 +104,20 @@ export function TaxPaymentsDialog({ client, period, expected, received, t, onClo
   async function save() {
     const amount = Number(form.amount);
     if (!(amount > 0)) { setError(t("tinc.err_amount")); return; }
+    if (bal && amount > bal.left + 0.005) { setError(t("tinc.err_over").replace("{left}", money(bal.left))); return; }
     setBusy(true); setError(null);
     try {
       await recordTaxPayment({ client_id: client.id, period: form.period, amount, paid_on: form.paid_on, method: form.method || null,
         reference: form.reference || null, notes: form.notes || null });
       setForm((f) => ({ ...f, amount: "", reference: "", notes: "" }));
+      setBalVersion((v) => v + 1);
       await load(); onChanged();
     } catch (e) { setError(e instanceof Error ? e.message : t("common.error")); }
     finally { setBusy(false); }
   }
   async function remove(id: string) {
     setBusy(true);
-    try { await deleteTaxPayment(id); await load(); onChanged(); }
+    try { await deleteTaxPayment(id); setBalVersion((v) => v + 1); await load(); onChanged(); }
     catch (e) { setError(e instanceof Error ? e.message : t("common.error")); }
     finally { setBusy(false); }
   }
@@ -131,8 +148,15 @@ export function TaxPaymentsDialog({ client, period, expected, received, t, onClo
               <option value="mtn">MTN MoMo</option><option value="bank">Bank</option><option value="cash">Cash</option><option value="">-</option>
             </select>)}
             <div className="col-span-2">{label("tinc.reference", <input className={input} value={form.reference} onChange={(e) => setForm({ ...form, reference: e.target.value })} />)}</div>
+            {bal && (
+              <p className={`col-span-2 rounded-lg px-3 py-2 text-xs ${full ? "bg-emerald-50 text-emerald-800" : nothingDue ? "bg-slate-50 text-slate-600" : "bg-blue-50 text-blue-800"}`}>
+                {nothingDue ? t("tinc.nothing_due")
+                  : full ? t("tinc.month_paid").replace("{paid}", money(bal.paid))
+                  : `${t("tinc.expected")} ${money(bal.expected)} · ${t("tinc.st_paid")} ${money(bal.paid)} · ${t("tinc.left")} ${money(bal.left)} Rwf`}
+              </p>
+            )}
             <div className="col-span-2 flex justify-end">
-              <button onClick={() => void save()} disabled={busy}
+              <button onClick={() => void save()} disabled={busy || full || nothingDue}
                 className="flex items-center gap-1.5 rounded-lg bg-[#057642] px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50">
                 {busy ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />} {t("tinc.record")}
               </button>

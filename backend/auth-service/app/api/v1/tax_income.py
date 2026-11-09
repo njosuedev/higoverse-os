@@ -6,8 +6,13 @@ deleting a payment is noted in the admin activity log.
 GET    /tax-income?period=YYYY-MM&months=6   the month's figures, each
                                              client's, and the months before
 GET    /tax-payments?client_id=              a client's payments, newest first
+GET    /tax-payments/balance?client_id=&period=   expected, paid and left for a month
 POST   /tax-payments
 DELETE /tax-payments/{id}
+
+A month can't be paid for more than once: a payment is refused when it
+would take the month's total over the fee expected for it (and when no
+contract had started by then), so what is received stays accurate.
 """
 import uuid as _uuid
 from datetime import date
@@ -128,6 +133,27 @@ def income(period: Optional[str] = None, months: int = 6, db: Session = Depends(
     }}
 
 
+def _balance(db: Session, client_id, period: str) -> dict:
+    """What [client_id] owes for [period]: the fee of their latest contract
+    started by the end of the month, what is already paid, and what's left."""
+    end = _month_end(period)
+    c = db.query(TaxContract).filter(TaxContract.client_id == client_id, TaxContract.start_date <= end) \
+        .order_by(TaxContract.start_date.desc(), TaxContract.created_at.desc()).first()
+    expected = float(c.monthly_fee) if c else 0.0
+    paid = float(db.query(func.coalesce(func.sum(TaxPayment.amount), 0))
+                 .filter(TaxPayment.client_id == client_id, TaxPayment.period == period).scalar() or 0)
+    return {"period": period, "expected": expected, "paid": paid, "left": max(0.0, round(expected - paid, 2))}
+
+
+@router.get("/tax-payments/balance")
+def balance(client_id: str, period: str, db: Session = Depends(get_db), _: User = Depends(require_admin)):
+    try:
+        cid = _uuid.UUID(client_id)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Client not found")
+    return {"success": True, "data": _balance(db, cid, _period(period))}
+
+
 @router.get("/tax-payments")
 def payments(client_id: Optional[str] = None, db: Session = Depends(get_db), _: User = Depends(require_admin)):
     q = db.query(TaxPayment)
@@ -149,7 +175,17 @@ def record_payment(body: PaymentIn, db: Session = Depends(get_db), admin: User =
     client = db.query(TaxClient).filter(TaxClient.id == cid).first()
     if not client:
         raise HTTPException(status_code=404, detail="Client not found")
-    p = TaxPayment(client_id=cid, period=_period(body.period), amount=body.amount, paid_on=body.paid_on,
+    period = _period(body.period)
+    # Lock the client's row so two payments sent at once can't both pass the check.
+    db.query(TaxClient).filter(TaxClient.id == cid).with_for_update().first()
+    bal = _balance(db, cid, period)
+    if bal["expected"] <= 0:
+        raise HTTPException(status_code=409, detail=f"No contract had started for {period}: nothing is owed for that month.")
+    if float(body.amount) > bal["left"] + 0.005:
+        if bal["left"] <= 0:
+            raise HTTPException(status_code=409, detail=f"{period} is already paid in full ({bal['paid']:,.0f} of {bal['expected']:,.0f} Rwf).")
+        raise HTTPException(status_code=409, detail=f"Only {bal['left']:,.0f} Rwf is left to pay for {period} ({bal['paid']:,.0f} of {bal['expected']:,.0f} already paid).")
+    p = TaxPayment(client_id=cid, period=period, amount=body.amount, paid_on=body.paid_on,
                    method=body.method, reference=body.reference, notes=body.notes, created_by=admin.email)
     db.add(p)
     db.flush()
