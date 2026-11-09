@@ -10,8 +10,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import {
   BarChart3, CalendarCheck, ChevronRight, CircleDollarSign, Download, FileText, HandCoins, Languages, LogOut, Monitor, Moon, Receipt,
-  Settings, ShieldCheck, Store, Sun, Truck, TriangleAlert, Users, UsersRound, Wallet,
-} from "lucide-react";
+  Settings, ShieldCheck, Store, Sun, Truck, TriangleAlert, Users, UsersRound, Wallet, TrendingUp } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { useLanguage } from "@/lib/language-context";
 import { useShop } from "@/lib/shop-context";
@@ -78,6 +77,7 @@ export default function MobileBusiness() {
         <Row icon={<Wallet size={20} />} title={t("debts.title")} sub={t("acc.debts_sub")} href="/sales?view=debts" />
         <Row icon={<UsersRound size={20} />} title={t("team.title")} sub={t("team.menu_sub")} href="/team" />
         {expenses && <Row icon={<Receipt size={20} />} title={t("exp.title")} sub={t("exp.menu_sub")} href="/expenses" />}
+        {expenses && <Row icon={<TrendingUp size={20} />} title={t("income.title")} sub={t("income.menu_sub")} href="/income" />}
       </Group>
 
       {/* The website's sections the app doesn't have */}

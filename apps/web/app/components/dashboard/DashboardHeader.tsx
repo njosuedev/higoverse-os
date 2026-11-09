@@ -14,8 +14,7 @@ import { Sun, Moon, Monitor,
   Home, Package, Truck, ShoppingCart, BarChart3,
   Users, ChevronDown, Receipt,
   Settings, LogOut, Globe,
-  MessageCircle, Search, UsersRound, HandCoins, CalendarCheck,
-} from "lucide-react";
+  MessageCircle, Search, UsersRound, HandCoins, CalendarCheck, TrendingUp } from "lucide-react";
 import {
   House, Package as PackageTab, Car, ChatCircleDots, Receipt as ReceiptTab, Storefront, type Icon as PhosphorIcon,
 } from "@phosphor-icons/react";
@@ -40,6 +39,7 @@ const BUSINESS_MENUS: NavItem[] = [
   { key: "nav.sales",     href: "/sales",     icon: ShoppingCart },
   { key: "nav.messages",  href: "/messages",  icon: MessageCircle },
   { key: "nav.expenses",  href: "/expenses",  icon: Receipt      },
+  { key: "nav.income",    href: "/income",    icon: TrendingUp   },
   { key: "nav.reports",   href: "/reports",   icon: BarChart3    },
   { key: "nav.payroll",   href: "/payroll",   icon: HandCoins    },
 ];
@@ -123,7 +123,7 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
     // Messages and Stories are for car companies only.
     .filter((m) => layout === "car" || m.href !== "/messages")
     .filter((m) => m.href !== "/reports" || canSeeFinancials)
-    .filter((m) => m.href !== "/expenses" || canUseExpenses)
+    .filter((m) => (m.href !== "/expenses" && m.href !== "/income") || canUseExpenses)
     // Payroll: the owner, managers and the accountant.
     .filter((m) => m.href !== "/payroll" || PAYROLL_ROLES.includes(user?.role ?? ""));
 
@@ -457,7 +457,7 @@ function TopLink({ menu, pathname, t }: { menu: NavItem; pathname: string; t: (k
 
 /** Sidebar pages, by section. */
 const BUSINESS_SIDE = ["/purchases", "/messages"];
-const FINANCE_SIDE = ["/expenses", "/reports"];
+const FINANCE_SIDE = ["/expenses", "/income", "/reports"];
 
 /** A sidebar section: its name on computers, a thin line on tablets. */
 function SideGroup({ label, first = false, children }: { label: string; first?: boolean; children: React.ReactNode }) {

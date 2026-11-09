@@ -14,8 +14,7 @@ import { useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
 import {
   BarChart3, Car, CornerDownLeft, FileText, Home, MessageCircle, Package, Plus, Receipt, Search, Settings, ShoppingCart, Truck, User, Users, HandCoins, X,
-  History, ScanBarcode, Wallet, CalendarCheck,
-} from "lucide-react";
+  History, ScanBarcode, Wallet, CalendarCheck, TrendingUp } from "lucide-react";
 import { listProformas } from "@/lib/proforma-api";
 import { useAuth } from "@/lib/auth-context";
 import { PAYROLL_ROLES } from "@/lib/payroll-api";
@@ -109,6 +108,7 @@ export default function GlobalSearch() {
     ] : []),
     ...(fin ? [
       { key: "p-exp", group: "search.pages", title: t("nav.expenses"), icon: Receipt, href: "/expenses" },
+      { key: "p-inc", group: "search.pages", title: t("income.title"), icon: TrendingUp, href: "/income" },
       { key: "p-rep", group: "search.pages", title: t("nav.reports"), icon: BarChart3, href: "/reports" },
     ] : []),
     { key: "p-set", group: "search.pages", title: t("nav.settings"), icon: Settings, href: "/settings" },

@@ -9,6 +9,7 @@ import StockAlertCircles from "@/app/components/dashboard/StockAlertCircles";
 import { useAutoRefresh } from "@/lib/hooks";
 import { itemRequest } from "@/lib/product-api";
 import { purchaseRequest } from "@/lib/purchase-api";
+import { incomeTotals, type IncomeTotals } from "@/lib/income";
 import { expenseRequest } from "@/lib/expense-api";
 import { useLanguage } from "@/lib/language-context";
 import { useShopSettings } from "@/lib/shop-settings-context";
@@ -59,6 +60,8 @@ export default function ReportsPage() {
   const [recentPurchases, setRecentPurchases] = useState<PurchaseRecord[]>([]);
   const [purchaseTotalSpent, setPurchaseTotalSpent] = useState(0);
   const [expenseTotalPeriod, setExpenseTotalPeriod] = useState(0);
+  // Income outside sales (Income page, Rentals): lib/income.ts.
+  const [otherIncome, setOtherIncome] = useState<IncomeTotals | null>(null);
   const [expenseCount, setExpenseCount] = useState(0);
   const [stockRetail, setStockRetail] = useState(0); // selling_price × qty (retail value)
   const [loading, setLoading]   = useState(true);
@@ -96,6 +99,7 @@ export default function ReportsPage() {
         purchaseRequest(`/purchases?${purchaseParams}`),
         expenseRequest(`/expenses/summary?${dateParams}`),
       ]);
+      incomeTotals(dateFrom || undefined, dateTo || undefined, isCar).then(setOtherIncome).catch(() => setOtherIncome(null));
 
       // Products from inventory service — compute stock metrics locally
       const products: Product[] = productsRes.status === "fulfilled"
@@ -259,13 +263,15 @@ export default function ReportsPage() {
 
         {/* ── KEY FIGURES — one plain row, no profit ───────────────────────── */}
         {summary && (
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-2">
             <Figure label={t("dash.chart_sales")} value={`${currency} ${fmtNum(summary.revenue)}`}
               detail={`${fmtNum(summary.sales_count)} ${t("reports.sales_word")}`} />
             <Figure label={t("reports.items_sold")} value={fmtNum(summary.items_sold)}
               detail={`${t("reports.to_word")} ${summary.unique_customers} ${t("reports.customers_word")}`} />
             <Figure label={t("dash.chart_expenses")} value={`${currency} ${fmtNum(expenseTotalPeriod)}`}
               detail={`${expenseCount} ${t("reports.records_this_period")}`} />
+            <Figure label={t("income.other_income")} value={`${currency} ${fmtNum(otherIncome?.total ?? 0)}`}
+              detail={`${t("income.net_after")}: ${currency} ${fmtNum(summary.revenue + (otherIncome?.total ?? 0) - expenseTotalPeriod)}`} />
             <Figure label={t("reports.stock_value")} value={`${currency} ${fmtNum(stockRetail)}`}
               detail={`${fmtNum(summary.total_products)} ${t("reports.products_word")} · ${summary.low_stock + summary.out_of_stock} ${t("reports.need_restock_word")}`} />
           </div>

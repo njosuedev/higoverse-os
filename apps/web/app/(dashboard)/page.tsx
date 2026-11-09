@@ -10,6 +10,7 @@ import { itemRequest } from "@/lib/product-api";
 import { partnerRequest } from "@/lib/supplier-api";
 import { saleRequest } from "@/lib/sale-api";
 import { reportRequest } from "@/lib/report-api";
+import { incomeTotals } from "@/lib/income";
 import { expenseRequest } from "@/lib/expense-api";
 import { purchaseRequest } from "@/lib/purchase-api";
 import { listShops, type Shop as ShopInfo } from "@/lib/shop-api";
@@ -162,6 +163,8 @@ function DesktopHome() {
   const [recentSales, setRecentSales] = useState<RecentSale[]>([]);
   const [yesterdayRevenue, setYesterdayRevenue] = useState(0);
   const [expenseToday, setExpenseToday] = useState({ total_expenses: 0, count: 0 });
+  // Income outside sales today (Income page, Rentals): lib/income.ts.
+  const [incomeToday, setIncomeToday] = useState(0);
   const [purchaseCostToday, setPurchaseCostToday] = useState(0);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [dataLoading, setDataLoading] = useState(true);
@@ -233,6 +236,7 @@ function DesktopHome() {
 
     // ── Phase 2: secondary data — loads in background ──────────────────────
     try {
+      incomeTotals(today, today, isCar).then((x) => setIncomeToday(x.total)).catch(() => setIncomeToday(0));
       const [productsRes, partnersRes, shopsRes, dailyRes, expenseRes, purchaseRes] = await Promise.allSettled([
         itemRequest("/products?page=1&limit=1"),
         partnerRequest("/suppliers?limit=50"),
@@ -345,7 +349,7 @@ function DesktopHome() {
   const revDeltaPct = yesterdayRevenue > 0
     ? Math.round(((stats.revenue - yesterdayRevenue) / yesterdayRevenue) * 100)
     : null;
-  const netProfit = stats.revenue - purchaseCostToday - expenseToday.total_expenses;
+  const netProfit = stats.revenue + incomeToday - purchaseCostToday - expenseToday.total_expenses;
   const totalCosts = purchaseCostToday + expenseToday.total_expenses;
   const purchasePct = stats.revenue > 0 ? Math.min(100, Math.round((purchaseCostToday / stats.revenue) * 100)) : 0;
   const expensePct  = stats.revenue > 0 ? Math.min(100 - purchasePct, Math.round((expenseToday.total_expenses / stats.revenue) * 100)) : 0;
@@ -438,6 +442,11 @@ function DesktopHome() {
               <p className="text-[11px] text-text-faint uppercase tracking-wide font-medium">{t("nav.purchases")}</p>
               <p className="hgv-figure text-lg font-semibold text-text mt-0.5">{purchaseCostToday > 0 ? fmtCurrency(purchaseCostToday) : "-"}</p>
               <p className="text-[11px] text-text-faint mt-0.5">{t("dash.stock_cost")}</p>
+            </div>}
+            {incomeToday > 0 && <div className="p-3">
+              <p className="text-[11px] text-text-faint uppercase tracking-wide font-medium">{t("income.title")}</p>
+              <p className="hgv-figure text-lg font-semibold text-success mt-0.5">{fmtCurrency(incomeToday)}</p>
+              <p className="text-[11px] text-text-faint mt-0.5">{t("income.other_income")}</p>
             </div>}
             <div className="p-3">
               <p className="text-[11px] text-text-faint uppercase tracking-wide font-medium">{t("nav.expenses")}</p>
