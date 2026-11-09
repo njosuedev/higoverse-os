@@ -37,3 +37,6 @@ class Expense(Base):
     bank_name        = Column(String, nullable=True)   # e.g. "BK Bank"
     bank_account     = Column(String, nullable=True)   # account number / reference
     receiver_phone   = Column(String, nullable=True)   # phone of money recipient
+    # "in": money received, recorded here by mistake or for the record; never
+    # counted as spending. Empty (older rows) or "out": money spent.
+    direction        = Column(String(3), nullable=True)

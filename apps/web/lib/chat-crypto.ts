@@ -12,10 +12,11 @@
 //   device) → HKDF-SHA256 (salt "hgv-chat-wrap-v1", info "<sender device
 //   id>|<device id>") → AES-256-GCM with its own random nonce, associated
 //   data = the message's nonce (base64).
-// - Photos: each file is encrypted on its own with a fresh random key and
-//   nonce (AES-256-GCM, associated data "hgv-chat-file-v1") and stored as an
-//   opaque blob; its id, key, nonce, size and tiny preview travel inside the
-//   encrypted message ("a" next to the text "t"), as WhatsApp does.
+// - Photos and documents: each file is encrypted on its own with a fresh
+//   random key and nonce (AES-256-GCM, associated data "hgv-chat-file-v1")
+//   and stored as an opaque blob; its id, key, nonce, tiny preview (photos)
+//   or name, type and size (documents) travel inside the encrypted message
+//   ("a" next to the text "t"), as WhatsApp does.
 
 const enc = new TextEncoder();
 const dec = new TextDecoder();
@@ -30,8 +31,12 @@ export const b64 = (b: ArrayBuffer | Uint8Array) => {
 export const unb64 = (s: string) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
 const random = (n: number) => crypto.getRandomValues(new Uint8Array(n));
 
-/** A photo inside a message: blob id, its key and nonce, size, tiny preview. */
-export interface FileRef { id: string; k: string; n: string; w?: number; h?: number; th?: string }
+/** A file inside a message: blob id, its key and nonce; a photo has a tiny
+ *  preview (th), a document has its name (nm), type (mt) and size in bytes (sz). */
+export interface FileRef { id: string; k: string; n: string; w?: number; h?: number; th?: string; nm?: string; mt?: string; sz?: number }
+
+/** A document (any file) rather than a photo. */
+export const isDoc = (f: FileRef) => typeof f.nm === "string";
 
 /** Encrypts a file with its own fresh key: the blob for the server, the key for the message. */
 export async function sealFile(bytes: Uint8Array<ArrayBuffer>): Promise<{ data: string; key: string; nonce: string }> {
@@ -157,7 +162,7 @@ export async function open(me: Device, m: Parameters<typeof openBody>[1]): Promi
   return (await openBody(me, m))?.text ?? null;
 }
 
-/** The text and photos of a message, or null when it can't be read here. */
+/** The text and files of a message, or null when it can't be read here. */
 export async function openBody(me: Device, m: {
   ciphertext: string; nonce: string; wrapped: string; wrapNonce: string;
   senderDeviceId: string; senderPublicKey: string; senderId: string; recipientId: string;

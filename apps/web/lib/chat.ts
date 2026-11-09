@@ -11,7 +11,7 @@ import { useSyncExternalStore } from "react";
 import { authFetch, refreshAccessToken } from "@/lib/session";
 import { getToken, getUser } from "@/lib/auth";
 import { AUTH_API, SALE_API } from "@/lib/api-config";
-import { loadDevice, openBody, openFile, seal, sealFile, securityCode, supported, unb64, type Device, type FileRef } from "@/lib/chat-crypto";
+import { isDoc, loadDevice, openBody, openFile, seal, sealFile, securityCode, supported, unb64, type Device, type FileRef } from "@/lib/chat-crypto";
 import { compressImage, shrinkDataUrl } from "@/lib/image";
 
 export interface Member { id: string; name: string; role: string; is_active: boolean; email?: string }
@@ -187,13 +187,66 @@ export function photoUrl(f: FileRef): Promise<string | null> {
 }
 
 export const MAX_PHOTOS = 4;
+export const MAX_DOCS = 4;
+/** Largest document, same as the mobile app (the server takes ~10 MB). */
+export const MAX_DOC_BYTES = 10 * 1024 * 1024;
 
-/** Sends [text] and up to 4 photos: each is resized like product photos
- *  (1280 px), encrypted with its own key and uploaded first; their keys go
- *  inside the encrypted message, as WhatsApp does. */
-export async function send(other: string, text: string, images: File[] = []) {
+/** A name safe to save under: no folders, no control characters, not too long. */
+export function cleanFileName(name: string) {
+  const n = name.replace(/[\\/:*?"<>|\u0000-\u001f]+/g, "_").replace(/^\.+/, "").trim();
+  if (n.length <= 120) return n || "file";
+  const dot = n.lastIndexOf(".");
+  const ext = dot > 0 && n.length - dot <= 10 ? n.slice(dot) : "";
+  return n.slice(0, 120 - ext.length) + ext;
+}
+
+const docBlobs = new Map<string, Promise<Blob | null>>();
+
+/** A message's document, fetched encrypted and opened here (kept for the session). */
+export function docBlob(f: FileRef): Promise<Blob | null> {
+  let p = docBlobs.get(f.id);
+  if (!p) {
+    p = (async () => {
+      try {
+        const d = (await chatApi(`/attachments/${f.id}`)) as { data: string };
+        const bytes = await openFile(d.data, f.k, f.n);
+        // Typed for the download only; never shown inside the page.
+        return bytes ? new Blob([bytes as BlobPart], { type: f.mt || "application/octet-stream" }) : null;
+      } catch {
+        docBlobs.delete(f.id);
+        return null;
+      }
+    })();
+    docBlobs.set(f.id, p);
+  }
+  return p;
+}
+
+/** Saves a message's document to this computer under its own name. */
+export async function downloadDoc(f: FileRef): Promise<boolean> {
+  const blob = await docBlob(f);
+  if (!blob) return false;
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = cleanFileName(f.nm ?? "file");
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  return true;
+}
+
+/** Sends [text], up to 4 photos and up to 4 documents: photos are resized
+ *  like product photos (1280 px); every file is encrypted with its own key
+ *  and uploaded first; their keys (and a document's name) go inside the
+ *  encrypted message, as WhatsApp does. */
+export async function send(other: string, text: string, images: File[] = [], docs: File[] = []) {
   const clean = text.trim();
-  if ((!clean && images.length === 0) || !device) return;
+  if ((!clean && images.length === 0 && docs.length === 0) || !device) return;
+  const big = docs.find((d) => d.size > MAX_DOC_BYTES);
+  if (big) throw new Error(`${big.name}: max ${MAX_DOC_BYTES / 1024 / 1024} MB`);
+  const docList = docs.slice(0, MAX_DOCS);
   const prepared = await Promise.all(images.slice(0, MAX_PHOTOS).map(async (file) => {
     const photo = await compressImage(file, 1280, 0.78);
     return { photo, tiny: await shrinkDataUrl(photo, 40, 0.5).catch(() => "") };
@@ -202,6 +255,11 @@ export async function send(other: string, text: string, images: File[] = []) {
     const id = `local-${Date.now()}-${i}`;
     photoUrls.set(id, Promise.resolve(p.photo));
     return { id, k: "", n: "", th: p.tiny || undefined };
+  });
+  docList.forEach((d, i) => {
+    const id = `local-${Date.now()}-d${i}`;
+    docBlobs.set(id, Promise.resolve(d));
+    localRefs.push({ id, k: "", n: "", nm: cleanFileName(d.name), mt: d.type || undefined, sz: d.size });
   });
   const temp: Msg = { id: `tmp-${Date.now()}`, from: state.me, to: other, text: clean, at: new Date().toISOString(), readAt: null, pending: true, files: localRefs };
   merge(other, [temp]);
@@ -213,6 +271,12 @@ export async function send(other: string, text: string, images: File[] = []) {
       const up = (await chatApi("/attachments", { method: "POST", body: JSON.stringify({ data: sf.data }) })) as { id: string };
       photoUrls.set(up.id, Promise.resolve(p.photo));
       files.push({ id: up.id, k: sf.key, n: sf.nonce, ...(p.tiny ? { th: p.tiny } : {}) });
+    }
+    for (const d of docList) {
+      const sf = await sealFile(new Uint8Array(await d.arrayBuffer()));
+      const up = (await chatApi("/attachments", { method: "POST", body: JSON.stringify({ data: sf.data }) })) as { id: string };
+      docBlobs.set(up.id, Promise.resolve(d));
+      files.push({ id: up.id, k: sf.key, n: sf.nonce, nm: cleanFileName(d.name), ...(d.type ? { mt: d.type } : {}), sz: d.size });
     }
     const sealed = await seal(device, clean, state.me, other, await devicesOf(other), files);
     const saved = (await chatApi("/messages", {
@@ -316,7 +380,7 @@ async function onMessage(raw: Raw) {
     } else {
       set({ unread: { ...state.unread, [other]: (state.unread[other] ?? 0) + 1 } });
       playChime();
-      notifyNew(other, m.text);
+      notifyNew(other, m.text || (m.files?.length ? (m.files.every(isDoc) ? `📄 ${m.files[0].nm}` : "📷") : null));
     }
   }
 }

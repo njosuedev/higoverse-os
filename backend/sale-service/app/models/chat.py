@@ -57,9 +57,10 @@ class ChatMessageKey(Base):
 
 
 class ChatAttachment(Base):
-    """A photo sent in Messages, encrypted on the sender's device with its
-    own random key (AES-256-GCM). The key travels inside the (encrypted)
-    message, so this row alone can't be read by anyone, the server included."""
+    """A photo or document sent in Messages, encrypted on the sender's device
+    with its own random key (AES-256-GCM). The key, file name and type travel
+    inside the (encrypted) message, so this row alone can't be read by
+    anyone, the server included."""
     __tablename__ = "chat_attachments"
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))

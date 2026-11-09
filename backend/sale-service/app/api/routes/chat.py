@@ -8,12 +8,12 @@ POST /chat/messages                    send (ciphertext + key per device)
 GET  /chat/messages?with=&device_id=   a conversation, newest first
 GET  /chat/conversations?device_id=    last message and unread count per person
 POST /chat/read                        mark a conversation read
-POST /chat/attachments                 store an encrypted photo  → its id
-GET  /chat/attachments/{id}            the encrypted photo (same business only)
+POST /chat/attachments                 store an encrypted photo or document → its id
+GET  /chat/attachments/{id}            the encrypted file (same business only)
 
 Live: "chat.message" and "chat.read" go only to the two people concerned.
 """
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
@@ -28,8 +28,15 @@ from app.models.chat import ChatAttachment, ChatDevice, ChatMessage, ChatMessage
 router = APIRouter(prefix="/chat", tags=["Messages"])
 
 _MAX_TEXT = 24_000   # base64 of a few thousand characters of text
-_MAX_KEYS = 24       # devices a message can be wrapped for
-_MAX_FILE = 4_000_000  # base64 of an encrypted photo (~3 MB; phones send ~300 KB)
+_MAX_KEYS = 64       # devices a message can be wrapped for
+# Devices a message is written for: the ones each person used lately. Every
+# browser, port or reinstall registers a new device and old ones are never
+# removed, so without this a message ends up wrapped for dozens of dead ones.
+_ACTIVE_DAYS = 60
+_DEVICES_PER_USER = 10
+# base64 of an encrypted file: documents up to 10 MB (photos are ~300 KB).
+# nginx allows 25 MB bodies (deploy/nginx-higoverse.conf).
+_MAX_FILE = 14_000_000
 
 
 class DeviceIn(BaseModel):
@@ -125,9 +132,20 @@ def register_device(payload: DeviceIn, db: Session = Depends(get_db), user: dict
 def list_devices(users: str = Query(..., max_length=2000), db: Session = Depends(get_db), user: dict = Depends(get_current_user)):
     shop = _shop(user)
     ids = [u for u in dict.fromkeys(x.strip() for x in users.split(",")) if u][:10]
-    rows = db.query(ChatDevice).filter(ChatDevice.shop_id == shop, ChatDevice.user_id.in_(ids)).all()
+    since = datetime.now(timezone.utc) - timedelta(days=_ACTIVE_DAYS)
+    rows = (db.query(ChatDevice)
+            .filter(ChatDevice.shop_id == shop, ChatDevice.user_id.in_(ids), ChatDevice.last_seen_at >= since)
+            .order_by(ChatDevice.last_seen_at.desc()).all())
+    # The newest few per person (the device asking is always among them: it
+    # was just seen when it opened Messages).
+    per_user: dict[str, int] = {}
+    keep = []
+    for d in rows:
+        per_user[d.user_id] = per_user.get(d.user_id, 0) + 1
+        if per_user[d.user_id] <= _DEVICES_PER_USER:
+            keep.append(d)
     return {"success": True, "data": [
-        {"id": d.id, "user_id": d.user_id, "public_key": d.public_key, "label": d.label} for d in rows
+        {"id": d.id, "user_id": d.user_id, "public_key": d.public_key, "label": d.label} for d in keep
     ]}
 
 
@@ -235,5 +253,5 @@ def upload_attachment(payload: AttachmentIn, db: Session = Depends(get_db), user
 def get_attachment(attachment_id: str, db: Session = Depends(get_db), user: dict = Depends(get_current_user)):
     a = db.query(ChatAttachment).filter(ChatAttachment.id == attachment_id, ChatAttachment.shop_id == _shop(user)).first()
     if not a:
-        raise HTTPException(status_code=404, detail="Photo not found.")
+        raise HTTPException(status_code=404, detail="File not found.")
     return {"success": True, "data": {"id": a.id, "data": a.data}}

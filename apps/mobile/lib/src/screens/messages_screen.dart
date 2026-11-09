@@ -135,7 +135,7 @@ class _PersonRow extends StatelessWidget {
             if (last.from == chat.me) t('chat.you'),
             last.text == null
                 ? t('chat.locked')
-                : (last.text!.isEmpty && last.files.isNotEmpty ? '📷 ${t('chat.photo_msg')}' : last.text!),
+                : (last.text!.isEmpty && last.files.isNotEmpty ? _filesLabel(t, last.files) : last.text!),
           ].join(': ');
     return InkWell(
       onTap: () => pushScoped<void>(context, ChatScreen(member: member)),
@@ -172,4 +172,11 @@ class _PersonRow extends StatelessWidget {
       ),
     );
   }
+}
+
+/// The list's preview of a message with files and no text.
+String _filesLabel(T t, List<Map<String, dynamic>> files) {
+  final docs = files.where(isDoc).toList();
+  if (docs.length != files.length) return '📷 ${t('chat.photo_msg')}';
+  return docs.length == 1 ? '📄 ${docs.first['nm']}' : '📄 ${docs.length} ${t('chat.files')}';
 }

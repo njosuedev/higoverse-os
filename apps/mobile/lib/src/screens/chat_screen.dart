@@ -2,10 +2,12 @@ import 'dart:convert';
 import 'dart:ui' as ui;
 
 import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:phosphor_icons/phosphor_icons.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../car_photos.dart';
 import '../chat/chat_service.dart';
@@ -20,8 +22,8 @@ import 'messages_screen.dart';
 
 /// One conversation: bubbles by day (mine on the right in blue), ✓ sent,
 /// ✓✓ read, older ones as you scroll up, and the security code behind the
-/// shield to check nobody is in the middle. Photos (up to 4 a message,
-/// encrypted like the text) and emojis: the smiley swaps the keyboard for
+/// shield to check nobody is in the middle. Photos and documents (up to 4
+/// of each a message, encrypted like the text) and emojis: the smiley swaps the keyboard for
 /// the emoji picker (categories, search, recent), as WhatsApp does.
 class ChatScreen extends StatefulWidget {
   const ChatScreen({super.key, required this.member});
@@ -40,6 +42,9 @@ class _ChatScreenState extends State<ChatScreen> {
   /// Photos chosen for the next message (up to 4).
   final List<CarPhoto> _photos = [];
   static const _maxPhotos = 4;
+
+  /// Documents chosen for the next message (up to 4, 10 MB each).
+  final List<ChatDoc> _docs = [];
   late ChatService _chat;
   bool _more = true, _loading = false, _sending = false, _started = false;
 
@@ -84,20 +89,25 @@ class _ChatScreenState extends State<ChatScreen> {
   Future<void> _send() async {
     final text = _text.text;
     final photos = List<CarPhoto>.of(_photos);
-    if ((text.trim().isEmpty && photos.isEmpty) || _sending) return;
+    final docs = List<ChatDoc>.of(_docs);
+    if ((text.trim().isEmpty && photos.isEmpty && docs.isEmpty) || _sending) return;
     setState(() {
       _sending = true;
       _photos.clear();
+      _docs.clear();
     });
     _text.clear();
     try {
-      await _chat.send(_with, text, photos: photos);
+      await _chat.send(_with, text, photos: photos, docs: docs);
       HapticFeedback.selectionClick();
     } catch (e) {
       // The chat may have been closed while the photos uploaded.
       if (!mounted) return;
       _text.text = text;
-      setState(() => _photos.addAll(photos));
+      setState(() {
+        _photos.addAll(photos);
+        _docs.addAll(docs);
+      });
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(errorText(T.of(context), e))));
     } finally {
       if (mounted) setState(() => _sending = false);
@@ -117,6 +127,60 @@ class _ChatScreenState extends State<ChatScreen> {
     } finally {
       if (mounted) setState(() => _picking = false);
     }
+  }
+
+  Future<void> _attachFile() async {
+    final t = T.of(context);
+    final room = maxDocs - _docs.length;
+    if (_picking || room <= 0) return;
+    setState(() => _picking = true);
+    try {
+      final res = await FilePicker.platform.pickFiles(allowMultiple: true, withData: true);
+      if (res == null || !mounted) return;
+      final big = res.files.where((f) => f.size > maxDocBytes).firstOrNull;
+      if (big != null) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(t('chat.file_too_big', {'name': big.name}))));
+      }
+      final ok = [
+        for (final f in res.files)
+          if (f.bytes != null && f.bytes!.isNotEmpty && f.size <= maxDocBytes) (name: f.name, type: _typeOf(f.name), bytes: f.bytes!),
+      ];
+      if (ok.length > room) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(t('chat.files_max', {'n': '$maxDocs'}))));
+      }
+      setState(() => _docs.addAll(ok.take(room)));
+    } catch (_) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(t('chat.file_failed'))));
+    } finally {
+      if (mounted) setState(() => _picking = false);
+    }
+  }
+
+  /// Photo or document: asked like WhatsApp's paperclip.
+  Future<void> _attachMenu() async {
+    final t = T.of(context);
+    final pick = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          ListTile(
+            enabled: _photos.length < _maxPhotos,
+            leading: const Icon(PhosphorIconsRegular.image),
+            title: Text(t('chat.photo')),
+            onTap: () => Navigator.pop(ctx, 'photo'),
+          ),
+          ListTile(
+            enabled: _docs.length < maxDocs,
+            leading: const Icon(PhosphorIconsRegular.fileText),
+            title: Text(t('chat.file')),
+            onTap: () => Navigator.pop(ctx, 'file'),
+          ),
+        ]),
+      ),
+    );
+    if (pick == 'photo') await _attach();
+    if (pick == 'file') await _attachFile();
   }
 
   void _toggleEmoji() {
@@ -219,6 +283,22 @@ class _ChatScreenState extends State<ChatScreen> {
             },
           ),
         ),
+        if (_docs.isNotEmpty)
+          Container(
+            color: c.chrome,
+            padding: const EdgeInsets.fromLTRB(10, 8, 10, 0),
+            child: Wrap(spacing: 8, runSpacing: 6, children: [
+              for (var i = 0; i < _docs.length; i++)
+                InputChip(
+                  avatar: Icon(PhosphorIconsRegular.fileText, size: 18, color: c.ink),
+                  label: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 180),
+                    child: Text('${_docs[i].name} · ${fileSize(_docs[i].bytes.length)}', overflow: TextOverflow.ellipsis),
+                  ),
+                  onDeleted: () => setState(() => _docs.removeAt(i)),
+                ),
+            ]),
+          ),
         if (_photos.isNotEmpty)
           Container(
             height: 86,
@@ -283,11 +363,11 @@ class _ChatScreenState extends State<ChatScreen> {
                     fillColor: c.paper,
                     contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                     suffixIcon: IconButton(
-                      tooltip: t('chat.photo'),
-                      onPressed: _photos.length < _maxPhotos && !_picking ? _attach : null,
+                      tooltip: t('chat.file'),
+                      onPressed: (_photos.length < _maxPhotos || _docs.length < maxDocs) && !_picking ? _attachMenu : null,
                       icon: _picking
                           ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                          : Icon(PhosphorIconsRegular.image, color: c.muted),
+                          : Icon(PhosphorIconsRegular.paperclip, color: c.muted),
                     ),
                   ),
                 ),
@@ -387,10 +467,12 @@ class _Bubble extends StatelessWidget {
             ),
           ),
           child: Column(crossAxisAlignment: CrossAxisAlignment.end, mainAxisSize: MainAxisSize.min, children: [
-            if (m.files.isNotEmpty) ...[
-              _PhotoGrid(files: m.files),
-              if ((m.text ?? '').isNotEmpty) const SizedBox(height: 6),
+            if (m.files.any((f) => !isDoc(f))) ...[
+              _PhotoGrid(files: [for (final f in m.files) if (!isDoc(f)) f]),
+              if ((m.text ?? '').isNotEmpty || m.files.any(isDoc)) const SizedBox(height: 6),
             ],
+            for (final f in m.files.where(isDoc)) _DocTile(file: f, mine: mine, pending: m.pending),
+            if (m.files.any(isDoc) && (m.text ?? '').isNotEmpty) const SizedBox(height: 2),
             if (m.text != null && m.text!.isNotEmpty)
               SelectableText(m.text!, style: TextStyle(fontSize: 15, height: 1.3, color: fg))
             else if (m.text == null)
@@ -415,6 +497,119 @@ class _Bubble extends StatelessWidget {
               ],
             ]),
           ]),
+        ),
+      ),
+    );
+  }
+}
+
+/// 1.2 MB, 340 KB…
+String fileSize(num? n) {
+  if (n == null) return '';
+  if (n < 1024) return '$n B';
+  if (n < 1024 * 1024) return '${(n / 1024).round()} KB';
+  return '${(n / 1024 / 1024).toStringAsFixed(n < 10 * 1024 * 1024 ? 1 : 0)} MB';
+}
+
+/// "PDF", "XLSX"… from a file name.
+String _extOf(String? name) {
+  final i = name?.lastIndexOf('.') ?? -1;
+  return name != null && i > 0 && name.length - i <= 6 ? name.substring(i + 1).toUpperCase() : '';
+}
+
+/// A file's type from its name, for the apps that open it.
+String? _typeOf(String name) => const {
+      'pdf': 'application/pdf',
+      'doc': 'application/msword',
+      'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'xls': 'application/vnd.ms-excel',
+      'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'ppt': 'application/vnd.ms-powerpoint',
+      'pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+      'csv': 'text/csv',
+      'txt': 'text/plain',
+      'zip': 'application/zip',
+      'jpg': 'image/jpeg',
+      'jpeg': 'image/jpeg',
+      'png': 'image/png',
+    }[_extOf(name).toLowerCase()];
+
+/// A document in a message: icon, name, type and size. Tap: open it in
+/// another app or save it (the phone's share sheet).
+class _DocTile extends StatefulWidget {
+  const _DocTile({required this.file, required this.mine, required this.pending});
+  final Map<String, dynamic> file;
+  final bool mine, pending;
+
+  @override
+  State<_DocTile> createState() => _DocTileState();
+}
+
+class _DocTileState extends State<_DocTile> {
+  bool _busy = false;
+
+  Future<void> _open() async {
+    if (_busy || widget.pending) return;
+    final t = T.of(context);
+    final chat = ChatService.of(SessionScope.of(context));
+    final box = context.findRenderObject() as RenderBox?;
+    setState(() => _busy = true);
+    try {
+      final bytes = await chat.photo(widget.file);
+      if (!mounted) return;
+      if (bytes == null) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(t('chat.file_failed'))));
+        return;
+      }
+      final name = cleanFileName('${widget.file['nm']}');
+      final type = widget.file['mt'] is String ? widget.file['mt'] as String : _typeOf(name);
+      await SharePlus.instance.share(ShareParams(
+        files: [XFile.fromData(bytes, name: name, mimeType: type)],
+        fileNameOverrides: [name],
+        sharePositionOrigin: box == null ? null : box.localToGlobal(Offset.zero) & box.size,
+      ));
+    } catch (_) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(t('chat.file_failed'))));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = Hgv.of(context);
+    final fg = widget.mine ? Colors.white : c.text;
+    final name = '${widget.file['nm']}';
+    final meta = [_extOf(name), fileSize(widget.file['sz'] as num?)].where((s) => s.isNotEmpty).join(' · ');
+    final w = MediaQuery.sizeOf(context).width * 0.7;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Material(
+        color: widget.mine ? Colors.white.withValues(alpha: 0.15) : c.chrome,
+        borderRadius: BorderRadius.circular(14),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(14),
+          onTap: _open,
+          child: SizedBox(
+            width: w,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(10, 9, 10, 9),
+              child: Row(children: [
+                Icon(PhosphorIconsFill.fileText, size: 32, color: widget.mine ? Colors.white : c.ink),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(name, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: fg)),
+                    if (meta.isNotEmpty) Text(meta, style: TextStyle(fontSize: 11.5, color: fg.withValues(alpha: 0.7))),
+                  ]),
+                ),
+                const SizedBox(width: 6),
+                _busy || widget.pending
+                    ? SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: fg))
+                    : Icon(PhosphorIconsRegular.downloadSimple, size: 20, color: fg.withValues(alpha: 0.85)),
+              ]),
+            ),
+          ),
         ),
       ),
     );

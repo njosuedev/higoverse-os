@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Literal
 from decimal import Decimal
 from pydantic import BaseModel, Field, field_validator
 from app.models.expense import ExpenseCategory
@@ -16,6 +17,7 @@ class ExpenseCreate(BaseModel):
     bank_name:      str | None = None
     bank_account:   str | None = None
     receiver_phone: str | None = None
+    direction:      Literal["in", "out"] = "out"   # "in": money received, not spent
 
     @field_validator("payment_method")
     @classmethod
@@ -35,6 +37,7 @@ class ExpenseUpdate(BaseModel):
     bank_name:      str | None = None
     bank_account:   str | None = None
     receiver_phone: str | None = None
+    direction:      Literal["in", "out"] | None = None
 
     @field_validator("payment_method")
     @classmethod

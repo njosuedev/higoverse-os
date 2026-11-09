@@ -32,12 +32,33 @@ class ChatMessage {
   final String? text;
 
   /// Photos: id, k(ey), n(once), w, h, th (tiny preview data URL).
+  /// Documents: id, k, n, nm (name), mt (type), sz (bytes) — see [isDoc].
   final List<Map<String, dynamic>> files;
   final DateTime at;
   DateTime? readAt;
 
   /// Still being sent from this phone.
   bool pending;
+}
+
+/// A document (any file) rather than a photo: it has a name.
+bool isDoc(Map<String, dynamic> f) => f['nm'] is String;
+
+/// A document chosen on this phone, ready to send.
+typedef ChatDoc = ({String name, String? type, Uint8List bytes});
+
+/// Largest document, same as the website (the server takes ~10 MB).
+const maxDocBytes = 10 * 1024 * 1024;
+const maxDocs = 4;
+
+/// A name safe to save under: no folders, no control characters, not too long.
+String cleanFileName(String name) {
+  final n = name.replaceAll(RegExp(r'[\\/:*?"<>|\x00-\x1f]+'), '_').replaceFirst(RegExp(r'^\.+'), '').trim();
+  if (n.isEmpty) return 'file';
+  if (n.length <= 120) return n;
+  final dot = n.lastIndexOf('.');
+  final ext = dot > 0 && n.length - dot <= 10 ? n.substring(dot) : '';
+  return n.substring(0, 120 - ext.length) + ext;
 }
 
 /// The person-to-person conversations of this account, end-to-end
@@ -214,7 +235,7 @@ class ChatService extends ChangeNotifier {
   /// Photos chosen on this phone, shown at once while they upload.
   final Map<String, Uint8List> _local = {};
 
-  /// A message's photo: fetched (encrypted) and opened on this device.
+  /// A message's photo or document: fetched (encrypted) and opened on this device.
   Future<Uint8List?> photo(Map<String, dynamic> f) {
     final id = '${f['id']}';
     if (_local[id] != null) return Future.value(_local[id]);
@@ -230,18 +251,25 @@ class ChatService extends ChangeNotifier {
     }();
   }
 
-  /// Sends [text] and up to 4 [photos] (prepared like the website's photos):
-  /// each photo is encrypted with its own key and uploaded first; their keys
-  /// go inside the encrypted message.
-  Future<void> send(String other, String text, {List<CarPhoto> photos = const []}) async {
+  /// Sends [text], up to 4 [photos] (prepared like the website's photos)
+  /// and up to 4 [docs]: each file is encrypted with its own key and
+  /// uploaded first; their keys (and a document's name) go inside the
+  /// encrypted message.
+  Future<void> send(String other, String text, {List<CarPhoto> photos = const [], List<ChatDoc> docs = const []}) async {
     final d = _device ?? (throw StateError('Messages are not set up on this device yet.'));
     final clean = text.trim();
-    if (clean.isEmpty && photos.isEmpty) return;
+    if (clean.isEmpty && photos.isEmpty && docs.isEmpty) return;
+    final stamp = DateTime.now().microsecondsSinceEpoch;
     final previews = <Map<String, dynamic>>[
-      for (var i = 0; i < photos.length; i++) {'id': 'local-${DateTime.now().microsecondsSinceEpoch}-$i'},
+      for (var i = 0; i < photos.length; i++) {'id': 'local-$stamp-$i'},
+      for (var i = 0; i < docs.length; i++)
+        {'id': 'local-$stamp-d$i', 'nm': cleanFileName(docs[i].name), if (docs[i].type != null) 'mt': docs[i].type, 'sz': docs[i].bytes.length},
     ];
     for (var i = 0; i < photos.length; i++) {
       _local[previews[i]['id'] as String] = photoBytes(photos[i].photo);
+    }
+    for (var i = 0; i < docs.length; i++) {
+      _local[previews[photos.length + i]['id'] as String] = docs[i].bytes;
     }
     final temp = ChatMessage(
         id: 'tmp-${DateTime.now().microsecondsSinceEpoch}', from: me, to: other, text: clean, at: DateTime.now(), pending: true, files: previews);
@@ -256,6 +284,16 @@ class ChatService extends ChangeNotifier {
         final id = '${((up as Map)['data'] as Map)['id']}';
         _local[id] = bytes;
         files.add({'id': id, 'k': sealedFile.key, 'n': sealedFile.nonce, if (await tinyPreview(p.photo) case final th?) 'th': th});
+      }
+      for (final doc in docs) {
+        final sealedFile = await sealFile(doc.bytes);
+        final up = await _s.api.post('${Svc.sales}/chat/attachments', {'data': sealedFile.data});
+        final id = '${((up as Map)['data'] as Map)['id']}';
+        _local[id] = doc.bytes;
+        files.add({
+          'id': id, 'k': sealedFile.key, 'n': sealedFile.nonce,
+          'nm': cleanFileName(doc.name), if (doc.type != null) 'mt': doc.type, 'sz': doc.bytes.length,
+        });
       }
       final sealed = await d.seal(clean, senderId: me, recipientId: other, devices: await _devicesOf(other), files: files);
       final res = await _s.api.post('${Svc.sales}/chat/messages', {

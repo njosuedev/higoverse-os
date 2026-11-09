@@ -3,7 +3,7 @@ import json
 from datetime import datetime, timedelta, timezone
 from typing import List
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
@@ -18,6 +18,10 @@ router = APIRouter(prefix="/expenses", tags=["Expenses"])
 # ─────────────────────────────────────────
 # HELPERS
 # ─────────────────────────────────────────
+
+# Money spent: every row except those marked as money received ("in").
+_SPENT = or_(Expense.direction.is_(None), Expense.direction != "in")
+
 
 def _get_or_404(db: Session, expense_id: str, shop_id: str) -> Expense:
     e = db.query(Expense).filter(Expense.id == expense_id, Expense.shop_id == shop_id).first()
@@ -42,6 +46,7 @@ def _fmt(e: Expense, include_proof: bool = False) -> dict:
         "bank_name":      e.bank_name,
         "bank_account":   e.bank_account,
         "receiver_phone": e.receiver_phone,
+        "direction":      "in" if e.direction == "in" else "out",
     }
     if include_proof:
         result["proof_data"] = e.proof_data
@@ -102,7 +107,7 @@ def get_summary(
     to_date: str | None = None,
 ):
     if not user["shop_id"]:
-        return {"success": True, "data": {"total_expenses": 0.0, "count": 0}}
+        return {"success": True, "data": {"total_expenses": 0.0, "count": 0, "total_in": 0.0, "count_in": 0}}
 
     q = db.query(Expense).filter(Expense.shop_id == user["shop_id"])
     if from_date:
@@ -110,8 +115,13 @@ def get_summary(
     if to_date:
         q = q.filter(Expense.expense_date <= datetime.fromisoformat(to_date + "T23:59:59"))
 
-    row = q.with_entities(
+    # Spending only: money received is reported apart, never as an expense.
+    row = q.filter(_SPENT).with_entities(
         func.coalesce(func.sum(Expense.amount), 0).label("total_expenses"),
+        func.count(Expense.id).label("count"),
+    ).one()
+    got = q.filter(Expense.direction == "in").with_entities(
+        func.coalesce(func.sum(Expense.amount), 0).label("total"),
         func.count(Expense.id).label("count"),
     ).one()
 
@@ -120,6 +130,8 @@ def get_summary(
         "data": {
             "total_expenses": float(row.total_expenses),
             "count": int(row.count),
+            "total_in": float(got.total),
+            "count_in": int(got.count),
         },
     }
 
@@ -144,7 +156,7 @@ def get_by_category(
     if to_date:
         q = q.filter(Expense.expense_date <= datetime.fromisoformat(to_date + "T23:59:59"))
 
-    rows = q.with_entities(
+    rows = q.filter(_SPENT).with_entities(
         Expense.category,
         func.coalesce(func.sum(Expense.amount), 0).label("total"),
         func.count(Expense.id).label("count"),
@@ -180,6 +192,7 @@ def get_daily(
     q = db.query(Expense).filter(
         Expense.shop_id == user["shop_id"],
         Expense.expense_date >= since,
+        _SPENT,
     )
 
     rows = q.with_entities(
@@ -226,6 +239,7 @@ def create_expense(
         bank_name=payload.bank_name,
         bank_account=payload.bank_account,
         receiver_phone=payload.receiver_phone,
+        direction="in" if payload.direction == "in" else None,
     )
     db.add(expense)
     db.flush()
@@ -339,6 +353,8 @@ def update_expense(
     expense = _get_or_404(db, expense_id, user["shop_id"])
 
     for key, value in payload.model_dump(exclude_unset=True).items():
+        if key == "direction":
+            value = "in" if value == "in" else None
         setattr(expense, key, value)
 
     db.commit()
@@ -391,6 +407,8 @@ def admin_update_expense(
     if not expense:
         raise HTTPException(status_code=404, detail="Expense not found")
     for key, value in payload.model_dump(exclude_unset=True).items():
+        if key == "direction":
+            value = "in" if value == "in" else None
         setattr(expense, key, value)
     db.commit()
     db.refresh(expense)

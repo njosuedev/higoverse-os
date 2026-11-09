@@ -3,17 +3,18 @@
 // Messages, laid out like WhatsApp Desktop: people on the left (search,
 // last message, unread count, online), the conversation on the right. End-
 // to-end encrypted (lib/chat.ts, lib/chat-crypto.ts): the shield shows the
-// security code to compare with the other person.
+// security code to compare with the other person. Photos and documents
+// (any file up to 10 MB: PDF, Word, Excel…) are encrypted the same way.
 
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, Check, CheckCheck, Clock, Download, ImagePlus, Lock, MessageCircle, Search, Send, ShieldCheck, Smile, UserPlus, X } from "lucide-react";
+import { ArrowLeft, Check, CheckCheck, Clock, Download, FileText, ImagePlus, Lock, MessageCircle, Paperclip, Search, Send, ShieldCheck, Smile, UserPlus, X } from "lucide-react";
 import EmojiPicker from "@/app/components/EmojiPicker";
-import type { FileRef } from "@/lib/chat-crypto";
+import { isDoc, type FileRef } from "@/lib/chat-crypto";
 import { useLanguage } from "@/lib/language-context";
 import { useShop } from "@/lib/shop-context";
-import { codeWith, loadThread, MAX_PHOTOS, photoUrl, send, setOpenConversation, startChat, unreadTotal, useChat, type Member, type Msg } from "@/lib/chat";
+import { codeWith, downloadDoc, loadThread, MAX_DOC_BYTES, MAX_DOCS, MAX_PHOTOS, photoUrl, send, setOpenConversation, startChat, unreadTotal, useChat, type Member, type Msg } from "@/lib/chat";
 import { notify } from "@/lib/dialogs";
 
 const AVATAR = ["#0a66c2", "#7a3e9d", "#057642", "#b24020", "#00788a", "#915907", "#5e5ce6", "#c3277a"];
@@ -33,6 +34,26 @@ function Avatar({ name, size = 44, online = false }: { name: string; size?: numb
 }
 
 const time = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+/** 1.2 MB, 340 KB… */
+function fileSize(n?: number) {
+  if (n == null) return "";
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${Math.round(n / 1024)} KB`;
+  return `${(n / 1024 / 1024).toFixed(n < 10 * 1024 * 1024 ? 1 : 0)} MB`;
+}
+/** "PDF", "XLSX"… from a file name. */
+const extOf = (name?: string) => {
+  const i = name?.lastIndexOf(".") ?? -1;
+  return name && i > 0 && name.length - i <= 6 ? name.slice(i + 1).toUpperCase() : "";
+};
+/** The list's preview of a message with files and no text. */
+function filesLabel(t: (k: string) => string, files: FileRef[] = []) {
+  if (!files.length) return "";
+  const docs = files.filter(isDoc);
+  if (docs.length === files.length) return docs.length === 1 ? `📄 ${docs[0].nm}` : `📄 ${docs.length} ${t("chat.files")}`;
+  return `📷 ${t("chat.photo")}`;
+}
+
 function ago(iso: string) {
   const d = new Date(iso), now = new Date();
   if (d.toDateString() === now.toDateString()) return time(iso);
@@ -110,7 +131,7 @@ function MessagesInner() {
           {people.map((m) => {
             const last = chat.threads[m.id]?.at(-1);
             const unread = chat.unread[m.id] ?? 0;
-            const body = last ? (last.text == null ? t("chat.locked") : last.text || (last.files?.length ? `📷 ${t("chat.photo")}` : "")) : "";
+            const body = last ? (last.text == null ? t("chat.locked") : last.text || filesLabel(t, last.files)) : "";
             const preview = last ? `${last.from === chat.me ? `${t("chat.you")}: ` : ""}${body}` : roleOf(m.role);
             return (
               <button key={m.id} type="button" onClick={() => router.push(`/messages?with=${m.id}`)}
@@ -159,14 +180,33 @@ function Conversation({ person, online }: { person: Member; online: boolean }) {
   const [code, setCode] = useState<string | null>(null);
   const [emoji, setEmoji] = useState(false);
   const [photos, setPhotos] = useState<{ file: File; url: string }[]>([]);
+  const [docs, setDocs] = useState<File[]>([]);
+  const [dragging, setDragging] = useState(false);
   const [viewing, setViewing] = useState<FileRef | null>(null);
   const box = useRef<HTMLDivElement>(null);
   const input = useRef<HTMLTextAreaElement>(null);
   const picker = useRef<HTMLInputElement>(null);
+  const docPicker = useRef<HTMLInputElement>(null);
 
   function addPhotos(files: FileList | File[] | null) {
     const list = Array.from(files ?? []).filter((f) => f.type.startsWith("image/"));
     setPhotos((cur) => [...cur, ...list.map((file) => ({ file, url: URL.createObjectURL(file) }))].slice(0, MAX_PHOTOS));
+  }
+  function addDocs(files: FileList | File[] | null) {
+    const list = Array.from(files ?? []);
+    const big = list.find((f) => f.size > MAX_DOC_BYTES);
+    if (big) notify(t("chat.file_too_big").replace("{name}", big.name));
+    const ok = list.filter((f) => f.size > 0 && f.size <= MAX_DOC_BYTES);
+    if (docs.length + ok.length > MAX_DOCS) notify(t("chat.files_max").replace("{n}", String(MAX_DOCS)));
+    setDocs((cur) => [...cur, ...ok].slice(0, MAX_DOCS));
+  }
+  /** Dropped or pasted files: photos go with photos, everything else as documents. */
+  function addAny(files: FileList | File[] | null) {
+    const list = Array.from(files ?? []);
+    const imgs = list.filter((f) => f.type.startsWith("image/"));
+    if (imgs.length) addPhotos(imgs);
+    const rest = list.filter((f) => !f.type.startsWith("image/"));
+    if (rest.length) addDocs(rest);
   }
   function insertEmoji(e: string) {
     const el = input.current;
@@ -186,12 +226,14 @@ function Conversation({ person, online }: { person: Member; online: boolean }) {
   async function doSend() {
     const v = text;
     const pics = photos;
-    if ((!v.trim() && pics.length === 0) || sending) return;
+    const files = docs;
+    if ((!v.trim() && pics.length === 0 && files.length === 0) || sending) return;
     setSending(true);
     setText("");
     setPhotos([]);
+    setDocs([]);
     setEmoji(false);
-    try { await send(person.id, v, pics.map((p) => p.file)); } catch (e) { setText(v); setPhotos(pics); notify(e instanceof Error ? e.message : String(e)); } finally { setSending(false); }
+    try { await send(person.id, v, pics.map((p) => p.file), files); } catch (e) { setText(v); setPhotos(pics); setDocs(files); notify(e instanceof Error ? e.message : String(e)); } finally { setSending(false); }
   }
 
   const dayOf = (iso: string) => new Date(iso).toDateString();
@@ -211,7 +253,10 @@ function Conversation({ person, online }: { person: Member; online: boolean }) {
           className="rounded-full p-2 text-text-muted hover:bg-paper-dim"><ShieldCheck size={20} /></button>
       </header>
 
-      <div ref={box} className="flex-1 overflow-y-auto bg-paper px-4 py-3"
+      <div ref={box} className={`flex-1 overflow-y-auto bg-paper px-4 py-3 ${dragging ? "ring-2 ring-inset ring-[#0095f6]" : ""}`}
+        onDragOver={(e) => { if (e.dataTransfer.types.includes("Files")) { e.preventDefault(); setDragging(true); } }}
+        onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragging(false); }}
+        onDrop={(e) => { if (e.dataTransfer.files.length) { e.preventDefault(); addAny(e.dataTransfer.files); } setDragging(false); }}
         onScroll={(e) => {
           if (e.currentTarget.scrollTop < 80 && more) loadThread(person.id, true).then(setMore).catch(() => {});
         }}>
@@ -234,11 +279,15 @@ function Conversation({ person, online }: { person: Member; online: boolean }) {
               <div className={`my-0.5 flex ${mine ? "justify-end" : "justify-start"}`}>
                 <div className={`max-w-[75%] px-3 pb-1.5 pt-2 text-[14.5px] leading-snug ${mine
                   ? "rounded-2xl rounded-br-md bg-[#0095f6] text-white" : "rounded-2xl rounded-bl-md bg-white text-text shadow-sm"}`}>
-                  {(m.files?.length ?? 0) > 0 && (
-                    <div className={`-mx-1.5 -mt-0.5 mb-1 grid gap-1 ${(m.files?.length ?? 0) > 1 ? "grid-cols-2" : ""}`}>
-                      {m.files!.map((f) => <ChatPhoto key={f.id} file={f} single={m.files!.length === 1} onOpen={() => setViewing(f)} />)}
-                    </div>
-                  )}
+                  {(() => {
+                    const pics = (m.files ?? []).filter((f) => !isDoc(f));
+                    return pics.length > 0 && (
+                      <div className={`-mx-1.5 -mt-0.5 mb-1 grid gap-1 ${pics.length > 1 ? "grid-cols-2" : ""}`}>
+                        {pics.map((f) => <ChatPhoto key={f.id} file={f} single={pics.length === 1} onOpen={() => setViewing(f)} />)}
+                      </div>
+                    );
+                  })()}
+                  {(m.files ?? []).filter(isDoc).map((f) => <ChatDoc key={f.id} file={f} mine={mine} pending={!!m.pending} />)}
                   {m.text == null
                     ? <p className="flex items-center gap-1.5 italic opacity-75"><Lock size={13} /> {t("chat.locked")}</p>
                     : m.text ? <p className="whitespace-pre-wrap break-words">{m.text}</p> : null}
@@ -253,13 +302,24 @@ function Conversation({ person, online }: { person: Member; online: boolean }) {
         })}
       </div>
 
-      {photos.length > 0 && (
-        <div className="flex gap-2 border-t border-border px-3 pt-2.5">
+      {(photos.length > 0 || docs.length > 0) && (
+        <div className="flex flex-wrap items-center gap-2 border-t border-border px-3 pt-2.5">
           {photos.map((p, i) => (
             <div key={p.url} className="relative">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={p.url} alt="" className="h-16 w-16 rounded-lg object-cover" />
               <button type="button" onClick={() => setPhotos((cur) => cur.filter((_, j) => j !== i))} aria-label={t("common.delete")}
+                className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-black/80 text-white"><X size={12} /></button>
+            </div>
+          ))}
+          {docs.map((d, i) => (
+            <div key={`${d.name}-${i}`} className="relative flex h-16 max-w-[220px] items-center gap-2 rounded-lg bg-paper-dim py-2 pl-2.5 pr-4">
+              <FileText size={26} className="shrink-0 text-ink" />
+              <span className="min-w-0">
+                <span className="block truncate text-[13px] font-semibold text-text">{d.name}</span>
+                <span className="block text-[11px] text-text-faint">{[extOf(d.name), fileSize(d.size)].filter(Boolean).join(" · ")}</span>
+              </span>
+              <button type="button" onClick={() => setDocs((cur) => cur.filter((_, j) => j !== i))} aria-label={t("common.delete")}
                 className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-black/80 text-white"><X size={12} /></button>
             </div>
           ))}
@@ -277,11 +337,14 @@ function Conversation({ person, online }: { person: Member; online: boolean }) {
         <button type="button" onClick={() => picker.current?.click()} disabled={photos.length >= MAX_PHOTOS} aria-label={t("chat.photo")} title={t("chat.photo")}
           className="flex h-[42px] w-10 shrink-0 items-center justify-center rounded-full text-text-muted hover:bg-paper-dim disabled:opacity-40"><ImagePlus size={20} /></button>
         <input ref={picker} type="file" accept="image/*" multiple className="hidden" onChange={(e) => { addPhotos(e.target.files); e.target.value = ""; }} />
+        <button type="button" onClick={() => docPicker.current?.click()} disabled={docs.length >= MAX_DOCS} aria-label={t("chat.file")} title={t("chat.file")}
+          className="flex h-[42px] w-10 shrink-0 items-center justify-center rounded-full text-text-muted hover:bg-paper-dim disabled:opacity-40"><Paperclip size={20} /></button>
+        <input ref={docPicker} type="file" multiple className="hidden" onChange={(e) => { addDocs(e.target.files); e.target.value = ""; }} />
         <textarea ref={input} value={text} onChange={(e) => setText(e.target.value)} rows={1} placeholder={t("chat.write")}
           onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void doSend(); } }}
-          onPaste={(e) => { const imgs = Array.from(e.clipboardData.files).filter((f) => f.type.startsWith("image/")); if (imgs.length) { e.preventDefault(); addPhotos(imgs); } }}
+          onPaste={(e) => { if (e.clipboardData.files.length) { e.preventDefault(); addAny(e.clipboardData.files); } }}
           className="max-h-32 min-h-[42px] flex-1 resize-none rounded-[21px] border-0 bg-paper-dim px-4 py-2.5 text-sm outline-none" />
-        <button type="button" onClick={() => void doSend()} disabled={sending || (!text.trim() && photos.length === 0)} aria-label={t("chat.send")}
+        <button type="button" onClick={() => void doSend()} disabled={sending || (!text.trim() && photos.length === 0 && docs.length === 0)} aria-label={t("chat.send")}
           className="flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-full bg-[#0095f6] text-white hover:bg-[#1877f2] disabled:opacity-40">
           <Send size={18} />
         </button>
@@ -323,6 +386,33 @@ function ChatPhoto({ file, single, onOpen }: { file: FileRef; single: boolean; o
           {failed ? <Lock size={18} className="text-white/80" /> : <span className="h-6 w-6 animate-spin rounded-full border-2 border-white/40 border-t-white" />}
         </span>
       )}
+    </button>
+  );
+}
+
+/** A document in a message: icon, name, type and size; click to save it. */
+function ChatDoc({ file, mine, pending }: { file: FileRef; mine: boolean; pending: boolean }) {
+  const { t } = useLanguage();
+  const [busy, setBusy] = useState(false);
+  async function save() {
+    if (busy || pending) return;
+    setBusy(true);
+    try { if (!(await downloadDoc(file))) notify(t("chat.file_failed")); } finally { setBusy(false); }
+  }
+  const meta = [extOf(file.nm), fileSize(file.sz)].filter(Boolean).join(" · ");
+  return (
+    <button type="button" onClick={() => void save()} title={t("photo.download")}
+      className={`-mx-1 mb-1 flex w-[260px] max-w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left ${mine ? "bg-white/15 hover:bg-white/25" : "bg-paper-dim hover:bg-paper-deep"}`}>
+      <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${mine ? "bg-white/20" : "bg-white"}`}>
+        <FileText size={22} className={mine ? "text-white" : "text-ink"} />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-[13.5px] font-semibold">{file.nm}</span>
+        {meta && <span className={`block text-[11px] ${mine ? "text-white/75" : "text-text-faint"}`}>{meta}</span>}
+      </span>
+      {busy || pending
+        ? <span className={`h-5 w-5 shrink-0 animate-spin rounded-full border-2 ${mine ? "border-white/40 border-t-white" : "border-ink/30 border-t-ink"}`} />
+        : <Download size={18} className={`shrink-0 ${mine ? "text-white/90" : "text-text-muted"}`} />}
     </button>
   );
 }

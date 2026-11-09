@@ -39,7 +39,11 @@ interface Expense {
   bank_name?: string;
   bank_account?: string;
   receiver_phone?: string;
+  /** "in": money received, kept here for the record but never counted as spending. */
+  direction?: "in" | "out";
 }
+
+const isIn = (e: Expense) => e.direction === "in";
 
 interface CategoryStat { category: Category; total: number; count: number; }
 interface ProofEntry   { name: string; type: string; preview: string; file: File; }
@@ -77,6 +81,7 @@ const PAGE_SIZES = [25, 50, 100, 250];
 const EMPTY_FORM = {
   title: "", category: "other" as Category, amount: "", notes: "", expense_date: "",
   payment_method: "" as PaymentMethod, bank_name: "", bank_account: "", receiver_phone: "",
+  direction: "out" as "in" | "out",
 };
 
 function toDateStr(d: Date) {
@@ -96,6 +101,7 @@ const TPL_COLUMNS = [
   { key: "bank_account", label: "Account / ref",    width: 20 },
   { key: "phone",        label: "Receiver phone",   width: 18 },
   { key: "notes",        label: "Notes",            width: 36 },
+  { key: "direction",    label: "Money in / out",   width: 16 },
 ];
 /** Header text (letters only, lower case) → column; covers the old template's names too. */
 const TPL_HEADER_KEYS: Record<string, string> = {
@@ -104,6 +110,7 @@ const TPL_HEADER_KEYS: Record<string, string> = {
   paymentmethod: "payment", payment: "payment",
   bankname: "bank_name", account: "bank_account", accountref: "bank_account", bankaccount: "bank_account",
   receiverphone: "phone", phone: "phone", notes: "notes",
+  moneyinout: "direction", direction: "direction", type: "direction", inout: "direction",
 };
 
 /** A date cell as YYYY-MM-DD: an Excel date number, or text like 2026-11-08 or 08/11/2026. */
@@ -136,7 +143,7 @@ export default function ExpenseManagementPage() {
   const [catFilter, setCatFilter]     = useState<Category | "">("");
   const [search, setSearch]           = useState("");
 
-  const [summaryFiltered, setSummaryFiltered] = useState({ total_expenses: 0, count: 0 });
+  const [summaryFiltered, setSummaryFiltered] = useState({ total_expenses: 0, count: 0, total_in: 0, count_in: 0 });
   const [byCategory, setByCategory]          = useState<CategoryStat[]>([]);
 
   const [loading, setLoading]         = useState(true);
@@ -203,7 +210,8 @@ export default function ExpenseManagementPage() {
     ws.getCell("A1").font = { bold: true, size: 14, color: { argb: "FF0A66C2" } };
     ws.getCell("A2").value =
       `Type one expense per row, from row ${TPL_HEADER_ROW + 1}. Columns with * are required. ` +
-      "Pick Category and Payment method from the list; Date as YYYY-MM-DD. Then use Import on the Expenses page.";
+      "Pick Category and Payment method from the list; Date as YYYY-MM-DD. Money in / out: Out (or empty) for money spent, " +
+      "In for money received (kept for the record, not counted as an expense). Then use Import on the Expenses page.";
     ws.getCell("A2").font = { size: 10, color: { argb: "FF4B5563" } };
     ws.getCell("A2").alignment = { wrapText: true, vertical: "top" };
     ws.getRow(2).height = 30;
@@ -240,6 +248,7 @@ export default function ExpenseManagementPage() {
     const categories = ALL_CATEGORIES.map((c) => c[0].toUpperCase() + c.slice(1)).join(",");
     rules.add(range("category"), { type: "list", formulae: [`"${categories}"`], ...err, errorTitle: "Category", error: "Pick a category from the list." });
     rules.add(range("payment"), { type: "list", formulae: ['"MTN MoMo,Bank"'], ...err, errorTitle: "Payment method", error: "Pick MTN MoMo or Bank." });
+    rules.add(range("direction"), { type: "list", formulae: ['"Out,In"'], ...err, errorTitle: "Money in / out", error: "Pick Out (money spent) or In (money received)." });
     rules.add(range("amount"), { type: "decimal", operator: "greaterThan", formulae: [0], ...err, errorTitle: "Amount", error: "Enter an amount greater than 0." });
     rules.add(range("date"), { type: "date", operator: "between", formulae: [new Date(Date.UTC(2000, 0, 1)), new Date(Date.UTC(2100, 11, 31))], ...err, errorTitle: "Date", error: "Enter a date, e.g. 2026-11-08." });
 
@@ -295,6 +304,7 @@ export default function ExpenseManagementPage() {
       const pm = text(r, "payment").toLowerCase();
       const payment = pm.includes("bank") ? "bank" : (pm.includes("mtn") || pm.includes("momo")) ? "mtn" : "";
       const cat = (text(r, "category").toLowerCase() || "other") as Category;
+      const dir = /^(in|received|income|credit)/i.test(text(r, "direction")) ? "in" : "out";
       if (!title || !(amount > 0) || !date || !payment || !ALL_CATEGORIES.includes(cat)) { failedRows.push(i + 1); continue; }
       try {
         await expenseRequest("/expenses", {
@@ -307,6 +317,7 @@ export default function ExpenseManagementPage() {
             bank_name:      payment === "bank" ? (text(r, "bank_name") || undefined) : undefined,
             bank_account:   payment === "bank" ? (text(r, "bank_account") || undefined) : undefined,
             receiver_phone: text(r, "phone") || undefined,
+            direction: dir,
           }),
         });
         imported++;
@@ -343,7 +354,10 @@ export default function ExpenseManagementPage() {
 
   async function exportExcel() {
     const XLSX = await import("xlsx");
-    const [rows, shop] = await Promise.all([fetchAllForExport(), getPrintShop()]);
+    const [all, shop] = await Promise.all([fetchAllForExport(), getPrintShop()]);
+    // Money received is listed on its own sheet, never in the expense totals.
+    const rows = all.filter((e) => !isIn(e));
+    const received = all.filter(isIn);
     const now  = new Date();
     // The company's name and details above each sheet.
     const company = shop.name ? [[shop.name.toUpperCase()], ...printShopLines(shop).map((l) => [l]), []] : [];
@@ -423,6 +437,25 @@ export default function ExpenseManagementPage() {
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws,  "Expenses");
     XLSX.utils.book_append_sheet(wb, ws2, "Summary");
+    if (received.length) {
+      const receivedTotal = received.reduce((s, e) => s + Number(e.amount), 0);
+      const ws3 = XLSX.utils.aoa_to_sheet([
+        ...company,
+        ["MONEY RECEIVED (NOT COUNTED AS EXPENSES)"],
+        [],
+        ["Date", "Title", `Amount (${currency})`, "Payment Method", "Notes"],
+        ...received.map((e) => [
+          e.expense_date ? toDateStr(new Date(e.expense_date)) : "",
+          e.title, Number(e.amount),
+          e.payment_method === "mtn" ? "MTN Mobile Money" : e.payment_method === "bank" ? "Bank Transfer" : "",
+          e.notes || "",
+        ]),
+        [],
+        ["", "TOTAL", receivedTotal, "", ""],
+      ]);
+      ws3["!cols"] = [{ wch: 12 }, { wch: 30 }, { wch: 16 }, { wch: 18 }, { wch: 35 }];
+      XLSX.utils.book_append_sheet(wb, ws3, "Money received");
+    }
     XLSX.writeFile(wb, `expenses_${toDateStr(now)}.xlsx`);
   }
 
@@ -430,7 +463,11 @@ export default function ExpenseManagementPage() {
     const { jsPDF } = await import("jspdf");
     const { default: autoTable } = await import("jspdf-autotable");
 
-    const [rows, shop] = await Promise.all([fetchAllForExport(), getPrintShop()]);
+    const [all, shop] = await Promise.all([fetchAllForExport(), getPrintShop()]);
+    // Money received is left out of the expense report (noted under the total).
+    const rows = all.filter((e) => !isIn(e));
+    const received = all.filter(isIn);
+    const receivedTotal = received.reduce((s, e) => s + Number(e.amount), 0);
     const logo = await imageForPdf(shop.logo_url);
     const now  = new Date();
 
@@ -506,6 +543,9 @@ export default function ExpenseManagementPage() {
     doc.setFontSize(8);
     doc.text(`${currency}  TOTAL EXPENSES`, PW - 14, 20, { align: "right" });
     doc.text(`${rows.length} records  ·  ${periodLabel}`, PW - 14, 26, { align: "right" });
+    if (received.length) {
+      doc.text(`Money received, not counted: ${receivedTotal.toLocaleString()} (${received.length})`, PW - 14, 31, { align: "right" });
+    }
 
     // ── Summary cards ────────────────────────────────────────────────────────
     const cardY = bannerH + 4;
@@ -667,7 +707,10 @@ export default function ExpenseManagementPage() {
       });
       const res = await expenseRequest(`/expenses/summary?${params}`);
       // Numbers whatever the server sent: a missing total is 0, not a blank page.
-      setSummaryFiltered({ total_expenses: Number(res?.data?.total_expenses) || 0, count: Number(res?.data?.count) || 0 });
+      setSummaryFiltered({
+        total_expenses: Number(res?.data?.total_expenses) || 0, count: Number(res?.data?.count) || 0,
+        total_in: Number(res?.data?.total_in) || 0, count_in: Number(res?.data?.count_in) || 0,
+      });
     } catch { /* ignore */ }
   }
 
@@ -704,6 +747,7 @@ export default function ExpenseManagementPage() {
       // The day as stored ("2026-11-06T00:00:00"), not shifted by the browser's time zone.
       expense_date: (e.expense_date || "").slice(0, 10),
       payment_method: method,
+      direction: e.direction === "in" ? "in" : "out",
       bank_name: e.bank_name ?? "", bank_account: e.bank_account ?? "", receiver_phone: e.receiver_phone ?? "",
     });
     setProofEntries([]);
@@ -783,6 +827,7 @@ export default function ExpenseManagementPage() {
             bank_name:      form.payment_method === "bank" ? (form.bank_name.trim() || null) : null,
             bank_account:   form.payment_method === "bank" ? (form.bank_account.trim() || null) : null,
             receiver_phone: form.payment_method ? (form.receiver_phone.trim() || null) : null,
+            direction: form.direction,
           }),
         });
         setShowModal(false);
@@ -803,6 +848,7 @@ export default function ExpenseManagementPage() {
           bank_name:      form.payment_method === "bank" ? (form.bank_name.trim() || undefined) : undefined,
           bank_account:   form.payment_method === "bank" ? (form.bank_account.trim() || undefined) : undefined,
           receiver_phone: form.receiver_phone.trim() || undefined,
+          direction: form.direction,
         }),
       });
 
@@ -852,7 +898,7 @@ export default function ExpenseManagementPage() {
   const displayByCategory: CategoryStat[] = useMemo(() => {
     if (!search) return byCategory;
     const map: Record<string, CategoryStat> = {};
-    filteredExpenses.forEach((e) => {
+    filteredExpenses.filter((e) => !isIn(e)).forEach((e) => {
       if (!map[e.category]) map[e.category] = { category: e.category as Category, total: 0, count: 0 };
       map[e.category].total += Number(e.amount);
       map[e.category].count += 1;
@@ -860,10 +906,14 @@ export default function ExpenseManagementPage() {
     return Object.values(map).sort((a, b) => b.total - a.total);
   }, [search, byCategory, filteredExpenses]);
 
+  // Spending only: rows marked as money received are not expenses.
   const displayTotal = search
-    ? filteredExpenses.reduce((s, e) => s + Number(e.amount), 0)
+    ? filteredExpenses.filter((e) => !isIn(e)).reduce((s, e) => s + Number(e.amount), 0)
     : summaryFiltered.total_expenses;
-  const displayCount = search ? filteredExpenses.length : summaryFiltered.count;
+  const displayCount = search ? filteredExpenses.filter((e) => !isIn(e)).length : summaryFiltered.count;
+  const displayIn = search
+    ? filteredExpenses.filter(isIn).reduce((s, e) => s + Number(e.amount), 0)
+    : summaryFiltered.total_in;
   const topCategory  = displayByCategory[0];
 
   // Dynamic period label
@@ -965,7 +1015,8 @@ export default function ExpenseManagementPage() {
             {
               label: `${t("common.total")} · ${periodLabelLocalized}`,
               value: displayTotal.toLocaleString(),
-              sub: `${displayCount} ${t("expenses.records")}`,
+              sub: `${displayCount} ${t("expenses.records")}` +
+                (displayIn > 0 ? ` · +${displayIn.toLocaleString()} ${t("expenses.received_not_counted")}` : ""),
               color: "text-slate-900",
             },
             {
@@ -1085,8 +1136,9 @@ export default function ExpenseManagementPage() {
                           {t(`expenses.cat.${e.category}`)}
                         </span>
                       </td>
-                      <td className="px-2.5 py-1 font-bold tabular-nums text-xs" style={{ color: "#0a66c2" }}>
-                        {Number(e.amount).toLocaleString()}
+                      <td className="px-2.5 py-1 font-bold tabular-nums text-xs" style={{ color: isIn(e) ? "#057642" : "#0a66c2" }}>
+                        {isIn(e) ? "+" : ""}{Number(e.amount).toLocaleString()}
+                        {isIn(e) && <span className="block text-[10px] font-semibold leading-tight">{t("expenses.money_in")}</span>}
                       </td>
                       {/* Payment Method */}
                       <td className="px-2.5 py-1 whitespace-nowrap">
@@ -1325,6 +1377,20 @@ export default function ExpenseManagementPage() {
                     value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
                 </div>
 
+                {/* Money spent (an expense) or money received (kept, not counted) */}
+                <div>
+                  <div className="grid grid-cols-2 gap-1 rounded-md bg-slate-100 p-0.5">
+                    {(["out", "in"] as const).map((d) => (
+                      <button key={d} type="button" onClick={() => setForm({ ...form, direction: d })}
+                        className={`rounded px-2 py-1 text-[11px] font-semibold transition ${form.direction === d
+                          ? `bg-white shadow-sm ${d === "in" ? "text-[#057642]" : "text-[#0a66c2]"}` : "text-slate-500"}`}>
+                        {t(d === "in" ? "expenses.money_in" : "expenses.money_out")}
+                      </button>
+                    ))}
+                  </div>
+                  {form.direction === "in" && <p className="mt-1 text-[11px] text-[#057642]">{t("expenses.money_in_hint")}</p>}
+                </div>
+
                 {/* Category + Amount */}
                 <div className="grid grid-cols-2 gap-2">
                   <div>
@@ -1450,7 +1516,7 @@ export default function ExpenseManagementPage() {
                 </div>}
 
                 {/* Summary hint */}
-                {form.amount && Number(form.amount) > 0 && (
+                {form.amount && Number(form.amount) > 0 && form.direction !== "in" && (
                   <div className="rounded-md px-2 py-1 text-[11px] bg-[#EBF2FD]" style={{ color: "#0a66c2" }}>
                     {t("expenses.recording")}: <span className="font-bold">{Number(form.amount).toLocaleString()}</span>
                     {" "}{t("expenses.under")} <span className="font-bold">{t(`expenses.cat.${form.category}`)}</span>

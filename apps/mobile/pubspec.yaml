@@ -35,6 +35,9 @@ dependencies:
   pdf: ^3.13.1
   printing: ^5.15.1
   mobile_scanner: ^7.4.2
+  # Messages: send any document (PDF, Word, Excel…) and open received ones.
+  file_picker: ^10.2.4
+  share_plus: ^12.0.2
 dev_dependencies:
   flutter_test:
     sdk: flutter
