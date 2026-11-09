@@ -7,7 +7,7 @@
 // Laid out as a formal contract: letterhead with the logo and contract
 // number, the two parties side by side, numbered articles, the payment
 // details as a table, signature blocks with room for the stamp, and on every
-// page the company line and a box for both parties' initials (the page is a
+// page the company line and the contract number (the page is a
 // table whose header and footer the browser repeats on each printed page).
 // A verification panel with the QR code closes it.
 //
@@ -142,19 +142,16 @@ export function taxContractHtml(c: TaxContract, opts: { autoPrint?: boolean; log
   .verify .t { font-family: Arial, Helvetica, sans-serif; font-size: 8.4pt; color: var(--muted); line-height: 1.45; }
   .verify .t b { color: var(--ink); }
 
-  /* Every page: the company line and both parties' initials */
+  /* Every page: the company line and the contract number */
   .foot { display: flex; justify-content: space-between; align-items: flex-end; gap: 10px; margin-top: 6mm; padding-top: 4px; border-top: 1px solid var(--rule);
           font-family: Arial, Helvetica, sans-serif; font-size: 7.4pt; color: var(--muted); }
   .foot > div:first-child { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .foot .init { display: flex; gap: 10px; white-space: nowrap; }
-  .foot .init span { display: inline-block; width: 13mm; border-bottom: 1px solid #555; margin-left: 3px; }
 </style></head><body>
 <table class="page">
   <thead><tr><td><div class="sp-top"></div></td></tr></thead>
   <tfoot><tr><td>
     <div class="foot">
       <div>${footerLine}<br>Amasezerano ${no}</div>
-      <div class="init">Paraphe y'umukiriya<span></span> Paraphe y'umujyanama<span></span></div>
     </div>
   </td></tr></tfoot>
   <tbody><tr><td>
