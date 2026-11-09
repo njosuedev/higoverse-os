@@ -1,13 +1,16 @@
 // Income outside sales (the Income page, next to Expenses): what is
-// recorded there (expense-service /incomes), plus rents from Sales →
-// Rentals (car companies, sale-service /rentals), plus anything kept in
-// Expenses as "money received". Reports and Home add it to the profit.
+// recorded there (expense-service /incomes) plus anything kept in Expenses
+// as "money received". Rentals are not income: they are part of Sales
+// (Sales → Rentals); their rents are returned apart so Reports and Home can
+// count them with sales in the profit.
 
 import { expenseRequest } from "@/lib/expense-api";
 import { listRentals, type Rental } from "@/lib/rental-api";
 
-export const INCOME_SOURCES = ["rental", "services", "commission", "transport", "interest", "other"] as const;
-export type IncomeSource = (typeof INCOME_SOURCES)[number];
+/** "rental" stays a type only for income recorded before rentals moved to Sales. */
+export type IncomeSource = "rental" | "services" | "commission" | "transport" | "interest" | "other";
+/** Sources offered when recording income (rentals are recorded in Sales → Rentals). */
+export const INCOME_SOURCES: IncomeSource[] = ["services", "commission", "transport", "interest", "other"];
 export type IncomeMethod = "cash" | "mtn" | "bank";
 
 export interface Income {
@@ -56,19 +59,20 @@ export function rentalsIn(rentals: Rental[], from?: string, to?: string): Rental
 }
 
 export interface IncomeTotals {
-  /** Everything below together. */
+  /** Income: recorded here + money received in Expenses (not rents). */
   total: number;
   /** Recorded on the Income page. */
   recorded: number;
   recordedCount: number;
-  /** Rents from Sales → Rentals. */
+  /** Rents from Sales → Rentals: part of sales, not of `total`. */
   rentals: number;
   rentalsCount: number;
   /** Kept in Expenses as "money received". */
   fromExpenses: number;
 }
 
-/** Income outside sales for a period (dates YYYY-MM-DD, both included). */
+/** Income outside sales for a period (dates YYYY-MM-DD, both included),
+ *  and the period's rents apart. */
 export async function incomeTotals(from: string | undefined, to: string | undefined, isCar: boolean): Promise<IncomeTotals> {
   const q = new URLSearchParams();
   if (from) q.set("from_date", from);
@@ -84,7 +88,7 @@ export async function incomeTotals(from: string | undefined, to: string | undefi
   const rs = rentalsIn(rentals, from, to);
   const rent = rs.reduce((s, r) => s + n(r.rent_amount), 0);
   return {
-    total: recorded + fromExpenses + rent, recorded, recordedCount: n(d.count),
+    total: recorded + fromExpenses, recorded, recordedCount: n(d.count),
     rentals: rent, rentalsCount: rs.length, fromExpenses,
   };
 }

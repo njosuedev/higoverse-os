@@ -1,23 +1,22 @@
 "use client";
 
-// Income: money the business earns outside its sales (rentals, services,
-// commissions, interest…), next to Expenses. Rents from Sales → Rentals and
-// "money received" kept in Expenses are counted here too (lib/income.ts),
-// and Reports and Home add all of it to the profit.
+// Income: money the business earns outside its sales (services,
+// commissions, interest…), next to Expenses. "Money received" kept in
+// Expenses is counted here too (lib/income.ts); rentals are not: they are
+// recorded in Sales → Rentals. Reports and Home add income to the profit.
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { CarFront, Pencil, Plus, RefreshCw, Search, Trash2, TrendingUp, X } from "lucide-react";
+import { Pencil, Plus, RefreshCw, Search, Trash2, TrendingUp, X } from "lucide-react";
 import { useLanguage } from "@/lib/language-context";
 import DeepLink from "@/app/components/DeepLink";
 import DateRangeFilter from "@/app/components/ui/DateRangeFilter";
 import { askConfirm, notify } from "@/lib/dialogs";
 import { settingsRequest } from "@/lib/settings-api";
 import {
-  deleteIncome, incomeTotals, INCOME_SOURCES, listIncomes, rentalsIn, saveIncome,
+  deleteIncome, incomeTotals, INCOME_SOURCES, listIncomes, saveIncome,
   type Income, type IncomeInput, type IncomeMethod, type IncomeSource, type IncomeTotals,
 } from "@/lib/income";
-import { listRentals, type Rental } from "@/lib/rental-api";
 
 const pad = (n: number) => String(n).padStart(2, "0");
 const ymd = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -36,19 +35,14 @@ function apiDetail(err: unknown, fallback: string): string {
 interface Form { title: string; source: IncomeSource; amount: string; date: string; method: IncomeMethod | ""; payer: string; reference: string; notes: string }
 const emptyForm = (): Form => ({ title: "", source: "services", amount: "", date: ymd(new Date()), method: "", payer: "", reference: "", notes: "" });
 
-/** One row of the list: recorded here, or a rent from Rentals (read-only). */
-type Row = { kind: "income"; at: string; item: Income } | { kind: "rental"; at: string; item: Rental };
-
 export default function IncomePage() {
-  const { t, layout } = useLanguage();
-  const isCar = layout === "car";
+  const { t } = useLanguage();
   const now = new Date();
   const [from, setFrom] = useState(ymd(new Date(now.getFullYear(), now.getMonth(), 1)));
   const [to, setTo] = useState(ymd(now));
   const [source, setSource] = useState<IncomeSource | "">("");
   const [search, setSearch] = useState("");
   const [items, setItems] = useState<Income[]>([]);
-  const [rentals, setRentals] = useState<Rental[]>([]);
   const [totals, setTotals] = useState<IncomeTotals | null>(null);
   const [currency, setCurrency] = useState("RWF");
   const [loading, setLoading] = useState(true);
@@ -59,42 +53,33 @@ export default function IncomePage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [list, tot, rents] = await Promise.all([
+      const [list, tot] = await Promise.all([
         listIncomes({ from: from || undefined, to: to || undefined }),
-        incomeTotals(from || undefined, to || undefined, isCar),
-        isCar ? listRentals().catch(() => [] as Rental[]) : Promise.resolve([] as Rental[]),
+        incomeTotals(from || undefined, to || undefined, false),
       ]);
       setItems(list);
       setTotals(tot);
-      setRentals(rentalsIn(rents, from || undefined, to || undefined));
     } catch (e) { notify(apiDetail(e, t("common.error"))); }
     finally { setLoading(false); }
-  }, [from, to, isCar, t]);
+  }, [from, to, t]);
 
   useEffect(() => { void load(); }, [load]);
   useEffect(() => {
     settingsRequest("/settings").then((s) => s?.data?.currency && setCurrency(s.data.currency)).catch(() => {});
   }, []);
 
-  const rows: Row[] = useMemo(() => {
+  const rows = useMemo(() => {
     const q = search.trim().toLowerCase();
-    const list: Row[] = [
-      ...items.filter((i) => !source || i.source === source).map((i) => ({ kind: "income" as const, at: i.income_date, item: i })),
-      ...(!source || source === "rental" ? rentals.map((r) => ({ kind: "rental" as const, at: r.start_date, item: r })) : []),
-    ];
-    return list
-      .filter((r) => !q || (r.kind === "income"
-        ? [r.item.title, r.item.payer, r.item.reference, r.item.notes]
-        : [r.item.customer, r.item.car_name, r.item.plate_no, r.item.rental_no]).some((x) => (x || "").toLowerCase().includes(q)))
-      .sort((a, b) => b.at.localeCompare(a.at));
-  }, [items, rentals, source, search]);
+    return items
+      .filter((i) => !source || i.source === source)
+      .filter((i) => !q || [i.title, i.payer, i.reference, i.notes].some((x) => (x || "").toLowerCase().includes(q)));
+  }, [items, source, search]);
 
   const bySource = useMemo(() => {
     const m: Record<string, number> = {};
     items.forEach((i) => { m[i.source] = (m[i.source] ?? 0) + i.amount; });
-    if (totals?.rentals) m.rental = (m.rental ?? 0) + totals.rentals;
     return Object.entries(m).sort((a, b) => b[1] - a[1]);
-  }, [items, totals]);
+  }, [items]);
 
   function openNew() { setEditingId(null); setForm(emptyForm()); }
   function openEdit(i: Income) {
@@ -171,11 +156,9 @@ export default function IncomePage() {
 
         {/* Figures */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 mb-2">
-          <Figure label={t("income.total")} value={`${currency} ${money(totals?.total ?? 0)}`} detail={`${(totals?.recordedCount ?? 0) + (totals?.rentalsCount ?? 0)} ${t("income.records")}`} strong />
+          <Figure label={t("income.total")} value={`${currency} ${money(totals?.total ?? 0)}`} detail={`${totals?.recordedCount ?? 0} ${t("income.records")}`} strong />
           <Figure label={t("income.recorded_here")} value={money(totals?.recorded ?? 0)} detail={`${totals?.recordedCount ?? 0} ${t("income.records")}`} />
-          {isCar
-            ? <Figure label={t("income.from_rentals")} value={money(totals?.rentals ?? 0)} detail={`${totals?.rentalsCount ?? 0} ${t("rental.title").toLowerCase()}`} />
-            : <Figure label={t("income.top_source")} value={bySource[0] ? t(`income.src_${bySource[0][0]}`) : "-"} detail={bySource[0] ? money(bySource[0][1]) : t("common.no_data")} />}
+          <Figure label={t("income.top_source")} value={bySource[0] ? t(`income.src_${bySource[0][0]}`) : "-"} detail={bySource[0] ? money(bySource[0][1]) : t("common.no_data")} />
           <Figure label={t("income.from_expenses")} value={money(totals?.fromExpenses ?? 0)} detail={t("income.from_expenses_hint")} />
         </div>
 
@@ -213,30 +196,20 @@ export default function IncomePage() {
             </div>
           ) : (
             <div className="divide-y divide-slate-100">
-              {rows.map((r) => r.kind === "income" ? (
-                <div key={`i-${r.item.id}`} className="flex items-center gap-3 px-4 py-2.5 hover:bg-slate-50">
-                  <div className="w-20 shrink-0 text-xs text-slate-500 tabular-nums">{r.at.slice(0, 10)}</div>
+              {rows.map((i) => (
+                <div key={i.id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-slate-50">
+                  <div className="w-20 shrink-0 text-xs text-slate-500 tabular-nums">{(i.income_date || "").slice(0, 10)}</div>
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold text-slate-800 truncate">{r.item.title}</p>
+                    <p className="text-sm font-semibold text-slate-800 truncate">{i.title}</p>
                     <p className="text-xs text-slate-500 truncate">
-                      {[t(`income.src_${r.item.source}`), r.item.payer, methodLabel(r.item.payment_method), r.item.reference].filter(Boolean).join(" · ")}
+                      {[t(`income.src_${i.source}`), i.payer, methodLabel(i.payment_method), i.reference].filter(Boolean).join(" · ")}
                     </p>
                   </div>
-                  <p className="text-sm font-bold tabular-nums text-[#057642]">+{money(r.item.amount)}</p>
+                  <p className="text-sm font-bold tabular-nums text-[#057642]">+{money(i.amount)}</p>
                   <div className="flex gap-1">
-                    <button onClick={() => openEdit(r.item)} title={t("common.edit")} className="w-8 h-8 rounded-lg border border-slate-200 flex items-center justify-center text-slate-600 hover:text-blue-600"><Pencil size={13} /></button>
-                    <button onClick={() => void remove(r.item)} title={t("common.delete")} className="w-8 h-8 rounded-lg border border-slate-200 flex items-center justify-center text-slate-600 hover:text-red-600"><Trash2 size={13} /></button>
+                    <button onClick={() => openEdit(i)} title={t("common.edit")} className="w-8 h-8 rounded-lg border border-slate-200 flex items-center justify-center text-slate-600 hover:text-blue-600"><Pencil size={13} /></button>
+                    <button onClick={() => void remove(i)} title={t("common.delete")} className="w-8 h-8 rounded-lg border border-slate-200 flex items-center justify-center text-slate-600 hover:text-red-600"><Trash2 size={13} /></button>
                   </div>
-                </div>
-              ) : (
-                <div key={`r-${r.item.id}`} className="flex items-center gap-3 px-4 py-2.5 hover:bg-slate-50">
-                  <div className="w-20 shrink-0 text-xs text-slate-500 tabular-nums">{r.at}</div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold text-slate-800 truncate flex items-center gap-1.5"><CarFront size={13} className="text-slate-400" /> {r.item.customer} · {r.item.car_name}</p>
-                    <p className="text-xs text-slate-500 truncate">{t("income.src_rental")} · {r.item.rental_no} · {r.item.start_date} → {r.item.end_date}</p>
-                  </div>
-                  <p className="text-sm font-bold tabular-nums text-[#057642]">+{money(r.item.rent_amount)}</p>
-                  <Link href="/sales?tab=rentals" className="text-[11px] font-semibold text-blue-600 hover:underline w-[68px] text-right">{t("rental.title")}</Link>
                 </div>
               ))}
             </div>
@@ -263,7 +236,7 @@ export default function IncomePage() {
               <div className="grid grid-cols-2 gap-2">
                 <div>{label("income.source", true)}
                   <select className={inputCls} value={form.source} onChange={(e) => set({ source: e.target.value as IncomeSource })}>
-                    {INCOME_SOURCES.map((s) => <option key={s} value={s}>{t(`income.src_${s}`)}</option>)}
+                    {(form.source === "rental" ? ["rental" as const, ...INCOME_SOURCES] : INCOME_SOURCES).map((s) => <option key={s} value={s}>{t(`income.src_${s}`)}</option>)}
                   </select>
                 </div>
                 <div>{label("income.amount", true)}<input type="number" min="0" className={inputCls} value={form.amount} onChange={(e) => set({ amount: e.target.value })} /></div>
@@ -279,9 +252,6 @@ export default function IncomePage() {
                 <div>{label("income.payer")}<input className={inputCls} value={form.payer} onChange={(e) => set({ payer: e.target.value })} /></div>
                 <div>{label("income.reference")}<input className={inputCls} value={form.reference} onChange={(e) => set({ reference: e.target.value })} /></div>
               </div>
-              {isCar && form.source === "rental" && !editingId && (
-                <p className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-800">{t("income.rental_warning")}</p>
-              )}
               <div>{label("common.notes")}<textarea rows={2} className={inputCls} value={form.notes} onChange={(e) => set({ notes: e.target.value })} /></div>
             </div>
             <div className="flex justify-end gap-2 px-4 py-3 border-t border-slate-100">

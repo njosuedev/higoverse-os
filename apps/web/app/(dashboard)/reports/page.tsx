@@ -264,14 +264,15 @@ export default function ReportsPage() {
         {/* ── KEY FIGURES — one plain row, no profit ───────────────────────── */}
         {summary && (
           <div className="grid grid-cols-2 lg:grid-cols-5 gap-2">
-            <Figure label={t("dash.chart_sales")} value={`${currency} ${fmtNum(summary.revenue)}`}
-              detail={`${fmtNum(summary.sales_count)} ${t("reports.sales_word")}`} />
+            <Figure label={t("dash.chart_sales")} value={`${currency} ${fmtNum(summary.revenue + (otherIncome?.rentals ?? 0))}`}
+              detail={`${fmtNum(summary.sales_count)} ${t("reports.sales_word")}` +
+                (otherIncome?.rentals ? ` · ${t("rental.incl_rentals")} ${fmtNum(otherIncome.rentals)}` : "")} />
             <Figure label={t("reports.items_sold")} value={fmtNum(summary.items_sold)}
               detail={`${t("reports.to_word")} ${summary.unique_customers} ${t("reports.customers_word")}`} />
             <Figure label={t("dash.chart_expenses")} value={`${currency} ${fmtNum(expenseTotalPeriod)}`}
               detail={`${expenseCount} ${t("reports.records_this_period")}`} />
             <Figure label={t("income.other_income")} value={`${currency} ${fmtNum(otherIncome?.total ?? 0)}`}
-              detail={`${t("income.net_after")}: ${currency} ${fmtNum(summary.revenue + (otherIncome?.total ?? 0) - expenseTotalPeriod)}`} />
+              detail={`${t("income.net_after")}: ${currency} ${fmtNum(summary.revenue + (otherIncome?.rentals ?? 0) + (otherIncome?.total ?? 0) - expenseTotalPeriod)}`} />
             <Figure label={t("reports.stock_value")} value={`${currency} ${fmtNum(stockRetail)}`}
               detail={`${fmtNum(summary.total_products)} ${t("reports.products_word")} · ${summary.low_stock + summary.out_of_stock} ${t("reports.need_restock_word")}`} />
           </div>
