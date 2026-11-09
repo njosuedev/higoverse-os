@@ -8,9 +8,10 @@
 
 import AmountInput from "@/app/components/ui/AmountInput";
 import { useEffect, useState } from "react";
-import { FileSignature, Loader2, Pencil, Plus, Printer, Trash2, X } from "lucide-react";
+import { FileSignature, ImageUp, Loader2, Pencil, Plus, Printer, Stamp, Trash2, X } from "lucide-react";
 import {
-  createTaxContract, deleteTaxContract, getTaxContractCompany, getTaxContracts, updateTaxContract,
+  createTaxContract, deleteTaxContract, getClientStamp, getCompanyStamp, getTaxContractCompany, getTaxContracts,
+  setClientStamp, setCompanyStamp, updateTaxContract,
   type TaxClient, type TaxContract, type TaxContractCompany, type TaxContractInput,
 } from "@/lib/admin-api";
 import { printHtml } from "@/lib/print-frame";
@@ -39,6 +40,55 @@ function blank(client: TaxClient, company: TaxContractCompany): TaxContractInput
   };
 }
 
+/** An image file as a data URL, at most 900 px wide or high. PNG and WebP
+ *  stay PNG (transparent background kept); a photo stays JPEG. */
+function readStamp(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    if (!/^image\/(png|jpeg|webp)$/.test(file.type)) { reject(new Error("type")); return; }
+    const url = URL.createObjectURL(file);
+    const img = new window.Image();
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("read")); };
+    img.onload = () => {
+      const k = Math.min(1, 900 / Math.max(img.width, img.height));
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.round(img.width * k);
+      canvas.height = Math.round(img.height * k);
+      canvas.getContext("2d")!.drawImage(img, 0, 0, canvas.width, canvas.height);
+      URL.revokeObjectURL(url);
+      resolve(file.type === "image/jpeg" ? canvas.toDataURL("image/jpeg", 0.9) : canvas.toDataURL("image/png"));
+    };
+    img.src = url;
+  });
+}
+
+/** One side's stamp with signature: preview, upload or replace, remove. */
+function StampTile({ title, hint, value, busy, onPick, onRemove, t }: {
+  title: string; hint: string; value: string | null | undefined; busy: boolean;
+  onPick: (f: File) => void; onRemove: () => void; t: T;
+}) {
+  return (
+    <div className="flex min-w-0 flex-1 items-center gap-3 rounded-xl border border-slate-200 p-2.5">
+      <div className="flex h-16 w-20 shrink-0 items-center justify-center rounded-lg border border-dashed border-slate-300 bg-[repeating-conic-gradient(#f1f5f9_0%_25%,#fff_0%_50%)] bg-[length:10px_10px]">
+        {value === undefined ? <Loader2 size={14} className="animate-spin text-slate-400" />
+          // eslint-disable-next-line @next/next/no-img-element
+          : value ? <img src={value} alt="" className="max-h-full max-w-full object-contain" /> : <Stamp size={20} className="text-slate-300" />}
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-xs font-bold text-slate-700">{title}</p>
+        <p className="text-[11px] leading-snug text-slate-500">{hint}</p>
+        <div className="mt-1.5 flex gap-1.5">
+          <label className={`flex cursor-pointer items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-[11px] font-semibold text-slate-700 hover:border-[#0a66c2] hover:text-[#0a66c2] ${busy ? "pointer-events-none opacity-50" : ""}`}>
+            <ImageUp size={12} /> {t(value ? "stamp.replace" : "stamp.upload")}
+            <input type="file" accept="image/png,image/jpeg,image/webp" className="hidden"
+              onChange={(e) => { const file = e.target.files?.[0]; e.target.value = ""; if (file) onPick(file); }} />
+          </label>
+          {value && <button onClick={onRemove} disabled={busy} className="rounded-md border border-slate-200 px-2 py-1 text-[11px] font-semibold text-slate-500 hover:border-red-300 hover:text-red-600">{t("common.delete")}</button>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function TaxContracts({ client, t, onClose }: { client: TaxClient; t: T; onClose: () => void }) {
   const [rows, setRows] = useState<TaxContract[] | null>(null);
   const [company, setCompany] = useState<TaxContractCompany>(COMPANY_START);
@@ -47,6 +97,24 @@ export default function TaxContracts({ client, t, onClose }: { client: TaxClient
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmId, setConfirmId] = useState<string | null>(null);
+  // Each side's stamp with signature (undefined while loading).
+  const [clientStamp, setClientStampState] = useState<string | null | undefined>(undefined);
+  const [companyStamp, setCompanyStampState] = useState<string | null | undefined>(undefined);
+  const [stampBusy, setStampBusy] = useState(false);
+  useEffect(() => {
+    getClientStamp(client.id).then(setClientStampState).catch(() => setClientStampState(null));
+    getCompanyStamp().then(setCompanyStampState).catch(() => setCompanyStampState(null));
+  }, [client.id]);
+  async function changeStamp(side: "client" | "company", file: File | null) {
+    setStampBusy(true); setError(null);
+    try {
+      const data = file ? await readStamp(file) : null;
+      if (side === "client") { await setClientStamp(client.id, data); setClientStampState(data); }
+      else { await setCompanyStamp(data); setCompanyStampState(data); }
+    } catch (e) {
+      setError(e instanceof Error && (e.message === "type" || e.message === "read") ? t("stamp.err_image") : e instanceof Error ? e.message : t("common.error"));
+    } finally { setStampBusy(false); }
+  }
 
   async function load() {
     try {
@@ -93,7 +161,10 @@ export default function TaxContracts({ client, t, onClose }: { client: TaxClient
     finally { setBusy(false); }
   }
 
-  const print = (c: TaxContract) => printHtml(taxContractHtml(c, { autoPrint: true, logoUrl: `${window.location.origin}/higoverse-logo.png` }));
+  const print = (c: TaxContract) => printHtml(taxContractHtml(c, {
+    autoPrint: true, logoUrl: `${window.location.origin}/higoverse-logo.png`,
+    clientStamp: clientStamp ?? null, companyStamp: companyStamp ?? null,
+  }));
   const field = (k: string, el: React.ReactNode, wide = false) => (
     <label className={`block ${wide ? "sm:col-span-2" : ""}`}>
       <span className="block text-[11px] font-medium text-slate-500 mb-0.5">{t(k)}</span>{el}
@@ -118,6 +189,15 @@ export default function TaxContracts({ client, t, onClose }: { client: TaxClient
 
         <div className="flex-1 overflow-y-auto">
           {error && <p className="mx-4 mt-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">{error}</p>}
+
+          {!form && (
+            <div className="flex flex-col gap-2 border-b border-slate-100 p-4 sm:flex-row">
+              <StampTile t={t} title={t("stamp.client")} hint={t("stamp.hint")} value={clientStamp} busy={stampBusy}
+                onPick={(file) => void changeStamp("client", file)} onRemove={() => void changeStamp("client", null)} />
+              <StampTile t={t} title={t("stamp.company")} hint={t("stamp.hint_company")} value={companyStamp} busy={stampBusy}
+                onPick={(file) => void changeStamp("company", file)} onRemove={() => void changeStamp("company", null)} />
+            </div>
+          )}
 
           {form ? (
             <div className="space-y-4 p-4">

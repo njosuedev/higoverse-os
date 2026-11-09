@@ -297,6 +297,8 @@ export interface TaxClient {
   monthly_fee?: number | null;
   /** How many contracts the client has (every client must have one). */
   contracts?: number;
+  /** A stamp with signature is kept for the client's side of the contract. */
+  has_stamp?: boolean;
   created_at: string | null;
   updated_at: string | null;
 }
@@ -437,4 +439,21 @@ export async function updateTaxPayment(id: string, p: Pick<TaxPayment, "period" 
 
 export async function deleteTaxPayment(id: string): Promise<void> {
   await adminRequest(`/api/v1/admin/tax-payments/${id}`, { method: "DELETE" });
+}
+
+// ── Stamps with signatures on tax contracts (data URLs) ───────────────────
+
+export async function getCompanyStamp(): Promise<string | null> {
+  const res = await adminRequest("/api/v1/admin/tax-stamps/company");
+  return res?.data ?? null;
+}
+export async function setCompanyStamp(data: string | null): Promise<void> {
+  await adminRequest("/api/v1/admin/tax-stamps/company", data ? { method: "PUT", body: JSON.stringify({ data }) } : { method: "DELETE" });
+}
+export async function getClientStamp(clientId: string): Promise<string | null> {
+  const res = await adminRequest(`/api/v1/admin/tax-clients/${clientId}/stamp`);
+  return res?.data ?? null;
+}
+export async function setClientStamp(clientId: string, data: string | null): Promise<void> {
+  await adminRequest(`/api/v1/admin/tax-clients/${clientId}/stamp`, data ? { method: "PUT", body: JSON.stringify({ data }) } : { method: "DELETE" });
 }

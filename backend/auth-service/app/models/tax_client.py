@@ -26,6 +26,9 @@ class TaxClient(Base):
     # What the client pays Higoverse each month (Rwf), as agreed; their
     # contract (tax_contracts) is made with it.
     monthly_fee = Column(Numeric(14, 2), nullable=True)
+    # The client's stamp with signature (data URL), printed on their side of
+    # the contract. Not sent with the list (only "has_stamp").
+    stamp = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), nullable=False, default=_now)
     updated_at = Column(DateTime(timezone=True), nullable=False, default=_now, onupdate=_now)
 

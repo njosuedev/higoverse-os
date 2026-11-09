@@ -82,15 +82,24 @@ def _fmt(p: TaxPayment) -> dict:
     }
 
 
+def _fee(client: TaxClient | None, contract: TaxContract) -> float:
+    """The fee a client owes each month: their agreed monthly fee as it stands
+    in Tax clients (so changing it shows at once), or the contract's when the
+    client has none."""
+    if client is not None and client.monthly_fee is not None and client.monthly_fee > 0:
+        return float(client.monthly_fee)
+    return float(contract.monthly_fee)
+
+
 def _expected(contracts: list[TaxContract], clients: dict, period: str) -> dict:
-    """Client id → the fee expected for [period]: their latest contract that
-    had started by the end of that month (a client with no started contract
-    owes nothing yet)."""
+    """Client id → the fee expected for [period]: owed from the month their
+    first contract started (a client with no started contract owes nothing
+    yet), at their agreed monthly fee."""
     end = _month_end(period)
     out: dict = {}
     for c in contracts:   # oldest first, so the latest started one wins
         if c.client_id in clients and c.start_date <= end:
-            out[c.client_id] = float(c.monthly_fee)
+            out[c.client_id] = _fee(clients[c.client_id], c)
     return out
 
 
@@ -135,13 +144,13 @@ def income(period: Optional[str] = None, months: int = 6, db: Session = Depends(
 
 
 def _balance(db: Session, client_id, period: str, without=None) -> dict:
-    """What [client_id] owes for [period]: the fee of their latest contract
-    started by the end of the month, what is already paid (not counting the
-    payment [without], being corrected), and what's left."""
+    """What [client_id] owes for [period]: their agreed monthly fee once a
+    contract has started by the end of the month, what is already paid (not
+    counting the payment [without], being corrected), and what's left."""
     end = _month_end(period)
     c = db.query(TaxContract).filter(TaxContract.client_id == client_id, TaxContract.start_date <= end) \
         .order_by(TaxContract.start_date.desc(), TaxContract.created_at.desc()).first()
-    expected = float(c.monthly_fee) if c else 0.0
+    expected = _fee(db.query(TaxClient).filter(TaxClient.id == client_id).first(), c) if c else 0.0
     q = db.query(func.coalesce(func.sum(TaxPayment.amount), 0)).filter(TaxPayment.client_id == client_id, TaxPayment.period == period)
     if without is not None:
         q = q.filter(TaxPayment.id != without)

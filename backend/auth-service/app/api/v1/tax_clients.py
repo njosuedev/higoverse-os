@@ -88,6 +88,7 @@ def _fmt(c: TaxClient, contracts: int = 0) -> dict:
         "id": str(c.id), "name": c.name, "delegate": c.delegate, "phone": c.phone,
         "tin": c.tin, "notes": c.notes,
         "monthly_fee": float(c.monthly_fee) if c.monthly_fee is not None else None,
+        "has_stamp": bool(c.stamp),
         # Every client must have a contract: the list shows who still hasn't.
         "contracts": contracts,
         "created_at": c.created_at.isoformat() if c.created_at else None,

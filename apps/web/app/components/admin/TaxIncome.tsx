@@ -214,13 +214,24 @@ export function TaxPaymentsDialog({ client, period, expected, received, t, onClo
   );
 }
 
-/** Loads the month's figures (again when [version] changes). */
-export function useTaxIncome(period: string, version: number) {
+/** Loads the month's figures: again when [version] or [clientsKey] change
+ *  (a payment, a client's fee, a new or deleted client…), when the tab comes
+ *  back into view, and every minute (another admin's changes). */
+export function useTaxIncome(period: string, version: number, clientsKey = "") {
   const [data, setData] = useState<Income | null>(null);
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    const again = () => { if (document.visibilityState === "visible") setTick((n) => n + 1); };
+    const timer = setInterval(again, 60_000);
+    document.addEventListener("visibilitychange", again);
+    window.addEventListener("focus", again);
+    return () => { clearInterval(timer); document.removeEventListener("visibilitychange", again); window.removeEventListener("focus", again); };
+  }, []);
   useEffect(() => {
     let alive = true;
-    getTaxIncome(period).then((d) => { if (alive) setData(d); }).catch(() => { if (alive) setData(null); });
+    // The figures on screen stay while the new ones load (no flicker).
+    getTaxIncome(period).then((d) => { if (alive) setData(d); }).catch(() => {});
     return () => { alive = false; };
-  }, [period, version]);
+  }, [period, version, tick, clientsKey]);
   return data;
 }

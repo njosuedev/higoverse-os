@@ -218,7 +218,10 @@ export default function TaxClients({ t, shops, onOpenCompany, onRows, initialQue
   // Expected (agreed fees) and real income (payments) for a month.
   const [period, setPeriod] = useState(() => new Date().toISOString().slice(0, 7));
   const [incomeVersion, setIncomeVersion] = useState(0);
-  const income = useTaxIncome(period, incomeVersion);
+  // Any change to the clients (fee, new, deleted, imported, contracts made)
+  // shows in the income at once.
+  const clientsKey = useMemo(() => (rows ?? []).map((r) => `${r.id}:${r.monthly_fee ?? ""}:${r.contracts ?? 0}`).join("|"), [rows]);
+  const income = useTaxIncome(period, incomeVersion, clientsKey);
   const incomeOf = useMemo(() => new Map((income?.clients ?? []).map((c) => [c.client_id, c])), [income]);
   const [payingFor, setPayingFor] = useState<TaxClient | null>(null);
   // Every client must have a contract.
