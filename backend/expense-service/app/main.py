@@ -8,6 +8,8 @@ from app.api.routes.expenses import router as expense_router
 from app.api.routes.payroll import router as payroll_router
 from app.api.routes.incomes import router as income_router
 from app.models import payroll as _payroll_models  # noqa: F401  (tables for create_all)
+from app.models import correction as _correction_models  # noqa: F401
+from app.models import income as _income_models  # noqa: F401
 from app.db.database import Base, engine
 
 app = FastAPI(
@@ -63,6 +65,7 @@ def on_startup():
                 "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS bank_account TEXT",
                 "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS receiver_phone TEXT",
                 "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS direction VARCHAR(3)",
+                "ALTER TABLE incomes ADD COLUMN IF NOT EXISTS proof_data TEXT",
                 # Pay slip details
                 "ALTER TABLE payroll_employees ADD COLUMN IF NOT EXISTS bank_name VARCHAR(100)",
                 "ALTER TABLE payroll_employees ADD COLUMN IF NOT EXISTS bank_account VARCHAR(60)",
@@ -82,6 +85,26 @@ def on_startup():
                 "ALTER TABLE payroll_payments ADD COLUMN IF NOT EXISTS sick_days INTEGER NOT NULL DEFAULT 0",
             ]:
                 conn.execute(text(col_sql))
+            conn.commit()
+    except Exception:
+        pass
+    # The history of type corrections is append-only (models/correction.py):
+    # the database itself refuses to change, delete or empty it.
+    try:
+        with engine.connect() as conn:
+            from sqlalchemy import text
+            for sql in [
+                "CREATE OR REPLACE FUNCTION hgv_corrections_locked() RETURNS trigger AS $$ "
+                "BEGIN RAISE EXCEPTION 'transaction_corrections is append-only: corrections are never changed or deleted'; END; "
+                "$$ LANGUAGE plpgsql",
+                "DROP TRIGGER IF EXISTS transaction_corrections_no_change ON transaction_corrections",
+                "CREATE TRIGGER transaction_corrections_no_change BEFORE UPDATE OR DELETE ON transaction_corrections "
+                "FOR EACH ROW EXECUTE PROCEDURE hgv_corrections_locked()",
+                "DROP TRIGGER IF EXISTS transaction_corrections_no_truncate ON transaction_corrections",
+                "CREATE TRIGGER transaction_corrections_no_truncate BEFORE TRUNCATE ON transaction_corrections "
+                "FOR EACH STATEMENT EXECUTE PROCEDURE hgv_corrections_locked()",
+            ]:
+                conn.execute(text(sql))
             conn.commit()
     except Exception:
         pass

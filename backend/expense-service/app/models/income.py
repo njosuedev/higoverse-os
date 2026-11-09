@@ -27,5 +27,8 @@ class Income(Base):
     payer = Column(String(150), nullable=True)                       # who paid
     reference = Column(String(100), nullable=True)                   # receipt / transaction id
     notes = Column(Text, nullable=True)
+    # Receipts kept when an expense recorded by mistake moves here (same
+    # JSON as Expense.proof_data: [{name, type, data}]).
+    proof_data = Column(Text, nullable=True)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)

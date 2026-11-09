@@ -83,11 +83,15 @@ def list_expenses(
     q = q.order_by(Expense.expense_date.desc())
     total = q.count()
     items = q.offset((page - 1) * limit).limit(limit).all()
+    # Records that came here by a type correction (routes/incomes.py).
+    from app.models.correction import TransactionCorrection
+    moved = {c.new_id for c in db.query(TransactionCorrection.new_id).filter(
+        TransactionCorrection.shop_id == user["shop_id"], TransactionCorrection.new_id.in_([e.id for e in items]))} if items else set()
 
     return {
         "success": True,
         "data": {
-            "items": [_fmt(e) for e in items],
+            "items": [{**_fmt(e), "corrected": e.id in moved} for e in items],
             "total": total,
             "page": page,
             "limit": limit,

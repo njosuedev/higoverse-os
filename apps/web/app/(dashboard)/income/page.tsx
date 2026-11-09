@@ -7,14 +7,16 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Pencil, Plus, RefreshCw, Search, Trash2, TrendingUp, X } from "lucide-react";
+import { ArrowRightLeft, Paperclip, Pencil, Plus, RefreshCw, Search, Trash2, TrendingUp, X, History } from "lucide-react";
 import { useLanguage } from "@/lib/language-context";
 import DeepLink from "@/app/components/DeepLink";
 import DateRangeFilter from "@/app/components/ui/DateRangeFilter";
 import { askConfirm, notify } from "@/lib/dialogs";
+import { useAuth } from "@/lib/auth-context";
+import CorrectionHistory from "@/app/components/finance/CorrectionHistory";
 import { settingsRequest } from "@/lib/settings-api";
 import {
-  deleteIncome, incomeTotals, INCOME_SOURCES, listIncomes, saveIncome,
+  apiError, CORRECTION_ROLES, deleteIncome, EXPENSE_CATEGORIES, incomeProof, incomeTotals, INCOME_SOURCES, listIncomes, moveIncomeToExpense, saveIncome,
   type Income, type IncomeInput, type IncomeMethod, type IncomeSource, type IncomeTotals,
 } from "@/lib/income";
 
@@ -22,18 +24,12 @@ const pad = (n: number) => String(n).padStart(2, "0");
 const ymd = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 const money = (n: number) => Math.round(n || 0).toLocaleString();
 
-function apiDetail(err: unknown, fallback: string): string {
-  const m = /error: \d+ ([\s\S]*)$/.exec(err instanceof Error ? err.message : "");
-  try {
-    const d = m && JSON.parse(m[1])?.detail;
-    if (typeof d === "string") return d;
-    if (Array.isArray(d) && d[0]?.msg) return String(d[0].msg).replace(/^Value error, /, "");
-  } catch { /* not JSON */ }
-  return fallback;
-}
+const apiDetail = apiError;
 
+type ExpenseMethod = "mtn" | "bank";
 interface Form { title: string; source: IncomeSource; amount: string; date: string; method: IncomeMethod | ""; payer: string; reference: string; notes: string }
 const emptyForm = (): Form => ({ title: "", source: "services", amount: "", date: ymd(new Date()), method: "", payer: "", reference: "", notes: "" });
+const asExpenseMethod = (m?: string | null): ExpenseMethod | "" => (m === "mtn" || m === "bank" ? m : "");
 
 export default function IncomePage() {
   const { t } = useLanguage();
@@ -49,6 +45,13 @@ export default function IncomePage() {
   const [form, setForm] = useState<Form | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // "Move to Expenses": income that was really money spent. Owner, admin or
+  // accountant only, with a reason and a confirmation; recorded in the
+  // correction history.
+  const { user } = useAuth();
+  const canCorrect = CORRECTION_ROLES.has(user?.role ?? "");
+  const [moving, setMoving] = useState<{ i: Income; category: string; method: ExpenseMethod | ""; reason: string } | null>(null);
+  const [showHistory, setShowHistory] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -103,12 +106,45 @@ export default function IncomePage() {
     setBusy(true);
     try {
       await saveIncome(body, editingId ?? undefined);
+      notify(t("income.saved"), "success");
       setForm(null);
       setEditingId(null);
-      notify(t("income.saved"), "success");
       await load();
     } catch (e) { notify(apiDetail(e, t("common.error"))); }
     finally { setBusy(false); }
+  }
+
+  async function confirmMove() {
+    if (!moving) return;
+    if (!moving.method) { notify(t("move.err_method")); return; }
+    const reason = moving.reason.trim();
+    if (reason.length < 5) { notify(t("move.err_reason")); return; }
+    const ok = await askConfirm({
+      title: t("move.confirm_title"),
+      message: t("move.confirm_to_expense").replace("{title}", moving.i.title).replace("{amount}", money(moving.i.amount)),
+      confirmLabel: t("move.to_expenses"),
+    });
+    if (!ok) return;
+    setBusy(true);
+    try {
+      await moveIncomeToExpense(moving.i.id, moving.category, reason, moving.method);
+      setMoving(null);
+      notify(t("move.done_expense"), "success");
+      await load();
+    } catch (e) { notify(apiDetail(e, t("common.error"))); }
+    finally { setBusy(false); }
+  }
+
+  /** Opens the receipts kept with an income, each in a new tab. */
+  async function showProof(i: Income) {
+    try {
+      const files = await incomeProof(i.id);
+      if (!files.length) { notify(t("expenses.no_proof_msg")); return; }
+      for (const f of files) {
+        const blob = await (await fetch(f.data)).blob();
+        window.open(URL.createObjectURL(blob), "_blank", "noopener");
+      }
+    } catch { notify(t("expenses.load_proof_error")); }
   }
 
   async function remove(i: Income) {
@@ -123,6 +159,7 @@ export default function IncomePage() {
   return (
     <div className="min-h-screen">
       <DeepLink keys={["new"]} onParams={(p) => { if (p.get("new") === "1") openNew(); }} />
+      {showHistory && <CorrectionHistory onClose={() => setShowHistory(false)} />}
       <div className="max-w-7xl mx-auto px-3 sm:px-5 py-3 sm:py-4">
         {/* Header */}
         <div className="rounded-xl mb-2 overflow-hidden border border-emerald-200 bg-white">
@@ -132,6 +169,9 @@ export default function IncomePage() {
               <h1 className="text-sm font-bold text-slate-900">{t("income.title")}</h1>
               <p className="text-xs text-slate-500">{t("income.hint")}</p>
             </div>
+            <button onClick={() => setShowHistory(true)} title={t("move.history")} className="w-8 h-8 rounded-lg border border-slate-200 flex items-center justify-center text-slate-500 hover:text-slate-800">
+              <History size={13} />
+            </button>
             <button onClick={() => void load()} title={t("common.refresh")} className="w-8 h-8 rounded-lg border border-slate-200 flex items-center justify-center text-slate-500 hover:text-[#057642]">
               <RefreshCw size={13} className={loading ? "animate-spin" : ""} />
             </button>
@@ -200,13 +240,17 @@ export default function IncomePage() {
                 <div key={i.id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-slate-50">
                   <div className="w-20 shrink-0 text-xs text-slate-500 tabular-nums">{(i.income_date || "").slice(0, 10)}</div>
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold text-slate-800 truncate">{i.title}</p>
+                    <p className="text-sm font-semibold text-slate-800 truncate">{i.title}
+                      {i.corrected && <span title={t("move.corrected_tag_hint")} className="ml-1.5 inline-flex rounded bg-amber-50 border border-amber-200 px-1 text-[10px] font-semibold text-amber-700 align-middle">{t("move.corrected_tag")}</span>}
+                    </p>
                     <p className="text-xs text-slate-500 truncate">
                       {[t(`income.src_${i.source}`), i.payer, methodLabel(i.payment_method), i.reference].filter(Boolean).join(" · ")}
                     </p>
                   </div>
                   <p className="text-sm font-bold tabular-nums text-[#057642]">+{money(i.amount)}</p>
                   <div className="flex gap-1">
+                    {i.has_proof && <button onClick={() => void showProof(i)} title={t("income.proof")} className="w-8 h-8 rounded-lg border border-slate-200 flex items-center justify-center text-slate-600 hover:text-blue-600"><Paperclip size={13} /></button>}
+                    {canCorrect && <button onClick={() => setMoving({ i, category: "other", method: asExpenseMethod(i.payment_method), reason: "" })} title={t("move.to_expenses")} className="w-8 h-8 rounded-lg border border-slate-200 flex items-center justify-center text-slate-600 hover:text-[#0a66c2]"><ArrowRightLeft size={13} /></button>}
                     <button onClick={() => openEdit(i)} title={t("common.edit")} className="w-8 h-8 rounded-lg border border-slate-200 flex items-center justify-center text-slate-600 hover:text-blue-600"><Pencil size={13} /></button>
                     <button onClick={() => void remove(i)} title={t("common.delete")} className="w-8 h-8 rounded-lg border border-slate-200 flex items-center justify-center text-slate-600 hover:text-red-600"><Trash2 size={13} /></button>
                   </div>
@@ -222,6 +266,38 @@ export default function IncomePage() {
           </p>
         )}
       </div>
+
+      {moving && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => !busy && setMoving(null)}>
+          <div role="dialog" aria-modal="true" className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <p className="flex items-center gap-2 font-bold text-slate-800"><ArrowRightLeft size={17} className="text-[#0a66c2]" /> {t("move.to_expenses")}</p>
+            <p className="mt-1 text-sm text-slate-600">{moving.i.title} · <b>{money(moving.i.amount)}</b></p>
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              <div>{label("move.pick_category")}
+                <select className={inputCls} value={moving.category} onChange={(e) => setMoving({ ...moving, category: e.target.value })}>
+                  {EXPENSE_CATEGORIES.map((c) => <option key={c} value={c}>{t(`expenses.cat.${c}`)}</option>)}
+                </select>
+              </div>
+              <div>{label("move.pick_method", true)}
+                <select className={inputCls} value={moving.method} onChange={(e) => setMoving({ ...moving, method: e.target.value as ExpenseMethod | "" })}>
+                  <option value="">-</option>
+                  <option value="mtn">MTN MoMo</option>
+                  <option value="bank">{t("income.method_bank")}</option>
+                </select>
+              </div>
+            </div>
+            <label className="mt-3 block text-[11px] font-medium text-slate-500 mb-0.5">{t("move.reason")} <span className="text-red-400">*</span></label>
+            <textarea rows={2} maxLength={1000} value={moving.reason} placeholder={t("move.reason_ph")}
+              onChange={(ev) => setMoving({ ...moving, reason: ev.target.value })}
+              className="w-full border border-slate-200 rounded-lg px-2.5 py-1.5 text-sm" />
+            <p className="mt-2 text-xs text-slate-500">{t("move.to_expense_hint")}</p>
+            <div className="mt-4 flex justify-end gap-2">
+              <button onClick={() => setMoving(null)} disabled={busy} className="px-3 py-1.5 rounded-lg border border-slate-200 text-sm">{t("common.cancel")}</button>
+              <button onClick={() => void confirmMove()} disabled={busy} className="px-4 py-1.5 rounded-lg bg-[#0a66c2] text-white text-sm font-semibold disabled:opacity-50">{t("move.to_expenses")}</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* New / edit */}
       {form && (

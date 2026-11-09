@@ -23,6 +23,10 @@ export interface Income {
   payer?: string | null;
   reference?: string | null;
   notes?: string | null;
+  /** Receipts kept (moved here from Expenses). */
+  has_proof?: boolean;
+  /** It came here from Expenses by a correction. */
+  corrected?: boolean;
   created_at?: string | null;
 }
 
@@ -91,4 +95,69 @@ export async function incomeTotals(from: string | undefined, to: string | undefi
     total: recorded + fromExpenses, recorded, recordedCount: n(d.count),
     rentals: rent, rentalsCount: rs.length, fromExpenses,
   };
+}
+
+// ── Correcting the type (expense-service routes/incomes.py) ──────────────
+// The record moves in one step on the server, receipts included, and the
+// correction is written to a history that is never changed or deleted.
+// Every total, report and dashboard is computed from the records, so they
+// follow.
+
+/** Who may correct a record's type (CORRECTION_ROLES in expense-service). */
+export const CORRECTION_ROLES = new Set(["owner", "admin", "accountant"]);
+
+export interface Correction {
+  id: string;
+  from_type: "expense" | "income";
+  to_type: "expense" | "income";
+  original_id: string;
+  new_id: string;
+  from_category?: string | null;
+  to_category?: string | null;
+  title: string;
+  amount: number;
+  transaction_date?: string | null;
+  reason: string;
+  corrected_by_name?: string | null;
+  corrected_by_role?: string | null;
+  corrected_at: string;
+}
+
+/** An expense that was really money received becomes income. */
+export async function moveExpenseToIncome(expenseId: string, source: IncomeSource, reason: string): Promise<Income> {
+  const res = await expenseRequest(`/incomes/from-expense/${expenseId}`, { method: "POST", body: JSON.stringify({ source, reason }) });
+  return res?.data as Income;
+}
+
+/** Income that was really money spent becomes an expense. */
+export async function moveIncomeToExpense(incomeId: string, category: string, reason: string, paymentMethod?: "mtn" | "bank"): Promise<void> {
+  await expenseRequest(`/incomes/${incomeId}/to-expense`, {
+    method: "POST", body: JSON.stringify({ category, reason, ...(paymentMethod ? { payment_method: paymentMethod } : {}) }),
+  });
+}
+
+/** The history of corrections, newest first (or those of one record). */
+export async function listCorrections(recordId?: string): Promise<Correction[]> {
+  const res = await expenseRequest(`/incomes/corrections${recordId ? `?record_id=${encodeURIComponent(recordId)}` : ""}`);
+  return (res?.data as Correction[]) ?? [];
+}
+
+/** Receipts kept with an income (moved here from Expenses). */
+export async function incomeProof(incomeId: string): Promise<{ name: string; type: string; data: string }[]> {
+  const res = await expenseRequest(`/incomes/${incomeId}/proof`);
+  return res?.data?.files ?? [];
+}
+
+/** Expense categories (expense-service ExpenseCategory), for moving income to Expenses. */
+export const EXPENSE_CATEGORIES = ["rent", "utilities", "salaries", "supplies", "maintenance", "marketing", "transport", "taxes", "other"] as const;
+
+/** The server's message from a failed request ("… error: 422 {detail}"), or [fallback]. */
+export function apiError(err: unknown, fallback: string): string {
+  const m = /error: \d+ ([\s\S]*)$/.exec(err instanceof Error ? err.message : "");
+  try {
+    const d = m && JSON.parse(m[1])?.detail;
+    if (typeof d === "string") return d;
+    if (Array.isArray(d) && d[0]?.msg) return String(d[0].msg).replace(/^Value error, /, "");
+  } catch { /* not JSON */ }
+  return fallback;
 }

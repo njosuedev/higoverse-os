@@ -9,10 +9,13 @@ import Pagination from "@/app/components/ui/Pagination";
 import DeepLink from "@/app/components/DeepLink";
 import DateRangeFilter from "@/app/components/ui/DateRangeFilter";
 import { getPrintShop, imageForPdf, printShopLines } from "@/lib/print-shop";
+import { notify } from "@/lib/dialogs";
+import { apiError, CORRECTION_ROLES, INCOME_SOURCES, moveExpenseToIncome, type IncomeSource } from "@/lib/income";
+import { useAuth } from "@/lib/auth-context";
+import CorrectionHistory from "@/app/components/finance/CorrectionHistory";
 import type { DataValidation as ExcelDataValidation } from "exceljs";
 import {
-  Plus, Pencil, Trash2, X, Calendar, BarChart3, AlertCircle, Download, Upload, FileSpreadsheet, FileText, Paperclip, ImageIcon, FileIcon, Receipt, RefreshCw, Search, Filter, ChevronDown,
-} from "lucide-react";
+  Plus, Pencil, Trash2, X, Calendar, BarChart3, AlertCircle, Download, Upload, FileSpreadsheet, FileText, Paperclip, ImageIcon, FileIcon, Receipt, RefreshCw, Search, Filter, ChevronDown, ArrowRightLeft, History } from "lucide-react";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -39,6 +42,8 @@ interface Expense {
   bank_name?: string;
   bank_account?: string;
   receiver_phone?: string;
+  /** It came here from Income by a correction. */
+  corrected?: boolean;
   /** "in": money received, kept here for the record but never counted as spending. */
   direction?: "in" | "out";
 }
@@ -154,6 +159,33 @@ export default function ExpenseManagementPage() {
   const [submitting, setSubmitting]   = useState(false);
   const [deletingId, setDeletingId]   = useState("");
   const [editingId, setEditingId]     = useState("");   // "" = recording a new expense
+  // "Move to Income": an expense that was really money received. Owner,
+  // admin or accountant only, with a reason and a confirmation; recorded in
+  // the correction history.
+  const { user } = useAuth();
+  const canCorrect = CORRECTION_ROLES.has(user?.role ?? "");
+  const [moving, setMoving] = useState<{ e: Expense; source: IncomeSource; reason: string } | null>(null);
+  const [movingBusy, setMovingBusy] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+  async function confirmMove() {
+    if (!moving) return;
+    const reason = moving.reason.trim();
+    if (reason.length < 5) { notify(t("move.err_reason")); return; }
+    const ok = await showConfirm(
+      t("move.confirm_title"),
+      t("move.confirm_to_income").replace("{title}", moving.e.title).replace("{amount}", Number(moving.e.amount).toLocaleString()),
+      t("move.to_income"),
+    );
+    if (!ok) return;
+    setMovingBusy(true);
+    try {
+      await moveExpenseToIncome(moving.e.id, moving.source, reason);
+      setMoving(null);
+      notify(t("move.done_income"), "success");
+      await loadAll(true);
+    } catch (err) { notify(apiError(err, t("common.something_wrong"))); }
+    finally { setMovingBusy(false); }
+  }
   const [form, setForm]               = useState(EMPTY_FORM);
 
   const [proofEntries, setProofEntries]   = useState<ProofEntry[]>([]);
@@ -211,7 +243,7 @@ export default function ExpenseManagementPage() {
     ws.getCell("A2").value =
       `Type one expense per row, from row ${TPL_HEADER_ROW + 1}. Columns with * are required. ` +
       "Pick Category and Payment method from the list; Date as YYYY-MM-DD. Money in / out: Out (or empty) for money spent, " +
-      "In for money received (kept for the record, not counted as an expense). Then use Import on the Expenses page.";
+      "In for money received (it is recorded in Income). Then use Import on the Expenses page.";
     ws.getCell("A2").font = { size: 10, color: { argb: "FF4B5563" } };
     ws.getCell("A2").alignment = { wrapText: true, vertical: "top" };
     ws.getRow(2).height = 30;
@@ -307,6 +339,19 @@ export default function ExpenseManagementPage() {
       const dir = /^(in|received|income|credit)/i.test(text(r, "direction")) ? "in" : "out";
       if (!title || !(amount > 0) || !date || !payment || !ALL_CATEGORIES.includes(cat)) { failedRows.push(i + 1); continue; }
       try {
+        if (dir === "in") {
+          // Money received belongs in Income.
+          await expenseRequest("/incomes", {
+            method: "POST",
+            body: JSON.stringify({
+              title, source: "other", amount, income_date: date + "T00:00:00", payment_method: payment,
+              reference: payment === "bank" ? (text(r, "bank_account") || undefined) : undefined,
+              notes: text(r, "notes") || undefined,
+            }),
+          });
+          imported++;
+          continue;
+        }
         await expenseRequest("/expenses", {
           method: "POST",
           body: JSON.stringify({
@@ -317,7 +362,6 @@ export default function ExpenseManagementPage() {
             bank_name:      payment === "bank" ? (text(r, "bank_name") || undefined) : undefined,
             bank_account:   payment === "bank" ? (text(r, "bank_account") || undefined) : undefined,
             receiver_phone: text(r, "phone") || undefined,
-            direction: dir,
           }),
         });
         imported++;
@@ -827,7 +871,6 @@ export default function ExpenseManagementPage() {
             bank_name:      form.payment_method === "bank" ? (form.bank_name.trim() || null) : null,
             bank_account:   form.payment_method === "bank" ? (form.bank_account.trim() || null) : null,
             receiver_phone: form.payment_method ? (form.receiver_phone.trim() || null) : null,
-            direction: form.direction,
           }),
         });
         setShowModal(false);
@@ -848,7 +891,6 @@ export default function ExpenseManagementPage() {
           bank_name:      form.payment_method === "bank" ? (form.bank_name.trim() || undefined) : undefined,
           bank_account:   form.payment_method === "bank" ? (form.bank_account.trim() || undefined) : undefined,
           receiver_phone: form.receiver_phone.trim() || undefined,
-          direction: form.direction,
         }),
       });
 
@@ -956,6 +998,29 @@ export default function ExpenseManagementPage() {
   return (
     <div className="min-h-screen">
       <DeepLink keys={["new"]} onParams={handleDeepLink} />
+      {showHistory && <CorrectionHistory onClose={() => setShowHistory(false)} />}
+      {moving && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => !movingBusy && setMoving(null)}>
+          <div role="dialog" aria-modal="true" className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl" onClick={(ev) => ev.stopPropagation()}>
+            <p className="flex items-center gap-2 font-bold text-slate-800"><ArrowRightLeft size={17} className="text-[#057642]" /> {t("move.to_income")}</p>
+            <p className="mt-1 text-sm text-slate-600">{moving.e.title} · <b>{Number(moving.e.amount).toLocaleString()}</b></p>
+            <label className="mt-4 block text-[11px] font-medium text-slate-500 mb-0.5">{t("move.pick_source")}</label>
+            <select value={moving.source} onChange={(ev) => setMoving({ ...moving, source: ev.target.value as IncomeSource })}
+              className="w-full border border-slate-200 rounded-lg px-2.5 py-1.5 text-sm">
+              {INCOME_SOURCES.map((s) => <option key={s} value={s}>{t(`income.src_${s}`)}</option>)}
+            </select>
+            <label className="mt-3 block text-[11px] font-medium text-slate-500 mb-0.5">{t("move.reason")} <span className="text-red-400">*</span></label>
+            <textarea rows={2} maxLength={1000} value={moving.reason} placeholder={t("move.reason_ph")}
+              onChange={(ev) => setMoving({ ...moving, reason: ev.target.value })}
+              className="w-full border border-slate-200 rounded-lg px-2.5 py-1.5 text-sm" />
+            <p className="mt-2 text-xs text-slate-500">{t("move.to_income_hint")}</p>
+            <div className="mt-4 flex justify-end gap-2">
+              <button onClick={() => setMoving(null)} disabled={movingBusy} className="px-3 py-1.5 rounded-lg border border-slate-200 text-sm">{t("common.cancel")}</button>
+              <button onClick={() => void confirmMove()} disabled={movingBusy} className="px-4 py-1.5 rounded-lg bg-[#057642] text-white text-sm font-semibold disabled:opacity-50">{t("move.to_income")}</button>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="max-w-7xl mx-auto px-3 sm:px-5 py-3 sm:py-4">
 
         {/* ── HEADER ─────────────────────────────────────────── */}
@@ -968,6 +1033,10 @@ export default function ExpenseManagementPage() {
             <span className="text-[11px] text-blue-100/70 mr-1">
               <span className="font-semibold text-white/80">{total.toLocaleString()}</span> {t("expenses.records")}
             </span>
+            <button onClick={() => setShowHistory(true)} title={t("move.history")} aria-label={t("move.history")}
+              className="w-7 h-7 rounded-lg bg-white/10 hover:bg-white/20 border border-white/15 flex items-center justify-center text-white transition-all">
+              <History size={12} />
+            </button>
             <button onClick={() => loadAll(true)} disabled={refreshing}
               className="w-7 h-7 rounded-lg bg-white/10 hover:bg-white/20 border border-white/15 flex items-center justify-center text-white transition-all disabled:opacity-40">
               <RefreshCw size={12} className={refreshing ? "animate-spin" : ""} />
@@ -1128,7 +1197,9 @@ export default function ExpenseManagementPage() {
                         ) : <span className="text-slate-300 text-xs">-</span>}
                       </td>
                       <td className="px-2.5 py-1">
-                        <p className="font-semibold text-slate-800 text-xs leading-tight">{e.title}</p>
+                        <p className="font-semibold text-slate-800 text-xs leading-tight">{e.title}
+                          {e.corrected && <span title={t("move.corrected_tag_hint")} className="ml-1 inline-flex rounded bg-amber-50 border border-amber-200 px-1 text-[10px] font-semibold text-amber-700 align-middle">{t("move.corrected_tag")}</span>}
+                        </p>
                         <p className="text-[11px] text-slate-400 font-mono leading-tight">{e.id.slice(0, 8)}</p>
                       </td>
                       <td className="px-2.5 py-1">
@@ -1185,6 +1256,10 @@ export default function ExpenseManagementPage() {
                             className="flex items-center gap-0.5 px-1.5 py-0.5 rounded border border-slate-200 text-slate-600 hover:border-[#0a66c2] hover:bg-[#EBF2FD] hover:text-[#0a66c2] transition text-[11px] font-medium">
                             <Pencil size={9} /> {t("common.edit")}
                           </button>
+                          {canCorrect && <button onClick={() => setMoving({ e, source: "other", reason: "" })} title={t("move.to_income")} aria-label={t("move.to_income")}
+                            className={`p-0.5 rounded transition ${isIn(e) ? "text-[#057642] bg-emerald-50" : "text-slate-500"} hover:bg-emerald-50 hover:text-[#057642]`}>
+                            <ArrowRightLeft size={10} />
+                          </button>}
                           <button onClick={() => deleteExpense(e.id)} disabled={deletingId === e.id}
                             title={t("common.delete")} aria-label={t("common.delete")}
                             className="p-0.5 rounded text-slate-500 hover:bg-red-50 hover:text-red-600 transition disabled:opacity-40">
@@ -1375,20 +1450,6 @@ export default function ExpenseManagementPage() {
                   </label>
                   <input className={inputCls} placeholder={t("expenses.title_placeholder")}
                     value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
-                </div>
-
-                {/* Money spent (an expense) or money received (kept, not counted) */}
-                <div>
-                  <div className="grid grid-cols-2 gap-1 rounded-md bg-slate-100 p-0.5">
-                    {(["out", "in"] as const).map((d) => (
-                      <button key={d} type="button" onClick={() => setForm({ ...form, direction: d })}
-                        className={`rounded px-2 py-1 text-[11px] font-semibold transition ${form.direction === d
-                          ? `bg-white shadow-sm ${d === "in" ? "text-[#057642]" : "text-[#0a66c2]"}` : "text-slate-500"}`}>
-                        {t(d === "in" ? "expenses.money_in" : "expenses.money_out")}
-                      </button>
-                    ))}
-                  </div>
-                  {form.direction === "in" && <p className="mt-1 text-[11px] text-[#057642]">{t("expenses.money_in_hint")}</p>}
                 </div>
 
                 {/* Category + Amount */}
