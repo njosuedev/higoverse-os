@@ -5,6 +5,7 @@
 // Expenses is counted here too (lib/income.ts); rentals are not: they are
 // recorded in Sales → Rentals. Reports and Home add income to the profit.
 
+import AmountInput from "@/app/components/ui/AmountInput";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ArrowRightLeft, Download, FileSpreadsheet, FileText, Paperclip, Pencil, Plus, RefreshCw, Search, Trash2, TrendingUp, Upload, X, History } from "lucide-react";
@@ -382,7 +383,7 @@ export default function IncomePage() {
                     {(form.source === "rental" ? ["rental" as const, ...INCOME_SOURCES] : INCOME_SOURCES).map((s) => <option key={s} value={s}>{t(`income.src_${s}`)}</option>)}
                   </select>
                 </div>
-                <div>{label("income.amount", true)}<input type="number" min="0" className={inputCls} value={form.amount} onChange={(e) => set({ amount: e.target.value })} /></div>
+                <div>{label("income.amount", true)}<AmountInput min="0" className={inputCls} value={form.amount} onChange={(e) => set({ amount: e.target.value })} /></div>
                 <div>{label("income.date", true)}<input type="date" className={inputCls} value={form.date} onChange={(e) => set({ date: e.target.value })} /></div>
                 <div>{label("income.method")}
                   <select className={inputCls} value={form.method} onChange={(e) => set({ method: e.target.value as IncomeMethod | "" })}>

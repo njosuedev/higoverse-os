@@ -1,5 +1,6 @@
 ﻿"use client";
 
+import AmountInput from "@/app/components/ui/AmountInput";
 import { stampPdf } from "@/lib/printed-doc";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { isZero } from "@/lib/format";
@@ -1244,7 +1245,7 @@ function ItemManagementPage() {
                   {VEHICLE_FIELDS.filter((f) => !VEHICLE_ID_FIELDS.includes(f.key)).map(renderCarField)}
                   <div className="md:col-span-2">
                     <label className="block text-xs font-medium text-gray-600 mb-1">{t("items.selling_price")} <span className="text-red-400">*</span></label>
-                    <input type="number" min="0" className={inputCls} placeholder="0" value={form.selling_price} onChange={(e) => setForm({ ...form, selling_price: e.target.value })} />
+                    <AmountInput min="0" className={inputCls} placeholder="0" value={form.selling_price} onChange={(e) => setForm({ ...form, selling_price: e.target.value })} />
                   </div>
                   <div className="md:col-span-2">
                     {loadingEdit
@@ -1263,11 +1264,11 @@ function ItemManagementPage() {
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">{t("items.cost_price")} <span className="text-red-400">*</span></label>
-                  <input type="number" min="0" className={inputCls} placeholder="0" value={form.cost_price} onChange={(e) => setForm({ ...form, cost_price: e.target.value })} />
+                  <AmountInput min="0" className={inputCls} placeholder="0" value={form.cost_price} onChange={(e) => setForm({ ...form, cost_price: e.target.value })} />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">{t("items.selling_price")} <span className="text-red-400">*</span></label>
-                  <input type="number" min="0" className={inputCls} placeholder="0" value={form.selling_price} onChange={(e) => setForm({ ...form, selling_price: e.target.value })} />
+                  <AmountInput min="0" className={inputCls} placeholder="0" value={form.selling_price} onChange={(e) => setForm({ ...form, selling_price: e.target.value })} />
                 </div>
                 {form.cost_price && form.selling_price && (
                   <div className="md:col-span-2 bg-slate-50 rounded-lg px-3 py-2 text-xs text-slate-500">
@@ -1278,7 +1279,7 @@ function ItemManagementPage() {
                 )}
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">{t("items.quantity")} <span className="text-red-400">*</span></label>
-                  <input type="number" min="0" className={inputCls} placeholder="0" value={form.quantity} onChange={(e) => setForm({ ...form, quantity: e.target.value })} />
+                  <AmountInput min="0" className={inputCls} placeholder="0" value={form.quantity} onChange={(e) => setForm({ ...form, quantity: e.target.value })} />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">{t("items.supplier")}</label>

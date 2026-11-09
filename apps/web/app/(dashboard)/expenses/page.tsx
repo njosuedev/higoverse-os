@@ -1,5 +1,6 @@
 "use client";
 
+import AmountInput from "@/app/components/ui/AmountInput";
 import { stampPdf } from "@/lib/printed-doc";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { isZero } from "@/lib/format";
@@ -1524,7 +1525,7 @@ export default function ExpenseManagementPage() {
                     <label className="block text-[11px] font-medium text-gray-500 mb-0.5">
                       {t("expenses.amount")} <span className="text-red-400">*</span>
                     </label>
-                    <input type="number" min="0" step="0.01" className={inputCls} placeholder="0"
+                    <AmountInput min="0" step="0.01" className={inputCls} placeholder="0"
                       value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} />
                   </div>
                 </div>

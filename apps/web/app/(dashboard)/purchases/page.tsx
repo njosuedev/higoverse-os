@@ -1,5 +1,6 @@
 ﻿"use client";
 
+import AmountInput from "@/app/components/ui/AmountInput";
 import { stampPdf } from "@/lib/printed-doc";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { isZero } from "@/lib/format";
@@ -713,12 +714,12 @@ export default function PurchaseManagementPage() {
                 )}
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">{t("purchases.cost_price")} <span className="text-red-400">*</span></label>
-                  <input type="number" min="0" className={inputCls} placeholder="0"
+                  <AmountInput min="0" className={inputCls} placeholder="0"
                     value={form.cost_price} onChange={(e) => setForm({ ...form, cost_price: e.target.value })} />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">{t("purchases.selling_price")}</label>
-                  <input type="number" min="0" className={inputCls} placeholder="0"
+                  <AmountInput min="0" className={inputCls} placeholder="0"
                     value={form.selling_price} onChange={(e) => setForm({ ...form, selling_price: e.target.value })} />
                 </div>
                 {prof && margin !== null && (
@@ -731,7 +732,7 @@ export default function PurchaseManagementPage() {
                   <label className="block text-xs font-medium text-gray-600 mb-1">
                     {isRestocking ? t("purchases.qty_added") : t("items.quantity")} <span className="text-red-400">*</span>
                   </label>
-                  <input type="number" min="1" className={inputCls} placeholder="0"
+                  <AmountInput min="1" className={inputCls} placeholder="0"
                     value={form.quantity} onChange={(e) => setForm({ ...form, quantity: e.target.value })} />
                   {isRestocking && selectedProduct && form.quantity && (
                     <p className="text-xs mt-1 text-[#0a66c2]">

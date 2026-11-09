@@ -1,5 +1,6 @@
 "use client";
 
+import AmountInput from "@/app/components/ui/AmountInput";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { printHtml } from "@/lib/print-frame";
 import { useShopSettings } from "@/lib/shop-settings-context";
@@ -769,7 +770,7 @@ export default function ProformaPanel({ onSold, startNew = false }: {
                         <div className="col-span-2"><Info label={t("vehicle.plate_no")} value={l.plate_no} /></div>
                         <div className="col-span-2">
                           <label className={label}>{t("proforma.offer_price")} ({currency}) *</label>
-                          <input type="number" min={0} className={cls(`line.${l.key}.unit_price`)} aria-invalid={!!bad(`line.${l.key}.unit_price`)} value={l.unit_price} onChange={(e) => setLine(l.key, { unit_price: Math.max(0, Number(e.target.value) || 0), qty: 1 })} />
+                          <AmountInput min={0} className={cls(`line.${l.key}.unit_price`)} aria-invalid={!!bad(`line.${l.key}.unit_price`)} value={l.unit_price} onChange={(e) => setLine(l.key, { unit_price: Math.max(0, Number(e.target.value) || 0), qty: 1 })} />
                           {msg(`line.${l.key}.unit_price`)}
                         </div>
                         <div className="col-span-2 flex items-end justify-end">
@@ -787,8 +788,8 @@ export default function ProformaPanel({ onSold, startNew = false }: {
                       <label className={label}>{t("proforma.description_col")}</label>
                       <input className={cls(`line.${l.key}.product_name`)} aria-invalid={!!bad(`line.${l.key}.product_name`)} value={l.product_name} onChange={(e) => setLine(l.key, { product_name: e.target.value, product_id: null })} placeholder={t("proforma.product_placeholder")} />{msg(`line.${l.key}.product_name`)}
                     </div>
-                    <div><label className={label}>{t("proforma.quantity")}</label><input type="number" min={1} className={cls(`line.${l.key}.qty`)} aria-invalid={!!bad(`line.${l.key}.qty`)} value={l.qty} onChange={(e) => setLine(l.key, { qty: Math.max(1, Number(e.target.value) || 1) })} />{msg(`line.${l.key}.qty`)}</div>
-                    <div><label className={label}>{t("proforma.col_price")} ({currency}) *</label><input type="number" min={0} className={cls(`line.${l.key}.unit_price`)} aria-invalid={!!bad(`line.${l.key}.unit_price`)} value={l.unit_price} onChange={(e) => setLine(l.key, { unit_price: Math.max(0, Number(e.target.value) || 0) })} />{msg(`line.${l.key}.unit_price`)}</div>
+                    <div><label className={label}>{t("proforma.quantity")}</label><AmountInput min={1} className={cls(`line.${l.key}.qty`)} aria-invalid={!!bad(`line.${l.key}.qty`)} value={l.qty} onChange={(e) => setLine(l.key, { qty: Math.max(1, Number(e.target.value) || 1) })} />{msg(`line.${l.key}.qty`)}</div>
+                    <div><label className={label}>{t("proforma.col_price")} ({currency}) *</label><AmountInput min={0} className={cls(`line.${l.key}.unit_price`)} aria-invalid={!!bad(`line.${l.key}.unit_price`)} value={l.unit_price} onChange={(e) => setLine(l.key, { unit_price: Math.max(0, Number(e.target.value) || 0) })} />{msg(`line.${l.key}.unit_price`)}</div>
                   </div>
                   )}
                 </div>
@@ -1076,7 +1077,7 @@ function SellDialog({ p, customers, isCar, onClose, onDone, onCustomers }: {
               </div>
             )}
             <label className="block text-xs font-medium text-gray-500 mb-1">{t(dep.paid > 0 ? "deposit.paid_now_extra" : "proforma.paid_now")} ({p.currency})</label>
-            <input type="number" min={0} value={paid} onChange={(e) => setPaid(e.target.value)}
+            <AmountInput min={0} value={paid} onChange={(e) => setPaid(e.target.value)}
               className="border border-slate-200 rounded-lg px-3 py-2 w-full text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20" />
             {owed > 0 && <p className="text-[11px] text-amber-700 mt-1">{t("proforma.rest_as_debt").replace("{amount}", `${money(owed)} ${p.currency}`)}</p>}
           </div>

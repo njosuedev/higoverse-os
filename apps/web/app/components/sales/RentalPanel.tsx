@@ -4,6 +4,7 @@
 // for how much, and the deposit. Each one prints as the rental agreement in
 // the language picked at print time (lib/rental-print.ts).
 
+import AmountInput from "@/app/components/ui/AmountInput";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { CarFront, Pencil, Plus, Printer, RefreshCw, RotateCcw, Search, Trash2, X, Ban } from "lucide-react";
 import { useLanguage } from "@/lib/language-context";
@@ -293,8 +294,8 @@ export default function RentalPanel() {
                   <div>{label("rental.start", true)}<input type="date" className={inputCls} value={form.start_date} onChange={(e) => set({ start_date: e.target.value })} /></div>
                   <div>{label("rental.end", true)}<input type="date" className={inputCls} value={form.end_date} min={form.start_date} onChange={(e) => set({ end_date: e.target.value })} /></div>
                   <div>{label("rental.signed_on")}<input type="date" className={inputCls} value={form.agreement_date} onChange={(e) => set({ agreement_date: e.target.value })} /></div>
-                  <div>{label("rental.rent", true)}<input type="number" min="0" className={inputCls} value={form.rent_amount || ""} onChange={(e) => set({ rent_amount: Number(e.target.value) || 0 })} /></div>
-                  <div>{label("rental.deposit")}<input type="number" min="0" className={inputCls} value={form.deposit || ""} onChange={(e) => set({ deposit: Number(e.target.value) || 0 })} /></div>
+                  <div>{label("rental.rent", true)}<AmountInput min="0" className={inputCls} value={form.rent_amount || ""} onChange={(e) => set({ rent_amount: Number(e.target.value) || 0 })} /></div>
+                  <div>{label("rental.deposit")}<AmountInput min="0" className={inputCls} value={form.deposit || ""} onChange={(e) => set({ deposit: Number(e.target.value) || 0 })} /></div>
                   <div className="flex items-end pb-1.5 text-xs text-slate-500">
                     {form.start_date && form.end_date && form.end_date >= form.start_date ? `${rentalDays(form)} ${t("rental.days")} · ${form.currency}` : form.currency}
                   </div>
@@ -380,7 +381,7 @@ function ReturnDialog({ rental, onClose, onDone }: { rental: Rental; onClose: ()
         <p className="flex items-center gap-2 font-bold text-slate-800"><RotateCcw size={17} className="text-emerald-600" /> {t("rental.mark_returned")}</p>
         <p className="mt-1 text-sm text-slate-500">{rental.customer} · {rental.car_name}</p>
         <label className="mt-4 block text-[11px] font-medium text-slate-500 mb-0.5">{t("rental.deposit_back")} ({t("rental.deposit")}: {money(rental.deposit)})</label>
-        <input type="number" min="0" max={rental.deposit} value={back} onChange={(e) => setBack(e.target.value)}
+        <AmountInput min="0" max={rental.deposit} value={back} onChange={(e) => setBack(e.target.value)}
           className="w-full border border-slate-200 rounded-lg px-2.5 py-1.5 text-sm" />
         <label className="mt-3 block text-[11px] font-medium text-slate-500 mb-0.5">{t("rental.return_note")}</label>
         <textarea rows={2} value={note} onChange={(e) => setNote(e.target.value)} className="w-full border border-slate-200 rounded-lg px-2.5 py-1.5 text-sm" />

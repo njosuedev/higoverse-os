@@ -32,7 +32,7 @@ interface PurchaseRecord { id: string; product_name: string; quantity_added: num
 function toDateStr(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
-function fmtNum(n: number) { return new Intl.NumberFormat().format(Math.round(n)); }
+function fmtNum(n: number) { return new Intl.NumberFormat("en-US").format(Math.round(n)); }
 function fmtRWF(n: number) {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000)     return `${(n / 1_000).toFixed(0)}K`;

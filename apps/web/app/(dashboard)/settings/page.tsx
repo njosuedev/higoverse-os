@@ -1,5 +1,6 @@
 ﻿"use client";
 
+import AmountInput from "@/app/components/ui/AmountInput";
 import { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { settingsRequest } from "@/lib/settings-api";
@@ -722,8 +723,8 @@ export default function SettingsPage() {
             </Field>
 
             <Field label={<><BarChart size={11} className="inline mr-1" />{t("settings.low_threshold")}</>}>
-              <input
-                type="number" min="0"
+              <AmountInput
+                min="0"
                 className={inputCls}
                 placeholder="10"
                 value={opsForm.low_stock_threshold}

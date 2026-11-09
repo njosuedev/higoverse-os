@@ -1,5 +1,6 @@
 "use client";
 
+import AmountInput from "@/app/components/ui/AmountInput";
 import { useCovers } from "@/lib/covers";
 import { useEffect, useState } from "react";
 import Link from "next/link";
@@ -404,9 +405,9 @@ function PendingForm({ v, currency, onClose, onSaved }: { v: Vehicle; currency: 
       <p className="pt-1 text-xs font-bold uppercase tracking-wide text-text-muted">{t("vehicle.section_payment")}</p>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:items-end">
         <div><label className={labelCls}>{t("vehicle.agreed_price")} ({currency}) <span className="text-accent">*</span></label>
-          <input type="number" min="0" className={`${inputCls} hgv-figure`} value={price} onChange={(e) => setPrice(e.target.value)} /></div>
+          <AmountInput min="0" className={`${inputCls} hgv-figure`} value={price} onChange={(e) => setPrice(e.target.value)} /></div>
         <div><label className={labelCls}>{t("vehicle.first_deposit")} ({currency})</label>
-          <input type="number" min="0" className={`${inputCls} hgv-figure`} value={deposit} onChange={(e) => setDeposit(e.target.value)} placeholder="0" /></div>
+          <AmountInput min="0" className={`${inputCls} hgv-figure`} value={deposit} onChange={(e) => setDeposit(e.target.value)} placeholder="0" /></div>
       </div>
       {Number(deposit) > 0 && <MethodPicker value={method} onChange={setMethod} />}
       <div><label className={labelCls}>{t("vehicle.pending_note")}</label>
@@ -554,7 +555,7 @@ function DepositForm({ v, currency, onClose, onSaved, onRefresh, onSellByHand }:
         <div className="rounded-lg border border-border p-3">
           <label className={labelCls}>{t("vehicle.agreed_price")} ({currency}) <span className="text-accent">*</span></label>
           <div className="flex flex-wrap gap-2">
-            <input autoFocus type="number" min={pay.paid + 1} className={`${inputCls} hgv-figure min-w-0 flex-1`} value={priceEdit}
+            <AmountInput autoFocus min={pay.paid + 1} className={`${inputCls} hgv-figure min-w-0 flex-1`} value={priceEdit}
               onChange={(e) => setPriceEdit(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") savePrice(); }} />
             <button type="button" onClick={() => setPriceEdit(null)} className="h-10 rounded-full border border-border-strong px-4 text-sm font-semibold text-text hover:bg-paper-dim">{t("common.cancel")}</button>
             <button type="button" onClick={savePrice} disabled={saving} className="h-10 rounded-full bg-ink px-4 text-sm font-semibold text-white hover:bg-ink-dark disabled:opacity-50">{t("common.save")}</button>
@@ -565,7 +566,7 @@ function DepositForm({ v, currency, onClose, onSaved, onRefresh, onSellByHand }:
       <PaidBar paid={pay.paid} price={pay.price} />
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:items-end">
         <div><label className={labelCls}>{t("vehicle.deposit_amount")} ({currency}) <span className="text-accent">*</span></label>
-          <input autoFocus type="number" min="0" max={pay.balance} className={`${inputCls} hgv-figure`} value={amount}
+          <AmountInput autoFocus min="0" max={pay.balance} className={`${inputCls} hgv-figure`} value={amount}
             onChange={(e) => setAmount(e.target.value)} placeholder={money(pay.balance)} /></div>
         <div><label className={labelCls}>{t("vehicle.deposit_date")}</label>
           <input type="date" className={inputCls} value={date} max={today()} onChange={(e) => setDate(e.target.value)} /></div>
@@ -583,7 +584,7 @@ function DepositForm({ v, currency, onClose, onSaved, onRefresh, onSellByHand }:
               <li key={`${d.at}-${i}`} className="space-y-2 bg-paper-dim/50 px-3 py-2">
                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                   <div><label className={labelCls}>{t("vehicle.deposit_amount")} ({currency})</label>
-                    <input autoFocus type="number" min="1" max={pay.balance + d.amount} className={`${inputCls} hgv-figure`} value={editing.amount}
+                    <AmountInput autoFocus min="1" max={pay.balance + d.amount} className={`${inputCls} hgv-figure`} value={editing.amount}
                       onChange={(e) => setEditing({ ...editing, amount: e.target.value })} /></div>
                   <div><label className={labelCls}>{t("vehicle.deposit_date")}</label>
                     <input type="date" className={inputCls} value={editing.date} max={today()}
@@ -650,9 +651,9 @@ function PenaltyForm({ v, onClose, onSaved }: { v: Vehicle; onClose: () => void;
       <p className="text-sm text-text-muted">{t("vehicle.penalties_explain")}</p>
       <div className="grid grid-cols-2 gap-3">
         <div><label className={labelCls}>{t("vehicle.fines_count")}</label>
-          <input type="number" min="0" className={inputCls} value={count} onChange={(e) => setCount(e.target.value)} /></div>
+          <AmountInput min="0" className={inputCls} value={count} onChange={(e) => setCount(e.target.value)} /></div>
         <div><label className={labelCls}>{t("vehicle.fines_amount")}</label>
-          <input type="number" min="0" className={inputCls} value={amount} onChange={(e) => setAmount(e.target.value)} disabled={Number(count) === 0} /></div>
+          <AmountInput min="0" className={inputCls} value={amount} onChange={(e) => setAmount(e.target.value)} disabled={Number(count) === 0} /></div>
       </div>
       <div><label className={labelCls}>{t("vehicle.checked_on")}</label>
         <input type="date" className={inputCls} value={checked} max={today()} onChange={(e) => setChecked(e.target.value)} /></div>

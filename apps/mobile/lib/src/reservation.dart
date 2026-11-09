@@ -1,12 +1,11 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:phosphor_icons/phosphor_icons.dart';
 
 import 'config.dart';
 import 'format.dart';
-import 'forms.dart' show parseAmount;
+import 'forms.dart' show groupedDigits, parseAmount;
 import 'i18n.dart';
 import 'proforma.dart' show askDeposit;
 import 'session.dart';
@@ -305,7 +304,7 @@ Future<bool> changeCarPrice(BuildContext context, Map<String, dynamic> vehicle) 
           controller: ctrl,
           autofocus: true,
           keyboardType: TextInputType.number,
-          inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9,]'))],
+          inputFormatters: [groupedDigits()],
           decoration: InputDecoration(
             isDense: true,
             suffixText: s.currency,

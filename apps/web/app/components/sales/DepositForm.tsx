@@ -1,5 +1,6 @@
 "use client";
 
+import AmountInput from "@/app/components/ui/AmountInput";
 import { useState } from "react";
 import { useLanguage } from "@/lib/language-context";
 import { DEPOSIT_METHODS, type Deposit } from "@/lib/proforma-api";
@@ -44,7 +45,7 @@ export default function DepositForm({ balance, currency, onSubmit, onCancel, bus
       <div className="grid md:grid-cols-2 gap-3">
         <div>
           <label className="block text-xs font-medium text-gray-500 mb-1">{t("deposit.amount")} ({currency}) *</label>
-          <input type="number" min={0} autoFocus className={input + bad(errAmount)} value={amount} onChange={(e) => setAmount(e.target.value)} />
+          <AmountInput min={0} autoFocus className={input + bad(errAmount)} value={amount} onChange={(e) => setAmount(e.target.value)} />
           <div className="mt-1.5 flex flex-wrap gap-1.5">
             {[[`30 %`, balance * 0.3], [`50 %`, balance * 0.5], [t("deposit.full"), balance]].map(([label, v]) => (
               <button key={String(label)} type="button" onClick={() => setAmount(String(Math.round(Number(v))))}

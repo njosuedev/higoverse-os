@@ -6,6 +6,7 @@
 // (representative, phones, MoMo code, bank account…) is filled in from the
 // last contract and kept in the database, never in the code.
 
+import AmountInput from "@/app/components/ui/AmountInput";
 import { useEffect, useState } from "react";
 import { FileSignature, Loader2, Pencil, Plus, Printer, Trash2, X } from "lucide-react";
 import {
@@ -134,7 +135,7 @@ export default function TaxContracts({ client, t, onClose }: { client: TaxClient
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                   {field("contract.date", <input type="date" className={input} value={form.contract_date} onChange={(e) => set({ contract_date: e.target.value })} />)}
                   {field("contract.start", <input type="date" className={input} value={form.start_date} onChange={(e) => set({ start_date: e.target.value })} />)}
-                  {field("contract.fee", <input type="number" min="0" className={input} value={form.monthly_fee || ""} onChange={(e) => set({ monthly_fee: Number(e.target.value) || 0 })} />)}
+                  {field("contract.fee", <AmountInput min="0" className={input} value={form.monthly_fee || ""} onChange={(e) => set({ monthly_fee: Number(e.target.value) || 0 })} />)}
                   {field("contract.pay_day", <input type="number" min="1" max="31" className={input} value={form.payment_day} onChange={(e) => set({ payment_day: Math.min(31, Math.max(1, Number(e.target.value) || 28)) })} />)}
                 </div>
                 <div className="mt-2">{field("common.notes", <textarea rows={2} className={`${input} h-auto py-1.5`} value={form.notes ?? ""} onChange={(e) => set({ notes: e.target.value })} />)}</div>

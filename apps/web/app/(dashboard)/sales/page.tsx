@@ -1,5 +1,6 @@
 "use client";
 
+import AmountInput from "@/app/components/ui/AmountInput";
 import { stampPdf } from "@/lib/printed-doc";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { isZero } from "@/lib/format";
@@ -1465,11 +1466,11 @@ function SaleManagementPage() {
                             />
                             {/* An empty line is just the search box until a product is picked. */}
                             {line.product_id && <>
-                            <input type="number" min="1" max={p?.quantity} value={line.quantity} aria-label={t("sales.col_qty")}
+                            <AmountInput min="1" max={p?.quantity} value={line.quantity} aria-label={t("sales.col_qty")}
                               onFocus={(e) => e.target.select()}
                               onChange={(e) => setLineQty(line.id, Number(e.target.value), p?.quantity)}
                               className="border border-slate-200 text-gray-800 rounded-lg px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-[#0a66c2]/30 focus:border-[#0a66c2] transition w-full" />
-                            <input type="number" min="0" value={line.unit_price} aria-label={t("sales.unit_price")}
+                            <AmountInput min="0" value={line.unit_price} aria-label={t("sales.unit_price")}
                               onFocus={(e) => e.target.select()}
                               onChange={(e) => setLinePrice(line.id, Number(e.target.value))}
                               className="border border-slate-200 text-gray-800 rounded-lg px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-[#0a66c2]/30 focus:border-[#0a66c2] transition w-full" />
@@ -1584,8 +1585,8 @@ function SaleManagementPage() {
                         {t("sales.paid_now")} <span className="text-slate-400 font-normal">{t("sales.paid_now_hint")}</span>
                       </label>
                       <div className="flex items-center gap-3">
-                        <input
-                          id="paid-now" type="number" min="0" max={createGrandTotal} placeholder="0" inputMode="numeric"
+                        <AmountInput
+                          id="paid-now" min="0" max={createGrandTotal} placeholder="0" inputMode="numeric"
                           className={`${inputCls} ${carPaid > createGrandTotal ? "border-red-400 ring-2 ring-red-200" : ""}`}
                           value={paidTouched ? paidNow : String(createGrandTotal || "")}
                           onFocus={(e) => e.target.select()}
@@ -1611,8 +1612,8 @@ function SaleManagementPage() {
                         {t("sales.amount_sent")} <span className="text-slate-400 font-normal">{t("sales.amount_sent_hint")}</span>
                       </label>
                       <div className="flex items-center gap-3">
-                        <input
-                          type="number" min="0" placeholder="0"
+                        <AmountInput
+                          min="0" placeholder="0"
                           className={inputCls}
                           value={amountSent}
                           onChange={(e) => setAmountSent(e.target.value)}
@@ -1719,12 +1720,12 @@ function SaleManagementPage() {
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">{t("sales.quantity")} <span className="text-red-400">*</span></label>
-                  <input type="number" min="1" max={selectedProduct?.quantity} className={inputCls} placeholder="0"
+                  <AmountInput min="1" max={selectedProduct?.quantity} className={inputCls} placeholder="0"
                     value={form.quantity} onChange={(e) => setForm({ ...form, quantity: e.target.value })} />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">{t("sales.unit_price")} <span className="text-red-400">*</span></label>
-                  <input type="number" min="0" className={inputCls} placeholder="0"
+                  <AmountInput min="0" className={inputCls} placeholder="0"
                     value={form.unit_price} onChange={(e) => setForm({ ...form, unit_price: e.target.value })} />
                 </div>
                 {form.product_id && form.quantity && form.unit_price && (
@@ -1778,12 +1779,12 @@ function SaleManagementPage() {
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1">{t("sales.amount_owed")} <span className="text-red-400">*</span></label>
-                    <input type="number" min="0" className={inputCls} placeholder="0"
+                    <AmountInput min="0" className={inputCls} placeholder="0"
                       value={debtForm.amount_owed} onChange={(e) => setDebtForm({ ...debtForm, amount_owed: e.target.value })} />
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1">{t("sales.amount_paid_so_far")}</label>
-                    <input type="number" min="0" className={inputCls} placeholder="0"
+                    <AmountInput min="0" className={inputCls} placeholder="0"
                       value={debtForm.amount_paid} onChange={(e) => setDebtForm({ ...debtForm, amount_paid: e.target.value })} />
                   </div>
                 </div>
@@ -1818,8 +1819,8 @@ function SaleManagementPage() {
                   <span className="font-bold text-amber-600">{showPayModal.balance.toLocaleString()} {currency}</span>
                 </p>
                 <label className="block text-xs font-medium text-gray-600 mb-1">{t("sales.amount_paying_now")} <span className="text-red-400">*</span></label>
-                <input
-                  type="number" min="0" max={showPayModal.balance}
+                <AmountInput
+                  min="0" max={showPayModal.balance}
                   className={inputCls} placeholder="0" autoFocus
                   value={paymentAmount}
                   onChange={(e) => setPaymentAmount(e.target.value)}

@@ -577,6 +577,7 @@ class _SellSheetState extends State<_SellSheet> {
         TextField(
           controller: _paid,
           keyboardType: TextInputType.number,
+          inputFormatters: [groupedDigits()],
           decoration: InputDecoration(isDense: true, suffixText: cur),
           onChanged: (_) => setState(() {}),
         ),
@@ -985,6 +986,7 @@ class _ProformaFormScreenState extends State<ProformaFormScreen> {
                       child: TextFormField(
                         controller: _lines[i].price,
                         keyboardType: TextInputType.number,
+                        inputFormatters: [groupedDigits()],
                         decoration: dec(t('sale.unit_price')).copyWith(suffixText: s.currency),
                         validator: (v) => _lines[i].name.text.trim().isEmpty || (parseAmount(v ?? '') ?? 0) > 0 ? null : t('pf.err_price'),
                         onChanged: (_) => setState(() {}),
@@ -1469,7 +1471,7 @@ class _DepositSheetState extends State<_DepositSheet> {
               controller: _amount,
               autofocus: widget.initial == null,
               keyboardType: TextInputType.number,
-              inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9,]'))],
+              inputFormatters: [groupedDigits()],
               decoration: InputDecoration(isDense: true, suffixText: cur),
               onChanged: (_) => setState(() {}),
               validator: (v) {

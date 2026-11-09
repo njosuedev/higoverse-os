@@ -1,5 +1,8 @@
 "use client";
 
+// Every number shown in the browser grouped with commas (53,673,998).
+import "./number-format";
+
 import { useEffect, useState } from "react";
 import { onlineManager, QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { isOffline, subscribeConnection } from "./connection";
