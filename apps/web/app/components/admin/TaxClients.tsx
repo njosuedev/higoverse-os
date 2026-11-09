@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  AlertTriangle, CheckCircle2, ClipboardPaste, Download, FileSignature, Landmark, Loader2, Pencil, Phone, Plus, RefreshCw, Search, Store, Trash2, X,
+  AlertTriangle, CheckCircle2, ClipboardPaste, Download, FileSignature, Landmark, Wallet, Loader2, Pencil, Phone, Plus, RefreshCw, Search, Store, Trash2, X,
 } from "lucide-react";
 import {
   createTaxClient, deleteTaxClient, fillMissingTaxContracts, getTaxClients, importTaxClients, updateTaxClient,
@@ -10,6 +10,7 @@ import {
 } from "@/lib/admin-api";
 import { cleanTin, normalizePhone, prettyPhone, shopTin, tinError } from "@/lib/company";
 import TaxContracts from "@/app/components/admin/TaxContracts";
+import { TaxIncomeSummary, TaxPaymentsDialog, useTaxIncome } from "@/app/components/admin/TaxIncome";
 
 type T = (k: string) => string;
 
@@ -214,6 +215,12 @@ export default function TaxClients({ t, shops, onOpenCompany, onRows, initialQue
   // The tax advisory contracts of one client.
   const [contractsOf, setContractsOf] = useState<TaxClient | null>(null);
   const [filling, setFilling] = useState(false);
+  // Expected (agreed fees) and real income (payments) for a month.
+  const [period, setPeriod] = useState(() => new Date().toISOString().slice(0, 7));
+  const [incomeVersion, setIncomeVersion] = useState(0);
+  const income = useTaxIncome(period, incomeVersion);
+  const incomeOf = useMemo(() => new Map((income?.clients ?? []).map((c) => [c.client_id, c])), [income]);
+  const [payingFor, setPayingFor] = useState<TaxClient | null>(null);
   // Every client must have a contract.
   const missing = useMemo(() => (rows ?? []).filter((r) => !r.contracts), [rows]);
 
@@ -311,6 +318,8 @@ export default function TaxClients({ t, shops, onOpenCompany, onRows, initialQue
         </div>
       </div>
 
+      <TaxIncomeSummary t={t} period={period} setPeriod={setPeriod} data={income} />
+
       {error && <p className="px-4 py-3 text-sm text-red-600">{error}</p>}
       {notice && (
         <p className="flex items-center gap-2 border-b border-emerald-100 bg-emerald-50 px-4 py-2 text-sm text-emerald-800">
@@ -339,6 +348,7 @@ export default function TaxClients({ t, shops, onOpenCompany, onRows, initialQue
                 <th className="px-2 py-2 font-semibold">{t("clients.tin")}</th>
                 <th className="px-2 py-2 font-semibold text-right">{t("clients.fee_short")}</th>
                 <th className="px-2 py-2 font-semibold">{t("contract.title_short")}</th>
+                <th className="px-2 py-2 font-semibold">{t("tinc.this_month")}</th>
                 <th className="w-28 px-4 py-2" />
               </tr>
             </thead>
@@ -377,6 +387,22 @@ export default function TaxClients({ t, shops, onOpenCompany, onRows, initialQue
                       {r.contracts ? <CheckCircle2 size={11} /> : <AlertTriangle size={11} />}
                       {r.contracts ? t("clients.has_contract") : t("clients.no_contract")}
                     </button>
+                  </td>
+                  <td className="px-2 py-2">
+                    {(() => {
+                      const inc = incomeOf.get(r.id);
+                      const st = inc?.status ?? "none";
+                      const tone = st === "paid" ? "bg-emerald-50 text-emerald-700" : st === "partial" ? "bg-amber-50 text-amber-700"
+                        : st === "unpaid" ? "bg-red-50 text-red-700" : "bg-slate-100 text-slate-500";
+                      return (
+                        <button onClick={() => setPayingFor(r)} title={t("tinc.record")}
+                          className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold hover:underline ${tone}`}>
+                          <Wallet size={11} />
+                          {st === "none" ? t("tinc.st_none") : st === "paid" ? t("tinc.st_paid")
+                            : `${Math.round(inc!.received).toLocaleString("en-US")} / ${Math.round(inc!.expected).toLocaleString("en-US")}`}
+                        </button>
+                      );
+                    })()}
                   </td>
                   <td className="px-4 py-2">
                     {confirmId === r.id ? (
@@ -419,7 +445,12 @@ export default function TaxClients({ t, shops, onOpenCompany, onRows, initialQue
             if (isNew || !c.contracts) setContractsOf(c);
           }} />
       )}
-      {contractsOf && <TaxContracts client={contractsOf} t={t} onClose={() => { setContractsOf(null); void load(); }} />}
+      {contractsOf && <TaxContracts client={contractsOf} t={t} onClose={() => { setContractsOf(null); void load(); setIncomeVersion((v) => v + 1); }} />}
+      {payingFor && (
+        <TaxPaymentsDialog client={payingFor} period={period} t={t}
+          expected={incomeOf.get(payingFor.id)?.expected ?? 0} received={incomeOf.get(payingFor.id)?.received ?? 0}
+          onClose={() => setPayingFor(null)} onChanged={() => setIncomeVersion((v) => v + 1)} />
+      )}
       {importing && (
         <ImportDialog t={t} onClose={() => setImporting(false)}
           onDone={(msg) => { setImporting(false); setNotice(msg); void load(); }} />

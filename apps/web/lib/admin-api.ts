@@ -388,3 +388,41 @@ export async function fillMissingTaxContracts(): Promise<{ made: number; no_fee:
   const res = await adminRequest("/api/v1/admin/tax-contracts/fill-missing", { method: "POST" });
   return res.data;
 }
+
+// ── Income from tax clients: expected (agreed fees) and real (payments) ───
+
+export interface TaxPayment {
+  id: string; client_id: string; period: string; amount: number; paid_on: string;
+  method: "cash" | "mtn" | "bank" | null; reference: string | null; notes: string | null;
+  created_by: string | null; created_at: string | null;
+}
+
+export interface TaxIncome {
+  period: string;
+  expected: number;
+  received: number;
+  outstanding: number;
+  clients_expected: number;
+  clients_paid: number;
+  clients: { client_id: string; expected: number; received: number; status: "paid" | "partial" | "unpaid" | "none" }[];
+  history: { period: string; expected: number; received: number }[];
+}
+
+export async function getTaxIncome(period: string, months = 6): Promise<TaxIncome> {
+  const res = await adminRequest(`/api/v1/admin/tax-income?period=${period}&months=${months}`);
+  return res.data;
+}
+
+export async function getTaxPayments(clientId: string): Promise<TaxPayment[]> {
+  const res = await adminRequest(`/api/v1/admin/tax-payments?client_id=${encodeURIComponent(clientId)}`);
+  return res?.data ?? [];
+}
+
+export async function recordTaxPayment(p: Omit<TaxPayment, "id" | "created_by" | "created_at">): Promise<TaxPayment> {
+  const res = await adminRequest("/api/v1/admin/tax-payments", { method: "POST", body: JSON.stringify(p) });
+  return res.data;
+}
+
+export async function deleteTaxPayment(id: string): Promise<void> {
+  await adminRequest(`/api/v1/admin/tax-payments/${id}`, { method: "DELETE" });
+}
