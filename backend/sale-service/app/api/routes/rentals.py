@@ -79,25 +79,25 @@ def _get(db: Session, rental_id: str, shop: str) -> CarRental:
 
 
 def _fill(data: dict, token: str) -> dict:
-    """The renter's and the car's details from where they live (Customers,
-    Vehicles) when picked there; typed ones are kept as typed."""
+    """The renter's and the car's details, copied from where they live
+    (Customers, Vehicles): a rental can't change them, whatever a screen sends."""
     data = dict(data)
-    if data.get("customer_id"):
-        c = master_data.customer_fields(data["customer_id"], token)
-        data.update({
-            "customer": c["customer"] or data.get("customer") or "",
-            "customer_phone": c["customer_phone"] or data.get("customer_phone"),
-            "customer_id_no": c["customer_id_no"] or data.get("customer_id_no"),
-            "customer_address": c["customer_address"] or data.get("customer_address"),
-        })
-    if data.get("product_id"):
-        v = master_data.vehicle_line({"product_id": data["product_id"], "product_name": data.get("car_name") or ""}, token)
-        data.update({
-            "car_name": v["product_name"] or data.get("car_name") or "",
-            "car_type": v["car_type"] or data.get("car_type"),
-            "plate_no": v["plate_no"] or data.get("plate_no"),
-            "chassis_no": v["chassis_no"] or data.get("chassis_no"),
-        })
+    c = master_data.customer_fields(data["customer_id"], token)
+    data.update({
+        "customer": c["customer"] or "",
+        "customer_phone": c["customer_phone"] or None,
+        "customer_id_no": c["customer_id_no"] or None,
+        "customer_address": c["customer_address"] or None,
+    })
+    v = master_data.vehicle_line({"product_id": data["product_id"], "product_name": ""}, token)
+    data.update({
+        "car_name": v["product_name"] or "",
+        "car_type": v["car_type"] or None,
+        "plate_no": v["plate_no"] or None,
+        "chassis_no": v["chassis_no"] or None,
+    })
+    if not data["customer"]:
+        raise HTTPException(status_code=400, detail="That customer has no name. Add it in Customers.")
     return data
 
 

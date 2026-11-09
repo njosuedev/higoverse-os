@@ -122,8 +122,8 @@ export default function RentalPanel() {
 
   async function submit() {
     if (!form) return;
-    if (!form.customer.trim()) { notify(t("rental.err_renter")); return; }
-    if (!form.car_name.trim()) { notify(t("rental.err_car")); return; }
+    if (!form.customer_id) { notify(t("rental.err_renter")); return; }
+    if (!form.product_id) { notify(t("rental.err_car")); return; }
     if (!form.start_date || !form.end_date) { notify(t("rental.err_dates")); return; }
     if (form.end_date < form.start_date) { notify(t("rental.err_dates")); return; }
     setBusy(true);
@@ -259,26 +259,32 @@ export default function RentalPanel() {
             <div className="p-4 space-y-4">
               <section>
                 <p className="text-xs font-bold text-slate-700 mb-1.5">{t("rental.renter")}</p>
+                {/* The renter's details come from Customers only: shown, not typed. */}
                 <CustomerPicker customers={customers} value={form.customer_id} onChange={pickCustomer}
-                  placeholder={t("rental.pick_customer")} clearLabel={t("rental.type_renter")} />
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
-                  <div>{label("rental.renter_name", true)}<input className={inputCls} value={form.customer} disabled={!!form.customer_id} onChange={(e) => set({ customer: e.target.value })} /></div>
-                  <div>{label("rental.id_no")}<input className={inputCls} value={form.customer_id_no} onChange={(e) => set({ customer_id_no: e.target.value })} /></div>
-                  <div>{label("rental.phone")}<input className={inputCls} value={form.customer_phone} onChange={(e) => set({ customer_phone: e.target.value })} /></div>
-                  <div>{label("rental.address")}<input className={inputCls} value={form.customer_address} onChange={(e) => set({ customer_address: e.target.value })} /></div>
-                </div>
+                  placeholder={t("rental.pick_customer")} />
+                {form.customer_id && (
+                  <Details items={[
+                    [t("rental.renter_name"), form.customer],
+                    [t("rental.id_no"), form.customer_id_no],
+                    [t("rental.phone"), form.customer_phone],
+                    [t("rental.address"), form.customer_address],
+                  ]} missing={t("rental.missing_customer")} />
+                )}
               </section>
 
               <section>
                 <p className="text-xs font-bold text-slate-700 mb-1.5">{t("rental.car")}</p>
-                <ProductPicker onSelect={pickCar} label={carLabel} placeholder={t("rental.pick_car")}
+                {/* The car's details come from Vehicles only: shown, not typed. */}
+                <ProductPicker onSelect={pickCar} label={carLabel} placeholder={t("rental.pick_car")} status="available"
                   selected={form.product_id ? { id: form.product_id, name: form.car_name, quantity: 1, selling_price: 0, cost_price: 0, attributes: JSON.stringify({ plate_no: form.plate_no, chassis_no: form.chassis_no }) } : null} />
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
-                  <div>{label("rental.car_name", true)}<input className={inputCls} value={form.car_name} onChange={(e) => set({ car_name: e.target.value, product_id: null })} /></div>
-                  <div>{label("rental.car_type")}<input className={inputCls} value={form.car_type} onChange={(e) => set({ car_type: e.target.value })} /></div>
-                  <div>{label("rental.plate")}<input className={inputCls} value={form.plate_no} onChange={(e) => set({ plate_no: e.target.value })} /></div>
-                  <div>{label("rental.chassis")}<input className={inputCls} value={form.chassis_no} onChange={(e) => set({ chassis_no: e.target.value })} /></div>
-                </div>
+                {form.product_id && (
+                  <Details items={[
+                    [t("rental.car_name"), form.car_name],
+                    [t("rental.car_type"), form.car_type],
+                    [t("rental.plate"), form.plate_no],
+                    [t("rental.chassis"), form.chassis_no],
+                  ]} missing={t("rental.missing_vehicle")} />
+                )}
               </section>
 
               <section>
@@ -308,6 +314,24 @@ export default function RentalPanel() {
 
       {printing && <PrintChoice rental={printing} onPick={(l) => void print(printing, l)} onClose={() => setPrinting(null)} />}
       {returning && <ReturnDialog rental={returning} onClose={() => setReturning(null)} onDone={async () => { setReturning(null); await load(); }} />}
+    </div>
+  );
+}
+
+/** Details copied from Customers or Vehicles: read-only; a blank one says where to add it. */
+function Details({ items, missing }: { items: [string, string][]; missing: string }) {
+  const blank = items.some(([, v]) => !v?.trim());
+  return (
+    <div className="mt-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+      <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5">
+        {items.map(([k, v]) => (
+          <div key={k} className="min-w-0">
+            <dt className="text-[11px] font-medium text-slate-500">{k}</dt>
+            <dd className={`truncate text-sm ${v?.trim() ? "font-semibold text-slate-800" : "text-slate-400"}`}>{v?.trim() || "—"}</dd>
+          </div>
+        ))}
+      </dl>
+      {blank && <p className="mt-1.5 text-[11px] text-amber-700">{missing}</p>}
     </div>
   );
 }

@@ -55,10 +55,12 @@ class RentalIn(BaseModel):
     def in_order(self):
         if self.end_date < self.start_date:
             raise ValueError("The end date can't be before the start date")
-        if not self.customer_id and not self.customer:
-            raise ValueError("Pick the renter from Customers or type their name")
-        if not self.product_id and not self.car_name:
-            raise ValueError("Pick the car from Vehicles or type it")
+        # The renter's and the car's details are copied from Customers and
+        # Vehicles (routes/rentals.py _fill), never typed on the rental.
+        if not self.customer_id:
+            raise ValueError("Pick the renter from Customers")
+        if not self.product_id:
+            raise ValueError("Pick the car from Vehicles")
         return self
 
 
