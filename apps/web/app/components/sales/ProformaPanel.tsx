@@ -17,7 +17,7 @@ import { itemRequest } from "@/lib/product-api";
 import ProductPicker, { type PickerProduct } from "@/app/components/ui/ProductPicker";
 import CustomerPicker from "@/app/components/ui/CustomerPicker";
 import DepositForm from "@/app/components/sales/DepositForm";
-import { proformaPrintHtml } from "@/lib/proforma-print";
+import { proformaPrintHtml, PROFORMA_TEMPLATES, PROFORMA_TEMPLATE_COLORS, savedProformaTemplate, saveProformaTemplate, type ProformaTemplate } from "@/lib/proforma-print";
 import { downloadProformaDocx } from "@/lib/proforma-docx";
 import {
   listProformas, createProforma, updateProforma, approveProforma, sellProforma, deleteProforma, addDeposit, removeDeposit, depositTotals,
@@ -452,8 +452,12 @@ export default function ProformaPanel({ onSold, startNew = false }: {
   }
 
   // ── Print (A4 sheets, laid out like a dealer's proforma) ───────────────────
+  // The look it prints in: remembered on this device.
+  // (The picker only shows in the editor, after load, so no server/client mismatch.)
+  const [template, setTemplate] = useState<ProformaTemplate>(savedProformaTemplate);
+  function pickTemplate(v: ProformaTemplate) { setTemplate(v); saveProformaTemplate(v); }
   function printProforma(p: Proforma) {
-    const html = proformaPrintHtml(p, { ...shop, address: formatPublicAddress(shop.address) }, t, isCar, { autoPrint: true, qr: printPrefs.showQr });
+    const html = proformaPrintHtml(p, { ...shop, address: formatPublicAddress(shop.address) }, t, isCar, { autoPrint: true, qr: printPrefs.showQr, template });
     // Only the browser's print preview shows; no extra window.
     printHtml(html);
   }
@@ -912,6 +916,18 @@ export default function ProformaPanel({ onSold, startNew = false }: {
                   <ShoppingBag size={15} /> {t("proforma.sell")}
                 </button>
               )}
+              <div className="rounded-xl border border-slate-200 p-2.5">
+                <p className="text-[11px] font-semibold text-slate-500 mb-1.5">{t("proforma.template")}</p>
+                <div className="grid grid-cols-5 gap-1.5">
+                  {PROFORMA_TEMPLATES.map((k) => (
+                    <button key={k} type="button" onClick={() => pickTemplate(k)} title={t(`proforma.template_${k}`)} aria-pressed={template === k}
+                      className={`flex flex-col items-center gap-1 rounded-lg border px-1 py-1.5 text-[10px] font-semibold transition ${template === k ? "border-blue-600 bg-blue-50 text-blue-700" : "border-slate-200 text-slate-600 hover:border-slate-400"}`}>
+                      <span className="w-full h-3 rounded" style={{ background: PROFORMA_TEMPLATE_COLORS[k] }} />
+                      <span className="truncate w-full text-center">{t(`proforma.template_${k}`)}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
               <button onClick={printNow} disabled={busy} className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-slate-200 text-slate-700 font-semibold hover:bg-slate-50 disabled:opacity-40 text-sm">
                 <Printer size={15} /> {t(locked ? "common.print" : "proforma.save_print_pdf")}
               </button>

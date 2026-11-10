@@ -23,6 +23,82 @@ export interface PrintShop {
 
 type T = (key: string) => string;
 
+/** The looks a proforma can be printed in (same content, different style). */
+export const PROFORMA_TEMPLATES = ["classic", "modern", "minimal", "bold", "elegant"] as const;
+export type ProformaTemplate = (typeof PROFORMA_TEMPLATES)[number];
+/** Main colour of each template, for the picker's swatches. */
+export const PROFORMA_TEMPLATE_COLORS: Record<ProformaTemplate, string> = {
+  classic: "#1f3a68", modern: "#0f766e", minimal: "#111111", bold: "#b91c1c", elegant: "#8a6d3b",
+};
+const TEMPLATE_KEY = "hgv.proforma_template";
+export function savedProformaTemplate(): ProformaTemplate {
+  try {
+    const v = localStorage.getItem(TEMPLATE_KEY);
+    if (v && (PROFORMA_TEMPLATES as readonly string[]).includes(v)) return v as ProformaTemplate;
+  } catch { /* storage blocked: default */ }
+  return "classic";
+}
+export function saveProformaTemplate(v: ProformaTemplate) {
+  try { localStorage.setItem(TEMPLATE_KEY, v); } catch { /* not remembered */ }
+}
+
+// Each template only overrides colours, fonts and the header's layout.
+const TEMPLATE_CSS: Record<ProformaTemplate, string> = {
+  classic: "",
+  modern: `
+  :root { --accent: #0f766e; --soft: #ecfdf5; --line: #cfe9e3; }
+  .head { background: var(--accent); color: #fff; padding: 12px 16px; border-radius: 10px; margin-bottom: 4px; }
+  .head img { background: #fff; padding: 4px; }
+  .title .s { color: #d1fae5; }
+  h2 { border-bottom: none; border-left: 4px solid var(--accent); padding: 2px 0 2px 10px; }
+  table.grid { border-radius: 8px; overflow: hidden; }
+  table.grid th { color: #134e4a; }
+  table.items th:first-child { border-top-left-radius: 6px; } table.items th:last-child { border-top-right-radius: 6px; }`,
+  minimal: `
+  :root { --accent: #111; --soft: #fff; --line: #e5e5e5; }
+  body { font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; }
+  .head { border-bottom: 2px solid #111; padding-bottom: 12px; margin-bottom: 4px; }
+  .head img { border-radius: 0; width: 70px; height: 70px; }
+  .co b { font-weight: normal; color: #444; }
+  .title .t { font-weight: 300; letter-spacing: 3px; }
+  h2 { font-size: 11px; letter-spacing: 2px; font-weight: 600; padding-left: 0; border-bottom: 1px solid #bbb; }
+  table.grid th, table.grid td { border: none; border-bottom: 1px solid var(--line); }
+  table.grid th { background: none; color: #777; font-weight: normal; }
+  table.items th { background: none; color: #111; border-bottom: 2px solid #111; }
+  table.items tr.gt td { background: none; color: #111; border-top: 2px solid #111; font-size: 1.15em; }
+  .terms { background: none; border: none; border-left: 2px solid #111; }`,
+  bold: `
+  :root { --accent: #b91c1c; --soft: #fef2f2; --line: #9ca3af; }
+  .head { flex-direction: column; text-align: center; gap: 6px; border-bottom: 6px solid var(--accent); }
+  .head .co { text-align: center; }
+  .head .co b { display: inline; margin: 0 6px; }
+  .co .n { font-size: 20px; font-weight: 900; }
+  .title { background: #111; color: #fff; width: 100%; padding: 6px 0; }
+  .title .t { font-size: 24px; font-weight: 900; }
+  .title .t br { display: none; }
+  .title .s { color: #f87171; }
+  h2 { background: var(--accent); color: #fff; border: none; padding: 5px 10px; font-weight: 900; }
+  table.grid th, table.grid td { border: 1.5px solid #374151; }
+  table.grid th { background: #f3f4f6; color: #111; }
+  table.items th { background: #111; }
+  .foot { border-top: 3px solid var(--accent); }`,
+  elegant: `
+  :root { --accent: #8a6d3b; --soft: #faf7f0; --line: #e4dccb; }
+  body { font-family: Georgia, "Times New Roman", serif; color: #2b2b2b; }
+  .head { flex-direction: column; text-align: center; gap: 4px; border-bottom: 3px double var(--accent); padding-bottom: 10px; }
+  .head .co { text-align: center; }
+  .head .co b { display: inline; margin: 0 6px; font-weight: normal; font-style: italic; }
+  .co .n { font-size: 20px; letter-spacing: 3px; color: var(--accent); }
+  .title .t { font-size: 18px; letter-spacing: 4px; font-variant: small-caps; text-transform: none; }
+  .title .t br { display: none; }
+  h2 { text-align: center; border-bottom: none; padding: 0; letter-spacing: 3px; font-weight: normal; }
+  h2::before, h2::after { content: " — "; color: var(--line); }
+  table.grid th { background: var(--soft); color: #6b5a3a; font-weight: normal; font-style: italic; }
+  table.items th { background: var(--soft); color: var(--accent); border-bottom: 1px solid var(--accent); }
+  table.items tr.gt td { background: none; color: var(--accent); border-top: 3px double var(--accent); }
+  .terms { background: var(--soft); }`,
+};
+
 /** Vehicles (car layout) or item rows that fit on a sheet before the rest move on. */
 const FIRST_SHEET_VEHICLES = 2;
 const MORE_SHEET_VEHICLES = 4;
@@ -42,7 +118,7 @@ function chunks<X>(list: X[], first: number, more: number): X[][] {
 }
 
 export function proformaPrintHtml(
-  p: Proforma, shop: PrintShop, t: T, isCar: boolean, opts: { autoPrint?: boolean; qr?: boolean } = {},
+  p: Proforma, shop: PrintShop, t: T, isCar: boolean, opts: { autoPrint?: boolean; qr?: boolean; template?: ProformaTemplate } = {},
 ): string {
   const row = (a: string, av: string, b?: string, bv?: string) =>
     `<tr><th>${esc(a)}</th><td>${av}</td>${b !== undefined ? `<th>${esc(b)}</th><td>${bv ?? ""}</td>` : `<td colspan="2" class="blank"></td>`}</tr>`;
@@ -60,7 +136,7 @@ export function proformaPrintHtml(
         ${shop.address ? `<b>${esc(shop.address.toUpperCase())}</b>` : ""}
       </div>
       <div class="title">
-        <div class="t">${esc(t("proforma.print_title_1"))}<br>${esc(t("proforma.print_title_2"))}</div>
+        <div class="t">${esc(t("proforma.print_title_1"))} <br>${esc(t("proforma.print_title_2"))}</div>
         <div class="s">${esc(t("proforma.non_binding"))}</div>
       </div>
     </header>`;
@@ -177,6 +253,7 @@ export function proformaPrintHtml(
   return `<!DOCTYPE html><html><head><meta charset="UTF-8">
 <title>${esc(t("proforma.print_title"))} ${esc(p.invoice_no)}</title>
 <style>
+  :root { --accent: #1f3a68; --soft: #f3f3f3; --line: #d4d4d4; }
   @page { size: A4 portrait; margin: 0; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html, body { background: #e9e9e9; }
@@ -197,21 +274,21 @@ export function proformaPrintHtml(
   .title .t { font-size: 22px; letter-spacing: .5px; line-height: 1.1; text-transform: uppercase; }
   .title .s { font-size: 10px; color: #444; margin-top: 2px; }
 
-  h2 { color: #1f3a68; font-size: 13.5px; text-transform: uppercase; margin: 16px 0 8px; padding: 0 0 5px 10px; border-bottom: 1px solid #1f3a68; }
+  h2 { color: var(--accent); font-size: 13.5px; text-transform: uppercase; margin: 16px 0 8px; padding: 0 0 5px 10px; border-bottom: 1px solid var(--accent); }
   table { width: 100%; border-collapse: collapse; }
-  table.grid th, table.grid td { border: 1px solid #d4d4d4; padding: 6px 9px; text-align: left; vertical-align: top; font-size: 12px; }
-  table.grid th { background: #f3f3f3; color: #444; font-weight: bold; width: 21%; }
+  table.grid th, table.grid td { border: 1px solid var(--line); padding: 6px 9px; text-align: left; vertical-align: top; font-size: 12px; }
+  table.grid th { background: var(--soft); color: #444; font-weight: bold; width: 21%; }
   table.grid td { width: 29%; }
   table.grid td.blank { border: none; background: none; }
   table.bank th { width: 22%; }
   table.bank td { width: auto; }
-  .sub { font-weight: bold; color: #1f3a68; margin: 8px 0 5px; }
-  table.items th { background: #1f3a68; color: #fff; padding: 7px 9px; text-align: left; font-size: 10.5px; text-transform: uppercase; }
+  .sub { font-weight: bold; color: var(--accent); margin: 8px 0 5px; }
+  table.items th { background: var(--accent); color: #fff; padding: 7px 9px; text-align: left; font-size: 10.5px; text-transform: uppercase; }
   table.items td { padding: 6px 9px; border-bottom: 1px solid #e5e5e5; }
   table.items .r { text-align: right; }
   table.items tfoot td { border: none; color: #444; }
-  table.items tr.gt td { background: #1f3a68; color: #fff; font-weight: bold; }
-  .terms { background: #f3f3f3; border: 1px solid #d4d4d4; padding: 9px 13px; font-size: 11px; color: #333; line-height: 1.45; }
+  table.items tr.gt td { background: var(--accent); color: #fff; font-weight: bold; }
+  .terms { background: var(--soft); border: 1px solid var(--line); padding: 9px 13px; font-size: 11px; color: #333; line-height: 1.45; }
   .terms p { margin: 2px 0; }
   .notes { margin-top: 8px; font-size: 11px; color: #333; }
   .sigwrap { margin-top: 6px; }
@@ -219,11 +296,13 @@ export function proformaPrintHtml(
   .sig > div { flex: 1; }
   .sig > .sig-qr { flex: 0 0 auto; padding-top: 8px; }
   /* Same height for both titles, so the signature lines line up. */
-  .sig h3 { color: #1f3a68; font-size: 12px; text-transform: uppercase; margin: 6px 0 0; min-height: 2.6em; }
+  .sig h3 { color: var(--accent); font-size: 12px; text-transform: uppercase; margin: 6px 0 0; min-height: 2.6em; }
   .sig .l { border-top: 1px solid #333; margin-top: 38px; padding-top: 4px; font-size: 10.5px; color: #555; }
   .thanks { text-align: center; font-style: italic; color: #444; margin: 24px 0 0; }
-  .foot { display: flex; justify-content: space-between; gap: 12px; border-top: 1px solid #1f3a68; padding-top: 4px; margin-top: 8px; font-size: 9.5px; color: #555; }
+  .foot { display: flex; justify-content: space-between; gap: 12px; border-top: 1px solid var(--accent); padding-top: 4px; margin-top: 8px; font-size: 9.5px; color: #555; }
   .keep { break-inside: avoid; }
+
+${TEMPLATE_CSS[opts.template ?? "classic"] ?? ""}
 
   @media print {
     html, body { background: #fff; }
