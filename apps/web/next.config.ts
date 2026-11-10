@@ -91,6 +91,18 @@ const nextConfig: NextConfig = {
       },
       // The old public home page.
       { source: "/welcome", destination: "/login", permanent: true },
+      // Addresses people type or other sites guess, sent to the real page
+      // instead of "not found". Accounts are made by Higoverse, so sign-up
+      // goes to sign-in, which explains how to get one.
+      ...["/home", "/signin", "/sign-in", "/log-in", "/signup", "/sign-up", "/register"].map(
+        (source) => ({ source, destination: "/login", permanent: true }),
+      ),
+      ...["/forgot", "/forgot_password", "/reset-password", "/password-reset", "/reset"].map(
+        (source) => ({ source, destination: "/forgot-password", permanent: true }),
+      ),
+      { source: "/downloads",       destination: "/download",  permanent: true },
+      { source: "/solution",        destination: "/solutions", permanent: true },
+      { source: "/privacy-policy",  destination: "/privacy",   permanent: true },
       // Dashboard now lives at the root URL, not /dashboard.
       { source: "/dashboard",          destination: "/",          permanent: true },
       // Higoverse dropped the public marketplace — old shared links now
