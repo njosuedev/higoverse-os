@@ -67,6 +67,7 @@ export default function LoginScreen({ initialStep = "login" }: { initialStep?: "
   const [newPw,       setNewPw]       = useState("");
   const [showNewPw,   setShowNewPw]   = useState(false);
   const [fpLoading,   setFpLoading]   = useState(false);
+  const [resending,   setResending]   = useState(false);
   const [fpError,     setFpError]     = useState("");
   const [resendTimer, setResendTimer] = useState(0);
 
@@ -160,7 +161,7 @@ export default function LoginScreen({ initialStep = "login" }: { initialStep?: "
   };
 
   const handleResend = async () => {
-    setFpError(""); setFpLoading(true);
+    setFpError(""); setResending(true);
     try {
       await fetch(`${AUTH_URL}/api/v1/auth/forgot-password`, {
         method: "POST", headers: { "Content-Type": "application/json" },
@@ -168,7 +169,7 @@ export default function LoginScreen({ initialStep = "login" }: { initialStep?: "
       });
       setOtp(""); setResendTimer(60);
     } catch { setFpError(t((await checkNow()) ? "login.err_network" : "login.err_offline")); }
-    finally { setFpLoading(false); }
+    finally { setResending(false); }
   };
 
   const handleReset = async (e: React.FormEvent) => {
@@ -441,7 +442,7 @@ export default function LoginScreen({ initialStep = "login" }: { initialStep?: "
                     <p className="text-xs text-accent-dark mt-1.5">{6 - newPw.length} {t("login.more_chars_needed")}</p>
                   )}
                 </div>
-                <button type="submit" disabled={fpLoading || otp.length !== 6 || newPw.length < 6}
+                <button type="submit" disabled={fpLoading || resending || otp.length !== 6 || newPw.length < 6}
                   className="w-full h-12 rounded-press bg-ink hover:bg-ink-dark text-paper text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-50 transition-colors duration-200">
                   {fpLoading ? <><Loader2 className="w-4 h-4 animate-spin" /> {t("login.resetting")}</> : t("login.reset_password")}
                 </button>
@@ -451,9 +452,9 @@ export default function LoginScreen({ initialStep = "login" }: { initialStep?: "
                 {resendTimer > 0 ? (
                   <p className="text-sm text-text-faint">{t("login.resend_in")} <span className="hgv-figure font-semibold text-text-muted">{resendTimer}s</span></p>
                 ) : (
-                  <button onClick={handleResend} disabled={fpLoading}
+                  <button onClick={handleResend} disabled={fpLoading || resending}
                     className="inline-flex items-center gap-1.5 text-sm text-ink hover:text-ink-dark font-medium disabled:opacity-50">
-                    <RefreshCw size={12} /> {t("login.resend_code")}
+                    {resending ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />} {t("login.resend_code")}
                   </button>
                 )}
               </div>
