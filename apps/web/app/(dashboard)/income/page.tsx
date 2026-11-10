@@ -182,7 +182,7 @@ export default function IncomePage() {
     try { await deleteIncome(i.id); await load(); } catch (e) { notify(apiDetail(e, t("common.delete_failed"))); }
   }
 
-  const inputCls = "w-full border border-slate-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#057642]/30 focus:border-[#057642]";
+  const inputCls = "w-full border border-slate-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#0a66c2]/30 focus:border-[#0a66c2]";
   const label = (k: string, req = false) => <label className="block text-[11px] font-medium text-slate-500 mb-0.5">{t(k)}{req && <span className="text-red-400"> *</span>}</label>;
   const methodLabel = (m?: string | null) => (m === "mtn" ? "MTN MoMo" : m === "bank" ? t("income.method_bank") : m === "cash" ? t("income.method_cash") : "");
 
@@ -192,9 +192,9 @@ export default function IncomePage() {
       {showHistory && <CorrectionHistory onClose={() => setShowHistory(false)} />}
       <div className="max-w-7xl mx-auto px-3 sm:px-5 py-3 sm:py-4">
         {/* Header */}
-        <div className="rounded-xl mb-2 overflow-hidden border border-emerald-200 bg-white">
+        <div className="rounded-xl mb-2 overflow-hidden border border-slate-200 bg-white">
           <div className="flex items-center gap-2 px-4 pt-3 pb-2 flex-wrap">
-            <TrendingUp size={16} className="text-[#057642] shrink-0" />
+            <TrendingUp size={16} className="text-[#0a66c2] shrink-0" />
             <div className="mr-auto">
               <h1 className="text-sm font-bold text-slate-900">{t("income.title")}</h1>
               <p className="text-xs text-slate-500">{t("income.hint")}</p>
@@ -202,7 +202,7 @@ export default function IncomePage() {
             <button onClick={() => setShowHistory(true)} title={t("move.history")} className="w-8 h-8 rounded-lg border border-slate-200 flex items-center justify-center text-slate-500 hover:text-slate-800">
               <History size={13} />
             </button>
-            <button onClick={() => void load()} title={t("common.refresh")} className="w-8 h-8 rounded-lg border border-slate-200 flex items-center justify-center text-slate-500 hover:text-[#057642]">
+            <button onClick={() => void load()} title={t("common.refresh")} className="w-8 h-8 rounded-lg border border-slate-200 flex items-center justify-center text-slate-500 hover:text-[#0a66c2]">
               <RefreshCw size={13} className={loading ? "animate-spin" : ""} />
             </button>
             <div className="flex items-center gap-1">
@@ -212,16 +212,16 @@ export default function IncomePage() {
                 ["pdf", FileText, "PDF", () => withFile(() => exportIncomePdf(rows, { from, to, currency, isCar }))],
               ] as const).map(([k, Icon, label, run]) => (
                 <button key={k} onClick={() => void run()} disabled={fileBusy || (k !== "template" && rows.length === 0)}
-                  className="flex items-center gap-1 rounded-lg border border-slate-200 px-2 py-1.5 text-[11px] font-semibold text-slate-600 hover:border-[#057642] hover:text-[#057642] disabled:opacity-40">
+                  className="flex items-center gap-1 rounded-lg border border-slate-200 px-2 py-1.5 text-[11px] font-semibold text-slate-600 hover:border-[#0a66c2] hover:text-[#0a66c2] disabled:opacity-40">
                   <Icon size={12} /> {label}
                 </button>
               ))}
-              <label className={`flex cursor-pointer items-center gap-1 rounded-lg border border-slate-200 px-2 py-1.5 text-[11px] font-semibold text-slate-600 hover:border-[#057642] hover:text-[#057642] ${fileBusy ? "pointer-events-none opacity-40" : ""}`}>
+              <label className={`flex cursor-pointer items-center gap-1 rounded-lg border border-slate-200 px-2 py-1.5 text-[11px] font-semibold text-slate-600 hover:border-[#0a66c2] hover:text-[#0a66c2] ${fileBusy ? "pointer-events-none opacity-40" : ""}`}>
                 <Upload size={12} /> {t("common.import")}
                 <input type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={(e) => void onImport(e)} />
               </label>
             </div>
-            <button onClick={openNew} className="flex items-center gap-1.5 text-white text-xs font-bold px-3 py-2 rounded-lg bg-[#057642] hover:opacity-90">
+            <button onClick={openNew} className="flex items-center gap-1.5 text-white text-xs font-bold px-3 py-2 rounded-lg bg-[#0a66c2] hover:opacity-90">
               <Plus size={13} strokeWidth={3} /> {t("income.new")}
             </button>
           </div>
@@ -268,7 +268,7 @@ export default function IncomePage() {
                   <div key={s} className="min-w-[120px]">
                     <p className="text-[11px] font-semibold text-slate-500">{t(`income.src_${s}`)} · {pct}%</p>
                     <p className="text-sm font-bold tabular-nums text-slate-800">{money(v)}</p>
-                    <div className="mt-1 h-1.5 rounded-full bg-slate-100"><div className="h-1.5 rounded-full bg-[#057642]" style={{ width: `${pct}%` }} /></div>
+                    <div className="mt-1 h-1.5 rounded-full bg-slate-100"><div className="h-1.5 rounded-full bg-[#0a66c2]" style={{ width: `${pct}%` }} /></div>
                   </div>
                 );
               })}
@@ -286,7 +286,7 @@ export default function IncomePage() {
             <div className="flex flex-col items-center py-14 text-center px-4">
               <TrendingUp size={30} className="text-slate-200 mb-2" />
               <p className="text-sm font-medium text-slate-500">{t("income.none")}</p>
-              <button onClick={openNew} className="mt-3 flex items-center gap-1.5 text-white text-xs font-semibold px-3 py-1.5 rounded-lg bg-[#057642]">
+              <button onClick={openNew} className="mt-3 flex items-center gap-1.5 text-white text-xs font-semibold px-3 py-1.5 rounded-lg bg-[#0a66c2]">
                 <Plus size={12} /> {t("income.new")}
               </button>
             </div>
@@ -304,7 +304,7 @@ export default function IncomePage() {
                       {[t(`income.src_${i.source}`), i.payer, methodLabel(i.payment_method), i.reference].filter(Boolean).join(" · ")}
                     </p>
                   </div>
-                  <p className="text-sm font-bold tabular-nums text-[#057642]">+{money(i.amount)}</p>
+                  <p className="text-sm font-bold tabular-nums text-[#0a66c2]">+{money(i.amount)}</p>
                   <div className="flex gap-1">
                     {i.has_proof && <button onClick={() => void showProof(i)} title={t("income.proof")} className="w-8 h-8 rounded-lg border border-slate-200 flex items-center justify-center text-slate-600 hover:text-blue-600"><Paperclip size={13} /></button>}
                     {canCorrect && <button onClick={() => setMoving({ i, category: "other", method: asExpenseMethod(i.payment_method), reason: "" })} title={t("move.to_expenses")} className="w-8 h-8 rounded-lg border border-slate-200 flex items-center justify-center text-slate-600 hover:text-[#0a66c2]"><ArrowRightLeft size={13} /></button>}
@@ -370,7 +370,7 @@ export default function IncomePage() {
                 <div className="grid grid-cols-2 gap-1 rounded-lg bg-slate-100 p-0.5">
                   {(["abroad", "rwanda"] as const).map((w) => (
                     <button key={w} type="button" onClick={() => set({ scope: w })}
-                      className={`rounded-md px-2 py-1 text-xs font-semibold transition ${form.scope === w ? "bg-white shadow-sm text-[#057642]" : "text-slate-500"}`}>
+                      className={`rounded-md px-2 py-1 text-xs font-semibold transition ${form.scope === w ? "bg-white shadow-sm text-[#0a66c2]" : "text-slate-500"}`}>
                       {t(w === "abroad" ? "scope.abroad" : "scope.rwanda")}
                     </button>
                   ))}
@@ -400,7 +400,7 @@ export default function IncomePage() {
             </div>
             <div className="flex justify-end gap-2 px-4 py-3 border-t border-slate-100">
               <button onClick={() => setForm(null)} disabled={busy} className="px-3 py-1.5 rounded-lg border border-slate-200 text-sm">{t("common.cancel")}</button>
-              <button onClick={() => void submit()} disabled={busy} className="px-4 py-1.5 rounded-lg text-white text-sm font-semibold bg-[#057642] disabled:opacity-50">
+              <button onClick={() => void submit()} disabled={busy} className="px-4 py-1.5 rounded-lg text-white text-sm font-semibold bg-[#0a66c2] disabled:opacity-50">
                 {busy ? t("common.saving") : t("common.save")}
               </button>
             </div>
@@ -413,9 +413,9 @@ export default function IncomePage() {
 
 function Figure({ label, value, detail, strong = false }: { label: string; value: string; detail: string; strong?: boolean }) {
   return (
-    <div className={`min-w-0 rounded-xl border px-3.5 py-3 ${strong ? "border-emerald-200 bg-emerald-50/50" : "border-slate-200 bg-white"}`}>
+    <div className={`min-w-0 rounded-xl border px-3.5 py-3 ${strong ? "border-[#0a66c2]/25 bg-[#EBF2FD]" : "border-slate-200 bg-white"}`}>
       <p className="truncate text-[11px] font-semibold uppercase tracking-wide text-slate-500">{label}</p>
-      <p className={`mt-1 truncate text-xl font-bold tabular-nums ${strong ? "text-[#057642]" : "text-slate-900"}`}>{value}</p>
+      <p className={`mt-1 truncate text-xl font-bold tabular-nums ${strong ? "text-[#0a66c2]" : "text-slate-900"}`}>{value}</p>
       <p className="mt-0.5 truncate text-xs text-slate-500">{detail}</p>
     </div>
   );
