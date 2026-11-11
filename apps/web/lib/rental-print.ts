@@ -42,22 +42,22 @@ export function rentalDays(r: Pick<Rental, "start_date" | "end_date">): number {
 
 interface Words {
   title: string;
-  intro: (co: string, tin: string, addr: string, renter: string, id: string, date: string) => string;
-  a1: string; p1: (renter: string, period: string) => string;
+  intro: (co: string, tin: string, addr: string, renter: string, id: string, phone: string, home: string, date: string) => string;
+  a1: string; p1: (renter: string, period: string, co: string) => string;
   a2: string; p2: string; carType: string; plate: string; chassis: string;
   a3: string; p3: (from: string, to: string) => string; p3b: string;
   a4: string; p4: string; duties: string[];
   a5: string; p5: (renter: string, rent: string, deposit: string) => string;
   p5b: (renter: string) => string;
   a6: string; p6: string; done: (date: string) => string;
-  lessor: string; renterRole: string; name: string; signStamp: string; sign: string; date: string;
-  days: (n: number) => string; tinL: string; telL: string; addrL: string; qr: string;
+  lessor: string; renterRole: string; idNo: string; name: string; signStamp: string; sign: string; date: string;
+  days: (n: number) => string; tinL: string; telL: string; addrL: string; rwf: string; qr: string;
 }
 
 const RW: Words = {
   title: "AMASEZERANO YO GUKODESHA IMODOKA",
-  intro: (co, tin, addr, renter, id, date) =>
-    `Uyu munsi, ku wa ${date}, hagati ya <b>${co}</b>, ifite TIN ${tin}, ikorera ubucuruzi bwo kugurisha no gukodesha imodoka${addr ? ` i ${addr}` : ""}, na ${renter} ukodesheje imodoka, ufite indangamuntu nimero ${id}, hakozwe amasezerano akurikira:`,
+  intro: (co, tin, addr, renter, id, phone, home, date) =>
+    `Uyu munsi, ku wa ${date}, hagati ya <b>${co}</b>, ifite TIN ${tin}, ikorera ubucuruzi bwo kugurisha no gukodesha imodoka${addr ? ` i ${addr}` : ""}, na ${renter} ukodesheje imodoka, ufite indangamuntu nimero ${id}, telefoni ${phone}, utuye ${home}, hakozwe amasezerano akurikira:`,
   a1: "Ingingo ya 1: Icyo amasezerano agamije",
   p1: (renter, period) => `Aya masezerano agamije gukodesha imodoka y’ikigo kuri ${renter} mu gihe cya ${period}, hakurikijwe ibikubiye muri aya masezerano.`,
   a2: "Ingingo ya 2: Amakuru aranga imodoka",
@@ -80,46 +80,47 @@ const RW: Words = {
   a6: "Ingingo ya 6: Kwemeza amasezerano",
   p6: "Impande zombi zemeje ko zasomye, zumvise kandi zemeye ibikubiye muri aya masezerano, zikaba ziyashyizeho umukono ku bushake bwazo.",
   done: (date) => `Bikorewe i Kigali, ku wa ${date}.`,
-  lessor: "UKODESHWA", renterRole: "UKODESHA", name: "Amazina", signStamp: "Umukono na kashe", sign: "Umukono", date: "Itariki",
-  days: (n) => `iminsi ${n}`, tinL: "TIN", telL: "Telefoni", addrL: "Aderesi",
+  lessor: "UKODESHWA", renterRole: "UKODESHA", idNo: "Indangamuntu", name: "Amazina", signStamp: "Umukono na kashe", sign: "Umukono", date: "Itariki",
+  days: (n) => `iminsi ${n}`, tinL: "TIN", telL: "Telefoni", addrL: "Aderesi", rwf: "Frw",
   qr: "Suzuma aya masezerano muri porogaramu ya Higoverse",
 };
 
 const EN: Words = {
+  // Follows the wording of the English agreement car companies sign.
   title: "CAR RENTAL AGREEMENT",
-  intro: (co, tin, addr, renter, id, date) =>
-    `This day, ${date}, between <b>${co}</b>, TIN ${tin}, a company selling and renting cars${addr ? `, located at ${addr}` : ""}, and ${renter}, the renter, holder of national ID number ${id}, the following agreement is made:`,
+  intro: (co, tin, addr, renter, id, phone, home, date) =>
+    `Today, on ${date}, between <b>${co}</b>, having TIN ${tin}, engaged in the business of selling and renting cars${addr ? ` in ${addr}` : ""}, and ${renter}, having rented the car, holding national ID number ${id}, telephone ${phone}, residing at ${home}, the following agreement has been made:`,
   a1: "Article 1: Purpose of the agreement",
-  p1: (renter, period) => `This agreement is for the rental of the company’s car to ${renter} for a period of ${period}, under the terms set out in this agreement.`,
-  a2: "Article 2: Details of the car",
-  p2: "The rented car is identified as follows:",
+  p1: (renter, period, co) => `This agreement is for the rental of a ${co} car to ${renter} for a period of ${period}, in accordance with the contents of this agreement.`,
+  a2: "Article 2: Vehicle details",
+  p2: "The rented car is identified by the following details:",
   carType: "Type of car", plate: "Plate number", chassis: "Chassis number",
   a3: "Article 3: Duration of the agreement",
-  p3: (from, to) => `This agreement starts on ${from} and ends on ${to}.`,
-  p3b: "The rental period may only be extended if both parties agree.",
-  a4: "Article 4: Obligations of the renter",
-  p4: "The renter agrees:",
+  p3: (from, to) => `This agreement starts on ${from}, and will end on ${to}.`,
+  p3b: "Extension of the rental period will only be done if both parties agree.",
+  a4: "Article 4: Obligations of the Borrower",
+  p4: "The Borrower agrees to:",
   duties: [
-    "To use the car lawfully and take good care of it.",
-    "Not to use it for any unlawful activity.",
-    "To inform the company of any accident or other serious problem with the car. The renter is responsible for the car while it is in their hands and shall return it in the condition in which it was received.",
-    "To return the car on the day this agreement ends, in the same good condition as when it was handed over.",
+    "Use the car lawfully and take good care of it.",
+    "Not use it for any unlawful activities.",
+    "Notify the Lender in the event of an accident, or any other serious problem relating to the car caused by the Borrower. The Borrower is responsible for using the car while it is in their hands, bearing in mind that they will return the car as it was given to them.",
+    "Return the car on the day the agreement ends, in the same good condition as when it was handed over.",
   ],
-  a5: "Article 5: Rent and payment",
-  p5: (renter, rent, deposit) => `${renter} has paid a rent of ${rent}, together with a deposit of ${deposit}.`,
-  p5b: (renter) => `The deposit will be returned to ${renter} when the car is returned in good condition, with no damage caused by its use. If damage caused by the renter is found, the cost of repairing the car will be taken from the deposit, and the balance returned to ${renter}.`,
-  a6: "Article 6: Signatures",
-  p6: "Both parties confirm that they have read, understood and accepted the terms of this agreement, and sign it of their own free will.",
+  a5: "Article 5: Rent and method of payment",
+  p5: (renter, rent, deposit) => `${renter} has paid rental fees amounting to ${rent}, together with ${deposit} as a deposit.`,
+  p5b: (renter) => `The deposit will be refunded to ${renter} when he/she returns the car in good condition, with no damage caused by its use. Where damage caused by the Borrower is found, the amount needed to repair the car will be deducted from the deposit, and the remaining amount will be refunded to ${renter}.`,
+  a6: "Article 6: Confirmation of the agreement",
+  p6: "Both parties confirm that they have read, understood and accepted the contents of this agreement, and have signed it voluntarily.",
   done: (date) => `Done at Kigali, on ${date}.`,
-  lessor: "THE COMPANY", renterRole: "THE RENTER", name: "Name", signStamp: "Signature and stamp", sign: "Signature", date: "Date",
-  days: (n) => `${n} day${n === 1 ? "" : "s"}`, tinL: "TIN", telL: "Telephone", addrL: "Address",
+  lessor: "LENDER", renterRole: "BORROWER", idNo: "National ID", name: "Names", signStamp: "Signature and stamp", sign: "Signature", date: "Date",
+  days: (n) => `${n} day${n === 1 ? "" : "s"}`, tinL: "TIN", telL: "Telephone", addrL: "Address", rwf: "Rwf",
   qr: "Scan in the Higoverse app to check this agreement",
 };
 
 const FR: Words = {
   title: "CONTRAT DE LOCATION DE VÉHICULE",
-  intro: (co, tin, addr, renter, id, date) =>
-    `Ce jour, ${date}, entre <b>${co}</b>, TIN ${tin}, société de vente et de location de véhicules${addr ? ` située à ${addr}` : ""}, et ${renter}, le locataire, titulaire de la carte d’identité n° ${id}, il a été convenu ce qui suit :`,
+  intro: (co, tin, addr, renter, id, phone, home, date) =>
+    `Ce jour, ${date}, entre <b>${co}</b>, TIN ${tin}, société de vente et de location de véhicules${addr ? ` située à ${addr}` : ""}, et ${renter}, le locataire, titulaire de la carte d’identité n° ${id}, téléphone ${phone}, domicilié(e) à ${home}, il a été convenu ce qui suit :`,
   a1: "Article 1 : Objet du contrat",
   p1: (renter, period) => `Le présent contrat a pour objet la location du véhicule de la société à ${renter} pour une durée de ${period}, selon les conditions ci-dessous.`,
   a2: "Article 2 : Identification du véhicule",
@@ -142,8 +143,8 @@ const FR: Words = {
   a6: "Article 6 : Signatures",
   p6: "Les deux parties déclarent avoir lu, compris et accepté le présent contrat, et le signent de leur plein gré.",
   done: (date) => `Fait à Kigali, le ${date}.`,
-  lessor: "LA SOCIÉTÉ", renterRole: "LE LOCATAIRE", name: "Nom", signStamp: "Signature et cachet", sign: "Signature", date: "Date",
-  days: (n) => `${n} jour${n === 1 ? "" : "s"}`, tinL: "TIN", telL: "Téléphone", addrL: "Adresse",
+  lessor: "LA SOCIÉTÉ", renterRole: "LE LOCATAIRE", idNo: "Carte d’identité", name: "Nom", signStamp: "Signature et cachet", sign: "Signature", date: "Date",
+  days: (n) => `${n} jour${n === 1 ? "" : "s"}`, tinL: "TIN", telL: "Téléphone", addrL: "Adresse", rwf: "Frw",
   qr: "Scannez dans l’application Higoverse pour vérifier ce contrat",
 };
 
@@ -152,7 +153,7 @@ const WORDS: Record<AgreementLang, Words> = { rw: RW, en: EN, fr: FR };
 export function rentalAgreementHtml(r: Rental, shop: PrintShop, lang: AgreementLang, opts: { autoPrint?: boolean } = {}): string {
   const w = WORDS[lang];
   const co = esc(shop.name || "");
-  const cur = !r.currency || r.currency === "RWF" ? "Frw" : esc(r.currency);
+  const cur = !r.currency || r.currency === "RWF" ? w.rwf : esc(r.currency);
   const amount = (n: number) => (n > 0 ? `<b>${money(n)} ${cur}</b>` : `<span class="line" style="width:30mm"></span> ${cur}`);
   const renter = v(r.customer, 50);
   const n = rentalDays(r);
@@ -187,10 +188,10 @@ export function rentalAgreementHtml(r: Rental, shop: PrintShop, lang: AgreementL
   </div>
   <span class="no">${esc(r.rental_no)}</span>
   <h1>${esc(w.title)}</h1>
-  <p>${w.intro(co, shop.tin ? esc(shop.tin) : v("", 30), esc(shop.address || ""), renter, v(r.customer_id_no, 40), day(r.agreement_date))}</p>
+  <p>${w.intro(co, shop.tin ? esc(shop.tin) : v("", 30), esc(shop.address || ""), renter, v(r.customer_id_no, 40), v(r.customer_phone, 30), v(r.customer_address, 50), day(r.agreement_date))}</p>
 
   <h2>${esc(w.a1)}</h2>
-  <p>${w.p1(renter, n ? `<b>${esc(w.days(n))}</b>` : v("", 40))}</p>
+  <p>${w.p1(renter, n ? `<b>${esc(w.days(n))}</b>` : v("", 40), co)}</p>
 
   <h2>${esc(w.a2)}</h2>
   <p>${esc(w.p2)}</p>
@@ -225,6 +226,9 @@ export function rentalAgreementHtml(r: Rental, shop: PrintShop, lang: AgreementL
     </div>
     <div>
       <p><b>${esc(w.renterRole)}</b><br>${esc(r.customer)}</p>
+      <p>${esc(w.idNo)}: ${v(r.customer_id_no, 44)}</p>
+      <p>${esc(w.telL)}: ${v(r.customer_phone, 46)}</p>
+      <p>${esc(w.addrL)}: ${v(r.customer_address, 48)}</p>
       <p>${esc(w.sign)}: <span class="line" style="width:56mm"></span></p>
       <p>${esc(w.date)}: <span class="line" style="width:58mm"></span></p>
     </div>
