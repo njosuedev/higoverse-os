@@ -18,6 +18,7 @@ import '../app_settings.dart';
 import '../config.dart';
 import '../format.dart';
 import '../i18n.dart';
+import '../rentals.dart';
 import '../session.dart';
 import '../sheets.dart';
 import '../theme.dart';
@@ -90,6 +91,8 @@ class _SearchScreenState extends State<SearchScreen> {
       _error = null;
     });
     final api = SessionScope.of(context).api;
+    // Rented cars show as such in the results (loaded alongside, shared).
+    final rentals = loadRentals(SessionScope.of(context));
     List<Map<String, dynamic>> list(dynamic r) =>
         ((((r as Map)['data'] as Map?)?['items'] as List?) ?? const []).whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
     int total(dynamic r) => ((((r as Map)['data'] as Map?)?['total'] as num?) ?? 0).toInt();
@@ -101,6 +104,7 @@ class _SearchScreenState extends State<SearchScreen> {
         api.get('${Svc.sales}/proforma', query: {'search': q, 'limit': '10', 'page': '1'}).catchError((_) => null),
         if (_allDebts == null) api.get('${Svc.sales}/debts').catchError((_) => null),
       ]);
+      await rentals;
       if (r.length > 3) _allDebts = r[3] == null ? const [] : list(r[3]);
       if (!mounted || gen != _gen) return;
       final needle = q.toLowerCase();
@@ -489,7 +493,11 @@ class _ItemResult extends StatelessWidget {
         ? [a['plate_no'], a['chassis_no'], a['year']].where((x) => x != null && x.isNotEmpty).join(' · ')
         : [if ('${item['barcode'] ?? ''}'.isNotEmpty) '${item['barcode']}', qty <= 0 ? t('dash.out_of_stock') : t('stock.in_stock_n', {'n': groupDigits(qty)})]
             .join(' · ');
-    final status = qty <= 0 ? t('stock.f_sold') : (a['sale_status'] == 'pending' ? t('stock.f_pending') : null);
+    final status = qty <= 0
+        ? t('stock.f_sold')
+        : s.isCar && rentalsNow.value.now['${item['id']}'] != null
+            ? t('stock.f_rented')
+            : (a['sale_status'] == 'pending' ? t('stock.f_pending') : null);
     return _ResultRow(
       onTap: () {
         onOpen();

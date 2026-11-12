@@ -7,6 +7,7 @@ import 'format.dart';
 import 'forms.dart';
 import 'i18n.dart';
 import 'live/scoped_route.dart';
+import 'rentals.dart';
 import 'session.dart';
 import 'sheets.dart';
 import 'theme.dart';
@@ -105,8 +106,9 @@ class _CarModelsViewState extends State<CarModelsView> {
     final s = SessionScope.of(context);
     setState(() => _error = null);
     try {
-      final q = <String, String>{if (widget.status != 'all') 'status': widget.status};
+      final q = carStatusQuery(widget.status, await loadRentals(s, fresh: true));
       if (widget.query.trim().isNotEmpty) q['q'] = widget.query.trim();
+      if (!mounted || gen != _gen) return;
       final res = await s.api.get('${Svc.products}/products/models', query: q);
       if (!mounted || gen != _gen) return;
       setState(() => _models = ((res as Map)['data'] as List? ?? const []).map((e) => Map<String, dynamic>.from(e as Map)).toList());
@@ -334,7 +336,8 @@ class _CarIdsScreenState extends State<CarIdsScreen> {
       final q = <String, String>{'limit': '1000'};
       if (widget.name != null) q['name'] = widget.name!;
       final status = widget.status ?? (widget.name == null ? 'unassigned' : null);
-      if (status != null) q['status'] = status;
+      if (status != null) q.addAll(carStatusQuery(status, await loadRentals(s)));
+      if (!mounted) return;
       final res = await s.api.get('${Svc.products}/products', query: q);
       final only = widget.ids?.toSet();
       final cars = (((res as Map)['data'] as Map?)?['items'] as List? ?? const [])
@@ -492,9 +495,7 @@ class _CarIdCard extends StatelessWidget {
     final s = SessionScope.of(context);
     final a = attributesOf(car['attributes']);
     final qty = ((car['quantity'] as num?) ?? 0).toInt();
-    final status = qty <= 0
-        ? (t('stock.f_sold'), c.faint)
-        : (a['sale_status'] == 'pending' ? (t('stock.f_pending'), c.warning) : (t('stock.f_available'), c.success));
+    final status = carStatusChip(context, qty, a, '${car['id']}');
     final complete = carIdFields.every((f) => (a[f] ?? '').isNotEmpty);
     final meta = [a['color'], a['year']].where((x) => (x ?? '').isNotEmpty).join(' · ');
     return Card(

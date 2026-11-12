@@ -6,6 +6,7 @@ import '../format.dart';
 import '../forms.dart';
 import '../i18n.dart';
 import '../live/live.dart';
+import '../rentals.dart';
 import '../session.dart';
 import '../sheets.dart';
 import '../theme.dart';
@@ -33,7 +34,7 @@ class _ProductsScreenState extends State<ProductsScreen> with LiveListener {
 
   /// Bumped by every reload: answers to an older search or filter are dropped.
   int _gen = 0;
-  String _status = 'all'; // car dealers: all | available | pending | sold | penalties | unassigned
+  String _status = 'all'; // car dealers: all | available | pending | rented | sold | penalties | unassigned
 
   /// Car dealers: each car name once with its count (default), or every car.
   bool _byName = true;
@@ -151,7 +152,9 @@ class _ProductsScreenState extends State<ProductsScreen> with LiveListener {
         return;
       }
       final q = <String, String>{'page': '${_page + 1}', 'limit': '$_pageSize'};
-      if (s.isCar && _status != 'all') q['status'] = _status;
+      // Which cars are rented today decides the Rented/Available lists.
+      if (s.isCar) q.addAll(carStatusQuery(_status, await loadRentals(s, fresh: _page == 0)));
+      if (!mounted || gen != _gen) return;
       final res = await s.api.get('${Svc.products}/products', query: q);
       final data = (res as Map)['data'] as Map? ?? {};
       if (!mounted || gen != _gen) return;
@@ -230,6 +233,7 @@ class _ProductsScreenState extends State<ProductsScreen> with LiveListener {
                     ('all', 'stock.f_all'),
                     ('available', 'stock.f_available'),
                     ('pending', 'stock.f_pending'),
+                    ('rented', 'stock.f_rented'),
                     ('sold', 'stock.f_sold'),
                     ('penalties', 'stock.f_fines'),
                     ('unassigned', 'stock.f_no_ids'),
@@ -323,9 +327,8 @@ class _ProductRow extends StatelessWidget {
     final isCar = session.isCar;
     final t = T.of(context);
     final c = Hgv.of(context);
-    final status = qty <= 0
-        ? (t('stock.f_sold'), c.faint)
-        : (a['sale_status'] == 'pending' ? (t('stock.f_pending'), c.warning) : (t('stock.f_available'), c.success));
+    final status = carStatusChip(context, qty, a, '${item['id']}');
+    final rental = qty > 0 ? rentalsNow.value.now['${item['id']}'] : null;
     final fines = int.tryParse(a['penalty_count'] ?? '') ?? 0;
     final sub = isCar
         ? [a['year'], a['color'], a['plate_no']].where((x) => x != null && x.isNotEmpty).join(' · ')
@@ -338,6 +341,7 @@ class _ProductRow extends StatelessWidget {
         padding: const EdgeInsets.only(top: 2),
         child: Wrap(spacing: 6, runSpacing: 4, crossAxisAlignment: WrapCrossAlignment.center, children: [
           if (isCar) StatusChip(status.$1, status.$2),
+          if (isCar && rental != null) Text(t('car.rented_info', {'name': rental.customer, 'date': rental.end}), style: TextStyle(color: c.ink, fontSize: 12.5)),
           if (isCar && fines > 0) StatusChip(fines == 1 ? t('stock.fine_one') : t('stock.fines_n', {'n': fines}), c.danger),
           if (sub.isNotEmpty) Text(sub, style: TextStyle(color: !isCar && qty <= session.lowStock ? c.warning : c.muted)),
         ]),

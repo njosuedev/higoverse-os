@@ -14,6 +14,7 @@ import '../forms.dart';
 import '../holder.dart';
 import '../i18n.dart';
 import '../reservation.dart';
+import '../rentals.dart';
 import '../session.dart';
 import '../sheets.dart';
 import '../stories.dart';
@@ -52,6 +53,8 @@ class _ItemScreenState extends State<ItemScreen> {
     _recent = s.api.get('${Svc.sales}/sales', query: {'page': '1', 'limit': '5', 'product_id': _id});
     _holder = s.isCar ? carHolder(s, _item) : Future.value(null);
     _loadFull(s);
+    // Rented between the rental's start and end dates: no sale meanwhile.
+    if (s.isCar) loadRentals(s, fresh: true).then((_) { if (mounted) setState(() {}); });
   }
 
   /// Lists carry a thumbnail only; the item itself has every photo.
@@ -204,10 +207,14 @@ class _ItemScreenState extends State<ItemScreen> {
     final qty = _n(item['quantity']);
     final low = qty > 0 && qty <= s.lowStock;
     final pending = a['sale_status'] == 'pending';
+    final rental = s.isCar && qty > 0 ? rentalsNow.value.now[_id] : null;
+    final nextRental = s.isCar && qty > 0 && rental == null ? rentalsNow.value.next[_id] : null;
     final status = qty <= 0
         ? (t('dash.out_of_stock'), c.danger)
         : s.isCar
-            ? (pending ? (t('stock.f_pending'), c.warning) : (t('stock.f_available'), c.success))
+            ? (rental != null
+                ? (t('stock.f_rented'), c.ink)
+                : pending ? (t('stock.f_pending'), c.warning) : (t('stock.f_available'), c.success))
             : (low ? (t('detail.low'), c.warning) : (t('stock.in_stock_n', {'n': groupDigits(qty)}), c.success));
     final fines = int.tryParse(a['penalty_count'] ?? '') ?? 0;
     final specs = [a['plate_no'], a['year'], a['color']].where((x) => x != null && x.isNotEmpty).join(' · ');
@@ -229,7 +236,7 @@ class _ItemScreenState extends State<ItemScreen> {
     final carPending = s.isCar && qty > 0 && pending;
     final pay = carPending ? carPayments(a, item['selling_price']) : null;
     // A pending car is paid in deposits; the last one sells it.
-    final canSell = qty > 0 && !carPending;
+    final canSell = qty > 0 && !carPending && rental == null;
     final width = MediaQuery.sizeOf(context).width;
 
     return Scaffold(
@@ -345,6 +352,16 @@ class _ItemScreenState extends State<ItemScreen> {
                 color: qty <= 0 ? c.danger : (low ? c.warning : c.success),
                 height: 6,
               ),
+            ],
+            if (rental != null) ...[
+              const SizedBox(height: 8),
+              Text(t('car.rented_info', {'name': rental.customer, 'date': rental.end}),
+                  style: TextStyle(color: c.ink, fontWeight: FontWeight.w700)),
+              Text(t('car.for_sale_from', {'date': _dayAfter(rental.end)}), style: TextStyle(fontSize: 13, color: c.muted)),
+            ],
+            if (nextRental != null) ...[
+              const SizedBox(height: 6),
+              Text(t('car.rent_booked', {'date': nextRental.start}), style: TextStyle(fontSize: 13, color: c.ink)),
             ],
             if ('${item['description'] ?? ''}'.trim().isNotEmpty) ...[
               const SizedBox(height: 8),
@@ -589,4 +606,12 @@ class _PhotoViewerState extends State<_PhotoViewer> {
       ]),
     );
   }
+}
+
+/// The day after a YYYY-MM-DD date (a rented car is for sale again then).
+String _dayAfter(String day) {
+  final d = DateTime.tryParse(day);
+  if (d == null) return day;
+  final n = DateTime(d.year, d.month, d.day + 1);
+  return '${n.year}-${'${n.month}'.padLeft(2, '0')}-${'${n.day}'.padLeft(2, '0')}';
 }
