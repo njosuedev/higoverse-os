@@ -64,6 +64,34 @@ class RentalIn(BaseModel):
         return self
 
 
+class RentalDepositIn(BaseModel):
+    """More deposit paid by the renter after the agreement."""
+    amount: Decimal = Field(gt=0, le=Decimal("100000000000"))
+    method: str
+    date: str
+    reference: str = Field("", max_length=120)
+
+    @field_validator("method")
+    @classmethod
+    def method_known(cls, v: str) -> str:
+        if v not in ("cash", "mtn", "airtel", "bank", "card"):
+            raise ValueError("Choose how the deposit was paid (cash, MTN, Airtel, bank or card)")
+        return v
+
+    @field_validator("date")
+    @classmethod
+    def date_ok(cls, v: str) -> str:
+        _day(v)
+        if date_cls.fromisoformat(v) > date_cls.today():
+            raise ValueError("A deposit can't be dated in the future")
+        return v
+
+    @field_validator("reference")
+    @classmethod
+    def tidy(cls, v: str) -> str:
+        return _clean(v) or ""
+
+
 class RentalReturn(BaseModel):
     deposit_returned: Decimal = Field(ge=0, le=Decimal("100000000000"))
     return_note: str | None = Field(None, max_length=2000)

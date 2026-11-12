@@ -87,6 +87,8 @@ def on_startup():
             conn.execute(text("ALTER TABLE ebm_invoices ADD COLUMN IF NOT EXISTS refund_note TEXT"))
             conn.execute(text("ALTER TABLE ebm_configs ADD COLUMN IF NOT EXISTS enabled_at TIMESTAMP WITH TIME ZONE"))
             conn.execute(text("ALTER TABLE ebm_invoices ADD COLUMN IF NOT EXISTS refund_recipient VARCHAR(100)"))
+            # Rentals: more deposit paid after the agreement (routes/rentals.py).
+            conn.execute(text("ALTER TABLE car_rentals ADD COLUMN IF NOT EXISTS extra_deposits JSON"))
             conn.commit()
     except Exception:
         pass

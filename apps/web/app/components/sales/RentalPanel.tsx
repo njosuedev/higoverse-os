@@ -6,12 +6,12 @@
 
 import AmountInput from "@/app/components/ui/AmountInput";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { CarFront, Pencil, Plus, Printer, RefreshCw, RotateCcw, Search, Trash2, X, Ban } from "lucide-react";
+import { CarFront, Pencil, Plus, Printer, RefreshCw, RotateCcw, Search, Trash2, Wallet, X, Ban } from "lucide-react";
 import { useLanguage } from "@/lib/language-context";
 import { useAuth } from "@/lib/auth-context";
 import { settingsRequest } from "@/lib/settings-api";
 import { loadCustomers, type Customer } from "@/lib/supplier-api";
-import { carTypeLabel, parseAttributes } from "@/lib/business-layout";
+import { carTypeLabel, parseAttributes, DEPOSIT_METHODS } from "@/lib/business-layout";
 import { itemRequest } from "@/lib/product-api";
 import ProductPicker, { type PickerProduct } from "@/app/components/ui/ProductPicker";
 import CustomerPicker from "@/app/components/ui/CustomerPicker";
@@ -20,7 +20,7 @@ import { getPrintShop } from "@/lib/print-shop";
 import { askConfirm, notify } from "@/lib/dialogs";
 import { AGREEMENT_LANGS, rentalAgreementHtml, rentalDays, type AgreementLang } from "@/lib/rental-print";
 import {
-  cancelRental, deleteRental, listRentals, RENTAL_MANAGER_ROLES, returnRental, saveRental,
+  addRentalDeposit, cancelRental, deleteRental, depositTotal, listRentals, removeRentalDeposit, RENTAL_MANAGER_ROLES, returnRental, saveRental,
   type Rental, type RentalInput, type RentalStatus,
 } from "@/lib/rental-api";
 
@@ -75,6 +75,8 @@ export default function RentalPanel({ rentCarId }: { rentCarId?: string | null }
   const [busy, setBusy] = useState(false);
   const [printing, setPrinting] = useState<Rental | null>(null);
   const [returning, setReturning] = useState<Rental | null>(null);
+  // The rental whose deposits are open (see them, add more).
+  const [depositsOf, setDepositsOf] = useState<Rental | null>(null);
 
   const load = useCallback(async () => {
     try { setItems(await listRentals()); } catch (e) { notify(apiDetail(e, t("common.error"))); }
@@ -240,13 +242,17 @@ export default function RentalPanel({ rentCarId }: { rentCarId?: string | null }
                     <p className="text-xs text-slate-500 truncate">
                       {[r.car_name, r.plate_no].filter(Boolean).join(" · ")} · {r.start_date} → {r.end_date} ({rentalDays(r)} {t("rental.days")})
                     </p>
-                    {r.status === "returned" && r.deposit > 0 && (
-                      <p className="text-[11px] text-slate-400">{t("rental.deposit_back")}: {money(r.deposit_returned ?? 0)} / {money(r.deposit)}{r.return_note ? ` · ${r.return_note}` : ""}</p>
+                    {r.status === "returned" && depositTotal(r) > 0 && (
+                      <p className="text-[11px] text-slate-400">{t("rental.deposit_back")}: {money(r.deposit_returned ?? 0)} / {money(depositTotal(r))}{r.return_note ? ` · ${r.return_note}` : ""}</p>
                     )}
                   </div>
                   <div className="text-right">
                     <p className="text-sm font-bold tabular-nums text-slate-800">{money(r.rent_amount)} <span className="text-[11px] font-medium text-slate-400">{r.currency}</span></p>
-                    {r.deposit > 0 && <p className="text-[11px] text-slate-500">{t("rental.deposit")}: {money(r.deposit)}</p>}
+                    {(depositTotal(r) > 0 || r.status === "active") && (
+                      <button type="button" onClick={() => setDepositsOf(r)} className="text-[11px] text-slate-500 hover:text-blue-600 hover:underline">
+                        {t("rental.deposit")}: {money(depositTotal(r))}{r.extra_deposits?.length ? ` (${r.extra_deposits.length + (r.deposit > 0 ? 1 : 0)})` : ""}
+                      </button>
+                    )}
                   </div>
                   <span className={`inline-flex text-[11px] font-semibold px-2 py-0.5 rounded-full border ${late ? "bg-red-50 text-red-700 border-red-200" : STATUS_STYLE[r.status]}`}>
                     {late ? t("rental.late") : t(`rental.status_${r.status}`)}
@@ -254,6 +260,7 @@ export default function RentalPanel({ rentCarId }: { rentCarId?: string | null }
                   <div className="flex items-center gap-1">
                     <button onClick={() => setPrinting(r)} title={t("rental.print")} className="w-8 h-8 rounded-lg border border-slate-200 flex items-center justify-center text-slate-600 hover:text-blue-600"><Printer size={14} /></button>
                     {r.status === "active" && <>
+                      <button onClick={() => setDepositsOf(r)} title={t("vehicle.add_deposit")} className="w-8 h-8 rounded-lg border border-slate-200 flex items-center justify-center text-slate-600 hover:text-amber-600"><Wallet size={14} /></button>
                       <button onClick={() => setReturning(r)} title={t("rental.mark_returned")} className="w-8 h-8 rounded-lg border border-slate-200 flex items-center justify-center text-slate-600 hover:text-emerald-600"><RotateCcw size={14} /></button>
                       <button onClick={() => openEdit(r)} title={t("common.edit")} className="w-8 h-8 rounded-lg border border-slate-200 flex items-center justify-center text-slate-600 hover:text-blue-600"><Pencil size={14} /></button>
                       <button onClick={() => void cancel(r)} title={t("rental.cancel")} className="w-8 h-8 rounded-lg border border-slate-200 flex items-center justify-center text-slate-600 hover:text-amber-600"><Ban size={14} /></button>
@@ -332,6 +339,8 @@ export default function RentalPanel({ rentCarId }: { rentCarId?: string | null }
       )}
 
       {printing && <PrintChoice rental={printing} onPick={(l) => void print(printing, l)} onClose={() => setPrinting(null)} />}
+      {depositsOf && <DepositsDialog rental={depositsOf} canRemove={canDelete}
+        onClose={() => setDepositsOf(null)} onSaved={async (r) => { setDepositsOf(r); await load(); }} />}
       {returning && <ReturnDialog rental={returning} onClose={() => setReturning(null)} onDone={async () => { setReturning(null); await load(); }} />}
     </div>
   );
@@ -382,12 +391,13 @@ function PrintChoice({ rental, onPick, onClose }: { rental: Rental; onPick: (l: 
 /** The car came back: how much of the deposit is given back, and why not all. */
 function ReturnDialog({ rental, onClose, onDone }: { rental: Rental; onClose: () => void; onDone: () => Promise<void> }) {
   const { t } = useLanguage();
-  const [back, setBack] = useState(String(rental.deposit || 0));
+  const total = depositTotal(rental);
+  const [back, setBack] = useState(String(total || 0));
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   async function save() {
     const n = Number(back) || 0;
-    if (n < 0 || n > rental.deposit) { notify(t("rental.err_deposit_back")); return; }
+    if (n < 0 || n > total) { notify(t("rental.err_deposit_back")); return; }
     setBusy(true);
     try { await returnRental(rental.id, n, note.trim()); notify(t("rental.returned_ok"), "success"); await onDone(); }
     catch (e) { notify(apiDetail(e, t("common.error"))); }
@@ -398,8 +408,8 @@ function ReturnDialog({ rental, onClose, onDone }: { rental: Rental; onClose: ()
       <div role="dialog" aria-modal="true" className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
         <p className="flex items-center gap-2 font-bold text-slate-800"><RotateCcw size={17} className="text-emerald-600" /> {t("rental.mark_returned")}</p>
         <p className="mt-1 text-sm text-slate-500">{rental.customer} · {rental.car_name}</p>
-        <label className="mt-4 block text-[11px] font-medium text-slate-500 mb-0.5">{t("rental.deposit_back")} ({t("rental.deposit")}: {money(rental.deposit)})</label>
-        <AmountInput min="0" max={rental.deposit} value={back} onChange={(e) => setBack(e.target.value)}
+        <label className="mt-4 block text-[11px] font-medium text-slate-500 mb-0.5">{t("rental.deposit_back")} ({t("rental.deposit")}: {money(total)})</label>
+        <AmountInput min="0" max={total} value={back} onChange={(e) => setBack(e.target.value)}
           className="w-full border border-slate-200 rounded-lg px-2.5 py-1.5 text-sm" />
         <label className="mt-3 block text-[11px] font-medium text-slate-500 mb-0.5">{t("rental.return_note")}</label>
         <textarea rows={2} value={note} onChange={(e) => setNote(e.target.value)} className="w-full border border-slate-200 rounded-lg px-2.5 py-1.5 text-sm" />
@@ -407,6 +417,113 @@ function ReturnDialog({ rental, onClose, onDone }: { rental: Rental; onClose: ()
           <button onClick={onClose} disabled={busy} className="px-3 py-1.5 rounded-lg border border-slate-200 text-sm">{t("common.cancel")}</button>
           <button onClick={() => void save()} disabled={busy} className="px-4 py-1.5 rounded-lg bg-emerald-600 text-white text-sm font-semibold disabled:opacity-50">{t("common.save")}</button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+const localDay = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
+
+/** A rental's deposits: the one paid at the agreement, any paid later, and
+ *  (active rentals) a form to add one. Managers can remove one added by mistake. */
+function DepositsDialog({ rental, canRemove, onClose, onSaved }: {
+  rental: Rental; canRemove: boolean; onClose: () => void; onSaved: (r: Rental) => Promise<void>;
+}) {
+  const { t } = useLanguage();
+  const [amount, setAmount] = useState("");
+  const [method, setMethod] = useState<string>("cash");
+  const [day, setDay] = useState(localDay());
+  const [reference, setReference] = useState("");
+  const [busy, setBusy] = useState(false);
+  const active = rental.status === "active";
+  const extra = rental.extra_deposits ?? [];
+  const field = "w-full border border-slate-200 rounded-lg px-2.5 py-1.5 text-sm";
+  const label = "block text-[11px] font-medium text-slate-500 mb-0.5";
+
+  async function add() {
+    const n = Number(amount) || 0;
+    if (n <= 0) return;
+    setBusy(true);
+    try {
+      const r = await addRentalDeposit(rental.id, { amount: n, method, date: day, reference: reference.trim() });
+      notify(t("rental.deposit_recorded"), "success");
+      setAmount(""); setReference("");
+      await onSaved(r);
+    } catch (e) { notify(apiDetail(e, t("common.error"))); }
+    finally { setBusy(false); }
+  }
+  async function remove(id: string) {
+    if (!(await askConfirm({ message: t("rental.remove_deposit_q"), danger: true }))) return;
+    setBusy(true);
+    try { await onSaved(await removeRentalDeposit(rental.id, id)); }
+    catch (e) { notify(apiDetail(e, t("common.delete_failed"))); }
+    finally { setBusy(false); }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => !busy && onClose()}>
+      <div role="dialog" aria-modal="true" className="w-full max-w-md max-h-[92vh] overflow-y-auto rounded-2xl bg-white p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-start justify-between gap-2">
+          <div>
+            <p className="flex items-center gap-2 font-bold text-slate-800"><Wallet size={17} className="text-amber-600" /> {t("vehicle.deposits_title")}</p>
+            <p className="mt-0.5 text-sm text-slate-500">{rental.customer} · {rental.car_name} · {rental.rental_no}</p>
+          </div>
+          <button onClick={onClose} aria-label={t("common.close")} className="p-1 rounded hover:bg-slate-100"><X size={16} /></button>
+        </div>
+
+        <ul className="mt-3 divide-y divide-slate-100 rounded-lg border border-slate-200">
+          <li className="flex items-center justify-between gap-2 px-3 py-2 text-sm">
+            <span className="text-slate-600">{t("rental.deposit_at_signing")} <span className="text-slate-400">· {rental.agreement_date}</span></span>
+            <span className="font-semibold tabular-nums text-slate-800">{money(rental.deposit)}</span>
+          </li>
+          {extra.map((d) => (
+            <li key={d.id} className="flex items-center justify-between gap-2 px-3 py-2 text-sm">
+              <span className="min-w-0 truncate text-slate-600" title={[d.reference, d.by].filter(Boolean).join(" · ")}>
+                {d.date} · {t(`sales.pm_${d.method}`)}{d.reference ? <span className="text-slate-400"> · {d.reference}</span> : null}
+              </span>
+              <span className="flex shrink-0 items-center gap-1">
+                <span className="font-semibold tabular-nums text-slate-800">{money(d.amount)}</span>
+                {active && canRemove && (
+                  <button onClick={() => void remove(d.id)} disabled={busy} title={t("common.delete")} aria-label={t("common.delete")}
+                    className="p-1 rounded text-slate-400 hover:text-red-600 hover:bg-red-50"><Trash2 size={13} /></button>
+                )}
+              </span>
+            </li>
+          ))}
+          <li className="flex items-center justify-between gap-2 bg-slate-50 px-3 py-2 text-sm">
+            <span className="font-semibold text-slate-700">{t("rental.deposit_total")}</span>
+            <span className="font-bold tabular-nums text-slate-900">{money(depositTotal(rental))} <span className="text-[11px] font-medium text-slate-400">{rental.currency}</span></span>
+          </li>
+        </ul>
+
+        {active && (
+          <div className="mt-4 space-y-3">
+            <p className="text-xs font-bold text-slate-700">{t("vehicle.add_deposit")}</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div><label className={label}>{t("vehicle.deposit_amount")}</label>
+                <AmountInput min="1" value={amount} onChange={(e) => setAmount(e.target.value)} className={field} /></div>
+              <div><label className={label}>{t("vehicle.deposit_date")}</label>
+                <input type="date" max={localDay()} value={day} onChange={(e) => setDay(e.target.value)} className={field} /></div>
+            </div>
+            <div><span className={label}>{t("vehicle.deposit_method")}</span>
+              <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label={t("vehicle.deposit_method")}>
+                {DEPOSIT_METHODS.map((m) => (
+                  <button key={m} type="button" role="radio" aria-checked={method === m} onClick={() => setMethod(m)}
+                    className={`h-8 rounded-full border px-3 text-xs font-semibold ${method === m ? "border-[#0a66c2] bg-[#0a66c2] text-white" : "border-slate-300 text-slate-700 hover:bg-slate-50"}`}>
+                    {t(`sales.pm_${m}`)}
+                  </button>
+                ))}
+              </div></div>
+            <div><label className={label}>{t("deposit.reference")}</label>
+              <input value={reference} maxLength={120} onChange={(e) => setReference(e.target.value)} placeholder={t("deposit.reference_hint")} className={field} /></div>
+            <div className="flex justify-end gap-2">
+              <button onClick={onClose} disabled={busy} className="px-3 py-1.5 rounded-lg border border-slate-200 text-sm">{t("common.close")}</button>
+              <button onClick={() => void add()} disabled={busy || !(Number(amount) > 0)} className="px-4 py-1.5 rounded-lg text-white text-sm font-semibold disabled:opacity-50" style={{ background: "#0a66c2" }}>
+                {t("vehicle.add_deposit")}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -210,7 +210,7 @@ export function rentalAgreementHtml(r: Rental, shop: PrintShop, lang: AgreementL
   <ol>${w.duties.map((d) => `<li>${esc(d)}</li>`).join("")}</ol>
 
   <h2>${esc(w.a5)}</h2>
-  <p>${w.p5(renter, amount(r.rent_amount), amount(r.deposit))}</p>
+  <p>${w.p5(renter, amount(r.rent_amount), amount(r.deposit_total ?? r.deposit))}</p>
   <p>${w.p5b(renter)}</p>
 
   <h2>${esc(w.a6)}</h2>

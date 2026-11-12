@@ -20,7 +20,12 @@ export interface Rental {
   end_date: string;
   agreement_date: string;
   rent_amount: number;
+  /** Paid at the agreement. */
   deposit: number;
+  /** More deposit paid later (POST /rentals/{id}/deposits). */
+  extra_deposits?: RentalDeposit[];
+  /** `deposit` plus the extra ones. */
+  deposit_total?: number;
   currency: string;
   notes: string;
   status: RentalStatus;
@@ -33,7 +38,14 @@ export interface Rental {
   doc_code?: string;
 }
 
-export type RentalInput = Omit<Rental, "id" | "rental_no" | "status" | "returned_at" | "deposit_returned" | "return_note" | "created_by_name" | "created_at" | "doc_code">;
+export interface RentalDeposit {
+  id: string; amount: number; method: string; date: string; reference: string; by: string; at: string;
+}
+
+export type RentalInput = Omit<Rental, "id" | "rental_no" | "status" | "returned_at" | "deposit_returned" | "return_note" | "created_by_name" | "created_at" | "doc_code" | "extra_deposits" | "deposit_total">;
+
+/** The deposit in total: at the agreement plus any paid later. */
+export const depositTotal = (r: Rental) => r.deposit_total ?? r.deposit;
 
 /** Roles that may delete a rental (MANAGER_ROLES in sale-service). */
 export const RENTAL_MANAGER_ROLES = new Set(["owner", "admin", "manager"]);
@@ -48,6 +60,14 @@ export async function saveRental(input: RentalInput, id?: string): Promise<Renta
 }
 export async function returnRental(id: string, depositReturned: number, note: string): Promise<Rental> {
   const res = await saleRequest(`/rentals/${id}/return`, { method: "POST", body: JSON.stringify({ deposit_returned: depositReturned, return_note: note || null }) });
+  return res?.data as Rental;
+}
+export async function addRentalDeposit(id: string, d: { amount: number; method: string; date: string; reference: string }): Promise<Rental> {
+  const res = await saleRequest(`/rentals/${id}/deposits`, { method: "POST", body: JSON.stringify(d) });
+  return res?.data as Rental;
+}
+export async function removeRentalDeposit(id: string, depositId: string): Promise<Rental> {
+  const res = await saleRequest(`/rentals/${id}/deposits/${depositId}`, { method: "DELETE" });
   return res?.data as Rental;
 }
 export async function cancelRental(id: string): Promise<Rental> {

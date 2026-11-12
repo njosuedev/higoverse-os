@@ -8,6 +8,8 @@ GET    /rentals/{id}
 PUT    /rentals/{id}            correct an active rental
 POST   /rentals/{id}/return     the car came back: deposit given back, note
 POST   /rentals/{id}/cancel
+POST   /rentals/{id}/deposits   more deposit paid later (active rentals)
+DELETE /rentals/{id}/deposits/{deposit_id}   remove one added by mistake (owner, admin or manager)
 DELETE /rentals/{id}            owner, admin or manager
 GET    /rentals/busy            active rentals not over yet (now and booked ahead)
 
@@ -17,6 +19,7 @@ is for sale again from 1 Dec, or as soon as it is returned early or the
 rental is cancelled (rented_until, used by sales.py and proforma.py).
 A car can't be rented twice for the same days.
 """
+import uuid
 from datetime import date, datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, Header, HTTPException
@@ -27,7 +30,7 @@ from app.core import doc_code, master_data
 from app.core.security import get_current_user
 from app.db.database import get_db
 from app.models.rental import CarRental
-from app.schemas.rental import RentalIn, RentalReturn
+from app.schemas.rental import RentalDepositIn, RentalIn, RentalReturn
 
 router = APIRouter(prefix="/rentals", tags=["Rentals"])
 
@@ -46,6 +49,15 @@ def _token(authorization: str | None) -> str:
 
 def _num(v) -> float:
     return float(v or 0)
+
+
+def _extra(r: CarRental) -> list[dict]:
+    return [d for d in (r.extra_deposits or []) if isinstance(d, dict)]
+
+
+def deposit_total(r: CarRental) -> float:
+    """The deposit paid at the agreement plus any paid later."""
+    return round(_num(r.deposit) + sum(_num(d.get("amount")) for d in _extra(r)), 2)
 
 
 def _fmt(r: CarRental) -> dict:
@@ -67,6 +79,8 @@ def _fmt(r: CarRental) -> dict:
         "agreement_date": r.agreement_date,
         "rent_amount": _num(r.rent_amount),
         "deposit": _num(r.deposit),
+        "extra_deposits": _extra(r),
+        "deposit_total": deposit_total(r),
         "currency": r.currency,
         "notes": r.notes or "",
         "status": r.status,
@@ -249,7 +263,7 @@ def return_car(rental_id: str, payload: RentalReturn, db: Session = Depends(get_
     r = _get(db, rental_id, _shop(user))
     if r.status != "active":
         raise HTTPException(status_code=400, detail="This rental is already closed.")
-    if payload.deposit_returned > (r.deposit or 0):
+    if float(payload.deposit_returned) > deposit_total(r) + 0.005:
         raise HTTPException(status_code=400, detail="You can't give back more than the deposit.")
     r.status = "returned"
     r.returned_at = datetime.now(timezone.utc)
@@ -258,6 +272,44 @@ def return_car(rental_id: str, payload: RentalReturn, db: Session = Depends(get_
     db.commit()
     db.refresh(r)
     return {"success": True, "data": _fmt(r)}
+
+
+@router.post("/{rental_id}/deposits")
+def add_deposit(rental_id: str, payload: RentalDepositIn, db: Session = Depends(get_db), user: dict = Depends(get_current_user)):
+    """More deposit paid by the renter after the agreement."""
+    r = _get(db, rental_id, _shop(user))
+    if r.status != "active":
+        raise HTTPException(status_code=400, detail="This rental is already closed.")
+    entry = {
+        "id": uuid.uuid4().hex[:10],
+        "amount": float(payload.amount),
+        "method": payload.method,
+        "date": payload.date,
+        "reference": payload.reference,
+        "by": user.get("name") or user.get("email") or "",
+        "at": datetime.now(timezone.utc).isoformat(),
+    }
+    r.extra_deposits = [*_extra(r), entry]  # a new list, so the JSON column is saved
+    db.commit()
+    db.refresh(r)
+    return {"success": True, "message": "Deposit recorded", "data": _fmt(r)}
+
+
+@router.delete("/{rental_id}/deposits/{deposit_id}")
+def remove_deposit(rental_id: str, deposit_id: str, db: Session = Depends(get_db), user: dict = Depends(get_current_user)):
+    """Removes a deposit added by mistake (owner, admin or manager)."""
+    if user.get("role") not in MANAGER_ROLES:
+        raise HTTPException(status_code=403, detail="Only the owner or a manager can remove a deposit.")
+    r = _get(db, rental_id, _shop(user))
+    if r.status != "active":
+        raise HTTPException(status_code=400, detail="This rental is already closed.")
+    kept = [d for d in _extra(r) if d.get("id") != deposit_id]
+    if len(kept) == len(_extra(r)):
+        raise HTTPException(status_code=404, detail="Deposit not found.")
+    r.extra_deposits = kept
+    db.commit()
+    db.refresh(r)
+    return {"success": True, "message": "Deposit removed", "data": _fmt(r)}
 
 
 @router.post("/{rental_id}/cancel")

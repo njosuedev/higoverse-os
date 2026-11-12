@@ -4,7 +4,7 @@ period, the rent and the deposit (kosiyo), as printed on the rental agreement
 """
 import uuid
 
-from sqlalchemy import Column, DateTime, Numeric, String, Text
+from sqlalchemy import JSON, Column, DateTime, Numeric, String, Text
 from sqlalchemy.sql import func
 
 from app.db.database import Base
@@ -35,7 +35,10 @@ class CarRental(Base):
     end_date = Column(String(10), nullable=False)
     agreement_date = Column(String(10), nullable=False)      # the day it is signed
     rent_amount = Column(Numeric(14, 2), nullable=False, default=0)
-    deposit = Column(Numeric(14, 2), nullable=False, default=0)
+    deposit = Column(Numeric(14, 2), nullable=False, default=0)   # paid at the agreement
+    # More deposit paid later: [{id, amount, method, date, reference, by, at}].
+    # The rental's deposit in total is `deposit` plus these.
+    extra_deposits = Column(JSON, nullable=True)
     currency = Column(String(10), nullable=False, default="RWF")
     notes = Column(Text, nullable=True)
 
