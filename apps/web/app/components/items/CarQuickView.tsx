@@ -7,6 +7,7 @@ import { useLanguage } from "@/lib/language-context";
 import { itemRequest } from "@/lib/product-api";
 import { parseImages } from "@/lib/image";
 import { carTypeLabel, depositSummary, parseAttributes, vehicleStatus } from "@/lib/business-layout";
+import { useRentals } from "@/lib/rentals-now";
 
 interface Product {
   id: string; name: string; quantity: number; selling_price: number;
@@ -46,6 +47,7 @@ export default function CarQuickView({ productId, cover, onClose }: {
     return car && !list.length && car.thumbnail ? [car.thumbnail] : list;
   }, [car]);
   const n = images.length;
+  const rentals = useRentals(productId);
 
   // Keyboard: Esc closes, arrows move; focus moves in and returns on close.
   useEffect(() => {
@@ -69,10 +71,11 @@ export default function CarQuickView({ productId, cover, onClose }: {
   }, [i, n, images]);
 
   const a = parseAttributes(car?.attributes);
-  const status = car ? vehicleStatus(car.quantity, a) : null;
+  const rental = car ? rentals.now[car.id] : undefined;
+  const status = car ? vehicleStatus(car.quantity, a, !!rental) : null;
   const fines = Number(a.penalty_count || 0);
   const pay = car ? depositSummary(a, car.selling_price) : null;
-  const statusStyle = status === "sold" ? "bg-slate-800 text-white" : status === "pending" ? "bg-amber-500 text-white" : "bg-emerald-600 text-white";
+  const statusStyle = status === "sold" ? "bg-slate-800 text-white" : status === "pending" ? "bg-amber-500 text-white" : status === "rented" ? "bg-[#0a66c2] text-white" : "bg-emerald-600 text-white";
   const spec = (label: string, value?: string | number | null, mono = false) => (
     <div className="min-w-0">
       <dt className="text-[11px] uppercase tracking-wide text-slate-400">{label}</dt>
@@ -135,6 +138,11 @@ export default function CarQuickView({ productId, cover, onClose }: {
               <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${statusStyle}`}>{t(`vehicle.status_${status}`)}</span>
               {fines > 0 && <span className="rounded-full px-2.5 py-0.5 text-xs font-bold bg-red-600 text-white">{fines} {fines === 1 ? t("vehicle.fine") : t("vehicle.fines")}</span>}
             </div>
+          )}
+          {status === "rented" && rental && (
+            <p className="text-sm text-slate-700">
+              {t("vehicle.rented_to")} <span className="font-semibold">{rental.customer}</span> · {rental.start_date} → {rental.end_date}
+            </p>
           )}
 
           {car && (

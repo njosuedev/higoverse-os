@@ -116,11 +116,14 @@ export function depositSummary(a: Attributes, sellingPrice: number) {
   return { price, paid, balance: Math.max(0, price - paid), full: price > 0 && paid >= price };
 }
 
-export type VehicleStatus = "available" | "pending" | "sold";
+export type VehicleStatus = "available" | "pending" | "rented" | "sold";
 
-/** Sold when none left; pending while a buyer gathers transfer documents. */
-export function vehicleStatus(quantity: number, a: Attributes): VehicleStatus {
+/** Sold when none left; rented between a rental's start and end dates
+ *  (`rented`, from lib/rentals-now); pending while a buyer gathers transfer
+ *  documents. */
+export function vehicleStatus(quantity: number, a: Attributes, rented = false): VehicleStatus {
   if (quantity <= 0) return "sold";
+  if (rented) return "rented";
   return a.sale_status === "pending" ? "pending" : "available";
 }
 

@@ -35,8 +35,8 @@ interface Props<T extends PickerProduct> {
   status?: string;
   /** How each product reads in the list and once chosen (default: name). */
   label?: (product: T) => string;
-  /** Car companies: cars rented out, by id → last rental day (YYYY-MM-DD).
-   *  Not for sale until the day after (sale-service GET /rentals/busy). */
+  /** Car companies: cars rented out today, by id → last rental day
+   *  (YYYY-MM-DD). Not for sale until the day after (lib/rentals-now). */
   rentedUntil?: Record<string, string>;
 }
 

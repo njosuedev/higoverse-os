@@ -309,6 +309,8 @@ def get_products(
     status: str | None = None,    # car companies: "in_stock" | "available" | "pending" | "sold" | "penalties" | "incomplete" | "unassigned"
     threshold: int = 10,          # the shop's low-stock threshold, for stock="low"/"in"
     name: str | None = None,      # exact name: one car model's vehicles
+    ids: str | None = None,       # only these products (comma-separated), e.g. the cars rented now
+    exclude_ids: str | None = None,  # all but these (e.g. "available" minus the rented cars)
 ):
     page = max(page, 1)
     limit = min(max(limit, 1), 1000)
@@ -319,7 +321,7 @@ def get_products(
 
     query = _filter_products(
         db.query(Product).filter(Product.shop_id == user["shop_id"]),
-        q, category, stock, status, threshold, name,
+        q, category, stock, status, threshold, name, ids, exclude_ids,
     )
 
     total = query.count()
@@ -339,6 +341,8 @@ def get_models(
     user: dict = Depends(get_current_user),
     q: str | None = None,
     status: str | None = None,    # as for GET /products
+    ids: str | None = None,
+    exclude_ids: str | None = None,
 ):
     """Each car name once, with how many vehicles match the filters and how
     many of those are pending or still need their chassis / plate."""
@@ -346,6 +350,7 @@ def get_models(
         return {"success": True, "data": []}
     query = _filter_products(
         db.query(Product).filter(Product.shop_id == user["shop_id"]), q, None, None, status, 10, None,
+        ids, exclude_ids,
     )
     rows = (
         query.with_entities(
@@ -381,8 +386,16 @@ def get_models(
     }
 
 
-def _filter_products(query, q, category, stock, status, threshold, name):
+def _id_list(value: str | None) -> list[str]:
+    return [x for x in (v.strip() for v in (value or "").split(",")) if x][:1000]
+
+
+def _filter_products(query, q, category, stock, status, threshold, name, ids=None, exclude_ids=None):
     """The list filters shared by GET /products and GET /products/models."""
+    if ids is not None:  # present but empty: nothing matches
+        query = query.filter(Product.id.in_(_id_list(ids)))
+    if _id_list(exclude_ids):
+        query = query.filter(~Product.id.in_(_id_list(exclude_ids)))
     if name:
         query = query.filter(Product.name == name)
     if q and q.strip():

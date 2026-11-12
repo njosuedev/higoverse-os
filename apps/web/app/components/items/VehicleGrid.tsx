@@ -5,7 +5,7 @@ import { useCovers } from "@/lib/covers";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Car, Clock, Pencil, ShieldAlert, ShieldCheck, ShieldQuestion, ShoppingCart, UserCheck, UserX, Wallet, X } from "lucide-react";
+import { CalendarClock, Car, CarFront, Clock, Pencil, ShieldAlert, ShieldCheck, ShieldQuestion, ShoppingCart, UserCheck, UserX, Wallet, X } from "lucide-react";
 import { itemRequest } from "@/lib/product-api";
 import { saleRequest } from "@/lib/sale-api";
 import { loadCustomers, type Customer } from "@/lib/supplier-api";
@@ -15,6 +15,7 @@ import {
   carTypeLabel, daysSince, depositSummary, parseAttributes, parseDeposits, stringifyAttributes, vehicleStatus,
   DEPOSIT_METHODS, PENALTY_RECHECK_DAYS, type Attributes, type Deposit,
 } from "@/lib/business-layout";
+import { EMPTY_RENTALS, type ActiveRental, type RentalsByCar } from "@/lib/rentals-now";
 
 export interface Vehicle {
   id: string;
@@ -35,6 +36,8 @@ interface Props {
   onChanged: () => void;
   /** Open this car's fines or pending form once it's shown (from a link). */
   autoForm?: { id: string; form: "fines" | "pending" } | null;
+  /** Running and upcoming rentals by car (lib/rentals-now). */
+  rentals?: RentalsByCar;
 }
 
 const today = () => new Date().toISOString().slice(0, 10);
@@ -80,7 +83,7 @@ async function sellPaidCar(v: Vehicle, a: Attributes, t: (k: string) => string):
   return true;
 }
 
-export default function VehicleGrid({ vehicles, currency, onOpenGallery, onEdit, onChanged, autoForm }: Props) {
+export default function VehicleGrid({ vehicles, currency, onOpenGallery, onEdit, onChanged, autoForm, rentals = EMPTY_RENTALS }: Props) {
   // Sharp photos for the cards (the list's thumbnail is only 160 px).
   const covers = useCovers(vehicles.map((v) => v.id), 640);
   const { t } = useLanguage();
@@ -142,6 +145,8 @@ export default function VehicleGrid({ vehicles, currency, onOpenGallery, onEdit,
             onCompleteSale={() => completeSale(v)}
             onRelease={() => release(v)}
             onPenalties={() => setPenaltyFor(v)}
+            rental={rentals.now[v.id]}
+            nextRental={rentals.next[v.id]}
           />
         ))}
       </div>
@@ -154,14 +159,16 @@ export default function VehicleGrid({ vehicles, currency, onOpenGallery, onEdit,
   );
 }
 
-function VehicleCard({ v, cover, currency, onGallery, onEdit, onPending, onDeposit, onCompleteSale, onRelease, onPenalties }: {
+function VehicleCard({ v, cover, currency, onGallery, onEdit, onPending, onDeposit, onCompleteSale, onRelease, onPenalties, rental, nextRental }: {
   v: Vehicle; cover?: string; currency: string;
   onGallery: () => void; onEdit: () => void; onPending: () => void; onDeposit: () => void;
   onCompleteSale: () => void; onRelease: () => void; onPenalties: () => void;
+  /** The rental running today (the car is Rented), and the next one booked. */
+  rental?: ActiveRental; nextRental?: ActiveRental;
 }) {
   const { t } = useLanguage();
   const a = parseAttributes(v.attributes);
-  const status = vehicleStatus(v.quantity, a);
+  const status = vehicleStatus(v.quantity, a, !!rental);
   const meta = [a.year, a.color, a.car_type ? carTypeLabel(t, a.car_type) : ""].filter(Boolean).join(" · ");
   const ids = [a.plate_no, a.chassis_no].filter(Boolean).join(" · ");
   const pendingDays = daysSince(a.pending_since);
@@ -170,6 +177,7 @@ function VehicleCard({ v, cover, currency, onGallery, onEdit, onPending, onDepos
   const STATUS = {
     available: { label: t("vehicle.status_available"), cls: "bg-success text-white" },
     pending:   { label: t("vehicle.status_pending"),   cls: "bg-warning text-white" },
+    rented:    { label: t("vehicle.status_rented"),    cls: "bg-ink text-white" },
     sold:      { label: t("vehicle.status_sold"),      cls: "bg-text-muted text-white" },
   }[status];
 
@@ -210,6 +218,23 @@ function VehicleCard({ v, cover, currency, onGallery, onEdit, onPending, onDepos
             {pay.full ? t("vehicle.fully_paid") : <>{money(pay.paid)} {t("vehicle.paid_of")} {money(pay.price)}</>}
           </p>
         </>)}
+        {/* Rented: to whom, until when (for sale again the day after). */}
+        {status === "rented" && rental && (
+          <p className="mt-0.5 flex min-w-0 items-center gap-1 text-xs font-semibold text-ink"
+            title={[`${t("vehicle.rented_to")} ${rental.customer}`, rental.customer_phone, `${rental.start_date} → ${rental.end_date}`, rental.rental_no].filter(Boolean).join(" · ")}>
+            <CarFront size={12} className="shrink-0" />
+            <span className="truncate">{rental.customer}</span>
+            <span className="shrink-0 font-normal text-text-muted">· {t("vehicle.rent_until")} {rental.end_date}</span>
+          </p>
+        )}
+        {/* A rental booked for later: still for sale until it starts. */}
+        {status !== "sold" && !rental && nextRental && (
+          <p className="mt-0.5 flex min-w-0 items-center gap-1 text-[11px] text-ink"
+            title={[nextRental.customer, `${nextRental.start_date} → ${nextRental.end_date}`, nextRental.rental_no].join(" · ")}>
+            <CalendarClock size={12} className="shrink-0" />
+            <span className="truncate">{t("vehicle.rent_booked")} {nextRental.start_date}</span>
+          </p>
+        )}
       </div>
 
       {/* Actions: one compact row */}
@@ -228,10 +253,21 @@ function VehicleCard({ v, cover, currency, onGallery, onEdit, onPending, onDepos
             <Wallet size={13} className="shrink-0" /> <span className="truncate">{t("vehicle.add_deposit")}</span>
           </button>
         ))}
+        {status === "rented" && (
+          <Link href="/sales?tab=rentals" title={t("vehicle.view_rental")} className={`${mainBtn} bg-ink hover:bg-ink-dark`}>
+            <CarFront size={13} className="shrink-0" /> <span className="truncate">{t("vehicle.view_rental")}</span>
+          </Link>
+        )}
         {status === "sold" && (
           <span className="min-w-0 flex-1 truncate px-1 text-xs text-text-muted" title={a.buyer_name ? `${t("vehicle.sold_to")} ${a.buyer_name}` : undefined}>
             {a.buyer_name ? `${t("vehicle.sold_to")} ${a.buyer_name}` : t("vehicle.status_sold")}
           </span>
+        )}
+        {status === "available" && (
+          <Link href={`/sales?tab=rentals&rent=${v.id}`} title={t("vehicle.rent")} aria-label={t("vehicle.rent")}
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-text-muted hover:bg-paper-dim hover:text-ink">
+            <CarFront size={15} />
+          </Link>
         )}
         {status === "available" && (
           <IconBtn onClick={onPending} label={t("vehicle.mark_pending")} className="hover:text-warning"><UserCheck size={15} /></IconBtn>

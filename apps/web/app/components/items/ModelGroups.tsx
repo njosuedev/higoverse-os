@@ -10,6 +10,7 @@ import {
   assignConflict, normalizeVehicleId, parseAttributes, productApiError, vehicleIdKey, vehicleStatus,
 } from "@/lib/business-layout";
 import { notify } from "@/lib/dialogs";
+import { EMPTY_RENTALS, type RentalsByCar } from "@/lib/rentals-now";
 
 /** A vehicle as GET /products lists it. */
 export interface ModelCar {
@@ -29,10 +30,14 @@ type IdField = "chassis_no" | "plate_no";
  * opening one lists its cars, where a missing chassis or plate number is
  * typed straight in and saved for the whole group at once.
  */
-export default function ModelGroups({ q, status, refreshKey, onEdit, onChanged }: {
+export default function ModelGroups({ q, status, extra = {}, rentals = EMPTY_RENTALS, refreshKey, onEdit, onChanged }: {
   q: string;
   /** The page's car status filter (GET /products `status`). */
   status: string;
+  /** More list filters: the rented cars' `ids` / `exclude_ids`. */
+  extra?: Record<string, string>;
+  /** Rentals running today, by car: those cars show as Rented. */
+  rentals?: RentalsByCar;
   /** Changes whenever the page reloads, so open groups reload too. */
   refreshKey: number;
   onEdit: (car: ModelCar) => void;
@@ -43,10 +48,11 @@ export default function ModelGroups({ q, status, refreshKey, onEdit, onChanged }
   const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState<Set<string>>(new Set());
   const skeleton = useSkeleton(models === null);
+  const extraKey = JSON.stringify(extra);
 
   useEffect(() => {
     let live = true;
-    const qs = new URLSearchParams({ status });
+    const qs = new URLSearchParams({ status, ...extra });
     if (q.trim()) qs.set("q", q.trim());
     itemRequest(`/products/models?${qs}`)
       .then((res) => { if (live) { setModels(res?.data ?? []); setError(null); } })
@@ -59,7 +65,7 @@ export default function ModelGroups({ q, status, refreshKey, onEdit, onChanged }
         setModels((m) => m ?? []);
       });
     return () => { live = false; };
-  }, [q, status, refreshKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [q, status, extraKey, refreshKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function toggle(name: string) {
     setOpen((s) => { const n = new Set(s); if (n.has(name)) n.delete(name); else n.add(name); return n; });
@@ -106,7 +112,7 @@ export default function ModelGroups({ q, status, refreshKey, onEdit, onChanged }
                 {t("models.cars").replace("{n}", String(m.count))}
               </span>
             </div>
-            {isOpen && <ModelCars name={m.name} status={status} refreshKey={refreshKey} onEdit={onEdit} onChanged={onChanged} />}
+            {isOpen && <ModelCars name={m.name} status={status} extra={extra} rentals={rentals} refreshKey={refreshKey} onEdit={onEdit} onChanged={onChanged} />}
           </section>
         );
       })}
@@ -114,8 +120,8 @@ export default function ModelGroups({ q, status, refreshKey, onEdit, onChanged }
   );
 }
 
-function ModelCars({ name, status, refreshKey, onEdit, onChanged }: {
-  name: string; status: string; refreshKey: number;
+function ModelCars({ name, status, extra, rentals, refreshKey, onEdit, onChanged }: {
+  name: string; status: string; extra: Record<string, string>; rentals: RentalsByCar; refreshKey: number;
   onEdit: (car: ModelCar) => void; onChanged: () => void;
 }) {
   const { t } = useLanguage();
@@ -128,7 +134,7 @@ function ModelCars({ name, status, refreshKey, onEdit, onChanged }: {
 
   useEffect(() => {
     let live = true;
-    const qs = new URLSearchParams({ name, status, limit: "1000" });
+    const qs = new URLSearchParams({ name, status, limit: "1000", ...extra });
     itemRequest(`/products?${qs}`)
       .then((res) => {
         if (!live) return;
@@ -138,7 +144,7 @@ function ModelCars({ name, status, refreshKey, onEdit, onChanged }: {
       })
       .catch((err) => { console.warn(err); if (live) setCars((c) => c ?? []); });
     return () => { live = false; };
-  }, [name, status, refreshKey]);
+  }, [name, status, JSON.stringify(extra), refreshKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const value = (c: ModelCar, f: IdField) => drafts[c.id]?.[f] ?? parseAttributes(c.attributes)[f] ?? "";
 
@@ -200,6 +206,7 @@ function ModelCars({ name, status, refreshKey, onEdit, onChanged }: {
   const STATUS = {
     available: { label: t("vehicle.status_available"), cls: "bg-green-50 text-green-700" },
     pending:   { label: t("vehicle.status_pending"),   cls: "bg-amber-50 text-amber-700" },
+    rented:    { label: t("vehicle.status_rented"),    cls: "bg-blue-50 text-[#0a66c2]" },
     sold:      { label: t("vehicle.status_sold"),      cls: "bg-slate-100 text-slate-600" },
   };
   const input = (bad: boolean) =>
@@ -214,7 +221,8 @@ function ModelCars({ name, status, refreshKey, onEdit, onChanged }: {
       <div className="space-y-1">
         {cars.map((c, i) => {
           const a = parseAttributes(c.attributes);
-          const st = STATUS[vehicleStatus(c.quantity, a)];
+          const rental = rentals.now[c.id];
+          const st = STATUS[vehicleStatus(c.quantity, a, !!rental)];
           const cell = (f: IdField) => a[f]
             ? <span className="truncate font-mono text-xs text-slate-800">{a[f]}</span>
             : <input id={`model-${c.id}-${f}`} aria-label={`${name} #${i + 1} ${t(`vehicle.${f}`)}`}
@@ -223,14 +231,14 @@ function ModelCars({ name, status, refreshKey, onEdit, onChanged }: {
           return (
             <div key={c.id} className="grid grid-cols-2 sm:grid-cols-[2.5rem_minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,0.8fr)_6rem_minmax(0,0.8fr)_4.5rem] items-center gap-2 rounded-lg border border-slate-100 bg-white px-2 py-1.5">
               <span className="text-xs font-bold tabular-nums text-slate-700">#{i + 1}</span>
-              <span className="sm:hidden justify-self-end"><span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${st.cls}`}>{st.label}</span></span>
+              <span className="sm:hidden justify-self-end"><span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${st.cls}`} title={rental ? `${rental.customer} · ${t("vehicle.rent_until")} ${rental.end_date}` : undefined}>{st.label}</span></span>
               <span className="col-span-2 sm:col-span-1 min-w-0 flex">{cell("chassis_no")}</span>
               <span className="col-span-2 sm:col-span-1 min-w-0 flex">{cell("plate_no")}</span>
               <span className="truncate text-xs text-slate-600">{a.color || "-"}</span>
-              <span className="hidden sm:block"><span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${st.cls}`}>{st.label}</span></span>
+              <span className="hidden sm:block"><span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${st.cls}`} title={rental ? `${rental.customer} · ${t("vehicle.rent_until")} ${rental.end_date}` : undefined}>{st.label}</span></span>
               <span className="text-right text-xs font-semibold tabular-nums text-slate-800">{Number(c.selling_price || 0).toLocaleString()}</span>
               <span className="col-span-2 sm:col-span-1 flex justify-end gap-1">
-                {c.quantity > 0 && (
+                {c.quantity > 0 && !rental && (
                   <Link href={`/sales?new=1&product=${c.id}`} title={t("vehicle.sell")} className="rounded p-1 text-[#0a66c2] hover:bg-blue-50 transition">
                     <ShoppingCart size={12} />
                   </Link>

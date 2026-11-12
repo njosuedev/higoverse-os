@@ -16,6 +16,7 @@ import { useShopSettings } from "@/lib/shop-settings-context";
 import { parseImages, shrinkDataUrl } from "@/lib/image";
 import CarImagesPicker from "@/app/components/items/CarImagesPicker";
 import CarGallery from "@/app/components/items/CarGallery";
+import { EMPTY_RENTALS, loadRentals, type RentalsByCar } from "@/lib/rentals-now";
 import VehicleGrid from "@/app/components/items/VehicleGrid";
 import AssignCarsModal from "@/app/components/items/AssignCarsModal";
 import ModelGroups from "@/app/components/items/ModelGroups";
@@ -78,7 +79,16 @@ interface InventorySummary {
 // Filter dropdown value → the API's `stock` parameter.
 const STOCK_PARAM: Record<string, string> = { in_stock: "in", low_stock: "low", out_stock: "out", restock: "restock" };
 // Car companies filter by sale status instead (the API's `status` parameter).
-const CAR_STATUS: Record<string, string> = { available: "available", pending: "pending", sold: "sold", penalties: "penalties", incomplete: "incomplete", unassigned: "unassigned" };
+const CAR_STATUS: Record<string, string> = { available: "available", pending: "pending", rented: "in_stock", sold: "sold", penalties: "penalties", incomplete: "incomplete", unassigned: "unassigned" };
+
+/** The rented cars' ids narrow the products API's car filters: "Rented" is
+ *  only those cars, "Available" all but them (rentals live in sale-service). */
+function rentalIds(filter: string, rentals: RentalsByCar): Record<string, string> {
+  const ids = Object.keys(rentals.now).join(",");
+  if (filter === "rented") return { ids };
+  if (filter === "available" && ids) return { exclude_ids: ids };
+  return {};
+}
 
 // Car companies see their vehicles grouped by car name, as a table or as
 // cards — a per-device preference, grouped by car name by default.
@@ -164,6 +174,8 @@ function ItemManagementPage() {
   // car's fines or pending form once its card is on screen.
   const [focusId, setFocusId] = useState<string | null>(null);
   const [autoForm, setAutoForm] = useState<{ id: string; form: "fines" | "pending" } | null>(null);
+  // Car companies: rentals running today and booked ahead, by car.
+  const [rentals, setRentals] = useState<RentalsByCar>(EMPTY_RENTALS);
   const showCards = isCar && (vehicleView === "cards" || !!focusId);
   const showModels = isCar && vehicleView === "models" && !focusId;
   const [loadingEdit, setLoadingEdit] = useState(false);
@@ -177,9 +189,10 @@ function ItemManagementPage() {
     loadData(true);
   }
 
-  function listQuery(pageNo: number, limit: number) {
+  function listQuery(pageNo: number, limit: number, r: RentalsByCar = rentals) {
     const qs = new URLSearchParams({ page: String(pageNo), limit: String(limit), threshold: String(lowStock) });
     if (debouncedSearch.trim()) qs.set("q", debouncedSearch.trim());
+    if (isCar) for (const [k, v] of Object.entries(rentalIds(filter, r))) qs.set(k, v);
     if (isCar && CAR_STATUS[filter]) qs.set("status", CAR_STATUS[filter]);
     // A sold car has left the stock: by default only cars still owned show.
     else if (isCar) qs.set("status", "in_stock");
@@ -199,8 +212,10 @@ function ItemManagementPage() {
     const id = ++requestId.current;
     try {
       if (!soft) setLoading(true); else setRefreshing(true);
+      // Which cars are rented today decides the Available/Rented lists.
+      const r = isCar ? await loadRentals(true) : EMPTY_RENTALS;
       const [listRes, summaryRes, alertsRes] = await Promise.all([
-        focusId ? itemRequest(`/products/${focusId}`) : itemRequest(`/products?${listQuery(page, pageSize)}`),
+        focusId ? itemRequest(`/products/${focusId}`) : itemRequest(`/products?${listQuery(page, pageSize, r)}`),
         itemRequest(`/products/summary?threshold=${lowStock}`),
         itemRequest(`/products/stock-alerts?threshold=${lowStock}`),
       ]);
@@ -211,6 +226,7 @@ function ItemManagementPage() {
       const count: number = focusId ? items.length : listRes?.data?.total ?? 0;
       // Deleting the last row of the last page — step back to a page that exists.
       if (items.length === 0 && page > 1 && count > 0) { setPage(Math.ceil(count / pageSize)); return; }
+      setRentals(r);
       setProducts(items);
       setTotal(count);
       setSummary(summaryRes?.data ?? null);
@@ -372,6 +388,7 @@ function ItemManagementPage() {
     lowStock: summary?.low_stock ?? 0,
     outStock: summary?.out_of_stock ?? 0,
     pending: summary?.pending ?? 0,
+    rented: Object.keys(rentals.now).length,
     withPenalties: summary?.with_penalties ?? 0,
     stockValue: summary?.cost_value ?? 0,
     potentialProfit: summary?.potential_profit ?? 0,
@@ -639,8 +656,9 @@ function ItemManagementPage() {
             {/* Stat chips — like the reference screenshot */}
             <div className="hidden md:flex items-center gap-2">
               {(isCar ? [
-                { label: t("vehicle.status_available"), value: Math.max(0, stats.total - stats.outStock - stats.pending), accent: "text-green-300", highlight: false },
+                { label: t("vehicle.status_available"), value: Math.max(0, stats.total - stats.outStock - stats.pending - stats.rented), accent: "text-green-300", highlight: false },
                 { label: t("vehicle.status_pending"),   value: stats.pending,  accent: "text-amber-300", highlight: stats.pending > 0 },
+                { label: t("vehicle.status_rented"),    value: stats.rented,   accent: "text-sky-300",   highlight: false },
                 { label: t("vehicle.status_sold"),      value: stats.outStock, accent: "text-white",     highlight: false },
               ] : [
                 { label: t("items.in_stock"),  value: stats.inStock,  accent: "text-green-300",  highlight: false },
@@ -729,6 +747,7 @@ function ItemManagementPage() {
                 {isCar ? (<>
                   <option value="available" className="text-gray-800">{t("vehicle.status_available")}</option>
                   <option value="pending" className="text-gray-800">{t("vehicle.status_pending")}</option>
+                  <option value="rented" className="text-gray-800">{t("vehicle.status_rented")}</option>
                   <option value="sold" className="text-gray-800">{t("vehicle.status_sold")}</option>
                   <option value="penalties" className="text-gray-800">{t("vehicle.has_fines")}</option>
                   <option value="incomplete" className="text-gray-800">{t("vehicle.incomplete")}</option>
@@ -803,11 +822,12 @@ function ItemManagementPage() {
         )}
 
         {/* STAT CARDS */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-1.5 mb-2">
+        <div className={`grid grid-cols-2 sm:grid-cols-3 ${isCar ? "lg:grid-cols-7" : "lg:grid-cols-6"} gap-1.5 mb-2`}>
           {(isCar ? [
             { label: t("vehicle.in_stock"),         value: Math.max(0, stats.total - stats.outStock), color: "text-slate-900" },
-            { label: t("vehicle.status_available"), value: Math.max(0, stats.total - stats.outStock - stats.pending), color: "text-slate-900" },
+            { label: t("vehicle.status_available"), value: Math.max(0, stats.total - stats.outStock - stats.pending - stats.rented), color: "text-slate-900" },
             { label: t("vehicle.status_pending"),   value: stats.pending,       color: "text-amber-600" },
+            { label: t("vehicle.status_rented"),    value: stats.rented,        color: "text-[#0a66c2]" },
             { label: t("vehicle.status_sold"),      value: stats.outStock,      color: "text-slate-900" },
             { label: t("vehicle.has_fines"),        value: stats.withPenalties, color: "text-red-600" },
             ...(fin ? [{ label: t("items.stock_value"), value: stats.stockValue.toLocaleString(), color: "text-slate-900" }] : []),
@@ -852,6 +872,8 @@ function ItemManagementPage() {
           <ModelGroups
             q={debouncedSearch}
             status={CAR_STATUS[filter] ?? "in_stock"}
+            extra={rentalIds(filter, rentals)}
+            rentals={rentals}
             refreshKey={lastUpdated?.getTime() ?? 0}
             onEdit={(car) => openEditModal(car)}
             onChanged={() => loadData(true)}
@@ -872,6 +894,7 @@ function ItemManagementPage() {
                 onEdit={(v) => { const p = products.find((x) => x.id === v.id); if (p) openEditModal(p); }}
                 onChanged={() => loadData(true)}
                 autoForm={autoForm}
+                rentals={rentals}
               />
             )}
             <div className="overflow-hidden rounded-data border border-border bg-white">
@@ -1022,6 +1045,11 @@ function ItemManagementPage() {
                             </div>
                             {isCar && carIds(parseAttributes(p.attributes)) && (
                               <p className="text-[11px] text-slate-500 max-w-[240px] truncate">{carIds(parseAttributes(p.attributes))}</p>
+                            )}
+                            {isCar && p.quantity > 0 && rentals.now[p.id] && (
+                              <p className="text-[11px] font-semibold text-[#0a66c2] max-w-[240px] truncate">
+                                {t("vehicle.status_rented")} · {rentals.now[p.id].customer} · {t("vehicle.rent_until")} {rentals.now[p.id].end_date}
+                              </p>
                             )}
                             {!isCar && p.description && (
                               <p className="text-[11px] text-slate-400 max-w-[160px] truncate">{p.description}</p>

@@ -19,7 +19,7 @@ import { loadCustomers, partnerRequest } from "@/lib/supplier-api";
 import { saleRequest } from "@/lib/sale-api";
 import { settingsRequest } from "@/lib/settings-api";
 import RentalPanel from "@/app/components/sales/RentalPanel";
-import { listRentedCars } from "@/lib/rental-api";
+import { loadRentals } from "@/lib/rentals-now";
 import ProformaPanel from "@/app/components/sales/ProformaPanel";
 import EbmReportsPanel from "@/app/components/ebm/EbmReportsPanel";
 import EbmStatusBar from "@/app/components/ebm/EbmStatusBar";
@@ -205,7 +205,7 @@ function SaleManagementPage() {
   const [rentedCars, setRentedCars] = useState<Record<string, string>>({});
   useEffect(() => {
     if (!isCar || !showModal) return;
-    listRentedCars().then(setRentedCars).catch(() => {});
+    loadRentals(true).then((r) => setRentedCars(Object.fromEntries(Object.entries(r.now).map(([id, x]) => [id, x.end_date]))));
   }, [isCar, showModal]);
   // A customer just added in Customers (another tab) shows up on coming back.
   useEffect(() => {
@@ -263,6 +263,7 @@ function SaleManagementPage() {
   // becomes sales once the customer decides to buy. /sales?tab=proforma
   // Car companies also have Rentals (/sales?tab=rentals).
   const [tab, setTab] = useState<"sales" | "proforma" | "rentals">("sales");
+  const [rentCarId, setRentCarId] = useState<string | null>(null);
   const [proformaNew, setProformaNew] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -331,7 +332,8 @@ function SaleManagementPage() {
   // Dashboard "Record sale" and vehicle-card "Sell" links: /sales?new=1[&product=<id>]
   function handleDeepLink(params: URLSearchParams) {
     if (params.get("tab") === "proforma") { setTab("proforma"); return; }
-    if (params.get("tab") === "rentals" && isCar) { setTab("rentals"); return; }
+    // A vehicle card's "Rent" → /sales?tab=rentals&rent=<car id>
+    if (params.get("tab") === "rentals" && isCar) { setTab("rentals"); setRentCarId(params.get("rent")); return; }
     // The "+" at the top → New proforma: /sales?proforma=new
     if (params.get("proforma") === "new") { setTab("proforma"); setProformaNew(true); return; }
     setTab("sales");
@@ -944,7 +946,7 @@ function SaleManagementPage() {
           <ProformaPanel startNew={proformaNew} onSold={() => { setTab("sales"); loadData(true); loadDebts(); }} />
         </div>
 
-        {isCar && tab === "rentals" && <RentalPanel />}
+        {isCar && tab === "rentals" && <RentalPanel rentCarId={rentCarId} />}
 
         <div className={tab === "sales" ? "" : "hidden"}>
 

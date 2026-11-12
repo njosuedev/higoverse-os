@@ -9,11 +9,13 @@ PUT    /rentals/{id}            correct an active rental
 POST   /rentals/{id}/return     the car came back: deposit given back, note
 POST   /rentals/{id}/cancel
 DELETE /rentals/{id}            owner, admin or manager
-GET    /rentals/busy            cars that can't be sold yet: {product_id: end_date}
+GET    /rentals/busy            active rentals not over yet (now and booked ahead)
 
-A rented car can't be sold until its rental period is over: a car rented
-for a month (1 Nov to 30 Nov) can be sold from 1 Dec, or as soon as it is
-returned early or the rental is cancelled (rented_until, used by sales.py).
+A car is "Rented" only between its rental's start and end dates: a car
+rented for a month (1 Nov to 30 Nov) can't be sold during that time and
+is for sale again from 1 Dec, or as soon as it is returned early or the
+rental is cancelled (rented_until, used by sales.py and proforma.py).
+A car can't be rented twice for the same days.
 """
 from datetime import date, datetime, timedelta, timezone
 
@@ -108,20 +110,38 @@ def _fill(data: dict, token: str) -> dict:
     return data
 
 
-def _busy_query(db: Session, shop: str):
-    """Active rentals not over yet (ending today or later, or starting later)."""
-    return db.query(CarRental.product_id, func.max(CarRental.end_date)).filter(
+def _not_over(db: Session, shop: str):
+    """Active rentals whose end date hasn't passed (running now or booked ahead)."""
+    return db.query(CarRental).filter(
         CarRental.shop_id == shop, CarRental.status == "active",
         CarRental.product_id.isnot(None), CarRental.end_date >= date.today().isoformat(),
-    ).group_by(CarRental.product_id)
+    )
 
 
 def rented_until(db: Session, shop: str, product_id: str | None) -> str | None:
-    """The last day this car is rented out (YYYY-MM-DD), or None if it is free."""
+    """The last day this car is rented out right now (YYYY-MM-DD), or None
+    if no rental is running today."""
     if not product_id:
         return None
-    row = _busy_query(db, shop).filter(CarRental.product_id == product_id).first()
-    return row[1] if row else None
+    today = date.today().isoformat()
+    return (_not_over(db, shop).filter(CarRental.product_id == product_id, CarRental.start_date <= today)
+            .with_entities(func.max(CarRental.end_date)).scalar())
+
+
+def _refuse_overlap(db: Session, shop: str, product_id: str, start: str, end: str, exclude_id: str | None = None) -> None:
+    """One car, one renter at a time."""
+    q = db.query(CarRental).filter(
+        CarRental.shop_id == shop, CarRental.status == "active", CarRental.product_id == product_id,
+        CarRental.start_date <= end, CarRental.end_date >= start,
+    )
+    if exclude_id:
+        q = q.filter(CarRental.id != exclude_id)
+    other = q.order_by(CarRental.start_date).first()
+    if other:
+        raise HTTPException(
+            status_code=409,
+            detail=f"This car is already rented to {other.customer} from {other.start_date} to {other.end_date} ({other.rental_no}).",
+        )
 
 
 def refuse_if_rented(db: Session, shop: str, product_id: str | None) -> None:
@@ -166,11 +186,16 @@ def list_rentals(
 
 @router.get("/busy")
 def busy_cars(db: Session = Depends(get_db), user: dict = Depends(get_current_user)):
-    """Cars rented out right now (or booked ahead): not for sale until the day
-    after their end date. The sale form greys them out."""
+    """Active rentals not over yet, for the Vehicles page (Rented between the
+    start and end dates) and the sale form (a rented car can't be picked)."""
     if not user.get("shop_id"):
-        return {"success": True, "data": {}}
-    return {"success": True, "data": {pid: end for pid, end in _busy_query(db, str(user["shop_id"])).all()}}
+        return {"success": True, "data": []}
+    rows = _not_over(db, str(user["shop_id"])).order_by(CarRental.start_date).limit(1000).all()
+    return {"success": True, "data": [
+        {"id": r.id, "rental_no": r.rental_no, "product_id": r.product_id, "customer": r.customer,
+         "customer_phone": r.customer_phone or "", "start_date": r.start_date, "end_date": r.end_date}
+        for r in rows
+    ]}
 
 
 @router.post("")
@@ -182,6 +207,7 @@ def create_rental(
 ):
     shop = _shop(user)
     data = _fill(payload.model_dump(mode="json"), _token(authorization))
+    _refuse_overlap(db, shop, data["product_id"], data["start_date"], data["end_date"])
     data["agreement_date"] = data.get("agreement_date") or date.today().isoformat()
     r = CarRental(shop_id=shop, rental_no=_next_no(db, shop), status="active",
                   created_by=str(user.get("user_id") or ""), created_by_name=user.get("name") or user.get("email") or "",
@@ -209,6 +235,7 @@ def update_rental(
     if r.status != "active":
         raise HTTPException(status_code=400, detail="Only an active rental can be changed.")
     data = _fill(payload.model_dump(mode="json"), _token(authorization))
+    _refuse_overlap(db, r.shop_id, data["product_id"], data["start_date"], data["end_date"], exclude_id=r.id)
     data["agreement_date"] = data.get("agreement_date") or r.agreement_date
     for k, v in data.items():
         setattr(r, k, v)

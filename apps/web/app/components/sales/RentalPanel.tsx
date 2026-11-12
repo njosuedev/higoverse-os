@@ -12,6 +12,7 @@ import { useAuth } from "@/lib/auth-context";
 import { settingsRequest } from "@/lib/settings-api";
 import { loadCustomers, type Customer } from "@/lib/supplier-api";
 import { carTypeLabel, parseAttributes } from "@/lib/business-layout";
+import { itemRequest } from "@/lib/product-api";
 import ProductPicker, { type PickerProduct } from "@/app/components/ui/ProductPicker";
 import CustomerPicker from "@/app/components/ui/CustomerPicker";
 import { printHtml } from "@/lib/print-frame";
@@ -57,7 +58,9 @@ function emptyForm(currency: string): RentalInput {
   };
 }
 
-export default function RentalPanel() {
+/** `rentCarId`: open a new rental for this car straight away (the vehicle
+ *  card's "Rent" button). */
+export default function RentalPanel({ rentCarId }: { rentCarId?: string | null } = {}) {
   const { t } = useLanguage();
   const { user } = useAuth();
   const canDelete = RENTAL_MANAGER_ROLES.has(user?.role ?? "");
@@ -97,6 +100,21 @@ export default function RentalPanel() {
   }, [items, filter, search]);
 
   function openNew() { setEditingId(null); setForm(emptyForm(currency)); }
+  useEffect(() => {
+    if (!rentCarId) return;
+    let live = true;
+    itemRequest(`/products/${encodeURIComponent(rentCarId)}`)
+      .then((res) => {
+        const p = res?.data as PickerProduct | undefined;
+        if (!live || !p) return;
+        const a = parseAttributes(p.attributes);
+        setEditingId(null);
+        setForm({ ...emptyForm(currency), product_id: p.id, car_name: p.name, car_type: a.car_type ? carTypeLabel(t, a.car_type) : "",
+          plate_no: a.plate_no || "", chassis_no: a.chassis_no || "" });
+      })
+      .catch(() => {});
+    return () => { live = false; };
+  }, [rentCarId]); // eslint-disable-line react-hooks/exhaustive-deps
   function openEdit(r: Rental) {
     setEditingId(r.id);
     setForm({
