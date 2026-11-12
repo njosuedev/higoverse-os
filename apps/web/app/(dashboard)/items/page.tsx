@@ -249,7 +249,9 @@ function ItemManagementPage() {
   useEffect(() => {
     loadData(loadedOnce.current);
     loadedOnce.current = true;
-  }, [page, pageSize, debouncedSearch, filter, lowStock, focusId]); // eslint-disable-line react-hooks/exhaustive-deps
+    // isCar: the business type arrives after the first load; car companies
+    // then reload with their rentals (Rented cars) and car filters.
+  }, [page, pageSize, debouncedSearch, filter, lowStock, focusId, isCar]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /** Every product matching the current search/filter, for exports. */
   async function fetchAllMatching(): Promise<Product[]> {
