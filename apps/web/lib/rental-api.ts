@@ -42,6 +42,12 @@ export async function listRentals(status?: RentalStatus | ""): Promise<Rental[]>
   const res = await saleRequest(`/rentals${status ? `?status=${status}` : ""}`);
   return (res?.data as Rental[]) ?? [];
 }
+/** Cars rented out (or booked ahead): product id → last rental day. A car
+ *  can be sold from the day after (or once the rental is returned/cancelled). */
+export async function listRentedCars(): Promise<Record<string, string>> {
+  const res = await saleRequest("/rentals/busy");
+  return (res?.data as Record<string, string>) ?? {};
+}
 export async function saveRental(input: RentalInput, id?: string): Promise<Rental> {
   const res = await saleRequest(id ? `/rentals/${id}` : "/rentals", { method: id ? "PUT" : "POST", body: JSON.stringify(input) });
   return res?.data as Rental;

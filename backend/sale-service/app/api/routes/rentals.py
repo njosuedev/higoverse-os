@@ -9,8 +9,13 @@ PUT    /rentals/{id}            correct an active rental
 POST   /rentals/{id}/return     the car came back: deposit given back, note
 POST   /rentals/{id}/cancel
 DELETE /rentals/{id}            owner, admin or manager
+GET    /rentals/busy            cars that can't be sold yet: {product_id: end_date}
+
+A rented car can't be sold until its rental period is over: a car rented
+for a month (1 Nov to 30 Nov) can be sold from 1 Dec, or as soon as it is
+returned early or the rental is cancelled (rented_until, used by sales.py).
 """
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, Header, HTTPException
 from sqlalchemy import func, or_
@@ -103,6 +108,33 @@ def _fill(data: dict, token: str) -> dict:
     return data
 
 
+def _busy_query(db: Session, shop: str):
+    """Active rentals not over yet (ending today or later, or starting later)."""
+    return db.query(CarRental.product_id, func.max(CarRental.end_date)).filter(
+        CarRental.shop_id == shop, CarRental.status == "active",
+        CarRental.product_id.isnot(None), CarRental.end_date >= date.today().isoformat(),
+    ).group_by(CarRental.product_id)
+
+
+def rented_until(db: Session, shop: str, product_id: str | None) -> str | None:
+    """The last day this car is rented out (YYYY-MM-DD), or None if it is free."""
+    if not product_id:
+        return None
+    row = _busy_query(db, shop).filter(CarRental.product_id == product_id).first()
+    return row[1] if row else None
+
+
+def refuse_if_rented(db: Session, shop: str, product_id: str | None) -> None:
+    """A car can't be sold while it is rented out (sales.py)."""
+    end = rented_until(db, shop, product_id)
+    if end:
+        free = (date.fromisoformat(end) + timedelta(days=1)).isoformat()
+        raise HTTPException(
+            status_code=400,
+            detail=f"This car is rented out until {end}. It can be sold from {free}, or earlier once the rental is returned or cancelled.",
+        )
+
+
 def _next_no(db: Session, shop: str) -> str:
     n = db.query(func.count(CarRental.id)).filter(CarRental.shop_id == shop).scalar() or 0
     while True:
@@ -130,6 +162,15 @@ def list_rentals(
                          CarRental.plate_no.ilike(like), CarRental.customer_phone.ilike(like)))
     rows = q.order_by(CarRental.created_at.desc()).limit(500).all()
     return {"success": True, "data": [_fmt(r) for r in rows]}
+
+
+@router.get("/busy")
+def busy_cars(db: Session = Depends(get_db), user: dict = Depends(get_current_user)):
+    """Cars rented out right now (or booked ahead): not for sale until the day
+    after their end date. The sale form greys them out."""
+    if not user.get("shop_id"):
+        return {"success": True, "data": {}}
+    return {"success": True, "data": {pid: end for pid, end in _busy_query(db, str(user["shop_id"])).all()}}
 
 
 @router.post("")

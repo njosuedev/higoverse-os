@@ -13,6 +13,7 @@ from app.core.security import get_current_user, hides_financials
 from app.core.product_client import get_product, update_product_stock
 from app.core.events import emit
 from app.core import doc_code
+from app.api.routes.rentals import refuse_if_rented
 from app.ebm import service as ebm
 from app.ebm.service import sale_lock
 
@@ -283,6 +284,8 @@ def create_sale(
     # their full name, phone, ID and address before this call).
     if user.get("layout") == "car" and not (payload.customer_id or "").strip():
         raise HTTPException(status_code=400, detail="Choose the customer buying this car.")
+    # A rented car is for sale only once its rental period is over.
+    refuse_if_rented(db, user["shop_id"], payload.product_id)
 
     token = _token(authorization)
     product = get_product(payload.product_id, token)
@@ -525,6 +528,8 @@ def update_sale(
     new_product_id = update_data.get("product_id", old_product_id)
     new_qty = update_data.get("quantity", old_qty)
     new_price = float(update_data.get("unit_price", sale.unit_price))
+    if new_product_id != old_product_id:
+        refuse_if_rented(db, user["shop_id"], new_product_id)
 
     product = get_product(new_product_id, token)
     if not product:

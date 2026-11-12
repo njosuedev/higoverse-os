@@ -19,6 +19,7 @@ import { loadCustomers, partnerRequest } from "@/lib/supplier-api";
 import { saleRequest } from "@/lib/sale-api";
 import { settingsRequest } from "@/lib/settings-api";
 import RentalPanel from "@/app/components/sales/RentalPanel";
+import { listRentedCars } from "@/lib/rental-api";
 import ProformaPanel from "@/app/components/sales/ProformaPanel";
 import EbmReportsPanel from "@/app/components/ebm/EbmReportsPanel";
 import EbmStatusBar from "@/app/components/ebm/EbmStatusBar";
@@ -200,6 +201,12 @@ function SaleManagementPage() {
     id_number: buyerCustomer?.id_number ?? "", address: buyerCustomer?.address ?? "",
   };
   const buyerIncomplete = !!buyerCustomer && ![buyer.name, buyer.phone, buyer.id_number, buyer.address].every((x) => x.trim());
+  // Car companies: rented cars can't be sold until their rental is over.
+  const [rentedCars, setRentedCars] = useState<Record<string, string>>({});
+  useEffect(() => {
+    if (!isCar || !showModal) return;
+    listRentedCars().then(setRentedCars).catch(() => {});
+  }, [isCar, showModal]);
   // A customer just added in Customers (another tab) shows up on coming back.
   useEffect(() => {
     if (!isCar || !showModal) return;
@@ -1462,6 +1469,7 @@ function SaleManagementPage() {
                               selected={p}
                               onSelect={(prod) => setLineProduct(line.id, prod)}
                               disableOutOfStock
+                              rentedUntil={isCar ? rentedCars : undefined}
                               autoOpen={idx === 0 && autoPick}
                             />
                             {/* An empty line is just the search box until a product is picked. */}
@@ -1702,7 +1710,7 @@ function SaleManagementPage() {
               <div className="px-4 sm:px-6 py-4 sm:py-5 grid md:grid-cols-2 gap-4 overflow-y-auto flex-1">
                 <div className="md:col-span-2">
                   <label className="block text-xs font-medium text-gray-600 mb-1">{t("sales.product")} <span className="text-red-400">*</span></label>
-                  <ProductPicker selected={selectedProduct} onSelect={onProductChange} disableOutOfStock />
+                  <ProductPicker selected={selectedProduct} onSelect={onProductChange} disableOutOfStock rentedUntil={isCar ? rentedCars : undefined} />
                   {selectedProduct && (
                     <div className="mt-1.5 flex gap-3 text-xs text-slate-500">
                       {fin && selectedProduct.cost_price != null && <span>{t("items.cost_price")}: <span className="font-medium text-slate-700">{selectedProduct.cost_price.toLocaleString()}</span></span>}

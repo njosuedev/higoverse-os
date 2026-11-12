@@ -35,6 +35,9 @@ interface Props<T extends PickerProduct> {
   status?: string;
   /** How each product reads in the list and once chosen (default: name). */
   label?: (product: T) => string;
+  /** Car companies: cars rented out, by id → last rental day (YYYY-MM-DD).
+   *  Not for sale until the day after (sale-service GET /rentals/busy). */
+  rentedUntil?: Record<string, string>;
 }
 
 const RESULTS = 20;
@@ -61,7 +64,7 @@ function anchorFor(el: HTMLElement): Anchor {
 /** Searchable product field backed by the API, so it works for any catalogue
  *  size instead of listing every product in a <select>. */
 export default function ProductPicker<T extends PickerProduct = PickerProduct>({
-  selected, onSelect, disableOutOfStock = false, placeholder, className = "", autoOpen = false, status, label,
+  selected, onSelect, disableOutOfStock = false, placeholder, className = "", autoOpen = false, status, label, rentedUntil,
 }: Props<T>) {
   const show = (p: T) => (label ? label(p) : p.name);
   const { t } = useLanguage();
@@ -121,7 +124,7 @@ export default function ProductPicker<T extends PickerProduct = PickerProduct>({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const isDisabled = (p: T) => disableOutOfStock && p.quantity <= 0;
+  const isDisabled = (p: T) => disableOutOfStock && (p.quantity <= 0 || !!rentedUntil?.[p.id]);
 
   function choose(p: T) {
     if (isDisabled(p)) return;
@@ -203,6 +206,10 @@ export default function ProductPicker<T extends PickerProduct = PickerProduct>({
                 {(() => {
                   // A car reserved for a buyer gathering transfer documents:
                   // still sellable (to that buyer), but flagged clearly.
+                  const rented = p.quantity > 0 ? rentedUntil?.[p.id] : undefined;
+                  if (rented) {
+                    return <span className="max-w-[45%] shrink-0 truncate text-[13px] font-semibold text-warning">{t("rental.rented_until")} {rented}</span>;
+                  }
                   const a = p.quantity > 0 ? parseAttributes(p.attributes) : {};
                   if (a.sale_status === "pending") {
                     return <span className="max-w-[45%] shrink-0 truncate text-[13px] font-semibold text-warning">{t("vehicle.status_pending")}{a.buyer_name ? ` · ${a.buyer_name}` : ""}</span>;

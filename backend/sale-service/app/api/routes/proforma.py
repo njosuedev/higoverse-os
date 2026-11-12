@@ -5,6 +5,7 @@ from sqlalchemy import or_
 from fastapi import APIRouter, Depends, HTTPException, Header
 from sqlalchemy.orm import Session
 
+from app.api.routes.rentals import refuse_if_rented
 from app.db.database import get_db
 from app.models.debt import Debt
 from app.models.proforma import Proforma
@@ -539,6 +540,8 @@ def sell_proforma(
         if attrs.get("sale_status") == "pending" and attrs.get("buyer_customer_id") != customer_id:
             who = attrs.get("buyer_name") or "another customer"
             raise HTTPException(status_code=409, detail=f"{product.get('name')} is booked for {who}.")
+        # A rented car is for sale only once its rental period is over.
+        refuse_if_rented(db, user["shop_id"], pid)
         products[pid] = product
 
     # A car company's deposits are on its cars (the proforma's, plus any paid
