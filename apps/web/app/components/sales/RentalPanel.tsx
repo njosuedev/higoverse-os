@@ -23,6 +23,7 @@ import {
   addRentalDeposit, cancelRental, deleteRental, depositTotal, listRentals, removeRentalDeposit, RENTAL_MANAGER_ROLES, returnRental, saveRental,
   type Rental, type RentalInput, type RentalStatus,
 } from "@/lib/rental-api";
+import { matchesAmount } from "@/lib/amount-search";
 
 function apiDetail(err: unknown, fallback: string): string {
   const m = /error: \d+ ([\s\S]*)$/.exec(err instanceof Error ? err.message : "");
@@ -98,7 +99,10 @@ export default function RentalPanel({ rentCarId }: { rentCarId?: string | null }
   const shown = useMemo(() => {
     const q = search.trim().toLowerCase();
     return items.filter((r) => (filter === "all" || r.status === filter) && (!q
-      || [r.rental_no, r.customer, r.customer_phone, r.car_name, r.plate_no, r.chassis_no].some((x) => (x || "").toLowerCase().includes(q))));
+      // A number also finds the deposits: each one, or the total.
+      || matchesAmount(q, [depositTotal(r), r.deposit, ...(r.extra_deposits ?? []).map((d) => d.amount)])
+      || [r.rental_no, r.customer, r.customer_phone, r.car_name, r.plate_no, r.chassis_no, ...(r.extra_deposits ?? []).map((d) => d.reference)]
+        .some((x) => (x || "").toLowerCase().includes(q))));
   }, [items, filter, search]);
 
   function openNew() { setEditingId(null); setForm(emptyForm(currency)); }

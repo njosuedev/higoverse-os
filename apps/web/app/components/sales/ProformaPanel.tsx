@@ -24,6 +24,7 @@ import {
   proformaStage, PROFORMA_APPROVER_ROLES,
   type Proforma, type ProformaLine, type ProformaPayload, type Deposit,
 } from "@/lib/proforma-api";
+import { matchesAmount } from "@/lib/amount-search";
 import {
   Plus, Trash2, Printer, X, FileText, FileDown, User, Car, Wallet, ScrollText, Save, CheckCircle2,
   ShoppingBag, Search, ChevronLeft, Lock, AlertCircle, Pencil, RefreshCw,
@@ -486,7 +487,10 @@ export default function ProformaPanel({ onSold, startNew = false }: {
     if (stageFilter !== "all" && stageOf(p) !== stageFilter) return false;
     const q = search.trim().toLowerCase();
     if (!q) return true;
-    return [p.invoice_no, p.customer, p.customer_phone, ...p.lines.flatMap((l) => [l.product_name, l.plate_no, l.chassis_no])]
+    // A number also finds the customer's deposits: each one, or what they've paid in all.
+    if (matchesAmount(q, [depositTotals(p).paid, ...(p.deposits ?? []).map((d) => d.amount)])) return true;
+    return [p.invoice_no, p.customer, p.customer_phone, ...(p.deposits ?? []).map((d) => d.reference),
+      ...p.lines.flatMap((l) => [l.product_name, l.plate_no, l.chassis_no])]
       .some((x) => (x || "").toLowerCase().includes(q));
   });
 
