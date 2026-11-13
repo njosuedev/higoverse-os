@@ -5,6 +5,7 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:phosphor_icons/phosphor_icons.dart';
 import 'package:printing/printing.dart';
 
+import 'booked_sign.dart';
 import 'config.dart';
 import 'format.dart';
 import 'forms.dart';
@@ -306,6 +307,9 @@ class _ProformaScreenState extends State<ProformaScreen> {
           title: Text('${_p['invoice_no'] ?? ''}'),
           actions: [
             IconButton(tooltip: t('pf.print'), onPressed: () => _pdf(print: true), icon: const Icon(PhosphorIconsRegular.printer)),
+            // The BOOKED sign put on the car, until it's sold.
+            if (s.isCar && stage != 'sold')
+              IconButton(tooltip: t('pf.print_booked'), onPressed: () => printBookedSign(_p, s, t), icon: const Icon(PhosphorIconsRegular.bookmarkSimple)),
             if (stage != 'sold')
               IconButton(tooltip: t('pf.delete'), onPressed: _delete, icon: Icon(PhosphorIconsRegular.trash, color: c.danger)),
           ],
