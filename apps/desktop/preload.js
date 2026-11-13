@@ -1,5 +1,6 @@
-// Runs in the page before the website loads. Exposes only a small, read-only
-// marker so the website can tell it is inside the desktop app. No Node.js
+// Runs in the page before the website loads. Exposes only a small
+// marker so the website can tell it is inside the desktop app, and a way to
+// print a paper in landscape. No Node.js
 // or file access is given to the page.
 //
 // It also tells the app which theme and language the website is showing
@@ -11,6 +12,9 @@ const { contextBridge, ipcRenderer } = require("electron");
 contextBridge.exposeInMainWorld("higoverseDesktop", {
   isDesktop: true,
   platform: process.platform,
+  // Prints a ready-made HTML paper with the print dialog set to A4 in the
+  // given orientation (window.print() here always starts on portrait).
+  printHtml: (html, opts) => ipcRenderer.invoke("hgv-print-html", { html: String(html), landscape: !!(opts && opts.landscape) }),
 });
 
 if (location.protocol === "https:" || location.protocol === "http:") {

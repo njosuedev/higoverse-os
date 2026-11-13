@@ -466,7 +466,12 @@ export default function ProformaPanel({ onSold, startNew = false }: {
 
   // ── The "BOOKED" sign put on the car (one landscape A4 sheet) ─────────────
   function printBooked(p: Proforma) {
-    printHtml(bookedSignHtml(p, { ...shop, address: formatPublicAddress(shop.address) }, t, { autoPrint: true }));
+    const sign = (autoPrint: boolean) => bookedSignHtml(p, { ...shop, address: formatPublicAddress(shop.address) }, t, { autoPrint });
+    // The desktop app's print dialog starts on portrait whatever the page
+    // asks: it prints the sign itself, set to landscape (desktop 1.8.2+).
+    const desktop = (window as { higoverseDesktop?: { printHtml?: (html: string, o: { landscape: boolean }) => Promise<boolean> } }).higoverseDesktop;
+    if (desktop?.printHtml) desktop.printHtml(sign(false), { landscape: true }).catch(() => printHtml(sign(true)));
+    else printHtml(sign(true));
   }
   // Shown only before the sale, so it saves first (like "Save and Print PDF").
   async function bookedNow() { const p = await save(); if (p) printBooked(p); }

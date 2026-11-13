@@ -458,6 +458,39 @@ app.whenReady().then(() => {
     saveLook.soon();
   });
 
+  // A ready-made paper the website asks to print in a set orientation (the
+  // BOOKED sign is landscape). A page's own window.print() opens Windows'
+  // dialog on the printer's default (portrait) and ignores the page's
+  // landscape setting, so the app prints it from a hidden window with the
+  // dialog already set to A4, the right orientation and no margins.
+  ipcMain.handle("hgv-print-html", async (e, v) => {
+    if (!win || e.sender !== win.webContents || !isAppUrl(e.sender.getURL())) return false;
+    if (!v || typeof v.html !== "string" || v.html.length > 20_000_000) return false;
+    const file = path.join(app.getPath("temp"), `higoverse-print-${Date.now()}.html`);
+    fs.writeFileSync(file, v.html, "utf8");
+    const paper = new BrowserWindow({
+      show: false, parent: win,
+      webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false, javascript: true },
+    });
+    try {
+      await paper.loadFile(file);
+      // Let the page's fonts arrive and its own layout script run (it waits up to 1.5 s).
+      await paper.webContents.executeJavaScript("document.fonts ? document.fonts.ready.then(() => true) : true", true).catch(() => {});
+      await new Promise((r) => setTimeout(r, 400));
+      return await new Promise((resolve) => {
+        paper.webContents.print(
+          { landscape: v.landscape === true, pageSize: "A4", printBackground: true, margins: { marginType: "none" } },
+          (ok) => resolve(ok),
+        );
+      });
+    } catch {
+      return false;
+    } finally {
+      if (!paper.isDestroyed()) paper.destroy();
+      fs.unlink(file, () => {});
+    }
+  });
+
   buildMenu();
   createWindow();
   pinHint();
