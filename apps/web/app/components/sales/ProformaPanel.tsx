@@ -17,6 +17,7 @@ import { itemRequest } from "@/lib/product-api";
 import ProductPicker, { type PickerProduct } from "@/app/components/ui/ProductPicker";
 import CustomerPicker from "@/app/components/ui/CustomerPicker";
 import DepositForm from "@/app/components/sales/DepositForm";
+import { bookedSignHtml } from "@/lib/booked-print";
 import { proformaPrintHtml, PROFORMA_TEMPLATES, PROFORMA_TEMPLATE_COLORS, savedProformaTemplate, saveProformaTemplate, type ProformaTemplate } from "@/lib/proforma-print";
 import { downloadProformaDocx } from "@/lib/proforma-docx";
 import {
@@ -27,7 +28,7 @@ import {
 import { matchesAmount } from "@/lib/amount-search";
 import {
   Plus, Trash2, Printer, X, FileText, FileDown, User, Car, Wallet, ScrollText, Save, CheckCircle2,
-  ShoppingBag, Search, ChevronLeft, Lock, AlertCircle, Pencil, RefreshCw,
+  ShoppingBag, Search, ChevronLeft, Lock, AlertCircle, Pencil, RefreshCw, BookmarkCheck,
 } from "lucide-react";
 import { askConfirm, notify } from "@/lib/dialogs";
 
@@ -463,6 +464,13 @@ export default function ProformaPanel({ onSold, startNew = false }: {
     printHtml(html);
   }
 
+  // ── The "BOOKED" sign put on the car (one landscape A4 sheet) ─────────────
+  function printBooked(p: Proforma) {
+    printHtml(bookedSignHtml(p, { ...shop, address: formatPublicAddress(shop.address) }, t, { autoPrint: true }));
+  }
+  // Shown only before the sale, so it saves first (like "Save and Print PDF").
+  async function bookedNow() { const p = await save(); if (p) printBooked(p); }
+
   // ── Word (.docx): the same proforma, editable ────────────────────────────
   const [wordBusy, setWordBusy] = useState<string | null>(null);
   async function downloadWord(p: Proforma) {
@@ -613,6 +621,9 @@ export default function ProformaPanel({ onSold, startNew = false }: {
                         </button>
                       )}
                       <button onClick={() => printProforma(p)} title={t("common.print")} className="p-1.5 rounded-lg hover:bg-blue-50 text-slate-400 hover:text-blue-600"><Printer size={14} /></button>
+                      {isCar && p.status !== "sold" && (
+                        <button onClick={() => printBooked(p)} title={t("proforma.print_booked")} aria-label={t("proforma.print_booked")} className="p-1.5 rounded-lg hover:bg-blue-50 text-slate-400 hover:text-blue-600"><BookmarkCheck size={14} /></button>
+                      )}
                       <button onClick={() => downloadWord(p)} disabled={wordBusy === p.id} title={t("proforma.download_word")} aria-label={t("proforma.download_word")}
                         className="p-1.5 rounded-lg hover:bg-blue-50 text-slate-400 hover:text-blue-600 disabled:opacity-40">
                         {wordBusy === p.id ? <RefreshCw size={14} className="animate-spin" /> : <FileDown size={14} />}
@@ -935,6 +946,11 @@ export default function ProformaPanel({ onSold, startNew = false }: {
               <button onClick={printNow} disabled={busy} className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-slate-200 text-slate-700 font-semibold hover:bg-slate-50 disabled:opacity-40 text-sm">
                 <Printer size={15} /> {t(locked ? "common.print" : "proforma.save_print_pdf")}
               </button>
+              {isCar && current?.status !== "sold" && (
+                <button onClick={bookedNow} disabled={busy} className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-slate-200 text-slate-700 font-semibold hover:bg-slate-50 disabled:opacity-40 text-sm">
+                  <BookmarkCheck size={15} /> {t("proforma.print_booked")}
+                </button>
+              )}
               <button onClick={wordNow} disabled={busy || wordBusy !== null} className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-slate-200 text-slate-700 font-semibold hover:bg-slate-50 disabled:opacity-40 text-sm">
                 {wordBusy !== null ? <RefreshCw size={15} className="animate-spin" /> : <FileDown size={15} />} {t(locked ? "proforma.download_word" : "proforma.save_download_word")}
               </button>
