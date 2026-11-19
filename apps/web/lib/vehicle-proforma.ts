@@ -8,6 +8,7 @@
 // come from the buyer's customer record and the company's settings.
 
 import { printHtml } from "./print-frame";
+import { saleRequest } from "./sale-api";
 import { settingsRequest } from "./settings-api";
 import { getMyShop } from "./shop-api";
 import { loadCustomers } from "./supplier-api";
@@ -107,10 +108,26 @@ export async function vehicleProforma(
   return { proforma, shop };
 }
 
+/** A signed QR code for this print (sale-service POST /sales/printed), or undefined. */
+async function printedCode(p: Proforma, v: ProformaCar, plate?: string): Promise<string | undefined> {
+  try {
+    const title = ["Proforma", p.invoice_no, [v.name, plate].filter(Boolean).join(" "), p.customer].filter(Boolean).join(" · ");
+    const res = await saleRequest("/sales/printed", {
+      method: "POST",
+      body: JSON.stringify({ kind: "proforma", title: title.slice(0, 200), period_from: p.date, period_to: p.valid_until,
+        records: p.deposits?.length ?? 0, total: p.grand_total, currency: p.currency }),
+    });
+    return res?.data?.code ?? undefined;
+  } catch { return undefined; }   // printed without a QR
+}
+
 /** Opens the print dialog (Save as PDF) for the car's proforma at its current status. */
 export async function printVehicleProforma(
   v: ProformaCar, a: Attributes, t: T, opts: { salesperson?: string; qr?: boolean } = {},
 ): Promise<void> {
   const { proforma, shop } = await vehicleProforma(v, a, t, opts);
+  // No proforma of its own to point at: note this print on the server, which
+  // signs a code for its QR (scanned, it shows the title, total and who printed it).
+  if (!proforma.doc_code && opts.qr !== false) proforma.doc_code = await printedCode(proforma, v, a.plate_no);
   printHtml(proformaPrintHtml(proforma, shop, t, true, { autoPrint: true, qr: opts.qr, template: savedProformaTemplate() }));
 }
