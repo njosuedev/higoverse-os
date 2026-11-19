@@ -13,7 +13,7 @@ import { getMyShop } from "./shop-api";
 import { loadCustomers } from "./supplier-api";
 import { formatPublicAddress, decodeShopHumanInfo } from "./product-meta";
 import { prettyPhone, shopTin, bankText, type BankAccount } from "./company";
-import { depositSummary, parseDeposits, type Attributes } from "./business-layout";
+import { carTypeLabel, depositSummary, parseDeposits, type Attributes } from "./business-layout";
 import { listProformas, type Deposit, type Proforma } from "./proforma-api";
 import { proformaPrintHtml, savedProformaTemplate, type PrintShop } from "./proforma-print";
 
@@ -86,7 +86,7 @@ export async function vehicleProforma(
     notes: base?.notes || "",
     lines: [{
       product_id: v.id, product_name: v.name, qty: 1, unit_price: price,
-      car_type: line?.car_type ?? (a.car_type ? t(`vehicle.car_type_${a.car_type}`) : ""),
+      car_type: line?.car_type || (a.car_type ? carTypeLabel(t, a.car_type) : ""),
       year: a.year || line?.year || "", color: a.color || line?.color || "",
       mileage: a.mileage || line?.mileage || "", energy: line?.energy || "",
       chassis_no: a.chassis_no || line?.chassis_no || "", plate_no: a.plate_no || line?.plate_no || "",
