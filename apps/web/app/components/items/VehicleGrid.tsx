@@ -176,6 +176,8 @@ function VehicleCard({ v, cover, currency, onGallery, onEdit, onPending, onDepos
   const ids = [a.plate_no, a.chassis_no].filter(Boolean).join(" · ");
   const pendingDays = daysSince(a.pending_since);
   const pay = depositSummary(a, v.selling_price);
+  // Reserved for a buyer: shown even while the car is out on rent (a pending car can be rented).
+  const pending = status !== "sold" && a.sale_status === "pending";
 
   const STATUS = {
     available: { label: t("vehicle.status_available"), cls: "bg-success text-white" },
@@ -207,9 +209,9 @@ function VehicleCard({ v, cover, currency, onGallery, onEdit, onPending, onDepos
         <h3 className="truncate text-sm font-semibold text-text" title={[v.name, meta, ids].filter(Boolean).join(" · ")}>{v.name}</h3>
         {sub && <p className="truncate text-xs text-text-muted">{sub}</p>}
         <p className="hgv-figure mt-0.5 text-sm font-bold text-text">
-          {money(status === "pending" ? pay.price : v.selling_price)} <span className="text-[11px] font-medium text-text-muted">{currency}</span>
+          {money(pending ? pay.price : v.selling_price)} <span className="text-[11px] font-medium text-text-muted">{currency}</span>
         </p>
-        {status === "pending" && (<>
+        {pending && (<>
           <p className="mt-0.5 flex min-w-0 items-center gap-1 text-xs font-semibold text-warning"
             title={[t("vehicle.pending_docs"), a.buyer_name, a.buyer_phone, a.buyer_id_no && `${t("vehicle.id_short")}: ${a.buyer_id_no}`, a.pending_note].filter(Boolean).join(" · ")}>
             <Clock size={12} className="shrink-0" />
@@ -266,7 +268,7 @@ function VehicleCard({ v, cover, currency, onGallery, onEdit, onPending, onDepos
             {a.buyer_name ? `${t("vehicle.sold_to")} ${a.buyer_name}` : t("vehicle.status_sold")}
           </span>
         )}
-        {status === "available" && (
+        {(status === "available" || status === "pending") && (
           <Link href={`/sales?tab=rentals&rent=${v.id}`} title={t("vehicle.rent")} aria-label={t("vehicle.rent")}
             className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-text-muted hover:bg-paper-dim hover:text-ink">
             <CarFront size={15} />
@@ -275,7 +277,7 @@ function VehicleCard({ v, cover, currency, onGallery, onEdit, onPending, onDepos
         {status === "available" && (
           <IconBtn onClick={onPending} label={t("vehicle.mark_pending")} className="hover:text-warning"><UserCheck size={15} /></IconBtn>
         )}
-        {status === "pending" && (
+        {pending && (
           <IconBtn onClick={onRelease} label={t("vehicle.release")} className="hover:text-ink"><UserX size={15} /></IconBtn>
         )}
         <IconBtn onClick={onEdit} label={t("common.edit")} className="hover:text-ink"><Pencil size={14} /></IconBtn>

@@ -158,7 +158,7 @@ export default function CarQuickView({ productId, cover, onClose }: {
             </dl>
           )}
 
-          {status === "pending" && pay && (
+          {status !== "sold" && a.sale_status === "pending" && pay && (
             <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-3 space-y-2">
               <p className="text-xs font-bold uppercase tracking-wide text-amber-800">{t("vehicle.section_buyer")}</p>
               <dl className="grid grid-cols-2 gap-x-4 gap-y-2">

@@ -52,3 +52,16 @@ class CarRental(Base):
     created_by_name = Column(String, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+
+class RentalAgreementTemplate(Base):
+    """A car company's own wording of the rental agreement, per language
+    ({"rw"|"en"|"fr": {title, intro, articles: [{title, body}], closing}}).
+    A language not here prints in the standard wording. Placeholders such as
+    {customer} or {plate} are filled from the rental when printing."""
+    __tablename__ = "rental_agreement_templates"
+
+    shop_id = Column(String, primary_key=True)
+    templates = Column(JSON, nullable=False, default=dict)
+    updated_by_name = Column(String, nullable=True)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)

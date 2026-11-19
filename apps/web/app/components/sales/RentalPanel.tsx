@@ -6,7 +6,7 @@
 
 import AmountInput from "@/app/components/ui/AmountInput";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { CarFront, Pencil, Plus, Printer, RefreshCw, RotateCcw, Search, Trash2, Wallet, X, Ban } from "lucide-react";
+import { CarFront, FileText, Pencil, Plus, Printer, RefreshCw, RotateCcw, Search, Trash2, Wallet, X, Ban } from "lucide-react";
 import { useLanguage } from "@/lib/language-context";
 import { useAuth } from "@/lib/auth-context";
 import { settingsRequest } from "@/lib/settings-api";
@@ -18,9 +18,10 @@ import CustomerPicker from "@/app/components/ui/CustomerPicker";
 import { printHtml } from "@/lib/print-frame";
 import { getPrintShop } from "@/lib/print-shop";
 import { askConfirm, notify } from "@/lib/dialogs";
-import { AGREEMENT_LANGS, rentalAgreementHtml, rentalDays, type AgreementLang } from "@/lib/rental-print";
+import { AGREEMENT_LANGS, rentalAgreementHtml, rentalDays, type AgreementLang, type AgreementTemplates } from "@/lib/rental-print";
+import AgreementEditor from "./AgreementEditor";
 import {
-  addRentalDeposit, cancelRental, deleteRental, depositTotal, listRentals, removeRentalDeposit, RENTAL_MANAGER_ROLES, returnRental, saveRental,
+  addRentalDeposit, cancelRental, deleteRental, depositTotal, getAgreementTemplate, listRentals, removeRentalDeposit, RENTAL_MANAGER_ROLES, returnRental, saveRental,
   type Rental, type RentalInput, type RentalStatus,
 } from "@/lib/rental-api";
 import { matchesAmount } from "@/lib/amount-search";
@@ -78,6 +79,9 @@ export default function RentalPanel({ rentCarId }: { rentCarId?: string | null }
   const [returning, setReturning] = useState<Rental | null>(null);
   // The rental whose deposits are open (see them, add more).
   const [depositsOf, setDepositsOf] = useState<Rental | null>(null);
+  // The company's own agreement wording (null: the standard one), and its editor.
+  const [agreement, setAgreement] = useState<AgreementTemplates | null>(null);
+  const [editingAgreement, setEditingAgreement] = useState(false);
 
   const load = useCallback(async () => {
     try { setItems(await listRentals()); } catch (e) { notify(apiDetail(e, t("common.error"))); }
@@ -88,6 +92,7 @@ export default function RentalPanel({ rentCarId }: { rentCarId?: string | null }
     void load();
     settingsRequest("/settings").then((s) => s?.data?.currency && setCurrency(s.data.currency)).catch(() => {});
     loadCustomers().then(setCustomers).catch(() => {});
+    getAgreementTemplate().then((d) => setAgreement(d?.templates ?? null)).catch(() => {});
   }, [load]);
 
   const counts = useMemo(() => {
@@ -166,8 +171,10 @@ export default function RentalPanel({ rentCarId }: { rentCarId?: string | null }
   async function print(r: Rental, lang: AgreementLang) {
     try { localStorage.setItem(LANG_KEY, lang); } catch { /* private mode */ }
     setPrinting(null);
-    const shop = await getPrintShop();
-    printHtml(rentalAgreementHtml(r, shop, lang, { autoPrint: true }));
+    // The latest wording, in case it was changed elsewhere since this page opened.
+    const [shop, own] = await Promise.all([getPrintShop(), getAgreementTemplate().then((d) => d?.templates ?? null).catch(() => agreement)]);
+    setAgreement(own);
+    printHtml(rentalAgreementHtml(r, shop, lang, { autoPrint: true, template: own }));
   }
 
   async function cancel(r: Rental) {
@@ -196,6 +203,12 @@ export default function RentalPanel({ rentCarId }: { rentCarId?: string | null }
             <button onClick={() => { setLoading(true); void load(); }} title={t("common.refresh")} className="w-8 h-8 rounded-lg border border-slate-200 flex items-center justify-center text-slate-500 hover:text-blue-600">
               <RefreshCw size={13} className={loading ? "animate-spin" : ""} />
             </button>
+            {canDelete && (
+              <button onClick={() => setEditingAgreement(true)} title={t("rental.tpl_title")}
+                className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:border-blue-400 hover:text-blue-600">
+                <FileText size={13} /> <span className="hidden sm:inline">{t("rental.tpl_button")}</span>
+              </button>
+            )}
             <button onClick={openNew} className="flex items-center gap-1.5 text-white text-xs font-bold px-3 py-2 rounded-lg hover:opacity-90" style={{ background: "#0a66c2" }}>
               <Plus size={13} strokeWidth={3} /> {t("rental.new")}
             </button>
@@ -305,7 +318,7 @@ export default function RentalPanel({ rentCarId }: { rentCarId?: string | null }
               <section>
                 <p className="text-xs font-bold text-slate-700 mb-1.5">{t("rental.car")}</p>
                 {/* The car's details come from Vehicles only: shown, not typed. */}
-                <ProductPicker onSelect={pickCar} label={carLabel} placeholder={t("rental.pick_car")} status="available"
+                <ProductPicker onSelect={pickCar} label={carLabel} placeholder={t("rental.pick_car")} status="in_stock"
                   selected={form.product_id ? { id: form.product_id, name: form.car_name, quantity: 1, selling_price: 0, cost_price: 0, attributes: JSON.stringify({ plate_no: form.plate_no, chassis_no: form.chassis_no }) } : null} />
                 {form.product_id && (
                   <Details items={[
@@ -342,6 +355,8 @@ export default function RentalPanel({ rentCarId }: { rentCarId?: string | null }
         </div>
       )}
 
+      {editingAgreement && <AgreementEditor own={agreement} latest={items[0] ?? null}
+        onClose={() => setEditingAgreement(false)} onSaved={(own) => { setAgreement(own); setEditingAgreement(false); }} />}
       {printing && <PrintChoice rental={printing} onPick={(l) => void print(printing, l)} onClose={() => setPrinting(null)} />}
       {depositsOf && <DepositsDialog rental={depositsOf} canRemove={canDelete}
         onClose={() => setDepositsOf(null)} onSaved={async (r) => { setDepositsOf(r); await load(); }} />}

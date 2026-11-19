@@ -12,6 +12,8 @@ POST   /rentals/{id}/deposits   more deposit paid later (active rentals)
 DELETE /rentals/{id}/deposits/{deposit_id}   remove one added by mistake (owner, admin or manager)
 DELETE /rentals/{id}            owner, admin or manager
 GET    /rentals/busy            active rentals not over yet (now and booked ahead)
+GET    /rentals/agreement-template   the company's own agreement wording (null = standard)
+PUT    /rentals/agreement-template   change it (owner, admin or manager); {} = back to standard
 
 A car is "Rented" only between its rental's start and end dates: a car
 rented for a month (1 Nov to 30 Nov) can't be sold during that time and
@@ -29,8 +31,8 @@ from sqlalchemy.orm import Session
 from app.core import doc_code, master_data
 from app.core.security import get_current_user
 from app.db.database import get_db
-from app.models.rental import CarRental
-from app.schemas.rental import RentalDepositIn, RentalIn, RentalReturn
+from app.models.rental import CarRental, RentalAgreementTemplate
+from app.schemas.rental import AgreementTemplatesIn, RentalDepositIn, RentalIn, RentalReturn
 
 router = APIRouter(prefix="/rentals", tags=["Rentals"])
 
@@ -230,6 +232,45 @@ def create_rental(
     db.commit()
     db.refresh(r)
     return {"success": True, "message": "Rental recorded", "data": _fmt(r)}
+
+
+@router.get("/agreement-template")
+def get_agreement_template(db: Session = Depends(get_db), user: dict = Depends(get_current_user)):
+    """The company's own wording of the printed agreement, per language."""
+    if not user.get("shop_id"):
+        return {"success": True, "data": None}
+    row = db.get(RentalAgreementTemplate, str(user["shop_id"]))
+    if not row or not row.templates:
+        return {"success": True, "data": None}
+    return {"success": True, "data": {
+        "templates": row.templates, "updated_by_name": row.updated_by_name or "",
+        "updated_at": row.updated_at.isoformat() if row.updated_at else None,
+    }}
+
+
+@router.put("/agreement-template")
+def save_agreement_template(payload: AgreementTemplatesIn, db: Session = Depends(get_db), user: dict = Depends(get_current_user)):
+    shop = _shop(user)
+    if user.get("role") not in MANAGER_ROLES:
+        raise HTTPException(status_code=403, detail="Only the owner, an admin or a manager can change the agreement.")
+    templates = payload.model_dump(exclude_none=True)
+    row = db.get(RentalAgreementTemplate, shop)
+    if not templates:
+        if row:
+            db.delete(row)
+            db.commit()
+        return {"success": True, "message": "Standard agreement restored", "data": None}
+    if not row:
+        row = RentalAgreementTemplate(shop_id=shop)
+        db.add(row)
+    row.templates = templates
+    row.updated_by_name = user.get("name") or user.get("email") or ""
+    db.commit()
+    db.refresh(row)
+    return {"success": True, "message": "Agreement saved", "data": {
+        "templates": row.templates, "updated_by_name": row.updated_by_name,
+        "updated_at": row.updated_at.isoformat() if row.updated_at else None,
+    }}
 
 
 @router.get("/{rental_id}")

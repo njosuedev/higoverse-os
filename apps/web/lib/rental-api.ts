@@ -1,4 +1,5 @@
 import { saleRequest } from "@/lib/sale-api";
+import type { AgreementTemplates } from "@/lib/rental-print";
 
 // Car rentals (sale-service routes/rentals.py): active → returned or cancelled.
 export type RentalStatus = "active" | "returned" | "cancelled";
@@ -76,4 +77,20 @@ export async function cancelRental(id: string): Promise<Rental> {
 }
 export async function deleteRental(id: string): Promise<void> {
   await saleRequest(`/rentals/${id}`, { method: "DELETE" });
+}
+
+/** The company's own agreement wording (null: the standard wording). */
+export interface RentalAgreementTemplateDoc {
+  templates: AgreementTemplates;
+  updated_by_name: string;
+  updated_at: string | null;
+}
+export async function getAgreementTemplate(): Promise<RentalAgreementTemplateDoc | null> {
+  const res = await saleRequest("/rentals/agreement-template");
+  return (res?.data as RentalAgreementTemplateDoc | null) ?? null;
+}
+/** Only the languages the company changed; {} goes back to the standard wording. */
+export async function saveAgreementTemplate(templates: AgreementTemplates): Promise<RentalAgreementTemplateDoc | null> {
+  const res = await saleRequest("/rentals/agreement-template", { method: "PUT", body: JSON.stringify(templates) });
+  return (res?.data as RentalAgreementTemplateDoc | null) ?? null;
 }

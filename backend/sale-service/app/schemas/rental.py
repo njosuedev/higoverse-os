@@ -95,3 +95,23 @@ class RentalDepositIn(BaseModel):
 class RentalReturn(BaseModel):
     deposit_returned: Decimal = Field(ge=0, le=Decimal("100000000000"))
     return_note: str | None = Field(None, max_length=2000)
+
+
+class AgreementArticle(BaseModel):
+    title: str = Field("", max_length=200)
+    body: str = Field("", max_length=8000)
+
+
+class AgreementTemplate(BaseModel):
+    """One language of a company's rental agreement (see lib/rental-print.ts)."""
+    title: str = Field(..., min_length=1, max_length=200)
+    intro: str = Field("", max_length=4000)
+    articles: list[AgreementArticle] = Field(default_factory=list, max_length=30)
+    closing: str = Field("", max_length=1000)
+
+
+class AgreementTemplatesIn(BaseModel):
+    """Only the languages the company changed; a missing one prints the standard wording."""
+    rw: AgreementTemplate | None = None
+    en: AgreementTemplate | None = None
+    fr: AgreementTemplate | None = None
