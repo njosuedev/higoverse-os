@@ -5,11 +5,14 @@ import { useCovers } from "@/lib/covers";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { CalendarClock, Car, CarFront, Clock, Pencil, ShieldAlert, ShieldCheck, ShieldQuestion, ShoppingCart, UserCheck, UserX, Wallet, X } from "lucide-react";
+import { CalendarClock, Car, CarFront, Clock, FileDown, Loader2, Pencil, ShieldAlert, ShieldCheck, ShieldQuestion, ShoppingCart, UserCheck, UserX, Wallet, X } from "lucide-react";
 import { itemRequest } from "@/lib/product-api";
 import { saleRequest } from "@/lib/sale-api";
 import { loadCustomers, type Customer } from "@/lib/supplier-api";
 import { useLanguage } from "@/lib/language-context";
+import { useAuth } from "@/lib/auth-context";
+import { useShopSettings } from "@/lib/shop-settings-context";
+import { printVehicleProforma } from "@/lib/vehicle-proforma";
 import { askConfirm, notify } from "@/lib/dialogs";
 import {
   carTypeLabel, daysSince, depositSummary, parseAttributes, parseDeposits, stringifyAttributes, vehicleStatus,
@@ -474,6 +477,9 @@ function DepositForm({ v, currency, onClose, onSaved, onRefresh, onSellByHand }:
   v: Vehicle; currency: string; onClose: () => void; onSaved: () => void; onRefresh: () => void; onSellByHand: () => void;
 }) {
   const { t } = useLanguage();
+  const { user } = useAuth();
+  const { print: printPrefs } = useShopSettings();
+  const [proformaBusy, setProformaBusy] = useState(false);
   // Kept here so a changed agreed price shows straight away.
   const [a, setA] = useState(() => parseAttributes(v.attributes));
   const pay = depositSummary(a, v.selling_price);
@@ -565,9 +571,22 @@ function DepositForm({ v, currency, onClose, onSaved, onRefresh, onSellByHand }:
     finally { setSaving(false); }
   }
 
+  /** The proforma as it stands now: agreed price, deposits so far, balance. */
+  async function downloadProforma() {
+    setProformaBusy(true);
+    try { await printVehicleProforma(v, a, t, { salesperson: user?.name, qr: printPrefs.showQr }); }
+    catch { notify(t("common.error")); }
+    finally { setProformaBusy(false); }
+  }
+
   return (
     <Sheet title={t("vehicle.add_deposit")} subtitle={[v.name, a.plate_no, a.buyer_name].filter(Boolean).join(" · ")} onClose={onClose}
       footer={<>
+        <button type="button" onClick={downloadProforma} disabled={proformaBusy || pay.price <= 0} title={t("vehicle.download_proforma")}
+          className="mr-auto inline-flex h-10 items-center gap-1.5 rounded-full border border-border-strong px-4 text-sm font-semibold text-text hover:bg-paper-dim disabled:opacity-50">
+          {proformaBusy ? <Loader2 size={15} className="animate-spin" /> : <FileDown size={15} />}
+          <span className="hidden sm:inline">{t("vehicle.download_proforma")}</span>
+        </button>
         <button onClick={onClose} className="h-10 rounded-full border border-border-strong px-5 text-sm font-semibold text-text hover:bg-paper-dim">{t("common.cancel")}</button>
         <button onClick={save} disabled={saving} className={`h-10 rounded-full px-5 text-sm font-semibold text-white disabled:opacity-50 ${final ? "bg-ink hover:bg-ink-dark" : "bg-warning hover:opacity-90"}`}>
           {t(final ? "vehicle.record_final" : "vehicle.add_deposit")}
