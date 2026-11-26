@@ -278,6 +278,7 @@ def create_expense(
         scope="abroad" if payload.scope == "abroad" else None,
     )
     _set_support(expense, payload.model_dump(include=_SUPPORT_FIELDS))
+    _refuse_duplicate(db, expense)
     db.add(expense)
     db.flush()
     emit(db, user, "expense.created", {
@@ -305,6 +306,42 @@ _NO_EBM = or_(
     and_(Expense.ebm_support.is_(None),
          Expense.category.notin_([ExpenseCategory.salaries, ExpenseCategory.taxes])),
 )
+
+
+def _norm_ref(x) -> str:
+    """A document number as compared: "L 20327" and "l20327" are the same."""
+    return "".join(str(x or "").split()).upper()
+
+
+def _refuse_duplicate(db: Session, expense: Expense) -> None:
+    """No expense is recorded twice. Refused when another expense of the
+    business has the same document number (EBM receipt, customs assessment,
+    WHT declaration, receipt or bank reference), or the same day, amount and
+    description (and the same payee, when both name one)."""
+    q = db.query(Expense).filter(Expense.shop_id == expense.shop_id)
+    if expense.id:
+        q = q.filter(Expense.id != expense.id)
+    ref = _norm_ref(expense.doc_ref)
+    if ref:
+        same = q.filter(func.upper(func.regexp_replace(Expense.doc_ref, r"\s+", "", "g")) == ref).first()
+        if same:
+            raise HTTPException(status_code=409, detail=(
+                f"Already recorded: document {expense.doc_ref} is on the expense \"{same.title}\" of "
+                f"{same.expense_date:%d/%m/%Y} ({float(same.amount):,.0f}). An expense can't be recorded twice."))
+    title = " ".join((expense.title or "").lower().split())
+    day = expense.expense_date.date() if expense.expense_date else None
+    if not title or day is None:
+        return
+    for same in q.filter(func.date(Expense.expense_date) == day, Expense.amount == expense.amount).all():
+        if " ".join((same.title or "").lower().split()) != title:
+            continue
+        a, b = (expense.supplier_name or "").strip().lower(), (same.supplier_name or "").strip().lower()
+        if a and b and a != b:
+            continue  # same work, paid to two different people
+        raise HTTPException(status_code=409, detail=(
+            f"Already recorded: \"{same.title}\" of {float(same.amount):,.0f} on {same.expense_date:%d/%m/%Y}. "
+            "An expense can't be recorded twice. If this is a different payment, say who was paid or add the "
+            "document number."))
 
 
 def _tidy(x) -> str | None:
@@ -473,6 +510,8 @@ def update_expense(
         if key == "scope":
             value = "abroad" if value == "abroad" else None
         setattr(expense, key, value)
+    with db.no_autoflush:
+        _refuse_duplicate(db, expense)
 
     db.commit()
     db.refresh(expense)

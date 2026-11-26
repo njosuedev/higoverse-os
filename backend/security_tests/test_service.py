@@ -158,7 +158,7 @@ def _records(client):
     if SERVICE == "supplier-service":
         return {"/suppliers/{supplier_id}": _create(client, "/suppliers", {"name": "Sec Test Supplier", "phone": "0788000000"})}
     if SERVICE == "expense-service":
-        eid = _create(client, "/expenses", {"title": "Sec test", "amount": 1000, "category": "other",
+        eid = _create(client, "/expenses", {"title": f"Sec test {uuid.uuid4().hex[:6]}", "amount": 1000, "category": "other",
                                             "expense_date": "2026-10-01T00:00:00", "payment_method": "mtn",
                                             "receiver_phone": "0788000000"})
         emp = _create(client, "/payroll/employees", {"full_name": "Sec Test Employee", "monthly_salary": 100000})
@@ -383,6 +383,35 @@ def test_rra_ledger_expenses_without_ebm(client):
     r = client.put(f"/expenses/{eid}", json={"ebm_support": "ebm", "doc_ref": "SDC-77"}, headers=owner)
     assert r.status_code == 200 and r.json()["data"]["no_ebm_reason"] is None
     client.delete(f"/expenses/{eid}", headers=owner)
+
+
+def test_expense_cannot_be_recorded_twice(client):
+    """No duplication: the same document number, or the same day, amount and
+    description, is refused; different payees or another company are fine."""
+    if SERVICE != "expense-service":
+        pytest.skip("expense-service only")
+    owner = auth(token(SHOP_A, "owner", layout="car"))
+    base = {"title": "Customs assessment", "category": "taxes", "amount": 516047,
+            "expense_date": "2026-10-20T00:00:00", "payment_method": "mtn", "ebm_support": "dmc", "doc_ref": "L 20327"}
+    first = client.post("/expenses", json=base, headers=owner)
+    assert first.status_code == 200, first.text[:200]
+    again = client.post("/expenses", json={**base, "doc_ref": "l20327", "title": "Other title"}, headers=owner)
+    assert again.status_code == 409, again.text[:200]                     # same document number
+    same = client.post("/expenses", json={**base, "doc_ref": None}, headers=owner)
+    assert same.status_code == 409, same.text[:200]                       # same day, amount, description
+    worker = {"title": "Construction worker", "category": "maintenance", "amount": 40000, "expense_date": "2026-11-04T00:00:00",
+              "payment_method": "mtn", "ebm_support": "none", "no_ebm_reason": "unregistered"}
+    a = client.post("/expenses", json={**worker, "supplier_name": "Pierre"}, headers=owner)
+    b = client.post("/expenses", json={**worker, "supplier_name": "Jonan"}, headers=owner)
+    assert a.status_code == 200 and b.status_code == 200, (a.text[:200], b.text[:200])   # two different people
+    other = client.post("/expenses", json=base, headers=auth(token(SHOP_B, "owner", layout="car")))
+    assert other.status_code == 200, other.text[:200]                     # another company may
+    # Editing an expense into a copy of another is refused too.
+    edit = client.put(f"/expenses/{b.json()['data']['id']}", json={"supplier_name": "Pierre"}, headers=owner)
+    assert edit.status_code == 409, edit.text[:200]
+    for r in (first, a, b):
+        client.delete(f"/expenses/{r.json()['data']['id']}", headers=owner)
+    client.delete(f"/expenses/{other.json()['data']['id']}", headers=auth(token(SHOP_B, "owner", layout="car")))
 
 
 # ── 4. Per-company settings and totals ───────────────────────────────────────

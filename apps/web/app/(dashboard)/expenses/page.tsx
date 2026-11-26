@@ -893,7 +893,7 @@ export default function ExpenseManagementPage() {
       await expenseUploadProof(id, picked);
       await loadAll(true);
     } catch (err: unknown) {
-      await showAlert(t("common.error_title"), err instanceof Error ? err.message : t("common.something_wrong"));
+      await showAlert(t("common.error_title"), apiError(err, err instanceof Error ? err.message : t("common.something_wrong")));
     } finally { setUploadingProofId(""); setProofTargetId(""); }
   }
 
@@ -981,7 +981,7 @@ export default function ExpenseManagementPage() {
       setProofEntries([]);
       await loadAll(true);
     } catch (err: unknown) {
-      await showAlert(t("common.error_title"), err instanceof Error ? err.message : t("common.something_wrong"));
+      await showAlert(t("common.error_title"), apiError(err, err instanceof Error ? err.message : t("common.something_wrong")));
     } finally { setSubmitting(false); }
   }
 
