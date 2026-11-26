@@ -17,3 +17,17 @@ class Debt(Base):
     notes = Column(Text, nullable=True)
     is_paid = Column(Boolean, default=False, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class DebtPayment(Base):
+    """One change to a debt's amount paid, with its date (from Nov 2026):
+    the general ledger dates each payment received. Older payments are
+    only known as the debt's total paid."""
+    __tablename__ = "debt_payments"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    shop_id = Column(String, index=True, nullable=False)
+    debt_id = Column(String, index=True, nullable=False)
+    amount = Column(Numeric(12, 2), nullable=False)      # negative when a payment was taken back
+    created_by = Column(String, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)

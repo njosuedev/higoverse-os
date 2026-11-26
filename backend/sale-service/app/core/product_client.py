@@ -67,3 +67,20 @@ def update_product_attributes(product_id: str, attributes: str | None, token: st
     except Exception as e:
         logger.error("Failed to update attributes of product %s: %s", product_id, e)
         return False
+
+
+def get_car_deposits(token: str) -> list[dict] | None:
+    """Every car of the caller's business holding deposits (for the general
+    ledger), or None when product-service can't be reached."""
+    try:
+        res = requests.get(
+            f"{settings.PRODUCT_SERVICE_URL}/products/ledger-deposits",
+            headers=_internal_headers(token),
+            timeout=15,
+        )
+        if res.ok:
+            return res.json().get("data") or []
+        logger.warning("product-service GET /products/ledger-deposits returned %s", res.status_code)
+    except Exception as e:
+        logger.error("Failed to fetch car deposits: %s", e)
+    return None

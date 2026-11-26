@@ -4,6 +4,7 @@ import HeartbeatManager from "@/app/components/dashboard/HeartbeatManager";
 import ClientProviders from "@/app/components/dashboard/ClientProviders";
 import DashboardHeader from "@/app/components/dashboard/DashboardHeader";
 import TableCards from "@/app/components/dashboard/TableCards";
+import ExpensesOnlyGuard from "@/app/components/dashboard/ExpensesOnlyGuard";
 
 export const metadata: Metadata = {
   robots: { index: false, follow: false },
@@ -24,7 +25,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         <HeartbeatManager />
         <TableCards />
         <DashboardHeader />
-        {children}
+        <ExpensesOnlyGuard>{children}</ExpensesOnlyGuard>
       </ClientProviders>
     </AuthGuard>
   );

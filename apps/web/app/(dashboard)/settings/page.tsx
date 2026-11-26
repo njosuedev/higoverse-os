@@ -11,6 +11,7 @@ import { useShop } from "@/lib/shop-context";
 import { type Lang } from "@/lib/i18n";
 import { parseShopAddress, decodeShopHumanInfo, formatPublicAddress } from "@/lib/product-meta";
 import { cleanTin, normalizePhone, phoneError, prettyPhone, shopTin, splitAddress, tinError, bankErrors, RWANDA_BANKS, type BankAccount } from "@/lib/company";
+import { useExpensesOnly } from "@/lib/permissions";
 import { useAuth } from "@/lib/auth-context";
 import { playChime, setSoundOn, useSoundOn } from "@/lib/notifications";
 import { CAR_TYPES, carTypeLabel } from "@/lib/business-layout";
@@ -101,6 +102,7 @@ export default function SettingsPage() {
   // Where customers pay: printed on every proforma. Required for car
   // companies; only the owner may change it (settings-service enforces it).
   const { user } = useAuth();
+  const viewOnly = useExpensesOnly();
   const canEditBank = user?.role === "owner" || user?.role === "admin";
   // Every bank account the company takes payments on; one is the default
   // a new proforma starts with. Proformas pick from these, never edit them.
@@ -523,6 +525,8 @@ export default function SettingsPage() {
           </div>
         </div>
 
+        {/* A car company's view-only accountant: their own password only. */}
+        {!viewOnly && (<>
         {/* ── SHOP PROFILE ─── */}
         <Section
           icon={<Store size={15} />}
@@ -955,6 +959,8 @@ export default function SettingsPage() {
             </Field>
           </div>
         </Section>
+
+        </>)}
 
         {/* ── SECURITY / CHANGE PASSWORD ─────────── */}
         <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">

@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
-from app.models.debt import Debt
+from app.models.debt import Debt, DebtPayment
 from app.schemas.debt import DebtCreate, DebtUpdate
 from app.core.security import get_current_user
 from app.core.events import emit
@@ -108,8 +108,13 @@ def update_debt(
     user: dict = Depends(get_current_user),
 ):
     debt = _get_or_404(db, debt_id, user["shop_id"])
+    paid_before = float(debt.amount_paid or 0)
     for key, value in payload.model_dump(exclude_unset=True).items():
         setattr(debt, key, value)
+    # The general ledger dates each payment received (routes/ledger.py).
+    change = round(float(debt.amount_paid or 0) - paid_before, 2)
+    if change:
+        db.add(DebtPayment(shop_id=debt.shop_id, debt_id=debt.id, amount=change, created_by=str(user.get("user_id") or "")))
     owed = float(debt.amount_owed)
     paid = float(debt.amount_paid)
     if paid >= owed:

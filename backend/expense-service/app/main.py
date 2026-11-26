@@ -7,6 +7,7 @@ from fastapi.responses import JSONResponse
 from app.api.routes.expenses import router as expense_router
 from app.api.routes.payroll import router as payroll_router
 from app.api.routes.incomes import router as income_router
+from app.api.routes.ledger import router as ledger_router
 from app.models import payroll as _payroll_models  # noqa: F401  (tables for create_all)
 from app.models import correction as _correction_models  # noqa: F401
 from app.models import income as _income_models  # noqa: F401
@@ -45,6 +46,7 @@ app.add_middleware(
 app.include_router(expense_router)
 app.include_router(payroll_router)
 app.include_router(income_router)
+app.include_router(ledger_router)
 
 
 @app.on_event("startup")

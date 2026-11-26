@@ -10,6 +10,15 @@ from app.core.config import settings
 security = HTTPBearer()
 
 
+# A car company's accountant may only view the expense book (expense-service).
+# Every other part of the business is closed to them here.
+def expenses_only(payload: dict) -> bool:
+    return payload.get("layout") == "car" and payload.get("role") == "accountant"
+
+
+EXPENSES_ONLY_DETAIL = "This account can only view expenses."
+
+
 def internal_service_token() -> str:
     """Shared proof that a request comes from another Higoverse service (all
     services hold SECRET_KEY; browsers never do). Sale/purchase-service send
@@ -27,6 +36,12 @@ def get_current_user(
             settings.SECRET_KEY,
             algorithms=[settings.AUTH_SERVICE_ALGORITHM]
         )
+        # (Signed calls from other Higoverse services are let through: sale-
+        # service reads the cars' deposits for the accountant's ledger.)
+        if expenses_only(payload) and not hmac.compare_digest(
+            request.headers.get("X-Higoverse-Internal", ""), internal_service_token()
+        ):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=EXPENSES_ONLY_DETAIL)
 
         return {
             "user_id": payload.get("sub"),

@@ -9,14 +9,14 @@ import { useShop } from "@/lib/shop-context";
 import { useAppTheme, useThemePref } from "@/lib/theme";
 import { LANGUAGES } from "@/lib/i18n";
 import { settingsRequest } from "@/lib/settings-api";
-import { useCanSeeFinancials, useCanUseExpenses } from "@/lib/permissions";
+import { useCanSeeFinancials, useCanUseExpenses, useCanUseLedger, useExpensesOnly } from "@/lib/permissions";
 import { Sun, Moon, Monitor,
   Home, Package, Truck, ShoppingCart, BarChart3,
   Users, ChevronDown, Receipt,
   Settings, LogOut, Globe,
-  MessageCircle, Search, UsersRound, HandCoins, CalendarCheck, TrendingUp } from "lucide-react";
+  MessageCircle, Search, UsersRound, HandCoins, CalendarCheck, TrendingUp, BookOpen } from "lucide-react";
 import {
-  House, Package as PackageTab, Car, ChatCircleDots, Receipt as ReceiptTab, Storefront, type Icon as PhosphorIcon,
+  House, Gear, BookOpenText, Package as PackageTab, Car, ChatCircleDots, Receipt as ReceiptTab, Storefront, type Icon as PhosphorIcon,
 } from "@phosphor-icons/react";
 import { PAYROLL_ROLES } from "@/lib/payroll-api";
 import GlobalSearch, { OPEN_SEARCH_EVENT } from "@/app/components/GlobalSearch";
@@ -40,6 +40,7 @@ const BUSINESS_MENUS: NavItem[] = [
   { key: "nav.messages",  href: "/messages",  icon: MessageCircle },
   { key: "nav.expenses",  href: "/expenses",  icon: Receipt      },
   { key: "nav.income",    href: "/income",    icon: TrendingUp   },
+  { key: "nav.ledger",    href: "/ledger",    icon: BookOpen     },
   { key: "nav.reports",   href: "/reports",   icon: BarChart3    },
   { key: "nav.payroll",   href: "/payroll",   icon: HandCoins    },
 ];
@@ -73,7 +74,9 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
   }, []);
   // Messages: keys, team and live unread counts once signed in to a business.
   // Car companies only: shops have no Messages.
-  useEffect(() => { if (ready && user?.shop_id && layout === "car") void startChat(); }, [ready, user?.shop_id, layout]);
+  // A car company's accountant only views expenses: no Messages.
+  const expensesOnly = useExpensesOnly();
+  useEffect(() => { if (ready && user?.shop_id && layout === "car" && !expensesOnly) void startChat(); }, [ready, user?.shop_id, layout, expensesOnly]);
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -109,6 +112,8 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
   // (company finances) from their staff.
   const canSeeFinancials = useCanSeeFinancials();
   const canUseExpenses = useCanUseExpenses();
+  // The General Ledger: a car company's owner and accountant.
+  const canUseLedger = useCanUseLedger();
   // The platform admin gets a frame of their own: no business menus at all.
   // Known as soon as the user is (an admin has no business to wait for).
   if (ready && user?.role === "admin") return <AdminChrome />;
@@ -125,7 +130,10 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
     .filter((m) => m.href !== "/reports" || canSeeFinancials)
     .filter((m) => (m.href !== "/expenses" && m.href !== "/income") || canUseExpenses)
     // Payroll: the owner, managers and the accountant.
-    .filter((m) => m.href !== "/payroll" || PAYROLL_ROLES.includes(user?.role ?? ""));
+    .filter((m) => m.href !== "/payroll" || PAYROLL_ROLES.includes(user?.role ?? ""))
+    .filter((m) => m.href !== "/ledger" || canUseLedger)
+    // A car company's accountant: Expenses and the Ledger only.
+    .filter((m) => !expensesOnly || m.href === "/expenses" || m.href === "/ledger");
 
   // Tablets and computers: Home, Vehicles / Inventory, Customers / Partners
   // and Sales across the top; everything else down the sidebar.
@@ -144,7 +152,7 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
         <div className="flex items-center gap-1 self-stretch lg:w-[calc(var(--hgv-aside)-max(1rem,env(safe-area-inset-left)))] lg:shrink-0 lg:border-r lg:border-border">
           {/* The logo and name lead Home — or back to its top when already there. */}
           {/* On phones, holding the logo shows the live connection and who is online. */}
-          <Link href="/" {...liveSheet.handlers} onClick={(e) => { if (!liveSheet.swallowed(e)) goHome(e); }}
+          <Link href={expensesOnly ? "/expenses" : "/"} {...liveSheet.handlers} onClick={(e) => { if (!liveSheet.swallowed(e)) goHome(e); }}
             aria-label={t("nav.home")} className="flex items-center gap-2.5 rounded-press transition-opacity duration-200 hover:opacity-80 focus:outline-none focus-visible:ring-2 focus-visible:ring-ink [-webkit-touch-callout:none]">
             {loading
               ? <div className="hgv-shimmer h-8 w-8 rounded-press" aria-hidden="true" />
@@ -169,8 +177,9 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
         {/* ── RIGHT: search and account menu ── */}
         <div className="flex items-center justify-end gap-2">
           {/* Phones: "+" creates anything (new sale, product, expense…). */}
-          <QuickAddButton />
+          {!expensesOnly && <QuickAddButton />}
           {/* Search: a quiet, rounded field (the full search opens over the page). */}
+          {!expensesOnly && (<>
           <button type="button" onClick={() => window.dispatchEvent(new Event(OPEN_SEARCH_EVENT))}
             title={t("search.hint")} aria-label={t("search.hint")}
             className="group flex h-11 w-11 items-center justify-center gap-2 rounded-full border border-transparent bg-paper-dim text-text transition-colors duration-200 hover:border-border-strong hover:text-text-muted md:h-9 md:w-auto md:justify-start md:px-2.5 md:text-text-faint lg:w-56 lg:px-3.5 xl:w-64">
@@ -179,7 +188,8 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
             <kbd className="hidden rounded-md border border-border bg-white px-1.5 py-0.5 font-sans text-[10px] font-semibold text-text-faint lg:inline">Ctrl K</kbd>
           </button>
           <GlobalSearch />
-          {user?.shop_id && <NotificationBell />}
+          </>)}
+          {user?.shop_id && !expensesOnly && <NotificationBell />}
 
           <div ref={menuRef} className="relative hidden md:block">
 
@@ -329,20 +339,22 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
                 </div>
               ))
             : (<>
-                <SideGroup label={t("nav.group_business")} first>
-                  {sideMenus.filter((m) => BUSINESS_SIDE.includes(m.href)).map((menu) => (
-                    <SideLink key={menu.href} menu={menu} pathname={pathname} t={t} badge={menu.href === "/messages" ? unread : 0} />
-                  ))}
-                </SideGroup>
+                {!expensesOnly && (
+                  <SideGroup label={t("nav.group_business")} first>
+                    {sideMenus.filter((m) => BUSINESS_SIDE.includes(m.href)).map((menu) => (
+                      <SideLink key={menu.href} menu={menu} pathname={pathname} t={t} badge={menu.href === "/messages" ? unread : 0} />
+                    ))}
+                  </SideGroup>
+                )}
                 {sideMenus.some((m) => FINANCE_SIDE.includes(m.href)) && (
-                  <SideGroup label={t("nav.group_finance")}>
+                  <SideGroup label={t("nav.group_finance")} first={expensesOnly}>
                     {sideMenus.filter((m) => FINANCE_SIDE.includes(m.href)).map((menu) => (
                       <SideLink key={menu.href} menu={menu} pathname={pathname} t={t} />
                     ))}
                   </SideGroup>
                 )}
                 {/* Employees: attendance, then payroll (the payroll roles only) */}
-                {PAYROLL_ROLES.includes(user?.role ?? "") && (
+                {PAYROLL_ROLES.includes(user?.role ?? "") && !expensesOnly && (
                   <SideGroup label={t("nav.employees")}>
                     <SideLink menu={{ key: "nav.attendance", href: "/attendance", icon: CalendarCheck }} pathname={pathname} t={t} />
                     <SideLink menu={{ key: "nav.payroll", href: "/payroll", icon: HandCoins }} pathname={pathname} t={t} />
@@ -365,12 +377,19 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
               </div>
             </div>
           )}
-          <SideLink menu={{ key: "team.title", href: "/team", icon: UsersRound }} pathname={pathname} t={t} />
+          {!expensesOnly && <SideLink menu={{ key: "team.title", href: "/team", icon: UsersRound }} pathname={pathname} t={t} />}
           <SideLink menu={{ key: "nav.settings", href: "/settings", icon: Settings }} pathname={pathname} t={t} />
         </div>
       </aside>
 
       {/* ── Phones: the Android app's tab bar ── */}
+      {expensesOnly ? (
+      <nav aria-label={t("nav.open_menu")} className="hgv-tabbar md:hidden">
+        <TabLink href="/expenses" icon={ReceiptTab} label={t("nav.expenses")} active={isActiveHref(pathname, "/expenses")} />
+        <TabLink href="/ledger" icon={BookOpenText} label={t("nav.ledger")} active={isActiveHref(pathname, "/ledger")} />
+        <TabLink href="/settings" icon={Gear} label={t("nav.settings")} active={isActiveHref(pathname, "/settings")} />
+      </nav>
+      ) : (
       <nav aria-label={t("nav.open_menu")} className="hgv-tabbar md:hidden">
         <TabLink href="/" icon={House} label={t("nav.home")} active={pathname === "/"} onClick={goHome} />
         <TabLink href="/items" icon={layout === "car" ? Car : PackageTab} label={t(layout === "car" ? "nav.vehicles" : "nav.stock")}
@@ -384,6 +403,7 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
         <TabLink href="/business" icon={Storefront} label={t("nav.business")}
           active={!TAB_HREFS.some((h) => isActiveHref(pathname, h))} />
       </nav>
+      )}
 
     </>
   );
@@ -457,7 +477,7 @@ function TopLink({ menu, pathname, t }: { menu: NavItem; pathname: string; t: (k
 
 /** Sidebar pages, by section. */
 const BUSINESS_SIDE = ["/purchases", "/messages"];
-const FINANCE_SIDE = ["/expenses", "/income", "/reports"];
+const FINANCE_SIDE = ["/expenses", "/income", "/ledger", "/reports"];
 
 /** A sidebar section: its name on computers, a thin line on tablets. */
 function SideGroup({ label, first = false, children }: { label: string; first?: boolean; children: React.ReactNode }) {

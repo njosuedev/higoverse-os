@@ -1,4 +1,4 @@
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import jwt, JWTError
 
@@ -7,7 +7,21 @@ from app.core.config import settings
 security = HTTPBearer()
 
 
+# A car company's accountant may only view the expense book and the ledger:
+# reading /expenses (the list, totals, receipts) and /ledger. Adding, editing,
+# deleting, income and payroll are closed to them.
+def expenses_only(payload: dict) -> bool:
+    return payload.get("layout") == "car" and payload.get("role") == "accountant"
+
+
+def _expense_read(request: Request) -> bool:
+    route = getattr(request.scope.get("route"), "path", "") or request.url.path
+    return request.method in ("GET", "HEAD") and any(
+        route == base or route.startswith(base + "/") for base in ("/expenses", "/ledger"))
+
+
 def get_current_user(
+    request: Request,
     credentials: HTTPAuthorizationCredentials = Depends(security),
 ):
     try:
@@ -16,6 +30,8 @@ def get_current_user(
             settings.SECRET_KEY,
             algorithms=[settings.AUTH_SERVICE_ALGORITHM],
         )
+        if expenses_only(payload) and not _expense_read(request):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="This account can only view expenses.")
         return {
             "user_id": payload.get("sub"),
             "shop_id": payload.get("shop_id"),

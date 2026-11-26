@@ -14,6 +14,7 @@ import { getPrintShop, imageForPdf, printShopLines } from "@/lib/print-shop";
 import { notify } from "@/lib/dialogs";
 import { apiError, CORRECTION_ROLES, INCOME_SOURCES, moveExpenseToIncome, type IncomeSource } from "@/lib/income";
 import { useAuth } from "@/lib/auth-context";
+import { useExpensesOnly } from "@/lib/permissions";
 import CorrectionHistory from "@/app/components/finance/CorrectionHistory";
 import type { DataValidation as ExcelDataValidation } from "exceljs";
 import {
@@ -176,7 +177,10 @@ export default function ExpenseManagementPage() {
   // admin or accountant only, with a reason and a confirmation; recorded in
   // the correction history.
   const { user } = useAuth();
-  const canCorrect = CORRECTION_ROLES.has(user?.role ?? "");
+  // A car company's accountant only views the book: no adding, editing,
+  // deleting, importing, attaching receipts or moving to Income.
+  const viewOnly = useExpensesOnly();
+  const canCorrect = CORRECTION_ROLES.has(user?.role ?? "") && !viewOnly;
   const [moving, setMoving] = useState<{ e: Expense; source: IncomeSource; reason: string } | null>(null);
   const [movingBusy, setMovingBusy] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
@@ -799,7 +803,7 @@ export default function ExpenseManagementPage() {
 
   // /expenses?new=1 (the "+" at the top, search's shortcuts) opens the form.
   function handleDeepLink(params: URLSearchParams) {
-    if (params.get("new") === "1") openModal();
+    if (params.get("new") === "1" && !viewOnly) openModal();
   }
 
   function openModal() {
@@ -1063,18 +1067,18 @@ export default function ExpenseManagementPage() {
             <span className="text-[11px] text-blue-100/70 mr-1">
               <span className="font-semibold text-white/80">{total.toLocaleString()}</span> {t("expenses.records")}
             </span>
-            <button onClick={() => setShowHistory(true)} title={t("move.history")} aria-label={t("move.history")}
+            {!viewOnly && <button onClick={() => setShowHistory(true)} title={t("move.history")} aria-label={t("move.history")}
               className="w-7 h-7 rounded-lg bg-white/10 hover:bg-white/20 border border-white/15 flex items-center justify-center text-white transition-all">
               <History size={12} />
-            </button>
+            </button>}
             <button onClick={() => loadAll(true)} disabled={refreshing}
               className="w-7 h-7 rounded-lg bg-white/10 hover:bg-white/20 border border-white/15 flex items-center justify-center text-white transition-all disabled:opacity-40">
               <RefreshCw size={12} className={refreshing ? "animate-spin" : ""} />
             </button>
-            <button onClick={openModal}
+            {!viewOnly && <button onClick={openModal}
               className="flex items-center gap-1.5 bg-white text-[#0a66c2] px-3 py-1.5 rounded-lg text-sm font-bold hover:bg-blue-50 active:scale-95 transition-all shadow shadow-black/20">
               <Plus size={12} strokeWidth={3} /> {t("expenses.add")}
-            </button>
+            </button>}
           </div>
 
           {/* Search + filter + date */}
@@ -1170,6 +1174,7 @@ export default function ExpenseManagementPage() {
               {(search || catFilter || (isCar && scopeFilter !== "rwanda")) && (
                 <button onClick={() => { setSearch(""); setCatFilter(""); setScopeFilter("rwanda"); setPage(1); }} className="flex items-center gap-1 text-[11px] text-slate-400 hover:text-slate-600 transition mr-1"><X size={10} /> {t("daterange.clear")}</button>
               )}
+              {!viewOnly && (<>
               <button onClick={downloadTemplate} title={t("expenses.download_template_title")}
                 className="flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 transition">
                 <Download size={10} /> {t("common.template")}
@@ -1178,6 +1183,7 @@ export default function ExpenseManagementPage() {
                 className="flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 transition">
                 <Upload size={10} /> {t("common.import")}
               </button>
+              </>)}
               <button onClick={exportExcel} title={t("common.export_excel_title")}
                 className="flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 transition">
                 <FileSpreadsheet size={10} /> Excel
@@ -1284,6 +1290,8 @@ export default function ExpenseManagementPage() {
                             className="flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-[#EBF2FD] hover:bg-[#D5E8FB] text-[#0a66c2] transition text-[11px] font-medium">
                             <Paperclip size={9} /> {t("common.view")}
                           </button>
+                        ) : viewOnly ? (
+                          <span className="text-slate-300">-</span>
                         ) : (
                           <button onClick={() => pickProofFor(e.id)} disabled={uploadingProofId === e.id}
                             title={t("expenses.attach_receipts")}
@@ -1293,7 +1301,7 @@ export default function ExpenseManagementPage() {
                         )}
                       </td>
                       <td className="px-2.5 py-1">
-                        <div className="flex items-center gap-1">
+                        {!viewOnly && <div className="flex items-center gap-1">
                           <button onClick={() => openEdit(e)} title={t("common.edit")} aria-label={t("common.edit")}
                             className="flex items-center gap-0.5 px-1.5 py-0.5 rounded border border-slate-200 text-slate-600 hover:border-[#0a66c2] hover:bg-[#EBF2FD] hover:text-[#0a66c2] transition text-[11px] font-medium">
                             <Pencil size={9} /> {t("common.edit")}
@@ -1307,7 +1315,7 @@ export default function ExpenseManagementPage() {
                             className="p-0.5 rounded text-slate-500 hover:bg-red-50 hover:text-red-600 transition disabled:opacity-40">
                             <Trash2 size={10} />
                           </button>
-                        </div>
+                        </div>}
                       </td>
                     </tr>
                   );
@@ -1324,7 +1332,7 @@ export default function ExpenseManagementPage() {
                 <AlertCircle size={20} className="opacity-40" />
               </div>
               <p className="font-semibold text-slate-500 text-xs">{t("expenses.no_expenses")}</p>
-              {!search && !catFilter && (
+              {!search && !catFilter && !viewOnly && (
                 <button onClick={openModal}
                   className="mt-3 flex items-center gap-1.5 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition hover:opacity-90" style={{ background: "#0a66c2" }}>
                   <Plus size={11} /> {t("expenses.add")}

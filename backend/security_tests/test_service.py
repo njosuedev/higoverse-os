@@ -250,6 +250,73 @@ def test_admin_routes_refuse_company_roles(client, role):
         assert r.status_code in (401, 403), f"{role}: {m} {p} -> {r.status_code}"
 
 
+# ── 3b. A car company's accountant only views expenses ──────────────────────
+
+EXPENSES_ONLY = "This account can only view expenses."
+
+
+def _car_accountant_may(method: str, path: str) -> bool:
+    if method == "GET" and path.startswith("/ledger/") and SERVICE in ("sale-service", "expense-service"):
+        return True
+    if SERVICE == "sale-service" and (method, path) == ("POST", "/sales/printed"):
+        return True
+    if SERVICE == "expense-service":
+        return method == "GET" and (path == "/expenses" or path.startswith("/expenses/"))
+    if SERVICE in ("shop-service", "settings-service"):
+        return method == "GET"
+    return SERVICE == "auth-service"  # their own account: sign-in, password
+
+
+def test_car_accountant_only_views_expenses(client):
+    if SERVICE == "auth-service":
+        pytest.skip("auth-service: the account itself")
+    tok = token(SHOP_A, "accountant", layout="car")
+    for m, p in PRIVATE:
+        r = call(client, m, fill(p), auth(tok))
+        if _car_accountant_may(m, p):
+            assert EXPENSES_ONLY not in r.text, f"{m} {p} refused to a car accountant"
+        else:
+            assert r.status_code == 403, f"car accountant: {m} {p} -> {r.status_code}"
+
+
+def test_accountant_elsewhere_keeps_the_expense_book(client):
+    if SERVICE != "expense-service":
+        pytest.skip("expense-service only")
+    tok = token(SHOP_A, "accountant", layout="retail")
+    r = client.post("/expenses", json={}, headers=auth(tok))
+    assert EXPENSES_ONLY not in r.text and r.status_code != 403, r.text[:200]
+
+
+@pytest.mark.parametrize("role,layout", [("manager", "car"), ("cashier", "car"), ("storekeeper", "car"),
+                                         ("owner", "retail"), ("accountant", "retail")])
+def test_ledger_is_for_car_owners_and_accountants(client, role, layout):
+    if SERVICE not in ("sale-service", "expense-service"):
+        pytest.skip("sale-service and expense-service only")
+    r = client.get("/ledger/lines", headers=auth(token(SHOP_A, role, layout=layout)))
+    assert r.status_code == 403, f"{role}/{layout}: {r.status_code}"
+    for ok in ("owner", "accountant"):
+        r = client.get("/ledger/lines", headers=auth(token(SHOP_A, ok, layout="car")))
+        assert r.status_code == 200, f"{ok}: {r.status_code} {r.text[:200]}"
+
+
+def test_ledger_entries_balance():
+    """Every transaction posted to the ledger has equal debits and credits,
+    whatever the amounts (negative corrections included)."""
+    if SERVICE != "sale-service":
+        pytest.skip("sale-service only")
+    from app.api.routes.ledger import Book
+    b = Book("2026-12-31")
+    b.post("t1", "2026-11-01", "sale", "", "", "", [("2000", 300, 0), ("1000", 500, 0), ("1100", 200, 0), ("4000", 0, 1000)])
+    b.post("t2", "2026-11-02", "payment", "", "", "", [("1000", -50, 0), ("1100", 0, -50)])
+    b.post("t3", "2027-01-01", "sale", "", "", "", [("1000", 10, 0), ("4000", 0, 10)])  # after `to`: left out
+    b.post("t4", "2026-11-03", "x", "", "", "", [("1000", 10, 0), ("4000", 0, 7)])      # unbalanced: evened out
+    assert {l["txn"] for l in b.lines} == {"t1", "t2", "t4"}
+    for txn in ("t1", "t2", "t4"):
+        rows = [l for l in b.lines if l["txn"] == txn]
+        assert round(sum(l["debit"] for l in rows) - sum(l["credit"] for l in rows), 2) == 0, txn
+        assert all(l["debit"] >= 0 and l["credit"] >= 0 for l in rows), txn
+
+
 # ── 4. Per-company settings and totals ───────────────────────────────────────
 
 def test_settings_are_per_company(client):

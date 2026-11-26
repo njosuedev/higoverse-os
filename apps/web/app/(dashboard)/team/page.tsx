@@ -99,7 +99,7 @@ export default function TeamPage() {
 }
 
 function AddEmployee({ onClose }: { onClose: () => void }) {
-  const { t } = useLanguage();
+  const { t, layout } = useLanguage();
   const [v, setV] = useState({ name: "", email: "", password: "", role: "cashier" });
   const [saving, setSaving] = useState(false);
 
@@ -134,7 +134,10 @@ function AddEmployee({ onClose }: { onClose: () => void }) {
                 <button key={r} type="button" onClick={() => setV({ ...v, role: r })}
                   className={`rounded-full px-3 py-1.5 text-xs font-semibold ${v.role === r ? "bg-ink-soft text-ink" : "bg-slate-100 text-slate-600"}`}>{t(`role.${r}`)}</button>
               ))}
-            </div></div>
+            </div>
+            {layout === "car" && v.role === "accountant" && (
+              <p className="mt-2 text-xs text-slate-500">{t("team.accountant_car_hint")}</p>
+            )}</div>
         </div>
         <div className="flex justify-end gap-2.5 px-5 py-4 border-t border-slate-100">
           <button onClick={onClose} className="px-4 py-2 rounded-lg border border-slate-200 text-slate-600 text-sm font-medium hover:bg-slate-50 transition">{t("common.cancel")}</button>

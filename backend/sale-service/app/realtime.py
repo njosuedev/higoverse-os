@@ -50,6 +50,9 @@ def _decode(token: str) -> dict | None:
         p = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.AUTH_SERVICE_ALGORITHM])
     except (JWTError, AttributeError, TypeError):
         return None
+    # A car company's accountant only views expenses: no live sales feed.
+    if p.get("layout") == "car" and p.get("role") == "accountant":
+        return None
     return {
         "user_id": p.get("sub"),
         "shop_id": str(p["shop_id"]) if p.get("shop_id") else None,

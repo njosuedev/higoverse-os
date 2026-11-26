@@ -11,6 +11,7 @@ from app.api.routes.proforma import router as proforma_router
 from app.api.routes.chat import router as chat_router
 from app.api.routes.rentals import router as rental_router
 from app.api.routes.ebm import router as ebm_router
+from app.api.routes.ledger import router as ledger_router
 from app.realtime import router as live_router, hub
 from app.db.database import Base, engine
 
@@ -50,6 +51,7 @@ app.include_router(proforma_router)
 app.include_router(chat_router)
 app.include_router(rental_router)
 app.include_router(ebm_router)
+app.include_router(ledger_router)
 app.include_router(live_router)
 
 

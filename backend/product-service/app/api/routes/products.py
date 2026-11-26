@@ -736,6 +736,46 @@ def get_covers(
 
 
 # -----------------------------
+# CAR DEPOSITS (for the ledger; other services only)
+# -----------------------------
+@router.get("/ledger-deposits")
+def ledger_deposits(
+    db: Session = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    """Every car of the business that holds deposits (booking payments made
+    on the Vehicles page or copied from a proforma), sold cars included:
+    sale-service posts them to the general ledger. Signed service calls only."""
+    if not user.get("internal"):
+        raise HTTPException(status_code=403, detail="Not available.")
+    if not user["shop_id"]:
+        return {"success": True, "data": []}
+    rows = (
+        db.query(Product.id, Product.name, Product.attributes)
+        .filter(Product.shop_id == user["shop_id"], func.coalesce(Product.attributes, "").like('%"deposits"%'))
+        .all()
+    )
+    out = []
+    for pid, name, attributes in rows:
+        a = _parse_attrs(attributes)
+        deposits = a.get("deposits") or []
+        if isinstance(deposits, str):
+            try:
+                deposits = json.loads(deposits or "[]")
+            except ValueError:
+                deposits = []
+        deposits = [d for d in deposits if isinstance(d, dict)] if isinstance(deposits, list) else []
+        if not deposits:
+            continue
+        out.append({
+            "product_id": pid, "name": name, "plate_no": a.get("plate_no") or "",
+            "buyer_name": a.get("buyer_name") or "", "buyer_customer_id": a.get("buyer_customer_id") or "",
+            "deposits": deposits,
+        })
+    return {"success": True, "data": out}
+
+
+# -----------------------------
 # GET SINGLE PRODUCT
 # -----------------------------
 @router.get("/{product_id}")

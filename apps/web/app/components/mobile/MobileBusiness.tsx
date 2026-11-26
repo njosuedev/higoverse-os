@@ -10,12 +10,12 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import {
   BarChart3, CalendarCheck, ChevronRight, CircleDollarSign, Download, FileText, HandCoins, Languages, LogOut, Monitor, Moon, Receipt,
-  Settings, ShieldCheck, Store, Sun, Truck, TriangleAlert, Users, UsersRound, Wallet, TrendingUp } from "lucide-react";
+  Settings, ShieldCheck, Store, Sun, Truck, TriangleAlert, Users, UsersRound, Wallet, TrendingUp, BookOpen } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { useLanguage } from "@/lib/language-context";
 import { useShop } from "@/lib/shop-context";
 import { useShopSettings } from "@/lib/shop-settings-context";
-import { useCanSeeFinancials, useCanUseExpenses } from "@/lib/permissions";
+import { useCanSeeFinancials, useCanUseExpenses, useCanUseLedger } from "@/lib/permissions";
 import { useThemePref } from "@/lib/theme";
 import { LANGUAGES } from "@/lib/i18n";
 import { settingsRequest } from "@/lib/settings-api";
@@ -34,6 +34,7 @@ export default function MobileBusiness() {
   const { currency, lowStock } = useShopSettings();
   const fin = useCanSeeFinancials();
   const expenses = useCanUseExpenses();
+  const ledger = useCanUseLedger();
   const [themePref, setThemePref] = useThemePref();
   const chat = useChat();
   const isCar = layout === "car";
@@ -78,6 +79,7 @@ export default function MobileBusiness() {
         <Row icon={<UsersRound size={20} />} title={t("team.title")} sub={t("team.menu_sub")} href="/team" />
         {expenses && <Row icon={<Receipt size={20} />} title={t("exp.title")} sub={t("exp.menu_sub")} href="/expenses" />}
         {expenses && <Row icon={<TrendingUp size={20} />} title={t("income.title")} sub={t("income.menu_sub")} href="/income" />}
+        {ledger && <Row icon={<BookOpen size={20} />} title={t("ledger.title")} href="/ledger" />}
       </Group>
 
       {/* The website's sections the app doesn't have */}
