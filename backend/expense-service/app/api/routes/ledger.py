@@ -26,7 +26,7 @@ from app.models.income import Income
 
 router = APIRouter(prefix="/ledger", tags=["Ledger"])
 
-LEDGER_ROLES = {"owner", "admin", "accountant"}
+LEDGER_ROLES = {"owner", "admin"}
 KIGALI = timezone(timedelta(hours=2))
 
 EXPENSE_ACCOUNTS = {
@@ -43,7 +43,7 @@ OTHER_INCOME = "4800"
 
 def require_ledger(user: dict = Depends(get_current_user)) -> dict:
     if user.get("layout") != "car" or user.get("role") not in LEDGER_ROLES:
-        raise HTTPException(status_code=403, detail="The ledger is for the owner and the accountant of a car company.")
+        raise HTTPException(status_code=403, detail="The ledger is for the owner of a car company.")
     if not user.get("shop_id"):
         raise HTTPException(status_code=400, detail="This account has no business.")
     return user

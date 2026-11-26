@@ -64,6 +64,7 @@ def _fmt(e: Expense, include_proof: bool = False) -> dict:
         "supplier_tin":   e.supplier_tin,
         "doc_ref":        e.doc_ref,
         "no_ebm_reason":  e.no_ebm_reason,
+        "voucher_no":     e.voucher_no,
     }
     if include_proof:
         result["proof_data"] = e.proof_data

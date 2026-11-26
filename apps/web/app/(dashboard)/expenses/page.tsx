@@ -59,6 +59,8 @@ interface Expense {
   supplier_tin?: string | null;
   doc_ref?: string | null;
   no_ebm_reason?: NoEbmReason | null;
+  /** The expense book's internal reference, e.g. EXP-2026-0001. */
+  voucher_no?: string | null;
 }
 
 const isIn = (e: Expense) => e.direction === "in";
@@ -447,24 +449,25 @@ export default function ExpenseManagementPage() {
     const top = company.length;
 
     const headers = [
-      "Date", "Title", "Category", ...(isCar ? ["Where"] : []), `Amount (${currency})`,
+      "Ref.", "Date", "Title", "Category", ...(isCar ? ["Where"] : []), `Amount (${currency})`,
       "Payment Method", "Bank Name", "Account / Ref", "Receiver Phone", "Notes",
     ];
 
     const dataRows = rows.map((e) => {
       const d = e.expense_date ? new Date(e.expense_date) : null;
       return [
-        d ? toDateStr(d) : "",
+        e.voucher_no || "N/A",
+        d ? toDateStr(d) : "N/A",
         e.title,
         e.category,
         ...(isCar ? [e.scope === "abroad" ? "Abroad" : "Rwanda"] : []),
         Number(e.amount),
         e.payment_method === "mtn"  ? "MTN Mobile Money"
-          : e.payment_method === "bank" ? "Bank Transfer" : "",
-        e.bank_name      || "",
-        e.bank_account   || "",
-        e.receiver_phone || "",
-        e.notes          || "",
+          : e.payment_method === "bank" ? "Bank Transfer" : e.payment_method === "cash" ? "Cash" : "N/A",
+        e.bank_name      || "N/A",
+        e.bank_account   || "N/A",
+        e.receiver_phone || "N/A",
+        e.notes          || "N/A",
       ];
     });
 
@@ -478,7 +481,7 @@ export default function ExpenseManagementPage() {
       headers,
       ...dataRows,
       [],
-      ["", "TOTAL", "", ...(isCar ? [""] : []), grandTotal, "", "", "", "", ""],
+      ["", "", "TOTAL", "", ...(isCar ? [""] : []), grandTotal, "", "", "", "", ""],
     ];
 
     const ws = XLSX.utils.aoa_to_sheet(wsData);
@@ -678,35 +681,37 @@ export default function ExpenseManagementPage() {
 
     autoTable(doc, {
       startY: curY,
-      head: [["Date", "Title", "Category", `Amount (${currency})`, "Payment", "Bank Name", "Account / Ref", "Receiver Phone", "Notes"]],
+      head: [["Ref.", "Date", "Title", "Category", `Amount (${currency})`, "Payment", "Bank Name", "Account / Ref", "Receiver Phone", "Notes"]],
       body: rows.map((e) => {
         const d = e.expense_date ? new Date(e.expense_date) : null;
         return [
-          d ? toDateStr(d) : "-",
+          e.voucher_no || "N/A",
+          d ? toDateStr(d) : "N/A",
           e.title,
           e.category.charAt(0).toUpperCase() + e.category.slice(1),
           Number(e.amount).toLocaleString(),
           e.payment_method === "mtn"  ? "MTN MoMo"
-            : e.payment_method === "bank" ? "Bank" : "-",
-          e.bank_name      || "-",
-          e.bank_account   || "-",
-          e.receiver_phone || "-",
-          e.notes ? (e.notes.length > 40 ? e.notes.slice(0, 38) + "…" : e.notes) : "-",
+            : e.payment_method === "bank" ? "Bank" : e.payment_method === "cash" ? "Cash" : "N/A",
+          e.bank_name      || "N/A",
+          e.bank_account   || "N/A",
+          e.receiver_phone || "N/A",
+          e.notes ? (e.notes.length > 40 ? e.notes.slice(0, 38) + "…" : e.notes) : "N/A",
         ];
       }),
       styles:             { fontSize: 6.5, cellPadding: 1.8 },
       headStyles:         { fillColor: C_BLUE, textColor: C_WHITE, fontStyle: "bold", fontSize: 7 },
       alternateRowStyles: { fillColor: [248, 250, 252] as [number, number, number] },
       columnStyles: {
-        0: { cellWidth: 20 },
-        1: { cellWidth: 50 },
-        2: { cellWidth: 20 },
-        3: { cellWidth: 24, halign: "right" as const },
-        4: { cellWidth: 18 },
-        5: { cellWidth: 24 },
-        6: { cellWidth: 24 },
-        7: { cellWidth: 24 },
-        8: { cellWidth: "auto" as const },
+        0: { cellWidth: 22 },
+        1: { cellWidth: 18 },
+        2: { cellWidth: 46 },
+        3: { cellWidth: 20 },
+        4: { cellWidth: 22, halign: "right" as const },
+        5: { cellWidth: 17 },
+        6: { cellWidth: 22 },
+        7: { cellWidth: 22 },
+        8: { cellWidth: 22 },
+        9: { cellWidth: "auto" as const },
       },
       margin: { left: 14, right: 14 },
       didDrawPage: (data) => {
@@ -1006,6 +1011,7 @@ export default function ExpenseManagementPage() {
     if (!q) return expenses;
     return expenses.filter((e) =>
       e.title.toLowerCase().includes(q) ||
+      (e.voucher_no || "").toLowerCase().includes(q) ||
       e.category.toLowerCase().includes(q) ||
       (e.notes || "").toLowerCase().includes(q)
     );
@@ -1307,7 +1313,7 @@ export default function ExpenseManagementPage() {
                           {isCar && isNoEbm(e) && <span title={t("rra.tag_hint")} className={`ml-1 inline-flex rounded border px-1 text-[10px] font-semibold align-middle ${e.has_proof ? "bg-amber-50 border-amber-200 text-amber-800" : "bg-red-50 border-red-200 text-red-700"}`}>{t("rra.tag")}{!e.has_proof && " !"}</span>}
                           {e.corrected && <span title={t("move.corrected_tag_hint")} className="ml-1 inline-flex rounded bg-amber-50 border border-amber-200 px-1 text-[10px] font-semibold text-amber-700 align-middle">{t("move.corrected_tag")}</span>}
                         </p>
-                        <p className="text-[11px] text-slate-400 font-mono leading-tight">{e.id.slice(0, 8)}</p>
+                        <p className="text-[11px] text-slate-400 font-mono leading-tight" title={t("rra.internal_ref")}>{e.voucher_no || e.id.slice(0, 8)}</p>
                       </td>
                       <td className="px-2.5 py-1">
                         <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[11px] font-semibold ${colors.badge}`}>

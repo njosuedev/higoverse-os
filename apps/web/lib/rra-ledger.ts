@@ -1,15 +1,19 @@
 "use client";
 
-// Expenses not supported by EBM, ready for the RRA Tax Ledger (E-Tax ›
-// Annexure download › Ledger Account). RRA counts an expense in the income
-// tax declaration only if it has an EBM receipt, a withholding tax (WHT) or
-// customs (DMC) declaration, or is lodged in the Tax Ledger with its
-// supporting documents. Expenses marked "No EBM" (expense-service
-// ebm_support = "none") are listed here with who was paid, their TIN/ID, the
-// document number and why there is no EBM, then exported as:
-//   - an Excel schedule (rows to copy into RRA's Ledger Account annex), and
-//   - a PDF pack: the signed schedule, then every receipt photo as an annex
-//     (PDF receipts are downloaded beside it, named by their row number).
+// The expense book on paper, for RRA and for the business's own files: all
+// the year's expenses, as one PDF (the schedule, then every supporting
+// document as an annex) or one Excel workbook (the expenses, the RRA Tax
+// Ledger sheet and the totals).
+//
+// RRA counts an expense in the income tax declaration only if it has an EBM
+// receipt, a withholding tax (WHT) or customs (DMC) declaration, or is lodged
+// in the RRA Tax Ledger (E-Tax › Annexure download › Ledger Account) with its
+// supporting documents: each row says which, and for one without EBM who was
+// paid, their TIN/ID, the document number and why there is no EBM. Every row
+// carries the expense's internal reference (001, 002…, given by
+// expense-service), and an empty cell reads "N/A". PDF receipts can't be
+// placed inside a PDF made in the browser: they are listed for download
+// beside it (browsers block a page that starts several downloads at once).
 
 import { expenseRequest } from "@/lib/expense-api";
 import { companySheet, getPrintShop, imageForPdf, pdfCompanyHeader } from "@/lib/print-shop";
@@ -28,12 +32,23 @@ export const REASON_EN: Record<NoEbmReason, string> = {
   abroad: "Service bought abroad",
   other: "Other",
 };
+const SUPPORT_EN: Record<Support, string> = { ebm: "EBM receipt", wht: "Withholding tax", dmc: "Customs (DMC)", none: "No EBM" };
+const CATEGORY_EN: Record<string, string> = {
+  rent: "Rent", utilities: "Utilities", salaries: "Salaries", supplies: "Supplies", maintenance: "Repairs & maintenance",
+  marketing: "Marketing", transport: "Transport", taxes: "Taxes & licenses", other: "Other",
+};
 const METHOD_EN: Record<string, string> = { cash: "Cash", mtn: "MTN MoMo", bank: "Bank" };
+export const NA = "N/A";
+const na = (v: unknown) => (v === null || v === undefined || String(v).trim() === "" ? NA : String(v));
 
-export interface RraItem {
-  id: string; title: string; amount: number; expense_date: string; notes?: string | null;
-  category: string; payment_method?: string | null; bank_name?: string | null; receiver_phone?: string | null;
-  supplier_name?: string | null; supplier_tin?: string | null; doc_ref?: string | null; no_ebm_reason?: NoEbmReason | null;
+/** An expense as the expense service sends it (the fields used here). */
+export interface BookExpense {
+  id: string; voucher_no?: string | null; title: string; amount: number; expense_date: string; notes?: string | null;
+  category: string; payment_method?: string | null; bank_name?: string | null; direction?: string | null;
+  ebm_support?: Support | null; supplier_name?: string | null; supplier_tin?: string | null; doc_ref?: string | null;
+  no_ebm_reason?: NoEbmReason | null; has_proof?: boolean;
+}
+export interface RraItem extends BookExpense {
   proof_count: number; proof_names: string[]; missing: ("proof" | "supplier_name" | "reason" | "supplier_tin" | "doc_ref")[];
 }
 
@@ -42,48 +57,125 @@ export async function loadRraLedger(from: string, to: string): Promise<{ items: 
   return { items: res?.data?.items ?? [], total: Number(res?.data?.total ?? 0) };
 }
 
+/** Every expense of the period (money spent, not money received), oldest first. */
+export async function loadAllExpenses(from: string, to: string): Promise<BookExpense[]> {
+  const all: BookExpense[] = [];
+  for (let page = 1; page < 50; page++) {
+    const res = await expenseRequest(`/expenses?page=${page}&limit=500&from_date=${from}&to_date=${to}`);
+    const items: BookExpense[] = res?.data?.items ?? [];
+    all.push(...items);
+    if (items.length < 500) break;
+  }
+  return all.filter((e) => e.direction !== "in")
+    .sort((a, b) => a.expense_date.localeCompare(b.expense_date) || (a.voucher_no ?? "").localeCompare(b.voucher_no ?? ""));
+}
+
 const day = (s: string) => (s || "").slice(0, 10);
 const money = (n: number) => Math.round(n).toLocaleString("en-US");
-const paidBy = (i: RraItem) => [METHOD_EN[i.payment_method ?? ""] ?? i.payment_method ?? "", i.bank_name ?? ""].filter(Boolean).join(" · ");
-const fileStem = (p: { from: string; to: string }) => `RRA_tax_ledger_${p.from}_${p.to}`;
+const paidBy = (i: BookExpense) => [METHOD_EN[i.payment_method ?? ""] ?? i.payment_method ?? "", i.bank_name ?? ""].filter(Boolean).join(" · ");
+/** No EBM: marked so, or never marked (salaries and taxes aside), as expense-service counts it. */
+export const isNoEbm = (i: BookExpense) =>
+  i.ebm_support === "none" || (!i.ebm_support && i.category !== "salaries" && i.category !== "taxes");
+const supportOf = (i: BookExpense) => {
+  if (i.ebm_support && i.ebm_support !== "none") return SUPPORT_EN[i.ebm_support];
+  if (!isNoEbm(i)) return NA;
+  return `No EBM${i.no_ebm_reason ? `: ${REASON_EN[i.no_ebm_reason]}` : ""}`;
+};
+const hasDocs = (i: BookExpense) => ("proof_count" in i ? (i as RraItem).proof_count > 0 : !!i.has_proof);
 
-function rows(items: RraItem[]) {
-  return items.map((i, n) => ({
-    "No.": n + 1,
-    Date: day(i.expense_date),
-    "Supplier / payee": i.supplier_name ?? "",
-    "Supplier TIN / ID": i.supplier_tin ?? "",
-    "Description of goods or service": i.title + (i.notes ? ` (${i.notes})` : ""),
-    "Reason no EBM": i.no_ebm_reason ? REASON_EN[i.no_ebm_reason] : "",
-    "Document reference": i.doc_ref ?? "",
-    "Paid by": paidBy(i),
-    Amount: Math.round(i.amount * 100) / 100,
-    "Supporting documents": i.proof_count ? `${i.proof_count} attached (Annex ${n + 1})` : "MISSING",
-  }));
+type Kind = "rra" | "all";
+const TITLE: Record<Kind, string> = { rra: "Expenses not supported by EBM", all: "Expenses and supporting documents" };
+const stemOf = (k: Kind, p: { from: string; to: string }) => `${k === "rra" ? "RRA_tax_ledger" : "Expenses_with_documents"}_${p.from}_${p.to}`;
+
+/** One row per expense, in the order of the annexes. */
+function rows(kind: Kind, items: BookExpense[]) {
+  return items.map((i, n) => {
+    const base = {
+      "No.": n + 1,
+      "Internal ref.": na(i.voucher_no),
+      Date: day(i.expense_date),
+      "Description": i.title + (i.notes ? ` (${i.notes})` : ""),
+    };
+    const rest = kind === "rra" ? {
+      "Supplier / payee": na(i.supplier_name),
+      "Supplier TIN / ID": na(i.supplier_tin),
+      "Reason no EBM": i.no_ebm_reason ? REASON_EN[i.no_ebm_reason] : NA,
+    } : {
+      Category: CATEGORY_EN[i.category] ?? i.category,
+      "RRA support": supportOf(i),
+      "Paid to": na(i.supplier_name),
+      "TIN / ID": na(i.supplier_tin),
+    };
+    return {
+      ...base, ...rest,
+      "Document reference": na(i.doc_ref),
+      "Paid by": na(paidBy(i)),
+      Amount: Math.round(i.amount * 100) / 100,
+      "Supporting documents": hasDocs(i) ? `Annex ${n + 1}` : (kind === "rra" ? "MISSING" : NA),
+    };
+  });
+}
+
+/** Totals by reason (RRA pack) or by category (all expenses). */
+function summary(kind: Kind, items: BookExpense[]) {
+  const groups = new Map<string, { n: number; total: number }>();
+  for (const i of items) {
+    const k = kind === "rra" ? REASON_EN[i.no_ebm_reason ?? "other"] : (CATEGORY_EN[i.category] ?? i.category);
+    const g = groups.get(k) ?? { n: 0, total: 0 };
+    g.n++; g.total += i.amount; groups.set(k, g);
+  }
+  return [...groups.entries()].sort((a, b) => b[1].total - a[1].total);
 }
 
 // ── Excel ────────────────────────────────────────────────────────────────
 
-export async function exportRraExcel(items: RraItem[], p: { from: string; to: string; currency: string }) {
+async function exportExcel(kind: Kind, items: BookExpense[], p: { from: string; to: string; currency: string }) {
   const XLSX = await import("xlsx");
   const shop = await getPrintShop();
   const total = items.reduce((s, i) => s + i.amount, 0);
-  const sub = `Period ${p.from} to ${p.to}  |  ${items.length} expenses  |  Total ${money(total)} ${p.currency}  |  For E-Tax › Annexure download › Ledger Account`;
+  const sub = `Period ${p.from} to ${p.to}  |  ${items.length} expenses  |  Total ${money(total)} ${p.currency}`
+    + (kind === "rra" ? "  |  For E-Tax › Annexure download › Ledger Account" : "");
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, companySheet(XLSX, shop, "Expenses not supported by EBM", sub, rows(items)), "RRA Tax Ledger");
-  const byReason = NO_EBM_REASONS.map((r) => {
-    const list = items.filter((i) => (i.no_ebm_reason ?? "other") === r);
-    return { "Reason no EBM": REASON_EN[r], Expenses: list.length, Amount: list.reduce((s, i) => s + i.amount, 0) };
-  }).filter((r) => r.Expenses);
-  byReason.push({ "Reason no EBM": "TOTAL", Expenses: items.length, Amount: total });
-  XLSX.utils.book_append_sheet(wb, companySheet(XLSX, shop, "Summary by reason", sub, byReason), "Summary");
-  XLSX.writeFile(wb, `${fileStem(p)}.xlsx`);
+  XLSX.utils.book_append_sheet(wb, companySheet(XLSX, shop, TITLE[kind], sub, rows(kind, items)), kind === "rra" ? "RRA Tax Ledger" : "Expenses");
+  if (kind === "all") {
+    // The expenses without EBM on their own sheet, ready for E-Tax › Ledger Account.
+    const noEbm = items.filter(isNoEbm);
+    const t = noEbm.reduce((s, i) => s + i.amount, 0);
+    XLSX.utils.book_append_sheet(wb, companySheet(XLSX, shop, TITLE.rra,
+      `Period ${p.from} to ${p.to}  |  ${noEbm.length} expenses  |  Total ${money(t)} ${p.currency}  |  For E-Tax › Annexure download › Ledger Account`,
+      rows("rra", noEbm)), "RRA Tax Ledger");
+  }
+  const head = kind === "rra" ? "Reason no EBM" : "Category";
+  const sum: Record<string, unknown>[] = summary(kind, items).map(([k, g]) => ({ [head]: k, Expenses: g.n, Amount: g.total }));
+  sum.push({ [head]: "TOTAL", Expenses: items.length, Amount: total });
+  XLSX.utils.book_append_sheet(wb, companySheet(XLSX, shop, `Summary by ${head.toLowerCase()}`, sub, sum), "Summary");
+  const file = `${stemOf(kind, p)}.xlsx`;
+  XLSX.writeFile(wb, file);
+  return file;
 }
 
-// ── PDF pack ─────────────────────────────────────────────────────────────
+export const exportAllExcel = (items: BookExpense[], p: { from: string; to: string; currency: string }) => exportExcel("all", items, p);
+
+// ── PDF ──────────────────────────────────────────────────────────────────
+//
+// One organised document:
+//   page 1   summary: the company, key figures, totals by category and by
+//            RRA support, and the contents;
+//   then     1. Schedule of expenses (landscape): one row per expense, with
+//            the page of its documents (a link), the declaration and the
+//            signatures;
+//   then     2. Supporting documents (portrait): the expenses in the same
+//            order, each under a band giving its reference, date, amount,
+//            description, payee and document number, then its receipts;
+//            small receipts (MoMo SMS…) share a page;
+//   footer   the company, the title and "Page x of y" on every page.
+
+type Photo = { data: string; w: number; h: number };
+type Proof = { name: string; type: string; photo: Photo | null };
+type PdfOpts = { from: string; to: string; currency: string; preparedBy: string; onProgress?: (done: number, all: number) => void };
 
 /** A receipt photo as a JPEG for the PDF, at most 1600 px (readable, not huge). */
-async function photoForPdf(dataUrl: string): Promise<{ data: string; w: number; h: number } | null> {
+async function photoForPdf(dataUrl: string): Promise<Photo | null> {
   try {
     const img = new Image();
     await new Promise((ok, fail) => { img.onload = ok; img.onerror = fail; img.src = dataUrl; });
@@ -98,105 +190,259 @@ async function photoForPdf(dataUrl: string): Promise<{ data: string; w: number; 
   } catch { return null; }
 }
 
-function download(dataUrl: string, name: string) {
-  const a = document.createElement("a");
-  a.href = dataUrl; a.download = name;
-  document.body.appendChild(a); a.click(); a.remove();
+/** Every expense's documents, fetched and prepared 6 at a time. */
+async function loadProofs(items: BookExpense[], onProgress?: (d: number, all: number) => void) {
+  const out = new Map<string, Proof[]>();
+  const queue = items.filter(hasDocs);
+  const all = queue.length;
+  let done = 0;
+  onProgress?.(0, all);
+  await Promise.all(Array.from({ length: Math.min(6, queue.length) }, async () => {
+    for (let it = queue.shift(); it; it = queue.shift()) {
+      let files: { name: string; type: string; data: string }[] = [];
+      try { files = (await expenseRequest(`/expenses/${it.id}/proof`))?.data?.files ?? []; } catch { files = []; }
+      out.set(it.id, await Promise.all(files.map(async (f) => ({
+        name: f.name, type: f.type, photo: f.type.startsWith("image/") ? await photoForPdf(f.data) : null,
+      }))));
+      onProgress?.(++done, all);
+    }
+  }));
+  return out;
 }
 
-export async function exportRraPdf(
-  items: RraItem[],
-  p: { from: string; to: string; currency: string; preparedBy: string; onProgress?: (done: number, all: number) => void },
-): Promise<{ separateFiles: number }> {
+// Portrait pages for the documents (mm).
+const PW_P = 210, PH_P = 297, MARGIN = 12, BAND = 19, BOTTOM = PH_P - 14;
+const IMG_W = 150, IMG_H = PH_P - 2 * MARGIN - BAND - 22;
+
+type Placed =
+  | { kind: "title"; y: number }
+  | { kind: "band"; y: number; item: BookExpense; continued: boolean }
+  | { kind: "photo"; y: number; photo: Photo; w: number; h: number }
+  | { kind: "note"; y: number; text: string };
+
+/** Where every band and receipt goes, page by page (so the schedule can say
+ *  on which page each expense's documents are before they are drawn). */
+function planDocuments(items: BookExpense[], proofs: Map<string, Proof[]>) {
+  const pages: Placed[][] = [[{ kind: "title", y: MARGIN }]];
+  const startPage = new Map<string, number>();
+  let y = MARGIN + 12;
+  const newPage = () => { pages.push([]); y = MARGIN; };
+  const boxOf = (p: Proof) => {
+    if (!p.photo) return { h: 14 };
+    const k = Math.min(IMG_W / p.photo.w, IMG_H / p.photo.h);
+    return { h: p.photo.h * k, w: p.photo.w * k };
+  };
+  for (const it of items) {
+    const docs = proofs.get(it.id) ?? [];
+    if (!docs.length) continue;
+    const first = boxOf(docs[0]);
+    if (y + BAND + first.h + 4 > BOTTOM && pages[pages.length - 1].length) newPage();
+    startPage.set(it.id, pages.length - 1);
+    pages[pages.length - 1].push({ kind: "band", y, item: it, continued: false });
+    y += BAND + 3;
+    docs.forEach((d, i) => {
+      const box = boxOf(d);
+      if (y + box.h > BOTTOM) {
+        newPage();
+        pages[pages.length - 1].push({ kind: "band", y, item: it, continued: true });
+        y += 11;
+      }
+      if (d.photo && "w" in box) pages[pages.length - 1].push({ kind: "photo", y, photo: d.photo, w: box.w!, h: box.h });
+      else pages[pages.length - 1].push({ kind: "note", y, text: d.type === "application/pdf"
+        ? `Document ${i + 1} is a PDF file (${d.name}): open expense ${na(it.voucher_no)} in Higoverse to view or print the original.`
+        : `Document ${i + 1} (${d.name}) could not be included.` });
+      y += box.h + 4;
+    });
+    y += 5;
+  }
+  return { pages, startPage };
+}
+
+async function exportPdf(kind: Kind, items: BookExpense[], p: PdfOpts): Promise<{ file: string }> {
   const { jsPDF } = await import("jspdf");
   const { default: autoTable } = await import("jspdf-autotable");
-  const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+  type PDF = InstanceType<typeof jsPDF>;
+  type WithTable = { lastAutoTable?: { finalY?: number } };
   const shop = await getPrintShop();
-  const PW = doc.internal.pageSize.getWidth(), PH = doc.internal.pageSize.getHeight();
+  const logo = await imageForPdf(shop.logo_url);
   const ink: [number, number, number] = [22, 36, 58];
+  const soft: [number, number, number] = [235, 242, 253];
   const total = items.reduce((s, i) => s + i.amount, 0);
+  const title = kind === "rra" ? TITLE.rra : "Expense book and supporting documents";
+  const period = `${p.from} to ${p.to}`;
 
-  const startY = pdfCompanyHeader(doc, shop, await imageForPdf(shop.logo_url), "Expenses not supported by EBM",
-    `RRA Tax Ledger  |  Period ${p.from} to ${p.to}  |  ${items.length} expenses  |  ${p.currency}`);
-  const body = rows(items).map((r) => [r["No."], r.Date, r["Supplier / payee"], r["Supplier TIN / ID"] || "-",
-    r["Description of goods or service"], r["Reason no EBM"], r["Document reference"] || "-", r["Paid by"] || "-",
-    money(r.Amount), r["Supporting documents"]]);
-  autoTable(doc, {
-    startY,
-    head: [["No.", "Date", "Supplier / payee", "TIN / ID", "Description", "Reason no EBM", "Doc. ref.", "Paid by", `Amount (${p.currency})`, "Documents"]],
-    body,
-    foot: [["", "", "", "", "", "", "", "TOTAL", money(total), ""]],
-    styles: { fontSize: 7, cellPadding: 1.5, overflow: "linebreak" },
-    headStyles: { fillColor: ink, textColor: 255, fontStyle: "bold" },
-    footStyles: { fillColor: ink, textColor: 255, fontStyle: "bold" },
-    columnStyles: { 0: { cellWidth: 9 }, 1: { cellWidth: 18 }, 8: { halign: "right", cellWidth: 24 }, 9: { cellWidth: 28 } },
-    didParseCell: (d) => { if (d.section === "body" && d.column.index === 9 && d.cell.raw === "MISSING") d.cell.styles.textColor = [200, 30, 30]; },
-    margin: { left: 10, right: 10 },
-  });
+  // 1. Every receipt, ready before anything is laid out.
+  const proofs = await loadProofs(items, p.onProgress);
+  const { pages: docPages, startPage } = planDocuments(items, proofs);
 
-  // Totals by reason, then the declaration and signatures.
-  type Doc = { lastAutoTable?: { finalY?: number } };
-  let y = ((doc as unknown as Doc).lastAutoTable?.finalY ?? startY) + 6;
-  const byReason = NO_EBM_REASONS.map((r) => {
-    const list = items.filter((i) => (i.no_ebm_reason ?? "other") === r);
-    return [REASON_EN[r], String(list.length), money(list.reduce((s, i) => s + i.amount, 0))];
-  }).filter((r) => r[1] !== "0");
-  if (y > PH - 70) { doc.addPage(); y = 16; }
-  autoTable(doc, {
-    startY: y, head: [["Reason no EBM", "Expenses", `Amount (${p.currency})`]], body: byReason,
-    styles: { fontSize: 7.5, cellPadding: 1.5 }, headStyles: { fillColor: [235, 242, 253], textColor: ink, fontStyle: "bold" },
-    columnStyles: { 1: { halign: "right" }, 2: { halign: "right" } }, margin: { left: 10 }, tableWidth: 130,
-  });
-  y = ((doc as unknown as Doc).lastAutoTable?.finalY ?? y) + 8;
-  if (y > PH - 40) { doc.addPage(); y = 16; }
-  doc.setFontSize(8); doc.setTextColor(40, 40, 40); doc.setFont("helvetica", "normal");
-  doc.text(doc.splitTextToSize(
-    `We declare that the expenses listed above were incurred for the business${shop.name ? ` of ${shop.name}` : ""}${shop.tin ? ` (TIN ${shop.tin})` : ""} ` +
-    `during the period ${p.from} to ${p.to}, that no EBM receipt, withholding tax or customs declaration exists for them, and that the ` +
-    "supporting documents in the annex are true copies of the originals kept by the business.", PW - 20), 10, y);
-  y += 14;
-  const sign = (x: number, role: string, name: string) => {
-    doc.setFont("helvetica", "bold"); doc.text(role, x, y);
-    doc.setFont("helvetica", "normal");
-    doc.text(`Name: ${name || "...................................................."}`, x, y + 7);
-    doc.text("Signature: ...........................................", x, y + 14);
-    doc.text("Date: ......................................................", x, y + 21);
+  // 2. The schedule, drawn once on a scratch document to know its length.
+  const scheduleRows = rows(kind, items);
+  const cols = Object.keys(scheduleRows[0] ?? rows(kind, [{ id: "", title: "", amount: 0, expense_date: "", category: "other" }])[0]);
+  const amountCol = cols.indexOf("Amount"), docsCol = cols.indexOf("Supporting documents");
+  const heads = cols.map((c) => (c === "Amount" ? `Amount (${p.currency})` : c === "Supporting documents" ? "Documents" : c === "Document reference" ? "Doc. ref." : c));
+  const drawSchedule = (doc: PDF, docsStart: number) => {
+    const PW = doc.internal.pageSize.getWidth(), PH = doc.internal.pageSize.getHeight();
+    doc.setFont("helvetica", "bold"); doc.setFontSize(12); doc.setTextColor(...ink);
+    doc.text("1. Schedule of expenses", 8, 14);
+    doc.setFont("helvetica", "normal"); doc.setFontSize(8); doc.setTextColor(90, 98, 112);
+    doc.text(`${shop.name || ""}  |  ${period}  |  ${items.length} expenses  |  ${money(total)} ${p.currency}`, 8, 19);
+    const pageOf = (it: BookExpense) => (startPage.has(it.id) ? docsStart + startPage.get(it.id)! : 0);
+    autoTable(doc, {
+      startY: 23,
+      head: [heads],
+      body: scheduleRows.map((row, n) => cols.map((c) => {
+        if (c === "Amount") return money(row.Amount);
+        if (c === "Supporting documents") return pageOf(items[n]) ? `page ${pageOf(items[n])}` : String(row[c]);
+        return String((row as Record<string, unknown>)[c]);
+      })),
+      foot: [cols.map((c, k) => (c === "Amount" ? money(total) : k === amountCol - 1 ? "TOTAL" : ""))],
+      styles: { fontSize: 6.8, cellPadding: 1.4, overflow: "linebreak", lineColor: [221, 227, 236], lineWidth: 0.1 },
+      headStyles: { fillColor: ink, textColor: 255, fontStyle: "bold" },
+      footStyles: { fillColor: ink, textColor: 255, fontStyle: "bold" },
+      alternateRowStyles: { fillColor: [247, 249, 252] },
+      columnStyles: { 0: { cellWidth: 8 }, 1: { cellWidth: 13 }, 2: { cellWidth: 17 }, [amountCol]: { halign: "right", cellWidth: 22 }, [docsCol]: { cellWidth: 16 } },
+      didParseCell: (d) => {
+        if (d.section !== "body") return;
+        if (d.cell.raw === "MISSING") { d.cell.styles.textColor = [200, 30, 30]; d.cell.styles.fontStyle = "bold"; }
+        else if (d.cell.raw === NA) d.cell.styles.textColor = [150, 150, 150];
+        else if (d.column.index === docsCol) d.cell.styles.textColor = [10, 102, 194];
+      },
+      didDrawCell: (d) => {
+        if (d.section !== "body" || d.column.index !== docsCol) return;
+        const target = pageOf(items[d.row.index]);
+        if (target) doc.link(d.cell.x, d.cell.y, d.cell.width, d.cell.height, { pageNumber: target });
+      },
+      margin: { left: 8, right: 8, top: 14, bottom: 14 },
+    });
+    let y = ((doc as unknown as WithTable).lastAutoTable?.finalY ?? 23) + 8;
+    if (y > PH - 48) { doc.addPage("a4", "landscape"); y = 16; }
+    doc.setFontSize(8); doc.setTextColor(40, 40, 40); doc.setFont("helvetica", "normal");
+    const company = `${shop.name ? ` of ${shop.name}` : ""}${shop.tin ? ` (TIN ${shop.tin})` : ""}`;
+    doc.text(doc.splitTextToSize(kind === "rra"
+      ? `We declare that the expenses listed above were incurred for the business${company} during the period ${period}, that no EBM ` +
+        "receipt, withholding tax or customs declaration exists for them, and that the supporting documents attached are true copies " +
+        "of the originals kept by the business."
+      : `We declare that the expenses listed above are the expenses recorded by the business${company} during the period ${period}, ` +
+        "and that the supporting documents attached are true copies of the originals kept by the business.", PW - 16), 8, y);
+    y += 13;
+    const sign = (x: number, role: string, name: string) => {
+      doc.setFont("helvetica", "bold"); doc.text(role, x, y);
+      doc.setFont("helvetica", "normal");
+      doc.text(`Name: ${name || "...................................................."}`, x, y + 7);
+      doc.text("Signature: ...........................................", x, y + 14);
+      doc.text("Date: ......................................................", x, y + 21);
+    };
+    sign(8, "Prepared by (Accountant)", p.preparedBy);
+    sign(PW / 2, "Approved by (Owner / Managing Director)", "");
   };
-  sign(10, "Prepared by (Accountant)", p.preparedBy);
-  sign(PW / 2, "Approved by (Owner / Managing Director)", "");
+  const scratch = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+  drawSchedule(scratch, 0);
+  const schedulePages = scratch.getNumberOfPages();
+  const docsStart = 1 + schedulePages + 1;           // after the summary page and the schedule
 
-  // Annexes: every document, under its row number.
-  let separateFiles = 0;
-  for (let n = 0; n < items.length; n++) {
-    const it = items[n];
-    p.onProgress?.(n, items.length);
-    if (!it.proof_count) continue;
-    let files: { name: string; type: string; data: string }[] = [];
-    try { files = (await expenseRequest(`/expenses/${it.id}/proof`))?.data?.files ?? []; } catch { files = []; }
-    for (let f = 0; f < files.length; f++) {
-      const file = files[f];
-      doc.addPage();
-      doc.setFont("helvetica", "bold"); doc.setFontSize(10); doc.setTextColor(...ink);
-      doc.text(`Annex ${n + 1}${files.length > 1 ? `.${f + 1}` : ""}  ·  ${day(it.expense_date)}  ·  ${money(it.amount)} ${p.currency}`, 10, 12);
-      doc.setFont("helvetica", "normal"); doc.setFontSize(8); doc.setTextColor(90, 98, 112);
-      doc.text(`${it.supplier_name ?? ""}${it.supplier_tin ? ` (TIN/ID ${it.supplier_tin})` : ""}  ·  ${it.title}${it.doc_ref ? `  ·  Ref. ${it.doc_ref}` : ""}`, 10, 17, { maxWidth: PW - 20 });
-      const photo = file.type.startsWith("image/") ? await photoForPdf(file.data) : null;
-      if (photo) {
-        const k = Math.min((PW - 20) / photo.w, (PH - 30) / photo.h);
-        doc.addImage(photo.data, "JPEG", (PW - photo.w * k) / 2, 22, photo.w * k, photo.h * k);
-      } else {
-        const name = `${fileStem(p)}_annex_${n + 1}${files.length > 1 ? `-${f + 1}` : ""}.pdf`;
-        if (file.type === "application/pdf") { download(file.data, name); separateFiles++; }
-        doc.setFontSize(10); doc.setTextColor(40, 40, 40);
-        doc.text(file.type === "application/pdf"
-          ? `This document is a PDF, provided with this pack as the file "${name}" (original name: ${file.name}).`
-          : `Document "${file.name}" could not be included.`, 10, 32, { maxWidth: PW - 20 });
+  // 3. The summary page.
+  const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+  const PW = doc.internal.pageSize.getWidth();
+  let y = pdfCompanyHeader(doc, shop, logo, title, `Period ${period}  |  Amounts in ${p.currency}`);
+  const withDocs = items.filter(hasDocs);
+  const noEbm = items.filter(isNoEbm);
+  const figures: [string, string][] = [
+    ["Expenses", String(items.length)],
+    [`Total (${p.currency})`, money(total)],
+    ["With supporting documents", `${withDocs.length} of ${items.length}`],
+    [`Without EBM (${p.currency})`, `${noEbm.length}  |  ${money(noEbm.reduce((s, i) => s + i.amount, 0))}`],
+  ];
+  const boxW = (PW - 16 - 3 * 4) / 4;
+  figures.forEach(([label, value], k) => {
+    const x = 8 + k * (boxW + 4);
+    doc.setFillColor(...soft); doc.roundedRect(x, y, boxW, 17, 2, 2, "F");
+    doc.setFont("helvetica", "normal"); doc.setFontSize(7.5); doc.setTextColor(90, 98, 112); doc.text(label, x + 4, y + 6);
+    doc.setFont("helvetica", "bold"); doc.setFontSize(12); doc.setTextColor(...ink); doc.text(value, x + 4, y + 13);
+  });
+  y += 24;
+  const byCategory = summary("all", items).map(([k, g]) => [k, String(g.n), money(g.total)]);
+  const supportGroups = new Map<string, { n: number; total: number }>();
+  for (const i of items) {
+    const k = i.ebm_support && i.ebm_support !== "none" ? SUPPORT_EN[i.ebm_support] : isNoEbm(i) ? "No EBM (RRA Tax Ledger)" : "Not applicable (salaries, taxes)";
+    const g = supportGroups.get(k) ?? { n: 0, total: 0 }; g.n++; g.total += i.amount; supportGroups.set(k, g);
+  }
+  const bySupport = [...supportGroups.entries()].sort((a, b) => b[1].total - a[1].total).map(([k, g]) => [k, String(g.n), money(g.total)]);
+  const half = (PW - 16 - 8) / 2;
+  const small = { fontSize: 7.5, cellPadding: 1.6, lineColor: [221, 227, 236] as [number, number, number], lineWidth: 0.1 };
+  autoTable(doc, { startY: y, head: [["By category", "Expenses", `Amount (${p.currency})`]], body: byCategory,
+    foot: [["TOTAL", String(items.length), money(total)]], styles: small,
+    headStyles: { fillColor: ink, textColor: 255, fontStyle: "bold" }, footStyles: { fillColor: soft, textColor: ink, fontStyle: "bold" },
+    columnStyles: { 1: { halign: "right" }, 2: { halign: "right" } }, margin: { left: 8 }, tableWidth: half });
+  const leftEnd = (doc as unknown as WithTable).lastAutoTable?.finalY ?? y;
+  autoTable(doc, { startY: y, head: [["By RRA support", "Expenses", `Amount (${p.currency})`]], body: bySupport,
+    foot: [["TOTAL", String(items.length), money(total)]], styles: small,
+    headStyles: { fillColor: ink, textColor: 255, fontStyle: "bold" }, footStyles: { fillColor: soft, textColor: ink, fontStyle: "bold" },
+    columnStyles: { 1: { halign: "right" }, 2: { halign: "right" } }, margin: { left: 8 + half + 8 }, tableWidth: half });
+  y = Math.max(leftEnd, (doc as unknown as WithTable).lastAutoTable?.finalY ?? y) + 10;
+  doc.setFont("helvetica", "bold"); doc.setFontSize(10); doc.setTextColor(...ink); doc.text("Contents", 8, y);
+  doc.setFont("helvetica", "normal"); doc.setFontSize(9); doc.setTextColor(40, 40, 40);
+  const toc: [string, number][] = [["1. Schedule of expenses (with declaration and signatures)", 2]];
+  if (docPages.length && withDocs.length) toc.push([`2. Supporting documents (${withDocs.length} expenses)`, docsStart]);
+  toc.forEach(([label, page], k) => {
+    const ty = y + 7 + k * 6;
+    doc.textWithLink(label, 8, ty, { pageNumber: page });
+    doc.text(`page ${page}`, 8 + half, ty, { align: "right" });
+  });
+
+  // 4. The schedule, for real.
+  doc.addPage("a4", "landscape");
+  drawSchedule(doc, docsStart);
+
+  // 5. The supporting documents.
+  if (withDocs.length) {
+    for (const page of docPages) {
+      doc.addPage("a4", "portrait");
+      for (const el of page) {
+        if (el.kind === "title") {
+          doc.setFont("helvetica", "bold"); doc.setFontSize(12); doc.setTextColor(...ink);
+          doc.text("2. Supporting documents", MARGIN, el.y + 4);
+        } else if (el.kind === "band") {
+          const it = el.item;
+          const h = el.continued ? 8 : BAND;
+          doc.setFillColor(...soft); doc.rect(MARGIN, el.y, PW_P - 2 * MARGIN, h, "F");
+          doc.setFillColor(...ink); doc.rect(MARGIN, el.y, 1.6, h, "F");
+          doc.setFont("helvetica", "bold"); doc.setFontSize(9.5); doc.setTextColor(...ink);
+          doc.text(`Ref. ${na(it.voucher_no)}  |  ${day(it.expense_date)}  |  ${money(it.amount)} ${p.currency}${el.continued ? "  (continued)" : ""}`, MARGIN + 4, el.y + 5.5);
+          if (!el.continued) {
+            doc.setFont("helvetica", "normal"); doc.setFontSize(8); doc.setTextColor(40, 40, 40);
+            doc.text(`${it.title}  |  ${CATEGORY_EN[it.category] ?? it.category}  |  ${supportOf(it)}`, MARGIN + 4, el.y + 10.5, { maxWidth: PW_P - 2 * MARGIN - 8 });
+            doc.setTextColor(90, 98, 112);
+            doc.text(`Paid to: ${na(it.supplier_name)}${it.supplier_tin ? ` (TIN/ID ${it.supplier_tin})` : ""}  |  Doc. ref.: ${na(it.doc_ref)}  |  Paid by: ${na(paidBy(it))}`,
+              MARGIN + 4, el.y + 15.5, { maxWidth: PW_P - 2 * MARGIN - 8 });
+          }
+        } else if (el.kind === "photo") {
+          const x = (PW_P - el.w) / 2;
+          doc.addImage(el.photo.data, "JPEG", x, el.y, el.w, el.h);
+          doc.setDrawColor(210, 216, 226); doc.setLineWidth(0.2); doc.rect(x, el.y, el.w, el.h);
+        } else {
+          doc.setDrawColor(210, 216, 226); doc.setFillColor(250, 250, 250); doc.rect(MARGIN, el.y, PW_P - 2 * MARGIN, 12, "FD");
+          doc.setFont("helvetica", "normal"); doc.setFontSize(8.5); doc.setTextColor(60, 60, 60);
+          doc.text(el.text, MARGIN + 4, el.y + 7, { maxWidth: PW_P - 2 * MARGIN - 8 });
+        }
       }
     }
   }
-  p.onProgress?.(items.length, items.length);
-  await stampPdf(doc, { kind: "rra_ledger", title: "Expenses not supported by EBM (RRA Tax Ledger)",
+
+  // 6. The check code, then the footer on every page.
+  await stampPdf(doc, { kind: kind === "rra" ? "rra_ledger" : "expenses_pack", title,
     period_from: p.from, period_to: p.to, records: items.length, total, currency: p.currency });
-  doc.save(`${fileStem(p)}.pdf`);
-  return { separateFiles };
+  const count = doc.getNumberOfPages();
+  for (let i = 1; i <= count; i++) {
+    doc.setPage(i);
+    const w = doc.internal.pageSize.getWidth(), h = doc.internal.pageSize.getHeight();
+    doc.setDrawColor(221, 227, 236); doc.setLineWidth(0.2); doc.line(8, h - 9, w - 8, h - 9);
+    doc.setFont("helvetica", "normal"); doc.setFontSize(7); doc.setTextColor(120, 126, 138);
+    doc.text(`${shop.name || "Higoverse"}  |  ${title}  |  ${period}`, 8, h - 5);
+    doc.text(`Page ${i} of ${count}`, w - 8, h - 5, { align: "right" });
+  }
+  const file = `${stemOf(kind, p)}.pdf`;
+  doc.save(file);
+  return { file };
 }
+
+export const exportAllPdf = (items: BookExpense[], p: PdfOpts) => exportPdf("all", items, p);

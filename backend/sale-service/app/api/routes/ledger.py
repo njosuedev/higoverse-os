@@ -20,7 +20,7 @@ its credits):
   Car returned                  Dr 2100 (all of it)            Cr Cash (given back)
                                                                Cr 4100 Rental income (kept)
 
-Owners, admins and accountants of car companies only. No cost prices or
+Owners and admins of car companies only. No cost prices or
 profit are sent.
 """
 from collections import defaultdict
@@ -39,7 +39,7 @@ from app.models.sale import Sale
 
 router = APIRouter(prefix="/ledger", tags=["Ledger"])
 
-LEDGER_ROLES = {"owner", "admin", "accountant"}
+LEDGER_ROLES = {"owner", "admin"}
 KIGALI = timezone(timedelta(hours=2))
 
 CASH, BANK, MTN, AIRTEL = "1000", "1010", "1020", "1030"
@@ -49,7 +49,7 @@ OPENING_EQUITY, VEHICLE_SALES, RENTAL_INCOME = "3000", "4000", "4100"
 
 def require_ledger(user: dict = Depends(get_current_user)) -> dict:
     if user.get("layout") != "car" or user.get("role") not in LEDGER_ROLES:
-        raise HTTPException(status_code=403, detail="The ledger is for the owner and the accountant of a car company.")
+        raise HTTPException(status_code=403, detail="The ledger is for the owner of a car company.")
     if not user.get("shop_id"):
         raise HTTPException(status_code=400, detail="This account has no business.")
     return user

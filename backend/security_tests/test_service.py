@@ -256,8 +256,6 @@ EXPENSES_ONLY = "This account can only view expenses."
 
 
 def _car_accountant_may(method: str, path: str) -> bool:
-    if method == "GET" and path.startswith("/ledger/") and SERVICE in ("sale-service", "expense-service"):
-        return True
     if SERVICE == "sale-service" and (method, path) == ("POST", "/sales/printed"):
         return True
     if SERVICE == "sale-service" and path.startswith("/chat/"):
@@ -290,13 +288,13 @@ def test_accountant_elsewhere_keeps_the_expense_book(client):
 
 
 @pytest.mark.parametrize("role,layout", [("manager", "car"), ("cashier", "car"), ("storekeeper", "car"),
-                                         ("owner", "retail"), ("accountant", "retail")])
-def test_ledger_is_for_car_owners_and_accountants(client, role, layout):
+                                         ("accountant", "car"), ("owner", "retail"), ("accountant", "retail")])
+def test_ledger_is_for_car_owners(client, role, layout):
     if SERVICE not in ("sale-service", "expense-service"):
         pytest.skip("sale-service and expense-service only")
     r = client.get("/ledger/lines", headers=auth(token(SHOP_A, role, layout=layout)))
     assert r.status_code == 403, f"{role}/{layout}: {r.status_code}"
-    for ok in ("owner", "accountant"):
+    for ok in ("owner", "admin"):
         r = client.get("/ledger/lines", headers=auth(token(SHOP_A, ok, layout="car")))
         assert r.status_code == 200, f"{ok}: {r.status_code} {r.text[:200]}"
 
@@ -411,6 +409,32 @@ def test_expense_cannot_be_recorded_twice(client):
     assert edit.status_code == 409, edit.text[:200]
     for r in (first, a, b):
         client.delete(f"/expenses/{r.json()['data']['id']}", headers=owner)
+    client.delete(f"/expenses/{other.json()['data']['id']}", headers=auth(token(SHOP_B, "owner", layout="car")))
+
+
+def test_each_expense_gets_its_own_reference(client):
+    """Every expense gets an internal reference per business, counting on
+    from 001, wherever it comes from, kept when it is edited."""
+    if SERVICE != "expense-service":
+        pytest.skip("expense-service only")
+    owner = auth(token(SHOP_A, "owner", layout="car"))
+    made = []
+    for n, day in enumerate(("2027-03-01", "2027-03-02", "2028-01-05")):
+        r = client.post("/expenses", json={"title": f"Ref test {n}", "category": "other", "amount": 100 + n,
+                                           "expense_date": day + "T00:00:00", "payment_method": "mtn"}, headers=owner)
+        assert r.status_code == 200, r.text[:200]
+        made.append(r.json()["data"])
+    a, b, c = (m["voucher_no"] for m in made)
+    assert len(a) >= 3 and a.isdigit(), a
+    assert int(b) == int(a) + 1 and int(c) == int(b) + 1, (a, b, c)          # no restart in a new year
+    other = client.post("/expenses", json={"title": "Ref test B", "category": "other", "amount": 5,
+                                           "expense_date": "2028-01-06T00:00:00", "payment_method": "mtn"},
+                        headers=auth(token(SHOP_B, "owner", layout="car")))
+    assert other.json()["data"]["voucher_no"] != c and other.json()["data"]["voucher_no"].isdigit()  # per business
+    r = client.put(f"/expenses/{made[0]['id']}", json={"amount": 999}, headers=owner)
+    assert r.json()["data"]["voucher_no"] == a                               # kept on edit
+    for m in made:
+        client.delete(f"/expenses/{m['id']}", headers=owner)
     client.delete(f"/expenses/{other.json()['data']['id']}", headers=auth(token(SHOP_B, "owner", layout="car")))
 
 

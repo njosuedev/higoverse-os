@@ -53,4 +53,6 @@ class Expense(Base):
     supplier_name    = Column(String(150), nullable=True)
     supplier_tin     = Column(String(40), nullable=True)     # TIN, or national ID / passport
     doc_ref          = Column(String(100), nullable=True)    # receipt, contract, invoice or bank reference
-    no_ebm_reason    = Column(String(20), nullable=True)     # bank | abroad | government | unregistered | other
+    no_ebm_reason    = Column(String(20), nullable=True)
+    # The expense book's internal reference: 001, 002, … per business (core/voucher.py).
+    voucher_no       = Column(String(20), nullable=True)     # bank | abroad | government | unregistered | other

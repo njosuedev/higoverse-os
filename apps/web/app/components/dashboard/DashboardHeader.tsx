@@ -16,7 +16,7 @@ import { Sun, Moon, Monitor,
   Settings, LogOut, Globe,
   MessageCircle, Search, UsersRound, HandCoins, CalendarCheck, TrendingUp, BookOpen } from "lucide-react";
 import {
-  House, Gear, BookOpenText, Package as PackageTab, Car, ChatCircleDots, Receipt as ReceiptTab, Storefront, type Icon as PhosphorIcon,
+  House, Gear, Package as PackageTab, Car, ChatCircleDots, Receipt as ReceiptTab, Storefront, type Icon as PhosphorIcon,
 } from "@phosphor-icons/react";
 import { PAYROLL_ROLES } from "@/lib/payroll-api";
 import GlobalSearch, { OPEN_SEARCH_EVENT } from "@/app/components/GlobalSearch";
@@ -132,8 +132,8 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
     // Payroll: the owner, managers and the accountant.
     .filter((m) => m.href !== "/payroll" || PAYROLL_ROLES.includes(user?.role ?? ""))
     .filter((m) => m.href !== "/ledger" || canUseLedger)
-    // A car company's accountant: Expenses, the Ledger and Messages only.
-    .filter((m) => !expensesOnly || ["/expenses", "/ledger", "/messages"].includes(m.href));
+    // A car company's accountant: Expenses and Messages only.
+    .filter((m) => !expensesOnly || ["/expenses", "/messages"].includes(m.href));
 
   // Tablets and computers: Home, Vehicles / Inventory, Customers / Partners
   // and Sales across the top; everything else down the sidebar.
@@ -386,7 +386,6 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
       {expensesOnly ? (
       <nav aria-label={t("nav.open_menu")} className="hgv-tabbar md:hidden">
         <TabLink href="/expenses" icon={ReceiptTab} label={t("nav.expenses")} active={isActiveHref(pathname, "/expenses")} />
-        <TabLink href="/ledger" icon={BookOpenText} label={t("nav.ledger")} active={isActiveHref(pathname, "/ledger")} />
         <TabLink href="/messages" icon={ChatCircleDots} label={t("nav.messages")}
           active={isActiveHref(pathname, "/messages")} badge={unread} />
         <TabLink href="/settings" icon={Gear} label={t("nav.settings")} active={isActiveHref(pathname, "/settings")} />

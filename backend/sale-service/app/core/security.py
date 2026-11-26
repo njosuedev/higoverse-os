@@ -8,8 +8,7 @@ security = HTTPBearer()
 
 
 # A car company's accountant may only view the expense book (expense-service)
-# the general ledger (routes/ledger.py) and Messages (routes/chat.py).
-# Everything else is closed to them.
+# and use Messages (routes/chat.py). Everything else is closed to them.
 def expenses_only(payload: dict) -> bool:
     return payload.get("layout") == "car" and payload.get("role") == "accountant"
 
@@ -17,13 +16,13 @@ def expenses_only(payload: dict) -> bool:
 EXPENSES_ONLY_DETAIL = "This account can only view expenses."
 
 
-def _ledger_read(request: Request) -> bool:
+def _accountant_may(request: Request) -> bool:
     route = getattr(request.scope.get("route"), "path", "") or request.url.path
     if route == "/chat" or route.startswith("/chat/"):
         return True  # Messages with their team
     if request.method == "POST" and route == "/sales/printed":
-        return True  # the QR code on the PDFs they export (expenses, ledger)
-    return request.method in ("GET", "HEAD") and (route == "/ledger" or route.startswith("/ledger/"))
+        return True  # the QR code on the expense PDFs they export
+    return False
 
 
 def get_current_user(
@@ -36,7 +35,7 @@ def get_current_user(
             settings.SECRET_KEY,
             algorithms=[settings.AUTH_SERVICE_ALGORITHM],
         )
-        if expenses_only(payload) and not _ledger_read(request):
+        if expenses_only(payload) and not _accountant_may(request):
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=EXPENSES_ONLY_DETAIL)
         return {
             "user_id": payload.get("sub"),

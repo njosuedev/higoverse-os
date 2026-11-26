@@ -1,3 +1,4 @@
+import logging
 import os
 import traceback
 from fastapi import FastAPI, Request
@@ -8,6 +9,7 @@ from app.api.routes.expenses import router as expense_router
 from app.api.routes.payroll import router as payroll_router
 from app.api.routes.incomes import router as income_router
 from app.api.routes.ledger import router as ledger_router
+from app.core import voucher as _voucher  # noqa: F401  (numbers new expenses)
 from app.models import payroll as _payroll_models  # noqa: F401  (tables for create_all)
 from app.models import correction as _correction_models  # noqa: F401
 from app.models import income as _income_models  # noqa: F401
@@ -76,6 +78,8 @@ def on_startup():
                 "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS supplier_tin VARCHAR(40)",
                 "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS doc_ref VARCHAR(100)",
                 "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS no_ebm_reason VARCHAR(20)",
+                # Internal reference of each expense (core/voucher.py)
+                "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS voucher_no VARCHAR(20)",
                 # Pay slip details
                 "ALTER TABLE payroll_employees ADD COLUMN IF NOT EXISTS bank_name VARCHAR(100)",
                 "ALTER TABLE payroll_employees ADD COLUMN IF NOT EXISTS bank_account VARCHAR(60)",
@@ -98,6 +102,16 @@ def on_startup():
             conn.commit()
     except Exception:
         pass
+    # Number the expenses recorded before references existed, then make
+    # references unique per business (on its own: never blocks the above).
+    try:
+        from sqlalchemy import text
+        from app.core.voucher import BACKFILL_SQL
+        with engine.begin() as conn:
+            conn.execute(text(BACKFILL_SQL))
+            conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ux_expenses_shop_voucher ON expenses (shop_id, voucher_no)"))
+    except Exception:
+        logging.getLogger("expense-service").exception("expense references: numbering failed")
     # The history of type corrections is append-only (models/correction.py):
     # the database itself refuses to change, delete or empty it.
     try:

@@ -50,7 +50,7 @@ export function isExpensesOnly(role: string | undefined, layout: string | undefi
 }
 
 /** The pages a car company's accountant may open (view only). */
-export const EXPENSES_ONLY_ROUTES = ["/expenses", "/ledger", "/messages", "/settings"];
+export const EXPENSES_ONLY_ROUTES = ["/expenses", "/messages", "/settings"];
 
 /** Whether the signed-in user may only view expenses. Accountants count as
  *  restricted until the shop's layout has loaded (fails closed). */
@@ -62,9 +62,9 @@ export function useExpensesOnly(): boolean {
   return isExpensesOnly(user.role, shop?.layout);
 }
 
-/** The General Ledger (Ledger page): a car company's owner and accountant.
+/** The General Ledger (Ledger page): a car company's owner (and admins).
  *  Mirrors require_ledger in sale-service and expense-service. */
-export const LEDGER_ROLES = new Set(["owner", "admin", "accountant"]);
+export const LEDGER_ROLES = new Set(["owner", "admin"]);
 export function useCanUseLedger(): boolean {
   const { user } = useAuth();
   const { shop, loading } = useShop();

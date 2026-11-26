@@ -138,7 +138,21 @@ export default function LedgerPage() {
         {error && <p className="mb-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">{error}</p>}
 
         {loading ? (
-          <div className="rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-400">{t("common.loading")}</div>
+          <div aria-busy="true" aria-label={t("common.loading")} className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+            <div className="flex gap-3 border-b border-slate-200 bg-slate-50 px-3 py-2.5">
+              {[10, 14, 8, 14, 24, 16, 9, 9, 10].map((w, i) => <div key={i} className="hgv-shimmer h-2.5 rounded" style={{ width: `${w}%` }} />)}
+            </div>
+            {[0, 1, 2].map((g) => (
+              <div key={g} className="border-b border-slate-200">
+                <div className="bg-[#EBF2FD] px-3 py-2"><div className="hgv-shimmer h-3 w-56 rounded" /></div>
+                {[0, 1, 2, 3].map((r) => (
+                  <div key={r} className="flex gap-3 border-t border-slate-100 px-3 py-2">
+                    {[10, 14, 8, 14, 24, 16, 9, 9, 10].map((w, i) => <div key={i} className="hgv-shimmer h-2.5 rounded" style={{ width: `${w}%`, opacity: 0.6 + ((r + i) % 3) * 0.13 }} />)}
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
         ) : view === "gl" ? (
           <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
             <table className="w-full min-w-[980px] text-xs text-slate-700">

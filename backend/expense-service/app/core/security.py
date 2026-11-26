@@ -7,9 +7,9 @@ from app.core.config import settings
 security = HTTPBearer()
 
 
-# A car company's accountant may only view the expense book and the ledger:
-# reading /expenses (the list, totals, receipts) and /ledger. Adding, editing,
-# deleting, income and payroll are closed to them.
+# A car company's accountant may only view the expense book: reading
+# /expenses (the list, totals, receipts, the RRA pack). Adding, editing,
+# deleting, income, payroll and the general ledger are closed to them.
 def expenses_only(payload: dict) -> bool:
     return payload.get("layout") == "car" and payload.get("role") == "accountant"
 
@@ -17,7 +17,7 @@ def expenses_only(payload: dict) -> bool:
 def _expense_read(request: Request) -> bool:
     route = getattr(request.scope.get("route"), "path", "") or request.url.path
     return request.method in ("GET", "HEAD") and any(
-        route == base or route.startswith(base + "/") for base in ("/expenses", "/ledger"))
+        route == base or route.startswith(base + "/") for base in ("/expenses",))
 
 
 def get_current_user(
