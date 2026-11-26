@@ -176,6 +176,8 @@ export default function ExpenseManagementPage() {
   // RRA: only the expenses with no EBM (to lodge in the RRA Tax Ledger).
   const [supportFilter, setSupportFilter] = useState<Support | "">("");
   const [showRra, setShowRra] = useState(false);
+  // The downloads follow what is selected on the page (set when the window opens).
+  const [rraSelection, setRraSelection] = useState({ from: "", to: "", category: "", scope: "", support: "", search: "" });
   // Only car companies have the filter; the scope sent is empty for everyone else.
   const scopeParam = isCar ? scopeFilter : "";
   const [search, setSearch]           = useState("");
@@ -1083,8 +1085,7 @@ export default function ExpenseManagementPage() {
     <div className="min-h-screen">
       <DeepLink keys={["new"]} onParams={handleDeepLink} />
       {showHistory && <CorrectionHistory onClose={() => setShowHistory(false)} />}
-      {showRra && <RraLedgerDialog currency={currency} onClose={() => setShowRra(false)}
-        onOpen={viewOnly ? undefined : (id) => { const e = expenses.find((x) => x.id === id); if (e) { setShowRra(false); openEdit(e); } else notify(t("rra.open_hint")); }} />}
+      {showRra && <RraLedgerDialog currency={currency} selection={rraSelection} onClose={() => setShowRra(false)} />}
       {moving && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => !movingBusy && setMoving(null)}>
           <div role="dialog" aria-modal="true" className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl" onClick={(ev) => ev.stopPropagation()}>
@@ -1119,7 +1120,7 @@ export default function ExpenseManagementPage() {
             <span className="text-[11px] text-blue-100/70 mr-1">
               <span className="font-semibold text-white/80">{total.toLocaleString()}</span> {t("expenses.records")}
             </span>
-            {isCar && <button onClick={() => setShowRra(true)} title={t("rra.title")}
+            {isCar && <button onClick={() => { setRraSelection({ from: dateFrom, to: dateTo, category: catFilter, scope: scopeParam, support: supportFilter, search }); setShowRra(true); }} title={t("rra.title")}
               className="flex items-center gap-1.5 h-7 px-2 rounded-lg bg-white/10 hover:bg-white/20 border border-white/15 text-white text-[11px] font-semibold transition-all">
               <Landmark size={12} /> <span className="hidden sm:inline">{t("rra.button")}</span>
             </button>}
@@ -1281,12 +1282,12 @@ export default function ExpenseManagementPage() {
                     t("expenses.col_title"),
                     t("expenses.col_category"),
                     t("expenses.col_amount"),
+                    t("expenses.proof"),
                     t("expenses.payment_method"),
                     t("expenses.bank_name"),
                     t("expenses.account_ref"),
                     t("expenses.receiver_phone"),
                     t("expenses.col_notes"),
-                    t("expenses.proof"),
                     "",
                   ].map((h) => (
                     <th key={h} data-primary={h === t("expenses.col_title") || undefined} className="px-2.5 py-1.5 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 whitespace-nowrap">{h}</th>
@@ -1324,6 +1325,23 @@ export default function ExpenseManagementPage() {
                         {isIn(e) ? "+" : ""}{Number(e.amount).toLocaleString()}
                         {isIn(e) && <span className="block text-[10px] font-semibold leading-tight">{t("expenses.money_in")}</span>}
                       </td>
+                      {/* Proof: the supporting document, beside the amount */}
+                      <td className="px-2.5 py-1">
+                        {e.has_proof ? (
+                          <button onClick={() => openProofViewer(e.id)} title={t("expenses.view_proof_title")}
+                            className="flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-[#EBF2FD] hover:bg-[#D5E8FB] text-[#0a66c2] transition text-[11px] font-medium">
+                            <Paperclip size={9} /> {t("common.view")}
+                          </button>
+                        ) : viewOnly ? (
+                          <span className="text-slate-300">-</span>
+                        ) : (
+                          <button onClick={() => pickProofFor(e.id)} disabled={uploadingProofId === e.id}
+                            title={t("expenses.attach_receipts")}
+                            className="flex items-center gap-0.5 px-1.5 py-0.5 rounded border border-dashed border-slate-300 hover:border-[#0a66c2] hover:bg-[#EBF2FD] text-slate-500 hover:text-[#0a66c2] transition text-[11px] font-medium disabled:opacity-40">
+                            {uploadingProofId === e.id ? <RefreshCw size={9} className="animate-spin" /> : <Plus size={9} />} {t("common.add")}
+                          </button>
+                        )}
+                      </td>
                       {/* Payment Method */}
                       <td className="px-2.5 py-1 whitespace-nowrap">
                         {e.payment_method === "mtn" && (
@@ -1331,6 +1349,9 @@ export default function ExpenseManagementPage() {
                         )}
                         {e.payment_method === "bank" && (
                           <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[11px] font-semibold bg-blue-100 text-blue-700">{t("common.bank")}</span>
+                        )}
+                        {e.payment_method === "cash" && (
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700">{t("sales.pm_cash")}</span>
                         )}
                         {!e.payment_method && <span className="text-slate-300 text-[11px]">-</span>}
                       </td>
@@ -1348,22 +1369,6 @@ export default function ExpenseManagementPage() {
                       </td>
                       <td className="px-2.5 py-1 text-slate-500 text-[11px] max-w-[160px] truncate">
                         {e.notes || <span className="text-slate-300 italic">-</span>}
-                      </td>
-                      <td className="px-2.5 py-1">
-                        {e.has_proof ? (
-                          <button onClick={() => openProofViewer(e.id)} title={t("expenses.view_proof_title")}
-                            className="flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-[#EBF2FD] hover:bg-[#D5E8FB] text-[#0a66c2] transition text-[11px] font-medium">
-                            <Paperclip size={9} /> {t("common.view")}
-                          </button>
-                        ) : viewOnly ? (
-                          <span className="text-slate-300">-</span>
-                        ) : (
-                          <button onClick={() => pickProofFor(e.id)} disabled={uploadingProofId === e.id}
-                            title={t("expenses.attach_receipts")}
-                            className="flex items-center gap-0.5 px-1.5 py-0.5 rounded border border-dashed border-slate-300 hover:border-[#0a66c2] hover:bg-[#EBF2FD] text-slate-500 hover:text-[#0a66c2] transition text-[11px] font-medium disabled:opacity-40">
-                            {uploadingProofId === e.id ? <RefreshCw size={9} className="animate-spin" /> : <Plus size={9} />} {t("common.add")}
-                          </button>
-                        )}
                       </td>
                       <td className="px-2.5 py-1">
                         {!viewOnly && <div className="flex items-center gap-1">

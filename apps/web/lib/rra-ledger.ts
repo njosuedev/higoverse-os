@@ -57,17 +57,50 @@ export async function loadRraLedger(from: string, to: string): Promise<{ items: 
   return { items: res?.data?.items ?? [], total: Number(res?.data?.total ?? 0) };
 }
 
-/** Every expense of the period (money spent, not money received), oldest first. */
-export async function loadAllExpenses(from: string, to: string): Promise<BookExpense[]> {
+/** What is selected on the Expenses page: the downloads follow it exactly. */
+export interface Selection {
+  from: string; to: string;            // "" = no limit
+  category: string; scope: string; support: string; search: string;
+}
+
+/** The selected expenses (money spent, not money received), oldest first. */
+export async function loadExpenses(sel: Selection): Promise<BookExpense[]> {
   const all: BookExpense[] = [];
   for (let page = 1; page < 50; page++) {
-    const res = await expenseRequest(`/expenses?page=${page}&limit=500&from_date=${from}&to_date=${to}`);
+    const q = new URLSearchParams({ page: String(page), limit: "500" });
+    if (sel.from) q.set("from_date", sel.from);
+    if (sel.to) q.set("to_date", sel.to);
+    if (sel.category) q.set("category", sel.category);
+    if (sel.scope) q.set("scope", sel.scope);
+    if (sel.support) q.set("support", sel.support);
+    const res = await expenseRequest(`/expenses?${q}`);
     const items: BookExpense[] = res?.data?.items ?? [];
     all.push(...items);
     if (items.length < 500) break;
   }
-  return all.filter((e) => e.direction !== "in")
+  const s = sel.search.trim().toLowerCase();
+  return all
+    .filter((e) => e.direction !== "in")
+    .filter((e) => !s || [e.title, e.category, e.notes ?? "", e.voucher_no ?? ""].some((v) => v.toLowerCase().includes(s)))
     .sort((a, b) => a.expense_date.localeCompare(b.expense_date) || (a.voucher_no ?? "").localeCompare(b.voucher_no ?? ""));
+}
+
+/** The period printed on the documents: the selected dates, or the first and
+ *  last expense when no date is chosen. */
+export function periodOf(sel: Selection, items: BookExpense[]) {
+  const days = items.map((i) => (i.expense_date || "").slice(0, 10)).filter(Boolean).sort();
+  const today = new Date().toISOString().slice(0, 10);
+  return { from: sel.from || days[0] || today, to: sel.to || days[days.length - 1] || today };
+}
+
+/** The filters in words, for the documents ("" when only dates are chosen). */
+export function filtersText(sel: Selection): string {
+  const parts: string[] = [];
+  if (sel.category) parts.push(`Category: ${CATEGORY_EN[sel.category] ?? sel.category}`);
+  if (sel.scope) parts.push(sel.scope === "abroad" ? "Abroad" : "In Rwanda");
+  if (sel.support) parts.push(`RRA support: ${SUPPORT_EN[sel.support as Support] ?? sel.support}`);
+  if (sel.search.trim()) parts.push(`Search: "${sel.search.trim()}"`);
+  return parts.join("  |  ");
 }
 
 const day = (s: string) => (s || "").slice(0, 10);
@@ -129,11 +162,11 @@ function summary(kind: Kind, items: BookExpense[]) {
 
 // ── Excel ────────────────────────────────────────────────────────────────
 
-async function exportExcel(kind: Kind, items: BookExpense[], p: { from: string; to: string; currency: string }) {
+async function exportExcel(kind: Kind, items: BookExpense[], p: { from: string; to: string; currency: string; filters?: string }) {
   const XLSX = await import("xlsx");
   const shop = await getPrintShop();
   const total = items.reduce((s, i) => s + i.amount, 0);
-  const sub = `Period ${p.from} to ${p.to}  |  ${items.length} expenses  |  Total ${money(total)} ${p.currency}`
+  const sub = `Period ${p.from} to ${p.to}${p.filters ? `  |  ${p.filters}` : ""}  |  ${items.length} expenses  |  Total ${money(total)} ${p.currency}`
     + (kind === "rra" ? "  |  For E-Tax › Annexure download › Ledger Account" : "");
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, companySheet(XLSX, shop, TITLE[kind], sub, rows(kind, items)), kind === "rra" ? "RRA Tax Ledger" : "Expenses");
@@ -154,7 +187,7 @@ async function exportExcel(kind: Kind, items: BookExpense[], p: { from: string; 
   return file;
 }
 
-export const exportAllExcel = (items: BookExpense[], p: { from: string; to: string; currency: string }) => exportExcel("all", items, p);
+export const exportAllExcel = (items: BookExpense[], p: { from: string; to: string; currency: string; filters?: string }) => exportExcel("all", items, p);
 
 // ── PDF ──────────────────────────────────────────────────────────────────
 //
@@ -172,7 +205,7 @@ export const exportAllExcel = (items: BookExpense[], p: { from: string; to: stri
 
 type Photo = { data: string; w: number; h: number };
 type Proof = { name: string; type: string; photo: Photo | null };
-type PdfOpts = { from: string; to: string; currency: string; preparedBy: string; onProgress?: (done: number, all: number) => void };
+type PdfOpts = { from: string; to: string; currency: string; preparedBy: string; filters?: string; onProgress?: (done: number, all: number) => void };
 
 /** A receipt photo as a JPEG for the PDF, at most 1600 px (readable, not huge). */
 async function photoForPdf(dataUrl: string): Promise<Photo | null> {
@@ -285,7 +318,7 @@ async function exportPdf(kind: Kind, items: BookExpense[], p: PdfOpts): Promise<
     doc.setFont("helvetica", "bold"); doc.setFontSize(12); doc.setTextColor(...ink);
     doc.text("1. Schedule of expenses", 8, 14);
     doc.setFont("helvetica", "normal"); doc.setFontSize(8); doc.setTextColor(90, 98, 112);
-    doc.text(`${shop.name || ""}  |  ${period}  |  ${items.length} expenses  |  ${money(total)} ${p.currency}`, 8, 19);
+    doc.text(`${shop.name || ""}  |  ${period}${p.filters ? `  |  ${p.filters}` : ""}  |  ${items.length} expenses  |  ${money(total)} ${p.currency}`, 8, 19);
     const pageOf = (it: BookExpense) => (startPage.has(it.id) ? docsStart + startPage.get(it.id)! : 0);
     autoTable(doc, {
       startY: 23,
@@ -343,7 +376,7 @@ async function exportPdf(kind: Kind, items: BookExpense[], p: PdfOpts): Promise<
   // 3. The summary page.
   const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
   const PW = doc.internal.pageSize.getWidth();
-  let y = pdfCompanyHeader(doc, shop, logo, title, `Period ${period}  |  Amounts in ${p.currency}`);
+  let y = pdfCompanyHeader(doc, shop, logo, title, `Period ${period}  |  Amounts in ${p.currency}${p.filters ? `  |  ${p.filters}` : ""}`);
   const withDocs = items.filter(hasDocs);
   const noEbm = items.filter(isNoEbm);
   const figures: [string, string][] = [
