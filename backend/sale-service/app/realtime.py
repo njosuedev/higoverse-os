@@ -50,9 +50,6 @@ def _decode(token: str) -> dict | None:
         p = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.AUTH_SERVICE_ALGORITHM])
     except (JWTError, AttributeError, TypeError):
         return None
-    # A car company's accountant only views expenses: no live sales feed.
-    if p.get("layout") == "car" and p.get("role") == "accountant":
-        return None
     return {
         "user_id": p.get("sub"),
         "shop_id": str(p["shop_id"]) if p.get("shop_id") else None,
@@ -60,6 +57,8 @@ def _decode(token: str) -> dict | None:
         "role": p.get("role"),
         "layout": p.get("layout"),
         "exp": float(p.get("exp") or 0),
+        # A car company's accountant: Messages only, no live business feed.
+        "chat_only": p.get("layout") == "car" and p.get("role") == "accountant",
     }
 
 
@@ -130,6 +129,8 @@ class Hub:
         scrubbed = None
         for c in list(clients):
             if to and str(c.user["user_id"]) not in to:
+                continue
+            if c.user.get("chat_only") and not str(event.get("type", "")).startswith("chat."):
                 continue
             if hides_financials(c.user):
                 if financial:

@@ -70,6 +70,12 @@ def on_startup():
                 "ALTER TABLE incomes ADD COLUMN IF NOT EXISTS proof_data TEXT",
                 "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS scope VARCHAR(10)",
                 "ALTER TABLE incomes ADD COLUMN IF NOT EXISTS scope VARCHAR(10)",
+                # RRA Tax Ledger: expenses not supported by EBM
+                "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS ebm_support VARCHAR(4)",
+                "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS supplier_name VARCHAR(150)",
+                "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS supplier_tin VARCHAR(40)",
+                "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS doc_ref VARCHAR(100)",
+                "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS no_ebm_reason VARCHAR(20)",
                 # Pay slip details
                 "ALTER TABLE payroll_employees ADD COLUMN IF NOT EXISTS bank_name VARCHAR(100)",
                 "ALTER TABLE payroll_employees ADD COLUMN IF NOT EXISTS bank_account VARCHAR(60)",

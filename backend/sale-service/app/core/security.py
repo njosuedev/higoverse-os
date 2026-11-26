@@ -8,7 +8,8 @@ security = HTTPBearer()
 
 
 # A car company's accountant may only view the expense book (expense-service)
-# and the general ledger (routes/ledger.py). Everything else is closed to them.
+# the general ledger (routes/ledger.py) and Messages (routes/chat.py).
+# Everything else is closed to them.
 def expenses_only(payload: dict) -> bool:
     return payload.get("layout") == "car" and payload.get("role") == "accountant"
 
@@ -18,6 +19,8 @@ EXPENSES_ONLY_DETAIL = "This account can only view expenses."
 
 def _ledger_read(request: Request) -> bool:
     route = getattr(request.scope.get("route"), "path", "") or request.url.path
+    if route == "/chat" or route.startswith("/chat/"):
+        return True  # Messages with their team
     if request.method == "POST" and route == "/sales/printed":
         return True  # the QR code on the PDFs they export (expenses, ledger)
     return request.method in ("GET", "HEAD") and (route == "/ledger" or route.startswith("/ledger/"))

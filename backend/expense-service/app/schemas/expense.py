@@ -4,7 +4,11 @@ from decimal import Decimal
 from pydantic import BaseModel, Field, field_validator
 from app.models.expense import ExpenseCategory
 
-VALID_PAYMENT_METHODS = {"mtn", "bank"}
+VALID_PAYMENT_METHODS = {"mtn", "bank", "cash"}
+
+# What supports an expense for RRA, and why one has no EBM receipt.
+Support = Literal["ebm", "wht", "dmc", "none"]
+NoEbmReason = Literal["bank", "abroad", "government", "unregistered", "other"]
 
 
 class ExpenseCreate(BaseModel):
@@ -19,6 +23,11 @@ class ExpenseCreate(BaseModel):
     receiver_phone: str | None = None
     direction:      Literal["in", "out"] = "out"   # "in": money received, not spent
     scope:          Literal["rwanda", "abroad"] = "rwanda"   # before the goods reach Rwanda, or here
+    ebm_support:    Support | None = None
+    supplier_name:  str | None = Field(None, max_length=150)
+    supplier_tin:   str | None = Field(None, max_length=40)
+    doc_ref:        str | None = Field(None, max_length=100)
+    no_ebm_reason:  NoEbmReason | None = None
 
     @field_validator("payment_method")
     @classmethod
@@ -40,6 +49,11 @@ class ExpenseUpdate(BaseModel):
     receiver_phone: str | None = None
     direction:      Literal["in", "out"] | None = None
     scope:          Literal["rwanda", "abroad"] | None = None
+    ebm_support:    Support | None = None
+    supplier_name:  str | None = Field(None, max_length=150)
+    supplier_tin:   str | None = Field(None, max_length=40)
+    doc_ref:        str | None = Field(None, max_length=100)
+    no_ebm_reason:  NoEbmReason | None = None
 
     @field_validator("payment_method")
     @classmethod

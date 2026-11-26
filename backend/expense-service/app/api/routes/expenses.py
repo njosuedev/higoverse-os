@@ -5,7 +5,7 @@ from typing import List
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from typing import Literal
 
-from sqlalchemy import func, or_
+from sqlalchemy import and_, func, or_
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
@@ -59,6 +59,11 @@ def _fmt(e: Expense, include_proof: bool = False) -> dict:
         "receiver_phone": e.receiver_phone,
         "direction":      "in" if e.direction == "in" else "out",
         "scope":          "abroad" if e.scope == "abroad" else "rwanda",
+        "ebm_support":    e.ebm_support,
+        "supplier_name":  e.supplier_name,
+        "supplier_tin":   e.supplier_tin,
+        "doc_ref":        e.doc_ref,
+        "no_ebm_reason":  e.no_ebm_reason,
     }
     if include_proof:
         result["proof_data"] = e.proof_data
@@ -79,6 +84,7 @@ def list_expenses(
     from_date: str | None = None,
     to_date: str | None = None,
     scope: Scope | None = None,
+    support: str | None = None,   # "none": not supported by EBM (RRA Tax Ledger)
 ):
     # No shop yet (e.g. account not linked to a shop) — nothing to list.
     if not user["shop_id"]:
@@ -89,6 +95,10 @@ def list_expenses(
     if category:
         q = q.filter(Expense.category == category)
     q = _in_scope(q, scope)
+    if support == "none":
+        q = q.filter(_NO_EBM)
+    elif support in ("ebm", "wht", "dmc"):
+        q = q.filter(Expense.ebm_support == support)
     if from_date:
         q = q.filter(Expense.expense_date >= datetime.fromisoformat(from_date + "T00:00:00"))
     if to_date:
@@ -267,6 +277,7 @@ def create_expense(
         direction="in" if payload.direction == "in" else None,
         scope="abroad" if payload.scope == "abroad" else None,
     )
+    _set_support(expense, payload.model_dump(include=_SUPPORT_FIELDS))
     db.add(expense)
     db.flush()
     emit(db, user, "expense.created", {
@@ -277,6 +288,80 @@ def create_expense(
     db.refresh(expense)
 
     return {"success": True, "message": "Expense recorded successfully", "data": _fmt(expense)}
+
+
+# ─────────────────────────────────────────
+# RRA TAX LEDGER (expenses not supported by EBM)
+# ─────────────────────────────────────────
+
+_SUPPORT_FIELDS = {"ebm_support", "supplier_name", "supplier_tin", "doc_ref", "no_ebm_reason"}
+
+# Not supported by EBM: marked so, or never marked (every expense recorded
+# before the RRA choice existed had no EBM), except salaries (declared
+# through payroll) and taxes paid (not purchases), which only count when
+# marked "none" on purpose.
+_NO_EBM = or_(
+    Expense.ebm_support == "none",
+    and_(Expense.ebm_support.is_(None),
+         Expense.category.notin_([ExpenseCategory.salaries, ExpenseCategory.taxes])),
+)
+
+
+def _tidy(x) -> str | None:
+    return (str(x).strip() or None) if x is not None else None
+
+
+def _set_support(expense: Expense, v: dict) -> None:
+    """What supports the expense for RRA. One with no EBM keeps who was
+    paid and why there is no EBM (the RRA Tax Ledger needs them)."""
+    expense.ebm_support = v.get("ebm_support") or None
+    expense.doc_ref = _tidy(v.get("doc_ref"))
+    expense.supplier_name = _tidy(v.get("supplier_name"))
+    expense.supplier_tin = _tidy(v.get("supplier_tin"))
+    if expense.ebm_support == "none":
+        if not expense.supplier_name:
+            raise HTTPException(status_code=422, detail="An expense without EBM needs the name of who was paid.")
+        if not v.get("no_ebm_reason"):
+            raise HTTPException(status_code=422, detail="Say why there is no EBM receipt for this expense.")
+        expense.no_ebm_reason = v.get("no_ebm_reason")
+    else:
+        expense.no_ebm_reason = None
+
+
+@router.get("/rra-ledger")
+def rra_ledger(
+    from_date: str,
+    to_date: str,
+    db: Session = Depends(get_db),
+    user: dict = Depends(require_expense_access),
+):
+    """Every expense of the period not supported by EBM, WHT or a customs
+    declaration, oldest first, with what is still missing before it can be
+    lodged in the RRA Tax Ledger. The documents themselves come from
+    GET /expenses/{id}/proof."""
+    if not user["shop_id"]:
+        return {"success": True, "data": {"items": [], "total": 0}}
+    try:
+        start = datetime.fromisoformat(from_date[:10] + "T00:00:00")
+        end = datetime.fromisoformat(to_date[:10] + "T23:59:59")
+    except ValueError:
+        raise HTTPException(status_code=422, detail="Dates must be YYYY-MM-DD.")
+    rows = (
+        db.query(Expense)
+        .filter(Expense.shop_id == user["shop_id"], _NO_EBM, _SPENT,
+                Expense.expense_date >= start, Expense.expense_date <= end)
+        .order_by(Expense.expense_date, Expense.created_at)
+        .all()
+    )
+    items = []
+    for e in rows:
+        files = json.loads(e.proof_data) if e.proof_data else []
+        missing = [k for k, ok in (("proof", bool(files)), ("supplier_name", bool(e.supplier_name)),
+                                   ("reason", bool(e.no_ebm_reason)), ("supplier_tin", bool(e.supplier_tin)),
+                                   ("doc_ref", bool(e.doc_ref))) if not ok]
+        items.append({**_fmt(e), "proof_count": len(files),
+                      "proof_names": [f.get("name") for f in files], "missing": missing})
+    return {"success": True, "data": {"items": items, "total": round(sum(i["amount"] for i in items), 2)}}
 
 
 # ─────────────────────────────────────────
@@ -378,7 +463,11 @@ def update_expense(
 ):
     expense = _get_or_404(db, expense_id, user["shop_id"])
 
-    for key, value in payload.model_dump(exclude_unset=True).items():
+    changes = payload.model_dump(exclude_unset=True)
+    support = {k: changes.pop(k) for k in list(changes) if k in _SUPPORT_FIELDS}
+    if support:
+        _set_support(expense, {**{k: getattr(expense, k) for k in _SUPPORT_FIELDS}, **support})
+    for key, value in changes.items():
         if key == "direction":
             value = "in" if value == "in" else None
         if key == "scope":

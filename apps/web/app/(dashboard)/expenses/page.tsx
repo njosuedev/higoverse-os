@@ -16,9 +16,11 @@ import { apiError, CORRECTION_ROLES, INCOME_SOURCES, moveExpenseToIncome, type I
 import { useAuth } from "@/lib/auth-context";
 import { useExpensesOnly } from "@/lib/permissions";
 import CorrectionHistory from "@/app/components/finance/CorrectionHistory";
+import RraLedgerDialog from "@/app/components/finance/RraLedgerDialog";
+import { NO_EBM_REASONS, SUPPORTS, type NoEbmReason, type Support } from "@/lib/rra-ledger";
 import type { DataValidation as ExcelDataValidation } from "exceljs";
 import {
-  Plus, Pencil, Trash2, X, Calendar, BarChart3, AlertCircle, Download, Upload, FileSpreadsheet, FileText, Paperclip, ImageIcon, FileIcon, Receipt, RefreshCw, Search, Filter, ChevronDown, ArrowRightLeft, History, Globe2 } from "lucide-react";
+  Plus, Pencil, Trash2, X, Calendar, BarChart3, AlertCircle, Download, Upload, FileSpreadsheet, FileText, Paperclip, ImageIcon, FileIcon, Receipt, RefreshCw, Search, Filter, ChevronDown, ArrowRightLeft, History, Globe2, Landmark } from "lucide-react";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -26,7 +28,7 @@ type Category =
   | "rent" | "utilities" | "salaries" | "supplies"
   | "maintenance" | "marketing" | "transport" | "taxes" | "other";
 
-type PaymentMethod = "mtn" | "bank" | "";
+type PaymentMethod = "cash" | "mtn" | "bank" | "";
 
 const BANK_NAMES = ["Equity Bank", "BK Bank", "GT Bank", "Access Bank", "I&M Bank"];
 
@@ -51,9 +53,19 @@ interface Expense {
   scope?: "rwanda" | "abroad";
   /** "in": money received, kept here for the record but never counted as spending. */
   direction?: "in" | "out";
+  /** RRA: EBM receipt, withholding tax, customs declaration, or no EBM (Tax Ledger). */
+  ebm_support?: Support | null;
+  supplier_name?: string | null;
+  supplier_tin?: string | null;
+  doc_ref?: string | null;
+  no_ebm_reason?: NoEbmReason | null;
 }
 
 const isIn = (e: Expense) => e.direction === "in";
+/** Salaries (payroll) and taxes paid are not purchases: never "no EBM" by default. */
+const NOT_PURCHASES: Category[] = ["salaries", "taxes"];
+/** No EBM: marked so, or recorded before the RRA choice existed (mirrors expense-service _NO_EBM). */
+const isNoEbm = (e: Expense) => !isIn(e) && (e.ebm_support === "none" || (!e.ebm_support && !NOT_PURCHASES.includes(e.category)));
 
 interface CategoryStat { category: Category; total: number; count: number; }
 interface ProofEntry   { name: string; type: string; preview: string; file: File; }
@@ -93,6 +105,7 @@ const EMPTY_FORM = {
   payment_method: "" as PaymentMethod, bank_name: "", bank_account: "", receiver_phone: "",
   direction: "out" as "in" | "out",
   scope: "rwanda" as "rwanda" | "abroad",
+  ebm_support: "" as Support | "", supplier_name: "", supplier_tin: "", doc_ref: "", no_ebm_reason: "" as NoEbmReason | "",
 };
 
 function toDateStr(d: Date) {
@@ -158,6 +171,9 @@ export default function ExpenseManagementPage() {
   // Car importers: abroad (before the cars reach Rwanda) or in Rwanda.
   // Shown by default: what was spent in Rwanda ("" = abroad and Rwanda).
   const [scopeFilter, setScopeFilter] = useState<"" | "rwanda" | "abroad">("rwanda");
+  // RRA: only the expenses with no EBM (to lodge in the RRA Tax Ledger).
+  const [supportFilter, setSupportFilter] = useState<Support | "">("");
+  const [showRra, setShowRra] = useState(false);
   // Only car companies have the filter; the scope sent is empty for everyone else.
   const scopeParam = isCar ? scopeFilter : "";
   const [search, setSearch]           = useState("");
@@ -236,7 +252,7 @@ export default function ExpenseManagementPage() {
 
   useEffect(() => { loadAll(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { if (!loading) loadExpenses(); }, [page, pageSize, dateFrom, dateTo, catFilter, scopeParam]);
+  useEffect(() => { if (!loading) loadExpenses(); }, [page, pageSize, dateFrom, dateTo, catFilter, scopeParam, supportFilter]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { if (!loading) { loadSummaries(); loadByCategory(); } }, [dateFrom, dateTo, catFilter, scopeParam]);
 
@@ -404,6 +420,7 @@ export default function ExpenseManagementPage() {
       ...(dateTo    && { to_date: dateTo }),
       ...(catFilter && { category: catFilter }),
       ...(scopeParam && { scope: scopeParam }),
+      ...(supportFilter && { support: supportFilter }),
     });
     const res = await expenseRequest(`/expenses?${params}`);
     const all: Expense[] = res?.data?.items || [];
@@ -763,6 +780,7 @@ export default function ExpenseManagementPage() {
         ...(dateTo   && { to_date: dateTo }),
         ...(catFilter && { category: catFilter }),
         ...(scopeParam && { scope: scopeParam }),
+        ...(supportFilter && { support: supportFilter }),
       });
       const res = await expenseRequest(`/expenses?${params}`);
       setExpenses(res?.data?.items || []);
@@ -808,14 +826,18 @@ export default function ExpenseManagementPage() {
 
   function openModal() {
     setEditingId("");
-    setForm({ ...EMPTY_FORM, expense_date: toDateStr(new Date()) });
+    // Car companies: no EBM unless said otherwise (RRA Tax Ledger).
+    setForm({ ...EMPTY_FORM, expense_date: toDateStr(new Date()), ...(isCar ? { ebm_support: "none" as Support } : {}) });
     setProofEntries([]);
     setShowModal(true);
   }
 
+  // Whether the expense being edited already has its documents (RRA: no EBM needs them).
+  const [editingHasProof, setEditingHasProof] = useState(false);
+
   /** Opens the same form filled with an expense, to correct it. */
   function openEdit(e: Expense) {
-    const method: PaymentMethod = e.payment_method === "mtn" || e.payment_method === "bank" ? e.payment_method : "";
+    const method: PaymentMethod = e.payment_method === "mtn" || e.payment_method === "bank" || e.payment_method === "cash" ? e.payment_method : "";
     setEditingId(e.id);
     setForm({
       title: e.title, category: e.category, amount: String(e.amount), notes: e.notes ?? "",
@@ -825,7 +847,10 @@ export default function ExpenseManagementPage() {
       direction: e.direction === "in" ? "in" : "out",
       scope: e.scope === "abroad" ? "abroad" : "rwanda",
       bank_name: e.bank_name ?? "", bank_account: e.bank_account ?? "", receiver_phone: e.receiver_phone ?? "",
+      ebm_support: e.ebm_support ?? (isCar && !NOT_PURCHASES.includes(e.category) ? "none" : ""), supplier_name: e.supplier_name ?? "", supplier_tin: e.supplier_tin ?? "",
+      doc_ref: e.doc_ref ?? "", no_ebm_reason: e.no_ebm_reason ?? "",
     });
+    setEditingHasProof(!!e.has_proof);
     setProofEntries([]);
     setShowModal(true);
   }
@@ -886,6 +911,22 @@ export default function ExpenseManagementPage() {
     if (!form.amount || Number(form.amount) <= 0) { await showAlert(t("common.invalid_amount"), t("expenses.amount") + t("common.must_be_greater_than_zero_suffix")); return; }
     if (!form.expense_date) { await showAlert(t("common.missing_field"), t("expenses.expense_date") + t("common.field_required_suffix")); return; }
     if (!form.payment_method) { await showAlert(t("common.missing_field"), t("expenses.payment_method_required")); return; }
+    // Car companies say what supports each expense for RRA; one with no EBM
+    // needs who was paid, why there is no EBM, and its documents.
+    const rra = isCar && form.direction !== "in";
+    if (rra && !form.ebm_support) { await showAlert(t("common.missing_field"), t("rra.support_required")); return; }
+    if (rra && form.ebm_support === "none") {
+      if (!form.supplier_name.trim()) { await showAlert(t("common.missing_field"), t("rra.supplier_name") + t("common.field_required_suffix")); return; }
+      if (!form.no_ebm_reason) { await showAlert(t("common.missing_field"), t("rra.reason") + t("common.field_required_suffix")); return; }
+      if (!proofEntries.length && !(editingId && editingHasProof)) { await showAlert(t("common.missing_field"), t("rra.proof_required")); return; }
+    }
+    const support = rra ? {
+      ebm_support: form.ebm_support || null,
+      supplier_name: form.supplier_name.trim() || null,
+      supplier_tin: form.supplier_tin.trim() || null,
+      doc_ref: form.doc_ref.trim() || null,
+      no_ebm_reason: form.ebm_support === "none" ? form.no_ebm_reason || null : null,
+    } : {};
 
     try {
       setSubmitting(true);
@@ -904,8 +945,10 @@ export default function ExpenseManagementPage() {
             bank_account:   form.payment_method === "bank" ? (form.bank_account.trim() || null) : null,
             receiver_phone: form.payment_method ? (form.receiver_phone.trim() || null) : null,
             ...(isCar ? { scope: form.scope } : {}),
+            ...support,
           }),
         });
+        if (proofEntries.length > 0) await expenseUploadProof(editingId, proofEntries.map((p) => p.file));
         setShowModal(false);
         setEditingId("");
         setForm(EMPTY_FORM);
@@ -925,6 +968,7 @@ export default function ExpenseManagementPage() {
           bank_account:   form.payment_method === "bank" ? (form.bank_account.trim() || undefined) : undefined,
           receiver_phone: form.receiver_phone.trim() || undefined,
           scope: isCar ? form.scope : "rwanda",
+          ...support,
         }),
       });
 
@@ -1033,6 +1077,8 @@ export default function ExpenseManagementPage() {
     <div className="min-h-screen">
       <DeepLink keys={["new"]} onParams={handleDeepLink} />
       {showHistory && <CorrectionHistory onClose={() => setShowHistory(false)} />}
+      {showRra && <RraLedgerDialog currency={currency} onClose={() => setShowRra(false)}
+        onOpen={viewOnly ? undefined : (id) => { const e = expenses.find((x) => x.id === id); if (e) { setShowRra(false); openEdit(e); } else notify(t("rra.open_hint")); }} />}
       {moving && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => !movingBusy && setMoving(null)}>
           <div role="dialog" aria-modal="true" className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl" onClick={(ev) => ev.stopPropagation()}>
@@ -1067,6 +1113,10 @@ export default function ExpenseManagementPage() {
             <span className="text-[11px] text-blue-100/70 mr-1">
               <span className="font-semibold text-white/80">{total.toLocaleString()}</span> {t("expenses.records")}
             </span>
+            {isCar && <button onClick={() => setShowRra(true)} title={t("rra.title")}
+              className="flex items-center gap-1.5 h-7 px-2 rounded-lg bg-white/10 hover:bg-white/20 border border-white/15 text-white text-[11px] font-semibold transition-all">
+              <Landmark size={12} /> <span className="hidden sm:inline">{t("rra.button")}</span>
+            </button>}
             {!viewOnly && <button onClick={() => setShowHistory(true)} title={t("move.history")} aria-label={t("move.history")}
               className="w-7 h-7 rounded-lg bg-white/10 hover:bg-white/20 border border-white/15 flex items-center justify-center text-white transition-all">
               <History size={12} />
@@ -1107,6 +1157,14 @@ export default function ExpenseManagementPage() {
                   <option value="" className="text-gray-800">{t("scope.all")}</option>
                   <option value="abroad" className="text-gray-800">{t("scope.abroad")}</option>
                   <option value="rwanda" className="text-gray-800">{t("scope.rwanda")}</option>
+                </select>
+                <ChevronDown size={14} className="shrink-0" />
+              </div>}
+              {isCar && <div className="hgv-filter">
+                <Landmark size={14} className="shrink-0" />
+                <select value={supportFilter} aria-label={t("rra.support")} onChange={(e) => { setSupportFilter(e.target.value as Support | ""); setPage(1); }}>
+                  <option value="" className="text-gray-800">{t("rra.filter_all")}</option>
+                  {SUPPORTS.map((k) => <option key={k} value={k} className="text-gray-800">{t(`rra.support_${k}`)}</option>)}
                 </select>
                 <ChevronDown size={14} className="shrink-0" />
               </div>}
@@ -1246,6 +1304,7 @@ export default function ExpenseManagementPage() {
                       <td className="px-2.5 py-1">
                         <p className="font-semibold text-slate-800 text-xs leading-tight">{e.title}
                           {isCar && e.scope === "abroad" && <span className="ml-1 inline-flex rounded bg-indigo-50 border border-indigo-200 px-1 text-[10px] font-semibold text-indigo-700 align-middle">{t("scope.abroad_short")}</span>}
+                          {isCar && isNoEbm(e) && <span title={t("rra.tag_hint")} className={`ml-1 inline-flex rounded border px-1 text-[10px] font-semibold align-middle ${e.has_proof ? "bg-amber-50 border-amber-200 text-amber-800" : "bg-red-50 border-red-200 text-red-700"}`}>{t("rra.tag")}{!e.has_proof && " !"}</span>}
                           {e.corrected && <span title={t("move.corrected_tag_hint")} className="ml-1 inline-flex rounded bg-amber-50 border border-amber-200 px-1 text-[10px] font-semibold text-amber-700 align-middle">{t("move.corrected_tag")}</span>}
                         </p>
                         <p className="text-[11px] text-slate-400 font-mono leading-tight">{e.id.slice(0, 8)}</p>
@@ -1558,7 +1617,7 @@ export default function ExpenseManagementPage() {
                 <div className="border border-slate-100 rounded-lg p-2 bg-slate-50/50">
                   <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1.5">{t("expenses.payment_method")}</p>
                   <div className="flex gap-1.5 mb-1.5">
-                    {(["", "mtn", "bank"] as PaymentMethod[]).map((m) => (
+                    {(["", "cash", "mtn", "bank"] as PaymentMethod[]).map((m) => (
                       <button key={m} type="button"
                         onClick={() => setForm({ ...form, payment_method: m, bank_name: "", bank_account: "", receiver_phone: "" })}
                         className={`flex-1 py-1 rounded-md text-[11px] font-semibold border transition-all ${
@@ -1566,7 +1625,7 @@ export default function ExpenseManagementPage() {
                             ? "bg-[#0a66c2] border-[#0a66c2] text-white"
                             : "bg-white border-slate-200 text-slate-600 hover:border-slate-300"
                         }`}>
-                        {m === "" ? t("common.none") : m === "mtn" ? "MTN MoMo" : t("common.bank")}
+                        {m === "" ? t("common.none") : m === "cash" ? t("sales.pm_cash") : m === "mtn" ? "MTN MoMo" : t("common.bank")}
                       </button>
                     ))}
                   </div>
@@ -1590,7 +1649,7 @@ export default function ExpenseManagementPage() {
                     </div>
                   )}
 
-                  {form.payment_method !== "" && (
+                  {form.payment_method !== "" && form.payment_method !== "cash" && (
                     <div>
                       <label className="block text-[11px] font-medium text-gray-500 mb-0.5">
                         {form.payment_method === "mtn" ? t("expenses.receiver_phone_mtn") : t("expenses.receiver_phone")}
@@ -1601,8 +1660,63 @@ export default function ExpenseManagementPage() {
                   )}
                 </div>
 
-                {/* Proof upload (new expenses; a saved one's proof is managed from its row) */}
-                {!editingId && <div>
+                {/* RRA: what supports this expense (car companies) */}
+                {isCar && form.direction !== "in" && (
+                  <div className="border border-slate-100 rounded-lg p-2 bg-slate-50/50">
+                    <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1.5">{t("rra.support")}</p>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                      {SUPPORTS.map((k) => (
+                        <button key={k} type="button" onClick={() => setForm({ ...form, ebm_support: k })}
+                          className={`py-1 rounded-md text-[11px] font-semibold border transition-all ${
+                            form.ebm_support === k ? (k === "none" ? "bg-amber-600 border-amber-600 text-white" : "bg-[#0a66c2] border-[#0a66c2] text-white")
+                              : "bg-white border-slate-200 text-slate-600 hover:border-slate-300"}`}>
+                          {t(`rra.support_${k}`)}
+                        </button>
+                      ))}
+                    </div>
+                    {form.ebm_support === "none" && (
+                      <div className="mt-2 space-y-1.5">
+                        <p className="rounded-md bg-amber-50 px-2 py-1 text-[11px] text-amber-800">{t("rra.none_hint")}</p>
+                        <div className="grid grid-cols-2 gap-1.5">
+                          <div>
+                            <label className="block text-[11px] font-medium text-gray-500 mb-0.5">{t("rra.supplier_name")} *</label>
+                            <input className={inputCls} value={form.supplier_name} maxLength={150}
+                              onChange={(e) => setForm({ ...form, supplier_name: e.target.value })} />
+                          </div>
+                          <div>
+                            <label className="block text-[11px] font-medium text-gray-500 mb-0.5">{t("rra.supplier_tin")}</label>
+                            <input className={inputCls} value={form.supplier_tin} maxLength={40}
+                              onChange={(e) => setForm({ ...form, supplier_tin: e.target.value })} />
+                          </div>
+                          <div>
+                            <label className="block text-[11px] font-medium text-gray-500 mb-0.5">{t("rra.reason")} *</label>
+                            <select className={inputCls} value={form.no_ebm_reason}
+                              onChange={(e) => setForm({ ...form, no_ebm_reason: e.target.value as NoEbmReason | "" })}>
+                              <option value="">-</option>
+                              {NO_EBM_REASONS.map((r) => <option key={r} value={r}>{t(`rra.reason_${r}`)}</option>)}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-[11px] font-medium text-gray-500 mb-0.5">{t("rra.doc_ref")}</label>
+                            <input className={inputCls} value={form.doc_ref} maxLength={100} placeholder={t("rra.doc_ref_hint")}
+                              onChange={(e) => setForm({ ...form, doc_ref: e.target.value })} />
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    {form.ebm_support && form.ebm_support !== "none" && (
+                      <div className="mt-2">
+                        <label className="block text-[11px] font-medium text-gray-500 mb-0.5">{t(`rra.ref_${form.ebm_support}`)}</label>
+                        <input className={inputCls} value={form.doc_ref} maxLength={100}
+                          onChange={(e) => setForm({ ...form, doc_ref: e.target.value })} />
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Proof upload (new expenses; a saved one's proof is managed from its row,
+                    except a no-EBM one without its documents yet) */}
+                {(!editingId || (isCar && form.ebm_support === "none" && !editingHasProof)) && <div>
                   <label className="flex items-center gap-1 text-[11px] font-medium text-gray-500 mb-0.5">
                     <Paperclip size={9} /> {t("expenses.proof")}
                     <span className="text-slate-400 font-normal ml-1">{t("expenses.proof_hint")}</span>

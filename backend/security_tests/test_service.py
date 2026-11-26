@@ -260,6 +260,8 @@ def _car_accountant_may(method: str, path: str) -> bool:
         return True
     if SERVICE == "sale-service" and (method, path) == ("POST", "/sales/printed"):
         return True
+    if SERVICE == "sale-service" and path.startswith("/chat/"):
+        return True
     if SERVICE == "expense-service":
         return method == "GET" and (path == "/expenses" or path.startswith("/expenses/"))
     if SERVICE in ("shop-service", "settings-service"):
@@ -315,6 +317,72 @@ def test_ledger_entries_balance():
         rows = [l for l in b.lines if l["txn"] == txn]
         assert round(sum(l["debit"] for l in rows) - sum(l["credit"] for l in rows), 2) == 0, txn
         assert all(l["debit"] >= 0 and l["credit"] >= 0 for l in rows), txn
+
+
+def test_car_accountant_live_feed_is_messages_only():
+    """The live socket sends a car company's accountant chat events only."""
+    if SERVICE != "sale-service":
+        pytest.skip("sale-service only")
+    import json as _json
+    from app import realtime
+    user = realtime._decode(token(SHOP_A, "accountant", layout="car"))
+    assert user and user["chat_only"]
+    assert not realtime._decode(token(SHOP_A, "owner", layout="car"))["chat_only"]
+    got = []
+
+    class _C:
+        def __init__(self, u): self.user, self.ws = u, None
+        def offer(self, text): got.append(_json.loads(text)["type"]); return True
+    hub = realtime.Hub()
+    hub.shops[SHOP_A] = {_C(user)}
+    hub.dispatch(_json.dumps({"shop_id": SHOP_A, "type": "sale.created", "data": {"total_amount": 5}}))
+    hub.dispatch(_json.dumps({"shop_id": SHOP_A, "type": "chat.message", "to": [user["user_id"]], "data": {}}))
+    assert got == ["chat.message"], got
+
+
+def test_rra_ledger_expenses_without_ebm(client):
+    """An expense with no EBM keeps who was paid and why; it is listed for
+    the RRA Tax Ledger with what is still missing, for this company only."""
+    if SERVICE != "expense-service":
+        pytest.skip("expense-service only")
+    owner = auth(token(SHOP_A, "owner", layout="car"))
+    base = {"title": "Car wash by hand", "category": "supplies", "amount": 15000,
+            "expense_date": "2026-11-20T00:00:00", "payment_method": "cash"}
+    r = client.post("/expenses", json={**base, "ebm_support": "none"}, headers=owner)
+    assert r.status_code == 422, r.text[:200]          # no supplier, no reason
+    r = client.post("/expenses", json={**base, "ebm_support": "none", "supplier_name": "Jean Car Wash",
+                                       "no_ebm_reason": "unregistered"}, headers=owner)
+    assert r.status_code == 200, r.text[:300]
+    eid = r.json()["data"]["id"]
+    assert r.json()["data"]["ebm_support"] == "none"
+    r = client.post("/expenses", json={**base, "title": "With EBM", "ebm_support": "ebm", "doc_ref": "EBM-1"}, headers=owner)
+    assert r.status_code == 200, r.text[:300]
+
+    led = client.get("/expenses/rra-ledger?from_date=2026-01-01&to_date=2026-12-31", headers=owner).json()["data"]
+    mine = [i for i in led["items"] if i["id"] == eid]
+    assert mine and set(mine[0]["missing"]) == {"proof", "supplier_tin", "doc_ref"}
+    assert all(i["ebm_support"] in ("none", None) for i in led["items"])
+    # Recorded before the RRA choice existed: counted as no EBM (not salaries).
+    old = client.post("/expenses", json={**base, "title": "Old expense"}, headers=owner).json()["data"]["id"]
+    sal = client.post("/expenses", json={**base, "title": "Old salary", "category": "salaries"}, headers=owner).json()["data"]["id"]
+    led = client.get("/expenses/rra-ledger?from_date=2026-01-01&to_date=2026-12-31", headers=owner).json()["data"]
+    ids = {i["id"]: i for i in led["items"]}
+    assert old in ids and sal not in ids
+    assert {"supplier_name", "reason", "proof"} <= set(ids[old]["missing"])
+    for x in (old, sal):
+        client.delete(f"/expenses/{x}", headers=owner)
+    # The car accountant reads it; another company doesn't see it.
+    acct = client.get("/expenses/rra-ledger?from_date=2026-01-01&to_date=2026-12-31",
+                      headers=auth(token(SHOP_A, "accountant", layout="car")))
+    assert acct.status_code == 200 and eid in acct.text
+    other = client.get("/expenses/rra-ledger?from_date=2026-01-01&to_date=2026-12-31",
+                       headers=auth(token(SHOP_B, "owner", layout="car")))
+    assert eid not in other.text
+
+    # Switching it to "EBM receipt" drops the no-EBM reason.
+    r = client.put(f"/expenses/{eid}", json={"ebm_support": "ebm", "doc_ref": "SDC-77"}, headers=owner)
+    assert r.status_code == 200 and r.json()["data"]["no_ebm_reason"] is None
+    client.delete(f"/expenses/{eid}", headers=owner)
 
 
 # ── 4. Per-company settings and totals ───────────────────────────────────────

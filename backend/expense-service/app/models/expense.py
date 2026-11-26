@@ -44,3 +44,13 @@ class Expense(Base):
     # Rwanda (buying in China, shipping…), "rwanda" once here (duties,
     # clearing, rent…). Empty on older rows = Rwanda.
     scope            = Column(String(10), nullable=True)
+    # RRA: what supports it for income tax. "ebm" (EBM receipt), "wht"
+    # (withholding tax declared), "dmc" (customs declaration) or "none": no
+    # EBM, so it must be lodged in the RRA Tax Ledger with its documents; the
+    # supplier, their TIN/ID, the document number and why there is no EBM
+    # are kept. Empty on older rows.
+    ebm_support      = Column(String(4), nullable=True)
+    supplier_name    = Column(String(150), nullable=True)
+    supplier_tin     = Column(String(40), nullable=True)     # TIN, or national ID / passport
+    doc_ref          = Column(String(100), nullable=True)    # receipt, contract, invoice or bank reference
+    no_ebm_reason    = Column(String(20), nullable=True)     # bank | abroad | government | unregistered | other

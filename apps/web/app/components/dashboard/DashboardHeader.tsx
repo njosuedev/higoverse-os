@@ -74,9 +74,9 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
   }, []);
   // Messages: keys, team and live unread counts once signed in to a business.
   // Car companies only: shops have no Messages.
-  // A car company's accountant only views expenses: no Messages.
+  // A car company's accountant: Expenses, Ledger and Messages only.
   const expensesOnly = useExpensesOnly();
-  useEffect(() => { if (ready && user?.shop_id && layout === "car" && !expensesOnly) void startChat(); }, [ready, user?.shop_id, layout, expensesOnly]);
+  useEffect(() => { if (ready && user?.shop_id && layout === "car") void startChat(); }, [ready, user?.shop_id, layout]);
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -132,8 +132,8 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
     // Payroll: the owner, managers and the accountant.
     .filter((m) => m.href !== "/payroll" || PAYROLL_ROLES.includes(user?.role ?? ""))
     .filter((m) => m.href !== "/ledger" || canUseLedger)
-    // A car company's accountant: Expenses and the Ledger only.
-    .filter((m) => !expensesOnly || m.href === "/expenses" || m.href === "/ledger");
+    // A car company's accountant: Expenses, the Ledger and Messages only.
+    .filter((m) => !expensesOnly || ["/expenses", "/ledger", "/messages"].includes(m.href));
 
   // Tablets and computers: Home, Vehicles / Inventory, Customers / Partners
   // and Sales across the top; everything else down the sidebar.
@@ -339,7 +339,7 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
                 </div>
               ))
             : (<>
-                {!expensesOnly && (
+                {sideMenus.some((m) => BUSINESS_SIDE.includes(m.href)) && (
                   <SideGroup label={t("nav.group_business")} first>
                     {sideMenus.filter((m) => BUSINESS_SIDE.includes(m.href)).map((menu) => (
                       <SideLink key={menu.href} menu={menu} pathname={pathname} t={t} badge={menu.href === "/messages" ? unread : 0} />
@@ -347,7 +347,7 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
                   </SideGroup>
                 )}
                 {sideMenus.some((m) => FINANCE_SIDE.includes(m.href)) && (
-                  <SideGroup label={t("nav.group_finance")} first={expensesOnly}>
+                  <SideGroup label={t("nav.group_finance")} first={!sideMenus.some((m) => BUSINESS_SIDE.includes(m.href))}>
                     {sideMenus.filter((m) => FINANCE_SIDE.includes(m.href)).map((menu) => (
                       <SideLink key={menu.href} menu={menu} pathname={pathname} t={t} />
                     ))}
@@ -387,6 +387,8 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
       <nav aria-label={t("nav.open_menu")} className="hgv-tabbar md:hidden">
         <TabLink href="/expenses" icon={ReceiptTab} label={t("nav.expenses")} active={isActiveHref(pathname, "/expenses")} />
         <TabLink href="/ledger" icon={BookOpenText} label={t("nav.ledger")} active={isActiveHref(pathname, "/ledger")} />
+        <TabLink href="/messages" icon={ChatCircleDots} label={t("nav.messages")}
+          active={isActiveHref(pathname, "/messages")} badge={unread} />
         <TabLink href="/settings" icon={Gear} label={t("nav.settings")} active={isActiveHref(pathname, "/settings")} />
       </nav>
       ) : (

@@ -50,7 +50,7 @@ export function isExpensesOnly(role: string | undefined, layout: string | undefi
 }
 
 /** The pages a car company's accountant may open (view only). */
-export const EXPENSES_ONLY_ROUTES = ["/expenses", "/ledger", "/settings"];
+export const EXPENSES_ONLY_ROUTES = ["/expenses", "/ledger", "/messages", "/settings"];
 
 /** Whether the signed-in user may only view expenses. Accountants count as
  *  restricted until the shop's layout has loaded (fails closed). */
