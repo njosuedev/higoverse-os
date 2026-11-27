@@ -6,7 +6,7 @@
 
 import AmountInput from "@/app/components/ui/AmountInput";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { CarFront, FileText, Pencil, Plus, Printer, RefreshCw, RotateCcw, Search, Trash2, Wallet, X, Ban } from "lucide-react";
+import { CarFront, FileDown, FileText, Pencil, Plus, Printer, RefreshCw, RotateCcw, Search, Trash2, Wallet, X, Ban } from "lucide-react";
 import { useLanguage } from "@/lib/language-context";
 import { useAuth } from "@/lib/auth-context";
 import { settingsRequest } from "@/lib/settings-api";
@@ -20,6 +20,7 @@ import { getPrintShop } from "@/lib/print-shop";
 import { askConfirm, notify } from "@/lib/dialogs";
 import { AGREEMENT_LANGS, rentalAgreementHtml, rentalDays, type AgreementLang, type AgreementTemplates } from "@/lib/rental-print";
 import AgreementEditor from "./AgreementEditor";
+import { downloadRentalAgreementDocx } from "@/lib/rental-docx";
 import {
   addRentalDeposit, cancelRental, deleteRental, depositTotal, getAgreementTemplate, listRentals, removeRentalDeposit, RENTAL_MANAGER_ROLES, returnRental, saveRental,
   type Rental, type RentalInput, type RentalStatus,
@@ -171,10 +172,23 @@ export default function RentalPanel({ rentCarId }: { rentCarId?: string | null }
   async function print(r: Rental, lang: AgreementLang) {
     try { localStorage.setItem(LANG_KEY, lang); } catch { /* private mode */ }
     setPrinting(null);
-    // The latest wording, in case it was changed elsewhere since this page opened.
+    const { shop, own } = await shopAndWording();
+    printHtml(rentalAgreementHtml(r, shop, lang, { autoPrint: true, template: own }));
+  }
+  /** The agreement as a Word document, to change before it is signed. */
+  async function word(r: Rental, lang: AgreementLang) {
+    try { localStorage.setItem(LANG_KEY, lang); } catch { /* private mode */ }
+    setPrinting(null);
+    try {
+      const { shop, own } = await shopAndWording();
+      await downloadRentalAgreementDocx(r, shop, lang, own);
+    } catch { notify(t("rental.word_failed")); }
+  }
+  /** The company's details and its latest wording (it may have changed elsewhere since this page opened). */
+  async function shopAndWording() {
     const [shop, own] = await Promise.all([getPrintShop(), getAgreementTemplate().then((d) => d?.templates ?? null).catch(() => agreement)]);
     setAgreement(own);
-    printHtml(rentalAgreementHtml(r, shop, lang, { autoPrint: true, template: own }));
+    return { shop, own };
   }
 
   async function cancel(r: Rental) {
@@ -357,7 +371,7 @@ export default function RentalPanel({ rentCarId }: { rentCarId?: string | null }
 
       {editingAgreement && <AgreementEditor own={agreement} latest={items[0] ?? null}
         onClose={() => setEditingAgreement(false)} onSaved={(own) => { setAgreement(own); setEditingAgreement(false); }} />}
-      {printing && <PrintChoice rental={printing} onPick={(l) => void print(printing, l)} onClose={() => setPrinting(null)} />}
+      {printing && <PrintChoice rental={printing} onPick={(l) => void print(printing, l)} onWord={(l) => void word(printing, l)} onClose={() => setPrinting(null)} />}
       {depositsOf && <DepositsDialog rental={depositsOf} canRemove={canDelete}
         onClose={() => setDepositsOf(null)} onSaved={async (r) => { setDepositsOf(r); await load(); }} />}
       {returning && <ReturnDialog rental={returning} onClose={() => setReturning(null)} onDone={async () => { setReturning(null); await load(); }} />}
@@ -384,7 +398,9 @@ function Details({ items, missing }: { items: [string, string][]; missing: strin
 }
 
 /** Which language the agreement prints in (the last choice comes first). */
-function PrintChoice({ rental, onPick, onClose }: { rental: Rental; onPick: (l: AgreementLang) => void; onClose: () => void }) {
+function PrintChoice({ rental, onPick, onWord, onClose }: {
+  rental: Rental; onPick: (l: AgreementLang) => void; onWord: (l: AgreementLang) => void; onClose: () => void;
+}) {
   const { t } = useLanguage();
   let last: string | null = null;
   try { last = localStorage.getItem(LANG_KEY); } catch { /* private mode */ }
@@ -395,10 +411,16 @@ function PrintChoice({ rental, onPick, onClose }: { rental: Rental; onPick: (l: 
         <p className="mt-1 text-sm text-slate-500">{t("rental.print_lang")} · {rental.rental_no}</p>
         <div className="mt-4 grid gap-2">
           {AGREEMENT_LANGS.map((l) => (
-            <button key={l.code} onClick={() => onPick(l.code)}
-              className={`rounded-lg border px-3 py-2 text-left text-sm font-semibold hover:border-blue-400 hover:bg-blue-50 ${last === l.code ? "border-blue-400 bg-blue-50/60" : "border-slate-200"}`}>
-              {l.label}
-            </button>
+            <div key={l.code} className="flex gap-2">
+              <button onClick={() => onPick(l.code)} title={t("rental.print")}
+                className={`flex flex-1 items-center gap-2 rounded-lg border px-3 py-2 text-left text-sm font-semibold hover:border-blue-400 hover:bg-blue-50 ${last === l.code ? "border-blue-400 bg-blue-50/60" : "border-slate-200"}`}>
+                <Printer size={14} className="text-slate-400" /> {l.label}
+              </button>
+              <button onClick={() => onWord(l.code)} title={`${t("rental.word")} · ${l.label}`}
+                className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-blue-700 hover:border-blue-400 hover:bg-blue-50">
+                <FileDown size={14} /> {t("rental.word")}
+              </button>
+            </div>
           ))}
         </div>
         <button onClick={onClose} className="mt-4 w-full rounded-lg border border-slate-200 px-4 py-2 text-sm">{t("common.cancel")}</button>

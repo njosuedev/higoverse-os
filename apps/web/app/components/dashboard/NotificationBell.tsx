@@ -8,7 +8,7 @@ import {
 import { useLanguage } from "@/lib/language-context";
 import { useAuth } from "@/lib/auth-context";
 import { useShopSettings } from "@/lib/shop-settings-context";
-import { useCanSeeFinancials } from "@/lib/permissions";
+import { useCanSeeFinancials, useExpensesOnly } from "@/lib/permissions";
 import {
   clearAll, configureNotifications, markAllRead, markRead, notifText, playChime, setSoundOn, useNotifications, useSoundOn, type Notif, type NotifKind,
 } from "@/lib/notifications";
@@ -67,6 +67,8 @@ export default function NotificationBell() {
   const [open, setOpen] = useState(false);
   const [filter, setFilter] = useState<Filter>("all");
   const fin = useCanSeeFinancials();
+  // A car company's accountant: only new expenses come to them.
+  const expensesOnly = useExpensesOnly();
   const isCar = layout === "car";
   // "5 min ago" stays true while the list is open.
   const [now, setNow] = useState(() => Date.now());
@@ -96,11 +98,13 @@ export default function NotificationBell() {
   }, [open]);
 
   const unread = items.filter((n) => !n.read).length;
-  const filters: [Filter, string][] = [
-    ["all", "act.f_all"], ["unread", "act.f_unread"], ["sales", "act.f_sales"], ["stock", "act.f_stock"], ["debts", "act.f_debts"],
-    ...(fin ? [["money", "act.f_money"] as [Filter, string]] : []),
-    ...(isCar ? [["cars", "act.f_fines"] as [Filter, string]] : []),
-  ];
+  const filters: [Filter, string][] = expensesOnly
+    ? [["all", "act.f_all"], ["unread", "act.f_unread"]]
+    : [
+      ["all", "act.f_all"], ["unread", "act.f_unread"], ["sales", "act.f_sales"], ["stock", "act.f_stock"], ["debts", "act.f_debts"],
+      ...(fin ? [["money", "act.f_money"] as [Filter, string]] : []),
+      ...(isCar ? [["cars", "act.f_fines"] as [Filter, string]] : []),
+    ];
   const shown = items.filter((n) =>
     filter === "all" ? true
     : filter === "unread" ? !n.read

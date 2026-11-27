@@ -22,7 +22,7 @@ const money = (n: number) => Math.round(n || 0).toLocaleString("en-US");
 const dotDate = (s: string) => (s || "").replaceAll("-", ".");
 
 /** An image as PNG bytes and its size, or null (missing, blocked, broken). */
-async function pngOf(src: string): Promise<{ data: Uint8Array; w: number; h: number } | null> {
+export async function pngOf(src: string): Promise<{ data: Uint8Array; w: number; h: number } | null> {
   try {
     const res = await fetch(src, { mode: "cors" });
     if (!res.ok) return null;
@@ -37,7 +37,7 @@ async function pngOf(src: string): Promise<{ data: Uint8Array; w: number; h: num
   }
 }
 
-async function qrPng(code: string): Promise<Uint8Array | null> {
+export async function qrPng(code: string): Promise<Uint8Array | null> {
   try {
     const QRCode = (await import("qrcode")).default;
     const url = await QRCode.toDataURL(code, { errorCorrectionLevel: "M", margin: 1, width: 300 });

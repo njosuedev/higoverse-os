@@ -189,7 +189,8 @@ export default function DashboardHeader({ loading = false }: { loading?: boolean
           </button>
           <GlobalSearch />
           </>)}
-          {user?.shop_id && !expensesOnly && <NotificationBell />}
+          {/* The accountant's bell tells them of new expenses */}
+          {user?.shop_id && <NotificationBell />}
 
           <div ref={menuRef} className="relative hidden md:block">
 

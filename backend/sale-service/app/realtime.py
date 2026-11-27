@@ -35,6 +35,10 @@ from app.db.database import engine
 
 router = APIRouter(tags=["Live"])
 
+# What a car company's accountant (view-only Expenses) is told live, besides
+# their Messages: a new expense, for their notification bell.
+EXPENSES_ONLY_EVENTS = {"expense.created"}
+
 # Blanked for viewers who may not see money figures (see hides_financials);
 # events marked "financial" are not sent to them at all.
 _FINANCIAL_KEYS = {"profit", "cost_at_sale", "revenue", "cost_price", "profit_money", "profit_percent"}
@@ -57,7 +61,8 @@ def _decode(token: str) -> dict | None:
         "role": p.get("role"),
         "layout": p.get("layout"),
         "exp": float(p.get("exp") or 0),
-        # A car company's accountant: Messages only, no live business feed.
+        # A car company's accountant: Messages and new expenses only, no
+        # other live business feed.
         "chat_only": p.get("layout") == "car" and p.get("role") == "accountant",
     }
 
@@ -130,7 +135,13 @@ class Hub:
         for c in list(clients):
             if to and str(c.user["user_id"]) not in to:
                 continue
-            if c.user.get("chat_only") and not str(event.get("type", "")).startswith("chat."):
+            kind = str(event.get("type", ""))
+            if c.user.get("chat_only"):
+                if not (kind.startswith("chat.") or kind in EXPENSES_ONLY_EVENTS):
+                    continue
+                if c.offer(full):
+                    continue
+                asyncio.ensure_future(c.ws.close(code=4008))
                 continue
             if hides_financials(c.user):
                 if financial:

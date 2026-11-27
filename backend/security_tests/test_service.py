@@ -318,7 +318,8 @@ def test_ledger_entries_balance():
 
 
 def test_car_accountant_live_feed_is_messages_only():
-    """The live socket sends a car company's accountant chat events only."""
+    """The live socket sends a car company's accountant chat events and new
+    expenses only."""
     if SERVICE != "sale-service":
         pytest.skip("sale-service only")
     import json as _json
@@ -335,7 +336,10 @@ def test_car_accountant_live_feed_is_messages_only():
     hub.shops[SHOP_A] = {_C(user)}
     hub.dispatch(_json.dumps({"shop_id": SHOP_A, "type": "sale.created", "data": {"total_amount": 5}}))
     hub.dispatch(_json.dumps({"shop_id": SHOP_A, "type": "chat.message", "to": [user["user_id"]], "data": {}}))
-    assert got == ["chat.message"], got
+    hub.dispatch(_json.dumps({"shop_id": SHOP_A, "type": "expense.created", "financial": True,
+                              "data": {"title": "Paints", "amount": 135000}}))
+    hub.dispatch(_json.dumps({"shop_id": SHOP_A, "type": "debt.created", "data": {}}))
+    assert got == ["chat.message", "expense.created"], got
 
 
 def test_rra_ledger_expenses_without_ebm(client):

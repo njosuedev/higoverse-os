@@ -16,7 +16,7 @@
 // beside it (browsers block a page that starts several downloads at once).
 
 import { expenseRequest } from "@/lib/expense-api";
-import { companySheet, getPrintShop, imageForPdf, pdfCompanyHeader } from "@/lib/print-shop";
+import { getPrintShop, imageForPdf, pdfCompanyHeader } from "@/lib/print-shop";
 import { stampPdf } from "@/lib/printed-doc";
 
 export type Support = "ebm" | "wht" | "dmc" | "none";
@@ -161,29 +161,157 @@ function summary(kind: Kind, items: BookExpense[]) {
 }
 
 // ── Excel ────────────────────────────────────────────────────────────────
+//
+// Clean tables, no company block on top: each sheet starts with its header
+// row (bold, white on dark blue, frozen, with filters), amounts are numbers
+// ("#,##0"), rows are lightly striped, N/A is grey, a bold TOTAL closes the
+// table. Above it, a banner: the company (name, logo, TIN, phone, email,
+// address), the report's title, and the period, filters, count, total and
+// date. Sheets: Expenses, RRA Tax Ledger (no EBM, for E-Tax), Summary.
+
+type XlsxCell = string | number;
 
 async function exportExcel(kind: Kind, items: BookExpense[], p: { from: string; to: string; currency: string; filters?: string }) {
-  const XLSX = await import("xlsx");
+  const ExcelJS = (await import("exceljs")).default;
+  const wb = new ExcelJS.Workbook();
+  wb.creator = "Higoverse";
+  wb.created = new Date();
+  const INK = "FF16243A", BLUE = "FF0A66C2", SOFT = "FFEBF2FD", STRIPE = "FFF7F9FC", LINE = "FFDDE3EC";
+  const thin = { style: "thin" as const, color: { argb: LINE } };
   const shop = await getPrintShop();
+  const logo = await imageForPdf(shop.logo_url);      // a PNG data URL, or null
+  const logoId = logo ? wb.addImage({ base64: logo.data, extension: "png" }) : null;
   const total = items.reduce((s, i) => s + i.amount, 0);
-  const sub = `Period ${p.from} to ${p.to}${p.filters ? `  |  ${p.filters}` : ""}  |  ${items.length} expenses  |  Total ${money(total)} ${p.currency}`
-    + (kind === "rra" ? "  |  For E-Tax › Annexure download › Ledger Account" : "");
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, companySheet(XLSX, shop, TITLE[kind], sub, rows(kind, items)), kind === "rra" ? "RRA Tax Ledger" : "Expenses");
+  const contact = [shop.tin && `TIN: ${shop.tin}`, shop.phone && `Tel: ${shop.phone}`, shop.email, shop.address].filter(Boolean).join("     |     ");
+  const generated = new Date().toLocaleString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
+  const HEAD_ROW = 6;                                   // the table's header row, under the banner
+
+  /** One sheet: the company banner, a styled header row, the rows, then a TOTAL row. */
+  const table = (name: string, title: string, head: string[], body: XlsxCell[][],
+    opts: { widths: number[]; money: number[]; total?: XlsxCell[]; count: number; sum: number }) => {
+    const ws = wb.addWorksheet(name, {
+      views: [{ state: "frozen", ySplit: HEAD_ROW, showGridLines: false }],
+      pageSetup: { orientation: "landscape", fitToPage: true, fitToWidth: 1, fitToHeight: 0, paperSize: 9, printTitlesRow: `${HEAD_ROW}:${HEAD_ROW}` },
+      headerFooter: { oddFooter: `&L${(shop.name || "").replace(/&/g, "&&")}${shop.tin ? `  |  TIN ${shop.tin}` : ""}&RPage &P of &N` },
+    });
+    ws.columns = head.map((_, i) => ({ width: opts.widths[i] ?? 14 }));
+    const last = head.length;
+    const band = (row: number, text: string, style: { size: number; bold?: boolean; color: string; fill: string; height: number; italic?: boolean }) => {
+      ws.mergeCells(row, 1, row, last);
+      const c = ws.getCell(row, 1);
+      c.value = text;
+      c.font = { size: style.size, bold: style.bold, italic: style.italic, color: { argb: style.color }, name: "Calibri" };
+      c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: style.fill } };
+      // Wrapped onto more lines when longer than the table is wide (Summary).
+      const width = opts.widths.slice(0, last).reduce((s, w) => s + w, 0);
+      const lines = Math.max(1, Math.ceil((text.length * (style.size / 10)) / Math.max(width, 1)));
+      c.alignment = { vertical: "middle", horizontal: "left", indent: 1, wrapText: lines > 1 };
+      ws.getRow(row).height = style.height + (lines - 1) * style.size * 1.4;
+    };
+    // The company, then the report.
+    band(1, (shop.name || "Company").toUpperCase(), { size: 18, bold: true, color: "FFFFFFFF", fill: INK, height: 34 });
+    band(2, contact || " ", { size: 10, bold: true, color: "FFFFFFFF", fill: BLUE, height: 22 });
+    band(3, title.toUpperCase(), { size: 13, bold: true, color: INK, fill: SOFT, height: 24 });
+    band(4, `Period: ${p.from} to ${p.to}${p.filters ? `     |     ${p.filters}` : ""}     |     ${opts.count} expenses     |     Total: ${money(opts.sum)} ${p.currency}     |     Generated: ${generated}`,
+      { size: 9.5, color: "FF475569", fill: SOFT, height: 20, italic: true });
+    ws.getRow(5).height = 8;
+    if (logoId !== null && logo) {
+      const h = 52, w = Math.round((logo.w / logo.h) * h);
+      ws.addImage(logoId, { tl: { col: Math.max(last - 1, 1), row: 0.15 }, ext: { width: w, height: h } });
+    }
+    ws.getRow(HEAD_ROW).values = head;
+    const hr = ws.getRow(HEAD_ROW);
+    hr.height = 24;
+    hr.eachCell((c) => {
+      c.font = { bold: true, color: { argb: "FFFFFFFF" }, size: 10 };
+      c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: INK } };
+      c.alignment = { vertical: "middle", horizontal: "center", wrapText: true };
+      c.border = { top: thin, bottom: thin, left: thin, right: thin };
+    });
+    body.forEach((values, r) => {
+      const row = ws.addRow(values);
+      row.eachCell({ includeEmpty: true }, (c, col) => {
+        c.border = { top: thin, bottom: thin, left: thin, right: thin };
+        c.alignment = { vertical: "top", wrapText: true };
+        if (r % 2 === 1) c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: STRIPE } };
+        if (opts.money.includes(col - 1)) { c.numFmt = "#,##0"; c.alignment = { vertical: "top", horizontal: "right" }; }
+        if (c.value === NA) c.font = { color: { argb: "FF9AA0AA" } };
+        if (c.value === "MISSING") c.font = { bold: true, color: { argb: "FFC81E1E" } };
+      });
+    });
+    if (opts.total) {
+      const row = ws.addRow(opts.total);
+      row.eachCell({ includeEmpty: true }, (c, col) => {
+        c.font = { bold: true, color: { argb: INK } };
+        c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: SOFT } };
+        c.border = { top: { style: "medium", color: { argb: INK } }, bottom: thin, left: thin, right: thin };
+        if (opts.money.includes(col - 1)) { c.numFmt = "#,##0"; c.alignment = { horizontal: "right" }; }
+      });
+    }
+    ws.autoFilter = { from: { row: HEAD_ROW, column: 1 }, to: { row: HEAD_ROW + body.length, column: head.length } };
+    return ws;
+  };
+
+  /** The expense rows as cells (documents: attached or not, no annex numbers). */
+  const sheetOf = (k: Kind, list: BookExpense[]) => {
+    const r = rows(k, list);
+    const cols = Object.keys(r[0] ?? rows(k, [{ id: "", title: "", amount: 0, expense_date: "", category: "other" }])[0]);
+    const head = cols.map((c) => (c === "Amount" ? `Amount (${p.currency})` : c === "Supporting documents" ? "Supporting document" : c));
+    const body = r.map((row) => cols.map((c) => {
+      const v = (row as Record<string, unknown>)[c];
+      if (c === "Supporting documents") return typeof v === "string" && v.startsWith("Annex") ? "Attached" : String(v);
+      return typeof v === "number" ? v : String(v);
+    }));
+    const widthOf: Record<string, number> = {
+      "No.": 6, "Internal ref.": 11, Date: 12, Description: 42, Category: 20, "RRA support": 30, "Paid to": 26, "TIN / ID": 16,
+      "Supplier / payee": 26, "Supplier TIN / ID": 16, "Reason no EBM": 34, "Document reference": 20, "Paid by": 16,
+      Amount: 16, "Supporting documents": 18,
+    };
+    const amountCol = cols.indexOf("Amount");
+    const total = cols.map((c, i) => (c === "Amount" ? list.reduce((s, x) => s + x.amount, 0) : i === amountCol - 1 ? "TOTAL" : ""));
+    const sum = list.reduce((s, x) => s + x.amount, 0);
+    return { head, body, widths: cols.map((c) => widthOf[c] ?? 14), money: [amountCol], total, count: list.length, sum };
+  };
+
+  const main = sheetOf(kind, items);
+  table(kind === "rra" ? "RRA Tax Ledger" : "Expenses", kind === "rra" ? TITLE.rra : "Expense book", main.head, main.body, main);
   if (kind === "all") {
     // The expenses without EBM on their own sheet, ready for E-Tax › Ledger Account.
-    const noEbm = items.filter(isNoEbm);
-    const t = noEbm.reduce((s, i) => s + i.amount, 0);
-    XLSX.utils.book_append_sheet(wb, companySheet(XLSX, shop, TITLE.rra,
-      `Period ${p.from} to ${p.to}  |  ${noEbm.length} expenses  |  Total ${money(t)} ${p.currency}  |  For E-Tax › Annexure download › Ledger Account`,
-      rows("rra", noEbm)), "RRA Tax Ledger");
+    const noEbm = sheetOf("rra", items.filter(isNoEbm));
+    table("RRA Tax Ledger", "RRA Tax Ledger: expenses not supported by EBM (E-Tax › Ledger Account)", noEbm.head, noEbm.body, noEbm);
   }
-  const head = kind === "rra" ? "Reason no EBM" : "Category";
-  const sum: Record<string, unknown>[] = summary(kind, items).map(([k, g]) => ({ [head]: k, Expenses: g.n, Amount: g.total }));
-  sum.push({ [head]: "TOTAL", Expenses: items.length, Amount: total });
-  XLSX.utils.book_append_sheet(wb, companySheet(XLSX, shop, `Summary by ${head.toLowerCase()}`, sub, sum), "Summary");
+  // Summary: by category, then by RRA support.
+  const byCat = summary("all", items).map(([k, g]) => [k, g.n, g.total] as XlsxCell[]);
+  const ws = table("Summary", "Summary by category and RRA support", ["Category", "Expenses", `Amount (${p.currency})`], byCat,
+    { widths: [40, 14, 22], money: [2], total: ["TOTAL", items.length, total], count: items.length, sum: total });
+  const support = new Map<string, { n: number; total: number }>();
+  for (const i of items) {
+    const k = i.ebm_support && i.ebm_support !== "none" ? SUPPORT_EN[i.ebm_support] : isNoEbm(i) ? "No EBM (RRA Tax Ledger)" : "Not applicable (salaries, taxes)";
+    const g = support.get(k) ?? { n: 0, total: 0 }; g.n++; g.total += i.amount; support.set(k, g);
+  }
+  ws.addRow([]);
+  const h2 = ws.addRow(["RRA support", "Expenses", `Amount (${p.currency})`]);
+  h2.eachCell((c) => {
+    c.font = { bold: true, color: { argb: "FFFFFFFF" } };
+    c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: INK } };
+    c.border = { top: thin, bottom: thin, left: thin, right: thin };
+  });
+  [...support.entries()].sort((a, b) => b[1].total - a[1].total).forEach(([k, g], r) => {
+    const row = ws.addRow([k, g.n, g.total]);
+    row.eachCell((c, col) => {
+      c.border = { top: thin, bottom: thin, left: thin, right: thin };
+      if (r % 2 === 1) c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: STRIPE } };
+      if (col === 3) c.numFmt = "#,##0";
+    });
+  });
+
   const file = `${stemOf(kind, p)}.xlsx`;
-  XLSX.writeFile(wb, file);
+  const buf = await wb.xlsx.writeBuffer();
+  const url = URL.createObjectURL(new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
+  const a = document.createElement("a");
+  a.href = url; a.download = file;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
   return file;
 }
 

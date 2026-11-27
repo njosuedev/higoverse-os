@@ -33,11 +33,6 @@ const v = (x: unknown, width = 38) => {
   const s = String(x ?? "").trim();
   return s ? `<b>${esc(s)}</b>` : `<span class="line" style="width:${width}mm"></span>`;
 };
-/** 2026-11-09 → 09 / 11 / 2026. */
-const day = (iso?: string | null) => {
-  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso || "");
-  return m ? `<b>${m[3]} / ${m[2]} / ${m[1]}</b>` : "____ / ____ / ________";
-};
 const money = (n: number) => Math.round(n || 0).toLocaleString("en-US");
 
 /** Days between the start and end dates (at least 1). */
@@ -137,77 +132,133 @@ export function agreementTemplate(lang: AgreementLang, own?: AgreementTemplates 
   return t && t.title?.trim() ? t : DEFAULT_AGREEMENT[lang];
 }
 
-/** Escaped text with {placeholders} replaced (unknown ones stay as typed). */
-function fill(text: string, vals: Record<string, string>): string {
-  return esc(text).replace(/\{([a-z_]+)\}/g, (m, k: string) => (k in vals ? vals[k] : m));
+/** A piece of a line: text (bold when filled in), or a blank to write on. */
+export type AgreementSeg = { text: string; bold?: boolean } | { blank: number };
+/** A block of the agreement: a heading, a paragraph or a list. */
+export type AgreementBlock =
+  | { kind: "h2"; segs: AgreementSeg[] }
+  | { kind: "p"; segs: AgreementSeg[] }
+  | { kind: "ul" | "ol"; items: AgreementSeg[][] };
+
+/** The agreement as structured content, for the print (HTML) and Word. */
+export interface AgreementDoc {
+  lang: AgreementLang;
+  title: AgreementSeg[];
+  /** Intro, articles and closing, in order. */
+  body: AgreementBlock[];
+  words: Words;
+}
+
+/** A filled value (bold), or a blank of `width` mm. */
+const val = (x: unknown, width = 38): AgreementSeg[] => {
+  const s = String(x ?? "").trim();
+  return s ? [{ text: s, bold: true }] : [{ blank: width }];
+};
+const daySegs = (iso?: string | null): AgreementSeg[] => {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso || "");
+  return m ? [{ text: `${m[3]} / ${m[2]} / ${m[1]}`, bold: true }] : [{ text: "____ / ____ / ________" }];
+};
+
+/** Text with {placeholders} replaced (unknown ones stay as typed). */
+function fillSegs(text: string, vals: Record<string, AgreementSeg[]>): AgreementSeg[] {
+  const out: AgreementSeg[] = [];
+  const re = /\{([a-z_]+)\}/g;
+  let at = 0;
+  for (let m = re.exec(text); m; m = re.exec(text)) {
+    if (m.index > at) out.push({ text: text.slice(at, m.index) });
+    out.push(...(m[1] in vals ? vals[m[1]] : [{ text: m[0] }]));
+    at = m.index + m[0].length;
+  }
+  if (at < text.length) out.push({ text: text.slice(at) });
+  return out;
 }
 
 /** "Label: value" in a list item: the label in bold (when it is plain text). */
-function boldLabel(html: string): string {
-  const m = /^([^:<{]{1,40}?)(\s?:)(\s)/.exec(html);
-  return m ? `<b>${m[1]}${m[2]}</b>${m[3]}${html.slice(m[0].length)}` : html;
+function labelled(text: string, vals: Record<string, AgreementSeg[]>): AgreementSeg[] {
+  const m = /^([^:<{]{1,40}?)(\s?:)(\s)/.exec(text);
+  return m
+    ? [{ text: m[1] + m[2], bold: true }, { text: m[3] }, ...fillSegs(text.slice(m[0].length), vals)]
+    : fillSegs(text, vals);
 }
 
 /** A block of text: paragraphs, "- " bullets and "1. " numbered lists. */
-function blocks(text: string, vals: Record<string, string>): string {
-  const out: string[] = [];
-  let list: { tag: "ul" | "ol"; items: string[] } | null = null;
-  const flush = () => {
-    if (list) out.push(`<${list.tag}>${list.items.map((i) => `<li>${i}</li>`).join("")}</${list.tag}>`);
-    list = null;
-  };
+function textBlocks(text: string, vals: Record<string, AgreementSeg[]>): AgreementBlock[] {
+  const out: AgreementBlock[] = [];
+  let list: { kind: "ul" | "ol"; items: AgreementSeg[][] } | null = null;
+  const flush = () => { if (list) out.push(list); list = null; };
   for (const raw of (text || "").split(/\r?\n/)) {
     const line = raw.trim();
     if (!line) { flush(); continue; }
-    const item = /^[-•*]\s+(.*)$/.exec(line) ?? null;
+    const item = /^[-•*]\s+(.*)$/.exec(line);
     const num = item ? null : /^\d+[.)]\s+(.*)$/.exec(line);
     if (item || num) {
-      const tag = item ? "ul" : "ol";
-      if (!list || list.tag !== tag) { flush(); list = { tag, items: [] }; }
-      list.items.push(boldLabel(fill((item ?? num)![1], vals)));
+      const kind = item ? "ul" : "ol";
+      if (!list || list.kind !== kind) { flush(); list = { kind, items: [] }; }
+      list.items.push(labelled((item ?? num)![1], vals));
     } else {
       flush();
-      out.push(`<p>${fill(line, vals)}</p>`);
+      out.push({ kind: "p", segs: fillSegs(line, vals) });
     }
   }
   flush();
-  return out.join("\n  ");
+  return out;
 }
+
+/** The agreement for one rental, in one language, as structured content. */
+export function agreementDoc(r: Rental, shop: PrintShop, lang: AgreementLang, template?: AgreementTemplates | null): AgreementDoc {
+  const w = WORDS[lang];
+  const tpl = agreementTemplate(lang, template);
+  const cur = !r.currency || r.currency === "RWF" ? w.rwf : r.currency;
+  const amount = (n: number): AgreementSeg[] => (n > 0 ? [{ text: `${money(n)} ${cur}`, bold: true }] : [{ blank: 30 }, { text: ` ${cur}` }]);
+  const n = rentalDays(r);
+  const vals: Record<AgreementPlaceholder, AgreementSeg[]> = {
+    company: val(shop.name, 50),
+    company_tin: val(shop.tin, 30),
+    company_phone: val(shop.phone, 30),
+    company_address: val(shop.address, 40),
+    customer: val(r.customer, 50),
+    customer_id: val(r.customer_id_no, 40),
+    customer_phone: val(r.customer_phone, 30),
+    customer_address: val(r.customer_address, 50),
+    car: val([r.car_name, r.car_type].filter(Boolean).join(" · "), 50),
+    plate: val(r.plate_no, 50),
+    chassis: val(r.chassis_no, 50),
+    start_date: daySegs(r.start_date),
+    end_date: daySegs(r.end_date),
+    days: n ? [{ text: w.days(n), bold: true }] : [{ blank: 40 }],
+    agreement_date: daySegs(r.agreement_date),
+    rent: amount(r.rent_amount),
+    deposit: amount(r.deposit_total ?? r.deposit),
+    rental_no: [{ text: r.rental_no, bold: true }],
+  };
+  const body: AgreementBlock[] = [...textBlocks(tpl.intro, vals)];
+  for (const a of tpl.articles) {
+    if (a.title.trim()) body.push({ kind: "h2", segs: fillSegs(a.title, vals) });
+    body.push(...textBlocks(a.body, vals));
+  }
+  body.push(...textBlocks(tpl.closing, vals));
+  return { lang, title: fillSegs(tpl.title, vals), body, words: w };
+}
+
+/** The labels around the template (signatures, QR caption…), per language. */
+export const agreementWords = (lang: AgreementLang): Words => WORDS[lang];
+
+const segsHtml = (segs: AgreementSeg[]) => segs.map((s) => ("blank" in s
+  ? `<span class="line" style="width:${s.blank}mm"></span>`
+  : s.bold ? `<b>${esc(s.text)}</b>` : esc(s.text))).join("");
+const segsText = (segs: AgreementSeg[]) => segs.map((s) => ("blank" in s ? "____" : s.text)).join("");
+const blockHtml = (b: AgreementBlock) => ("items" in b
+  ? `<${b.kind}>${b.items.map((i) => `<li>${segsHtml(i)}</li>`).join("")}</${b.kind}>`
+  : `<${b.kind}>${segsHtml(b.segs)}</${b.kind}>`);
 
 export function rentalAgreementHtml(
   r: Rental, shop: PrintShop, lang: AgreementLang, opts: { autoPrint?: boolean; template?: AgreementTemplates | null } = {},
 ): string {
-  const w = WORDS[lang];
-  const tpl = agreementTemplate(lang, opts.template);
+  const doc = agreementDoc(r, shop, lang, opts.template);
+  const w = doc.words;
   const co = esc(shop.name || "");
-  const cur = !r.currency || r.currency === "RWF" ? w.rwf : esc(r.currency);
-  const amount = (n: number) => (n > 0 ? `<b>${money(n)} ${cur}</b>` : `<span class="line" style="width:30mm"></span> ${cur}`);
-  const n = rentalDays(r);
-  const vals: Record<AgreementPlaceholder, string> = {
-    company: co ? `<b>${co}</b>` : v("", 50),
-    company_tin: v(shop.tin, 30),
-    company_phone: v(shop.phone, 30),
-    company_address: v(shop.address, 40),
-    customer: v(r.customer, 50),
-    customer_id: v(r.customer_id_no, 40),
-    customer_phone: v(r.customer_phone, 30),
-    customer_address: v(r.customer_address, 50),
-    car: v([r.car_name, r.car_type].filter(Boolean).join(" · "), 50),
-    plate: v(r.plate_no, 50),
-    chassis: v(r.chassis_no, 50),
-    start_date: day(r.start_date),
-    end_date: day(r.end_date),
-    days: n ? `<b>${esc(w.days(n))}</b>` : v("", 40),
-    agreement_date: day(r.agreement_date),
-    rent: amount(r.rent_amount),
-    deposit: amount(r.deposit_total ?? r.deposit),
-    rental_no: `<b>${esc(r.rental_no)}</b>`,
-  };
-  const articles = tpl.articles
-    .map((a) => `${a.title.trim() ? `<h2>${fill(a.title, vals)}</h2>\n  ` : ""}${blocks(a.body, vals)}`)
-    .join("\n\n  ");
 
-  return `<!doctype html><html lang="${lang}"><head><meta charset="utf-8"><title>${fill(tpl.title, vals).replace(/<[^>]*>/g, "")} ${esc(r.rental_no)}</title>
+  return `<!doctype html><html lang="${lang}"><head><meta charset="utf-8"><title>${esc(segsText(doc.title))} ${esc(r.rental_no)}</title>
 <style>
   @page { size: A4; margin: 18mm 20mm 16mm; }
   * { box-sizing: border-box; }
@@ -236,12 +287,8 @@ export function rentalAgreementHtml(
     </div>
   </div>
   <span class="no">${esc(r.rental_no)}</span>
-  <h1>${fill(tpl.title, vals)}</h1>
-  ${blocks(tpl.intro, vals)}
-
-  ${articles}
-
-  ${blocks(tpl.closing, vals)}
+  <h1>${segsHtml(doc.title)}</h1>
+  ${doc.body.map(blockHtml).join("\n  ")}
 
   <div class="sign">
     <div>

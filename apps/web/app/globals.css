@@ -343,6 +343,10 @@ input, textarea, select, button {
 /* the old white-on-blue call-to-action becomes LinkedIn's blue pill */
 .hgv-surface .bg-white { background-color: var(--color-ink); color: #ffffff; box-shadow: none; }
 .hgv-surface .bg-white:hover { background-color: var(--color-ink-dark); }
+/* Dates typed on those blue boxes (DateRangeFilter): white and bold, with a
+   white calendar icon, so they read on the blue. */
+.hgv-surface .bg-white input[type="date"] { color: #ffffff; font-weight: 700; color-scheme: dark; }
+.hgv-surface .bg-white .text-text-faint { color: rgb(255 255 255 / 0.85); }
 /* figures that were tinted light for contrast on blue */
 .hgv-surface .text-green-300,
 .hgv-surface .text-emerald-300,
